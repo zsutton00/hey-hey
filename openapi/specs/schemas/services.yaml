@@ -592,3 +592,38 @@ QueryImplementationHintFileReferencesDto:
       description: Filter by linked version confidence.
     extractedFrom:
       $ref: "#/ImplementationHintExtractedFrom"
+
+AdminProjectImplementationHintsDto:
+  type: object
+  description: >-
+    Every implementation hint in a project grouped by Service, including
+    Services that have been archived. Read-only debug view for platform admins.
+  required:
+    - services
+  properties:
+    services:
+      type: array
+      items:
+        $ref: "#/AdminProjectServiceImplementationHintsDto"
+
+AdminProjectServiceImplementationHintsDto:
+  type: object
+  required:
+    - serviceId
+    - serviceName
+    - hints
+  properties:
+    serviceId:
+      type: string
+      format: uuid
+    serviceName:
+      type: string
+    archivedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Set when the Service is archived.
+    hints:
+      type: array
+      items:
+        $ref: "#/ImplementationHintDto"

@@ -34,7 +34,7 @@ const workItemType = (
   key: string,
   name: string,
   role: WorkItemTypeRole,
-  overrides: Partial<WorkItemTypeSummaryDto> = {}
+  overrides: Partial<WorkItemTypeSummaryDto> = {},
 ): WorkItemTypeSummaryDto => ({
   id: `type-${key}`,
   projectId: "project-1",
@@ -50,19 +50,19 @@ const defaultWorkItemTypes = (): WorkItemTypeSummaryDto[] => [
   workItemType(
     "CUSTOM_WORK_ITEM",
     "Custom Work Items",
-    WorkItemTypeRole.WorkItem
+    WorkItemTypeRole.WorkItem,
   ),
   workItemType("FEATURE", "Features", WorkItemTypeRole.ProjectInfo),
   workItemType(
     "CUSTOM_PROJECT_INFO",
     "Custom Project Info",
-    WorkItemTypeRole.ProjectInfo
+    WorkItemTypeRole.ProjectInfo,
   ),
   workItemType("INITIATIVE", "Initiatives", WorkItemTypeRole.ProjectInfo),
   workItemType(
     "SCHEDULED_REPORT",
     "Scheduled Reports",
-    WorkItemTypeRole.Scheduled
+    WorkItemTypeRole.Scheduled,
   ),
   workItemType("WEBHOOK", "Webhooks", WorkItemTypeRole.Trigger),
   workItemType("TASK_MONITOR", "Task Monitors", WorkItemTypeRole.Monitor),
@@ -102,17 +102,20 @@ vi.mock("@hey-hey/ui-common/hooks", () => ({
 }));
 
 vi.mock("@hey-hey/ui-common/data", async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import("@hey-hey/ui-common/data")
-  >();
+  const actual =
+    await importOriginal<typeof import("@hey-hey/ui-common/data")>();
   mockBuildProjectWorkspaceNavigation.mockImplementation(
-    actual.buildProjectWorkspaceNavigation
+    actual.buildProjectWorkspaceNavigation,
   );
 
   return {
     ...actual,
     buildProjectWorkspaceNavigation: mockBuildProjectWorkspaceNavigation,
     useProject: () => ({ data: mockProject }),
+    usePlatformAdminAccess: () => ({
+      isPlatformAdmin: false,
+      isResolved: true,
+    }),
     useProjectPlans: () => ({ plans: [], isLoading: false }),
     useWorkItemTypes: () => ({
       workItemTypes: mockWorkItemTypes,
@@ -248,7 +251,7 @@ describe("ProjectPage", () => {
             element={<ProjectPage />}
           />
         </Routes>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
   it.each(["/projects/project-1", "/projects/project-1/landing"])(
@@ -259,7 +262,7 @@ describe("ProjectPage", () => {
       renderPage(path);
 
       expect(
-        screen.getByText("Authoritative Project Overview")
+        screen.getByText("Authoritative Project Overview"),
       ).toBeInTheDocument();
       expect(mockProjectOverview).toHaveBeenCalledWith({
         organizationId: "org-1",
@@ -267,7 +270,7 @@ describe("ProjectPage", () => {
       });
       expect(storageSpy).not.toHaveBeenCalled();
       storageSpy.mockRestore();
-    }
+    },
   );
 
   it("presents the seven durable destinations in order", () => {
@@ -279,8 +282,8 @@ describe("ProjectPage", () => {
     expect(
       Array.from(
         navigation.querySelectorAll("button"),
-        (button) => button.textContent
-      )
+        (button) => button.textContent,
+      ),
     ).toEqual([
       "Overview",
       "Work",
@@ -292,7 +295,7 @@ describe("ProjectPage", () => {
     ]);
     expect(navigation).not.toHaveTextContent("Admin");
     expect(
-      screen.queryByTestId("overview-segmented-toggle")
+      screen.queryByTestId("overview-segmented-toggle"),
     ).not.toBeInTheDocument();
   });
 
@@ -317,7 +320,7 @@ describe("ProjectPage", () => {
         organizationId: "org-1",
         projectId: "project-1",
       });
-    }
+    },
   );
 
   it("withholds Discuss until project context resolves", () => {
@@ -326,7 +329,7 @@ describe("ProjectPage", () => {
 
     expect(mockDiscussCapsuleAction).not.toHaveBeenCalled();
     expect(
-      screen.queryByTestId("discuss-capsule-action")
+      screen.queryByTestId("discuss-capsule-action"),
     ).not.toBeInTheDocument();
   });
 
@@ -347,7 +350,7 @@ describe("ProjectPage", () => {
             type: "project",
           },
         ],
-      })
+      }),
     );
   });
 
@@ -373,7 +376,7 @@ describe("ProjectPage", () => {
     renderPage();
 
     expect(mockProjectWorkItemsTab).toHaveBeenCalledWith(
-      expect.objectContaining({ taskType: "BUG", title: "Bugs" })
+      expect.objectContaining({ taskType: "BUG", title: "Bugs" }),
     );
   });
 
@@ -384,23 +387,23 @@ describe("ProjectPage", () => {
 
     expect(mockBuildProjectWorkspaceNavigation).toHaveBeenCalledWith(
       mockWorkItemTypes,
-      "project-1"
+      "project-1",
     );
     expect(
-      screen.getByRole("button", { name: "Features" })
+      screen.getByRole("button", { name: "Features" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Custom Project Info" })
+      screen.getByRole("button", { name: "Custom Project Info" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Design Docs" })
+      screen.getByRole("button", { name: "Design Docs" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Plans" })).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Initiatives" })
+      screen.queryByRole("button", { name: "Initiatives" }),
     ).not.toBeInTheDocument();
     expect(mockProjectWorkItemsTab).toHaveBeenCalledWith(
-      expect.objectContaining({ taskType: "FEATURE", title: "Features" })
+      expect.objectContaining({ taskType: "FEATURE", title: "Features" }),
     );
   });
 
@@ -427,7 +430,7 @@ describe("ProjectPage", () => {
     renderPage();
 
     expect(
-      screen.getByRole("navigation", { name: "Project views" })
+      screen.getByRole("navigation", { name: "Project views" }),
     ).toHaveTextContent("Work");
     expect(screen.queryByTestId("type-selector")).not.toBeInTheDocument();
     expect(mockProjectWorkItemsTab).not.toHaveBeenCalled();
@@ -441,7 +444,7 @@ describe("ProjectPage", () => {
     renderPage();
 
     expect(
-      screen.getByText("No work item types are available for this project.")
+      screen.getByText("No work item types are available for this project."),
     ).toBeInTheDocument();
     expect(screen.queryByTestId("type-selector")).not.toBeInTheDocument();
   });
@@ -493,19 +496,19 @@ describe("ProjectPage", () => {
     await user.click(screen.getByRole("button", { name: "Bugs" }));
     expect(mockSetNavigationState).toHaveBeenCalledWith(
       { tab: "work", type: "BUG" },
-      { history: "push" }
+      { history: "push" },
     );
 
     await user.click(screen.getByRole("button", { name: "Knowledge" }));
     expect(mockSetNavigationState).toHaveBeenCalledWith(
       { tab: "knowledge", type: "FEATURE" },
-      { history: "push" }
+      { history: "push" },
     );
 
     await user.click(screen.getByRole("button", { name: "Help" }));
     expect(mockSetNavigationState).toHaveBeenCalledWith(
       { tab: "help", type: "STANDARD" },
-      { history: "push" }
+      { history: "push" },
     );
   });
 });

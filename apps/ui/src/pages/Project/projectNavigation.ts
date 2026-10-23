@@ -11,6 +11,7 @@ export type ProjectDestination =
   | "agents"
   | "knowledge"
   | "settings"
+  | "admin"
   | "help";
 
 export const PROJECT_DESTINATIONS: ReadonlyArray<{
@@ -23,6 +24,7 @@ export const PROJECT_DESTINATIONS: ReadonlyArray<{
   { value: "agents", label: "Agents" },
   { value: "knowledge", label: "Knowledge" },
   { value: "settings", label: "Settings" },
+  { value: "admin", label: "Admin" },
   { value: "help", label: "Help" },
 ];
 

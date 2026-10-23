@@ -862,6 +862,7 @@ export {
   useDemoSandboxAdmin,
   type UseDemoSandboxAdminReturn,
 } from "./useDemoSandboxAdmin";
+export { useAdminProjectImplementationHints } from "./useAdminProjectImplementationHints";
 export {
   usePlatformAdminAccess,
   type UsePlatformAdminAccessReturn,

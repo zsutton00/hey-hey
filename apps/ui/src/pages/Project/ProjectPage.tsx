@@ -4,6 +4,7 @@ import { EntityType } from "@hey-hey/ui-common/api";
 import { TrackingProvider, useOrganization } from "@hey-hey/ui-common/context";
 import {
   buildProjectWorkspaceNavigation,
+  usePlatformAdminAccess,
   useProject,
   useProjectPlans,
   useWorkItemTypes,
@@ -29,6 +30,7 @@ import {
 } from "../../components/Tabs";
 import { tabTransitionVariants } from "../../utils/routeTransitions";
 import { ProjectHelpPage } from "../NewOrgLanding/ProjectHelpPage";
+import { ProjectAdminDestination } from "./ProjectAdminDestination";
 import { ProjectAgentsTab } from "./ProjectAgentsTab";
 import { ProjectSettingsTab } from "./ProjectSettingsTab";
 import { ProjectOverviewDestination } from "./views";
@@ -52,7 +54,13 @@ export const ProjectPage: React.FC = () => {
       tab: parseAsString.withDefault("overview"),
       type: parseAsString,
     });
-  const activeDestination = resolveProjectDestination(activeTab);
+  const { isPlatformAdmin } = usePlatformAdminAccess();
+  const requestedDestination = resolveProjectDestination(activeTab);
+  // Admin is for platform admins only; anyone else lands on Overview.
+  const activeDestination =
+    requestedDestination === "admin" && !isPlatformAdmin
+      ? "overview"
+      : requestedDestination;
 
   const projectQuery = useProject(currentOrgId || "", projectId || "", {
     enabled: !!currentOrgId && !!projectId,
@@ -66,14 +74,14 @@ export const ProjectPage: React.FC = () => {
   const { plans = [], isLoading: isPlansLoading } = useProjectPlans(
     currentOrgId,
     projectId,
-    { enabled: !!currentOrgId && !!projectId }
+    { enabled: !!currentOrgId && !!projectId },
   );
   const { workItemTypes, isReady: areWorkItemTypesReady } = useWorkItemTypes(
     currentOrgId,
     {
       projectId,
       enabled: !!currentOrgId && !!projectId,
-    }
+    },
   );
 
   const navigation = useMemo(
@@ -81,7 +89,7 @@ export const ProjectPage: React.FC = () => {
       areWorkItemTypesReady && projectId
         ? buildProjectWorkspaceNavigation(workItemTypes, projectId)
         : undefined,
-    [areWorkItemTypesReady, projectId, workItemTypes]
+    [areWorkItemTypesReady, projectId, workItemTypes],
   );
   const selectedNavigationItem = useMemo(
     () =>
@@ -89,13 +97,13 @@ export const ProjectPage: React.FC = () => {
         ? resolveProjectNavigationItem(
             navigation?.groups ?? [],
             activeTab,
-            activeType
+            activeType,
           )
         : undefined,
-    [activeTab, activeType, areWorkItemTypesReady, navigation]
+    [activeTab, activeType, areWorkItemTypesReady, navigation],
   );
   const selectedNavigationGroup = navigation?.groups.find(
-    (group) => group.key === activeDestination
+    (group) => group.key === activeDestination,
   );
 
   const handleProjectTabChange = useCallback(
@@ -103,7 +111,7 @@ export const ProjectPage: React.FC = () => {
       if (typeof value !== "string") return;
       const destination = value as ProjectDestination;
       const group = navigation?.groups.find(
-        (candidate) => candidate.key === destination
+        (candidate) => candidate.key === destination,
       );
       void setNavigationState(
         {
@@ -114,23 +122,25 @@ export const ProjectPage: React.FC = () => {
               : null
             : activeType,
         },
-        { history: "push" }
+        { history: "push" },
       );
     },
-    [activeType, navigation, setNavigationState]
+    [activeType, navigation, setNavigationState],
   );
 
   const handleProjectTypeChange = useCallback(
     (value: string): void => {
       void setNavigationState(
         { tab: activeDestination, type: value },
-        { history: "push" }
+        { history: "push" },
       );
     },
-    [activeDestination, setNavigationState]
+    [activeDestination, setNavigationState],
   );
 
-  const tabs: DetailPageTab[] = PROJECT_DESTINATIONS.map((destination) => ({
+  const tabs: DetailPageTab[] = PROJECT_DESTINATIONS.filter(
+    (destination) => destination.value !== "admin" || isPlatformAdmin,
+  ).map((destination) => ({
     value: destination.value,
     label: destination.label,
   }));
@@ -317,6 +327,18 @@ export const ProjectPage: React.FC = () => {
                 organizationId={currentOrgId!}
                 projectId={projectId!}
               />
+            </motion.div>
+          )}
+
+          {activeDestination === "admin" && (
+            <motion.div
+              key="admin"
+              variants={tabTransitionVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              <ProjectAdminDestination projectId={projectId!} />
             </motion.div>
           )}
 

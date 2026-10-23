@@ -245,6 +245,45 @@ export class ImplementationHintService {
     );
   }
 
+  /**
+   * Platform-admin debug read: every hint of every Service in a project,
+   * archived Services included, grouped by Service.
+   */
+  async findAllByProjectGroupedByService(projectId: string): Promise<
+    Array<{
+      serviceId: string;
+      serviceName: string;
+      archivedAt: string | null;
+      hints: ImplementationHintRecordDto[];
+    }>
+  > {
+    const services = await this.prisma.db.service.findMany({
+      where: { projectId },
+      orderBy: [{ archivedAt: 'asc' }, { name: 'asc' }],
+      select: {
+        id: true,
+        name: true,
+        archivedAt: true,
+        implementationHints: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            versions: { orderBy: { version: 'desc' } },
+            fileReferences: { orderBy: { createdAt: 'desc' } },
+          },
+        },
+      },
+    });
+
+    return services.map((service) => ({
+      serviceId: service.id,
+      serviceName: service.name,
+      archivedAt: service.archivedAt?.toISOString() ?? null,
+      hints: service.implementationHints.map((hint) =>
+        this.mapToRecordResponse(hint, true),
+      ),
+    }));
+  }
+
   async findOne(
     organizationId: OrganizationId,
     hintId: string,

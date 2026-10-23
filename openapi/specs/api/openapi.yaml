@@ -1731,6 +1731,38 @@ paths:
         "401":
           description: Authentication required.
 
+  /admin/projects/{projectId}/implementation-hints:
+    get:
+      operationId: getAdminProjectImplementationHints
+      tags: [DebugAdmin]
+      summary: List a project's implementation hints grouped by Service
+      description: >-
+        Platform admins only. Returns every implementation hint of every Service
+        in the project, archived Services included, which agent search can no
+        longer reach.
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Implementation hints grouped by Service.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AdminProjectImplementationHintsDto"
+        "403":
+          description: Admin access required.
+
   /admin/onboard-beta-user:
     post:
       summary: Onboard a beta user
@@ -21960,6 +21992,46 @@ paths:
         "409":
           description: Current content changed while preparing the candidate
 
+  /organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/reconciliation/agent-fix-request:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: proposalId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: createProposalAgentFixRequest
+      tags: [Proposals]
+      summary: Record an Agent fix request without starting anything
+      description: >-
+        Records (or returns the caller's still-unstarted) proposal-refiner Agent Session
+        and Conversation for an out-of-date proposal, with the exact run input the app
+        must start it with. Accepts no machine or authorization and never dispatches a run.
+      responses:
+        "200":
+          description: Recorded Agent fix request
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ProposalAgentFixRequest'
+        "404":
+          description: Proposal not found
+        "409":
+          description: The proposal does not need reconciliation
+
   /organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/validate:
     parameters:
       - name: organizationId
@@ -24084,8 +24156,16 @@ components:
       $ref: "../schemas/proposals.yaml#/ProposalReconciliationRevision"
     ProposalReconciliationState:
       $ref: "../schemas/proposals.yaml#/ProposalReconciliationState"
+    ProposalReconciliationIntervening:
+      $ref: "../schemas/proposals.yaml#/ProposalReconciliationIntervening"
+    ProposalReconciliationOverlap:
+      $ref: "../schemas/proposals.yaml#/ProposalReconciliationOverlap"
+    ProposalReconciliationFieldChange:
+      $ref: "../schemas/proposals.yaml#/ProposalReconciliationFieldChange"
     CreateProposalReconciliationCandidate:
       $ref: "../schemas/proposals.yaml#/CreateProposalReconciliationCandidate"
+    ProposalAgentFixRequest:
+      $ref: "../schemas/proposals.yaml#/ProposalAgentFixRequest"
     ProposalResponseDto:
       $ref: "../schemas/proposals.yaml#/ProposalResponseDto"
     CreateProposalDto:
@@ -24840,6 +24920,10 @@ components:
       $ref: "../schemas/services.yaml#/ServiceAgentSessionRelation"
     ImplementationHintDto:
       $ref: "../schemas/services.yaml#/ImplementationHintDto"
+    AdminProjectImplementationHintsDto:
+      $ref: "../schemas/services.yaml#/AdminProjectImplementationHintsDto"
+    AdminProjectServiceImplementationHintsDto:
+      $ref: "../schemas/services.yaml#/AdminProjectServiceImplementationHintsDto"
     CreateImplementationHintDto:
       $ref: "../schemas/services.yaml#/CreateImplementationHintDto"
     UpdateImplementationHintDto:

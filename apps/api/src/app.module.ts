@@ -27,6 +27,7 @@ import { ArtifactController } from './controllers/artifact.controller';
 import { AdminController } from './controllers/admin.controller';
 import { DemoSandboxController } from './controllers/demo-sandbox.controller';
 import { DemoTemplateController } from './controllers/demo-template.controller';
+import { AdminImplementationHintController } from './controllers/admin-implementation-hint.controller';
 import { PlatformAdminAccessController } from './controllers/platform-admin-access.controller';
 import { BotCheckService } from './services/demo-sandbox/bot-check.service';
 import { DemoSandboxAdmissionService } from './services/demo-sandbox/demo-sandbox-admission.service';
@@ -194,6 +195,7 @@ import { ProjectMetricsController } from './controllers/project-metrics.controll
 import { EvalRunController } from './controllers/eval-run.controller';
 import { EvalOutputAdmissionService } from './services/eval/eval-output-admission.service';
 import { EvalRunService } from './services/eval-runs/eval-run.service';
+import { ProposalAgentFixService } from './services/proposal/proposal-agent-fix.service';
 import { ProjectReportRequestController } from './controllers/project-report-request.controller';
 import { ProjectReportLaunchService } from './services/project-reports/project-report-launch.service';
 import { MetricsModule } from './core/metrics/metrics.module';
@@ -248,6 +250,7 @@ import { TypeSafeJevModule } from './services/typesafe-jev/typesafe-jev.module';
     RuntimeModelCatalogController,
     AdminController,
     PlatformAdminAccessController,
+    AdminImplementationHintController,
     DemoTemplateController,
     DemoSandboxController,
     AuthController,
@@ -417,6 +420,7 @@ import { TypeSafeJevModule } from './services/typesafe-jev/typesafe-jev.module';
     ProjectReportLaunchService,
     EvalOutputAdmissionService,
     EvalRunService,
+    ProposalAgentFixService,
   ],
 })
 export class AppModule {}

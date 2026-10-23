@@ -4,9 +4,7 @@ import {
   WorkItemTypeRole,
   type WorkItemTypeSummaryDto,
 } from "@hey-hey/ui-common/api";
-import {
-  buildProjectWorkspaceNavigation,
-} from "@hey-hey/ui-common/data";
+import { buildProjectWorkspaceNavigation } from "@hey-hey/ui-common/data";
 import { describe, expect, it } from "vitest";
 import {
   getProjectNavigationItemKey,
@@ -30,7 +28,7 @@ const summary = (
 });
 
 describe("projectNavigation", () => {
-  it("defines the seven durable destinations in product order", () => {
+  it("defines the eight durable destinations in product order", () => {
     expect(PROJECT_DESTINATIONS).toEqual([
       { value: "overview", label: "Overview" },
       { value: "work", label: "Work" },
@@ -38,6 +36,7 @@ describe("projectNavigation", () => {
       { value: "agents", label: "Agents" },
       { value: "knowledge", label: "Knowledge" },
       { value: "settings", label: "Settings" },
+      { value: "admin", label: "Admin" },
       { value: "help", label: "Help" },
     ]);
   });
@@ -119,11 +118,7 @@ describe("projectNavigation", () => {
     );
     expect(
       getProjectNavigationItemKey(
-        resolveProjectNavigationItem(
-          groups,
-          WorkItemTypeRole.WorkItem,
-          "BUG",
-        )!,
+        resolveProjectNavigationItem(groups, WorkItemTypeRole.WorkItem, "BUG")!,
       ),
     ).toBe("BUG");
     expect(
@@ -176,6 +171,8 @@ describe("projectNavigation", () => {
     expect(
       resolveProjectNavigationItem(groups, "knowledge-base", null)?.kind,
     ).toBe("design-doc");
-    expect(resolveProjectNavigationItem(groups, "reviews", null)).toBeUndefined();
+    expect(
+      resolveProjectNavigationItem(groups, "reviews", null),
+    ).toBeUndefined();
   });
 });

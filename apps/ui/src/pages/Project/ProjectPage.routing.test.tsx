@@ -49,6 +49,7 @@ vi.mock("@hey-hey/ui-common/hooks", () => ({
 
 vi.mock("@hey-hey/ui-common/data", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@hey-hey/ui-common/data")>()),
+  usePlatformAdminAccess: () => ({ isPlatformAdmin: false, isResolved: true }),
   useProject: () => ({
     data: {
       id: "project-1",
