@@ -8,9 +8,13 @@
   "scripts": {
     "prepare": "husky",
     "bootstrap": "pnpm install --frozen-lockfile",
-    "generate": "export HEY_HEY_OPENAPI_ROOT=\"$PWD/openapi\" && pnpm --filter @hey-hey/ui-common generate:all && pnpm --filter ./apps/cli generate && pnpm --filter ./apps/api db:generate && pnpm --filter ./apps/api generate:all",
-    "build": "pnpm --filter ./apps/ui build && pnpm --filter ./apps/cli build && pnpm --filter ./apps/api build",
-    "check": "pnpm --filter @hey-hey/ui-common build && pnpm --filter ./apps/ui type-check && pnpm --filter ./apps/ui test && pnpm --filter ./apps/cli typecheck && pnpm --filter ./apps/cli test"
+    "generate:contracts": "node scripts/generate-contracts.mjs",
+    "generate:check": "node scripts/generate-contracts.mjs --check",
+    "generate:verify": "node scripts/generate-contracts.mjs --verify",
+    "openapi:identity": "node scripts/openapi-source.cjs --identity",
+    "build": "pnpm generate:verify && pnpm --filter ./apps/ui build && pnpm --filter ./apps/cli build && pnpm --filter ./apps/api build",
+    "check": "pnpm generate:verify && pnpm --filter @hey-hey/ui-common build && pnpm --filter ./apps/ui type-check && pnpm --filter ./apps/ui test && pnpm --filter ./apps/cli typecheck && pnpm --filter ./apps/cli test",
+    "test:scripts": "node --test scripts/*.test.mjs"
   },
   "devDependencies": {
     "husky": "^9.1.7",

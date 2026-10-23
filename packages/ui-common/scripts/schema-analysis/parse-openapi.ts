@@ -136,7 +136,8 @@ function resolveSchema(
   baseFile: string,
   depth = 0,
 ): { resolved: SchemaObject; dtoName: string | null; sourceFile: string } {
-  if (depth > 20) return { resolved: schema, dtoName: null, sourceFile: baseFile };
+  if (depth > 20)
+    return { resolved: schema, dtoName: null, sourceFile: baseFile };
 
   if (schema.$ref) {
     const {
@@ -161,11 +162,11 @@ function resolveSchema(
     let dtoName: string | null = null;
     let lastSourceFile = baseFile;
     for (const part of schema.allOf) {
-      const { resolved, dtoName: partName, sourceFile } = resolveSchema(
-        part,
-        baseFile,
-        depth + 1,
-      );
+      const {
+        resolved,
+        dtoName: partName,
+        sourceFile,
+      } = resolveSchema(part, baseFile, depth + 1);
       if (partName) {
         dtoName = partName;
         lastSourceFile = sourceFile;
@@ -700,7 +701,7 @@ export function parseOpenAPISpec(specPath: string): RelationshipMap {
 function main() {
   const specPath =
     process.argv[2] ||
-    path.resolve(__dirname, "../../../openapi/specs/api/openapi.yaml");
+    path.resolve(__dirname, "../../../../openapi/specs/api/openapi.yaml");
 
   if (!fs.existsSync(specPath)) {
     console.error(`OpenAPI spec not found at: ${specPath}`);
@@ -731,8 +732,7 @@ function main() {
 
 // Only run when executed directly, not when imported
 const isDirectRun =
-  process.argv[1] &&
-  import.meta.url === `file://${process.argv[1]}`;
+  process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
 if (isDirectRun) {
   main();
 }

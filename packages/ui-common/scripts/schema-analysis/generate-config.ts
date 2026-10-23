@@ -30,11 +30,11 @@ const __dirname = path.dirname(__filename);
 
 const DEFAULT_OPENAPI_PATH = path.resolve(
   __dirname,
-  "../../../openapi/specs/api/openapi.yaml",
+  "../../../../openapi/specs/api/openapi.yaml",
 );
 const DEFAULT_PRISMA_PATH = path.resolve(
   __dirname,
-  "../../../api/prisma/schema.prisma",
+  "../../../../apps/api/prisma/schema.prisma",
 );
 const DEFAULT_OUTPUT_PATH = path.resolve(
   __dirname,
@@ -105,24 +105,22 @@ function printUsage(): void {
   console.error(`  --openapi  Path to OpenAPI YAML spec`);
   console.error(`  --prisma   Path to Prisma schema file`);
   console.error(`  --output   Output path for generated config`);
-  console.error(`  --skip-validation  Skip diff validation against previous config`);
+  console.error(
+    `  --skip-validation  Skip diff validation against previous config`,
+  );
   console.error(`  --help     Show this help message`);
 }
 
 function validateFile(filePath: string, label: string): void {
   if (!fs.existsSync(filePath)) {
-    console.error(
-      `Error: ${label} not found at ${filePath}`,
-    );
+    console.error(`Error: ${label} not found at ${filePath}`);
     process.exit(1);
   }
 
   try {
     fs.accessSync(filePath, fs.constants.R_OK);
   } catch {
-    console.error(
-      `Error: ${label} is not readable at ${filePath}`,
-    );
+    console.error(`Error: ${label} is not readable at ${filePath}`);
     process.exit(1);
   }
 }
@@ -180,11 +178,8 @@ function main(): void {
   try {
     openApiMap = parseOpenAPISpec(args.openapi);
   } catch (err) {
-    const msg =
-      err instanceof Error ? err.message : String(err);
-    console.error(
-      `Error: Failed to parse OpenAPI spec: ${msg}`,
-    );
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`Error: Failed to parse OpenAPI spec: ${msg}`);
     process.exit(1);
   }
 
@@ -193,11 +188,8 @@ function main(): void {
   try {
     prismaMap = parsePrismaSchema(args.prisma);
   } catch (err) {
-    const msg =
-      err instanceof Error ? err.message : String(err);
-    console.error(
-      `Error: Failed to parse Prisma schema: ${msg}`,
-    );
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`Error: Failed to parse Prisma schema: ${msg}`);
     process.exit(1);
   }
 
@@ -208,9 +200,7 @@ function main(): void {
   // Carry forward any developer-written notes from the previous output
   const priorAnnotations = readPriorAnnotations(args.output);
   if (priorAnnotations.size > 0) {
-    console.error(
-      `  Preserving ${priorAnnotations.size} manual annotation(s)`,
-    );
+    console.error(`  Preserving ${priorAnnotations.size} manual annotation(s)`);
   }
 
   // Serialize to config
@@ -233,9 +223,7 @@ function main(): void {
         console.error(formatValidationReport(report));
       }
     } catch {
-      console.error(
-        "  Warning: Could not read previous config for validation",
-      );
+      console.error("  Warning: Could not read previous config for validation");
     }
   }
 
@@ -245,15 +233,9 @@ function main(): void {
   fs.writeFileSync(args.output, json, "utf-8");
 
   console.error(`\nConfiguration written to: ${args.output}`);
-  console.error(
-    `  Entities: ${config.summary.entityCount}`,
-  );
-  console.error(
-    `  Relationships: ${config.summary.relationshipCount}`,
-  );
-  console.error(
-    `  Needs review: ${config.summary.needsReviewCount}`,
-  );
+  console.error(`  Entities: ${config.summary.entityCount}`);
+  console.error(`  Relationships: ${config.summary.relationshipCount}`);
+  console.error(`  Needs review: ${config.summary.needsReviewCount}`);
 }
 
 main();

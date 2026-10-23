@@ -236,8 +236,5 @@
     "setupFiles": [
       "<rootDir>/jest.setup.ts"
     ]
-  },
-  "lint-staged": {
-    "*.{ts,json,md}": "prettier --write --ignore-unknown"
   }
 }

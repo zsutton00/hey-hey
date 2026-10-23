@@ -655,17 +655,20 @@ const printContext = (
   context: WorktreeContext,
   environment: NodeJS.ProcessEnv = process.env,
 ): void => {
-  const siblingNames = ['openapi', 'ui', 'ui-common', 'testy-testerson'];
-  const siblings = Object.fromEntries(
-    siblingNames.map((name) => [
-      name,
-      resolveSiblingRepository(
-        context,
+  const siblingNames = ['ui', 'ui-common', 'testy-testerson'];
+  const siblings = {
+    openapi: resolveOpenapiRoot(),
+    ...Object.fromEntries(
+      siblingNames.map((name) => [
         name,
-        process.env[`HEY_HEY_${name.replace(/-/g, '_').toUpperCase()}_ROOT`],
-      ),
-    ]),
-  );
+        resolveSiblingRepository(
+          context,
+          name,
+          process.env[`HEY_HEY_${name.replace(/-/g, '_').toUpperCase()}_ROOT`],
+        ),
+      ]),
+    ),
+  };
   console.log(
     JSON.stringify(
       {

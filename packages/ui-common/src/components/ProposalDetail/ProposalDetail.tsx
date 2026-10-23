@@ -46,7 +46,6 @@ import { ProposalPlacementBlock } from "./ProposalPlacementBlock";
 import { ProposalInfluencesBlock } from "./ProposalInfluencesBlock";
 import { ProposalGroupReview } from "../ProposalGroupReview";
 import { formatProposalAction } from "../ProposalDispatchers/ProposalHeader";
-import { FutureProposalReview } from "./FutureProposalReview";
 
 const PROPOSAL_STATUS_LABEL: Record<ProposalStatus, string> = {
   [ProposalStatus.Draft]: "Needs review",
@@ -433,17 +432,6 @@ const ProposalContent: React.FC<{
   const renderMode =
     proposal.applicationEligible === false ? "evaluation-output" : undefined;
 
-  if (proposal.action === ProposalAction.VersionedUpdate) {
-    return (
-      <FutureProposalReview
-        proposal={proposal}
-        onApprove={onApply}
-        onReject={onReject}
-        onApplied={onApplied}
-      />
-    );
-  }
-
   if (proposal.action === ProposalAction.Create) {
     return (
       <CreateProposal
@@ -457,12 +445,20 @@ const ProposalContent: React.FC<{
     );
   }
 
-  if (proposal.action === ProposalAction.Update) {
+  if (
+    proposal.action === ProposalAction.Update ||
+    proposal.action === ProposalAction.VersionedUpdate
+  ) {
     return (
       <UpdateProposal
         proposals={proposals}
         onApply={onApply}
-        onApplied={isWorkItemGraphProposal(proposal) ? onApplied : undefined}
+        onApplied={
+          isWorkItemGraphProposal(proposal) ||
+          proposal.action === ProposalAction.VersionedUpdate
+            ? onApplied
+            : undefined
+        }
         onReject={onReject}
         organizationId={organizationId}
         projectId={projectId}

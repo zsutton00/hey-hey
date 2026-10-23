@@ -40,7 +40,7 @@
     "generate:projection-deletion": "npm run generate:typescript:api && npm run generate:typescript:embeddings && npm run generate:typescript:graphs && npm run generate:python:embeddings && npm run generate:java:graphs",
     "generate:all": "npm run generate:typescript && npm run generate:python",
     "lint": "npx @apidevtools/swagger-cli validate specs/api/openapi.yaml specs/embeddings/openapi.yaml specs/agent-bridge/openapi.yaml specs/local/openapi.yaml",
-    "test": "npm run validate",
+    "test": "npm run validate:all",
     "docs": "npx redoc-cli build specs/api/openapi.yaml --output docs/api.html && npx redoc-cli build specs/embeddings/openapi.yaml --output docs/embeddings.html && npx redoc-cli build specs/agent-bridge/openapi.yaml --output docs/agent-bridge.html",
     "serve:docs:api": "npx redoc-cli serve specs/api/openapi.yaml",
     "serve:docs:embeddings": "npx redoc-cli serve specs/embeddings/openapi.yaml",

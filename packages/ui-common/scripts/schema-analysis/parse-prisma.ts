@@ -452,9 +452,7 @@ export function parsePrismaSchema(filePath: string): PrismaSchemaMap {
   const result: PrismaSchemaMap = {};
 
   for (const raw of rawModels) {
-    const fields = raw.fields.map((f) =>
-      buildFieldDescriptor(f, modelNames),
-    );
+    const fields = raw.fields.map((f) => buildFieldDescriptor(f, modelNames));
     const relations = buildRelations(raw, modelNames, modelMap);
     const { indexes, uniqueConstraints } = buildIndexes(raw.blockAttributes);
     const tableName = parseTableMap(raw.blockAttributes);
@@ -512,7 +510,7 @@ function printSummary(schemaMap: PrismaSchemaMap): void {
 function main() {
   const schemaPath =
     process.argv[2] ||
-    path.resolve(__dirname, "../../../api/prisma/schema.prisma");
+    path.resolve(__dirname, "../../../../apps/api/prisma/schema.prisma");
 
   console.error(`Parsing Prisma schema: ${schemaPath}`);
   const result = parsePrismaSchema(schemaPath);
@@ -525,8 +523,7 @@ function main() {
 
 // Only run when executed directly, not when imported
 const isDirectRun =
-  process.argv[1] &&
-  import.meta.url === `file://${process.argv[1]}`;
+  process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
 if (isDirectRun) {
   main();
 }

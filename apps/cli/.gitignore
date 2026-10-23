@@ -41,9 +41,9 @@ pnpm-debug.log*
 .nyc_output/
 test-results/
 .tmp/
-.openapi-tmp/
-evals/project-assistant/baselines/
-evals/project-assistant/environment/
+
+# Evals are local-only tooling and never committed
+evals/
 
 # Package manager stores
 .pnpm-store/
@@ -65,6 +65,3 @@ evals/project-assistant/environment/
 Thumbs.db
 
 .worktrees
-
-# Jev relevance eval answers (regenerable)
-evals/jev-relevance/cache/

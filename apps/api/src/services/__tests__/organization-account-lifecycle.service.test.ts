@@ -17,8 +17,8 @@ import { AccountEntitlementService } from '../account-entitlement.service';
 import { DEMO_SYSTEM_USER_ID } from '../demo-sandbox/demo-sandbox.constants';
 import { OrganizationAccountLifecycleService } from '../organization-account-lifecycle.service';
 
-const organizationId = '99e0a635-9fe1-48c3-b145-6a61b89b9d76' as OrganizationId;
-const actorId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' as UserId;
+const organizationId = '50e01076-bce8-4a65-b205-c5da8480e8fb' as OrganizationId;
+const actorId = '3b8a5b0e-33d7-4aa1-8b6f-dc362aa62597' as UserId;
 const markerId = '43ed65fa-b0a8-4fe3-9577-28ee86f964d1';
 const now = new Date('2026-08-14T12:00:00.000Z');
 const graceEndsAt = new Date(now.getTime() + 27 * 24 * 60 * 60 * 1000);

@@ -8,7 +8,6 @@ import type {
 import { ProposalAction } from "../../../api";
 import { proposalsClient } from "../../../clients/serviceClients";
 import { useMessageProposalActions } from "../../Conversation/Components/MessageProposals";
-import { FutureProposalReview } from "../../ProposalDetail/FutureProposalReview";
 import {
   CreateProposal,
   DeleteProposal,
@@ -54,18 +53,6 @@ const VisualProposalCard: React.FC<{
   onApplied,
   diffDefaultViewMode,
 }) => {
-  if (proposal.action === ProposalAction.VersionedUpdate) {
-    return (
-      <FutureProposalReview
-        proposal={proposal}
-        onApprove={onApply}
-        onReject={onReject}
-        onApplied={onApplied}
-        disabled={disabled}
-      />
-    );
-  }
-
   const common = {
     proposals: [proposal],
     onApply,
@@ -78,9 +65,15 @@ const VisualProposalCard: React.FC<{
     case "CREATE":
       return <CreateProposal {...common} />;
     case "UPDATE":
+    case "VERSIONED_UPDATE":
       return (
         <UpdateProposal
           {...common}
+          onApplied={
+            proposal.action === ProposalAction.VersionedUpdate
+              ? onApplied
+              : undefined
+          }
           organizationId={proposal.organizationId}
           projectId={proposal.projectId}
           diffDefaultViewMode={diffDefaultViewMode}

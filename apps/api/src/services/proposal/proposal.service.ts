@@ -1,3 +1,4 @@
+import { projectReconciliationContent } from './proposal-reconciliation-content';
 import {
   parseFutureRevisionMutation,
   readFutureRevision,
@@ -518,14 +519,26 @@ export class ProposalService {
     );
   }
 
-  async reconciliationState(
+  async reconciliationReviewState(
     id: string,
     organizationId: OrganizationId,
     projectId: ProjectId,
   ) {
+    return this.reconciliationState(id, organizationId, projectId, true);
+  }
+
+  async reconciliationState(
+    id: string,
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    prepareReview = false,
+  ) {
     return this.prisma.db.$transaction(async (tx) => {
+      if (prepareReview)
+        await tx.$queryRaw`SELECT id FROM proposals WHERE id = ${id} AND organization_id = ${organizationId} AND project_id = ${projectId} FOR UPDATE`;
       const proposal = await tx.proposal.findFirst({
         where: { id, organizationId, projectId },
+        include: { groupMembership: true },
       });
       if (!proposal) throw new NotFoundException('Proposal not found');
       if (proposal.action === 'VERSIONED_UPDATE') {
@@ -537,8 +550,57 @@ export class ProposalService {
             mutation.baseline,
           );
       }
-      return this.reconciliation.state(tx, proposal);
+      return prepareReview
+        ? this.prepareStandaloneReview(tx, proposal)
+        : this.reconciliation.state(tx, proposal);
     });
+  }
+
+  private async prepareStandaloneReview(
+    tx: AnyTransactionClient,
+    proposal: Proposal & { groupMembership: unknown | null },
+  ): Promise<import('src/generated').ProposalReconciliationState> {
+    const state = await this.reconciliation.state(tx, proposal);
+    if (
+      proposal.action !== 'UPDATE' ||
+      proposal.groupMembership ||
+      proposal.status !== 'DRAFT' ||
+      state.status !== 'RECONCILIATION_REQUIRED' ||
+      state.replacementProposalId ||
+      state.replacementGroupId
+    )
+      return state;
+    const merged = this.reconciliation.prepareMerge(proposal, state);
+    if (state.overlaps.length) return state;
+    if (merged.kind !== 'MERGED')
+      return {
+        ...state,
+        status: 'AGENT_FIX_REQUIRED',
+        conflictingPaths: [...merged.conflictingPaths],
+      };
+    const currentBasis = state.currentBases[0];
+    if (!currentBasis) return state;
+    const proposedResult = projectReconciliationContent(
+      currentBasis.content as Prisma.JsonObject,
+      merged.updates,
+    );
+    // Votes on the old result cannot authorize this newly prepared candidate.
+    await tx.proposalApprovalRecord.deleteMany({
+      where: { proposalId: proposal.id },
+    });
+    const updated = await tx.proposal.update({
+      where: { id: proposal.id },
+      data: { updates: merged.updates as Prisma.InputJsonValue },
+    });
+    await this.reconciliation.appendRevision(tx, {
+      proposalId: proposal.id,
+      previousRevisionId: state.candidateRevisionId ?? null,
+      source: 'MERGE',
+      bases: state.currentBases,
+      proposedResult,
+      intent: state.revisions.at(-1)!.intent,
+    });
+    return this.reconciliation.state(tx, updated);
   }
 
   async reconcile(
@@ -554,7 +616,18 @@ export class ProposalService {
       include: { groupMembership: true },
     });
     if (!original) throw new NotFoundException('Proposal not found');
-    const state = await this.reconciliationState(id, organizationId, projectId);
+    const state =
+      input.method === 'MERGE' &&
+      original.action === 'UPDATE' &&
+      !original.groupMembership
+        ? await this.reconciliationReviewState(id, organizationId, projectId)
+        : await this.reconciliationState(id, organizationId, projectId);
+    if (
+      input.method === 'MERGE' &&
+      original.action === 'UPDATE' &&
+      !original.groupMembership
+    )
+      return state;
     if (original.action === 'VERSIONED_UPDATE')
       return this.reconcileFuture(
         original,

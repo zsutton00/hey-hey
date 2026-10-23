@@ -15869,6 +15869,117 @@ export type ProposalReconciliationBasisEntityTypeEnum = typeof ProposalReconcili
 /**
  *
  * @export
+ * @interface ProposalReconciliationFieldChange
+ */
+export interface ProposalReconciliationFieldChange {
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationFieldChange
+     */
+    'path': string;
+    /**
+     *
+     * @type {any}
+     * @memberof ProposalReconciliationFieldChange
+     */
+    'before'?: any;
+    /**
+     *
+     * @type {any}
+     * @memberof ProposalReconciliationFieldChange
+     */
+    'after'?: any;
+}
+/**
+ *
+ * @export
+ * @interface ProposalReconciliationIntervening
+ */
+export interface ProposalReconciliationIntervening {
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationIntervening
+     */
+    'proposalId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationIntervening
+     */
+    'title': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationIntervening
+     */
+    'approvedById': string | null;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationIntervening
+     */
+    'approvedByName': string | null;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationIntervening
+     */
+    'approvedAt': string;
+    /**
+     * Fields this intervening proposal changed, e.g. `name` or `sections.description`.
+     * @type {Array<string>}
+     * @memberof ProposalReconciliationIntervening
+     */
+    'changedPaths': Array<string>;
+    /**
+     * Fields of `changedPaths` that overlap this proposal and could not be merged.
+     * @type {Array<string>}
+     * @memberof ProposalReconciliationIntervening
+     */
+    'overlappingPaths': Array<string>;
+    /**
+     * The intervening proposal\'s own change per field, from the content it was reviewed against to the result it applied. Empty when that record is unavailable.
+     * @type {Array<ProposalReconciliationFieldChange>}
+     * @memberof ProposalReconciliationIntervening
+     */
+    'changes': Array<ProposalReconciliationFieldChange>;
+}
+/**
+ *
+ * @export
+ * @interface ProposalReconciliationOverlap
+ */
+export interface ProposalReconciliationOverlap {
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationOverlap
+     */
+    'path': string;
+    /**
+     * This proposal\'s value for the field.
+     * @type {any}
+     * @memberof ProposalReconciliationOverlap
+     */
+    'proposedValue'?: any;
+    /**
+     * The field\'s current value after intervening changes.
+     * @type {any}
+     * @memberof ProposalReconciliationOverlap
+     */
+    'currentValue'?: any;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationOverlap
+     */
+    'interveningProposalId': string | null;
+}
+/**
+ *
+ * @export
  * @interface ProposalReconciliationRevision
  */
 export interface ProposalReconciliationRevision {
@@ -15942,6 +16053,24 @@ export interface ProposalReconciliationState {
      * @memberof ProposalReconciliationState
      */
     'status': ProposalReconciliationStateStatusEnum;
+    /**
+     * When the change under review was originally written; for a merged replacement, when the proposal it reconciles was written.
+     * @type {string}
+     * @memberof ProposalReconciliationState
+     */
+    'writtenAt'?: string;
+    /**
+     * Proposals approved on the same target after this change was written, oldest first. Empty when the proposal is approved or rejected.
+     * @type {Array<ProposalReconciliationIntervening>}
+     * @memberof ProposalReconciliationState
+     */
+    'interveningProposals': Array<ProposalReconciliationIntervening>;
+    /**
+     * Fields an intervening change and this proposal both changed in ways that cannot be combined automatically. Approval stays unavailable until they are resolved.
+     * @type {Array<ProposalReconciliationOverlap>}
+     * @memberof ProposalReconciliationState
+     */
+    'overlaps': Array<ProposalReconciliationOverlap>;
     /**
      *
      * @type {Array<ProposalReconciliationBasis>}

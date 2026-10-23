@@ -12,10 +12,7 @@ import {
   ORGANIZATIONS_ORGANIZATIONID_ACCOUNT_LIFECYCLE_PATH,
   ORGANIZATIONS_ORGANIZATIONID_REACTIVATE_PATH,
 } from '../../generated/api/path-constants';
-import {
-  resolveSiblingRepository,
-  resolveWorktreeContext,
-} from '../../utils/worktree-context';
+import { resolveOpenapiRoot } from '../../../test/helpers/openapi-root';
 
 interface OperationSchema {
   operationId: string;
@@ -37,11 +34,7 @@ interface ObjectSchema {
   properties?: Record<string, unknown>;
 }
 
-const openapiRoot = resolveSiblingRepository(
-  resolveWorktreeContext(),
-  'openapi',
-  process.env.HEY_HEY_OPENAPI_ROOT,
-);
+const openapiRoot = resolveOpenapiRoot();
 const apiSpecification = load(
   readFileSync(join(openapiRoot, 'specs/api/openapi.yaml'), 'utf8'),
 ) as ApiSpecification;

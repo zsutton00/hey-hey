@@ -132,7 +132,7 @@ const main = async () => {
   });
   assert.equal(
     completionSource.RepositoryGroundingExternalCompletionPayload.oneOf.length,
-    12,
+    8,
     "External completion payload must include the grounding, enrichment, first-work, placement, and generic branches",
   );
   assert.equal(

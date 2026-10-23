@@ -36,9 +36,10 @@ jobs:
       - name: Note the Graph and Embeddings handoff
         if: steps.affected.outputs.external_consumer_handoff == 'true'
         run: >-
-          echo "::notice title=OpenAPI changed::Graph and Embeddings pin their own
-          specification closure. Hand them this exact revision (${{ github.sha }}),
-          the openapi/ subtree and its closure digest; they are not rebuilt here."
+          echo "::notice title=OpenAPI changed::Graph and Embeddings build against the
+          revision in their HEY_HEY_OPENAPI_REVISION variable. Once reviewed, set it to
+          ${{ github.sha }}; the pin payload is externalConsumerHandoff in
+          scripts/consolidation/generation-targets.json. They are not rebuilt here."
 
   checks:
     needs: select
@@ -128,15 +129,17 @@ jobs:
             "
           '
 
+      # Written outside the checkout so the evidence does not report itself
+      # as a working change.
       - name: Record build evidence
         shell: bash
         run: |
           node scripts/image-build-evidence.mjs \
             --image "${{ matrix.image }}" \
             --image-id "${{ steps.build.outputs.imageid }}" \
-            --tag "${{ steps.meta.outputs.tag }}" | tee "image-evidence-${{ matrix.image }}.json"
+            --tag "${{ steps.meta.outputs.tag }}" | tee "$RUNNER_TEMP/image-evidence-${{ matrix.image }}.json"
 
       - uses: actions/upload-artifact@v4
         with:
           name: image-evidence-${{ matrix.image }}
-          path: image-evidence-${{ matrix.image }}.json
+          path: ${{ runner.temp }}/image-evidence-${{ matrix.image }}.json

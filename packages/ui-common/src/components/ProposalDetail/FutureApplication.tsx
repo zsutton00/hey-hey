@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
@@ -31,7 +31,7 @@ const blockerLabels = {
   PERMISSION_DENIED:
     "Application permission or approval requirements are not satisfied.",
   COMPLETION_INCOMPLETE:
-    "Linked work must reach verification (Plans: completion) before applying.",
+    "Waiting for linked work to reach Verifying (or a linked Plan to complete). You'll be asked to apply this then.",
   BASELINE_CHANGED:
     "Current content has changed. Reviewed reconciliation is required before Apply.",
   BASELINE_UNAVAILABLE:
@@ -46,10 +46,13 @@ export function FutureApplication({
   future,
   onApplied,
   reconciliationProposal,
+  waitingNote,
 }: {
   future: FutureRevisionResponse;
   onApplied: () => Promise<void>;
   reconciliationProposal?: ProposalResponseDto;
+  /** Replaces the generic waiting-on-linked-work message. */
+  waitingNote?: ReactNode;
 }) {
   const { organizationId, projectId, id: futureId } = future;
   const [response, setResponse] = useState<FutureApplyResponse | null>(null);
@@ -124,7 +127,9 @@ export function FutureApplication({
       ) : (
         <>
           {applicability.isPending && (
-            <Typography>Checking application readiness…</Typography>
+            <Typography variant="body2">
+              Checking whether this can be applied…
+            </Typography>
           )}
           {applicability.error && (
             <Alert severity="error">{applicability.error.message}</Alert>
@@ -135,25 +140,35 @@ export function FutureApplication({
               disabled={applicability.isFetching}
               onClick={() => void applicability.refetch()}
             >
-              Refresh readiness
+              Refresh
             </Button>
           )}
-          {applicability.data?.blockers.map((blocker) => (
-            <Alert key={blocker} severity="warning">
-              {blockerLabels[blocker]}
-            </Alert>
-          ))}
+          {applicability.data?.blockers.map((blocker) =>
+            blocker === "COMPLETION_INCOMPLETE" ? (
+              <Typography
+                key={blocker}
+                variant="body2"
+                color="text.secondary"
+                data-testid="future-waiting"
+              >
+                {waitingNote ?? blockerLabels[blocker]}
+              </Typography>
+            ) : (
+              <Alert key={blocker} severity="warning">
+                {blockerLabels[blocker]}
+              </Alert>
+            ),
+          )}
           {ready && (
-            <Alert severity="info">
-              Ready, not applied. Applying requires an explicit action.
-            </Alert>
+            <Typography variant="body2" color="text.secondary">
+              The linked work is done. Apply when you're ready.
+            </Typography>
           )}
           <Button
             data-testid="future-apply"
             disabled={!ready || apply.isPending || applicability.isFetching}
             onClick={() => void submit()}
           >
-            {" "}
             {apply.isPending ? "Applying…" : "Apply"}
           </Button>
         </>
@@ -176,7 +191,7 @@ export function FutureApplication({
               toProposalApprovalFailureError(apply.error, "Application failed")
                 .message
             }{" "}
-            Refresh readiness before retrying Apply.
+            Refresh before retrying Apply.
           </Alert>
           <ProposalFailureDiagnostic
             diagnostic={extractProposalApprovalFailureDiagnostic(apply.error)}

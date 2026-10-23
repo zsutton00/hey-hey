@@ -162,6 +162,7 @@ Class | Method | HTTP request | Description
 *ConversationsApi* | [**updateInitiativeContentByConversation**](docs/ConversationsApi.md#updateinitiativecontentbyconversation) | **PUT** /organizations/{organizationId}/projects/{projectId}/initiative-refinement/conversations/{conversationId}/initiatives/{initiativeId}/content | Update initiative content with optional feedback request
 *ConversationsApi* | [**updateMessage**](docs/ConversationsApi.md#updatemessage) | **PATCH** /organizations/{organizationId}/projects/{projectId}/messages/{id} | Update a Message interaction
 *DebugAdminApi* | [**deleteOrganization**](docs/DebugAdminApi.md#deleteorganization) | **DELETE** /admin/organizations/{organizationId} | Delete an organization (admin only)
+*DebugAdminApi* | [**getAdminProjectImplementationHints**](docs/DebugAdminApi.md#getadminprojectimplementationhints) | **GET** /admin/projects/{projectId}/implementation-hints | List a project\&#39;s implementation hints grouped by Service
 *DebugAdminApi* | [**getDebugEmbeddingsEntity**](docs/DebugAdminApi.md#getdebugembeddingsentity) | **GET** /debug/embeddings/entity | Get debug info for an entity from the embeddings service
 *DebugAdminApi* | [**getDebugTopologyLifecycleSummary**](docs/DebugAdminApi.md#getdebugtopologylifecyclesummary) | **GET** /debug/topology/lifecycle-summary | Get subfacet lifecycle summary by category
 *DebugAdminApi* | [**getDebugTopologySchedule**](docs/DebugAdminApi.md#getdebugtopologyschedule) | **GET** /debug/topology/schedule | Get scheduled topology consolidation config for an organization and project
@@ -379,14 +380,15 @@ Class | Method | HTTP request | Description
 *ProposalsApi* | [**applyProposalFuture**](docs/ProposalsApi.md#applyproposalfuture) | **POST** /organizations/{organizationId}/projects/{projectId}/proposals/futures/{futureId}/apply | Apply an approved future after checking current readiness
 *ProposalsApi* | [**approveAllProposalGroupMembers**](docs/ProposalsApi.md#approveallproposalgroupmembers) | **POST** /organizations/{organizationId}/projects/{projectId}/proposal-groups/{groupId}/approve-all | Attempt approval for every frozen proposal-group member
 *ProposalsApi* | [**createProposal**](docs/ProposalsApi.md#createproposal) | **POST** /organizations/{organizationId}/projects/{projectId}/proposals | Create a proposal
-*ProposalsApi* | [**createProposalReconciliationCandidate**](docs/ProposalsApi.md#createproposalreconciliationcandidate) | **POST** /organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/reconciliation | Prepare a complete replacement for fresh review without applying it
+*ProposalsApi* | [**createProposalAgentFixRequest**](docs/ProposalsApi.md#createproposalagentfixrequest) | **POST** /organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/reconciliation/agent-fix-request | Record an Agent fix request without starting anything
+*ProposalsApi* | [**createProposalReconciliationCandidate**](docs/ProposalsApi.md#createproposalreconciliationcandidate) | **POST** /organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/reconciliation | Prepare reconciliation without applying it; standalone MERGE reuses the same proposal and grouped review retains replacements
 *ProposalsApi* | [**deleteProposal**](docs/ProposalsApi.md#deleteproposal) | **DELETE** /organizations/{organizationId}/projects/{projectId}/proposals/{proposalId} | Delete a proposal
 *ProposalsApi* | [**finalizeProposalGroup**](docs/ProposalsApi.md#finalizeproposalgroup) | **POST** /organizations/{organizationId}/projects/{projectId}/proposal-groups/{groupId}/finalize | Validate and atomically finalize a proposal group
 *ProposalsApi* | [**getProposal**](docs/ProposalsApi.md#getproposal) | **GET** /organizations/{organizationId}/projects/{projectId}/proposals/{proposalId} | Get a proposal
 *ProposalsApi* | [**getProposalFuture**](docs/ProposalsApi.md#getproposalfuture) | **GET** /organizations/{organizationId}/projects/{projectId}/proposals/futures/{futureId} | Read one explicitly selected complete reviewed future
 *ProposalsApi* | [**getProposalFutureApplicability**](docs/ProposalsApi.md#getproposalfutureapplicability) | **GET** /organizations/{organizationId}/projects/{projectId}/proposals/futures/{futureId}/applicability | Check current-user future application readiness without applying
 *ProposalsApi* | [**getProposalGroup**](docs/ProposalsApi.md#getproposalgroup) | **GET** /organizations/{organizationId}/projects/{projectId}/proposal-groups/{groupId} | Get a canonical proposal group
-*ProposalsApi* | [**getProposalReconciliation**](docs/ProposalsApi.md#getproposalreconciliation) | **GET** /organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/reconciliation | Read original and current content and reconciliation history
+*ProposalsApi* | [**getProposalReconciliation**](docs/ProposalsApi.md#getproposalreconciliation) | **GET** /organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/reconciliation | Prepare standalone clean UPDATE review on the same proposal and read reconciliation history
 *ProposalsApi* | [**listProposalFutureOffers**](docs/ProposalsApi.md#listproposalfutureoffers) | **GET** /organizations/{organizationId}/projects/{projectId}/proposals/futures | List unapplied futures that depend on a work item, with current-user readiness
 *ProposalsApi* | [**listProposals**](docs/ProposalsApi.md#listproposals) | **GET** /organizations/{organizationId}/projects/{projectId}/proposals | List proposals
 *ProposalsApi* | [**rejectProposal**](docs/ProposalsApi.md#rejectproposal) | **POST** /organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/reject | Reject a proposal
@@ -564,6 +566,8 @@ Class | Method | HTTP request | Description
  - [AdminOrganizationMemberDto](docs/AdminOrganizationMemberDto.md)
  - [AdminOrganizationMembersPageDto](docs/AdminOrganizationMembersPageDto.md)
  - [AdminOrganizationWorkItemTypeTotalDto](docs/AdminOrganizationWorkItemTypeTotalDto.md)
+ - [AdminProjectImplementationHintsDto](docs/AdminProjectImplementationHintsDto.md)
+ - [AdminProjectServiceImplementationHintsDto](docs/AdminProjectServiceImplementationHintsDto.md)
  - [AdmissionEnvelopeAuthorization](docs/AdmissionEnvelopeAuthorization.md)
  - [AdrContentApplyPayload](docs/AdrContentApplyPayload.md)
  - [AdrContentApplyPayloadAllOfSections](docs/AdrContentApplyPayloadAllOfSections.md)
@@ -1126,6 +1130,7 @@ Class | Method | HTTP request | Description
  - [CreateProjectReportRequestDtoNot](docs/CreateProjectReportRequestDtoNot.md)
  - [CreateProjectReportRequestDtoNotAnyOf](docs/CreateProjectReportRequestDtoNotAnyOf.md)
  - [CreateProjectReportRequestDtoNotAnyOf1Not](docs/CreateProjectReportRequestDtoNotAnyOf1Not.md)
+ - [CreateProposalAgentFixRequest200Response](docs/CreateProposalAgentFixRequest200Response.md)
  - [CreateProposalDto](docs/CreateProposalDto.md)
  - [CreateProposalReconciliationCandidate](docs/CreateProposalReconciliationCandidate.md)
  - [CreateProposalRequestDto](docs/CreateProposalRequestDto.md)
@@ -1542,6 +1547,7 @@ Class | Method | HTTP request | Description
  - [GetAccountDefaultOrganization200Response](docs/GetAccountDefaultOrganization200Response.md)
  - [GetActiveLLMRequests200Response](docs/GetActiveLLMRequests200Response.md)
  - [GetAdminOrganizationDetail200Response](docs/GetAdminOrganizationDetail200Response.md)
+ - [GetAdminProjectImplementationHints200Response](docs/GetAdminProjectImplementationHints200Response.md)
  - [GetAgentOperation200Response](docs/GetAgentOperation200Response.md)
  - [GetAgentSessionError](docs/GetAgentSessionError.md)
  - [GetAgentSessionErrorCode](docs/GetAgentSessionErrorCode.md)
@@ -2439,6 +2445,7 @@ Class | Method | HTTP request | Description
  - [PromoteGroupToGoalResult](docs/PromoteGroupToGoalResult.md)
  - [PromptTypeResponseDto](docs/PromptTypeResponseDto.md)
  - [ProposalAction](docs/ProposalAction.md)
+ - [ProposalAgentFixRequest](docs/ProposalAgentFixRequest.md)
  - [ProposalApprovalDto](docs/ProposalApprovalDto.md)
  - [ProposalApprovalFailureDiagnostic](docs/ProposalApprovalFailureDiagnostic.md)
  - [ProposalApprovalFailureErrorResponse](docs/ProposalApprovalFailureErrorResponse.md)
@@ -2480,7 +2487,10 @@ Class | Method | HTTP request | Description
  - [ProposalOutOfDateStatus](docs/ProposalOutOfDateStatus.md)
  - [ProposalReconciliationAgentFixRequest](docs/ProposalReconciliationAgentFixRequest.md)
  - [ProposalReconciliationBasis](docs/ProposalReconciliationBasis.md)
+ - [ProposalReconciliationFieldChange](docs/ProposalReconciliationFieldChange.md)
+ - [ProposalReconciliationIntervening](docs/ProposalReconciliationIntervening.md)
  - [ProposalReconciliationMergeRequest](docs/ProposalReconciliationMergeRequest.md)
+ - [ProposalReconciliationOverlap](docs/ProposalReconciliationOverlap.md)
  - [ProposalReconciliationRevision](docs/ProposalReconciliationRevision.md)
  - [ProposalReconciliationState](docs/ProposalReconciliationState.md)
  - [ProposalResponseDto](docs/ProposalResponseDto.md)

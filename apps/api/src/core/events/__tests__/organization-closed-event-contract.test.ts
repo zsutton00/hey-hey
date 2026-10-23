@@ -5,10 +5,7 @@ import addFormats from 'ajv-formats';
 import { load } from 'js-yaml';
 import type { OrganizationClosedEventPayload } from '../../../generated';
 import type { OrganizationId } from '../../../types';
-import {
-  resolveSiblingRepository,
-  resolveWorktreeContext,
-} from '../../../utils/worktree-context';
+import { resolveOpenapiRoot } from '../../../../test/helpers/openapi-root';
 
 interface JsonSchema {
   $ref?: string;
@@ -22,11 +19,7 @@ interface JsonSchema {
   properties?: Record<string, JsonSchema>;
 }
 
-const openapiRoot = resolveSiblingRepository(
-  resolveWorktreeContext(),
-  'openapi',
-  process.env.HEY_HEY_OPENAPI_ROOT,
-);
+const openapiRoot = resolveOpenapiRoot();
 const eventSpecification = load(
   readFileSync(join(openapiRoot, 'specs/schemas/events.yaml'), 'utf8'),
 ) as { components: { schemas: Record<string, JsonSchema> } };
@@ -35,15 +28,20 @@ const commonSchemas = load(
 ) as Record<string, JsonSchema>;
 
 function resolveOrganizationClosedPayloadSchema(): JsonSchema {
-  const payloadSchema = eventSpecification.components.schemas.OrganizationClosedEventPayload;
+  const payloadSchema =
+    eventSpecification.components.schemas.OrganizationClosedEventPayload;
   if (!payloadSchema) {
     throw new Error('Organization closure payload schema is missing');
   }
 
-  const resolvedSchema = JSON.parse(JSON.stringify(payloadSchema)) as JsonSchema;
+  const resolvedSchema = JSON.parse(
+    JSON.stringify(payloadSchema),
+  ) as JsonSchema;
   const organizationId = resolvedSchema.properties?.organizationId;
   if (organizationId?.$ref !== './common.yaml#/OrganizationId') {
-    throw new Error('Organization closure payload has an unexpected organizationId reference');
+    throw new Error(
+      'Organization closure payload has an unexpected organizationId reference',
+    );
   }
 
   const organizationIdSchema = commonSchemas.OrganizationId;
@@ -68,7 +66,7 @@ describe('organization.closed event contract', () => {
   it('validates a complete generated payload against the resolved schema', () => {
     const payload = {
       payloadType: 'organization.closed',
-      organizationId: '99e0a635-9fe1-48c3-b145-6a61b89b9d76' as OrganizationId,
+      organizationId: '50e01076-bce8-4a65-b205-c5da8480e8fb' as OrganizationId,
       markerId: '43ed65fa-b0a8-4fe3-9577-28ee86f964d1',
       irreversibleClosureAt: '2026-08-14T12:00:00.000Z',
       deletionDeadline: '2026-09-13T12:00:00.000Z',
@@ -80,7 +78,7 @@ describe('organization.closed event contract', () => {
   it('rejects a payload missing a required closure field', () => {
     const payload = {
       payloadType: 'organization.closed',
-      organizationId: '99e0a635-9fe1-48c3-b145-6a61b89b9d76',
+      organizationId: '50e01076-bce8-4a65-b205-c5da8480e8fb',
       irreversibleClosureAt: '2026-08-14T12:00:00.000Z',
       deletionDeadline: '2026-09-13T12:00:00.000Z',
     };
@@ -91,11 +89,11 @@ describe('organization.closed event contract', () => {
   it('rejects a payload with an undeclared field', () => {
     const payload = {
       payloadType: 'organization.closed',
-      organizationId: '99e0a635-9fe1-48c3-b145-6a61b89b9d76',
+      organizationId: '50e01076-bce8-4a65-b205-c5da8480e8fb',
       markerId: '43ed65fa-b0a8-4fe3-9577-28ee86f964d1',
       irreversibleClosureAt: '2026-08-14T12:00:00.000Z',
       deletionDeadline: '2026-09-13T12:00:00.000Z',
-      projectId: '96c5429a-84d1-4813-b661-75be18f2b3c2',
+      projectId: '0fbfaeca-a381-4ff0-82ba-0bd772095e77',
     };
 
     expect(validatePayload(payload)).toBe(false);

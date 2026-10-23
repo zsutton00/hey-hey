@@ -161,12 +161,12 @@ const structuredMockupIconMap = {
 export type StructuredMockupIconKey = WorkItemStructuredMockupIconKey;
 
 export const isStructuredMockupIconKey = (
-  value: unknown
+  value: unknown,
 ): value is StructuredMockupIconKey =>
   typeof value === "string" && value in structuredMockupIconMap;
 
 export const getStructuredMockupIcon = (
-  iconKey: StructuredMockupIconKey
+  iconKey: StructuredMockupIconKey,
 ): ComponentType<SvgIconProps> => structuredMockupIconMap[iconKey];
 
 const TASK_MONITOR_TYPE = "TASK_MONITOR";
@@ -178,6 +178,8 @@ const entityColorMap: Record<string, EntityColors> = {
   bug: { background: "warning.main", color: "warning.contrastText" },
   mockup: { background: "error.main", color: "error.contrastText" },
   decision: { background: "success.main", color: "success.contrastText" },
+  eval: { background: "eval.main", color: "eval.contrastText" },
+  eval_case: { background: "eval.main", color: "eval.contrastText" },
   workflow: { background: "plan.main", color: "plan.contrastText" },
   workflow_step: { background: "plan.main", color: "plan.contrastText" },
   diagram: { background: "plan.main", color: "plan.contrastText" },
@@ -247,6 +249,8 @@ const workItemIconColors = {
 const workItemTypeColors: Readonly<Record<string, EntityColors>> = {
   mockup: workItemIconColors.design,
   decision: workItemIconColors.decision,
+  EVAL: entityColorMap.eval,
+  EVAL_CASE: entityColorMap.eval_case,
 };
 
 const workItemTypeIcons: Readonly<Record<string, ComponentType<SvgIconProps>>> =
@@ -264,7 +268,7 @@ export { CodexIcon } from "./icons/Codex";
 export { getAgentSessionIcon } from "./icons/AgentSessionResolver";
 
 export const getEntityIcon = (
-  entityType: string
+  entityType: string,
 ): ComponentType<SvgIconProps> => {
   const normalizedType = entityType.toLowerCase();
 
@@ -283,7 +287,7 @@ export const getEntityIcon = (
  */
 export const resolveWorkItemIcon = (
   taskType: string | undefined,
-  definition: WorkItemTypeDefinitionDto | undefined
+  definition: WorkItemTypeDefinitionDto | undefined,
 ): ComponentType<SvgIconProps> | undefined => {
   if (taskType === undefined) {
     return workItemIconMap.task;
@@ -322,7 +326,7 @@ export interface ResolvedWorkItemIconPresentation {
 export const resolveWorkItemIconPresentation = (
   taskType: string,
   definition: WorkItemTypeDefinitionDto | undefined,
-  effectiveSource?: WorkItemTypeEffectiveSource
+  effectiveSource?: WorkItemTypeEffectiveSource,
 ): ResolvedWorkItemIconPresentation | undefined => {
   if (definition?.key !== taskType) return undefined;
 
@@ -346,9 +350,9 @@ export const resolveWorkItemIconPresentation = (
     effectiveSource === "PROJECT_CUSTOM" && definition.colorKey
       ? getWorkItemColorTokens(definition.colorKey)
       : effectiveSource === "CANONICAL" ||
-        effectiveSource === "CANONICAL_OVERRIDE"
-      ? getEntityColors(taskType)
-      : workItemTypeColors[taskType] ?? workItemIconColors[iconKey];
+          effectiveSource === "CANONICAL_OVERRIDE"
+        ? getEntityColors(taskType)
+        : (workItemTypeColors[taskType] ?? workItemIconColors[iconKey]);
   return { Icon, colors };
 };
 
@@ -361,7 +365,7 @@ export const getFallbackEntityColors = (): EntityColors => defaultEntityColors;
 
 export const getEntityColors = (
   entityType: string,
-  options: { useDefaultColors?: boolean } = {}
+  options: { useDefaultColors?: boolean } = {},
 ): EntityColors => {
   const { useDefaultColors = true } = options;
   const normalizedType = entityType.toLowerCase();

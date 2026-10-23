@@ -1,3 +1,4 @@
+import { useReconciledUpdate } from "../ProposalReconciliation/useReconciledUpdate";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { Box, Collapse, IconButton, Paper, Stack } from "@mui/material";
 import React, { useMemo, useState } from "react";
@@ -37,9 +38,13 @@ export const DesignDocUpdateRenderer: React.FC<{
   approvalProgress?: ApprovalProgress;
   diffDefaultViewMode?: DiffViewMode;
   overrides?: ProposalRenderOverrides;
+  /** Shown above the content, e.g. what a future cancellation does. */
+  notice?: React.ReactNode;
+  /** Replaces the Approve/Reject indicator, e.g. an approved future's Apply strip. */
+  footer?: React.ReactNode;
 }> = ({
-  proposal,
-  existing,
+  proposal: inputProposal,
+  existing: inputExisting,
   status,
   onApply,
   onReject,
@@ -48,7 +53,13 @@ export const DesignDocUpdateRenderer: React.FC<{
   approvalProgress,
   diffDefaultViewMode,
   overrides,
+  notice,
+  footer,
 }) => {
+  const { proposal, existing, hideDiff } = useReconciledUpdate(
+    inputProposal,
+    inputExisting,
+  );
   const isApplied = status.state === "applied";
   const [expanded, setExpanded] = useState(!isApplied);
 
@@ -59,16 +70,16 @@ export const DesignDocUpdateRenderer: React.FC<{
         projectId: proposal.projectId,
         designDocId: proposal.targetEntityId,
       }),
-    [pathService, proposal.projectId, proposal.targetEntityId]
+    [pathService, proposal.projectId, proposal.targetEntityId],
   );
   const { oldContent, newContent } = useMemo(
     () => buildDesignDocDiff(existing, proposal.updates),
-    [existing, proposal.updates]
+    [existing, proposal.updates],
   );
   const { presentation: typePresentation } = useProposalHeaderTypeResolution(
     proposal.organizationId,
     proposal.projectId,
-    { kind: "entity", entityType: proposal.targetEntityType }
+    { kind: "entity", entityType: proposal.targetEntityType },
   );
 
   const content = (
@@ -105,7 +116,8 @@ export const DesignDocUpdateRenderer: React.FC<{
           }
         />
       )}
-      <Collapse in={expanded}>
+      {notice}
+      <Collapse in={expanded && !hideDiff}>
         <Stack spacing={1.5}>
           {isApplied ? (
             <Box sx={{ px: 1 }}>
@@ -132,18 +144,20 @@ export const DesignDocUpdateRenderer: React.FC<{
           )}
         </Stack>
       </Collapse>
-      {!overrides?.hideStateIndicator && (
-        <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
-          <ProposalStateIndicator
-            status={status}
-            action={ProposalAction.Update}
-            onApply={onApply}
-            onReject={onReject}
-            disabled={disabled}
-            approvalProgress={approvalProgress}
-          />
-        </Box>
-      )}
+      {footer && !overrides?.hideStateIndicator
+        ? footer
+        : !overrides?.hideStateIndicator && (
+            <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
+              <ProposalStateIndicator
+                status={status}
+                action={ProposalAction.Update}
+                onApply={onApply}
+                onReject={onReject}
+                disabled={disabled}
+                approvalProgress={approvalProgress}
+              />
+            </Box>
+          )}
     </Stack>
   );
 

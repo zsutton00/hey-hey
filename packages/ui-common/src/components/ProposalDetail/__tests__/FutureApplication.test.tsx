@@ -95,7 +95,7 @@ describe("manual future application", () => {
   it("shows readiness without applying an eligible future automatically", async () => {
     mount();
     await screen.findByText(
-      "Ready, not applied. Applying requires an explicit action.",
+      "The linked work is done. Apply when you're ready.",
     );
     expect(screen.getByTestId("future-apply")).toBeEnabled();
     expect(api.readiness).toHaveBeenCalledWith(
@@ -116,7 +116,7 @@ describe("manual future application", () => {
     });
     mount();
     await screen.findByText(
-      "Linked work must reach verification (Plans: completion) before applying.",
+      "Waiting for linked work to reach Verifying (or a linked Plan to complete). You'll be asked to apply this then.",
     );
     expect(screen.getByTestId("future-apply")).toBeDisabled();
     expect(api.apply).not.toHaveBeenCalled();
@@ -137,7 +137,7 @@ describe("manual future application", () => {
     mount();
 
     await screen.findByText(
-      "Linked work must reach verification (Plans: completion) before applying.",
+      "Waiting for linked work to reach Verifying (or a linked Plan to complete). You'll be asked to apply this then.",
     );
     fireEvent.click(screen.getByTestId("future-refresh-readiness"));
 

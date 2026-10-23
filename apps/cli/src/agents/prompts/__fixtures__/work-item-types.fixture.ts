@@ -127,7 +127,7 @@ const workItemTypesFixture = [
     },
     id: 'canonical-type',
     status: 'ACTIVE',
-    projectId: '96c5429a-84d1-4813-b661-75be18f2b3c2',
+    projectId: '0fbfaeca-a381-4ff0-82ba-0bd772095e77',
     effectiveSource: 'CANONICAL',
   },
   {
@@ -262,7 +262,7 @@ const workItemTypesFixture = [
     },
     id: 'canonical-type',
     status: 'ACTIVE',
-    projectId: '96c5429a-84d1-4813-b661-75be18f2b3c2',
+    projectId: '0fbfaeca-a381-4ff0-82ba-0bd772095e77',
     effectiveSource: 'CANONICAL',
   },
   {
@@ -391,7 +391,7 @@ const workItemTypesFixture = [
     },
     id: 'canonical-type',
     status: 'ACTIVE',
-    projectId: '96c5429a-84d1-4813-b661-75be18f2b3c2',
+    projectId: '0fbfaeca-a381-4ff0-82ba-0bd772095e77',
     effectiveSource: 'CANONICAL',
   },
   {
@@ -526,7 +526,7 @@ const workItemTypesFixture = [
     },
     id: 'canonical-type',
     status: 'ACTIVE',
-    projectId: '96c5429a-84d1-4813-b661-75be18f2b3c2',
+    projectId: '0fbfaeca-a381-4ff0-82ba-0bd772095e77',
     effectiveSource: 'CANONICAL',
   },
   {
@@ -640,7 +640,7 @@ const workItemTypesFixture = [
     },
     id: 'canonical-type',
     status: 'ACTIVE',
-    projectId: '96c5429a-84d1-4813-b661-75be18f2b3c2',
+    projectId: '0fbfaeca-a381-4ff0-82ba-0bd772095e77',
     effectiveSource: 'CANONICAL',
   },
   {
@@ -767,7 +767,7 @@ const workItemTypesFixture = [
     },
     id: 'canonical-type',
     status: 'ACTIVE',
-    projectId: '96c5429a-84d1-4813-b661-75be18f2b3c2',
+    projectId: '0fbfaeca-a381-4ff0-82ba-0bd772095e77',
     effectiveSource: 'CANONICAL',
   },
   {
@@ -817,7 +817,7 @@ const workItemTypesFixture = [
     },
     id: 'project-custom-type',
     status: 'ACTIVE',
-    projectId: '96c5429a-84d1-4813-b661-75be18f2b3c2',
+    projectId: '0fbfaeca-a381-4ff0-82ba-0bd772095e77',
     effectiveSource: 'PROJECT_CUSTOM',
   },
 ] satisfies WorkItemTypeSummaryDto[];

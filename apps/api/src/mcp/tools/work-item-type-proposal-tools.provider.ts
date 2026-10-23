@@ -28,6 +28,7 @@ import { WorkItemTypeSectionDefinition } from '../../generated/model/workItemTyp
 import { WorkStatus } from '../../generated/model/workStatus';
 import { WorkItemConfigKind } from '../../generated/model/workItemConfigKind';
 import { ProposalService } from '../../services/proposal/proposal.service';
+import { AdminGuard } from '../../auth/guards/admin.guard';
 import {
   buildWorkItemTypeCreateProposal,
   buildWorkItemTypeEditProposal,
@@ -532,14 +533,13 @@ export const EDIT_WORK_ITEM_TYPE_TOOL_DESCRIPTION =
   'it does not mutate the global seed. ' +
   WORK_ITEM_TYPE_PARENTAGE_GUIDANCE;
 
-const IMAGE_SECTION_BETA_USER_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-
 @Injectable()
 export class WorkItemTypeProposalToolsProvider {
   private readonly logger = new Logger(WorkItemTypeProposalToolsProvider.name);
 
   constructor(
     private readonly proposalService: ProposalService,
+    private readonly adminGuard: AdminGuard,
     @Optional()
     private readonly workItemTypeRegistry?: WorkItemTypeRegistryService,
   ) {}
@@ -575,12 +575,16 @@ export class WorkItemTypeProposalToolsProvider {
     const definition: WorkItemTypeDefinitionDto = params;
 
     if (
-      auth.user.userId !== IMAGE_SECTION_BETA_USER_ID &&
+      !this.adminGuard.isPlatformAdmin({
+        user: auth.user,
+        socket: request.socket,
+        headers: request.headers,
+      }) &&
       definition.sections.some(
         (section) => section.schemaRef === IMAGE_SECTION_CONTENT_SCHEMA_REF,
       )
     ) {
-      return mcpError('Image sections are restricted to the beta user.');
+      return mcpError('Image sections are restricted to platform admins.');
     }
 
     const requestorContext = extractRequestorContext(
@@ -656,12 +660,16 @@ export class WorkItemTypeProposalToolsProvider {
     if (!isAuthContext(auth)) return auth;
 
     if (
-      auth.user.userId !== IMAGE_SECTION_BETA_USER_ID &&
+      !this.adminGuard.isPlatformAdmin({
+        user: auth.user,
+        socket: request.socket,
+        headers: request.headers,
+      }) &&
       params.definition.sections.some(
         (section) => section.schemaRef === IMAGE_SECTION_CONTENT_SCHEMA_REF,
       )
     ) {
-      return mcpError('Image sections are restricted to the beta user.');
+      return mcpError('Image sections are restricted to platform admins.');
     }
 
     const conversationId = request.headers['x-conversation-id'] as

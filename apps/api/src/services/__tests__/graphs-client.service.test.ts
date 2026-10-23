@@ -68,9 +68,9 @@ describe('GraphsClientService projection deletion', () => {
 
   it('sends structured reads through one authenticated traversal request', async () => {
     const organizationId =
-      '99e0a635-9fe1-48c3-b145-6a61b89b9d76' as import('src/types').OrganizationId;
+      '50e01076-bce8-4a65-b205-c5da8480e8fb' as import('src/types').OrganizationId;
     const projectId =
-      '96c5429a-84d1-4813-b661-75be18f2b3c2' as import('src/types').ProjectId;
+      '0fbfaeca-a381-4ff0-82ba-0bd772095e77' as import('src/types').ProjectId;
     const request: import('src/generated/graphs').StructuredGraphReadRequest = {
       root: {
         entityId: '8b0a1d69-0642-40e9-abd5-36795cd7bb14',

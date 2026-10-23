@@ -3,7 +3,6 @@ const path = require('node:path');
 
 const repositoryRoot = path.resolve(__dirname, '..');
 const generatedPaths = [
-  '.openapi-tmp',
   'src/generated/task-monitor-contract.schema.ts',
   'src/generated/project-mode-contract.schema.ts',
   'src/shared/agent-bridge-contract/generated',

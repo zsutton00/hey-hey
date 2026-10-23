@@ -33,6 +33,8 @@ import { AgentFixConfirmDialog } from "./AgentFixConfirmDialog";
 
 export const ProposalReconciliationContext = createContext<{
   approvalDisabled: boolean;
+  state: ProposalReconciliationState | null;
+  standaloneUpdate: boolean;
   submit: () => void;
 } | null>(null);
 
@@ -255,6 +257,7 @@ function ChangedSinceList({
  */
 export function ProposalReconciliationReview(props: {
   proposal: ProposalResponseDto;
+  grouped?: boolean;
   onApply: (request: ProposalApprovalRequest) => void;
   children: React.ReactNode;
 }) {
@@ -268,10 +271,12 @@ export function ProposalReconciliationReview(props: {
 
 function PendingProposalReconciliationReview({
   proposal,
+  grouped = false,
   onApply,
   children,
 }: {
   proposal: ProposalResponseDto;
+  grouped?: boolean;
   onApply: (request: ProposalApprovalRequest) => void;
   children: React.ReactNode;
 }) {
@@ -321,12 +326,18 @@ function PendingProposalReconciliationReview({
     state?.status === "RECONCILIATION_REQUIRED" ||
     state?.status === "AGENT_FIX_REQUIRED";
   const hasOverlaps = !!state?.overlaps.length;
+  const missingCandidate =
+    state?.status === "READY_FOR_REVIEW" &&
+    !state.revisions.some(
+      (revision) => revision.id === state.candidateRevisionId,
+    );
   const approvalDisabled =
     !state ||
     !!error ||
     busy ||
     requiresReconciliation ||
     hasOverlaps ||
+    missingCandidate ||
     !!state.replacementProposalId ||
     !!state.replacementGroupId;
   const submit = () => {
@@ -374,7 +385,12 @@ function PendingProposalReconciliationReview({
     !!state?.replacementProposalId || !!state?.replacementGroupId;
   return (
     <ProposalReconciliationContext.Provider
-      value={{ approvalDisabled, submit }}
+      value={{
+        approvalDisabled,
+        submit,
+        state,
+        standaloneUpdate: !grouped && proposal.action === "UPDATE",
+      }}
     >
       <Stack spacing={1} data-testid="proposal-reconciliation-review">
         {!state && !error ? (
@@ -407,14 +423,16 @@ function PendingProposalReconciliationReview({
               </Typography>
             ) : null}
             <Stack direction="row" spacing={1}>
-              <Button
-                variant="contained"
-                data-testid="proposal-reconciliation-merge"
-                disabled={busy || state.status === "AGENT_FIX_REQUIRED"}
-                onClick={() => void merge()}
-              >
-                Merge with current content
-              </Button>
+              {grouped ? (
+                <Button
+                  variant="contained"
+                  data-testid="proposal-reconciliation-merge"
+                  disabled={busy || state.status === "AGENT_FIX_REQUIRED"}
+                  onClick={() => void merge()}
+                >
+                  Merge with current content
+                </Button>
+              ) : null}
               <Button
                 data-testid="proposal-reconciliation-agent-fix"
                 disabled={busy}
@@ -431,7 +449,7 @@ function PendingProposalReconciliationReview({
             onClose={() => setAgentFixOpen(false)}
           />
         ) : null}
-        {state?.replacementProposalId ? (
+        {grouped && state?.replacementProposalId ? (
           <Button
             variant="contained"
             data-testid="proposal-reconciliation-open-replacement"

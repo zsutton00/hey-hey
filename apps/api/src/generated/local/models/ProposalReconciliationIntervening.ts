@@ -10,6 +10,7 @@
  * Do not edit the class manually.
  */
 
+import { ProposalReconciliationFieldChange } from '../models/ProposalReconciliationFieldChange';
 import { HttpFile } from '../http/http';
 
 export class ProposalReconciliationIntervening {
@@ -26,6 +27,10 @@ export class ProposalReconciliationIntervening {
    * Fields of `changedPaths` that overlap this proposal and could not be merged.
    */
   'overlappingPaths': Array<string>;
+  /**
+   * The intervening proposal\'s own change per field, from the content it was reviewed against to the result it applied. Empty when that record is unavailable.
+   */
+  'changes': Array<ProposalReconciliationFieldChange>;
 
   static readonly discriminator: string | undefined = undefined;
 
@@ -77,6 +82,12 @@ export class ProposalReconciliationIntervening {
       name: 'overlappingPaths',
       baseName: 'overlappingPaths',
       type: 'Array<string>',
+      format: '',
+    },
+    {
+      name: 'changes',
+      baseName: 'changes',
+      type: 'Array<ProposalReconciliationFieldChange>',
       format: '',
     },
   ];

@@ -1,18 +1,17 @@
 import { Alert, Stack, Typography } from "@mui/material";
-import type { FutureCompletionBlocker } from "../../api";
 import { useWorkItem } from "../../data/hooks/useWorkItem";
+import { getStatusLabel } from "../../utils/statusUtils";
 import { EntityLinkWithPreview } from "../Entity";
 
+/** One piece of linked work a future waits on, with its current status. */
 export function FutureDependency({
   organizationId,
   projectId,
   taskId,
-  blocker,
 }: {
   organizationId: string;
   projectId: string;
   taskId: string;
-  blocker: FutureCompletionBlocker | undefined;
 }) {
   const { workItem, isLoading, error } = useWorkItem(
     organizationId,
@@ -20,11 +19,18 @@ export function FutureDependency({
     taskId,
     { projectId },
   );
-  if (isLoading) return <Typography>Loading linked work…</Typography>;
+  if (isLoading)
+    return <Typography variant="body2">Loading linked work…</Typography>;
   if (error || !workItem || workItem.status === "ARCHIVED")
     return <Alert severity="warning">Linked work unavailable</Alert>;
   return (
-    <Stack data-testid="future-dependency" data-task-id={taskId}>
+    <Stack
+      direction="row"
+      spacing={0.75}
+      alignItems="center"
+      data-testid="future-dependency"
+      data-task-id={taskId}
+    >
       <EntityLinkWithPreview
         label={workItem.name}
         entityId={taskId}
@@ -32,11 +38,25 @@ export function FutureDependency({
         organizationId={organizationId}
         projectId={projectId}
       />
-      {blocker && (
-        <Typography color="warning.main">
-          {blocker.reason.toLowerCase().replace(/_/g, " ")}
-        </Typography>
-      )}
+      <Typography variant="caption" color="text.secondary">
+        {getStatusLabel(workItem.status)}
+      </Typography>
     </Stack>
   );
+}
+
+/** Plain-text name of linked work, for use inside a sentence. */
+export function FutureDependencyName({
+  organizationId,
+  projectId,
+  taskId,
+}: {
+  organizationId: string;
+  projectId: string;
+  taskId: string;
+}) {
+  const { workItem } = useWorkItem(organizationId, "task", taskId, {
+    projectId,
+  });
+  return <>{workItem?.name ?? "linked work"}</>;
 }

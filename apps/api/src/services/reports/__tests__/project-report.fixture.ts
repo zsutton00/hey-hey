@@ -6,7 +6,7 @@ import type {
 export const projectReportRequest = {
   question: 'What changed this week?',
   scope: {
-    projectId: '96c5429a-84d1-4813-b661-75be18f2b3c2',
+    projectId: '0fbfaeca-a381-4ff0-82ba-0bd772095e77',
     windowStart: '2026-09-21T00:00:00Z',
     windowEnd: '2026-09-28T00:00:00Z',
     timeZone: 'America/Los_Angeles',

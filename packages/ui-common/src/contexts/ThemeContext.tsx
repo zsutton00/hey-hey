@@ -26,6 +26,7 @@ declare module "@mui/material/styles" {
     capsulePage: Palette["primary"];
     service: Palette["primary"];
     plan: Palette["primary"];
+    eval: Palette["primary"];
     message: Palette["primary"];
     report: Palette["primary"];
     ready: Palette["primary"];
@@ -45,6 +46,7 @@ declare module "@mui/material/styles" {
     capsulePage?: PaletteOptions["primary"];
     service?: PaletteOptions["primary"];
     plan?: PaletteOptions["primary"];
+    eval?: PaletteOptions["primary"];
     message?: PaletteOptions["primary"];
     report?: PaletteOptions["primary"];
     ready?: PaletteOptions["primary"];
@@ -218,6 +220,12 @@ export const createHeyTheme = (mode: ThemeMode) => {
         dark: "rgb(104, 92, 138)",
         contrastText: "#ffffff",
       },
+      eval: {
+        main: "#E64A19",
+        light: "#FF7043",
+        dark: "#BF360C",
+        contrastText: "#ffffff",
+      },
       message: {
         main: "#757575",
         light: "#9B9B9B",
@@ -333,7 +341,7 @@ export const createHeyTheme = (mode: ThemeMode) => {
       string,
       string,
       string,
-      string
+      string,
     ],
 
     // Typography adjustments

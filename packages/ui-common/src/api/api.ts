@@ -159395,7 +159395,7 @@ export const ProposalsApiAxiosParamCreator = function (configuration?: Configura
         },
         /**
          * 
-         * @summary Prepare a complete replacement for fresh review without applying it
+         * @summary Prepare reconciliation without applying it; standalone MERGE reuses the same proposal and grouped review retains replacements
          * @param {string} organizationId 
          * @param {string} projectId 
          * @param {string} proposalId 
@@ -159729,7 +159729,7 @@ export const ProposalsApiAxiosParamCreator = function (configuration?: Configura
         },
         /**
          * 
-         * @summary Read original and current content and reconciliation history
+         * @summary Prepare standalone clean UPDATE review on the same proposal and read reconciliation history
          * @param {string} organizationId 
          * @param {string} projectId 
          * @param {string} proposalId 
@@ -160385,7 +160385,7 @@ export const ProposalsApiFp = function(configuration?: Configuration) {
         },
         /**
          * 
-         * @summary Prepare a complete replacement for fresh review without applying it
+         * @summary Prepare reconciliation without applying it; standalone MERGE reuses the same proposal and grouped review retains replacements
          * @param {string} organizationId 
          * @param {string} projectId 
          * @param {string} proposalId 
@@ -160492,7 +160492,7 @@ export const ProposalsApiFp = function(configuration?: Configuration) {
         },
         /**
          * 
-         * @summary Read original and current content and reconciliation history
+         * @summary Prepare standalone clean UPDATE review on the same proposal and read reconciliation history
          * @param {string} organizationId 
          * @param {string} projectId 
          * @param {string} proposalId 
@@ -160722,7 +160722,7 @@ export const ProposalsApiFactory = function (configuration?: Configuration, base
         },
         /**
          * 
-         * @summary Prepare a complete replacement for fresh review without applying it
+         * @summary Prepare reconciliation without applying it; standalone MERGE reuses the same proposal and grouped review retains replacements
          * @param {ProposalsApiCreateProposalReconciliationCandidateRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
@@ -160792,7 +160792,7 @@ export const ProposalsApiFactory = function (configuration?: Configuration, base
         },
         /**
          * 
-         * @summary Read original and current content and reconciliation history
+         * @summary Prepare standalone clean UPDATE review on the same proposal and read reconciliation history
          * @param {ProposalsApiGetProposalReconciliationRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
@@ -160951,7 +160951,7 @@ export interface ProposalsApiInterface {
 
     /**
      * 
-     * @summary Prepare a complete replacement for fresh review without applying it
+     * @summary Prepare reconciliation without applying it; standalone MERGE reuses the same proposal and grouped review retains replacements
      * @param {ProposalsApiCreateProposalReconciliationCandidateRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
@@ -161021,7 +161021,7 @@ export interface ProposalsApiInterface {
 
     /**
      * 
-     * @summary Read original and current content and reconciliation history
+     * @summary Prepare standalone clean UPDATE review on the same proposal and read reconciliation history
      * @param {ProposalsApiGetProposalReconciliationRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
@@ -161974,7 +161974,7 @@ export class ProposalsApi extends BaseAPI implements ProposalsApiInterface {
 
     /**
      * 
-     * @summary Prepare a complete replacement for fresh review without applying it
+     * @summary Prepare reconciliation without applying it; standalone MERGE reuses the same proposal and grouped review retains replacements
      * @param {ProposalsApiCreateProposalReconciliationCandidateRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
@@ -162058,7 +162058,7 @@ export class ProposalsApi extends BaseAPI implements ProposalsApiInterface {
 
     /**
      * 
-     * @summary Read original and current content and reconciliation history
+     * @summary Prepare standalone clean UPDATE review on the same proposal and read reconciliation history
      * @param {ProposalsApiGetProposalReconciliationRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}

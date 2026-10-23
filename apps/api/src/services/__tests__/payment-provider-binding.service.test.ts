@@ -5,7 +5,7 @@ import { PaymentProviderBindingService } from '../payment-entitlement/payment-pr
 
 describe('PaymentProviderBindingService', () => {
   const organizationId =
-    '99e0a635-9fe1-48c3-b145-6a61b89b9d76' as OrganizationId;
+    '50e01076-bce8-4a65-b205-c5da8480e8fb' as OrganizationId;
   const binding = {
     id: 'binding-1',
     organizationId,
@@ -137,11 +137,7 @@ describe('PaymentProviderBindingService', () => {
   });
 
   it('snapshots only provider/environment and opaque identifiers for a closure marker', async () => {
-    await service.snapshotForClosure(
-      tx,
-      organizationId,
-      'marker-1',
-    );
+    await service.snapshotForClosure(tx, organizationId, 'marker-1');
 
     expect(
       tx.organizationClosureProviderCorrelationTombstone.createMany,
@@ -161,17 +157,19 @@ describe('PaymentProviderBindingService', () => {
   });
 
   it('resolves an exact closure correlation but rejects a paired mismatch', async () => {
-    tx.organizationClosureProviderCorrelationTombstone.findMany.mockResolvedValueOnce([
-      {
-        id: 'tombstone-1',
-        organizationId,
-        markerId: 'marker-1',
-        provider: 'stripe',
-        environment: 'sandbox',
-        externalCustomerId: 'cus_123',
-        externalSubscriptionId: 'sub_123',
-      },
-    ]);
+    tx.organizationClosureProviderCorrelationTombstone.findMany.mockResolvedValueOnce(
+      [
+        {
+          id: 'tombstone-1',
+          organizationId,
+          markerId: 'marker-1',
+          provider: 'stripe',
+          environment: 'sandbox',
+          externalCustomerId: 'cus_123',
+          externalSubscriptionId: 'sub_123',
+        },
+      ],
+    );
     await expect(
       service.resolveClosureCorrelation({
         provider: 'stripe',
@@ -181,17 +179,19 @@ describe('PaymentProviderBindingService', () => {
       }),
     ).resolves.toMatchObject({ markerId: 'marker-1' });
 
-    tx.organizationClosureProviderCorrelationTombstone.findMany.mockResolvedValueOnce([
-      {
-        id: 'tombstone-1',
-        organizationId,
-        markerId: 'marker-1',
-        provider: 'stripe',
-        environment: 'sandbox',
-        externalCustomerId: 'cus_123',
-        externalSubscriptionId: 'sub_other',
-      },
-    ]);
+    tx.organizationClosureProviderCorrelationTombstone.findMany.mockResolvedValueOnce(
+      [
+        {
+          id: 'tombstone-1',
+          organizationId,
+          markerId: 'marker-1',
+          provider: 'stripe',
+          environment: 'sandbox',
+          externalCustomerId: 'cus_123',
+          externalSubscriptionId: 'sub_other',
+        },
+      ],
+    );
     await expect(
       service.resolveClosureCorrelation({
         provider: 'stripe',

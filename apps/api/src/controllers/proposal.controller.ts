@@ -107,7 +107,7 @@ export class ProposalController {
     @CurrentOrganization() organizationId: OrganizationId,
     @Param('projectId') projectId: ProjectId,
   ): Promise<ProposalReconciliationState> {
-    return this.proposalService.reconciliationState(
+    return this.proposalService.reconciliationReviewState(
       id,
       organizationId,
       projectId,

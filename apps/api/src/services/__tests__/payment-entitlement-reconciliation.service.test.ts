@@ -15,7 +15,7 @@ import type {
 import { PaymentProviderBindingService } from '../payment-entitlement/payment-provider-binding.service';
 import { PaymentEntitlementReconciliationService } from '../payment-entitlement/payment-entitlement-reconciliation.service';
 
-const organizationId = '99e0a635-9fe1-48c3-b145-6a61b89b9d76' as OrganizationId;
+const organizationId = '50e01076-bce8-4a65-b205-c5da8480e8fb' as OrganizationId;
 const bindingId = 'binding-1';
 const now = new Date('2026-08-16T12:00:00.000Z');
 

@@ -109,7 +109,7 @@ const createMockStubs = (): TaskStub[] => [
 ];
 
 const createMockTaskStubData = (
-  overrides: Partial<TaskStubSystemMessageData> = {}
+  overrides: Partial<TaskStubSystemMessageData> = {},
 ): TaskStubSystemMessageData => ({
   type: "TASK_STUBS",
   round: 1,
@@ -131,7 +131,7 @@ const mockConfig: FieldConfig = {
 
 const mockContext = {
   conversationId: "46221647-2981-47a7-b44b-fff08b74ef8d",
-  projectId: "96c5429a-84d1-4813-b661-75be18f2b3c2",
+  projectId: "0fbfaeca-a381-4ff0-82ba-0bd772095e77",
   organizationId: "test-org-id",
 };
 
@@ -150,11 +150,11 @@ describe("TaskStubField", () => {
           value={taskStubData}
           isSubmitted={false}
           context={mockContext}
-        />
+        />,
       );
 
       expect(
-        screen.getByTestId(`task-stub-field-${mockConfig.field}`)
+        screen.getByTestId(`task-stub-field-${mockConfig.field}`),
       ).toBeInTheDocument();
     });
 
@@ -167,29 +167,31 @@ describe("TaskStubField", () => {
           value={taskStubData}
           isSubmitted={false}
           context={mockContext}
-        />
+        />,
       );
 
       expect(
-        screen.getByText("Design event-driven mutation tracking for sub-facets")
+        screen.getByText(
+          "Design event-driven mutation tracking for sub-facets",
+        ),
       ).toBeInTheDocument();
       expect(
-        screen.getByText("Implement category summary regeneration pipeline")
+        screen.getByText("Implement category summary regeneration pipeline"),
       ).toBeInTheDocument();
       expect(
         screen.getByText(
-          "Validate sub-facet discovery completeness for each category"
-        )
+          "Validate sub-facet discovery completeness for each category",
+        ),
       ).toBeInTheDocument();
       expect(
         screen.getByText(
-          "Build telemetry for category summary freshness and accuracy"
-        )
+          "Build telemetry for category summary freshness and accuracy",
+        ),
       ).toBeInTheDocument();
       expect(
         screen.getByText(
-          "Test category summary staleness under high mutation load"
-        )
+          "Test category summary staleness under high mutation load",
+        ),
       ).toBeInTheDocument();
     });
 
@@ -202,7 +204,7 @@ describe("TaskStubField", () => {
           value={taskStubData}
           isSubmitted={false}
           context={mockContext}
-        />
+        />,
       );
 
       const stubs = createMockStubs();
@@ -221,7 +223,7 @@ describe("TaskStubField", () => {
           value={taskStubData}
           isSubmitted={false}
           context={mockContext}
-        />
+        />,
       );
 
       expect(screen.getByTestId("feedback-textarea")).toBeInTheDocument();
@@ -238,11 +240,11 @@ describe("TaskStubField", () => {
           isSubmitted={false}
           context={mockContext}
           error="At least one task must be selected"
-        />
+        />,
       );
 
       expect(
-        screen.getByText("At least one task must be selected")
+        screen.getByText("At least one task must be selected"),
       ).toBeInTheDocument();
     });
   });
@@ -259,7 +261,7 @@ describe("TaskStubField", () => {
           onChange={mockOnChange}
           isSubmitted={false}
           context={mockContext}
-        />
+        />,
       );
 
       const firstStubId = "30c00e0e-a8eb-45aa-9fff-b39fc26b4f14";
@@ -272,7 +274,7 @@ describe("TaskStubField", () => {
         const lastCall =
           mockOnChange.mock.calls[mockOnChange.mock.calls.length - 1][0];
         const review = lastCall.stubReviews.find(
-          (r: { stubId: string }) => r.stubId === firstStubId
+          (r: { stubId: string }) => r.stubId === firstStubId,
         );
         expect(review?.action).toBe("accept");
       });
@@ -289,7 +291,7 @@ describe("TaskStubField", () => {
           onChange={mockOnChange}
           isSubmitted={false}
           context={mockContext}
-        />
+        />,
       );
 
       const firstStubId = "30c00e0e-a8eb-45aa-9fff-b39fc26b4f14";
@@ -302,7 +304,7 @@ describe("TaskStubField", () => {
         const lastCall =
           mockOnChange.mock.calls[mockOnChange.mock.calls.length - 1][0];
         const review = lastCall.stubReviews.find(
-          (r: { stubId: string }) => r.stubId === firstStubId
+          (r: { stubId: string }) => r.stubId === firstStubId,
         );
         expect(review?.action).toBe("reject");
       });
@@ -318,7 +320,7 @@ describe("TaskStubField", () => {
           isSubmitted={false}
           disabled={true}
           context={mockContext}
-        />
+        />,
       );
 
       const firstStubId = "30c00e0e-a8eb-45aa-9fff-b39fc26b4f14";
@@ -337,7 +339,7 @@ describe("TaskStubField", () => {
           value={taskStubData}
           isSubmitted={false}
           context={mockContext}
-        />
+        />,
       );
 
       fireEvent.click(screen.getByTestId("add-task-button"));
@@ -361,7 +363,7 @@ describe("TaskStubField", () => {
           onChange={mockOnChange}
           isSubmitted={false}
           context={mockContext}
-        />
+        />,
       );
 
       fireEvent.click(screen.getByTestId("add-task-button"));
@@ -406,7 +408,7 @@ describe("TaskStubField", () => {
           value={taskStubData}
           isSubmitted={false}
           context={mockContext}
-        />
+        />,
       );
 
       fireEvent.click(screen.getByTestId("add-task-button"));
@@ -438,7 +440,7 @@ describe("TaskStubField", () => {
           value={taskStubData}
           isSubmitted={false}
           context={mockContext}
-        />
+        />,
       );
 
       fireEvent.click(screen.getByTestId("add-task-button"));
@@ -484,7 +486,7 @@ describe("TaskStubField", () => {
           onChange={mockOnChange}
           isSubmitted={false}
           context={mockContext}
-        />
+        />,
       );
 
       const feedbackTextarea = screen
@@ -532,18 +534,18 @@ describe("TaskStubField", () => {
           value={taskStubData}
           isSubmitted={false}
           context={mockContext}
-        />
+        />,
       );
 
       // First click accept on first two stubs
       fireEvent.click(
-        screen.getByTestId("accept-30c00e0e-a8eb-45aa-9fff-b39fc26b4f14")
+        screen.getByTestId("accept-30c00e0e-a8eb-45aa-9fff-b39fc26b4f14"),
       );
       fireEvent.click(
-        screen.getByTestId("accept-d562d799-625d-43c8-99f4-e0380c3e98b0")
+        screen.getByTestId("accept-d562d799-625d-43c8-99f4-e0380c3e98b0"),
       );
       fireEvent.click(
-        screen.getByTestId("reject-6045be78-9f3a-499c-9fe8-781d05efdf77")
+        screen.getByTestId("reject-6045be78-9f3a-499c-9fe8-781d05efdf77"),
       );
 
       // Rerender as submitted
@@ -553,7 +555,7 @@ describe("TaskStubField", () => {
           value={taskStubData}
           isSubmitted={true}
           context={mockContext}
-        />
+        />,
       );
 
       await waitFor(() => {
@@ -570,12 +572,12 @@ describe("TaskStubField", () => {
           value={taskStubData}
           isSubmitted={false}
           context={mockContext}
-        />
+        />,
       );
 
       // Accept one stub
       fireEvent.click(
-        screen.getByTestId("accept-30c00e0e-a8eb-45aa-9fff-b39fc26b4f14")
+        screen.getByTestId("accept-30c00e0e-a8eb-45aa-9fff-b39fc26b4f14"),
       );
 
       // Rerender as submitted
@@ -585,7 +587,7 @@ describe("TaskStubField", () => {
           value={taskStubData}
           isSubmitted={true}
           context={mockContext}
-        />
+        />,
       );
 
       // Click to expand
@@ -694,11 +696,11 @@ describe("TaskStubField", () => {
           value={undefined}
           isSubmitted={false}
           context={mockContext}
-        />
+        />,
       );
 
       expect(
-        screen.getByText("Error: Invalid task stub data")
+        screen.getByText("Error: Invalid task stub data"),
       ).toBeInTheDocument();
     });
   });

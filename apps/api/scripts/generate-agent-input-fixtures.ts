@@ -13,17 +13,10 @@
 import { mkdirSync, writeFileSync } from 'fs';
 import { dirname, resolve } from 'path';
 import { AGENT_INPUT_FIXTURES } from '../test/fixtures/userMessageAgentInput';
-import {
-  resolveSiblingRepository,
-  resolveWorktreeContext,
-} from '../src/utils/worktree-context';
+import { resolveOpenapiRoot } from '../test/helpers/openapi-root';
 
 const OUTPUT_PATH = resolve(
-  resolveSiblingRepository(
-    resolveWorktreeContext(),
-    'openapi',
-    process.env.HEY_HEY_OPENAPI_ROOT,
-  ),
+  resolveOpenapiRoot(),
   'specs/fixtures/user-message-agent-input.fixtures.json',
 );
 

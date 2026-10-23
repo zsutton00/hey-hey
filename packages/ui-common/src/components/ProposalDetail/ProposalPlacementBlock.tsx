@@ -13,7 +13,7 @@ import { useFullEntityContext } from "../../data/hooks/useFullEntityContext";
 import { CardHeader } from "../CardHeader/CardHeader";
 
 const FeatureTreeVisualization = lazy(
-  () => import("../Features/FeatureTreeVisualization")
+  () => import("../Features/FeatureTreeVisualization"),
 );
 
 export interface ProposalPlacementBlockProps {
@@ -23,7 +23,7 @@ export interface ProposalPlacementBlockProps {
 }
 
 const hasParentTaskId = (
-  updates: ProposalUpdates
+  updates: ProposalUpdates,
 ): updates is ProposalUpdates & { parentTaskId: string } => {
   if (!updates || typeof updates !== "object") return false;
   const candidate = (updates as { parentTaskId?: unknown }).parentTaskId;
@@ -36,14 +36,25 @@ export const ProposalPlacementBlock: React.FC<ProposalPlacementBlockProps> = ({
   proposal,
 }) => {
   const isCreate = proposal.action === ProposalAction.Create;
-  const isUpdate = proposal.action === ProposalAction.Update;
+  const isFuture = proposal.action === ProposalAction.VersionedUpdate;
+  const isUpdate = proposal.action === ProposalAction.Update || isFuture;
+  // A future's result is the complete content Apply writes, so its parent is
+  // where the item will sit once applied.
+  const futureParentFeatureId =
+    isFuture &&
+    proposal.updates &&
+    typeof proposal.updates === "object" &&
+    "result" in proposal.updates &&
+    "parentTaskId" in proposal.updates.result
+      ? (proposal.updates.result.parentTaskId ?? undefined)
+      : undefined;
 
   const createParentFeatureId = useMemo(
     () =>
       isCreate && hasParentTaskId(proposal.updates)
         ? proposal.updates.parentTaskId
         : undefined,
-    [isCreate, proposal.updates]
+    [isCreate, proposal.updates],
   );
 
   // Feature targets read their parent from the cached hierarchy; other
@@ -60,7 +71,10 @@ export const ProposalPlacementBlock: React.FC<ProposalPlacementBlockProps> = ({
       ? (cachedTarget.parentTaskId ?? undefined)
       : null;
   const needsTargetContext =
-    isUpdate && !featureLookup.isLoading && cachedParentFeatureId === null;
+    isUpdate &&
+    !futureParentFeatureId &&
+    !featureLookup.isLoading &&
+    cachedParentFeatureId === null;
 
   const { data: targetContext, isLoading: isTargetContextLoading } =
     useFullEntityContext({
@@ -82,7 +96,7 @@ export const ProposalPlacementBlock: React.FC<ProposalPlacementBlockProps> = ({
           entry.relationshipType ===
             FeatureHierarchyEntryDtoRelationshipTypeEnum.Structural &&
           entry.relationship ===
-            FeatureHierarchyEntryDtoRelationshipEnum.Ancestor
+            FeatureHierarchyEntryDtoRelationshipEnum.Ancestor,
       )
       .slice()
       .sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0));
@@ -91,10 +105,11 @@ export const ProposalPlacementBlock: React.FC<ProposalPlacementBlockProps> = ({
 
   const parentFeatureId = isCreate
     ? createParentFeatureId
-    : updateParentFeatureId;
+    : (futureParentFeatureId ?? updateParentFeatureId);
 
   const isLoading =
     isUpdate &&
+    !futureParentFeatureId &&
     cachedParentFeatureId === null &&
     (featureLookup.isLoading || (isTargetContextLoading && !targetContext));
 

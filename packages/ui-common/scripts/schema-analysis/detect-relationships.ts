@@ -35,9 +35,7 @@ const __dirname = path.dirname(__filename);
 // Prisma ingestion
 // ---------------------------------------------------------------------------
 
-function prismaCardinalityToUnified(
-  c: PrismaCardinality,
-): UnifiedCardinality {
+function prismaCardinalityToUnified(c: PrismaCardinality): UnifiedCardinality {
   switch (c) {
     case "1:1":
       return "one-to-one";
@@ -59,9 +57,7 @@ function classifyPrismaTier(rel: PrismaRelation): RelationshipTier {
   return "entity_embed";
 }
 
-function ingestPrisma(
-  prismaMap: PrismaSchemaMap,
-): UnifiedRelationshipEdge[] {
+function ingestPrisma(prismaMap: PrismaSchemaMap): UnifiedRelationshipEdge[] {
   const edges: UnifiedRelationshipEdge[] = [];
 
   for (const [modelName, model] of Object.entries(prismaMap)) {
@@ -118,11 +114,7 @@ function classifyOpenApiTier(
   // Inline objects with an ID but no recognized DTO are flagged as
   // needs_review — they're likely partial embeds.
   // Full DTO refs and partial projections are both entity embeds.
-  if (
-    isPartial &&
-    confidence === "needs_review" &&
-    cardinality === "one"
-  ) {
+  if (isPartial && confidence === "needs_review" && cardinality === "one") {
     // Inline object with id — could be an id_reference, but since
     // it's an object (not just a scalar FK) we classify as embed
     // and let confidence reflect the ambiguity.
@@ -131,18 +123,14 @@ function classifyOpenApiTier(
   return "entity_embed";
 }
 
-function ingestOpenApi(
-  openApiMap: RelationshipMap,
-): UnifiedRelationshipEdge[] {
+function ingestOpenApi(openApiMap: RelationshipMap): UnifiedRelationshipEdge[] {
   const edges: UnifiedRelationshipEdge[] = [];
 
   for (const [entityName, exposure] of Object.entries(openApiMap)) {
     for (const ep of exposure.apiExposures) {
       for (const nested of ep.nestedEntities) {
         const targetEntity =
-          nested.targetEntity === "Self"
-            ? entityName
-            : nested.targetEntity;
+          nested.targetEntity === "Self" ? entityName : nested.targetEntity;
         const isSelfRelation = targetEntity === entityName;
 
         edges.push({
@@ -188,8 +176,7 @@ function buildFieldTargetIndex(
 ): Map<string, string> {
   const index = new Map<string, string>();
   for (const edge of prismaEdges) {
-    const key =
-      `${edge.sourceEntity.toLowerCase()}::${edge.field.toLowerCase()}`;
+    const key = `${edge.sourceEntity.toLowerCase()}::${edge.field.toLowerCase()}`;
     index.set(key, edge.targetEntity);
   }
   return index;
@@ -225,8 +212,7 @@ function resolveOpenApiTargets(
     // Skip if the target already matches a Prisma model
     if (prismaModelNames.has(edge.targetEntity)) continue;
 
-    const fieldKey =
-      `${edge.sourceEntity.toLowerCase()}::${edge.field.toLowerCase()}`;
+    const fieldKey = `${edge.sourceEntity.toLowerCase()}::${edge.field.toLowerCase()}`;
     const fieldMatch = fieldIndex.get(fieldKey);
 
     if (fieldMatch) {
@@ -254,11 +240,7 @@ function resolveOpenApiTargets(
 // Cross-parser correlation and confidence boosting
 // ---------------------------------------------------------------------------
 
-function correlationKey(
-  source: string,
-  target: string,
-  field: string,
-): string {
+function correlationKey(source: string, target: string, field: string): string {
   return `${source.toLowerCase()}::${target.toLowerCase()}::${field.toLowerCase()}`;
 }
 
@@ -310,9 +292,7 @@ function mergeEdges(
       prismaByExact.set(exact, []);
     }
     prismaByExact.get(exact)!.push(edge);
-    prismaByPair.add(
-      entityPairKey(edge.sourceEntity, edge.targetEntity),
-    );
+    prismaByPair.add(entityPairKey(edge.sourceEntity, edge.targetEntity));
   }
 
   // Track which Prisma edges get merged so we can add unmatched ones
@@ -325,10 +305,7 @@ function mergeEdges(
       oaEdge.targetEntity,
       oaEdge.field,
     );
-    const pairKey = entityPairKey(
-      oaEdge.sourceEntity,
-      oaEdge.targetEntity,
-    );
+    const pairKey = entityPairKey(oaEdge.sourceEntity, oaEdge.targetEntity);
     const prismaMatches = prismaByExact.get(exact);
 
     if (prismaMatches && prismaMatches.length > 0) {
@@ -340,8 +317,7 @@ function mergeEdges(
         ...oaEdge,
         confidence: boostConfidence(oaEdge.confidence),
         detectedBy: "both",
-        isSelfRelation:
-          oaEdge.isSelfRelation || prismaEdge.isSelfRelation,
+        isSelfRelation: oaEdge.isSelfRelation || prismaEdge.isSelfRelation,
         prismaDetail: prismaEdge.prismaDetail,
       };
 
@@ -353,9 +329,7 @@ function mergeEdges(
       const boosted: UnifiedRelationshipEdge = {
         ...oaEdge,
         confidence:
-          oaEdge.confidence === "needs_review"
-            ? "medium"
-            : oaEdge.confidence,
+          oaEdge.confidence === "needs_review" ? "medium" : oaEdge.confidence,
       };
       addToGraph(graph, boosted);
     } else {
@@ -480,10 +454,10 @@ function printSummary(graph: UnifiedRelationshipGraph): void {
 function main() {
   const openApiPath =
     process.argv[2] ||
-    path.resolve(__dirname, "../../../openapi/specs/api/openapi.yaml");
+    path.resolve(__dirname, "../../../../openapi/specs/api/openapi.yaml");
   const prismaPath =
     process.argv[3] ||
-    path.resolve(__dirname, "../../../api/prisma/schema.prisma");
+    path.resolve(__dirname, "../../../../apps/api/prisma/schema.prisma");
 
   console.error(`Parsing OpenAPI spec: ${openApiPath}`);
   const openApiMap = parseOpenAPISpec(openApiPath);

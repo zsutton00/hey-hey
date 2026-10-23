@@ -1,3 +1,4 @@
+import { ProposalService } from '../proposal.service';
 import { randomUUID } from 'node:crypto';
 import { ConflictException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -191,5 +192,53 @@ databaseTests('reconciliation guarded PostgreSQL writes', () => {
     expect(
       (await prisma.task.findUniqueOrThrow({ where: { id: task.id } })).name,
     ).toBe('Intervening name');
+  });
+  it('serializes concurrent standalone review loads and rejects a previously reviewed candidate after drift', async () => {
+    const { task, proposal } = await authored();
+    await prisma.task.update({
+      where: { id: task.id },
+      data: { priority: 'HIGH' },
+    });
+    const service = Object.create(ProposalService.prototype) as ProposalService;
+    Object.assign(service, { prisma, reconciliation: owner });
+    const load = () =>
+      service.reconciliationReviewState(proposal.id, organizationId, projectId);
+    const [first, concurrent] = await Promise.all([load(), load()]);
+    expect(first.status).toBe('READY_FOR_REVIEW');
+    expect(concurrent.candidateRevisionId).toBe(first.candidateRevisionId);
+    expect(
+      await prisma.proposalReconciliationRevision.count({
+        where: { proposalId: proposal.id },
+      }),
+    ).toBe(2);
+    const candidate = first.revisions.find(
+      (revision) => revision.id === first.candidateRevisionId,
+    )!;
+    expect(candidate.proposedResult).toMatchObject({
+      name: 'Reviewed name',
+      priority: 'HIGH',
+    });
+    const prepared = await prisma.proposal.findUniqueOrThrow({
+      where: { id: proposal.id },
+    });
+    await prisma.db.$transaction((tx) =>
+      owner.assertApplicable(tx, prepared, first.candidateRevisionId, true),
+    );
+    await prisma.task.update({
+      where: { id: task.id },
+      data: { priority: 'LOW' },
+    });
+    await expect(
+      prisma.db.$transaction((tx) =>
+        owner.assertApplicable(tx, prepared, first.candidateRevisionId, true),
+      ),
+    ).rejects.toThrow(ConflictException);
+    const next = await load();
+    expect(next.candidateRevisionId).not.toBe(first.candidateRevisionId);
+    await expect(
+      prisma.db.$transaction((tx) =>
+        owner.assertApplicable(tx, prepared, first.candidateRevisionId, true),
+      ),
+    ).rejects.toThrow(ConflictException);
   });
 });

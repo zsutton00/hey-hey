@@ -122,7 +122,8 @@ export const proposalReconciliationStateSchema = {
           "approvedByName",
           "approvedAt",
           "changedPaths",
-          "overlappingPaths"
+          "overlappingPaths",
+          "changes"
         ],
         "properties": {
           "proposalId": {
@@ -156,6 +157,24 @@ export const proposalReconciliationStateSchema = {
             "description": "Fields of `changedPaths` that overlap this proposal and could not be merged.",
             "items": {
               "type": "string"
+            }
+          },
+          "changes": {
+            "type": "array",
+            "description": "The intervening proposal's own change per field, from the content it was reviewed against to the result it applied. Empty when that record is unavailable.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "before": {},
+                "after": {}
+              }
             }
           }
         }

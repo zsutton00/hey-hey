@@ -1,3 +1,4 @@
+import { useReconciledUpdate } from "../ProposalReconciliation/useReconciledUpdate";
 import { useFeatureLookup } from "../../data/hooks/useFeatureHierarchy";
 import { useWorkItemTypeByKey } from "../../data/hooks/useWorkItemTypes";
 import { isVisualSectionKind } from "./isVisualProposal";
@@ -83,10 +84,14 @@ export const TaskUpdateRenderer: React.FC<{
   approvalProgress?: ApprovalProgress;
   diffDefaultViewMode?: DiffViewMode;
   overrides?: ProposalRenderOverrides;
+  /** Shown above the content, e.g. what a future cancellation does. */
+  notice?: React.ReactNode;
+  /** Replaces the Approve/Reject indicator, e.g. an approved future's Apply strip. */
+  footer?: React.ReactNode;
   workItemTypeDefinition: WorkItemTypeDefinitionDto;
 }> = ({
-  proposal,
-  existing,
+  proposal: inputProposal,
+  existing: inputExisting,
   status,
   onApply,
   onReject,
@@ -95,8 +100,12 @@ export const TaskUpdateRenderer: React.FC<{
   approvalProgress,
   diffDefaultViewMode,
   overrides,
+  notice,
+  footer,
   workItemTypeDefinition,
 }) => {
+  const { proposal, existing, hideDiff, reviewedServiceIds } =
+    useReconciledUpdate(inputProposal, inputExisting);
   const presentationRegistry = useWorkItemTypeByKey(
     proposal.organizationId,
     proposal.projectId,
@@ -132,8 +141,10 @@ export const TaskUpdateRenderer: React.FC<{
   });
   const existingServiceIds = useMemo(
     () =>
-      existing.serviceRelations?.map((relation) => relation.serviceId) ?? [],
-    [existing.serviceRelations],
+      reviewedServiceIds ??
+      existing.serviceRelations?.map((relation) => relation.serviceId) ??
+      [],
+    [existing.serviceRelations, reviewedServiceIds],
   );
   const existingServiceNames = proposedServiceIds
     ? resolveServiceNames(existingServiceIds, servicesQuery.services)
@@ -507,7 +518,8 @@ export const TaskUpdateRenderer: React.FC<{
         organizationId={proposal.organizationId}
         projectId={proposal.projectId}
       />
-      <Collapse in={expanded}>
+      {notice}
+      <Collapse in={expanded && !hideDiff}>
         <Stack spacing={1.5}>
           {proposedServiceIds !== undefined && servicesQuery.isLoading ? (
             <Box
@@ -695,18 +707,20 @@ export const TaskUpdateRenderer: React.FC<{
           )}
         </Stack>
       </Collapse>
-      {!overrides?.hideStateIndicator && (
-        <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
-          <ProposalStateIndicator
-            status={status}
-            action={ProposalAction.Update}
-            onApply={onApply}
-            onReject={onReject}
-            disabled={disabled}
-            approvalProgress={approvalProgress}
-          />
-        </Box>
-      )}
+      {footer && !overrides?.hideStateIndicator
+        ? footer
+        : !overrides?.hideStateIndicator && (
+            <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
+              <ProposalStateIndicator
+                status={status}
+                action={ProposalAction.Update}
+                onApply={onApply}
+                onReject={onReject}
+                disabled={disabled}
+                approvalProgress={approvalProgress}
+              />
+            </Box>
+          )}
     </Stack>
   );
 

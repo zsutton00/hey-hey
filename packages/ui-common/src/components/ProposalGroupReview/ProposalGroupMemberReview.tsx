@@ -53,7 +53,7 @@ import {
 } from "../ProposalDispatchers/proposalHeaderType";
 import { getProposalRenderOverrides } from "../ProposalDispatchers/proposalRenderOverrides";
 import { ProposalFailureDiagnostic } from "../ProposalDispatchers/ProposalFailureDiagnostic";
-import { FutureProposalReview } from "../ProposalDetail/FutureProposalReview";
+import { FutureApplyFooter } from "../ProposalDispatchers/FutureApplyFooter";
 
 export interface ProposalGroupMemberReviewProps {
   member: ProposalGroupMemberSnapshot;
@@ -218,7 +218,10 @@ const ReadOnlyProposalContent: React.FC<{
     );
   }
 
-  if (proposal.action === ProposalAction.Update) {
+  if (
+    proposal.action === ProposalAction.Update ||
+    proposal.action === ProposalAction.VersionedUpdate
+  ) {
     return (
       <UpdateProposal
         proposals={proposals}
@@ -523,7 +526,8 @@ const ProposalGroupMemberReviewContent: React.FC<
   const decision =
     decisionOverride ?? getMemberDecision(effectiveProposal, user?.id);
   const acceptedUpdate =
-    member.proposal.action === ProposalAction.Update &&
+    (member.proposal.action === ProposalAction.Update ||
+      member.proposal.action === ProposalAction.VersionedUpdate) &&
     (decision === "approved" ||
       effectiveProposal.status === ProposalStatus.Approved ||
       member.executionState === ProposalGroupMemberExecutionState.Applied);
@@ -552,25 +556,9 @@ const ProposalGroupMemberReviewContent: React.FC<
           onToggleContent={() => setContentExpanded((expanded) => !expanded)}
           canToggleContent={acceptedUpdate}
         />
-        {member.proposal.action === ProposalAction.VersionedUpdate ? (
-          <FutureProposalReview
-            renderMode="group-member"
-            proposal={effectiveProposal}
-            onApprove={onApprove}
-            onReject={onReject}
-            disabled={isDeciding || !getMemberActionability(member).canApprove}
-          />
-        ) : (
-          <MemberState member={member} members={members} />
-        )}
+        <MemberState member={member} members={members} />
         <Divider />
-        <Collapse
-          in={
-            contentExpanded &&
-            member.proposal.action !== ProposalAction.VersionedUpdate
-          }
-          unmountOnExit
-        >
+        <Collapse in={contentExpanded} unmountOnExit>
           <ReadOnlyProposalContent
             proposal={member.proposal}
             allProposals={allProposals}
@@ -578,6 +566,22 @@ const ProposalGroupMemberReviewContent: React.FC<
             projectId={projectId}
           />
         </Collapse>
+        {member.proposal.action !==
+        ProposalAction.VersionedUpdate ? null : effectiveProposal.status ===
+          ProposalStatus.Approved ? (
+          <FutureApplyFooter proposal={effectiveProposal} />
+        ) : effectiveProposal.status !== ProposalStatus.Rejected &&
+          "operation" in member.proposal.updates &&
+          member.proposal.updates.operation === "REVISE" ? (
+          // Members are approved with the group's controls below, so the
+          // first step only names it.
+          <FutureApplyFooter
+            proposal={member.proposal}
+            approveControl={
+              <Chip size="small" variant="outlined" label="Needs approval" />
+            }
+          />
+        ) : null}
         <MemberDecisionControls
           member={member}
           decision={decision}
@@ -595,6 +599,7 @@ export const ProposalGroupMemberReview: React.FC<
   ProposalGroupMemberReviewProps
 > = (props) => (
   <ProposalReconciliationReview
+    grouped
     proposal={props.decisionProposal ?? props.member.proposal}
     onApply={() =>
       void props.onApprove(props.member.proposal.id).catch(() => null)

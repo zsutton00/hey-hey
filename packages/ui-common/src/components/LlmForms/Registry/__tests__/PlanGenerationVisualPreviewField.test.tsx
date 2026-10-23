@@ -68,40 +68,6 @@ vi.mock("../../../ProposalDispatchers/useProposalState", () => ({
   }),
 }));
 
-vi.mock("../../../ProposalDetail/FutureProposalReview", () => ({
-  FutureProposalReview: ({
-    proposal,
-    onApprove,
-    onApplied,
-  }: {
-    proposal: ProposalResponseDto;
-    onApprove: (proposalId: string) => Promise<unknown>;
-    onApplied?: (proposalId: string) => Promise<void> | void;
-  }) => (
-    <div
-      data-testid="shared-future-review"
-      data-proposal-id={proposal.id}
-      data-future-id={
-        "futureId" in proposal.updates ? proposal.updates.futureId : undefined
-      }
-    >
-      <span>
-        {proposal.reviewedFuture?.outcome === "APPLIED"
-          ? `Applied version ${proposal.reviewedFuture.appliedRevision}`
-          : proposal.status === ProposalStatus.Approved
-            ? "Approved future"
-            : "Proposed future"}
-      </span>
-      <button onClick={() => void onApprove(proposal.id)}>
-        Approve revision
-      </button>
-      <button onClick={() => void onApplied?.(proposal.id)}>
-        Apply future
-      </button>
-    </div>
-  ),
-}));
-
 vi.mock("../../../ProposalDispatchers", () => ({
   CreateProposal: ({
     proposals,
@@ -145,18 +111,33 @@ vi.mock("../../../ProposalDispatchers", () => ({
     proposals,
     onApply,
     onReject,
+    onApplied,
   }: {
     proposals: ProposalResponseDto[];
     onApply: (proposalId: string) => Promise<void>;
     onReject?: (proposalId: string, reason: string) => Promise<void>;
+    onApplied?: (proposalId: string) => Promise<void> | void;
   }) => {
     const proposal = proposals[0];
     return (
-      <div data-testid={`visual-card-${proposal.id}`}>
+      <div
+        data-testid={`visual-card-${proposal.id}`}
+        data-future-id={
+          "futureId" in proposal.updates ? proposal.updates.futureId : undefined
+        }
+      >
+        {proposal.reviewedFuture?.outcome === "APPLIED" && (
+          <span>Applied version {proposal.reviewedFuture.appliedRevision}</span>
+        )}
         <button onClick={() => onApply(proposal.id)}>Approve</button>
         <button onClick={() => onReject?.(proposal.id, "Needs revision")}>
           Reject
         </button>
+        {onApplied && (
+          <button onClick={() => void onApplied(proposal.id)}>
+            Apply future
+          </button>
+        )}
       </div>
     );
   },
@@ -507,7 +488,7 @@ describe("PlanGenerationVisualPreviewField", () => {
     expect(actionMocks.handleApply).not.toHaveBeenCalled();
   });
 
-  it("uses shared future review and refreshes the same future after Apply", async () => {
+  it("renders futures through the ordinary update card and refreshes after Apply", async () => {
     const futureConfig: FieldConfig = {
       ...config,
       payload: {
@@ -540,15 +521,13 @@ describe("PlanGenerationVisualPreviewField", () => {
       />,
     );
 
-    const review = await screen.findByTestId("shared-future-review");
-    expect(review).toHaveAttribute("data-proposal-id", futureProposal.id);
+    const review = await screen.findByTestId(
+      `visual-card-${futureProposal.id}`,
+    );
     expect(review).toHaveAttribute("data-future-id", futureRevision.id);
-    expect(screen.getByText("Approved future")).toBeInTheDocument();
     expect(screen.getByText("Refines Diagram overview")).toBeInTheDocument();
 
-    fireEvent.click(
-      within(review).getByRole("button", { name: "Approve revision" }),
-    );
+    fireEvent.click(within(review).getByRole("button", { name: "Approve" }));
     expect(actionMocks.handleApply).toHaveBeenCalledWith(futureProposal.id);
     expect(proposalClientMocks.getProposal).toHaveBeenCalledTimes(2);
 
@@ -568,10 +547,9 @@ describe("PlanGenerationVisualPreviewField", () => {
     expect(actionMocks.handleApply).toHaveBeenCalledTimes(1);
     expect(await screen.findByText("Applied version 1")).toBeInTheDocument();
     expect(proposalClientMocks.getProposal).toHaveBeenCalledTimes(4);
-    expect(screen.getByTestId("shared-future-review")).toHaveAttribute(
-      "data-future-id",
-      futureRevision.id,
-    );
+    expect(
+      screen.getByTestId(`visual-card-${futureProposal.id}`),
+    ).toHaveAttribute("data-future-id", futureRevision.id);
     expect(screen.getByText("Refines Diagram overview")).toBeInTheDocument();
   });
 });

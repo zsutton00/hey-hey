@@ -3,9 +3,9 @@ import React, { useCallback, useMemo } from "react";
 import type { ProposalResponseDto, WorkItemTypeDefinitionDto } from "../../api";
 import {
   ProposalAction,
+  ProposalStatus,
   WorkItemChangeSetMaterializationState,
 } from "../../api";
-import { FutureProposalReview } from "../ProposalDetail/FutureProposalReview";
 import type { ProposalApprovalRequest, UpdateProposalProps } from "./types";
 import {
   isUpdateTaskUpdates,
@@ -33,7 +33,17 @@ import { isEdgeOnlyUpdateProposal } from "./types";
 import { getProposalDisplayTitle } from "./getProposalDisplayTitle";
 import { definesVisualSections } from "./isVisualProposal";
 import { MentionExpansionProvider } from "../shared/MentionExpansionContext";
-import { ProposalOutOfDateReview } from "./ProposalStateIndicator";
+import {
+  ProposalOutOfDateReview,
+  ProposalStateIndicator,
+} from "./ProposalStateIndicator";
+import {
+  futureAsUpdateProposal,
+  futureBaselineContent,
+  isFutureProposal,
+} from "./futureAsUpdate";
+import { FutureApplyFooter } from "./FutureApplyFooter";
+import type { EntityData } from "./useEntityData";
 
 /**
  * Dispatcher component for UPDATE proposals. Loads existing entity data
@@ -80,7 +90,6 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
     () =>
       proposals.filter(
         (proposal) =>
-          proposal.action !== ProposalAction.VersionedUpdate &&
           !isWorkItemGraphProposal(proposal) &&
           !isEdgeOnlyUpdateProposal(proposal),
       ),
@@ -96,9 +105,17 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
 
   const handleApply = useCallback(
     (id: string, approvalRequest: ProposalApprovalRequest = {}) => {
-      applyItem(id, () => onApply(id, approvalRequest), onApplied);
+      // Approving a future only retains it; onApplied fires from its Apply.
+      const isFuture = proposals.some(
+        (proposal) => proposal.id === id && isFutureProposal(proposal),
+      );
+      applyItem(
+        id,
+        () => onApply(id, approvalRequest),
+        isFuture ? undefined : onApplied,
+      );
     },
-    [applyItem, onApply, onApplied],
+    [applyItem, onApply, onApplied, proposals],
   );
 
   const handleReject = useCallback(
@@ -175,21 +192,58 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
 
   const content = (
     <Stack spacing={1.5}>
-      {proposals.map((proposal) => {
-        if (proposal.action === ProposalAction.VersionedUpdate) {
-          return (
-            <FutureProposalReview
-              key={proposal.id}
-              proposal={proposal}
-              onApprove={onApply}
-              onReject={onReject}
-              onApplied={onApplied}
-              disabled={disabled}
-            />
-          );
-        }
-        const status = getState(proposal.id);
-        const entityData = entities[proposal.targetEntityId];
+      {proposals.map((original) => {
+        const status = getState(original.id);
+        const liveEntity = entities[original.targetEntityId];
+        // A future revision renders as an ordinary update against the content
+        // it replaces; only its footer differs once approved.
+        const future = isFutureProposal(original) ? original : undefined;
+        const futureBaseline =
+          future && liveEntity
+            ? futureBaselineContent(future, liveEntity.data)
+            : undefined;
+        const entityData = (
+          future && futureBaseline && liveEntity
+            ? { type: liveEntity.type, data: futureBaseline }
+            : liveEntity
+        ) as EntityData | undefined;
+        const proposal = future
+          ? futureAsUpdateProposal(future, futureBaseline)
+          : original;
+        const futureNotice =
+          future?.updates.operation === "CANCEL" ? (
+            <Typography variant="body2" data-testid="future-cancel-notice">
+              Cancels this approved change.
+            </Typography>
+          ) : undefined;
+        // Approve → linked work → Apply is shown from the start; before
+        // approval the ordinary Approve/Reject fills the first step.
+        const futureFooter = !future ? undefined : original.status ===
+          ProposalStatus.Approved ? (
+          <FutureApplyFooter proposal={original} onApplied={onApplied} />
+        ) : future.updates.operation === "REVISE" &&
+          status.state !== "rejected" ? (
+          <FutureApplyFooter
+            proposal={original}
+            approveControl={
+              <ProposalStateIndicator
+                status={status}
+                action={ProposalAction.Update}
+                onApply={() => handleApply(original.id)}
+                onReject={
+                  onReject
+                    ? (reason: string) => handleReject(original.id, reason)
+                    : undefined
+                }
+                disabled={disabled}
+                approvalProgress={getApprovalProgress(
+                  original.requiredApprovals,
+                  original.approvals,
+                )}
+              />
+            }
+          />
+        ) : undefined;
         const overrides = getProposalRenderOverrides(
           proposal.targetEntityType,
           renderMode,
@@ -379,6 +433,8 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
                 diffDefaultViewMode={diffDefaultViewMode}
                 overrides={overrides}
                 workItemTypeDefinition={taskTypeDefinition}
+                notice={futureNotice}
+                footer={futureFooter}
               />
             );
           } else if (
@@ -401,6 +457,8 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
                 approvalProgress={approvalProgress}
                 diffDefaultViewMode={diffDefaultViewMode}
                 overrides={overrides}
+                notice={futureNotice}
+                footer={futureFooter}
               />
             );
           } else {
@@ -433,7 +491,7 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
         return (
           <ProposalOutOfDateReview
             key={proposal.id}
-            proposal={proposal}
+            proposal={original}
             onApply={(request) =>
               isUpdateWorkItemTypeUpdates(proposal)
                 ? handleWorkItemTypeApply(proposal, request)

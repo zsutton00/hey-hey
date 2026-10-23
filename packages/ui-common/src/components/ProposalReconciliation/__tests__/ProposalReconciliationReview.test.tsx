@@ -131,45 +131,54 @@ describe("complete reconciliation review", () => {
     } as never);
     act(() => invalidateProposalReconciliation(proposal.id));
     await waitFor(() =>
-      expect(screen.getByTestId("proposal-reconciliation-merge")).toBeVisible(),
+      expect(
+        screen.getByTestId("proposal-reconciliation-agent-fix"),
+      ).toBeVisible(),
     );
     expect(screen.getByText("Approve displayed revision")).toBeDisabled();
     expect(apply).not.toHaveBeenCalled();
   });
-  it("opens fresh replacement review after Merge without applying either proposal", async () => {
-    const apply = mount({ ...ready, status: "RECONCILIATION_REQUIRED" });
-    vi.mocked(
+  it("shows a clean result on load without Merge or a replacement link", async () => {
+    mount(ready);
+    await screen.findByTestId("proposal-reconciliation-merged-result");
+    expect(screen.queryByTestId("proposal-reconciliation-merge")).toBeNull();
+    expect(
+      screen.queryByTestId("proposal-reconciliation-open-replacement"),
+    ).toBeNull();
+    expect(
       proposalsClient.createProposalReconciliationCandidate,
-    ).mockResolvedValue({
-      data: { data: { ...ready, replacementProposalId: "replacement" } },
-    } as never);
-    fireEvent.click(await screen.findByTestId("proposal-reconciliation-merge"));
-    await screen.findByTestId("proposal-reconciliation-open-replacement");
-    expect(screen.getByText("Approve displayed revision")).toBeDisabled();
-    expect(apply).not.toHaveBeenCalled();
+    ).not.toHaveBeenCalled();
   });
-  it("routes overlapping changes to Agent fix without enabling approval", async () => {
-    mount({ ...ready, status: "RECONCILIATION_REQUIRED" });
+  it("retains grouped Merge and replacement review", async () => {
+    vi.mocked(proposalsClient.getProposalReconciliation).mockResolvedValue({
+      data: { data: { ...ready, status: "RECONCILIATION_REQUIRED" } },
+    } as never);
     vi.mocked(
       proposalsClient.createProposalReconciliationCandidate,
     ).mockResolvedValue({
       data: {
         data: {
           ...ready,
-          status: "AGENT_FIX_REQUIRED",
-          conflictingPaths: ["/name"],
+          replacementProposalId: "replacement",
+          replacementGroupId: "group",
         },
       },
     } as never);
-    fireEvent.click(await screen.findByTestId("proposal-reconciliation-merge"));
-    await waitFor(() =>
-      expect(
-        screen.getByTestId("proposal-reconciliation-merge"),
-      ).toBeDisabled(),
+    const apply = vi.fn();
+    render(
+      <ProposalReconciliationReview grouped proposal={proposal} onApply={apply}>
+        <Approve />
+      </ProposalReconciliationReview>,
     );
-    expect(
-      screen.getByTestId("proposal-reconciliation-agent-fix"),
-    ).toBeVisible();
+    fireEvent.click(await screen.findByTestId("proposal-reconciliation-merge"));
+    await screen.findByTestId("proposal-reconciliation-open-replacement");
+    expect(screen.getByText("Approve displayed revision")).toBeDisabled();
+    expect(apply).not.toHaveBeenCalled();
+  });
+  it("routes unsupported changes to Agent fix without enabling approval", async () => {
+    mount({ ...ready, status: "AGENT_FIX_REQUIRED" });
+    await screen.findByTestId("proposal-reconciliation-agent-fix");
+    expect(screen.queryByTestId("proposal-reconciliation-merge")).toBeNull();
     expect(screen.getByText("Approve displayed revision")).toBeDisabled();
   });
   it("warns that Agent fix starts a session instead of linking to the proposal page", async () => {
@@ -219,7 +228,7 @@ describe("out-of-date review", () => {
     expect(
       screen.getByTestId("proposal-reconciliation-intervening-diff"),
     ).toHaveTextContent("Sorbet");
-    expect(screen.getByTestId("proposal-reconciliation-merge")).toBeEnabled();
+    expect(screen.queryByTestId("proposal-reconciliation-merge")).toBeNull();
     expect(screen.getByText("Approve displayed revision")).toBeDisabled();
   });
 

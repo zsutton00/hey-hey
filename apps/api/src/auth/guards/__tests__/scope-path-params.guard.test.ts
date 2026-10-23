@@ -15,8 +15,8 @@ import { ScopePathParamsGuard } from '../scope-path-params.guard';
 import { ProjectAccessGuard } from '../project-access.guard';
 import { ProjectAccessService } from '../../services/project-access.service';
 
-const ORG_ID = '99e0a635-9fe1-48c3-b145-6a61b89b9d76';
-const MEMBER_PROJECT_ID = '96c5429a-84d1-4813-b661-75be18f2b3c2';
+const ORG_ID = '50e01076-bce8-4a65-b205-c5da8480e8fb';
+const MEMBER_PROJECT_ID = '0fbfaeca-a381-4ff0-82ba-0bd772095e77';
 const FOREIGN_PROJECT_ID = '0542f15a-3106-49c4-9699-0eb43d3b4fde';
 const PROPOSAL_ID = '893e6e24-6ed5-4f67-a1a9-9e27719a7565';
 

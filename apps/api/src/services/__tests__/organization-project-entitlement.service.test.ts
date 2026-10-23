@@ -10,8 +10,8 @@ import {
 
 describe('OrganizationProjectEntitlementService', () => {
   const organizationId =
-    '99e0a635-9fe1-48c3-b145-6a61b89b9d76' as OrganizationId;
-  const userId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' as UserId;
+    '50e01076-bce8-4a65-b205-c5da8480e8fb' as OrganizationId;
+  const userId = '3b8a5b0e-33d7-4aa1-8b6f-dc362aa62597' as UserId;
   let tx: any;
   let service: OrganizationProjectEntitlementService;
 

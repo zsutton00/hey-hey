@@ -1,0 +1,20 @@
+{
+  "source": {
+    "closureDigest": "sha256:35a9685556c29dafece4e6b5238c8125e26ebe8b9d3b07aad68909253b32d88e",
+    "closureFileCount": 118
+  },
+  "targets": {
+    "ui-common": {
+      "status": "generated",
+      "outputDigest": "sha256:fa563f3c3f8243a4b280361a3400cd54798a610a87a0d30b6a9dabfccbf51d7e"
+    },
+    "cli": {
+      "status": "generated",
+      "outputDigest": "sha256:88caff4055d0903d838b066546096bd687f3dc94c2b99d855992aa5fc2f719e2"
+    },
+    "api": {
+      "status": "generated",
+      "outputDigest": "sha256:27296144c93a251138b4b9c0f6771d358b32ddcebb8e9342904745154081d262"
+    }
+  }
+}

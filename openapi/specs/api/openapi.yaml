@@ -21952,7 +21952,7 @@ paths:
     get:
       operationId: getProposalReconciliation
       tags: [Proposals]
-      summary: Read original and current content and reconciliation history
+      summary: Prepare standalone clean UPDATE review on the same proposal and read reconciliation history
       responses:
         "200":
           description: Authoritative reconciliation state and complete content
@@ -21969,7 +21969,7 @@ paths:
     post:
       operationId: createProposalReconciliationCandidate
       tags: [Proposals]
-      summary: Prepare a complete replacement for fresh review without applying it
+      summary: Prepare reconciliation without applying it; standalone MERGE reuses the same proposal and grouped review retains replacements
       requestBody:
         required: true
         content:

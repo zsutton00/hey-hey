@@ -12,10 +12,10 @@ export interface ReportSchemaEntry {
 export const REPORT_SCHEMAS = {
   CHANGE_WALKTHROUGH: {
     description:
-      'Guided behavioral changes in importance order with inspected literal excerpts and immediate explanations. Optional Review evidence, never a completion or repair-authority gate.',
+      'Guided behavioral changes in importance order with inspected literal excerpts and immediate explanations. Required Review output, not a repair-authority gate.',
     schema: {
       description:
-        'Guided behavioral changes in importance order with inspected literal excerpts and immediate explanations. Optional Review evidence, never a completion or repair-authority gate.',
+        'Guided behavioral changes in importance order with inspected literal excerpts and immediate explanations. Required Review output, not a repair-authority gate.',
       allOf: [
         {
           type: 'object',

@@ -2,10 +2,7 @@ import Ajv from 'ajv';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { load } from 'js-yaml';
-import {
-  resolveSiblingRepository,
-  resolveWorktreeContext,
-} from '../../utils/worktree-context';
+import { resolveOpenapiRoot } from '../../../test/helpers/openapi-root';
 import {
   CREATE_WORK_ITEM_TYPE_AUTHORING_AXES,
   createWorkItemTypeParameters,
@@ -22,6 +19,8 @@ import type { WorkItemTypeRegistryService } from '../../services/tasks/work-item
 import { WorkItemTypeEffectiveSource } from '../../generated/model/workItemTypeEffectiveSource';
 import { WorkItemTypeLifecycleStatus } from '../../generated/model/workItemTypeLifecycleStatus';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import type { ConfigService } from '@nestjs/config';
+import { AdminGuard } from '../../auth/guards/admin.guard';
 
 const ORG_ID = '00000000-0000-4000-8000-000000000001';
 const PROJECT_ID = '00000000-0000-4000-8000-000000000002';
@@ -29,6 +28,7 @@ const PROPOSAL_ID = '00000000-0000-4000-8000-000000000020';
 const CONVERSATION_ID = '00000000-0000-4000-8000-000000000030';
 const MESSAGE_ID = '00000000-0000-4000-8000-000000000031';
 const NIL_UUID = '00000000-0000-0000-0000-000000000000';
+const PLATFORM_ADMIN_USER_ID = '00000000-0000-4000-8000-000000000050';
 
 function makeUser() {
   return {
@@ -84,8 +84,13 @@ function createProvider(
   const proposalService = {
     create: proposalCreate,
   } as unknown as ProposalService;
+  const adminGuard = new AdminGuard({
+    get: (key: string) =>
+      key === 'ADMIN_USER_IDS' ? PLATFORM_ADMIN_USER_ID : undefined,
+  } as unknown as ConfigService);
   const provider = new WorkItemTypeProposalToolsProvider(
     proposalService,
+    adminGuard,
     opts.workItemTypeRegistry,
   );
   return { provider, proposalCreate };
@@ -208,7 +213,7 @@ describe.each(['create', 'edit'] as const)(
   (action) => {
     it.each([
       ['u1', false],
-      ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true],
+      [PLATFORM_ADMIN_USER_ID, true],
     ] as const)(
       'checks authenticated user %s (allowed=%s)',
       async (userId, allowed) => {
@@ -249,7 +254,7 @@ describe.each(['create', 'edit'] as const)(
             content: [
               {
                 type: 'text',
-                text: 'Image sections are restricted to the beta user.',
+                text: 'Image sections are restricted to platform admins.',
               },
             ],
           });
@@ -1023,11 +1028,7 @@ describe('edit_work_item_type', () => {
 });
 
 describe('semantic guidance definition schema', () => {
-  const openapiRoot = resolveSiblingRepository(
-    resolveWorktreeContext(),
-    'openapi',
-    process.env.HEY_HEY_OPENAPI_ROOT,
-  );
+  const openapiRoot = resolveOpenapiRoot();
   const schemas = load(
     readFileSync(
       join(openapiRoot, 'specs/schemas/work-item-type-definition.yaml'),

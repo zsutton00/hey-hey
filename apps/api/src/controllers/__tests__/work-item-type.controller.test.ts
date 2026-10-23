@@ -45,11 +45,11 @@ import { WorkItemTypeImpactService } from '../../services/tasks/work-item-type-i
 import type { OrganizationId, ProjectId } from '../../types';
 import { WorkItemTypeController } from '../work-item-type.controller';
 
-const ORG_ID = '99e0a635-9fe1-48c3-b145-6a61b89b9d76' as OrganizationId;
-const PROJECT_ID = '96c5429a-84d1-4813-b661-75be18f2b3c2' as ProjectId;
+const ORG_ID = '50e01076-bce8-4a65-b205-c5da8480e8fb' as OrganizationId;
+const PROJECT_ID = '0fbfaeca-a381-4ff0-82ba-0bd772095e77' as ProjectId;
 
 const user: AuthenticatedUser = {
-  userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  userId: '3b8a5b0e-33d7-4aa1-8b6f-dc362aa62597',
 } as AuthenticatedUser;
 
 function makeRequest(headers: Record<string, string> = {}): Request {

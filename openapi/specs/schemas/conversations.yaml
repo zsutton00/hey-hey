@@ -1776,7 +1776,7 @@ TasksSystemMessageData:
               details: "Design three prompt template families..."
               description: "Create role-specific, context-appropriate LLM prompt templates..."
               acceptanceCriteria: "- Three prompt template families designed and documented..."
-              organizationId: "99e0a635-9fe1-48c3-b145-6a61b89b9d76"
+              organizationId: "50e01076-bce8-4a65-b205-c5da8480e8fb"
               initiativeId: "d4ecc1a6-1086-4359-9112-5d41d4e49590"
               childCounts:
                 total: 0

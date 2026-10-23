@@ -1,33 +1,28 @@
-name: Generated OpenAPI drift
+name: Contracts
 
 on:
   pull_request:
   push:
-    branches: [dev]
+    branches: [dev, main]
 
 jobs:
-  generated-contract-drift:
+  generated-contracts:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          repository: zsutton00/openapi
-          path: openapi
-          token: ${{ secrets.SHARED_REPOS_TOKEN }}
       - uses: pnpm/action-setup@v4
         with:
           version: 10.18.1
       - uses: actions/setup-node@v4
         with:
-          node-version: 22.23.4
+          node-version-file: .nvmrc
           cache: pnpm
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
       - run: pnpm install --frozen-lockfile
-      - name: Verify generated clients match OpenAPI
-        env:
-          HEY_HEY_OPENAPI_ROOT: ${{ github.workspace }}/openapi
+      - name: Resolver tests
+        run: pnpm test:scripts
+      - name: Validate specs, regenerate every consumer and check for drift
         run: pnpm generate:check

@@ -9,6 +9,7 @@ import { McpRequestLoggingMiddleware } from './middleware/mcp-request-logging.mi
 import { Public } from '../auth/decorators/public.decorator';
 import { OptionalAuthGuard } from '../auth/guards/optional-auth.guard';
 import { ServiceModule } from '../services/service/service.module';
+import { AuthModule } from '../auth/auth.module';
 import { McpHealthService } from './mcp-health.service';
 import { McpHealthController } from './mcp-health.controller';
 import { McpCatalogController } from './mcp-catalog.controller';
@@ -58,6 +59,7 @@ const hintToolProviders = readHintsEnabled()
       decorators: [Public(), UseGuards(OptionalAuthGuard)],
     }),
     ServiceModule,
+    AuthModule,
   ],
   controllers: [McpHealthController, McpCatalogController],
   providers: [
