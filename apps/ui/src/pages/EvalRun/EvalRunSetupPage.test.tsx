@@ -36,10 +36,17 @@ vi.mock("@hey-hey/ui-common/components", () => ({
   listProviders: () => ["claude"],
   listModels: () => [
     { id: "sonnet", label: "Claude Sonnet", efforts: ["medium", "high"] },
+    {
+      id: "claude-sonnet-5-5",
+      label: "Claude Sonnet 5.5",
+      efforts: ["medium", "high"],
+    },
     { id: "plain", label: "Plain", efforts: [] },
   ],
   listEfforts: (_provider: string, model: string) =>
-    model === "sonnet" ? ["medium", "high"] : [],
+    model === "sonnet" || model === "claude-sonnet-5-5"
+      ? ["medium", "high"]
+      : [],
   useRuntimeModelCatalog: () => ({ status: "ready" }),
   useMachineResolution: () => ({
     machines: [],
@@ -51,13 +58,14 @@ vi.mock("@hey-hey/ui-common/components", () => ({
   resolveAgentBridgeRecoveryState: () => ({ type: "loading" }),
   ModelSelectorMachineSelection: () => <div data-testid="machine-picker" />,
   RuntimeModelSelector: (props: {
+    testIdPrefix: string;
     onProviderChange: (value: string) => void;
     onModelChange: (value: string) => void;
     onReasoningEffortChange: (value: string | null) => void;
   }) => (
     <div>
       <button
-        data-testid="pick-sonnet-no-effort"
+        data-testid={`${props.testIdPrefix}-pick-sonnet-no-effort`}
         onClick={() => {
           props.onProviderChange("claude");
           props.onModelChange("sonnet");
@@ -65,7 +73,15 @@ vi.mock("@hey-hey/ui-common/components", () => ({
         }}
       />
       <button
-        data-testid="pick-sonnet-high"
+        data-testid={`${props.testIdPrefix}-pick-claude-sonnet-5-5-high`}
+        onClick={() => {
+          props.onProviderChange("claude");
+          props.onModelChange("claude-sonnet-5-5");
+          props.onReasoningEffortChange("high");
+        }}
+      />
+      <button
+        data-testid={`${props.testIdPrefix}-pick-sonnet-high`}
         onClick={() => {
           props.onProviderChange("claude");
           props.onModelChange("sonnet");
@@ -112,7 +128,7 @@ const twoCases = [
 
 const addSetup = (pick: string): void => {
   fireEvent.click(screen.getByTestId("eval-run-add-configuration"));
-  fireEvent.click(screen.getByTestId(pick));
+  fireEvent.click(screen.getByTestId(`eval-run-configuration-${pick}`));
   fireEvent.click(screen.getByTestId("eval-run-add-configuration-confirm"));
 };
 
@@ -129,11 +145,16 @@ describe("EvalRunSetupPage", () => {
     mockStart.mockResolvedValue({ ok: true });
   });
 
-  it("shows the judge, the approved cases, the notes and No limit defaults", () => {
+  it("shows the judge selector, the approved cases, the notes and No limit defaults", () => {
     render(<EvalRunSetupPage />);
-    expect(screen.getByTestId("eval-run-judge")).toHaveTextContent(
-      "Claude Opus 5.5 · high",
-    );
+    expect(
+      within(screen.getByTestId("eval-run-judge")).getByTestId(
+        "eval-run-judge-pick-sonnet-high",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("eval-run-judge-incomplete"),
+    ).not.toBeInTheDocument();
     expect(mockUseWorkItems).toHaveBeenCalledWith(
       "org",
       "task",
@@ -166,11 +187,15 @@ describe("EvalRunSetupPage", () => {
   it("only accepts a complete setup", () => {
     render(<EvalRunSetupPage />);
     fireEvent.click(screen.getByTestId("eval-run-add-configuration"));
-    fireEvent.click(screen.getByTestId("pick-sonnet-no-effort"));
+    fireEvent.click(
+      screen.getByTestId("eval-run-configuration-pick-sonnet-no-effort"),
+    );
     expect(
       screen.getByTestId("eval-run-add-configuration-confirm"),
     ).toBeDisabled();
-    fireEvent.click(screen.getByTestId("pick-sonnet-high"));
+    fireEvent.click(
+      screen.getByTestId("eval-run-configuration-pick-sonnet-high"),
+    );
     expect(
       screen.getByTestId("eval-run-add-configuration-confirm"),
     ).toBeEnabled();
@@ -226,8 +251,8 @@ describe("EvalRunSetupPage", () => {
         ],
         judgeSetup: {
           provider: "claude",
-          model: "claude-opus-5-5",
-          reasoningEffort: "high",
+          model: "claude-sonnet-5-5",
+          reasoningEffort: "medium",
         },
         settings: { maxConcurrentAttempts: 3 },
       },
@@ -242,6 +267,37 @@ describe("EvalRunSetupPage", () => {
       "/projects/p1/evals/eval-1/runs/run-9",
       { state: { startAccepted: true } },
     );
+  });
+
+  it("launches with the judge the person chose", async () => {
+    render(<EvalRunSetupPage />);
+    addSetup("pick-sonnet-high");
+    fireEvent.click(
+      screen.getByTestId("eval-run-judge-pick-claude-sonnet-5-5-high"),
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("eval-run-start"));
+    });
+    expect(mockLaunch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        request: expect.objectContaining({
+          judgeSetup: {
+            provider: "claude",
+            model: "claude-sonnet-5-5",
+            reasoningEffort: "high",
+          },
+        }),
+      }),
+    );
+  });
+
+  it("can't run while the judge selection is incomplete", () => {
+    render(<EvalRunSetupPage />);
+    addSetup("pick-sonnet-high");
+    expect(screen.getByTestId("eval-run-start")).toBeEnabled();
+    fireEvent.click(screen.getByTestId("eval-run-judge-pick-sonnet-no-effort"));
+    expect(screen.getByTestId("eval-run-judge-incomplete")).toBeInTheDocument();
+    expect(screen.getByTestId("eval-run-start")).toBeDisabled();
   });
 
   it("opens the recorded run with the start error when the start fails", async () => {

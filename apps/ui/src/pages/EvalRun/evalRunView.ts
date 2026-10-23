@@ -1,4 +1,6 @@
 import {
+  ConversationStartRunRequestDtoProviderEnum,
+  ConversationStartRunRequestDtoReasoningEffortEnum,
   EvalAttemptStatus,
   EvalAttemptStopReason,
   type EvalConfiguration,
@@ -8,16 +10,12 @@ import {
 } from "@hey-hey/ui-common/api";
 import type { EvalAttemptReport } from "@hey-hey/ui-common/data";
 
-/**
- * The judge every run records. No project decision names another judge or
- * lets people change it, so it is fixed here and shown read-only.
- */
-export const JUDGE_SETUP: EvalModelSetting = {
-  provider: "claude",
-  model: "claude-opus-5-5",
-  reasoningEffort: "high",
-};
-export const JUDGE_LABEL = "Claude Opus 5.5 · high";
+/** The judge a new run starts with; the person starting the run can change it. */
+export const DEFAULT_JUDGE_SETUP = {
+  provider: ConversationStartRunRequestDtoProviderEnum.Claude,
+  model: "claude-sonnet-5-5",
+  reasoningEffort: ConversationStartRunRequestDtoReasoningEffortEnum.Medium,
+} satisfies EvalModelSetting;
 
 export const DEFAULT_CONCURRENCY = 3;
 

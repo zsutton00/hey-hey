@@ -1280,7 +1280,11 @@ export const en = {
     "Add the model and reasoning setups you want to compare.",
   "eval.run.setup.addConfiguration": "Add configuration",
   "eval.run.setup.removeConfiguration": "Remove {{setup}}",
-  "eval.run.setup.judge": "Judge: {{setup}} (recorded with this run)",
+  "eval.run.setup.judge": "Judge",
+  "eval.run.setup.judgeHint":
+    "Scores each attempt against the case's expectations and rubric. Recorded with this run.",
+  "eval.run.setup.judgeIncomplete":
+    "Choose a provider, model and reasoning effort for the judge.",
   "eval.run.setup.cases": "Approved cases in this run",
   "eval.run.setup.noCases":
     "This Eval has no approved cases yet. Approve cases on the Eval before running it.",

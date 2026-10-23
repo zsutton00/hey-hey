@@ -47,8 +47,7 @@ import {
 } from "./EvalRunMachinePicker";
 import { RunSettingsFields } from "./RunSettingsFields";
 import {
-  JUDGE_LABEL,
-  JUDGE_SETUP,
+  DEFAULT_JUDGE_SETUP,
   defaultRunSettings,
   setupKey,
   toConfiguration,
@@ -218,6 +217,8 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [settings, setSettings] =
     useState<RunSettingsDraft>(defaultRunSettings);
+  const [judgeDraft, setJudgeDraft] =
+    useState<DraftSelection>(DEFAULT_JUDGE_SETUP);
   const [launchError, setLaunchError] = useState<string | null>(null);
 
   // Approval is the only runnable marker, as on the Eval page.
@@ -231,6 +232,9 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
     status: WorkStatus.Active,
     enabled: !!organizationId && !!projectId,
   });
+
+  const catalog = useRuntimeModelCatalog(machine.catalogSource);
+  const judge = catalog.status === "ready" ? completeSetup(judgeDraft) : null;
 
   const launch = useLaunchEvalRun();
   const session = useEvalRunSession();
@@ -251,6 +255,7 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
     selectedSetups.length > 0 &&
     approvedCases.length > 0 &&
     launchSettings !== null &&
+    judge !== null &&
     machine.machineId !== null;
 
   const handleAddSetup = useCallback(
@@ -276,7 +281,7 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
   }, []);
 
   const handleRun = useCallback(async () => {
-    if (!canRun || !launchSettings) return;
+    if (!canRun || !launchSettings || !judge) return;
     setLaunchError(null);
     let runId: string;
     try {
@@ -289,7 +294,7 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
           configurations: selectedSetups.map((setup) =>
             toConfiguration(setup.setting),
           ),
-          judgeSetup: JUDGE_SETUP,
+          judgeSetup: judge.setting,
           settings: launchSettings,
         },
       });
@@ -314,6 +319,7 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
     approvedCases,
     canRun,
     evalId,
+    judge,
     launch,
     launchSettings,
     machine.machineId,
@@ -377,14 +383,42 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
             {t("eval.run.setup.noConfigurations")}
           </Typography>
         )}
-        <Typography
-          variant="body2"
-          color="text.secondary"
-          sx={{ mt: 1.5 }}
-          data-testid="eval-run-judge"
-        >
-          {t("eval.run.setup.judge", { setup: JUDGE_LABEL })}
+      </Box>
+
+      <Box sx={{ mt: 3 }} data-testid="eval-run-judge">
+        <Typography variant="subtitle1" component="h2" sx={{ mb: 0.5 }}>
+          {t("eval.run.setup.judge")}
         </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          {t("eval.run.setup.judgeHint")}
+        </Typography>
+        <RuntimeModelSelector
+          testIdPrefix="eval-run-judge"
+          catalogSource={machine.catalogSource}
+          provider={judgeDraft.provider}
+          model={judgeDraft.model}
+          reasoningEffort={judgeDraft.reasoningEffort}
+          fastMode={false}
+          onFastModeChange={() => undefined}
+          onProviderChange={(provider) =>
+            setJudgeDraft((current) => ({ ...current, provider }))
+          }
+          onModelChange={(model) =>
+            setJudgeDraft((current) => ({ ...current, model }))
+          }
+          onReasoningEffortChange={(reasoningEffort) =>
+            setJudgeDraft((current) => ({ ...current, reasoningEffort }))
+          }
+        />
+        {catalog.status === "ready" && !judge && (
+          <Alert
+            severity="info"
+            sx={{ mt: 1 }}
+            data-testid="eval-run-judge-incomplete"
+          >
+            {t("eval.run.setup.judgeIncomplete")}
+          </Alert>
+        )}
       </Box>
 
       <Box sx={{ mt: 3 }}>
