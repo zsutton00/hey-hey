@@ -6,7 +6,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "prepare": "husky",
+    "prepare": "if command -v husky >/dev/null 2>&1; then husky; fi",
     "bootstrap": "pnpm install --frozen-lockfile",
     "generate:contracts": "node scripts/generate-contracts.mjs",
     "generate:check": "node scripts/generate-contracts.mjs --check",
