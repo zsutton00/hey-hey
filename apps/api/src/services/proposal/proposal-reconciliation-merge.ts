@@ -110,6 +110,55 @@ function mergeValue(
   return current;
 }
 
+/** `/sections/description` → `sections.description`, the field naming reviewers see. */
+export function pointerToFieldPath(pointer: string): string {
+  return pointer
+    .split('/')
+    .slice(1)
+    .map((segment) => segment.replace(/~1/g, '/').replace(/~0/g, '~'))
+    .join('.');
+}
+
+export function fieldPathToPointer(path: string): string {
+  return path
+    .split('.')
+    .map((segment) => `/${segment.replace(/~/g, '~0').replace(/\//g, '~1')}`)
+    .join('');
+}
+
+export function valueAtPointer(value: Value, pointer: string): Value {
+  return pointer
+    .split('/')
+    .slice(1)
+    .map((segment) => segment.replace(/~1/g, '/').replace(/~0/g, '~'))
+    .reduce<Value>(
+      (node, key) =>
+        isObject(node) && Object.prototype.hasOwnProperty.call(node, key)
+          ? node[key]
+          : undefined,
+      value,
+    );
+}
+
+const NON_CONTENT_UPDATE_KEYS = new Set(['reason', 'sectionUpdateSource']);
+
+/** Fields a proposal's `updates` change, in `pointerToFieldPath` naming. */
+export function proposalChangedPaths(updates: Prisma.JsonValue): string[] {
+  if (!isObject(updates) || 'operations' in updates) return [];
+  const paths = new Set<string>();
+  for (const [key, value] of Object.entries(updates)) {
+    if (NON_CONTENT_UPDATE_KEYS.has(key) || value === undefined) continue;
+    if (key === 'sections' && Array.isArray(value)) {
+      for (const section of value)
+        if (isObject(section) && typeof section.key === 'string')
+          paths.add(`sections.${section.key}`);
+      continue;
+    }
+    paths.add(key === 'requirementOps' ? 'requirements' : key);
+  }
+  return [...paths].sort();
+}
+
 /** Compare values semantically; object property order is not a content version. */
 export function mergeProposalContent(
   baseline: Prisma.JsonValue,

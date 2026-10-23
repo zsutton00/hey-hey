@@ -1175,6 +1175,8 @@ beforeEach(() => {
         currentBases: [],
         revisions: [],
         conflictingPaths: [],
+        interveningProposals: [],
+        overlaps: [],
       },
     },
   } as never);

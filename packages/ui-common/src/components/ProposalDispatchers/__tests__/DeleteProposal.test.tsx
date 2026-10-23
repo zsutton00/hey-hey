@@ -127,6 +127,8 @@ beforeEach(() => {
         currentBases: [],
         revisions: [],
         conflictingPaths: [],
+        interveningProposals: [],
+        overlaps: [],
       },
     },
   } as never);
@@ -214,6 +216,8 @@ describe("DeleteProposal", () => {
           currentBases: [],
           revisions: [],
           conflictingPaths: [],
+          interveningProposals: [],
+          overlaps: [],
         },
       },
     } as never);

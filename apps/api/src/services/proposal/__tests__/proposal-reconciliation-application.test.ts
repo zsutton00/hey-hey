@@ -403,6 +403,7 @@ describe('out-of-date review state', () => {
         user: { id: 'approver', name: 'Zac' },
       },
     ],
+    reconciliationRevisions: [],
   });
 
   it('shows nothing to reconcile on approved or rejected proposals', async () => {

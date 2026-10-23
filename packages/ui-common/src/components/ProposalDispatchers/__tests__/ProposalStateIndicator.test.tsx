@@ -257,6 +257,8 @@ describe("ProposalStateIndicator out-of-date approval state", () => {
           currentBases: [],
           revisions: [],
           conflictingPaths: [],
+          interveningProposals: [],
+          overlaps: [],
         },
       },
     } as never);
@@ -269,6 +271,33 @@ describe("ProposalStateIndicator out-of-date approval state", () => {
       screen.queryByTestId("proposal-out-of-date-acknowledgement"),
     ).not.toBeInTheDocument();
     expect(onApply).not.toHaveBeenCalled();
+  });
+
+  it("leaves an approved proposal's indicator alone, with no out-of-date controls", async () => {
+    vi.mocked(proposalsClient.getProposalReconciliation).mockClear();
+    render(
+      <ProposalOutOfDateReview
+        proposal={{
+          ...proposal(ProposalOutOfDateStatus.Current),
+          status: ProposalStatus.Approved,
+        }}
+        onApply={vi.fn()}
+      >
+        <ProposalStateIndicator
+          status={{ state: "applied" }}
+          action={ProposalAction.Update}
+          onApply={vi.fn()}
+        />
+      </ProposalOutOfDateReview>,
+    );
+    expect(screen.getByText("Updated")).toBeVisible();
+    expect(
+      screen.queryByTestId("proposal-reconciliation-merge"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("proposal-reconciliation-heads-up"),
+    ).not.toBeInTheDocument();
+    expect(proposalsClient.getProposalReconciliation).not.toHaveBeenCalled();
   });
 });
 
@@ -438,6 +467,8 @@ beforeEach(() => {
         currentBases: [],
         revisions: [],
         conflictingPaths: [],
+        interveningProposals: [],
+        overlaps: [],
       },
     },
   } as never);

@@ -67,6 +67,8 @@ vi.mock("../../../../clients/serviceClients", async (importOriginal) => ({
           currentBases: [],
           revisions: [],
           conflictingPaths: [],
+          interveningProposals: [],
+          overlaps: [],
         },
       },
     })),

@@ -89,7 +89,9 @@ export const proposalReconciliationStateSchema = {
     "status",
     "currentBases",
     "revisions",
-    "conflictingPaths"
+    "conflictingPaths",
+    "interveningProposals",
+    "overlaps"
   ],
   "properties": {
     "status": {
@@ -101,6 +103,91 @@ export const proposalReconciliationStateSchema = {
         "AGENT_FIX_REQUIRED",
         "READY_FOR_REVIEW"
       ]
+    },
+    "writtenAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the change under review was originally written; for a merged replacement, when the proposal it reconciles was written."
+    },
+    "interveningProposals": {
+      "type": "array",
+      "description": "Proposals approved on the same target after this change was written, oldest first. Empty when the proposal is approved or rejected.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "proposalId",
+          "title",
+          "approvedById",
+          "approvedByName",
+          "approvedAt",
+          "changedPaths",
+          "overlappingPaths"
+        ],
+        "properties": {
+          "proposalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "approvedById": {
+            "type": "string",
+            "nullable": true
+          },
+          "approvedByName": {
+            "type": "string",
+            "nullable": true
+          },
+          "approvedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "changedPaths": {
+            "type": "array",
+            "description": "Fields this intervening proposal changed, e.g. `name` or `sections.description`.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "overlappingPaths": {
+            "type": "array",
+            "description": "Fields of `changedPaths` that overlap this proposal and could not be merged.",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "overlaps": {
+      "type": "array",
+      "description": "Fields an intervening change and this proposal both changed in ways that cannot be combined automatically. Approval stays unavailable until they are resolved.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "interveningProposalId"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "proposedValue": {
+            "description": "This proposal's value for the field."
+          },
+          "currentValue": {
+            "description": "The field's current value after intervening changes."
+          },
+          "interveningProposalId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        }
+      }
     },
     "currentBases": {
       "type": "array",

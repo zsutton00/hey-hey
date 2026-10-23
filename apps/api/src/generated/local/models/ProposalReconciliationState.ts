@@ -11,11 +11,25 @@
  */
 
 import { ProposalReconciliationBasis } from '../models/ProposalReconciliationBasis';
+import { ProposalReconciliationIntervening } from '../models/ProposalReconciliationIntervening';
+import { ProposalReconciliationOverlap } from '../models/ProposalReconciliationOverlap';
 import { ProposalReconciliationRevision } from '../models/ProposalReconciliationRevision';
 import { HttpFile } from '../http/http';
 
 export class ProposalReconciliationState {
   'status': ProposalReconciliationStateStatusEnum;
+  /**
+   * When the change under review was originally written; for a merged replacement, when the proposal it reconciles was written.
+   */
+  'writtenAt'?: Date;
+  /**
+   * Proposals approved on the same target after this change was written, oldest first. Empty when the proposal is approved or rejected.
+   */
+  'interveningProposals': Array<ProposalReconciliationIntervening>;
+  /**
+   * Fields an intervening change and this proposal both changed in ways that cannot be combined automatically. Approval stays unavailable until they are resolved.
+   */
+  'overlaps': Array<ProposalReconciliationOverlap>;
   'currentBases': Array<ProposalReconciliationBasis>;
   'revisions': Array<ProposalReconciliationRevision>;
   'conflictingPaths': Array<string>;
@@ -37,6 +51,24 @@ export class ProposalReconciliationState {
       name: 'status',
       baseName: 'status',
       type: 'ProposalReconciliationStateStatusEnum',
+      format: '',
+    },
+    {
+      name: 'writtenAt',
+      baseName: 'writtenAt',
+      type: 'Date',
+      format: 'date-time',
+    },
+    {
+      name: 'interveningProposals',
+      baseName: 'interveningProposals',
+      type: 'Array<ProposalReconciliationIntervening>',
+      format: '',
+    },
+    {
+      name: 'overlaps',
+      baseName: 'overlaps',
+      type: 'Array<ProposalReconciliationOverlap>',
       format: '',
     },
     {
