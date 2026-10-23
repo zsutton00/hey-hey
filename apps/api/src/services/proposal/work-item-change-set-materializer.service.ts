@@ -3513,10 +3513,12 @@ export class WorkItemChangeSetMaterializerService {
         tx,
         ownedIntent.proposal,
         materializationId,
-        async () => {
+        async (writtenTaskIds) => {
+          // The footprint also covers read-only neighbours such as a created
+          // child's parent; the marker advances only on tasks actually written.
           await tx.task.updateMany({
             where: {
-              id: { in: affectedWorkItemIds as string[] },
+              id: { in: writtenTaskIds },
               organizationId: params.organizationId,
               projectId: params.projectId,
             },

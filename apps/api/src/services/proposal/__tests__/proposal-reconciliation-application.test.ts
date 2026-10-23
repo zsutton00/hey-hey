@@ -23,6 +23,10 @@ const proposal = {
   updates: { name: 'Renamed' },
   title: 'Rename',
   eli5: null,
+  status: 'DRAFT',
+  organizationId: 'org',
+  projectId: 'project',
+  createdAt: new Date('2026-10-01T00:00:00Z'),
 } as unknown as Proposal;
 
 function fixture() {
@@ -45,7 +49,12 @@ function fixture() {
     basis: ProposalReconciliationBasis;
     operationIndexes: number[];
   } | null = null;
+  const intervening: unknown[] = [];
   const db = {
+    proposal: {
+      findMany: jest.fn(async () => intervening),
+      findUnique: jest.fn(async () => null),
+    },
     workItemChangeSetMaterialization: { findUnique: jest.fn(async () => null) },
     proposalGroupMember: { findUnique: jest.fn(async () => null) },
     proposalReconciliationRevision: {
@@ -60,6 +69,7 @@ function fixture() {
         receipt ? [{ ...receipt, entityType: 'TASK', entityId: 'target' }] : [],
       ),
       findUnique: jest.fn(async () => receipt),
+      update: jest.fn(),
       upsert: jest.fn(async ({ create, update }) => {
         receipt = receipt
           ? {
@@ -84,6 +94,7 @@ function fixture() {
     tx,
     db,
     revision,
+    intervening,
     getCurrent: () => current,
     change: (
       content: ProposalReconciliationBasis['content'],
@@ -289,5 +300,189 @@ describe('reviewed reconciliation application', () => {
       ),
     ).rejects.toThrow(ConflictException);
     expect(write).toHaveBeenCalledTimes(1);
+  });
+
+  it('stays applicable when only the target version moves, e.g. after a child is approved', async () => {
+    const f = fixture();
+    f.change(structuredClone(original.content), 'child-approved-bump');
+    await expect(
+      f.owner.assertApplicable(f.tx, proposal),
+    ).resolves.toBeUndefined();
+    expect((await f.owner.state(f.tx, proposal)).status).toBe('CURRENT');
+  });
+
+  it('names the differing fields and sections when content really changed', async () => {
+    const f = fixture();
+    f.change(
+      {
+        ...original.content,
+        name: 'Someone else',
+        sections: { description: 'Rewritten', notes: 'Notes' },
+      },
+      'second',
+    );
+    const error = await f.owner
+      .assertApplicable(f.tx, proposal)
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ConflictException);
+    const body = (error as ConflictException).getResponse() as {
+      issues: { field: string; code: string }[];
+      correlationId: string;
+    };
+    expect(body.issues.map((issue) => issue.field)).toEqual([
+      'TASK:target.name',
+      'TASK:target.sections.description',
+    ]);
+    expect(body.issues[0].code).toBe('PROPOSAL_RECONCILIATION_REQUIRED');
+    expect(JSON.stringify(body)).not.toContain('Rewritten');
+    expect(body.correlationId).toEqual(expect.any(String));
+  });
+
+  it('keeps version checks for absent, reserved and relationship bases', () => {
+    const owner = fixture().owner;
+    const cases: [ProposalReconciliationBasis, ProposalReconciliationBasis][] =
+      [
+        [
+          { ...original, version: 'absent', content: {} },
+          { ...original, version: 'first', content: {} },
+        ],
+        [
+          { ...original, version: 'reserved:creator:a', content: {} },
+          { ...original, version: 'reserved:creator:b', content: {} },
+        ],
+        [
+          { entityType: 'EDGE', entityId: 'edge', version: 'a', content: {} },
+          { entityType: 'EDGE', entityId: 'edge', version: 'b', content: {} },
+        ],
+      ];
+    for (const [reviewed, current] of cases) {
+      expect(() =>
+        owner.assertReviewedBasisCurrent([reviewed], [current], 'proposal'),
+      ).toThrow(ConflictException);
+    }
+  });
+
+  it('lets a retried effect proceed after a version-only bump and publishes only written tasks', async () => {
+    const f = fixture();
+    await f.owner.guardTaskEffect(
+      f.tx,
+      proposal,
+      'materialization',
+      'target',
+      0,
+      false,
+      async () => {
+        f.change({ ...original.content, name: 'Renamed' }, 'second');
+      },
+    );
+    f.change(structuredClone(f.getCurrent().content), 'child-approved-bump');
+    const writeMarker = jest.fn(async () => undefined);
+    await f.owner.publishTaskEffects(
+      f.tx,
+      proposal,
+      'materialization',
+      writeMarker,
+    );
+    expect(writeMarker).toHaveBeenCalledWith(['target']);
+  });
+});
+
+describe('out-of-date review state', () => {
+  const approvedRow = (
+    id: string,
+    updates: object,
+    approvedAt: string,
+  ): unknown => ({
+    id,
+    title: `Change ${id}`,
+    updates,
+    updatedAt: new Date(approvedAt),
+    approvalRecords: [
+      {
+        createdAt: new Date(approvedAt),
+        user: { id: 'approver', name: 'Zac' },
+      },
+    ],
+  });
+
+  it('shows nothing to reconcile on approved or rejected proposals', async () => {
+    const f = fixture();
+    f.change({ ...original.content, name: 'Elsewhere' }, 'second');
+    for (const status of ['APPROVED', 'REJECTED'] as const) {
+      const state = await f.owner.state(f.tx, { ...proposal, status });
+      expect(state).toEqual({
+        status: 'NOT_APPLICABLE',
+        currentBases: [],
+        revisions: [],
+        conflictingPaths: [],
+        interveningProposals: [],
+        overlaps: [],
+      });
+    }
+    expect(f.db.proposal.findMany).not.toHaveBeenCalled();
+  });
+
+  it('lists changes approved since the proposal was written, oldest first, for a clean merge', async () => {
+    const f = fixture();
+    f.change(
+      {
+        ...original.content,
+        sections: { description: 'Keep this', notes: 'New notes' },
+      },
+      'second',
+    );
+    f.intervening.push(
+      approvedRow(
+        'later',
+        { sections: [{ key: 'notes', content: 'New notes' }] },
+        '2026-10-03T00:00:00Z',
+      ),
+      approvedRow('earlier', { status: 'ACTIVE' }, '2026-10-02T00:00:00Z'),
+    );
+    const state = await f.owner.state(f.tx, proposal);
+    expect(state.status).toBe('RECONCILIATION_REQUIRED');
+    expect(state.writtenAt).toBe('2026-10-01T00:00:00.000Z');
+    expect(state.interveningProposals.map((p) => p.proposalId)).toEqual([
+      'earlier',
+      'later',
+    ]);
+    expect(state.interveningProposals[1]).toMatchObject({
+      approvedByName: 'Zac',
+      changedPaths: ['sections.notes'],
+      overlappingPaths: [],
+    });
+    expect(state.overlaps).toEqual([]);
+    expect(f.db.proposal.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          targetEntityId: 'target',
+          status: 'APPROVED',
+          id: { notIn: ['proposal', 'proposal'] },
+        }),
+      }),
+    );
+  });
+
+  it('flags an overlapping field with both values and attributes it to the intervening change', async () => {
+    const f = fixture();
+    f.change({ ...original.content, name: 'Renamed elsewhere' }, 'second');
+    f.intervening.push(
+      approvedRow(
+        'rename',
+        { name: 'Renamed elsewhere' },
+        '2026-10-02T00:00:00Z',
+      ),
+    );
+    const state = await f.owner.state(f.tx, proposal);
+    expect(state.overlaps).toEqual([
+      {
+        path: 'name',
+        proposedValue: 'Renamed',
+        currentValue: 'Renamed elsewhere',
+        interveningProposalId: 'rename',
+      },
+    ]);
+    expect(state.conflictingPaths).toEqual(['name']);
+    expect(state.interveningProposals[0]?.overlappingPaths).toEqual(['name']);
   });
 });

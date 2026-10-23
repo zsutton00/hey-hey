@@ -36,12 +36,22 @@ describe('proposal reconciliation owner', () => {
     ).toThrow(ConflictException);
   });
 
-  it('rejects version drift even if the content changed and was restored', () => {
+  it('judges work items by content, not timestamp-derived versions', () => {
     expect(() =>
       service.assertReviewedBasisCurrent(
         [basis({ name: 'A' })],
         [basis({ name: 'A' }, 'v2')],
       ),
+    ).not.toThrow();
+  });
+
+  it('rejects relationship version drift even if the content was restored', () => {
+    const edge = (version: string): ProposalReconciliationBasis => ({
+      ...basis({ name: 'A' }, version),
+      entityType: 'EDGE',
+    });
+    expect(() =>
+      service.assertReviewedBasisCurrent([edge('v1')], [edge('v2')]),
     ).toThrow(ConflictException);
   });
 

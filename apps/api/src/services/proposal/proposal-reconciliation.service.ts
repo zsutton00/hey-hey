@@ -1,15 +1,17 @@
-import { ConflictException, Inject, Injectable } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, Logger } from '@nestjs/common';
 import type {
   Prisma,
   Proposal,
   ProposalReconciliationEffect,
   ProposalReconciliationRevision as StoredRevision,
 } from '@prisma/client';
-import { isEqual } from 'lodash';
+import { isEqual, isPlainObject } from 'lodash';
 import type {
   FutureRevisionBaseline,
   FutureRevisionContent,
   ProposalReconciliationBasis,
+  ProposalReconciliationIntervening,
+  ProposalReconciliationOverlap,
   ProposalReconciliationRevision,
   ProposalReconciliationState,
   UpdateTaskDto,
@@ -17,7 +19,13 @@ import type {
   WorkItemChangeSetValidationRequest,
 } from 'src/generated';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
-import { mergeProposalContent } from './proposal-reconciliation-merge';
+import {
+  fieldPathToPointer,
+  mergeProposalContent,
+  pointerToFieldPath,
+  proposalChangedPaths,
+  valueAtPointer,
+} from './proposal-reconciliation-merge';
 import { ProposalReconciliationAdapterService } from './proposal-reconciliation-adapter.service';
 import {
   projectReconciliationContent,
@@ -34,6 +42,7 @@ import {
 } from './pending-edge.service';
 import type { OrganizationId, ProjectId } from 'src/types';
 import { isAxiosError } from 'axios';
+import { v4 as uuidv4 } from 'uuid';
 import type { AgentEdge } from 'src/generated/graphs';
 
 export type ReconciliationProvenance = {
@@ -50,12 +59,26 @@ export type ReconciliationGroupMember = {
   identityMappings?: Record<string, string>;
 };
 
+type InterveningRow = {
+  id: string;
+  title: string | null;
+  updates: Prisma.JsonValue;
+  updatedAt: Date;
+  approvalRecords: { createdAt: Date; user: { id: string; name: string } }[];
+  reconciliationRevisions: {
+    bases: Prisma.JsonValue;
+    proposedResult: Prisma.JsonValue;
+  }[];
+};
+
 /**
  * Owns immutable reconciliation records. Entity adapters supply canonical content;
  * callers retain their transaction through the guarded entity write.
  */
 @Injectable()
 export class ProposalReconciliationService {
+  private readonly logger = new Logger(ProposalReconciliationService.name);
+
   constructor(
     private readonly adapter: ProposalReconciliationAdapterService,
     private readonly edges: AgentEdgeClientService,
@@ -466,7 +489,7 @@ export class ProposalReconciliationService {
           proposal.targetEntityType,
         );
       } else {
-        this.assertReviewedBasisCurrent(currentExpected, current);
+        this.assertReviewedBasisCurrent(currentExpected, current, proposal.id);
       }
     }
     const previous = await tx.proposalReconciliationRevision.findFirst({
@@ -625,6 +648,17 @@ export class ProposalReconciliationService {
     tx: AnyTransactionClient,
     proposal: Proposal,
   ): Promise<ProposalReconciliationState> {
+    // A decided proposal has nothing left to reconcile or review.
+    if (proposal.status === 'APPROVED' || proposal.status === 'REJECTED') {
+      return {
+        status: 'NOT_APPLICABLE',
+        currentBases: [],
+        revisions: [],
+        conflictingPaths: [],
+        interveningProposals: [],
+        overlaps: [],
+      };
+    }
     const currentBases = await this.currentBases(tx, proposal);
     const materialization =
       await tx.workItemChangeSetMaterialization.findUnique({
@@ -737,11 +771,44 @@ export class ProposalReconciliationService {
       });
       if (!group || group.status === 'BUILDING') replacement = null;
     }
+    const outOfDate =
+      status === 'RECONCILIATION_REQUIRED' ||
+      status === 'AGENT_FIX_REQUIRED' ||
+      status === 'READY_FOR_REVIEW';
+    const origin = outOfDate
+      ? await this.originProposal(tx, proposal, rows[0]?.proposalId)
+      : proposal;
+    const intervening = outOfDate
+      ? await this.interveningProposals(tx, proposal, origin)
+      : [];
+    const overlaps =
+      status === 'RECONCILIATION_REQUIRED' && !replacement
+        ? this.overlaps(
+            this.prepareMerge(proposal, {
+              status,
+              currentBases,
+              revisions,
+              conflictingPaths: [],
+              interveningProposals: [],
+              overlaps: [],
+            }),
+            latest?.proposedResult,
+            currentBases[0]?.content,
+            intervening,
+          )
+        : [];
+    for (const entry of intervening)
+      entry.overlappingPaths = overlaps
+        .filter((overlap) => overlap.interveningProposalId === entry.proposalId)
+        .map((overlap) => overlap.path);
     return {
       status,
       currentBases,
       revisions,
-      conflictingPaths: [],
+      conflictingPaths: overlaps.map((overlap) => overlap.path),
+      ...(outOfDate ? { writtenAt: origin.createdAt.toISOString() } : {}),
+      interveningProposals: intervening,
+      overlaps,
       ...(latest ? { candidateRevisionId: latest.id } : {}),
       ...(replacement
         ? {
@@ -752,6 +819,117 @@ export class ProposalReconciliationService {
           }
         : {}),
     };
+  }
+
+  /** A merged replacement is reviewed against when the proposal it reconciles was written. */
+  private async originProposal(
+    tx: AnyTransactionClient,
+    proposal: Proposal,
+    originId: string | undefined,
+  ): Promise<Proposal> {
+    if (!originId || originId === proposal.id) return proposal;
+    return (
+      (await tx.proposal.findUnique({ where: { id: originId } })) ?? proposal
+    );
+  }
+
+  private async interveningProposals(
+    tx: AnyTransactionClient,
+    proposal: Proposal,
+    origin: Proposal,
+  ): Promise<ProposalReconciliationIntervening[]> {
+    const approved = await tx.proposal.findMany({
+      where: {
+        organizationId: proposal.organizationId,
+        projectId: proposal.projectId,
+        targetEntityId: proposal.targetEntityId,
+        status: 'APPROVED',
+        id: { notIn: [proposal.id, origin.id] },
+        updatedAt: { gt: origin.createdAt },
+      },
+      select: {
+        id: true,
+        title: true,
+        updates: true,
+        updatedAt: true,
+        approvalRecords: {
+          where: { type: 'APPROVAL' },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: {
+            createdAt: true,
+            user: { select: { id: true, name: true } },
+          },
+        },
+        reconciliationRevisions: {
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          take: 1,
+          select: { bases: true, proposedResult: true },
+        },
+      },
+    });
+    return (approved as InterveningRow[])
+      .map((row) => {
+        const approval = row.approvalRecords[0];
+        const changedPaths = proposalChangedPaths(row.updates);
+        const revision = row.reconciliationRevisions[0];
+        const before = (
+          revision?.bases as unknown as
+            | ProposalReconciliationBasis[]
+            | undefined
+        )?.[0]?.content;
+        return {
+          proposalId: row.id,
+          title: row.title ?? 'Untitled proposal',
+          approvedById: approval?.user.id ?? null,
+          approvedByName: approval?.user.name ?? null,
+          approvedAt: (approval?.createdAt ?? row.updatedAt).toISOString(),
+          changedPaths,
+          overlappingPaths: [] as string[],
+          changes: revision
+            ? changedPaths.flatMap((path) => {
+                const pointer = fieldPathToPointer(path);
+                const was = valueAtPointer(before, pointer) ?? null;
+                const now =
+                  valueAtPointer(revision.proposedResult, pointer) ?? null;
+                return isEqual(was, now)
+                  ? []
+                  : [{ path, before: was, after: now }];
+              })
+            : [],
+        };
+      })
+      .filter((entry) => entry.approvedAt > origin.createdAt.toISOString())
+      .sort((a, b) => a.approvedAt.localeCompare(b.approvedAt));
+  }
+
+  /** Fields the merge could not combine, attributed to the latest intervening change to them. */
+  private overlaps(
+    merge: ReturnType<ProposalReconciliationService['prepareMerge']>,
+    proposedResult: Prisma.JsonValue | undefined,
+    current: Prisma.JsonValue | undefined,
+    intervening: readonly ProposalReconciliationIntervening[],
+  ): ProposalReconciliationOverlap[] {
+    if (merge.kind !== 'AGENT_FIX_REQUIRED') return [];
+    return merge.conflictingPaths
+      .filter((pointer) => pointer !== '')
+      .map((pointer) => {
+        const path = pointerToFieldPath(pointer);
+        const owner = intervening.findLast((entry) =>
+          entry.changedPaths.some(
+            (changed) =>
+              changed === path ||
+              path.startsWith(`${changed}.`) ||
+              changed.startsWith(`${path}.`),
+          ),
+        );
+        return {
+          path,
+          proposedValue: valueAtPointer(proposedResult, pointer) ?? null,
+          currentValue: valueAtPointer(current, pointer) ?? null,
+          interveningProposalId: owner?.proposalId ?? null,
+        };
+      });
   }
 
   prepareMerge(proposal: Proposal, state: ProposalReconciliationState) {
@@ -854,6 +1032,7 @@ export class ProposalReconciliationService {
         revision.bases as unknown as ProposalReconciliationBasis[],
       ),
       current,
+      proposal.id,
     );
   }
 
@@ -897,6 +1076,7 @@ export class ProposalReconciliationService {
       this.assertReviewedBasisCurrent(
         await this.resolveReservedBases(tx, [expected]),
         [current],
+        proposal.id,
       );
       if (receipt?.operationIndexes.includes(operationIndex)) return undefined;
     }
@@ -954,7 +1134,7 @@ export class ProposalReconciliationService {
     // The Graph provider proves an already-completed conditional deletion by its
     // durable deletion receipt; absence alone is never proof of our operation.
     if (!(verifyDeletionReceipt && current.version === 'absent'))
-      this.assertReviewedBasisCurrent([expected], [current]);
+      this.assertReviewedBasisCurrent([expected], [current], proposal.id);
     return expected;
   }
 
@@ -962,7 +1142,8 @@ export class ProposalReconciliationService {
     tx: AnyTransactionClient,
     proposal: Proposal,
     materializationId: string,
-    writeMarker: () => Promise<void>,
+    /** Receives only the tasks this materialization actually wrote. */
+    writeMarker: (writtenTaskIds: string[]) => Promise<void>,
   ): Promise<void> {
     const receipts = await tx.proposalReconciliationEffect.findMany({
       where: { materializationId, entityType: 'TASK' },
@@ -972,9 +1153,12 @@ export class ProposalReconciliationService {
       this.assertReviewedBasisCurrent(
         [receipt.basis as unknown as ProposalReconciliationBasis],
         [await this.adapter.task(tx, proposal, receipt.entityId, true)],
+        proposal.id,
       );
     }
-    await writeMarker();
+    await writeMarker(
+      receipts.map(({ entityId }: { entityId: string }) => entityId),
+    );
     for (const receipt of receipts) {
       const basis = await this.adapter.task(
         tx,
@@ -1048,33 +1232,123 @@ export class ProposalReconciliationService {
   assertReviewedBasisCurrent(
     reviewed: readonly ProposalReconciliationBasis[],
     current: readonly ProposalReconciliationBasis[],
+    proposalId?: string,
   ): void {
-    if (!this.basesMatch(reviewed, current)) {
-      throw new ConflictException(
+    const differences = this.basisMismatches(reviewed, current);
+    if (differences.length === 0) return;
+    const correlationId = uuidv4();
+    this.logger.warn(
+      `Proposal approval blocked: reviewed basis no longer current ${JSON.stringify({ proposalId, correlationId, differences })}`,
+    );
+    throw new ConflictException({
+      message:
         'Proposal content changed after review. Reconciliation is required.',
-      );
-    }
+      // Read by toProposalApprovalFailureDiagnostic into the approval 409 body.
+      issues: differences.flatMap(basisMismatchIssues),
+      correlationId,
+    });
   }
 
   private basesMatch(
     reviewed: readonly ProposalReconciliationBasis[],
     current: readonly ProposalReconciliationBasis[],
   ): boolean {
+    return this.basisMismatches(reviewed, current).length === 0;
+  }
+
+  /**
+   * Work items and design docs are compared by content alone: their versions are
+   * built from timestamps that unrelated writes (e.g. adding a child) also move.
+   */
+  private basisMismatches(
+    reviewed: readonly ProposalReconciliationBasis[],
+    current: readonly ProposalReconciliationBasis[],
+  ): BasisMismatch[] {
     const currentByIdentity = new Map(
       current.map((basis) => [`${basis.entityType}:${basis.entityId}`, basis]),
     );
-    return (
-      reviewed.length === current.length &&
-      reviewed.every((basis) => {
-        const actual = currentByIdentity.get(
-          `${basis.entityType}:${basis.entityId}`,
-        );
-        return (
-          actual !== undefined &&
-          basis.version === actual.version &&
-          isEqual(basis.content, actual.content)
-        );
-      })
-    );
+    const mismatches: BasisMismatch[] = [];
+    for (const basis of reviewed) {
+      const identity = `${basis.entityType}:${basis.entityId}`;
+      const actual = currentByIdentity.get(identity);
+      currentByIdentity.delete(identity);
+      const mismatch = {
+        entityType: basis.entityType,
+        entityId: basis.entityId,
+      };
+      if (!actual) {
+        mismatches.push({ ...mismatch, kind: 'missing', differingKeys: [] });
+        continue;
+      }
+      if (
+        (versionIsMeaningful(basis) || versionIsMeaningful(actual)) &&
+        basis.version !== actual.version
+      ) {
+        mismatches.push({ ...mismatch, kind: 'version', differingKeys: [] });
+        continue;
+      }
+      const differingKeys = differingContentKeys(basis.content, actual.content);
+      if (differingKeys.length > 0)
+        mismatches.push({ ...mismatch, kind: 'content', differingKeys });
+    }
+    for (const extra of currentByIdentity.values())
+      mismatches.push({
+        entityType: extra.entityType,
+        entityId: extra.entityId,
+        kind: 'missing',
+        differingKeys: [],
+      });
+    return mismatches;
   }
 }
+
+export type BasisMismatch = {
+  entityType: string;
+  entityId: string;
+  kind: 'missing' | 'version' | 'content';
+  /** Field or `sections.<key>` paths only; never content values. */
+  differingKeys: string[];
+};
+
+const MISMATCH_REASONS: Record<BasisMismatch['kind'], string> = {
+  missing: 'The reviewed entity is no longer part of the current target.',
+  version: 'The entity was created, deleted or replaced after review.',
+  content: 'This field changed after review.',
+};
+
+const basisMismatchIssues = (mismatch: BasisMismatch) =>
+  (mismatch.differingKeys.length > 0 ? mismatch.differingKeys : ['']).map(
+    (key) => ({
+      field: `${mismatch.entityType}:${mismatch.entityId}${key ? `.${key}` : ''}`,
+      code: 'PROPOSAL_RECONCILIATION_REQUIRED',
+      reason: MISMATCH_REASONS[mismatch.kind],
+      layer: 'referential' as const,
+      suggestion: 'Review a reconciled result before applying.',
+    }),
+  );
+
+const versionIsMeaningful = (basis: ProposalReconciliationBasis): boolean =>
+  (basis.entityType !== 'TASK' && basis.entityType !== 'DESIGN_DOC') ||
+  basis.version === 'absent' ||
+  String(basis.version).startsWith('reserved:');
+
+const NESTED_KEYS = new Set(['sections', 'sectionOrder']);
+
+const differingContentKeys = (
+  left: unknown,
+  right: unknown,
+  prefix = '',
+): string[] => {
+  if (isEqual(left, right)) return [];
+  if (!isPlainObject(left) || !isPlainObject(right))
+    return [prefix ? prefix.slice(0, -1) : '(root)'];
+  const a = left as Record<string, unknown>;
+  const b = right as Record<string, unknown>;
+  return [...new Set([...Object.keys(a), ...Object.keys(b)])].flatMap((key) =>
+    prefix === '' && NESTED_KEYS.has(key)
+      ? differingContentKeys(a[key], b[key], `${key}.`)
+      : isEqual(a[key], b[key])
+        ? []
+        : [`${prefix}${key}`],
+  );
+};

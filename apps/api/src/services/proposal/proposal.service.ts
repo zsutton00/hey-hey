@@ -580,6 +580,7 @@ export class ProposalService {
       this.reconciliation.assertReviewedBasisCurrent(
         input.expectedCurrentBases!,
         state.currentBases,
+        id,
       );
       updates = input.proposedResult!;
     }

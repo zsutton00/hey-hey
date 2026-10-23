@@ -3901,8 +3901,8 @@ function reconciliationStub(completedEffects = new Set<string>()) {
         _tx: unknown,
         _proposal: unknown,
         _materializationId: string,
-        write: () => Promise<unknown>,
-      ) => write(),
+        write: (writtenTaskIds: string[]) => Promise<unknown>,
+      ) => write(['task-1']),
     ),
   } as never;
 }
