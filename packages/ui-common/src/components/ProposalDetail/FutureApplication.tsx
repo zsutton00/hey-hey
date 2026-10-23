@@ -1,3 +1,5 @@
+import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -7,6 +9,8 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
+  Tooltip,
   Stack,
   Typography,
 } from "@mui/material";
@@ -47,12 +51,15 @@ export function FutureApplication({
   onApplied,
   reconciliationProposal,
   waitingNote,
+  reviewSteps,
 }: {
   future: FutureRevisionResponse;
   onApplied: () => Promise<void>;
   reconciliationProposal?: ProposalResponseDto;
   /** Replaces the generic waiting-on-linked-work message. */
   waitingNote?: ReactNode;
+  /** Approval and linked work share the action row. */
+  reviewSteps?: ReactNode;
 }) {
   const { organizationId, projectId, id: futureId } = future;
   const [response, setResponse] = useState<FutureApplyResponse | null>(null);
@@ -120,12 +127,53 @@ export function FutureApplication({
   return (
     <Stack spacing={1} data-testid="future-application">
       {applied ? (
-        <Alert severity="success">
-          Applied version{" "}
-          {response?.future.appliedRevision ?? future.appliedRevision}
-        </Alert>
+        <Stack direction="row" spacing={1} alignItems="center">
+          {reviewSteps}
+          <Alert severity="success">
+            Applied version{" "}
+            {response?.future.appliedRevision ?? future.appliedRevision}
+          </Alert>
+        </Stack>
       ) : (
         <>
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            sx={{ flexWrap: "nowrap", overflowX: "auto" }}
+            data-testid="future-review-sequence"
+          >
+            {reviewSteps}
+            {!ready && (
+              <Tooltip title="Refresh linked work status">
+                <span>
+                  <IconButton
+                    size="small"
+                    aria-label="Refresh linked work status"
+                    data-testid="future-refresh-readiness"
+                    disabled={applicability.isFetching}
+                    onClick={() => void applicability.refetch()}
+                  >
+                    <RefreshIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            )}
+            {reviewSteps && (
+              <ArrowForwardIcon fontSize="small" color="disabled" />
+            )}
+            <Button
+              variant="contained"
+              color="success"
+              size="small"
+              sx={{ flexShrink: 0 }}
+              data-testid="future-apply"
+              disabled={!ready || apply.isPending || applicability.isFetching}
+              onClick={() => void submit()}
+            >
+              {apply.isPending ? "Applying…" : "Apply"}
+            </Button>
+          </Stack>
           {applicability.isPending && (
             <Typography variant="body2">
               Checking whether this can be applied…
@@ -133,15 +181,6 @@ export function FutureApplication({
           )}
           {applicability.error && (
             <Alert severity="error">{applicability.error.message}</Alert>
-          )}
-          {!ready && (
-            <Button
-              data-testid="future-refresh-readiness"
-              disabled={applicability.isFetching}
-              onClick={() => void applicability.refetch()}
-            >
-              Refresh
-            </Button>
           )}
           {applicability.data?.blockers.map((blocker) =>
             blocker === "COMPLETION_INCOMPLETE" ? (
@@ -164,13 +203,6 @@ export function FutureApplication({
               The linked work is done. Apply when you're ready.
             </Typography>
           )}
-          <Button
-            data-testid="future-apply"
-            disabled={!ready || apply.isPending || applicability.isFetching}
-            onClick={() => void submit()}
-          >
-            {apply.isPending ? "Applying…" : "Apply"}
-          </Button>
         </>
       )}
       {response?.blocker && (

@@ -61,7 +61,7 @@ export function FutureApplyFooter({
           direction="row"
           spacing={1}
           alignItems="center"
-          flexWrap="wrap"
+          flexWrap="nowrap"
           useFlexGap
         >
           {approveControl}
@@ -81,7 +81,13 @@ export function FutureApplyFooter({
             </Typography>
           ))}
           <ArrowForwardIcon fontSize="small" color="disabled" />
-          <Button size="small" disabled data-testid="future-apply">
+          <Button
+            size="small"
+            variant="contained"
+            color="success"
+            disabled
+            data-testid="future-apply"
+          >
             Apply
           </Button>
         </Stack>
@@ -120,51 +126,46 @@ export function FutureApplyFooter({
 
   return (
     <Stack spacing={1} data-testid="future-apply-footer">
-      <Stack
-        direction="row"
-        spacing={1}
-        alignItems="center"
-        flexWrap="wrap"
-        useFlexGap
-      >
-        <Chip
-          icon={<CheckIcon />}
-          label="Approved"
-          size="small"
-          color="success"
-          variant="outlined"
-        />
-        {future.dependencies.length > 0 && (
-          <ArrowForwardIcon fontSize="small" color="disabled" />
-        )}
-        {future.dependencies.map((dependency) => (
-          <FutureDependency
-            key={dependency.targetEntityId}
-            {...{ organizationId, projectId }}
-            taskId={dependency.targetEntityId}
-          />
-        ))}
-        <ArrowForwardIcon fontSize="small" color="disabled" />
-        <FutureApplication
-          key={future.id}
-          future={future}
-          reconciliationProposal={current}
-          onApplied={async () => {
-            await refetch();
-            await onApplied?.(current.id);
-          }}
-          waitingNote={
-            waitingOn.length > 0 ? (
-              <>
-                Waiting for {joinNames(waitingOn, organizationId, projectId)}.
-                You'll be asked to apply this change when{" "}
-                {waitingOn.length > 1 ? "they reach" : "it reaches"} Verifying.
-                Refresh checks the status again.
-              </>
-            ) : undefined
-          }
-        />
-      </Stack>
+      <FutureApplication
+        key={future.id}
+        future={future}
+        reconciliationProposal={current}
+        reviewSteps={
+          <>
+            <Chip
+              icon={<CheckIcon />}
+              label="Approved"
+              size="small"
+              color="success"
+              variant="outlined"
+            />
+            {future.dependencies.length > 0 && (
+              <ArrowForwardIcon fontSize="small" color="disabled" />
+            )}
+            {future.dependencies.map((dependency) => (
+              <FutureDependency
+                key={dependency.targetEntityId}
+                {...{ organizationId, projectId }}
+                taskId={dependency.targetEntityId}
+              />
+            ))}
+          </>
+        }
+        onApplied={async () => {
+          await refetch();
+          await onApplied?.(current.id);
+        }}
+        waitingNote={
+          waitingOn.length > 0 ? (
+            <>
+              Waiting for {joinNames(waitingOn, organizationId, projectId)}.
+              You'll be asked to apply this change when{" "}
+              {waitingOn.length > 1 ? "they reach" : "it reaches"} Verifying.
+              Refresh checks the status again.
+            </>
+          ) : undefined
+        }
+      />
       {refinements.length > 0 && (
         <Stack spacing={0.5}>
           <Typography variant="body2" color="text.secondary">

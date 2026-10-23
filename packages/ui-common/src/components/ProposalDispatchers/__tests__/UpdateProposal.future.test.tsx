@@ -350,7 +350,20 @@ describe("UpdateProposal future revisions", () => {
         "Waiting for Cap Open Items at 100. You'll be asked to apply this change when it reaches Verifying. Refresh checks the status again.",
       ),
     );
-    expect(within(footer).getByTestId("future-apply")).toBeDisabled();
+    const sequence = within(footer).getByTestId("future-review-sequence");
+    expect(within(sequence).getByText("Approved")).toBeInTheDocument();
+    expect(
+      within(sequence).getByTestId("future-dependency"),
+    ).toBeInTheDocument();
+    expect(
+      within(sequence).getByRole("button", {
+        name: "Refresh linked work status",
+      }),
+    ).toBeInTheDocument();
+    expect(within(sequence).getByTestId("future-apply")).toBeDisabled();
+    expect(
+      within(sequence).queryByTestId("future-waiting"),
+    ).not.toBeInTheDocument();
     expect(footer.textContent).not.toMatch(/incomplete|readiness/i);
   });
 
