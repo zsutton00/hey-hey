@@ -15,7 +15,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint --fix",
     "preview": "vite preview",
-    "docker:build": "docker build --build-context ui_common=../ui-common --build-arg APP_VERSION=local -t hey-hey-ui:local .",
+    "docker:build": "docker build -f Dockerfile --build-arg APP_VERSION=local -t hey-hey-ui:local ../..",
     "docker:compose:ui": "docker compose --profile ui up --build ui",
     "test": "vitest run && node --test scripts/runtime-model-catalog.test.mjs",
     "test:ui": "vitest --ui",

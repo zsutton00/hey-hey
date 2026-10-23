@@ -2,10 +2,8 @@ services:
   ui:
     profiles: ["ui"]
     build:
-      context: .
-      dockerfile: Dockerfile
-      additional_contexts:
-        ui_common: ../ui-common
+      context: ../..
+      dockerfile: apps/ui/Dockerfile
       args:
         APP_VERSION: ${UI_IMAGE_TAG:-local}
     image: hey-hey-ui:${UI_IMAGE_TAG:-local}

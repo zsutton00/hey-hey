@@ -1,0 +1,54 @@
+# Build context for every image built from the combined checkout
+# (apps/ui/Dockerfile, apps/api/Dockerfile; context is the repository root).
+#
+# Keep in the context: workspace manifests and the root lockfile, openapi/
+# (generation is verified against it), every package's committed generated
+# code, generated-contracts.json, and the API's runtime inputs: prisma/,
+# config/, db/ (Flyway migrations), content/, scripts/ and docker/.
+
+# VCS, worktrees and agent state
+.git
+**/.git
+.worktrees
+.worktree-links
+**/.claude
+
+# Installed dependencies and stores (images install from the lockfile)
+**/node_modules
+.pnpm-store
+**/.pnpm-store
+
+# Build output and caches (images compile their own)
+**/dist
+**/dist-ssr
+**/build
+**/coverage
+**/storybook-static
+**/.tsbuild
+**/*.tsbuildinfo
+**/.cache
+**/.turbo
+**/.vite
+**/.eslintcache
+**/.openapi-tmp
+.generate-contracts.lock
+
+# Local state, logs and scratch
+**/.tmp
+**/tmp
+**/temp
+**/logs
+**/backups
+**/*.log
+**/*.sqlite
+**/*.sqlite3
+**/.DS_Store
+
+# Secrets never enter an image; examples stay
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.docker.example
+apps/api/config/keys/*.pem
+apps/api/config/keys/*.key
+apps/api/config/keys/*private*

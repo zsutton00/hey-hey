@@ -1,0 +1,142 @@
+name: Images
+
+# Builds and verifies the checks and distinct UI/API images a change affects.
+# Nothing here logs in to a registry, pushes, releases or deploys: publication
+# and deployment-reference changes need separately approved protected runs.
+# Generation drift and OpenAPI validation are owned by the Contracts workflow.
+
+on:
+  pull_request:
+  push:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+jobs:
+  select:
+    runs-on: ubuntu-latest
+    outputs:
+      checks: ${{ steps.affected.outputs.checks }}
+      images: ${{ steps.affected.outputs.images }}
+      external_consumer_handoff: ${{ steps.affected.outputs.external_consumer_handoff }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - id: affected
+        name: Select affected checks and images
+        run: >-
+          node scripts/affected-builds.mjs --github-output
+          --base "${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}"
+          --head "${{ github.sha }}"
+      - name: Note the Graph and Embeddings handoff
+        if: steps.affected.outputs.external_consumer_handoff == 'true'
+        run: >-
+          echo "::notice title=OpenAPI changed::Graph and Embeddings pin their own
+          specification closure. Hand them this exact revision (${{ github.sha }}),
+          the openapi/ subtree and its closure digest; they are not rebuilt here."
+
+  checks:
+    needs: select
+    if: needs.select.outputs.checks != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        check: ${{ fromJSON(needs.select.outputs.checks) }}
+    name: ${{ matrix.check.target }} · ${{ matrix.check.command }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: ${{ matrix.check.command }}
+
+  image:
+    needs: select
+    if: needs.select.outputs.images != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.select.outputs.images) }}
+    name: ${{ matrix.image }} image
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Candidate identity
+        id: meta
+        shell: bash
+        run: |
+          SAFE_REF="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+          SAFE_REF="${SAFE_REF//\//-}"
+          SAFE_REF="${SAFE_REF//[^a-zA-Z0-9_.-]/-}"
+          echo "app_version=${SAFE_REF}-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "tag=candidate-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Build ${{ matrix.image }} from the repository root
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/${{ matrix.image }}/Dockerfile
+          push: false
+          load: true
+          build-args: |
+            APP_VERSION=${{ steps.meta.outputs.app_version }}
+            SOURCE_REVISION=${{ github.sha }}
+          tags: heyhey-${{ matrix.image }}:${{ steps.meta.outputs.tag }}
+
+      - name: Verify the UI image serves its assets
+        if: matrix.image == 'ui'
+        shell: bash
+        run: |
+          docker run -d --name ui-candidate -p 5173:5173 "heyhey-ui:${{ steps.meta.outputs.tag }}"
+          trap 'docker logs ui-candidate; docker rm -f ui-candidate' EXIT
+          for attempt in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:5173/ -o /dev/null && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:5173/ | grep -q '<div id="root">'
+          curl -fsS http://127.0.0.1:5173/runtime-config.js -o /dev/null
+
+      - name: Verify the API image carries its runtime
+        if: matrix.image == 'api'
+        shell: bash
+        run: |
+          docker run --rm --entrypoint sh "heyhey-api:${{ steps.meta.outputs.tag }}" -c '
+            set -e
+            flyway -v
+            test -d db/flyway && test -f prisma/schema.prisma && test -d content/help
+            node -e "
+              require(\"./dist/app.module.js\");
+              require(\"./dist/worker-app.module.js\");
+              new (require(\"@prisma/client\").PrismaClient)();
+            "
+          '
+
+      - name: Record build evidence
+        shell: bash
+        run: |
+          node scripts/image-build-evidence.mjs \
+            --image "${{ matrix.image }}" \
+            --image-id "${{ steps.build.outputs.imageid }}" \
+            --tag "${{ steps.meta.outputs.tag }}" | tee "image-evidence-${{ matrix.image }}.json"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-evidence-${{ matrix.image }}
+          path: image-evidence-${{ matrix.image }}.json
