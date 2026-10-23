@@ -62,7 +62,7 @@ vi.mock("@hey-hey/ui-common/data", () => ({
 vi.mock("@hey-hey/ui-common/components", async () => {
   // Keep the real completion owner; PlanViewer's guard is covered in ui-common.
   const { PlanCompletionAction } =
-    await import("../../../../ui-common/src/components/Plans/PlanCompletionAction");
+    await import("../../../../../packages/ui-common/src/components/Plans/PlanCompletionAction");
   return {
     DependentFutures: ({ taskId }: { taskId: string }) => (
       <div data-testid="dependent-futures" data-task-id={taskId} />
@@ -116,13 +116,13 @@ vi.mock("@hey-hey/ui-common/components", async () => {
   };
 });
 vi.mock(
-  "../../../../ui-common/src/components/InteractionComponent/useEntityConversationLauncher",
+  "../../../../../packages/ui-common/src/components/InteractionComponent/useEntityConversationLauncher",
   () => ({
     useEntityConversationLauncher: () => ({ launch: vi.fn() }),
   }),
 );
 vi.mock(
-  "../../../../ui-common/src/components/AgentSession/runtime/coding/useMachineResolution",
+  "../../../../../packages/ui-common/src/components/AgentSession/runtime/coding/useMachineResolution",
   () => ({
     useMachineResolution: () => ({
       machines: [],
@@ -131,32 +131,38 @@ vi.mock(
     }),
   }),
 );
-vi.mock("../../../../ui-common/src/components/ActionsCapsule", () => ({
-  CapsuleAction: ({
-    label,
-    onClick,
-  }: {
-    label: string;
-    onClick: () => void;
-  }) => <button onClick={onClick}>{label}</button>,
-}));
-vi.mock("../../../../ui-common/src/components/InteractionComponent", () => ({
-  EntityConversationPromptDialog: ({
-    open,
-    primaryAction,
-    secondaryAction,
-  }: {
-    open: boolean;
-    primaryAction: { label: string };
-    secondaryAction: { label: string };
-  }) =>
-    open ? (
-      <div role="dialog">
-        <button>{secondaryAction.label}</button>
-        <button>{primaryAction.label}</button>
-      </div>
-    ) : null,
-}));
+vi.mock(
+  "../../../../../packages/ui-common/src/components/ActionsCapsule",
+  () => ({
+    CapsuleAction: ({
+      label,
+      onClick,
+    }: {
+      label: string;
+      onClick: () => void;
+    }) => <button onClick={onClick}>{label}</button>,
+  }),
+);
+vi.mock(
+  "../../../../../packages/ui-common/src/components/InteractionComponent",
+  () => ({
+    EntityConversationPromptDialog: ({
+      open,
+      primaryAction,
+      secondaryAction,
+    }: {
+      open: boolean;
+      primaryAction: { label: string };
+      secondaryAction: { label: string };
+    }) =>
+      open ? (
+        <div role="dialog">
+          <button>{secondaryAction.label}</button>
+          <button>{primaryAction.label}</button>
+        </div>
+      ) : null,
+  }),
+);
 vi.mock("../../components/Layout", () => ({
   DetailPageContainer: ({ children }: { children: ReactNode }) => children,
   DetailPageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,

@@ -1,6 +1,6 @@
 ARG APP_VERSION=local
 
-FROM node:22.23.4-bookworm-slim AS build
+FROM node:24.16.0-bookworm-slim AS build
 
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
@@ -28,7 +28,7 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 RUN NODE_OPTIONS="--max-old-space-size=4096" pnpm exec vite build
 
-FROM node:22.23.4-bookworm-slim AS runtime
+FROM node:24.16.0-bookworm-slim AS runtime
 
 ARG APP_VERSION
 

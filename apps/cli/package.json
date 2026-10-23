@@ -23,9 +23,9 @@
   "author": "Zac Sutton",
   "scripts": {
     "dev": "pnpm dev:run",
-    "dev:build": "pnpm -C ../ui-common build && node scripts/build.mjs --watch",
-    "build": "pnpm -C ../ui-common build && node scripts/build.mjs",
-    "build:ui-common-types": "pnpm -C ../ui-common build:cli-declarations",
+    "dev:build": "pnpm --filter @hey-hey/ui-common build && node scripts/build.mjs --watch",
+    "build": "pnpm --filter @hey-hey/ui-common build && node scripts/build.mjs",
+    "build:ui-common-types": "pnpm --filter @hey-hey/ui-common build:cli-declarations",
     "typecheck": "pnpm build:ui-common-types && pnpm tsc --noEmit",
     "register": "pnpm run build && pnpm link --global",
     "unregister": "pnpm unlink --global",
@@ -75,8 +75,7 @@
     "generate:all": "node scripts/clean-openapi-generated.cjs && pnpm generate",
     "generate:check": "pnpm generate && git diff --exit-code -- src/shared/api/generated src/shared/agent-bridge-contract/generated src/shared/local-agent-api/generated src/generated",
     "prepack": "pnpm typecheck && pnpm test && pnpm build",
-    "format:check": "prettier --check .",
-    "prepare": "husky"
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "^0.0.71",
@@ -90,7 +89,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
-    "@hey-hey/ui-common": "file:../ui-common",
+    "@hey-hey/ui-common": "workspace:*",
     "@openapitools/openapi-generator-cli": "2.29.0",
     "@types/express": "^5.0.6",
     "@types/node": "^22.19.19",
@@ -108,7 +107,6 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "express": "^5.2.1",
     "fuse.js": "^7.3.0",
-    "husky": "^9.1.7",
     "ignore": "^7.0.5",
     "ink": "6.8.0",
     "ink-testing-library": "4.0.0",

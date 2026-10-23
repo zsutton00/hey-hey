@@ -3,23 +3,10 @@ import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import { visualizer } from "rollup-plugin-visualizer";
 import viteCompression from "vite-plugin-compression";
-import fs from "node:fs";
 import path from "path";
 import { createUiCommonPuckIntegration } from "./vite-linked-dependencies";
 
-const configuredUiCommonRoot = process.env.HEY_HEY_UI_COMMON_ROOT?.trim();
-const linkedUiCommonPackageRoot = path.resolve(
-  __dirname,
-  ".worktree-links/ui-common",
-);
-const defaultUiCommonPackageRoot = fs.existsSync(
-  path.join(linkedUiCommonPackageRoot, "package.json"),
-)
-  ? linkedUiCommonPackageRoot
-  : path.resolve(__dirname, "../ui-common");
-const uiCommonPackageRoot = configuredUiCommonRoot
-  ? path.resolve(configuredUiCommonRoot)
-  : defaultUiCommonPackageRoot;
+const uiCommonPackageRoot = path.resolve(__dirname, "../../packages/ui-common");
 const uiCommonRoot = path.resolve(uiCommonPackageRoot, "src");
 const uiCommonPuckIntegration =
   createUiCommonPuckIntegration(uiCommonPackageRoot);
@@ -31,8 +18,8 @@ const muiSystemEsmRoot = path.resolve(
   __dirname,
   "./node_modules/@mui/system/esm",
 );
-// Keep in sync with the "entry" object in ../ui-common/tsup.config.ts
-// and the "exports" field in ../ui-common/package.json.
+// Keep in sync with the "entry" object in packages/ui-common/tsup.config.ts
+// and the "exports" field in packages/ui-common/package.json.
 const uiCommonSourceAliases = [
   {
     find: /^@hey-hey\/ui-common$/,
@@ -455,7 +442,6 @@ export default defineConfig(({ mode }) => {
       exclude: [
         "**/node_modules/**",
         "**/.git/**",
-        "**/.worktree-links/**",
         "**/dist/**",
         "**/coverage/**",
       ],

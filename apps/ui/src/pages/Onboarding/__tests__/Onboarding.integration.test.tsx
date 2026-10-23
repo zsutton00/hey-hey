@@ -1,4 +1,4 @@
-import { WebSocketHandler } from "../../../../.worktree-links/ui-common/src/data/websockets/handler";
+import { WebSocketHandler } from "../../../../../../packages/ui-common/src/data/websockets/handler";
 import { useConversationMessages } from "@hey-hey/ui-common/data";
 import type { ConversationResponseDto } from "@hey-hey/ui-common/api";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -90,7 +90,7 @@ vi.mock("@hey-hey/ui-common/components", () => ({
     const { data: messages } = useConversationMessages(
       conversation.organizationId,
       conversation.projectId,
-      conversation.id
+      conversation.id,
     );
     const firstMessage = messages[0];
     const isReplyForm = firstMessage?.awaitingResponse;
@@ -175,9 +175,9 @@ const mockAgentSessions = vi.hoisted(() => {
 });
 
 vi.mock("@hey-hey/ui-common/data", async () => {
-  const actual = await vi.importActual<typeof import("@hey-hey/ui-common/data")>(
-    "@hey-hey/ui-common/data",
-  );
+  const actual = await vi.importActual<
+    typeof import("@hey-hey/ui-common/data")
+  >("@hey-hey/ui-common/data");
 
   return {
     ...actual,
@@ -280,7 +280,7 @@ vi.mock("@hey-hey/ui-common/hooks", async () => {
       guard:
         <TArgs extends unknown[]>(
           _key: string,
-          handler: (...args: TArgs) => void
+          handler: (...args: TArgs) => void,
         ) =>
         (...args: TArgs) =>
           handler(...args),
@@ -292,8 +292,7 @@ vi.mock("@hey-hey/ui-common/hooks", async () => {
 
 // Create test wrapper
 const createTestWrapper = (
-  initialEntry =
-    "/projects/5528269f-ab34-48ca-95f4-dd46e8a3393f/onboarding",
+  initialEntry = "/projects/5528269f-ab34-48ca-95f4-dd46e8a3393f/onboarding",
   store = createStore(),
 ) => {
   const queryClient = new QueryClient({
@@ -318,9 +317,7 @@ const createTestWrapper = (
                 <OrganizationProvider>
                   <DebugProvider>
                     <TrackingProvider enabled={false}>
-                      <MemoryRouter
-                        initialEntries={[initialEntry]}
-                      >
+                      <MemoryRouter initialEntries={[initialEntry]}>
                         <Routes>
                           <Route
                             path="/projects/:projectId/onboarding"
@@ -625,7 +622,7 @@ describe("Onboarding Page Integration Tests", () => {
     globalThis.mswServer.use(
       http.get(
         "http://localhost:3000/api/v1/organizations/:organizationId/projects/:projectId/conversations/:conversationId/version",
-        () => HttpResponse.json({ success: true, data: { version: 33 } })
+        () => HttpResponse.json({ success: true, data: { version: 33 } }),
       ),
       http.get(
         "http://localhost:3000/api/v1/organizations/:organizationId/projects/:projectId/messages",
@@ -658,7 +655,7 @@ describe("Onboarding Page Integration Tests", () => {
             statusCode: 200,
             path: "/api/v1/organizations/6815f349-7b01-4852-9b59-66cf17709c25/projects/5528269f-ab34-48ca-95f4-dd46e8a3393f",
           });
-        }
+        },
       ),
 
       // Conversations endpoint with workflowName query
@@ -696,7 +693,7 @@ describe("Onboarding Page Integration Tests", () => {
             timestamp: new Date().toISOString(),
             statusCode: 200,
           });
-        }
+        },
       ),
 
       // Initiatives endpoint
@@ -710,7 +707,7 @@ describe("Onboarding Page Integration Tests", () => {
             timestamp: new Date().toISOString(),
             statusCode: 200,
           });
-        }
+        },
       ),
 
       // Background context lookups used by the shared conversation renderer.
@@ -770,8 +767,8 @@ describe("Onboarding Page Integration Tests", () => {
             timestamp: new Date().toISOString(),
             statusCode: 200,
           });
-        }
-      )
+        },
+      ),
     );
   });
 
@@ -786,7 +783,7 @@ describe("Onboarding Page Integration Tests", () => {
         const timeline = screen.getByTestId("conversation-timeline");
         expect(timeline).toBeInTheDocument();
       },
-      { timeout: 15000 }
+      { timeout: 15000 },
     );
     expect(
       screen.queryByTestId("onboarding-breadcrumbs"),
@@ -808,28 +805,46 @@ describe("Onboarding Page Integration Tests", () => {
   it("renders completion Messages from websocket updates without refreshing metadata", async () => {
     currentMessages = mockReplyMessages;
     let envelopeReads = 0;
-    globalThis.mswServer.use(http.get(
-      "http://localhost:3000/api/v1/organizations/:organizationId/projects/:projectId/conversations",
-      () => {
-        envelopeReads += 1;
-        return HttpResponse.json({ success: true, data: { data: [mockReplyConversation] } });
-      },
-    ));
+    globalThis.mswServer.use(
+      http.get(
+        "http://localhost:3000/api/v1/organizations/:organizationId/projects/:projectId/conversations",
+        () => {
+          envelopeReads += 1;
+          return HttpResponse.json({
+            success: true,
+            data: { data: [mockReplyConversation] },
+          });
+        },
+      ),
+    );
     const store = createStore();
     render(<OnboardingPage />, {
       wrapper: createTestWrapper(undefined, store),
     });
     await screen.findByTestId("textarea-field-project_concept");
-    currentMessages = mockReplyMessages.map(message => ({ ...message, awaitingResponse: false }));
+    currentMessages = mockReplyMessages.map((message) => ({
+      ...message,
+      awaitingResponse: false,
+    }));
     const handler = new WebSocketHandler(store);
     const completion = {
-      type: "conversation.updated" as const, conversationId: mockConversation.id,
-      organizationId: mockConversation.organizationId, projectId: mockConversation.projectId,
-      timestamp: "2026-09-16T00:00:00Z", previousVersion: 33, newVersion: 34, changeType: "message_updated",
+      type: "conversation.updated" as const,
+      conversationId: mockConversation.id,
+      organizationId: mockConversation.organizationId,
+      projectId: mockConversation.projectId,
+      timestamp: "2026-09-16T00:00:00Z",
+      previousVersion: 33,
+      newVersion: 34,
+      changeType: "message_updated",
     };
-    act(() => { handler.handleEvent(completion); handler.handleEvent(completion); });
+    act(() => {
+      handler.handleEvent(completion);
+      handler.handleEvent(completion);
+    });
     await screen.findByTestId("initiative-field-initiative-1");
-    expect(screen.queryByTestId("textarea-field-project_concept")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("textarea-field-project_concept"),
+    ).not.toBeInTheDocument();
     expect(envelopeReads).toBe(1);
   });
 
@@ -918,7 +933,10 @@ describe("Onboarding Page Integration Tests", () => {
     });
 
     const timeline = await screen.findByTestId("conversation-timeline");
-    expect(timeline).toHaveAttribute("data-agent-session-id", "agent-session-1");
+    expect(timeline).toHaveAttribute(
+      "data-agent-session-id",
+      "agent-session-1",
+    );
     expect(timeline).toHaveAttribute(
       "data-agent-session-current-state",
       "THINKING",
@@ -945,7 +963,7 @@ describe("Onboarding Page Integration Tests", () => {
             data: { ...mockProject, status: ProjectStatus.Active },
             timestamp: new Date().toISOString(),
             statusCode: 200,
-          })
+          }),
       ),
       http.get(
         "http://localhost:3000/api/v1/organizations/:organizationId/projects/:projectId/conversations",
@@ -981,7 +999,7 @@ describe("Onboarding Page Integration Tests", () => {
     globalThis.mswServer.use(
       http.get(
         "http://localhost:3000/api/v1/organizations/:organizationId/projects/:projectId/conversations/:conversationId/version",
-        () => HttpResponse.json({ success: true, data: { version: 34 } })
+        () => HttpResponse.json({ success: true, data: { version: 34 } }),
       ),
       http.get(
         "http://localhost:3000/api/v1/organizations/:organizationId/projects/:projectId/conversations",
@@ -995,7 +1013,7 @@ describe("Onboarding Page Integration Tests", () => {
             },
             timestamp: new Date().toISOString(),
             statusCode: 200,
-          })
+          }),
       ),
       http.post(
         "http://localhost:3000/api/v1/organizations/:organizationId/projects/:projectId/onboarding/conversations/:conversationId/replies",
@@ -1018,18 +1036,19 @@ describe("Onboarding Page Integration Tests", () => {
               timestamp: new Date().toISOString(),
               statusCode: 202,
             },
-            { status: 202 }
+            { status: 202 },
           );
-        }
-      )
+        },
+      ),
     );
 
     render(<OnboardingPage />, { wrapper: createTestWrapper() });
 
-    const field = await screen.findByTestId(
-      "textarea-field-project_concept",
+    const field = await screen.findByTestId("textarea-field-project_concept");
+    await user.type(
+      within(field).getByRole("textbox"),
+      "A graph-backed project workspace",
     );
-    await user.type(within(field).getByRole("textbox"), "A graph-backed project workspace");
     await user.click(
       await screen.findByTestId("run-stream-external-reply-submit"),
     );
@@ -1225,7 +1244,7 @@ describe("Onboarding Page Integration Tests", () => {
             },
             timestamp: new Date().toISOString(),
             statusCode: 200,
-          })
+          }),
       ),
       http.post(
         "http://localhost:3000/api/v1/organizations/:organizationId/projects/:projectId/onboarding/conversations/:conversationId/replies",
@@ -1239,17 +1258,15 @@ describe("Onboarding Page Integration Tests", () => {
               timestamp: new Date().toISOString(),
               statusCode: 409,
             },
-            { status: 409 }
+            { status: 409 },
           );
-        }
-      )
+        },
+      ),
     );
 
     render(<OnboardingPage />, { wrapper: createTestWrapper() });
 
-    const field = await screen.findByTestId(
-      "textarea-field-project_concept",
-    );
+    const field = await screen.findByTestId("textarea-field-project_concept");
     const textarea = within(field).getByRole("textbox");
     await user.type(textarea, "Keep this onboarding draft");
     await user.click(

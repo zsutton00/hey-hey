@@ -25,52 +25,48 @@
 
     "types": ["vitest/globals", "@testing-library/jest-dom"],
     "paths": {
-      "@hey-hey/ui-common": ["./.worktree-links/ui-common/src/index.ts"],
+      "@hey-hey/ui-common": ["../../packages/ui-common/src/index.ts"],
       "@hey-hey/ui-common/animations": [
-        "./.worktree-links/ui-common/src/animations/index.ts"
+        "../../packages/ui-common/src/animations/index.ts"
       ],
-      "@hey-hey/ui-common/api": ["./.worktree-links/ui-common/src/api/index.ts"],
+      "@hey-hey/ui-common/api": ["../../packages/ui-common/src/api/index.ts"],
       "@hey-hey/ui-common/components": [
-        "./.worktree-links/ui-common/src/components/index.ts"
+        "../../packages/ui-common/src/components/index.ts"
       ],
       "@hey-hey/ui-common/components/*": [
-        "./.worktree-links/ui-common/src/components/*"
+        "../../packages/ui-common/src/components/*"
       ],
       "@hey-hey/ui-common/feature-tree-visualization": [
-        "./.worktree-links/ui-common/src/components/Features/FeatureTreeVisualization.tsx"
+        "../../packages/ui-common/src/components/Features/FeatureTreeVisualization.tsx"
       ],
       "@hey-hey/ui-common/agent-sessions-runtime": [
-        "./.worktree-links/ui-common/src/components/AgentSession/runtime/index.ts"
+        "../../packages/ui-common/src/components/AgentSession/runtime/index.ts"
       ],
       "@hey-hey/ui-common/context": [
-        "./.worktree-links/ui-common/src/contexts/index.ts"
+        "../../packages/ui-common/src/contexts/index.ts"
       ],
-      "@hey-hey/ui-common/data": [
-        "./.worktree-links/ui-common/src/data/index.ts"
-      ],
+      "@hey-hey/ui-common/data": ["../../packages/ui-common/src/data/index.ts"],
       "@hey-hey/ui-common/hooks": [
-        "./.worktree-links/ui-common/src/hooks/index.ts"
+        "../../packages/ui-common/src/hooks/index.ts"
       ],
       "@hey-hey/ui-common/clients": [
-        "./.worktree-links/ui-common/src/clients/index.ts"
+        "../../packages/ui-common/src/clients/index.ts"
       ],
       "@hey-hey/ui-common/agents": [
-        "./.worktree-links/ui-common/src/agents/index.ts"
+        "../../packages/ui-common/src/agents/index.ts"
       ],
       "@hey-hey/ui-common/agents-prompts": [
-        "./.worktree-links/ui-common/src/agents/prompts.ts"
+        "../../packages/ui-common/src/agents/prompts.ts"
       ],
       "@hey-hey/ui-common/services": [
-        "./.worktree-links/ui-common/src/services/index.ts"
+        "../../packages/ui-common/src/services/index.ts"
       ],
       "@hey-hey/ui-common/services/*": [
-        "./.worktree-links/ui-common/src/services/*"
+        "../../packages/ui-common/src/services/*"
       ],
-      "@hey-hey/ui-common/i18n": [
-        "./.worktree-links/ui-common/src/i18n/index.ts"
-      ],
+      "@hey-hey/ui-common/i18n": ["../../packages/ui-common/src/i18n/index.ts"],
       "@hey-hey/ui-common/utils": [
-        "./.worktree-links/ui-common/src/utils/index.ts"
+        "../../packages/ui-common/src/utils/index.ts"
       ],
       "react": ["./node_modules/@types/react/index.d.ts"],
       "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime.d.ts"],
@@ -79,9 +75,7 @@
       ]
     }
   },
-  "references": [
-    { "path": ".worktree-links/ui-common/tsconfig.api.json" }
-  ],
+  "references": [{ "path": "../../packages/ui-common/tsconfig.api.json" }],
   "include": [
     "src/components/**/*",
     "src/_contexts/**/*",

@@ -4,8 +4,8 @@ import {
   launchMocks,
   launchPlan,
   launchScope,
-} from "../../../../ui-common/src/test/planLaunchHarness";
-import { PlanGenerationChat } from "../../../../ui-common/src/components/AgentSession/PlanGenerationChat";
+} from "../../../../../packages/ui-common/src/test/planLaunchHarness";
+import { PlanGenerationChat } from "../../../../../packages/ui-common/src/components/AgentSession/PlanGenerationChat";
 import type { ReactNode } from "react";
 import {
   act,

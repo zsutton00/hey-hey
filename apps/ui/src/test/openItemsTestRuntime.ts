@@ -14,8 +14,8 @@ import type {
 import {
   openItemsGroupRows,
   openItemsRows,
-} from "../../.worktree-links/ui-common/src/data/openItemsMapping";
-import { validOpenItemsCollection } from "../../.worktree-links/ui-common/src/data/openItemsValidation";
+} from "../../../../packages/ui-common/src/data/openItemsMapping";
+import { validOpenItemsCollection } from "../../../../packages/ui-common/src/data/openItemsValidation";
 
 let userId = "";
 export const openItemsTestUserId = () => userId;

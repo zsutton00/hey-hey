@@ -1,0 +1,58 @@
+packages:
+  - apps/ui
+  - apps/api
+  - apps/cli
+  - packages/ui-common
+  - openapi
+
+# Running a script should not mutate node_modules. pnpm 11 otherwise verifies
+# dependencies before every script and may launch `pnpm install` automatically.
+verifyDepsBeforeRun: false
+
+# Let developers and CI use their installed pnpm when it differs from the
+# packageManager pin instead of downloading another pnpm release on startup.
+pmOnFail: ignore
+
+# Supply-chain defenses for `pnpm install`.
+# Hold back any package version younger than this many minutes. Malicious npm
+# versions are typically detected and pulled within 24-72h, so a 3-day delay
+# catches them before they hit a build.
+minimumReleaseAge: 4320
+minimumReleaseAgeExclude:
+  - playwright-core@1.64.0
+
+# One React identity across UI, UI Common and Puck.
+overrides:
+  react: 19.2.4
+  react-dom: 19.2.4
+
+# Native builds run only where an owning package already allowed them.
+onlyBuiltDependencies:
+  - '@openapitools/openapi-generator-cli' # api, cli
+  - '@prisma/client' # api
+  - '@prisma/engines' # api
+  - '@swc/core' # ui, api
+  - '@temporalio/core-bridge' # api
+  - bcrypt # api
+  - esbuild # ui, ui-common, cli
+  - msw # ui, ui-common
+  - prisma # api
+  - protobufjs # api
+  - vue-demi # ui, ui-common
+
+allowBuilds:
+  '@nestjs/core': false
+  '@openapitools/openapi-generator-cli': true
+  '@prisma/client': true
+  '@prisma/engines': true
+  '@scarf/scarf': false
+  '@swc/core': true
+  '@temporalio/core-bridge': true
+  bcrypt: true
+  core-js: false
+  esbuild: true
+  msw: true
+  prisma: true
+  protobufjs: true
+  redis-memory-server: false
+  vue-demi: true
