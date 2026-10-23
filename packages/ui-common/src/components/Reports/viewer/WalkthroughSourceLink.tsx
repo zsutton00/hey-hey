@@ -12,6 +12,10 @@ import {
   type ExternalEditorPreference,
 } from "../../EditorPreference/editorPreference";
 import { ExternalEditorPreferenceDialog } from "../../EditorPreference/ExternalEditorPreferenceDialog";
+import {
+  FILE_REFERENCE_FONT_FAMILY,
+  FileReferenceOpenAffordance,
+} from "../../SmarterTextAreaCard/fileReferences/FileReferenceLink";
 
 export function WalkthroughSourceLink({
   excerpt,
@@ -56,7 +60,7 @@ export function WalkthroughSourceLink({
       window.open(
         buildExternalEditorUrl(preference, source),
         "_self",
-        "noopener,noreferrer"
+        "noopener,noreferrer",
       );
     } catch {
       setAvailable(false);
@@ -70,6 +74,11 @@ export function WalkthroughSourceLink({
         data-testid="walkthrough-source"
         data-service-id={excerpt.serviceId}
         disabled={!available || pending}
+        sx={{
+          textTransform: "none",
+          fontFamily: FILE_REFERENCE_FONT_FAMILY,
+          justifyContent: "flex-start",
+        }}
         onClick={() => {
           const preference = readExternalEditorPreference();
           if (preference) void open(preference);
@@ -77,6 +86,7 @@ export function WalkthroughSourceLink({
         }}
       >
         {excerpt.file}:{excerpt.startLine}–{excerpt.endLine}
+        {available && <FileReferenceOpenAffordance />}
       </Button>
       {eligible && !available && (
         <Typography variant="caption">

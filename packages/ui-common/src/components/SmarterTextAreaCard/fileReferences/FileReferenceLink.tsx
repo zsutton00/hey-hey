@@ -1,4 +1,5 @@
 import { Box, Link } from "@mui/material";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { useContext, useState, type MouseEvent } from "react";
 import {
   buildExternalEditorUrl,
@@ -17,9 +18,7 @@ import {
 import type { FileReferenceValueV1 } from "./types";
 
 export type FileReferenceRenderMode =
-  | "service-qualified"
-  | "path"
-  | "file-name";
+  "service-qualified" | "path" | "file-name";
 export type FileReferenceEditorActivation = "inline" | "context-menu";
 
 interface FileReferenceLinkProps {
@@ -31,12 +30,12 @@ interface FileReferenceLinkProps {
 const DEFAULT_FILE_REFERENCE_RENDER_MODE = "service-qualified" as const;
 
 const resolveMappedSource = (
-  _value: FileReferenceValueV1
+  _value: FileReferenceValueV1,
 ): SourceReference | null => null;
 
 const resolveFileReferenceLabel = (
   value: FileReferenceValueV1,
-  renderMode: FileReferenceRenderMode
+  renderMode: FileReferenceRenderMode,
 ): string => {
   switch (renderMode) {
     case "service-qualified":
@@ -52,14 +51,33 @@ const resolveFileReferenceLabel = (
   }
 };
 
+export const FILE_REFERENCE_FONT_FAMILY = "monospace";
+
+export const FileReferenceOpenAffordance = () => (
+  <Box
+    component="span"
+    data-testid="file-reference-open-affordance"
+    sx={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 0.25,
+      ml: 0.75,
+      fontFamily: "inherit",
+    }}
+  >
+    <OpenInNewIcon fontSize="inherit" aria-hidden />
+    Open
+  </Box>
+);
+
 const openSource = (
   preference: ExternalEditorPreference,
-  sourceReference: SourceReference
+  sourceReference: SourceReference,
 ): void => {
   window.open(
     buildExternalEditorUrl(preference, sourceReference),
     "_self",
-    "noopener,noreferrer"
+    "noopener,noreferrer",
   );
 };
 
@@ -118,7 +136,7 @@ export const FileReferenceLink = ({
         bgcolor: "action.hover",
         px: 0.5,
         py: "1px",
-        fontFamily: "monospace",
+        fontFamily: FILE_REFERENCE_FONT_FAMILY,
       }}
     >
       {sourceReference && editorActivation === "inline" ? (
@@ -127,8 +145,10 @@ export const FileReferenceLink = ({
           onClick={handleClick}
           data-testid="file-reference-link"
           data-source-path={sourceReference.path}
+          sx={{ fontFamily: "inherit" }}
         >
           {label}
+          <FileReferenceOpenAffordance />
         </Link>
       ) : (
         label
