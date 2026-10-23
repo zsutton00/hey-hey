@@ -794,6 +794,80 @@ describe('FeatureSyncCodingPlanNode', () => {
     expect(taskService.findOneForAdapter).toHaveBeenCalledTimes(3);
   });
 
+  it('carries Continue Refining comments to the next planner turn as its user message', async () => {
+    const { node } = buildNode();
+    const tracker: MutableContextHandle<FeatureSyncFlowContext> =
+      createMutableContextHandle(
+        buildContext({
+          taskId: mockTaskId as FeatureSyncFlowContext['taskId'],
+        }),
+      );
+    await node.execute(tracker);
+
+    await node.processUserResponse(
+      tracker,
+      buildAgentMessage({
+        action: WorkflowReviewAction.Refine,
+        payload: {
+          ...codingPlanPayload,
+          executionPlan: [
+            {
+              stepId: 'step-1',
+              title: 'Wire the endpoint',
+              description: 'Add the route.',
+              references: [],
+              phase: 1,
+            },
+          ],
+          clarificationQuestions: [{ question: 'Which provider?' }],
+          feedback: 'Keep the API behavior explicit.',
+          stepFeedback: [
+            { stepId: 'step-1', note: 'Use the existing router.' },
+          ],
+          questionAnswers: [{ questionIndex: 0, answer: 'Claude.' }],
+        },
+      }),
+    );
+    const refined = await node.execute(tracker);
+    const triggerPayload = (
+      refined.triggersAgent as { payload?: { userMessage?: string } }
+    ).payload;
+    const userMessage = triggerPayload?.userMessage;
+
+    expect(userMessage).toContain('Keep the API behavior explicit.');
+    expect(userMessage).toContain(
+      'Step "Wire the endpoint" (step-1): Use the existing router.',
+    );
+    expect(userMessage).toContain('Q: Which provider?\n  A: Claude.');
+    expect(
+      tracker.getContext().codingPlanPendingReviewFeedback,
+    ).toBeUndefined();
+
+    const next = await node.execute(tracker);
+    expect((next.triggersAgent as { payload?: unknown }).payload).toEqual({});
+  });
+
+  it('sends no user message when Continue Refining carries no comments', async () => {
+    const { node } = buildNode();
+    const tracker: MutableContextHandle<FeatureSyncFlowContext> =
+      createMutableContextHandle(
+        buildContext({
+          taskId: mockTaskId as FeatureSyncFlowContext['taskId'],
+        }),
+      );
+    await node.processUserResponse(
+      tracker,
+      buildAgentMessage({
+        action: WorkflowReviewAction.Refine,
+        payload: { ...codingPlanPayload, feedback: '  ' },
+      }),
+    );
+    const refined = await node.execute(tracker);
+    expect((refined.triggersAgent as { payload?: unknown }).payload).toEqual(
+      {},
+    );
+  });
+
   it('ends the flow on APPROVED without re-emitting the trigger', async () => {
     const { node, taskService } = buildNode();
     const context = buildContext({

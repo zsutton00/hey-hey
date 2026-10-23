@@ -36,8 +36,8 @@ initial planning path:
   else structured.
 - Keep the acknowledgement product-facing; do not mention the report, payload,
   schema, tools, or workflow action.
-- Do not call \`submit_approved\` or \`submit_revised\`. The initial report
-  remains available for the user's review.`;
+- Do not call \`submit_approved\`. The initial report remains available for
+  the user's review.`;
   }
 
   const formattedReplies = recentUserReplies
@@ -74,9 +74,9 @@ matching report-and-action path:
   either a material edit to the plan or a written explanation for the no-op.
   Create exactly one complete updated PLAN report when the plan changes. Write
   a concise product-facing acknowledgement that does not mention the report,
-  payload, schema, tools, or workflow action, then call \`submit_revised\` with
-  no arguments. The submission tool emits the generated REFINE action for the
-  next planning pass.
+  payload, schema, tools, or workflow action, and end the turn without calling
+  any submission tool. The revised report stays open for the user's next
+  answer; the user, not you, decides whether to approve or refine again.
 
 Guessing wrong and calling \`submit_approved\` is irreversible once the CLI
 posts the completion — when in doubt, choose \`REVISED\` and let the user
@@ -387,7 +387,7 @@ from the Reports query API. The typed PLAN report is the sole structured plan pr
    - \`audience: "${ReportAudience.ProjectVisible}"\`
    - \`payload\` — follow the PLAN report schema and carry over \`sessionTitle\`, \`requiredServiceIds\`, \`primaryImplementations\` (including only supplied evidence-gated \`connections\`), \`executionPlan\` (preserving \`stepId\`, \`title\`, \`description\`, \`phase\` and \`targetFiles\` when present, and \`references\`), \`discrepancies\`, and \`clarificationQuestions\`. Add the required \`summary\` as a 50–100 word handoff, and set the payload's \`reportType\` field to \`"PLAN"\`. The payload carries plan content only; it never carries a workflow action.
    - \`entities\` — at minimum \`{ entityType: "TASK", entityId: <active task id>, relation: "PRIMARY" }\`. Add any other in-scope references (e.g. relevant designDoc or initiative ids from supplemental inputs) as \`relation: "CONTEXT"\`. The active AgentSession is captured automatically from the request header and does not need to be passed.
-3. For an initial plan, complete report persistence before writing the acknowledgement and do not call either submission tool. For an approval, do not create a duplicate unchanged report; write the acknowledgement and then call \`submit_approved\`. For a revision, persist exactly one complete updated report when the plan changes, write the acknowledgement, and then call \`submit_revised\`. The report and acknowledgement never contain a workflow action.
+3. For an initial plan, complete report persistence before writing the acknowledgement and do not call \`submit_approved\`. For an approval, do not create a duplicate unchanged report; write the acknowledgement and then call \`submit_approved\`. For a revision, persist exactly one complete updated report when the plan changes, write the acknowledgement, and do not call any submission tool. The report and acknowledgement never contain a workflow action.
 4. If \`create_report\` returns a validation error, fix the payload to match the schema and retry — do not fall back to skipping the report.
 
 The assistant response after the required report work is a single concise,

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
+import { z } from 'zod';
 import {
   ExtendedUIFieldType,
   WorkflowReviewAction,
@@ -34,9 +35,10 @@ import { CodingPlanReviewAnswerPayloadSchema } from 'src/generated/workflow-revi
  * The node is an EXTERNAL_AGENT node that accepts two user-authored actions:
  *
  * - `REFINE` — the user requested another planning turn. The flow self-loops
- *   without parking so the node emits a new `startup_session` trigger; the
- *   canonical review payload remains on the conversation message for the
- *   planner to consume.
+ *   without parking so the node emits a new `startup_session` trigger. The
+ *   user's review comments are rendered onto
+ *   `codingPlanPendingReviewFeedback` and the next trigger carries them as
+ *   the payload's `userMessage`, so the planner receives them as turn input.
  * - `APPROVED` — the user has accepted the
  *   plan currently in the conversation tail. Routes to the terminal
  *   `implement` EXTERNAL_AGENT node so the conversation continues to carry
@@ -86,7 +88,16 @@ export class FeatureSyncCodingPlanNode extends ExternalAgentNodeBase<FeatureSync
       );
     }
 
-    const payload = this.buildPayload(context.implementationReadiness);
+    const reviewFeedback = context.codingPlanPendingReviewFeedback;
+    if (reviewFeedback !== undefined) {
+      tracker.mutate((draft) => {
+        delete draft.codingPlanPendingReviewFeedback;
+      });
+    }
+    const payload = this.buildPayload(
+      context.implementationReadiness,
+      reviewFeedback,
+    );
 
     const uiElements: UIElement[] = [
       {
@@ -123,8 +134,24 @@ export class FeatureSyncCodingPlanNode extends ExternalAgentNodeBase<FeatureSync
     const data = (userMessage.data ?? {}) as Partial<ExternalAgentFlowData>;
 
     if (data.action === WorkflowReviewAction.Refine) {
+      // The routing validator rejects a malformed REFINE after this hook
+      // runs; only a well-formed answer carries comments worth forwarding.
+      const parsed = CodingPlanReviewAnswerPayloadSchema.safeParse(
+        data.payload,
+      );
+      const feedback = parsed.success
+        ? renderReviewFeedback(parsed.data)
+        : null;
+      tracker.mutate((draft) => {
+        if (feedback) {
+          draft.codingPlanPendingReviewFeedback = feedback;
+        } else {
+          delete draft.codingPlanPendingReviewFeedback;
+        }
+      });
       this.logger.debug('Feature sync coding-plan refinement requested', {
         conversationId: tracker.getContext().core.conversationId,
+        hasReviewFeedback: feedback !== null,
       });
       return;
     }
@@ -161,7 +188,74 @@ export class FeatureSyncCodingPlanNode extends ExternalAgentNodeBase<FeatureSync
 
   private buildPayload(
     implementationReadiness: LocalStartupSessionPromptPayload['implementationReadiness'],
+    userMessage: string | undefined,
   ): LocalStartupSessionPromptPayload {
-    return implementationReadiness ? { implementationReadiness } : {};
+    return {
+      ...(implementationReadiness ? { implementationReadiness } : {}),
+      ...(userMessage ? { userMessage } : {}),
+    };
   }
+}
+
+type CodingPlanReviewAnswerPayload = z.infer<
+  typeof CodingPlanReviewAnswerPayloadSchema
+>;
+
+/**
+ * Renders the user's Continue Refining comments as the planner's turn input.
+ * Each note is anchored to the step, discrepancy, or question it was written
+ * on so the planner can act on it without the review UI. Returns null when
+ * the user left no comments.
+ */
+export function renderReviewFeedback(
+  payload: CodingPlanReviewAnswerPayload,
+): string | null {
+  const sections: string[] = [];
+
+  const general = payload.feedback?.trim();
+  if (general) {
+    sections.push(`General feedback:\n${general}`);
+  }
+
+  const stepNotes = (payload.stepFeedback ?? [])
+    .filter((entry) => entry.note.trim())
+    .map((entry) => {
+      const step = payload.executionPlan.find((s) => s.stepId === entry.stepId);
+      const label = step
+        ? `Step "${step.title}" (${entry.stepId})`
+        : `Step ${entry.stepId}`;
+      return `- ${label}: ${entry.note.trim()}`;
+    });
+  if (stepNotes.length > 0) {
+    sections.push(`Feedback on plan steps:\n${stepNotes.join('\n')}`);
+  }
+
+  const discrepancyNotes = (payload.discrepancyFeedback ?? [])
+    .filter((entry) => entry.note.trim())
+    .map((entry) => {
+      const discrepancy = payload.discrepancies[entry.discrepancyIndex];
+      const label = discrepancy
+        ? `Discrepancy "${discrepancy.discrepancyText}"`
+        : `Discrepancy ${entry.discrepancyIndex + 1}`;
+      return `- ${label}: ${entry.note.trim()}`;
+    });
+  if (discrepancyNotes.length > 0) {
+    sections.push(`Feedback on discrepancies:\n${discrepancyNotes.join('\n')}`);
+  }
+
+  const answers = (payload.questionAnswers ?? [])
+    .filter((entry) => entry.answer.trim())
+    .map((entry) => {
+      const question = payload.clarificationQuestions[entry.questionIndex];
+      const label = question
+        ? `Q: ${question.question}`
+        : `Q${entry.questionIndex + 1}`;
+      return `- ${label}\n  A: ${entry.answer.trim()}`;
+    });
+  if (answers.length > 0) {
+    sections.push(`Answers to clarification questions:\n${answers.join('\n')}`);
+  }
+
+  if (sections.length === 0) return null;
+  return `The user reviewed the plan and asked for another revision.\n\n${sections.join('\n\n')}`;
 }

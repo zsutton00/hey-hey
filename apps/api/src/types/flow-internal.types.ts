@@ -2656,6 +2656,13 @@ export type FeatureSyncFlowContext = FlowContext &
      * CLI agent receives the clarification as turn input.
      */
     featureSyncPendingUserReply?: string;
+    /**
+     * The user's Continue Refining comments (general, per-step,
+     * per-discrepancy, question answers) rendered as text. The coding-plan
+     * node stores it on `REFINE`; the next coding-plan trigger consumes and
+     * clears it so the planner receives the comments as turn input.
+     */
+    codingPlanPendingReviewFeedback?: string;
   };
 
 /**

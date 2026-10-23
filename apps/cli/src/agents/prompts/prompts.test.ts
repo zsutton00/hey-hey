@@ -1038,13 +1038,13 @@ describe('buildCodingPlanPrompt', () => {
     expect(result).not.toContain('keep severity low unless it directly blocks');
   });
 
-  it('names the explicit approval and revision tools', () => {
+  it('names the approval tool and no planner-emitted refine tool', () => {
     const payload: LocalStartupSessionPromptPayload = {
       startupInput: makeStartupInput(),
     };
     const result = buildCodingPlanPrompt(payload);
     expect(result).toContain('submit_approved');
-    expect(result).toContain('submit_revised');
+    expect(result).not.toContain('submit_revised');
   });
 
   describe('planned-task missed-step branch', () => {

@@ -116,7 +116,16 @@ export const codingPlanHandler: CodingPlanHandler = {
   },
 
   async prepare(run, payload, deps, ctx?: PromptTypeHandlerContext) {
-    const recentUserReplies = ctx?.recentUserReplies ?? [];
+    // The turn's user message — a composer reply, or the comments carried by
+    // Continue Refining — is the reply the planner classifies. Without it the
+    // prompt takes the initial-planning path and the feedback is ignored.
+    const turnUserMessage = payload.userMessage?.trim();
+    const recentUserReplies: ReadonlyArray<RecentUserReply> =
+      ctx?.recentUserReplies && ctx.recentUserReplies.length > 0
+        ? ctx.recentUserReplies
+        : turnUserMessage
+          ? [{ messageId: ctx?.turnId ?? '', text: turnUserMessage, createdAt: '' }]
+          : [];
 
     const rawLaunchPlanId = run.contextMetadata.launchPlanId;
     const rawLaunchStepId = run.contextMetadata.launchStepId;

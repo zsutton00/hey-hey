@@ -99,10 +99,9 @@ describe('codingPlanHandler', () => {
     ]);
   });
 
-  it('owns hidden no-payload submission tools for approval and revision', () => {
+  it('owns only the hidden no-payload approval submission tool', () => {
     expect(codingPlanHandler.submissionTools?.map((tool) => tool.name)).toEqual([
       'submit_approved',
-      'submit_revised',
     ]);
     expect(codingPlanHandler.submissionTools).toEqual([...codingPlanSubmissionTools]);
     expect(codingPlanHandler.expectedResponseTypes).toBeUndefined();
@@ -112,9 +111,6 @@ describe('codingPlanHandler', () => {
   it('uses the generated Coding Plan action discriminators', () => {
     expect(codingPlanHandler.submissionTools?.[0]?.execute({ runId: 'run-1', args: {} })).toEqual({
       action: CODING_PLAN_ACTIONS.APPROVED,
-    });
-    expect(codingPlanHandler.submissionTools?.[1]?.execute({ runId: 'run-1', args: {} })).toEqual({
-      action: CODING_PLAN_ACTIONS.REFINE,
     });
   });
 
@@ -250,6 +246,19 @@ describe('codingPlanHandler', () => {
       });
       const enriched = result.payload as EnrichedCodingPlanPromptPayload;
       expect(enriched._recentUserReplies).toEqual(replies);
+    });
+
+    it('treats the turn user message as the latest reply so feedback is classified, not ignored', async () => {
+      const session = makeSession();
+      const result = await codingPlanHandler.prepare!(
+        session,
+        { ...makePayload(), userMessage: '  ok, we need to update the bug  ' },
+        noopDeps,
+      );
+      const enriched = result.payload as EnrichedCodingPlanPromptPayload;
+      expect(enriched._recentUserReplies?.map((reply) => reply.text)).toEqual([
+        'ok, we need to update the bug',
+      ]);
     });
 
     it('defaults recentUserReplies to an empty array when no turn context is supplied', async () => {
@@ -537,14 +546,14 @@ describe('codingPlanHandler', () => {
   });
 
   describe('buildPrompt', () => {
-    it('keeps workflow control out of the PLAN payload and names both completion tools', () => {
+    it('keeps workflow control out of the PLAN payload and names only the approval tool', () => {
       const prompt = codingPlanHandler.buildPrompt(makePayload());
       expect(prompt).not.toContain('nextAction');
       expect(prompt).not.toContain('startup_plan_v1');
       expect(prompt).toContain('reportType');
       expect(prompt).toContain('APPROVED');
       expect(prompt).toContain('submit_approved');
-      expect(prompt).toContain('submit_revised');
+      expect(prompt).not.toContain('submit_revised');
     });
 
     it('documents that the typed PLAN report is the sole structured presentation', () => {
@@ -555,10 +564,10 @@ describe('codingPlanHandler', () => {
       expect(prompt).not.toContain('audience: "EXTERNAL"');
     });
 
-    it('does name the handler-owned completion tools', () => {
+    it('never tells the planner to emit a refine action', () => {
       const prompt = codingPlanHandler.buildPrompt(makePayload());
-      expect(prompt).toContain('submit_approved');
-      expect(prompt).toContain('submit_revised');
+      expect(prompt).not.toContain('submit_revised');
+      expect(prompt).not.toContain('REFINE');
     });
 
     it('renders the project_assistant memo carried on the enriched payload and defers graph orientation to it', () => {
@@ -582,7 +591,6 @@ describe('codingPlanHandler', () => {
         expect(prompt).toMatch(/no new user reply/i);
         expect(prompt).toMatch(/persist[\s\S]{0,100}PLAN report/i);
         expect(prompt).toMatch(/do not call[\s\S]{0,80}submit_approved/i);
-        expect(prompt).toMatch(/do not call[\s\S]{0,80}submit_revised/i);
       });
 
       it('does not embed any user reply text', () => {
@@ -619,7 +627,8 @@ describe('codingPlanHandler', () => {
         expect(prompt).toMatch(/APPROVED/);
         expect(prompt).toMatch(/REVISED/);
         expect(prompt).toMatch(/submit_approved/);
-        expect(prompt).toMatch(/submit_revised/);
+        expect(prompt).toMatch(/end the turn without calling[\s\S]{0,40}submission tool/i);
+        expect(prompt).not.toMatch(/submit_revised/);
       });
 
       it('escapes embedded quotes via JSON.stringify', () => {
@@ -655,9 +664,6 @@ describe('coding-plan registry wiring', () => {
 
   it('the registered handler carries the explicit completion tools', async () => {
     const fetched = registry.get('startup_session');
-    expect(fetched?.submissionTools?.map((tool) => tool.name)).toEqual([
-      'submit_approved',
-      'submit_revised',
-    ]);
+    expect(fetched?.submissionTools?.map((tool) => tool.name)).toEqual(['submit_approved']);
   });
 });

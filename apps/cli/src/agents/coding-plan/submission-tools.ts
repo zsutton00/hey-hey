@@ -1,17 +1,15 @@
 /**
  * Completion tools owned by the Coding Plan handler.
  *
- * The tool names describe the product decision the planner is making. Their
- * wire actions come from the generated Coding Plan action contract: approval
- * advances with APPROVED, while a requested revision re-enters planning with
- * REFINE. Neither tool accepts a payload because the complete PLAN report is
- * persisted separately before the completion action is posted.
+ * The planner owns only approval: when the latest user reply accepts the
+ * plan, `submit_approved` advances the workflow with the generated APPROVED
+ * action. REFINE is a user-authored answer (Continue Refining) that starts a
+ * planning pass, so the planner never emits it — a revision turn persists its
+ * PLAN report and leaves the node waiting for the user's next answer. The tool
+ * takes no payload because the PLAN report is persisted separately.
  */
 
-import {
-  CodingPlanActionSchemasAPPROVEDActionEnum,
-  CodingPlanActionSchemasREFINEActionEnum,
-} from '../../shared/agent-bridge-contract/generated/api';
+import { CodingPlanActionSchemasAPPROVEDActionEnum } from '../../shared/agent-bridge-contract/generated/api';
 import type {
   ActionSubmissionToolDeclaration,
   SubmissionToolDeclaration,
@@ -20,7 +18,6 @@ import type {
 
 export const CODING_PLAN_ACTIONS = {
   APPROVED: CodingPlanActionSchemasAPPROVEDActionEnum.Approved,
-  REFINE: CodingPlanActionSchemasREFINEActionEnum.Refine,
 } as const;
 
 const emptyInputSchema: SubmissionToolInputSchema = {
@@ -38,16 +35,6 @@ const submitApprovedTool: ActionSubmissionToolDeclaration = {
   hidden: true,
 };
 
-const submitRevisedTool: ActionSubmissionToolDeclaration = {
-  name: 'submit_revised',
-  description:
-    'After incorporating the latest user feedback and persisting the changed PLAN report, call this with no arguments. Emits the generated REFINE completion action for another planning pass.',
-  inputSchema: emptyInputSchema,
-  execute: () => ({ action: CODING_PLAN_ACTIONS.REFINE }),
-  hidden: true,
-};
-
 export const codingPlanSubmissionTools: ReadonlyArray<SubmissionToolDeclaration> = [
   submitApprovedTool,
-  submitRevisedTool,
 ];
