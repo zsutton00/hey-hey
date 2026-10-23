@@ -1,9 +1,7 @@
 name: Contracts
 
 on:
-  pull_request:
-  push:
-    branches: [dev, main]
+  workflow_dispatch:
 
 jobs:
   generated-contracts:

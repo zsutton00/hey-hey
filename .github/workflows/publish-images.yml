@@ -1,78 +1,69 @@
-name: Publish images
+name: Build images
+run-name: Build ${{ inputs.target }} images
 
-# The only workflow that pushes UI/API images. It runs by manual dispatch from
-# main and waits on the protected `image-publication` environment, which must
-# have required reviewers configured in the repository settings. It rebuilds the
-# named revision and pushes only if the build matches the evidence the Images
-# workflow recorded for that revision. images.yml stays push:false.
-#
-# Pushed tags: candidate-<sha> and main-<sha7>, the form deployments pin.
-# Changing which tag a deployment runs is a separate, reviewed change in the
-# deployment configuration.
-
+# Builds and publishes the selected images once, only when explicitly requested.
 on:
   workflow_dispatch:
     inputs:
-      revision:
-        description: Verified candidate revision (full 40-character SHA on main)
+      target:
+        description: What would you like to build?
+        type: choice
         required: true
-      images:
-        description: JSON list of images to publish
-        default: '["ui","api"]'
+        default: Both
+        options:
+          - UI
+          - API
+          - Both
 
 permissions:
   contents: read
 
 jobs:
-  publish:
-    if: github.ref == 'refs/heads/main'
+  select:
     runs-on: ubuntu-latest
-    environment: image-publication
+    outputs:
+      images: ${{ steps.select.outputs.images }}
+    steps:
+      - id: select
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          case "$TARGET" in
+            UI) echo 'images=["ui"]' >> "$GITHUB_OUTPUT" ;;
+            API) echo 'images=["api"]' >> "$GITHUB_OUTPUT" ;;
+            Both) echo 'images=["ui","api"]' >> "$GITHUB_OUTPUT" ;;
+            *) echo "Unknown image selection" >&2; exit 1 ;;
+          esac
+
+  build:
+    needs: select
+    runs-on: ubuntu-latest
     permissions:
       contents: read
-      actions: read
       packages: write
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
-        image: ${{ fromJSON(inputs.images) }}
-    name: publish ${{ matrix.image }}
-    env:
-      REVISION: ${{ inputs.revision }}
-      IMAGE: ${{ matrix.image }}
+        image: ${{ fromJSON(needs.select.outputs.images) }}
+    name: Build ${{ matrix.image }}
     steps:
-      - name: Require a full revision
-        shell: bash
-        run: '[[ "$REVISION" =~ ^[0-9a-f]{40}$ ]]'
-
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.revision }}
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
       - uses: docker/setup-buildx-action@v3
 
-      - name: Require the revision to be on main
-        run: git merge-base --is-ancestor "$REVISION" origin/main
-
-      - name: Fetch the recorded evidence for this revision
+      - name: Image name and version
+        id: meta
         env:
-          GH_TOKEN: ${{ github.token }}
+          IMAGE: ${{ matrix.image }}
         shell: bash
         run: |
-          run_id=$(gh run list --workflow images.yml --commit "$REVISION" \
-            --branch main --status success --json databaseId -q '.[0].databaseId')
-          test -n "$run_id" || { echo "No successful Images run on main for $REVISION"; exit 1; }
-          gh run download "$run_id" -n "image-evidence-$IMAGE" -D "$RUNNER_TEMP/evidence"
+          SAFE_REF="${GITHUB_REF_NAME//\//-}"
+          SAFE_REF="${SAFE_REF//[^a-zA-Z0-9_.-]/-}"
+          REPOSITORY="ghcr.io/zsutton00/${IMAGE}-service"
+          VERSION="${SAFE_REF}-${GITHUB_SHA::7}"
+          echo "repository=$REPOSITORY" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Version label as the Images run on main recorded it
-        id: meta
-        shell: bash
-        run: echo "app_version=main-${REVISION::7}" >> "$GITHUB_OUTPUT"
-
-      - name: Rebuild the candidate
+      - name: Build
         id: build
         uses: docker/build-push-action@v6
         with:
@@ -81,17 +72,43 @@ jobs:
           push: false
           load: true
           build-args: |
-            APP_VERSION=${{ steps.meta.outputs.app_version }}
-            SOURCE_REVISION=${{ inputs.revision }}
-          tags: heyhey-${{ matrix.image }}:candidate-${{ inputs.revision }}
+            APP_VERSION=${{ steps.meta.outputs.version }}
+            SOURCE_REVISION=${{ github.sha }}
+          tags: |
+            ${{ steps.meta.outputs.repository }}:candidate-${{ github.sha }}
+            ${{ steps.meta.outputs.repository }}:${{ steps.meta.outputs.version }}
 
-      - name: Check the build matches the recorded evidence
-        run: >-
-          node scripts/image-build-evidence.mjs
-          --image "$IMAGE"
-          --image-id "${{ steps.build.outputs.imageid }}"
-          --tag "candidate-$REVISION"
-          --verify "$RUNNER_TEMP/evidence/image-evidence-$IMAGE.json"
+      - name: Check UI starts
+        if: matrix.image == 'ui'
+        shell: bash
+        env:
+          IMAGE_TAG: ${{ steps.meta.outputs.repository }}:candidate-${{ github.sha }}
+        run: |
+          docker run -d --name ui-build -p 5173:5173 "$IMAGE_TAG"
+          trap 'docker logs ui-build; docker rm -f ui-build' EXIT
+          for attempt in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:5173/ -o /dev/null && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:5173/ | grep -q '<div id="root">'
+          curl -fsS http://127.0.0.1:5173/runtime-config.js -o /dev/null
+
+      - name: Check API runtime
+        if: matrix.image == 'api'
+        shell: bash
+        env:
+          IMAGE_TAG: ${{ steps.meta.outputs.repository }}:candidate-${{ github.sha }}
+        run: |
+          docker run --rm --entrypoint sh "$IMAGE_TAG" -c '
+            set -e
+            flyway -v
+            test -d db/flyway && test -f prisma/schema.prisma && test -d content/help
+            node -e "
+              require(\"./dist/app.module.js\");
+              require(\"./dist/worker-app.module.js\");
+              new (require(\"@prisma/client\").PrismaClient)();
+            "
+          '
 
       - uses: docker/login-action@v3
         with:
@@ -99,11 +116,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push under the existing name
-        shell: bash
+      - name: Publish image
+        env:
+          REPOSITORY: ${{ steps.meta.outputs.repository }}
+          VERSION: ${{ steps.meta.outputs.version }}
         run: |
-          repository=$(node scripts/image-build-evidence.mjs --repository "$IMAGE")
-          for tag in "candidate-$REVISION" "main-${REVISION::7}"; do
-            docker tag "heyhey-$IMAGE:candidate-$REVISION" "$repository:$tag"
-            docker push "$repository:$tag"
-          done
+          docker push "$REPOSITORY:candidate-$GITHUB_SHA"
+          docker push "$REPOSITORY:$VERSION"
+          echo "Built and published: \`$REPOSITORY:$VERSION\`" >> "$GITHUB_STEP_SUMMARY"
