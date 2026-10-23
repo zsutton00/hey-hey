@@ -25,11 +25,11 @@ export function parseInitiatorStack(stack: string): StackLocation[] {
     const match = line
       .trim()
       .match(
-        /(?:\(|@|\s|^)((?:https?:\/\/|file:\/\/\/|\/)[^\s()]+):(\d+):(\d+)\)?$/
+        /(?:\(|@|\s|^)((?:https?:\/\/|file:\/\/\/|\/)[^\s()]+):(\d+):(\d+)\)?$/,
       );
     if (!match) return [];
     return [
-      { source: match[1], line: Number(match[2]), column: Number(match[3]) },
+      { source: match[1]!, line: Number(match[2]), column: Number(match[3]) },
     ];
   });
 }
@@ -56,7 +56,7 @@ function isApplicationSource(source: string): boolean {
 
 function formatLocation(location: StackLocation): string {
   // Keep a repo-relative path when present, never deployment host/query values.
-  const source = location.source.split("?")[0];
+  const source = location.source.split("?")[0]!;
   const start = source.lastIndexOf("/src/");
   const path = start >= 0 ? source.slice(start + 1) : source.split("/").pop();
   return `${path}:${location.line}:${location.column}`;
@@ -72,7 +72,9 @@ async function loadSourceMap(url: string): Promise<TraceMap | null> {
     });
     if (!response.ok) return null;
     const parsed = sourceMapSchema.safeParse(await response.json());
-    return parsed.success ? new TraceMap(parsed.data, url) : null;
+    return parsed.success
+      ? new TraceMap(JSON.stringify(parsed.data), url)
+      : null;
   } catch {
     return null;
   } finally {
@@ -109,7 +111,7 @@ function getSourceMap(source: string): Promise<TraceMap | null> {
 }
 
 async function originalLocation(
-  location: StackLocation
+  location: StackLocation,
 ): Promise<StackLocation | null> {
   if (
     /\.[jt]sx?(?:\?|$)/.test(location.source) &&
@@ -138,7 +140,7 @@ async function originalLocation(
 }
 
 export async function resolveInitiator(
-  stack: string
+  stack: string,
 ): Promise<string | undefined> {
   const locations = parseInitiatorStack(stack);
   // Explicit diagnostic labels (e.g. older-message reads) remain valid.
@@ -147,16 +149,16 @@ export async function resolveInitiator(
   const originals = await Promise.all(locations.map(originalLocation));
   const applicationLocations = originals.filter(
     (location): location is StackLocation =>
-      location !== null && isApplicationSource(location.source)
+      location !== null && isApplicationSource(location.source),
   );
   const component = applicationLocations.find((location) =>
-    /\.[jt]sx(?:\?|$)/.test(location.source)
+    /\.[jt]sx(?:\?|$)/.test(location.source),
   );
   const chosen = component ?? applicationLocations[0];
   if (chosen) return formatLocation(chosen);
   // Keep an honest, searchable generated position if maps are unavailable.
   const generated = locations.find(
-    (location) => !location.source.includes("vendor")
+    (location) => !location.source.includes("vendor"),
   );
   return generated ? `unmapped:${formatLocation(generated)}` : undefined;
 }

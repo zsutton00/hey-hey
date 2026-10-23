@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import type { ApiRuntime } from '@hey-hey/ui-common/clients';
+import type { ApiRuntime } from '../../../../../../packages/ui-common/src/clients/shared';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -2514,13 +2514,11 @@ describe('createTestRouter', () => {
       ok: true,
       verified: buildVerifiedStartRun({ payload: VALID_WORKFLOW_ARM_PAYLOAD }),
     });
-    const createRun = vi
-      .fn()
-      .mockResolvedValue({
-        status: 'repo-required',
-        serviceIds: [serviceId],
-        launchServiceId: serviceId,
-      });
+    const createRun = vi.fn().mockResolvedValue({
+      status: 'repo-required',
+      serviceIds: [serviceId],
+      launchServiceId: serviceId,
+    });
     const router = createTestRouter({
       verifier,
       resolveConversationRun: vi.fn(),

@@ -1,5 +1,5 @@
 import { z } from 'zod/v4';
-import type { CodexSdkEvent, CodexSdkRootTurnIdentity } from '@hey-hey/ui-common/agents';
+import type { CodexSdkEvent, CodexSdkRootTurnIdentity } from '../../../agent-runtime/index';
 import { ExecutionCaptureSession } from '../execution-recorder/capture-session';
 import type { ExecutionRecorder } from '../execution-recorder/execution-recorder';
 import type { ServerLogger } from '../../../server/logger';

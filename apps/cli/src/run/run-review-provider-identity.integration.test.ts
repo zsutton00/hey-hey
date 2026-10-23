@@ -66,10 +66,9 @@ const reviewerSdk = vi.hoisted(() => ({
   script: null as null | ((emit: (event: Record<string, unknown>) => void) => void | Promise<void>),
 }));
 
-vi.mock('@hey-hey/ui-common/agents', async () => {
-  const actual = await vi.importActual<typeof import('@hey-hey/ui-common/agents')>(
-    '@hey-hey/ui-common/agents',
-  );
+vi.mock('../agent-runtime/index', async () => {
+  const actual =
+    await vi.importActual<typeof import('../agent-runtime/index')>('../agent-runtime/index');
   return {
     ...actual,
     ClaudeCodeSdkClient: class {
@@ -121,13 +120,11 @@ vi.mock('../agents/mcp-server-config', async (importOriginal) => ({
 }));
 
 vi.mock('../agents/prompts/session-start-context', () => ({
-  readSessionStartContext: vi
-    .fn()
-    .mockResolvedValue({
-      workItemTypeDefinitions: [],
-      intentFirst: false,
-      maturity: 'ESTABLISHED',
-    }),
+  readSessionStartContext: vi.fn().mockResolvedValue({
+    workItemTypeDefinitions: [],
+    intentFirst: false,
+    maturity: 'ESTABLISHED',
+  }),
 }));
 
 vi.mock('../server/services/run.service', () => ({

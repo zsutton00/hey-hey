@@ -1,4 +1,4 @@
-import type { UsageData, UsageWindow } from '@hey-hey/ui-common/agents';
+import type { UsageData, UsageWindow } from '../agent-runtime/index';
 import { NOOP_LOGGER, type ServerLogger } from '../server/logger';
 import { unreportedUsage, type LimitWindow } from './provider-usage';
 import type { ProviderUsageRead } from './provider-usage-store';

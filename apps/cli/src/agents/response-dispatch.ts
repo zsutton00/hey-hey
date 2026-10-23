@@ -11,7 +11,7 @@
  * produced it.
  */
 
-import { renderStartupPlanSummary } from '@hey-hey/ui-common/agents';
+import { renderStartupPlanSummary } from '../agent-runtime/index';
 import { jsonrepair } from 'jsonrepair';
 import { randomUUID } from 'node:crypto';
 import {

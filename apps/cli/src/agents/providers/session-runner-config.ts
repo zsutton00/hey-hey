@@ -5,7 +5,7 @@ import type {
   AgentInvocationRetryPolicy,
   AgentInvocationRetryPolicyOverrides,
   NormalizedAgentErrorVerbosity,
-} from '@hey-hey/ui-common/agents';
+} from '../../agent-runtime/index';
 import type { LocalReasoningEffort } from '../../shared/agent-bridge-contract/contract';
 
 const DEFAULT_CONFIG_FILE_NAME = 'agent-invocation.json';

@@ -4,7 +4,7 @@ import type {
   CodexSdkEventHandler,
   CodexSdkServerRequest,
   CodexSdkServerRequestHandler,
-} from '@hey-hey/ui-common/agents';
+} from '../../../agent-runtime/index';
 import type { RepoMappingStore } from '../../../repo/index';
 import type { RunStore } from '../../../run-store/run-store';
 import type { AgenticSession } from '../../../session/index';
@@ -29,9 +29,9 @@ const compactMock = vi.fn();
 let eventHandler: CodexSdkEventHandler | null = null;
 let serverRequestHandler: CodexSdkServerRequestHandler | null = null;
 
-vi.mock('@hey-hey/ui-common/agents', async () => {
-  const actual = await vi.importActual<typeof import('@hey-hey/ui-common/agents')>(
-    '@hey-hey/ui-common/agents',
+vi.mock('../../../agent-runtime/index', async () => {
+  const actual = await vi.importActual<typeof import('../../../agent-runtime/index')>(
+    '../../../agent-runtime/index',
   );
   return {
     ...actual,

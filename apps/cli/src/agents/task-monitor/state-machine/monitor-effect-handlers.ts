@@ -1,7 +1,11 @@
 import type { TaskMonitorStateStore } from './machine';
 import type { TaskMonitorOutcomeJudgmentEffectHandler } from './outcome-judgment-effect-handlers';
-import { listEfforts, listModels, supportsFastMode } from '@hey-hey/ui-common/capability-catalog';
-import type { ApiRuntime } from '@hey-hey/ui-common/clients';
+import {
+  listEfforts,
+  listModels,
+  supportsFastMode,
+} from '../../../../../../packages/ui-common/src/components/AgentSession/capabilityCatalog';
+import type { ApiRuntime } from '../../../../../../packages/ui-common/src/clients/shared';
 
 import type {
   EffectExecutionIdentity,

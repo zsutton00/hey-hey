@@ -1,4 +1,4 @@
-import type { CodexSdkEvent } from '@hey-hey/ui-common/agents';
+import type { CodexSdkEvent } from '../../../agent-runtime/index';
 
 type EventParams = NonNullable<CodexSdkEvent['params']>;
 

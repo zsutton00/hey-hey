@@ -2,7 +2,7 @@ import { createPublicKey } from 'node:crypto';
 import os from 'node:os';
 
 import { version as cliVersion } from '../../package.json';
-import { createInteractivePrompter, type CredentialPrompter } from '@hey-hey/ui-common/agents';
+import { createInteractivePrompter, type CredentialPrompter } from '../agent-runtime/index';
 import {
   generateMachineKeyPair,
   KeyPairStore,

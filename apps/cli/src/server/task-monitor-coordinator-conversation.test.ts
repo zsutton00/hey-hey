@@ -1,4 +1,4 @@
-import type { ApiRuntime } from '@hey-hey/ui-common/clients';
+import type { ApiRuntime } from '../../../../packages/ui-common/src/clients/shared';
 import { describe, expect, it, vi } from 'vitest';
 
 import { NOOP_LOGGER } from './logger';
@@ -27,8 +27,7 @@ describe('TaskMonitorCoordinatorConversation', () => {
       clients: {
         agentSessions: {
           resolveWorkItemCoordinator,
-          createAgentSessionConversation:
-            createConversation,
+          createAgentSessionConversation: createConversation,
         },
       },
     } as unknown as ApiRuntime;
@@ -53,8 +52,7 @@ describe('TaskMonitorCoordinatorConversation', () => {
               },
             },
           }),
-          createAgentSessionConversation:
-            createConversation,
+          createAgentSessionConversation: createConversation,
         },
       },
     } as unknown as ApiRuntime;
@@ -79,10 +77,10 @@ describe('TaskMonitorCoordinatorConversation', () => {
               },
             },
           }),
-          createAgentSessionConversation:
-            vi.fn().mockRejectedValue({ isAxiosError: true, response: { status: 409 } }),
-          getAgentSession:
-            getAgentSession,
+          createAgentSessionConversation: vi
+            .fn()
+            .mockRejectedValue({ isAxiosError: true, response: { status: 409 } }),
+          getAgentSession: getAgentSession,
         },
       },
     } as unknown as ApiRuntime;

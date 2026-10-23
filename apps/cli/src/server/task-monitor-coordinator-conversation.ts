@@ -1,4 +1,4 @@
-import type { ApiRuntime } from '@hey-hey/ui-common/clients';
+import type { ApiRuntime } from '../../../../packages/ui-common/src/clients/shared';
 import { isAxiosError } from 'axios';
 
 import { AgentSessionType, WorkflowName } from '../shared/api/generated/api';
@@ -48,19 +48,16 @@ export class TaskMonitorCoordinatorConversation {
         ...input,
         coordinatorAgentSessionId: session.id,
       });
-      const linked =
-        await this.apiRuntime.clients.agentSessions.createAgentSessionConversation(
-          {
-            organizationId: input.organizationId,
-            projectId: input.projectId,
-            agentSessionId: session.id,
-            createAgentSessionConversationDto: {
-              workflowType: WorkflowName.TaskMonitor,
-              workflowAboutType: 'TASK_MONITOR',
-              workflowAboutId: input.taskMonitorId,
-            },
-          },
-        );
+      const linked = await this.apiRuntime.clients.agentSessions.createAgentSessionConversation({
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        agentSessionId: session.id,
+        createAgentSessionConversationDto: {
+          workflowType: WorkflowName.TaskMonitor,
+          workflowAboutType: 'TASK_MONITOR',
+          workflowAboutId: input.taskMonitorId,
+        },
+      });
       const conversationId = linked.data.data?.conversation.id;
       if (conversationId) {
         this.logger.info('task_monitor.coordinator_conversation.resolve.completed', {
@@ -77,14 +74,11 @@ export class TaskMonitorCoordinatorConversation {
         ...input,
         coordinatorAgentSessionId: session.id,
       });
-      const recovered =
-        await this.apiRuntime.clients.agentSessions.getAgentSession(
-          {
-            organizationId: input.organizationId,
-            projectId: input.projectId,
-            agentSessionId: session.id,
-          },
-        );
+      const recovered = await this.apiRuntime.clients.agentSessions.getAgentSession({
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        agentSessionId: session.id,
+      });
       const conversationId = recovered.data.data?.conversationId;
       if (conversationId) {
         this.logger.info('task_monitor.coordinator_conversation.resolve.completed', {

@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import process from 'node:process';
-import { parseFinalAssessmentResponse } from '@hey-hey/ui-common/agents';
+import { parseFinalAssessmentResponse } from '../src/agent-runtime/index';
 
 const usage = (): void => {
   console.error('Usage: pnpm tsx scripts/validate-final-assessment.ts [path-to-json]');

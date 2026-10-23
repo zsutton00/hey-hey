@@ -28,7 +28,7 @@ import {
   parsePlanShapingFeatureSyncIterateResponseFromText,
   parseStartupSessionPlanResponseFromText,
 } from './response-parser';
-import { renderStartupPlanSummary } from '@hey-hey/ui-common/agents';
+import { renderStartupPlanSummary } from '../agent-runtime/index';
 
 const nextUiElementId = (prefix: string): string => `${prefix}-${randomUUID()}`;
 

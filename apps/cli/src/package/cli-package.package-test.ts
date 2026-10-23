@@ -134,7 +134,7 @@ describe('published artifact shape', () => {
     }
   });
 
-  it('is self-contained ESM: only Node builtins and the native keyring stay external', async () => {
+  it('is self-contained ESM: only Node builtins, keyring and Playwright stay external', async () => {
     // esbuild parses the artifact, so imports quoted inside strings are not counted.
     const external = new Set<string>();
     await build({
@@ -159,8 +159,9 @@ describe('published artifact shape', () => {
       ],
     });
     const builtins = new Set([...builtinModules, ...builtinModules.map((name) => `node:${name}`)]);
-    expect([...external].filter((specifier) => !builtins.has(specifier))).toEqual([
+    expect([...external].filter((specifier) => !builtins.has(specifier)).sort()).toEqual([
       '@napi-rs/keyring',
+      'playwright-core',
     ]);
     const source = await readFile(artifact, 'utf8');
     // CJS dependencies run through the banner's createRequire, not a global.

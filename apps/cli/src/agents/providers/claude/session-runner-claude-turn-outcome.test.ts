@@ -60,9 +60,9 @@ const getSessionIdMock = vi.fn();
 const disconnectMock = vi.fn();
 let eventHandler: ((event: Record<string, unknown>) => void) | null = null;
 
-vi.mock('@hey-hey/ui-common/agents', async () => {
-  const actual = await vi.importActual<typeof import('@hey-hey/ui-common/agents')>(
-    '@hey-hey/ui-common/agents',
+vi.mock('../../../agent-runtime/index', async () => {
+  const actual = await vi.importActual<typeof import('../../../agent-runtime/index')>(
+    '../../../agent-runtime/index',
   );
   return {
     ...actual,

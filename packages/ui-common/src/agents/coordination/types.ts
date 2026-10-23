@@ -11,7 +11,7 @@ import type {
 } from "../../api";
 import type { WorkItemTypeKey } from "../../constants/taskTypes";
 import type { LocalPromptStartupInput } from "../../api";
-import type { AgentSessionId } from "../core";
+import type { AgentSessionId } from "../core/types";
 
 type Brand<T, B extends string> = T & { readonly __brand: B };
 
@@ -29,7 +29,7 @@ export const toDesignDocId = (value: string): DesignDocId =>
 export const toPlanId = (value: string): PlanId => value as PlanId;
 export const toInitiativeId = (value: string): InitiativeId =>
   value as InitiativeId;
-export { toAgentSessionId } from "../core";
+export { toAgentSessionId } from "../core/types";
 export const toImplementationHintId = (value: string): ImplementationHintId =>
   value as ImplementationHintId;
 export const toServiceId = (value: string): ServiceId => value as ServiceId;
@@ -38,60 +38,59 @@ export interface AgentWorkflowContext {
   organizationId: string;
   projectId: string;
   providerAgentSessionId: AgentSessionId | null;
-  agentSessionId?: AgentSessionId;
-  taskId?: TaskId;
-  designDocId?: DesignDocId;
-  initiativeId?: InitiativeId;
-  planId?: PlanId;
-  serviceId?: ServiceId;
+  agentSessionId?: AgentSessionId | undefined;
+  taskId?: TaskId | undefined;
+  designDocId?: DesignDocId | undefined;
+  initiativeId?: InitiativeId | undefined;
+  planId?: PlanId | undefined;
+  serviceId?: ServiceId | undefined;
 }
 
 export interface StartupTaskInput {
-  id?: string;
-  title?: string;
+  id?: string | undefined;
+  title?: string | undefined;
   taskType: WorkItemTypeKey;
   description: string;
-  acceptanceCriteria?: string;
+  acceptanceCriteria?: string | undefined;
 }
 
 export interface StartupDesignDocInput {
-  id?: string;
-  title?: string;
-  sections?: Record<string, string>;
+  id?: string | undefined;
+  title?: string | undefined;
+  sections?: Record<string, string> | undefined;
 }
 
 export interface StartupPlanInput {
-  id?: string;
-  title?: string;
-  description?: string;
-  outcome?: string;
+  id?: string | undefined;
+  title?: string | undefined;
+  description?: string | undefined;
+  outcome?: string | undefined;
 }
 
 export interface StartupInitiativeInput {
-  id?: string;
-  title?: string;
-  description?: string;
+  id?: string | undefined;
+  title?: string | undefined;
+  description?: string | undefined;
 }
 
 export interface StartupAdjacentScopeTaskInput {
-  id?: string;
+  id?: string | undefined;
   title: string;
-  taskType?: WorkItemTypeKey;
-  description?: string;
-  acceptanceCriteria?: string;
+  taskType?: WorkItemTypeKey | undefined;
+  description?: string | undefined;
+  acceptanceCriteria?: string | undefined;
 }
 
 export interface StartupTaskNeighborhoodTaskInput {
   id: string;
   title: string;
-  taskType?: WorkItemTypeKey;
+  taskType?: WorkItemTypeKey | undefined;
   description: string;
-  acceptanceCriteria?: string;
-  status?: WorkStatus;
+  acceptanceCriteria?: string | undefined;
+  status?: WorkStatus | undefined;
 }
 
-export interface StartupTaskNeighborhoodChildTaskInput
-  extends StartupTaskNeighborhoodTaskInput {
+export interface StartupTaskNeighborhoodChildTaskInput extends StartupTaskNeighborhoodTaskInput {
   parentTaskIds: string[];
   incompleteParentTaskIds: string[];
   allParentTasksCompleted: boolean;
@@ -106,7 +105,7 @@ export interface StartupTaskNeighborhoodDesignDocInput {
   id: string;
   title: string;
   sections: StartupTaskNeighborhoodDesignDocSectionInput[];
-  status?: string;
+  status?: string | undefined;
 }
 
 export interface StartupTaskNeighborhoodInput {
@@ -152,7 +151,7 @@ export interface ProjectModeSelectionContext {
 export type SessionMethodSelection =
   | (Omit<SessionMethodContext, "method"> & {
       method: AgentSessionMethod;
-      projectModeSelection?: never;
+      projectModeSelection?: never | undefined;
     })
   | ProjectModeSelectionContext;
 
@@ -161,15 +160,15 @@ export type SessionMethodSelection =
 // producer and the CLI consumer). The UI extends it with `sessionMethod`,
 // which is UI-only branching state that never travels the wire.
 export interface StartupPromptInput extends LocalPromptStartupInput {
-  sessionMethod?: SessionMethodSelection;
+  sessionMethod?: SessionMethodSelection | undefined;
 }
 
 export interface FinalAssessmentRelatedTaskInput {
   id: string;
   title: string;
-  taskType?: WorkItemTypeKey;
+  taskType?: WorkItemTypeKey | undefined;
   description: string;
-  acceptanceCriteria?: string;
+  acceptanceCriteria?: string | undefined;
 }
 
 export interface FinalAssessmentTaskNeighborhoodInput {
@@ -178,11 +177,7 @@ export interface FinalAssessmentTaskNeighborhoodInput {
 }
 
 export type StartupSourceType =
-  | "evidenceItem"
-  | "task"
-  | "designDoc"
-  | "plan"
-  | "initiative";
+  "evidenceItem" | "task" | "designDoc" | "plan" | "initiative";
 
 export interface StartupSourceRef {
   sourceType: StartupSourceType;
@@ -201,7 +196,7 @@ export type StartupPlanStep = CodingPromptStartupPlanStep;
 
 export interface StartupDiscrepancy {
   sourceRef: StartupSourceRef;
-  sourceField?: string;
+  sourceField?: string | undefined;
   sourceExcerpt: string;
   reasoning: string;
   discrepancyText: string;
@@ -210,8 +205,8 @@ export interface StartupDiscrepancy {
 
 export interface StartupClarificationQuestion {
   question: string;
-  reason?: string;
-  relatedSourceRefs?: StartupSourceRef[];
+  reason?: string | undefined;
+  relatedSourceRefs?: StartupSourceRef[] | undefined;
 }
 
 export type StartupSessionPlanResponse = CodingPromptStartupPlanPayload;
@@ -226,26 +221,27 @@ export type StartupDiscrepancyDisposition = "acknowledged" | "blocker";
 export interface StartupDiscrepancyReview {
   discrepancyIndex: number;
   disposition: StartupDiscrepancyDisposition;
-  note?: string;
+  note?: string | undefined;
 }
 
 export interface FinalAssessmentStartupDiscrepancySourceEventMetadata {
-  startupPlanResponseEventSeq?: number;
-  startupPlanReviewActionEventSeq?: number;
-  startupPlanReviewSourceEventSeq?: number;
+  startupPlanResponseEventSeq?: number | undefined;
+  startupPlanReviewActionEventSeq?: number | undefined;
+  startupPlanReviewSourceEventSeq?: number | undefined;
 }
 
 export interface FinalAssessmentStartupDiscrepancyContextItem {
   discrepancyIndex: number;
   sourceRef: StartupSourceRef;
-  sourceField?: string;
+  sourceField?: string | undefined;
   sourceExcerpt: string;
   reasoning: string;
   discrepancyText: string;
   severity: StartupDiscrepancySeverity;
-  disposition?: StartupDiscrepancyDisposition;
-  dispositionNote?: string;
-  sourceEventMetadata?: FinalAssessmentStartupDiscrepancySourceEventMetadata;
+  disposition?: StartupDiscrepancyDisposition | undefined;
+  dispositionNote?: string | undefined;
+  sourceEventMetadata?:
+    FinalAssessmentStartupDiscrepancySourceEventMetadata | undefined;
 }
 
 export interface StartupPlanReviewResponse {
@@ -256,11 +252,7 @@ export interface StartupPlanReviewResponse {
 }
 
 export type FinalAssessmentVerdict =
-  | "completed"
-  | "partiallyCompleted"
-  | "blocked"
-  | "notCompleted"
-  | "unknown";
+  "completed" | "partiallyCompleted" | "blocked" | "notCompleted" | "unknown";
 
 export type FinalAssessmentSourceType = StartupSourceType | "sessionOutput";
 
@@ -271,10 +263,7 @@ export interface FinalAssessmentSourceRef {
 
 export interface FinalAssessmentTargetRef<
   T extends "task" | "designDoc" | "implementationHint" | "evidenceItem" =
-    | "task"
-    | "designDoc"
-    | "implementationHint"
-    | "evidenceItem"
+    "task" | "designDoc" | "implementationHint" | "evidenceItem",
 > {
   entityType: T;
   entityId: string;
@@ -295,7 +284,7 @@ export interface FinalTaskStatusUpdateSuggestion {
   updateType: "task_status";
   updatePayload: {
     status: WorkStatus;
-    sectionUpdateSource?: TaskSectionUpdateSource;
+    sectionUpdateSource?: TaskSectionUpdateSource | undefined;
   };
   reasoning: string;
   sourceRefs: FinalAssessmentSourceRef[];
@@ -305,8 +294,8 @@ export interface FinalTaskDetailsUpdateSuggestion {
   target: FinalAssessmentTargetRef<"task">;
   updateType: "task_details";
   updatePayload: {
-    description?: string;
-    acceptanceCriteria?: string;
+    description?: string | undefined;
+    acceptanceCriteria?: string | undefined;
   };
   reasoning: string;
   sourceRefs: FinalAssessmentSourceRef[];
@@ -326,10 +315,10 @@ export interface FinalDesignDocRevisionSuggestion {
   target: FinalAssessmentTargetRef<"designDoc">;
   updateType: "design_doc_revision";
   updatePayload: {
-    status?: UpdateDesignDocDto["status"];
-    summary?: UpdateDesignDocDto["summary"];
-    sections?: DesignDocDraftSection[];
-    sectionUpdateSource?: DesignDocSectionUpdateSource;
+    status?: UpdateDesignDocDto["status"] | undefined;
+    summary?: UpdateDesignDocDto["summary"] | undefined;
+    sections?: DesignDocDraftSection[] | undefined;
+    sectionUpdateSource?: DesignDocSectionUpdateSource | undefined;
   };
   reasoning: string;
   sourceRefs: FinalAssessmentSourceRef[];
@@ -342,7 +331,7 @@ export interface FinalImplementationHintCreateSuggestion {
     featureName: string;
     description: string;
     sourceType: CreateImplementationHintDtoSourceTypeEnum;
-    agentSessionIds?: string[];
+    agentSessionIds?: string[] | undefined;
   };
   reasoning: string;
   sourceRefs: FinalAssessmentSourceRef[];
@@ -352,10 +341,10 @@ export interface FinalImplementationHintUpdateSuggestion {
   target: FinalAssessmentTargetRef<"implementationHint">;
   updateType: "implementation_hint_update";
   updatePayload: {
-    featureName?: string;
-    description?: string;
-    sourceType?: CreateImplementationHintDtoSourceTypeEnum;
-    agentSessionIds?: string[];
+    featureName?: string | undefined;
+    description?: string | undefined;
+    sourceType?: CreateImplementationHintDtoSourceTypeEnum | undefined;
+    agentSessionIds?: string[] | undefined;
   };
   reasoning: string;
   sourceRefs: FinalAssessmentSourceRef[];
@@ -383,10 +372,10 @@ type RequireAtLeastOne<T extends object> = {
 }[keyof T];
 
 interface FinalValidationRecommendationTargetFields {
-  filePath?: string;
-  serviceId?: string;
-  endpoint?: string;
-  uiFlow?: string;
+  filePath?: string | undefined;
+  serviceId?: string | undefined;
+  endpoint?: string | undefined;
+  uiFlow?: string | undefined;
 }
 
 export type FinalValidationRecommendationTarget =
@@ -414,7 +403,7 @@ export interface FinalValidationRecommendation {
   estimatedEffort: number;
   confidence: number;
   provenance: FinalValidationRecommendationProvenance;
-  fileReferences?: FinalValidationRecommendationFileReference[];
+  fileReferences?: FinalValidationRecommendationFileReference[] | undefined;
 }
 
 export interface FinalOpenQuestion {
@@ -425,7 +414,7 @@ export interface FinalOpenQuestion {
 export interface FinalAssessmentResponse {
   responseType: "final_assessment_v2";
   taskAssessment: FinalTaskAssessment;
-  implementationNotes?: string;
+  implementationNotes?: string | undefined;
   artifactUpdateSuggestions: FinalArtifactUpdateSuggestion[];
   evidenceCorrections: FinalEvidenceCorrection[];
   validationRecommendationsSummary: string;
@@ -444,9 +433,7 @@ export interface ChildTaskDescriptionUpdateResponse {
 }
 
 export type VerificationTier =
-  | "product_walkthrough"
-  | "api_or_script"
-  | "automated_test";
+  "product_walkthrough" | "api_or_script" | "automated_test";
 
 export interface VerificationTargetRef {
   entityType: "task" | "designDoc" | "service" | "artifact";

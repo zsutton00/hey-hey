@@ -61,6 +61,8 @@ Server reconciliation context:
       }
     }
   ],
+  "interveningProposals": [],
+  "overlaps": [],
   "revisions": []
 }
 \`\`\`

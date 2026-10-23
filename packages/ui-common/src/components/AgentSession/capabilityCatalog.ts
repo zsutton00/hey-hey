@@ -225,8 +225,8 @@ const parseOpencodeModelRef = (
     throw new Error("Catalog opencodeModelRef was invalid for its provider.");
   }
   return {
-    providerID: readNonEmptyString(value.providerID, "opencode providerID"),
-    modelID: readNonEmptyString(value.modelID, "opencode modelID"),
+    providerID: readNonEmptyString(value["providerID"], "opencode providerID"),
+    modelID: readNonEmptyString(value["modelID"], "opencode modelID"),
   };
 };
 
@@ -237,15 +237,15 @@ const parseModel = (
   if (!isRecord(value)) {
     throw new Error("Catalog model rows must be objects.");
   }
-  const serviceTiers = parseServiceTiers(value.serviceTiers, provider);
+  const serviceTiers = parseServiceTiers(value["serviceTiers"], provider);
   const opencodeModelRef = parseOpencodeModelRef(
-    value.opencodeModelRef,
+    value["opencodeModelRef"],
     provider,
   );
   return {
-    id: readNonEmptyString(value.id, "model id"),
-    label: readNonEmptyString(value.label, "model label"),
-    efforts: parseEfforts(value.efforts),
+    id: readNonEmptyString(value["id"], "model id"),
+    label: readNonEmptyString(value["label"], "model label"),
+    efforts: parseEfforts(value["efforts"]),
     ...(serviceTiers ? { serviceTiers } : {}),
     ...(opencodeModelRef ? { opencodeModelRef } : {}),
   };
@@ -255,20 +255,20 @@ const parseModel = (
 export const parseRuntimeCapabilityCatalog = (
   value: unknown,
 ): RuntimeCapabilityCatalogPayload => {
-  if (!isRecord(value) || !Array.isArray(value.providers)) {
+  if (!isRecord(value) || !Array.isArray(value["providers"])) {
     throw new Error("Catalog payload must contain a providers array.");
   }
   const seenProviders = new Set<ConversationStartRunRequestDtoProviderEnum>();
-  const providers = value.providers.map((entry): CapabilityCatalogRow => {
-    if (!isRecord(entry) || !Array.isArray(entry.models)) {
+  const providers = value["providers"].map((entry): CapabilityCatalogRow => {
+    if (!isRecord(entry) || !Array.isArray(entry["models"])) {
       throw new Error("Catalog provider rows must contain a models array.");
     }
-    const provider = parseProvider(entry.provider);
+    const provider = parseProvider(entry["provider"]);
     const notice =
-      entry.notice === undefined
+      entry["notice"] === undefined
         ? undefined
-        : readNonEmptyString(entry.notice, "provider notice");
-    if ((entry.models.length === 0) !== (notice !== undefined)) {
+        : readNonEmptyString(entry["notice"], "provider notice");
+    if ((entry["models"].length === 0) !== (notice !== undefined)) {
       throw new Error(
         "Catalog provider rows must contain at least one model, or a notice explaining why they contain none.",
       );
@@ -277,11 +277,11 @@ export const parseRuntimeCapabilityCatalog = (
       throw new Error("Catalog provider rows must be unique.");
     }
     seenProviders.add(provider);
-    const models = entry.models.map((model) => {
+    const models = entry["models"].map((model) => {
       try {
         return parseModel(model, provider);
       } catch (error) {
-        const id = isRecord(model) ? JSON.stringify(model.id) : "unknown";
+        const id = isRecord(model) ? JSON.stringify(model["id"]) : "unknown";
         throw new Error(
           `Catalog ${provider} model ${id}: ${error instanceof Error ? error.message : String(error)}`,
         );

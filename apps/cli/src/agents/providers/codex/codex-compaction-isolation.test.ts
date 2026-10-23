@@ -2,7 +2,7 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CodexSdkClient, CodexCompactTimeoutError } from '@hey-hey/ui-common/agents';
+import { CodexSdkClient, CodexCompactTimeoutError } from '../../../agent-runtime/index';
 import { mapCodexEvent } from './codex-event-mapper';
 import type { ProviderEventNormalizationConfig } from '../provider-event-normalization';
 

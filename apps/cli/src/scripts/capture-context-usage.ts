@@ -11,7 +11,7 @@
  * object from the envelope) to disk and exits.
  *
  * This script is intentionally hand-rolled and does NOT use
- * `@hey-hey/ui-common/agents` ClaudeCodeSdkClient — adding outbound
+ * `../agent-runtime/index` ClaudeCodeSdkClient — adding outbound
  * control-request plumbing to that client is out of scope for this task.
  *
  * Usage:

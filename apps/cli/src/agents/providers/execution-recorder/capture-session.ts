@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import fs from 'node:fs/promises';
-import type { ToolExecutionHookLaunch } from '@hey-hey/ui-common/agents';
+import type { ToolExecutionHookLaunch } from '../../../agent-runtime/index';
 import type { Run } from '../../../run/run';
 import type { ResolvedRunWorkspace } from '../../run-scope';
 import type { ServerLogger } from '../../../server/logger';

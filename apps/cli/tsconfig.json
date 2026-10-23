@@ -3,7 +3,7 @@
     "target": "ES2022",
     "module": "CommonJS",
     "moduleResolution": "Node",
-    "rootDir": "src",
+    "noEmit": true,
     "outDir": "dist",
     "sourceMap": true,
     "inlineSources": true,

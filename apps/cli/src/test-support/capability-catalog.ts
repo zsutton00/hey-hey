@@ -2,7 +2,7 @@ import {
   installCapabilityCatalog,
   resetCapabilityCatalogForTests,
   type CapabilityCatalogRow,
-} from '@hey-hey/ui-common/capability-catalog';
+} from '../../../../packages/ui-common/src/components/AgentSession/capabilityCatalog';
 import { afterEach, beforeEach } from 'vitest';
 import type { CatalogAvailability } from '../server/runtime-capability-catalog';
 

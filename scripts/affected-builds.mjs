@@ -5,7 +5,7 @@
 //   node scripts/affected-builds.mjs -- <changed path>...
 //
 // A changed path selects the target that owns it plus every workspace package
-// that depends on that target (read from the packages' own manifests, so the
+// that depends on that target (from workspace manifests and declared source inputs, so the
 // selection follows dependencies as they actually exist). OpenAPI and root
 // workspace/build inputs select everything. Documentation selects nothing. Any
 // other path outside a target is treated as a build input and selects
@@ -48,6 +48,8 @@ export const TARGETS = [
   {
     id: "cli",
     directory: "apps/cli",
+    // The CLI bundles shared source without a distributable package dependency.
+    sourceDependencies: ["ui-common"],
     checks: [
       "pnpm --filter @hey-hey/cli typecheck",
       "pnpm --filter @hey-hey/cli test",
@@ -67,7 +69,10 @@ export const readDependents = (root = checkoutRoot) => {
   const byName = new Map();
   const manifests = TARGETS.map((target) => {
     const manifest = JSON.parse(
-      fs.readFileSync(path.join(root, target.directory, "package.json"), "utf8"),
+      fs.readFileSync(
+        path.join(root, target.directory, "package.json"),
+        "utf8",
+      ),
     );
     byName.set(manifest.name, target.id);
     return { target, manifest };
@@ -85,6 +90,11 @@ export const readDependents = (root = checkoutRoot) => {
           dependents.get(byName.get(name)).add(target.id);
         }
       }
+    }
+  }
+  for (const target of TARGETS) {
+    for (const dependency of target.sourceDependencies ?? []) {
+      dependents.get(dependency).add(target.id);
     }
   }
   return dependents;

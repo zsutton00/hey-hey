@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import type { UsageData } from '@hey-hey/ui-common/agents';
+import type { UsageData } from '../agent-runtime/index';
 import { readClaudeUsage } from './claude-usage';
 
 const now = () => new Date('2026-10-13T23:35:00.000Z');
@@ -77,10 +77,14 @@ it('reports nothing and aborts the request when Claude Code does not answer in t
   vi.useFakeTimers();
   try {
     let signal: AbortSignal | undefined;
-    const pending = readClaudeUsage((received) => {
-      signal = received;
-      return new Promise<never>(() => {});
-    }, undefined, 50);
+    const pending = readClaudeUsage(
+      (received) => {
+        signal = received;
+        return new Promise<never>(() => {});
+      },
+      undefined,
+      50,
+    );
     await vi.advanceTimersByTimeAsync(50);
 
     await expect(pending).resolves.toEqual(unreported);

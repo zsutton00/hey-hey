@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
-import { runAttachmentFormat } from '@hey-hey/ui-common/agents';
+import { runAttachmentFormat } from '../agent-runtime/index';
 import type { LocalRunAttachmentOpenAction } from '../shared/local-agent-api/generated/api';
 
 export class AttachmentOpenerUnavailableError extends Error {

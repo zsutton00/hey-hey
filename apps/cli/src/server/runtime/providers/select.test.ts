@@ -3,7 +3,7 @@
 import {
   installCapabilityCatalog,
   resetCapabilityCatalogForTests,
-} from '@hey-hey/ui-common/capability-catalog';
+} from '../../../../../../packages/ui-common/src/components/AgentSession/capabilityCatalog';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
   AgentRunResult,

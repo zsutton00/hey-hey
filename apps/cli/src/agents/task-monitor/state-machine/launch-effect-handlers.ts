@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ApiRuntime } from '@hey-hey/ui-common/clients';
+import type { ApiRuntime } from '../../../../../../packages/ui-common/src/clients/shared';
 
 import type {
   EffectExecutionIdentity,
@@ -168,26 +168,23 @@ export class TaskMonitorAgentSessionEffectHandler implements EffectHandler<
         taskId: input.task.id,
         operationId,
       });
-      const response =
-        await this.apiRuntime.clients.agentSessions.createAgentSession(
-          {
-            organizationId: input.organizationId,
-            projectId: input.projectId,
-            createAgentSessionDto: {
-              projectId: input.projectId,
-              sessionDate: new Date().toISOString(),
-              title: input.task.name,
-              entityType: EntityType.Task,
-              entityId: input.task.id,
-              serviceIds: [...input.task.serviceIds],
-              launchServiceId,
-              provider: toCreateProvider(input.launchConfig.provider),
-              type: AgentSessionType.Coding,
-              autoDecide: true,
-              config: toTaskMonitorSessionConfig(input),
-            },
-          },
-        );
+      const response = await this.apiRuntime.clients.agentSessions.createAgentSession({
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        createAgentSessionDto: {
+          projectId: input.projectId,
+          sessionDate: new Date().toISOString(),
+          title: input.task.name,
+          entityType: EntityType.Task,
+          entityId: input.task.id,
+          serviceIds: [...input.task.serviceIds],
+          launchServiceId,
+          provider: toCreateProvider(input.launchConfig.provider),
+          type: AgentSessionType.Coding,
+          autoDecide: true,
+          config: toTaskMonitorSessionConfig(input),
+        },
+      });
       const createdId = response.data.data?.id;
       if (!createdId) {
         throw new Error('Platform did not return the created Coding Agent Session identity.');
@@ -218,14 +215,11 @@ export class TaskMonitorAgentSessionEffectHandler implements EffectHandler<
     agentSessionId: string,
   ): Promise<boolean> {
     try {
-      const response =
-        await this.apiRuntime.clients.agentSessions.getAgentSession(
-          {
-            organizationId: launch.organizationId,
-            projectId: launch.projectId,
-            agentSessionId,
-          },
-        );
+      const response = await this.apiRuntime.clients.agentSessions.getAgentSession({
+        organizationId: launch.organizationId,
+        projectId: launch.projectId,
+        agentSessionId,
+      });
       return response.data.data?.id === agentSessionId;
     } catch (error) {
       if (responseStatus(error) === 404) return false;
@@ -305,22 +299,19 @@ export class TaskMonitorConversationEffectHandler implements EffectHandler<
         taskId: input.task.id,
         agentSessionId: effect.agentSessionId,
       });
-      const response =
-        await this.apiRuntime.clients.agentSessions.createAgentSessionConversation(
-          {
-            organizationId: input.organizationId,
-            projectId: input.projectId,
-            agentSessionId: effect.agentSessionId,
-            createAgentSessionConversationDto: {
-              workflowType: taskMonitorConversationWorkflow(input.method),
-              workflowAboutType: 'agent-session',
-              workflowAboutId: effect.agentSessionId,
-              entityType: 'task',
-              entityId: input.task.id,
-              title: input.task.name,
-            },
-          },
-        );
+      const response = await this.apiRuntime.clients.agentSessions.createAgentSessionConversation({
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        agentSessionId: effect.agentSessionId,
+        createAgentSessionConversationDto: {
+          workflowType: taskMonitorConversationWorkflow(input.method),
+          workflowAboutType: 'agent-session',
+          workflowAboutId: effect.agentSessionId,
+          entityType: 'task',
+          entityId: input.task.id,
+          title: input.task.name,
+        },
+      });
       const conversationId = response.data.data?.conversation.id;
       if (!conversationId)
         throw new Error('Platform did not return the Coding Agent conversation.');
@@ -342,14 +333,11 @@ export class TaskMonitorConversationEffectHandler implements EffectHandler<
     agentSessionId: string,
   ): Promise<string | null> {
     try {
-      const response =
-        await this.apiRuntime.clients.agentSessions.getAgentSession(
-          {
-            organizationId: launch.organizationId,
-            projectId: launch.projectId,
-            agentSessionId,
-          },
-        );
+      const response = await this.apiRuntime.clients.agentSessions.getAgentSession({
+        organizationId: launch.organizationId,
+        projectId: launch.projectId,
+        agentSessionId,
+      });
       return response.data.data?.conversationId ?? null;
     } catch (error) {
       if (responseStatus(error) === 404) return null;

@@ -24,7 +24,7 @@ import { canonicalizeJson } from './jcs';
  */
 
 import type { ServerLogger } from '../logger';
-import type { ApiRuntime } from '@hey-hey/ui-common/clients';
+import type { ApiRuntime } from '../../../../../packages/ui-common/src/clients/shared';
 import type { KeyPairStore } from '../../credentials';
 import type { PlatformDeliveryContext, PlatformWebSocketEvent } from '../platform-ws';
 import type {

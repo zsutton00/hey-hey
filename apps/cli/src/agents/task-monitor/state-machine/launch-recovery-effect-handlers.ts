@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ApiRuntime } from '@hey-hey/ui-common/clients';
+import type { ApiRuntime } from '../../../../../../packages/ui-common/src/clients/shared';
 import { MessageType, SystemMessageDataTypeEnum } from '../../../shared/api/generated/api';
 import type { MessagePoster } from '../../../run/message-poster';
 import type {

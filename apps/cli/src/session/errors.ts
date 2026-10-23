@@ -1,1 +1,1 @@
-export { LockTimeoutError, SessionValidationError } from '@hey-hey/ui-common/agents';
+export { LockTimeoutError, SessionValidationError } from '../agent-runtime/index';

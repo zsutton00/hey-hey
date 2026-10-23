@@ -100,10 +100,13 @@ vi.mock('./opencode-server-launcher', () => ({
 const getOpencodeModelRefMock = vi.fn<
   (model: string) => { providerID: string; modelID: string } | null
 >(() => null);
-vi.mock('@hey-hey/ui-common/capability-catalog', () => ({
-  getOpencodeModelRef: (model: string) => getOpencodeModelRefMock(model),
-  OPENCODE_DEFAULT_MODEL_ID: 'opencode-default',
-}));
+vi.mock(
+  '../../../../../../packages/ui-common/src/components/AgentSession/capabilityCatalog',
+  () => ({
+    getOpencodeModelRef: (model: string) => getOpencodeModelRefMock(model),
+    OPENCODE_DEFAULT_MODEL_ID: 'opencode-default',
+  }),
+);
 
 const toolRuleStoreDirectory = mkdtempSync(join(tmpdir(), 'hey-hey-opencode-tool-rules-'));
 const toolRuleStore = new ToolRuleStore(join(toolRuleStoreDirectory, 'tool-rules.json'));

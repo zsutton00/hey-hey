@@ -15456,13 +15456,13 @@ export interface CodingPromptStartupClarificationQuestion {
      * @type {string}
      * @memberof CodingPromptStartupClarificationQuestion
      */
-    'reason'?: string;
+    'reason'?: (string) | undefined;
     /**
      * 
      * @type {Array<CodingPromptStartupSourceRef>}
      * @memberof CodingPromptStartupClarificationQuestion
      */
-    'relatedSourceRefs'?: Array<CodingPromptStartupSourceRef>;
+    'relatedSourceRefs'?: (Array<CodingPromptStartupSourceRef>) | undefined;
 }
 /**
  * Input discrepancy captured in startup-plan output
@@ -15481,7 +15481,7 @@ export interface CodingPromptStartupDiscrepancy {
      * @type {string}
      * @memberof CodingPromptStartupDiscrepancy
      */
-    'sourceField'?: string;
+    'sourceField'?: (string) | undefined;
     /**
      * 
      * @type {string}
@@ -15637,7 +15637,7 @@ export interface CodingPromptStartupPlanStep {
      * @type {Array<string>}
      * @memberof CodingPromptStartupPlanStep
      */
-    'targetFiles'?: Array<string>;
+    'targetFiles'?: (Array<string>) | undefined;
     /**
      * 
      * @type {Array<CodingPromptStartupPlanReference>}
@@ -15649,7 +15649,7 @@ export interface CodingPromptStartupPlanStep {
      * @type {string}
      * @memberof CodingPromptStartupPlanStep
      */
-    'validationFocus'?: string;
+    'validationFocus'?: (string) | undefined;
     /**
      * Phase number this step belongs to. Contiguous clusters of steps sharing working context form a phase. Required; integer ≥1.
      * @type {number}
@@ -15686,19 +15686,19 @@ export interface CodingPromptStartupPrimaryImplementation {
      * @type {string}
      * @memberof CodingPromptStartupPrimaryImplementation
      */
-    'location'?: string;
+    'location'?: (string) | undefined;
     /**
      * 
      * @type {string}
      * @memberof CodingPromptStartupPrimaryImplementation
      */
-    'language'?: string;
+    'language'?: (string) | undefined;
     /**
      * Optional evidence-bearing connections. Omit this property when no applicable connection is established. 
      * @type {Array<CodingPromptStartupPrimaryImplementationConnection>}
      * @memberof CodingPromptStartupPrimaryImplementation
      */
-    'connections'?: Array<CodingPromptStartupPrimaryImplementationConnection>;
+    'connections'?: (Array<CodingPromptStartupPrimaryImplementationConnection>) | undefined;
 }
 /**
  * Evidence-backed connection between a primary implementation and a resolved, non-archived workflow step or Contract. This records plan evidence only and does not create graph topology. 
@@ -27162,7 +27162,7 @@ export interface DemoSandboxAdminOverviewDto {
  */
 export interface DemoSandboxAvailabilityDto {
     /**
-     * True when the demo is switched on and a template is designated.
+     * True in every deployment except production. The same value decides whether View demo is shown and whether starting a demo is attempted.
      * @type {boolean}
      * @memberof DemoSandboxAvailabilityDto
      */
@@ -27174,12 +27174,6 @@ export interface DemoSandboxAvailabilityDto {
  * @interface DemoSandboxProgramDto
  */
 export interface DemoSandboxProgramDto {
-    /**
-     * The single switch for the demo; off hides View demo and refuses new sandboxes.
-     * @type {boolean}
-     * @memberof DemoSandboxProgramDto
-     */
-    'enabled': boolean;
     /**
      * Maximum ACTIVE sandboxes plus provisioning attempts.
      * @type {number}
@@ -27658,7 +27652,7 @@ export interface DesignDocDraftSection {
      * @type {string}
      * @memberof DesignDocDraftSection
      */
-    'id'?: string;
+    'id'?: (string) | undefined;
     /**
      * Unique identifier for the section (e.g., context, decision).
      * @type {string}
@@ -27676,7 +27670,7 @@ export interface DesignDocDraftSection {
      * @type {string}
      * @memberof DesignDocDraftSection
      */
-    'content'?: string;
+    'content'?: (string) | undefined;
 }
 /**
  * Base shape shared by every design doc event.

@@ -1,4 +1,4 @@
-import type { ApiRuntime } from '@hey-hey/ui-common/clients';
+import type { ApiRuntime } from '../../../../packages/ui-common/src/clients/shared';
 
 import type { TrackedProposalStatus } from '../run/run-proposal-tracker';
 

@@ -7,7 +7,7 @@ import {
   createBrowserApiRuntime,
   registerApiRuntime,
   platformClient,
-} from '@hey-hey/ui-common/clients';
+} from '../../../../packages/ui-common/src/clients/shared';
 
 const targetAgentSessionId = process.argv[2];
 if (!targetAgentSessionId) {
@@ -61,16 +61,14 @@ const main = async (): Promise<void> => {
   // Try the conversation lookup
   console.log('\n--- Conversation lookup via getWorkflowConversations ---');
   try {
-    const resp = await platformClient.getWorkflowConversations(
-      {
-        organizationId: orgId,
-        projectId,
-        workflowName: 'agent-session',
-        workflowAboutId: targetAgentSessionId,
-        page: 1,
-        limit: 10,
-      },
-    );
+    const resp = await platformClient.getWorkflowConversations({
+      organizationId: orgId,
+      projectId,
+      workflowName: 'agent-session',
+      workflowAboutId: targetAgentSessionId,
+      page: 1,
+      limit: 10,
+    });
     const conversations = (resp as unknown as { data?: { data?: { data?: unknown[] } } })?.data
       ?.data?.data;
     console.log('conversations found:', Array.isArray(conversations) ? conversations.length : 0);

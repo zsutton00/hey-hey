@@ -168,9 +168,18 @@ describe('buildProposalRefinerPrompt', () => {
 it('snapshots the complete reconciliation prompt, including semantic choices and review-only submission', () => {
   const input = makeInput();
   input.proposal.reconciliation = {
-    status: 'AGENT_FIX_REQUIRED', conflictingPaths: ['/sections/description'],
-    currentBases: [{ entityType: 'TASK', entityId: '10000000-0000-4000-8000-000000000001', version: 'current',
-      content: { name: 'Current task', sections: { description: 'Intervening decision' } } }],
+    status: 'AGENT_FIX_REQUIRED',
+    conflictingPaths: ['/sections/description'],
+    currentBases: [
+      {
+        entityType: 'TASK',
+        entityId: '10000000-0000-4000-8000-000000000001',
+        version: 'current',
+        content: { name: 'Current task', sections: { description: 'Intervening decision' } },
+      },
+    ],
+    interveningProposals: [],
+    overlaps: [],
     revisions: [],
   };
   expect(buildProposalRefinerPrompt(input)).toMatchSnapshot();

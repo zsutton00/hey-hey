@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import type { ApiRuntime } from '@hey-hey/ui-common/clients';
+import type { ApiRuntime } from '../../../../../../../packages/ui-common/src/clients/shared';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createTestKeyPairStore } from '../../../../credentials/keypair.test-support';

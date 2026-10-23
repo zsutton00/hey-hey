@@ -7,7 +7,7 @@ import { ExecutionRecorder } from '../execution-recorder/execution-recorder';
 import { ExecutionCaptureSession } from '../execution-recorder/capture-session';
 import { NOOP_LOGGER } from '../../../server/logger';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CodexNoContextSnapshotError } from '@hey-hey/ui-common/agents';
+import { CodexNoContextSnapshotError } from '../../../agent-runtime/index';
 import type { LocalContextData } from '../../../shared/agent-bridge-contract/contract';
 import { toServiceId, type RepoMappingStore } from '../../../repo/index';
 import type { RunStore } from '../../../run-store/run-store';
@@ -185,9 +185,9 @@ const addedSpike: WorkItemTypeDefinitionDto = {
 const BASELINE_DEFINITIONS = [baselineContract];
 const EDITED_DEFINITIONS = [editedContract, addedSpike];
 
-vi.mock('@hey-hey/ui-common/agents', async () => {
-  const actual = await vi.importActual<typeof import('@hey-hey/ui-common/agents')>(
-    '@hey-hey/ui-common/agents',
+vi.mock('../../../agent-runtime/index', async () => {
+  const actual = await vi.importActual<typeof import('../../../agent-runtime/index')>(
+    '../../../agent-runtime/index',
   );
   return {
     ...actual,

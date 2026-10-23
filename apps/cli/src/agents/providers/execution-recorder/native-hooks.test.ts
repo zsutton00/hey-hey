@@ -9,7 +9,7 @@ import {
   ClaudeCodeSdkClient,
   CodexSdkClient,
   toolExecutionHookSettings,
-} from '@hey-hey/ui-common/agents';
+} from '../../../agent-runtime/index';
 import { ExecutionRecorder } from './execution-recorder';
 import { CodexExecutionCaptureHooks } from '../codex/execution-capture-hooks';
 import { ClaudeExecutionCaptureHooks } from '../claude/execution-capture-hooks';

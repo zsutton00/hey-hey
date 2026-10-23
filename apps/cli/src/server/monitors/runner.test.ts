@@ -1,7 +1,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { ApiRuntime } from '@hey-hey/ui-common/clients';
+import type { ApiRuntime } from '../../../../../packages/ui-common/src/clients/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { TaskMonitorDecisionStore } from '../../agents/task-monitor/task-monitor-decision-store';
 import { SessionMonitorEvaluationStore } from '../../agents/session-monitor';

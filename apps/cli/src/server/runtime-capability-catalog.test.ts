@@ -7,7 +7,7 @@ import {
   resetCapabilityCatalogForTests,
   supportsFastMode,
   type CapabilityCatalogModel,
-} from '@hey-hey/ui-common/capability-catalog';
+} from '../../../../packages/ui-common/src/components/AgentSession/capabilityCatalog';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { StructuredServerLogger, type ServerLogEntry } from './logger';
 import type { ProviderModelReader, ProviderModelsReport } from './model-catalog/provider-models';

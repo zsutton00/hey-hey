@@ -1,4 +1,4 @@
-import { createInteractivePrompter, type CredentialPrompter } from '@hey-hey/ui-common/agents';
+import { createInteractivePrompter, type CredentialPrompter } from '../agent-runtime/index';
 
 import { createDefaultMachineEnrollmentClient } from '../auth/machine-enrollment-client';
 import {

@@ -23,10 +23,9 @@
   "author": "Zac Sutton",
   "scripts": {
     "dev": "pnpm dev:run",
-    "dev:build": "pnpm --filter @hey-hey/ui-common build && node scripts/build.mjs --watch",
-    "build": "pnpm --filter @hey-hey/ui-common build && node scripts/build.mjs",
-    "build:ui-common-types": "pnpm --filter @hey-hey/ui-common build:cli-declarations",
-    "typecheck": "pnpm build:ui-common-types && pnpm tsc --noEmit",
+    "dev:build": "node scripts/build.mjs --watch",
+    "build": "node scripts/build.mjs",
+    "typecheck": "pnpm tsc --noEmit",
     "register": "pnpm run build && pnpm link --global",
     "unregister": "pnpm unlink --global",
     "lint": "eslint .",
@@ -67,15 +66,16 @@
     "codex:skills": "tsx src/scripts/list-codex-skills.ts",
     "jev:scenarios": "tsx src/scripts/jev-scenarios.ts",
     "generate:contract": "node \"$(node scripts/openapi-root.cjs)/scripts/task-monitor-contract.js\" --typescript-output src/generated/task-monitor-contract.schema.ts && node \"$(node scripts/openapi-root.cjs)/scripts/project-mode-contract.js\" --typescript-output src/generated/project-mode-contract.schema.ts",
-    "generate:local": "openapi-generator-cli generate -i \"$(node scripts/openapi-root.cjs)/specs/local/openapi.yaml\" -g typescript-axios -o .openapi-tmp/local --additional-properties=supportsES6=true,withInterfaces=true,modelPropertyNaming=camelCase,typescriptThreePlus=true,useSingleRequestParameter=true --global-property=apiDocs=false,modelDocs=false && mkdir -p src/shared/local-agent-api/generated && cp .openapi-tmp/local/api.ts .openapi-tmp/local/base.ts .openapi-tmp/local/common.ts .openapi-tmp/local/configuration.ts .openapi-tmp/local/index.ts src/shared/local-agent-api/generated/ && bash scripts/postprocess-generated-api.sh src/shared/local-agent-api/generated",
-    "generate:agent-bridge": "pnpm generate:contract && openapi-generator-cli generate -i \"$(node scripts/openapi-root.cjs)/specs/agent-bridge/openapi.yaml\" -g typescript-axios -o .openapi-tmp/agent-bridge --additional-properties=supportsES6=true,withInterfaces=true,modelPropertyNaming=camelCase,typescriptThreePlus=true,useSingleRequestParameter=true --global-property=apiDocs=false,modelDocs=false && mkdir -p src/shared/agent-bridge-contract/generated && cp .openapi-tmp/agent-bridge/api.ts .openapi-tmp/agent-bridge/base.ts .openapi-tmp/agent-bridge/common.ts .openapi-tmp/agent-bridge/configuration.ts .openapi-tmp/agent-bridge/index.ts src/shared/agent-bridge-contract/generated/ && bash scripts/postprocess-generated-api.sh src/shared/agent-bridge-contract/generated && node scripts/generate-agent-bridge-runtime-schema.cjs && prettier --write src/shared/agent-bridge-contract/generated/repository-feature-enrichment-runtime-schema.ts",
+    "generate:local": "tmp=\"$(mktemp -d \"${TMPDIR:-/tmp}/openapi-generate.XXXXXX\")\" && trap 'rm -rf \"$tmp\"' EXIT && openapi-generator-cli generate -i \"$(node scripts/openapi-root.cjs)/specs/local/openapi.yaml\" -g typescript-axios -o \"$tmp\" --additional-properties=supportsES6=true,withInterfaces=true,modelPropertyNaming=camelCase,typescriptThreePlus=true,useSingleRequestParameter=true --global-property=apiDocs=false,modelDocs=false && mkdir -p src/shared/local-agent-api/generated && cp \"$tmp/api.ts\" \"$tmp/base.ts\" \"$tmp/common.ts\" \"$tmp/configuration.ts\" \"$tmp/index.ts\" src/shared/local-agent-api/generated/ && bash scripts/postprocess-generated-api.sh src/shared/local-agent-api/generated",
+    "generate:agent-bridge": "tmp=\"$(mktemp -d \"${TMPDIR:-/tmp}/openapi-generate.XXXXXX\")\" && trap 'rm -rf \"$tmp\"' EXIT && pnpm generate:contract && openapi-generator-cli generate -i \"$(node scripts/openapi-root.cjs)/specs/agent-bridge/openapi.yaml\" -g typescript-axios -o \"$tmp\" --additional-properties=supportsES6=true,withInterfaces=true,modelPropertyNaming=camelCase,typescriptThreePlus=true,useSingleRequestParameter=true --global-property=apiDocs=false,modelDocs=false && mkdir -p src/shared/agent-bridge-contract/generated && cp \"$tmp/api.ts\" \"$tmp/base.ts\" \"$tmp/common.ts\" \"$tmp/configuration.ts\" \"$tmp/index.ts\" src/shared/agent-bridge-contract/generated/ && bash scripts/postprocess-generated-api.sh src/shared/agent-bridge-contract/generated && node scripts/generate-agent-bridge-runtime-schema.cjs && prettier --write src/shared/agent-bridge-contract/generated/repository-feature-enrichment-runtime-schema.ts",
     "generate:work-item-enums": "node scripts/generate-work-item-enums.cjs",
-    "generate:api": "pnpm generate:contract && openapi-generator-cli generate -i \"$(node scripts/openapi-root.cjs)/specs/api/openapi.yaml\" -g typescript-axios -o .openapi-tmp/api --additional-properties=supportsES6=true,withInterfaces=true,modelPropertyNaming=camelCase,typescriptThreePlus=true,useSingleRequestParameter=true --global-property=apiDocs=false,modelDocs=false && mkdir -p src/shared/api/generated && cp .openapi-tmp/api/api.ts .openapi-tmp/api/base.ts .openapi-tmp/api/common.ts .openapi-tmp/api/configuration.ts .openapi-tmp/api/index.ts src/shared/api/generated/ && bash scripts/postprocess-generated-api.sh src/shared/api/generated && node scripts/generate-entity-prompt-template-language.cjs && prettier --write src/shared/api/generated/entity-prompt-template-language.ts src/shared/api/generated/index.ts && node scripts/generate-report-error-schemas.cjs && node \"$(node scripts/openapi-root.cjs)/scripts/generate-proposal-reconciliation-schema.js\" src/shared/api/generated/proposal-reconciliation.schema.ts",
+    "generate:api": "tmp=\"$(mktemp -d \"${TMPDIR:-/tmp}/openapi-generate.XXXXXX\")\" && trap 'rm -rf \"$tmp\"' EXIT && pnpm generate:contract && openapi-generator-cli generate -i \"$(node scripts/openapi-root.cjs)/specs/api/openapi.yaml\" -g typescript-axios -o \"$tmp\" --additional-properties=supportsES6=true,withInterfaces=true,modelPropertyNaming=camelCase,typescriptThreePlus=true,useSingleRequestParameter=true --global-property=apiDocs=false,modelDocs=false && mkdir -p src/shared/api/generated && cp \"$tmp/api.ts\" \"$tmp/base.ts\" \"$tmp/common.ts\" \"$tmp/configuration.ts\" \"$tmp/index.ts\" src/shared/api/generated/ && bash scripts/postprocess-generated-api.sh src/shared/api/generated && node scripts/generate-entity-prompt-template-language.cjs && prettier --write src/shared/api/generated/entity-prompt-template-language.ts src/shared/api/generated/index.ts && node scripts/generate-report-error-schemas.cjs && node \"$(node scripts/openapi-root.cjs)/scripts/generate-proposal-reconciliation-schema.js\" src/shared/api/generated/proposal-reconciliation.schema.ts",
     "generate": "pnpm generate:local && pnpm generate:agent-bridge && pnpm generate:api",
     "generate:all": "node scripts/clean-openapi-generated.cjs && pnpm generate",
     "generate:check": "pnpm generate && git diff --exit-code -- src/shared/api/generated src/shared/agent-bridge-contract/generated src/shared/local-agent-api/generated src/generated",
     "prepack": "pnpm typecheck && pnpm test && pnpm build",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "codex:smoke": "tsx scripts/codex-smoke.ts"
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "^0.0.71",
@@ -89,7 +89,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
-    "@hey-hey/ui-common": "workspace:*",
     "@openapitools/openapi-generator-cli": "2.29.0",
     "@types/express": "^5.0.6",
     "@types/node": "^22.19.19",
@@ -121,6 +120,7 @@
     "typescript-eslint": "^8.59.4",
     "vite": "6.4.2",
     "vitest": "^4.1.7",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "@modelcontextprotocol/sdk": "^1.26.0"
   }
 }

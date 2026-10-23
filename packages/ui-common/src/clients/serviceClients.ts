@@ -883,9 +883,15 @@ export class UnifiedApiClient {
         organizationId: _params.organizationId,
         projectId: _params.projectId,
         taskId: _params.taskId,
-        includeServiceRelations: _params.includeServiceRelations,
-        includeEdges: _params.includeEdges,
-        edgeTypes: _params.edgeTypes,
+        ...(_params.includeServiceRelations === undefined
+          ? {}
+          : { includeServiceRelations: _params.includeServiceRelations }),
+        ...(_params.includeEdges === undefined
+          ? {}
+          : { includeEdges: _params.includeEdges }),
+        ...(_params.edgeTypes === undefined
+          ? {}
+          : { edgeTypes: _params.edgeTypes }),
       },
       options,
     );
@@ -966,29 +972,55 @@ export class UnifiedApiClient {
       {
         organizationId: params.organizationId,
         projectId: params.projectId,
-        initiativeId: params.initiativeId,
-        parentTaskId: parentTaskIdParam,
-        parentTaskIds: params.parentTaskIds
-          ? new Set(params.parentTaskIds)
-          : undefined,
-        includeDescendants: params.includeDescendants || undefined,
-        includeTrackedEntities: params.includeTrackedEntities,
-        includeTrackedWorkSummary: params.includeTrackedWorkSummary,
-        taskIds: params.taskIds ? new Set(params.taskIds) : undefined,
-        status: statusParam,
-        includeDesignDocCounts: params.includeDesignDocCounts,
-        includeAgentSessionCounts: params.includeAgentSessionCounts,
-        includeServiceRelations: params.includeServiceRelations,
-        includeEdges: params.includeEdges,
-        edgeTypes: params.edgeTypes,
-        includeSectionKeys: includeSectionKeysParam,
-        type: params.type,
-        relatedEntityId: params.relatedEntityId,
-        relatedEntityType: params.relatedEntityType,
-        page: params.page,
-        limit: params.limit,
-        sortBy: params.sortBy,
-        sortDir: params.sortDir,
+        ...(params.initiativeId === undefined
+          ? {}
+          : { initiativeId: params.initiativeId }),
+        ...(parentTaskIdParam === undefined
+          ? {}
+          : { parentTaskId: parentTaskIdParam }),
+        ...(params.parentTaskIds
+          ? { parentTaskIds: new Set(params.parentTaskIds) }
+          : {}),
+        ...(params.includeDescendants
+          ? { includeDescendants: params.includeDescendants }
+          : {}),
+        ...(params.includeTrackedEntities === undefined
+          ? {}
+          : { includeTrackedEntities: params.includeTrackedEntities }),
+        ...(params.includeTrackedWorkSummary === undefined
+          ? {}
+          : { includeTrackedWorkSummary: params.includeTrackedWorkSummary }),
+        ...(params.taskIds ? { taskIds: new Set(params.taskIds) } : {}),
+        ...(statusParam === undefined ? {} : { status: statusParam }),
+        ...(params.includeDesignDocCounts === undefined
+          ? {}
+          : { includeDesignDocCounts: params.includeDesignDocCounts }),
+        ...(params.includeAgentSessionCounts === undefined
+          ? {}
+          : { includeAgentSessionCounts: params.includeAgentSessionCounts }),
+        ...(params.includeServiceRelations === undefined
+          ? {}
+          : { includeServiceRelations: params.includeServiceRelations }),
+        ...(params.includeEdges === undefined
+          ? {}
+          : { includeEdges: params.includeEdges }),
+        ...(params.edgeTypes === undefined
+          ? {}
+          : { edgeTypes: params.edgeTypes }),
+        ...(includeSectionKeysParam === undefined
+          ? {}
+          : { includeSectionKeys: includeSectionKeysParam }),
+        ...(params.type === undefined ? {} : { type: params.type }),
+        ...(params.relatedEntityId === undefined
+          ? {}
+          : { relatedEntityId: params.relatedEntityId }),
+        ...(params.relatedEntityType === undefined
+          ? {}
+          : { relatedEntityType: params.relatedEntityType }),
+        ...(params.page === undefined ? {} : { page: params.page }),
+        ...(params.limit === undefined ? {} : { limit: params.limit }),
+        ...(params.sortBy === undefined ? {} : { sortBy: params.sortBy }),
+        ...(params.sortDir === undefined ? {} : { sortDir: params.sortDir }),
       },
       options,
     );

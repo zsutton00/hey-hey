@@ -5,7 +5,7 @@ import { z } from 'zod';
 import {
   OPENCODE_DEFAULT_MODEL_ID,
   type CapabilityCatalogModel,
-} from '@hey-hey/ui-common/capability-catalog';
+} from '../../../../../packages/ui-common/src/components/AgentSession/capabilityCatalog';
 import {
   OpenCodeServerProcess,
   resolveOpencodeBinary,

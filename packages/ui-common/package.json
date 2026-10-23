@@ -72,13 +72,13 @@
       "default": "./dist/hooks.mjs"
     },
     "./clients": {
-      "types": "./dist/types/clients/index.d.ts",
+      "types": "./src/clients/index.ts",
       "import": "./dist/clients.mjs",
       "require": "./dist/clients.cjs",
       "default": "./dist/clients.mjs"
     },
     "./agents": {
-      "types": "./dist/types/agents/index.d.ts",
+      "types": "./src/agents/index.ts",
       "import": "./dist/agents.mjs",
       "require": "./dist/agents.cjs",
       "default": "./dist/agents.mjs"
@@ -114,7 +114,7 @@
       "default": "./dist/permissions.mjs"
     },
     "./capability-catalog": {
-      "types": "./dist/types/components/AgentSession/capabilityCatalog.d.ts",
+      "types": "./src/components/AgentSession/capabilityCatalog.ts",
       "import": "./dist/capability-catalog.mjs",
       "require": "./dist/capability-catalog.cjs",
       "default": "./dist/capability-catalog.mjs"
@@ -124,8 +124,7 @@
     "dev": "pnpm --filter @hey-hey/ui-common-playground dev",
     "check": "pnpm lint && pnpm type-check && pnpm test:run",
     "prebuild": "pnpm lint && pnpm type-check",
-    "build": "node scripts/run-tsup-with-heap.cjs && pnpm build:cli-declarations",
-    "build:cli-declarations": "tsc -p tsconfig.cli-declarations.json",
+    "build": "node scripts/run-tsup-with-heap.cjs",
     "fix:api": "node scripts/openapi-post.js",
     "type-check": "tsc --build",
     "lint": "eslint .",
@@ -138,10 +137,10 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "test:browser:project-report": "pnpm tsc --noEmit -p scripts/browser/tsconfig.json && node scripts/verify-project-report-browser.mjs",
-    "clean:api": "rm -rf src/api src/local-agent-api/generated src/generated /tmp/ui-common-local-agent-api",
+    "clean:api": "rm -rf src/api src/local-agent-api/generated src/generated",
     "generate:contract": "node \"$(node scripts/openapi-root.cjs)/scripts/task-monitor-contract.js\" --typescript-output src/generated/task-monitor-contract.schema.ts",
     "generate:entity-prompt-template-language": "node scripts/generate-entity-prompt-template-language.cjs",
-    "generate:api": "pnpm generate:contract && pnpm generate:entity-prompt-template-language && openapi-generator-cli generate -i \"$(node scripts/openapi-root.cjs)/specs/api/openapi.yaml\" -g typescript-axios -o src/api --additional-properties=npmName=hey-hey-api,supportsES6=true,withInterfaces=true,modelPropertyNaming=camelCase,typescriptThreePlus=true,useSingleRequestParameter=true --global-property=apiDocs=false,modelDocs=false && node \"$(node scripts/openapi-root.cjs)/scripts/postprocess-project-report-models.js\" src/api/api.ts && node scripts/generate-private-beta-access-contract.cjs && node scripts/generate-browser-session-contract.cjs && node scripts/generate-activity-history-contract.cjs && node scripts/generate-open-items-contract.cjs",
+    "generate:api": "pnpm generate:contract && pnpm generate:entity-prompt-template-language && openapi-generator-cli generate -i \"$(node scripts/openapi-root.cjs)/specs/api/openapi.yaml\" -g typescript-axios -o src/api --additional-properties=npmName=hey-hey-api,supportsES6=true,withInterfaces=true,modelPropertyNaming=camelCase,typescriptThreePlus=true,useSingleRequestParameter=true --global-property=apiDocs=false,modelDocs=false && node \"$(node scripts/openapi-root.cjs)/scripts/postprocess-project-report-models.js\" src/api/api.ts && node scripts/generate-private-beta-access-contract.cjs && node scripts/generate-browser-session-contract.cjs && node scripts/generate-activity-history-contract.cjs && node scripts/generate-open-items-contract.cjs && node scripts/align-cli-source-types.cjs",
     "generate:all": "pnpm clean:api && pnpm generate:api && pnpm generate:local",
     "generate:check": "pnpm generate:all",
     "verify:deploy": "pnpm generate:all && pnpm build && pnpm test:run",
@@ -151,13 +150,12 @@
     "release": "pnpm build && changeset publish",
     "release:dry-run": "pnpm build && changeset publish --dry-run",
     "generate:i18n-keys": "node scripts/generate-i18n-keys.cjs",
-    "codex:smoke": "tsx scripts/codex-smoke.ts",
     "analyze:openapi": "tsx scripts/schema-analysis/parse-openapi.ts",
     "analyze:prisma": "tsx scripts/schema-analysis/parse-prisma.ts",
     "analyze:relationships": "tsx scripts/schema-analysis/detect-relationships.ts",
     "generate:relationship-config": "tsx scripts/schema-analysis/generate-config.ts",
     "validate:relationship-config": "tsx scripts/schema-analysis/validate-config-cli.ts",
-    "generate:local": "openapi-generator-cli generate -i \"$(node scripts/openapi-root.cjs)/specs/local/openapi.yaml\" -g typescript-axios -o /tmp/ui-common-local-agent-api --additional-properties=supportsES6=true,withInterfaces=true,modelPropertyNaming=camelCase,typescriptThreePlus=true,useSingleRequestParameter=true --global-property=apiDocs=false,modelDocs=false && mkdir -p src/local-agent-api/generated && cp /tmp/ui-common-local-agent-api/api.ts /tmp/ui-common-local-agent-api/base.ts /tmp/ui-common-local-agent-api/common.ts /tmp/ui-common-local-agent-api/configuration.ts /tmp/ui-common-local-agent-api/index.ts src/local-agent-api/generated/ && node scripts/clean-generated-api-imports.cjs src/local-agent-api/generated/api.ts && pnpm exec prettier --write src/local-agent-api/generated",
+    "generate:local": "tmp=\"$(mktemp -d \"${TMPDIR:-/tmp}/openapi-generate.XXXXXX\")\" && trap 'rm -rf \"$tmp\"' EXIT && openapi-generator-cli generate -i \"$(node scripts/openapi-root.cjs)/specs/local/openapi.yaml\" -g typescript-axios -o \"$tmp\" --additional-properties=supportsES6=true,withInterfaces=true,modelPropertyNaming=camelCase,typescriptThreePlus=true,useSingleRequestParameter=true --global-property=apiDocs=false,modelDocs=false && mkdir -p src/local-agent-api/generated && cp \"$tmp/api.ts\" \"$tmp/base.ts\" \"$tmp/common.ts\" \"$tmp/configuration.ts\" \"$tmp/index.ts\" src/local-agent-api/generated/ && node scripts/clean-generated-api-imports.cjs src/local-agent-api/generated/api.ts && pnpm exec prettier --write src/local-agent-api/generated",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "format": "prettier --write .",
@@ -280,8 +278,5 @@
     "workerDirectory": [
       "public"
     ]
-  },
-  "lint-staged": {
-    "*.{ts,tsx,js,jsx,mjs,cjs,json,css,md,yml,yaml}": "prettier --write --ignore-unknown"
   }
 }

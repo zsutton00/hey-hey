@@ -8,7 +8,7 @@ import { InputAdmissionOwner } from './input-admission/input-admission-owner';
 import { InputAdmissionLifecycle } from './input-admission/admission-lifecycle';
 import type { OperationTimelineRegistry } from './input-admission/operation-timeline';
 import { resolveBaseDir as resolveInputAdmissionRoot } from '../session/paths';
-import type { ApiRuntime } from '@hey-hey/ui-common/clients';
+import type { ApiRuntime } from '../../../../packages/ui-common/src/clients/shared';
 import { z } from 'zod';
 import type { AgentApplicationRuntime } from '../agents/agent-application-runtime';
 import type { OAuthClient } from '../auth';

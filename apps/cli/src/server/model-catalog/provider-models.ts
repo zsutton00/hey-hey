@@ -1,7 +1,7 @@
 import type {
   CapabilityCatalogModel,
   CapabilityCatalogRow,
-} from '@hey-hey/ui-common/capability-catalog';
+} from '../../../../../packages/ui-common/src/components/AgentSession/capabilityCatalog';
 
 /** One thing a provider reported that the catalog left out, and why. */
 export interface SkippedProviderEntry {

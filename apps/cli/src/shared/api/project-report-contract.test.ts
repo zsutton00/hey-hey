@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type {
   CreateProjectReportRequestDto as SharedRequest,
   ProjectReportPayload as SharedReport,
-} from '@hey-hey/ui-common/dist/types/api/api';
+} from '../../../../../packages/ui-common/src/api/api';
 import {
   ProjectReportsApiAxiosParamCreator,
   type CreateProjectReportRequestDto,

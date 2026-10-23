@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ApiRuntime } from '@hey-hey/ui-common/clients';
+import type { ApiRuntime } from '../../../../packages/ui-common/src/clients/shared';
 
 /** An HTML/CSS mockup as the platform holds it, laid out at one presentation size. */
 export interface MockupSource {

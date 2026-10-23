@@ -377,12 +377,12 @@ importers:
         specifier: ^5.32.5
         version: 5.32.5
     devDependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.26.0
+        version: 1.26.0(zod@3.25.76)
       '@eslint/js':
         specifier: ^9.39.4
         version: 9.39.4
-      '@hey-hey/ui-common':
-        specifier: workspace:*
-        version: link:../../packages/ui-common
       '@openapitools/openapi-generator-cli':
         specifier: 2.29.0
         version: 2.29.0(@nestjs/platform-express@11.1.6)(@nestjs/websockets@11.1.6)(@types/node@22.19.19)(class-transformer@0.5.1)(class-validator@0.14.2)

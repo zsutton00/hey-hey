@@ -1,4 +1,4 @@
-import type { RunAttachmentContent } from '@hey-hey/ui-common/agents';
+import type { RunAttachmentContent } from '../../../agent-runtime/index';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { buildBrowserToolsMcpConfig, BROWSER_ALLOWED_TOOLS } from '../../browser-tools/mcp-config';
 import type { BrowserMcpMount } from '../../browser-tools/browser-mcp-access';
@@ -7,7 +7,7 @@ import {
   getOpencodeModelRef,
   OPENCODE_DEFAULT_MODEL_ID,
   type OpencodeModelRef,
-} from '@hey-hey/ui-common/capability-catalog';
+} from '../../../../../../packages/ui-common/src/components/AgentSession/capabilityCatalog';
 import type { RepoMappingStore } from '../../../repo/index';
 import type { RunStore } from '../../../run-store/run-store';
 import {

@@ -52,9 +52,7 @@ const codexGetSessionIdMock = vi.fn<() => string | null>(() => null);
 const codexSubmitClientResponseMock = vi.fn();
 const codexOnTokenUsageMock = vi.fn();
 const readSessionStartContextMock = vi.fn<
-  (
-    ...args: unknown[]
-  ) => Promise<{
+  (...args: unknown[]) => Promise<{
     workItemTypeDefinitions: WorkItemTypeDefinitionDto[];
     intentFirst: boolean;
     maturity: ProjectMaturity;
@@ -65,10 +63,9 @@ const readSessionStartContextMock = vi.fn<
   maturity: 'ESTABLISHED',
 }));
 
-vi.mock('@hey-hey/ui-common/agents', async () => {
-  const actual = await vi.importActual<typeof import('@hey-hey/ui-common/agents')>(
-    '@hey-hey/ui-common/agents',
-  );
+vi.mock('../agent-runtime/index', async () => {
+  const actual =
+    await vi.importActual<typeof import('../agent-runtime/index')>('../agent-runtime/index');
   return {
     ...actual,
     ClaudeCodeSdkClient: class {

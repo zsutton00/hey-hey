@@ -1,5 +1,5 @@
 import { z } from 'zod/v4';
-import type { ClaudeCodeSdkEvent } from '@hey-hey/ui-common/agents';
+import type { ClaudeCodeSdkEvent } from '../../../agent-runtime/index';
 import { ExecutionCaptureSession } from '../execution-recorder/capture-session';
 import type { ExecutionRecorder } from '../execution-recorder/execution-recorder';
 import type { ServerLogger } from '../../../server/logger';

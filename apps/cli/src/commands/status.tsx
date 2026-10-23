@@ -1,4 +1,7 @@
-import { createBrowserApiRuntime, type ApiRuntime } from '@hey-hey/ui-common/clients';
+import {
+  createBrowserApiRuntime,
+  type ApiRuntime,
+} from '../../../../packages/ui-common/src/clients/shared';
 
 import {
   MachineControllerAuthority,

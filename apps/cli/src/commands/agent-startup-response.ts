@@ -1,7 +1,7 @@
 import {
   parseStartupSessionPlanResponseFromText,
   type StartupSessionPlanResponse,
-} from '@hey-hey/ui-common/agents';
+} from '../agent-runtime/index';
 import type { AgenticSessionEvent } from '../session/index';
 import { extractLatestAssistantResponseText } from './agent-session-event-helpers';
 

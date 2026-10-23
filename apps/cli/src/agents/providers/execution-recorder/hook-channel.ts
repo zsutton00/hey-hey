@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod/v4';
-import type { ToolExecutionHookLaunch } from '@hey-hey/ui-common/agents';
+import type { ToolExecutionHookLaunch } from '../../../agent-runtime/index';
 import { executionHookCommand } from './hook-command';
 import type { ExecutionCaptureSession } from './capture-session';
 

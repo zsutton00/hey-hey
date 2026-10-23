@@ -1,10 +1,10 @@
 import type { AxiosRequestConfig, AxiosResponse } from "axios";
 import { captureRequestOptions } from "../data/core/requestInitiator";
-import { getApiRuntime } from "./runtime";
+import { getApiRuntime } from "./runtimeRegistry";
 
 export interface DataClient {
   request<T = unknown, R = AxiosResponse<T>>(
-    config: AxiosRequestConfig
+    config: AxiosRequestConfig,
   ): Promise<R>;
 }
 

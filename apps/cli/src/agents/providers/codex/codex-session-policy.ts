@@ -1,4 +1,4 @@
-import type { CodexSdkSessionConfig } from '@hey-hey/ui-common/agents';
+import type { CodexSdkSessionConfig } from '../../../agent-runtime/index';
 
 /** Apply last: read-only sessions never inherit the automatic reviewer. */
 export const applyCodexSessionReviewerPolicy = (

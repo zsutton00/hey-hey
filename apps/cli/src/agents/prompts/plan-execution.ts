@@ -4,7 +4,7 @@ import {
   type StartupPlanRenderable,
   type StartupPlanQuestionAnswerEntry,
   type StartupPlanDiscrepancyDispositionEntry,
-} from '@hey-hey/ui-common/agents';
+} from '../../agent-runtime/index';
 import type { LocalPlanExecutionPromptPayload } from '../../shared/agent-bridge-contract/index';
 import { parseStartupSessionPlanResponse } from '../response-schemas';
 

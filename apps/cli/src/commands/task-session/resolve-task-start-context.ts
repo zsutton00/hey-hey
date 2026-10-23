@@ -1,4 +1,4 @@
-import { tasksClient } from '@hey-hey/ui-common/clients';
+import { tasksClient } from '../../../../../packages/ui-common/src/clients/shared';
 import type { LocalPendingRunContext } from '../../shared/agent-bridge-contract/contract';
 
 type TaskResponseDto = NonNullable<

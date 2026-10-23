@@ -6,7 +6,7 @@ import {
   type AgentType,
   type CredentialManager,
   type CredentialPrompter,
-} from '@hey-hey/ui-common/agents';
+} from '../agent-runtime/index';
 import { runCredentialCommand } from './provider-credential-refresh';
 
 type StoreCredential = Pick<CredentialManager, 'storeCredential'>['storeCredential'];

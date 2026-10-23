@@ -285,7 +285,7 @@ const getRequestPath = (
   try {
     return new URL(url, baseUrl ?? "http://api.invalid").pathname;
   } catch {
-    return url.split("?", 1)[0];
+    return url.split("?", 1)[0]!;
   }
 };
 

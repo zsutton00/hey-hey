@@ -4,7 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { ToolExecutionHookLaunch } from '@hey-hey/ui-common/agents';
+import type { ToolExecutionHookLaunch } from '../../../agent-runtime/index';
 import { NOOP_LOGGER } from '../../../server/logger';
 import { ExecutionRecorder } from './execution-recorder';
 import { ContentSnapshot } from './content-snapshot';

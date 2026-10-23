@@ -23,7 +23,7 @@ import {
 import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
 import type { LocalImplementPromptPayload } from '../../shared/agent-bridge-contract/runtime-types';
 import { ExtendedUIFieldType, ReportAudience, ReportType } from '../../shared/api/generated/api';
-import { renderStartupPlanMarkdown, type StartupPlanRenderable } from '@hey-hey/ui-common/agents';
+import { renderStartupPlanMarkdown, type StartupPlanRenderable } from '../../agent-runtime/index';
 import {
   defaultAddUserMessage,
   type PrepareResult,
@@ -230,10 +230,7 @@ export const implementHandler: UserLaunchablePromptTypeHandler<LocalImplementPro
   ],
   mcpToolUseCase: 'coding',
   additionalAllowedTools: HINT_WRITE_MCP_TOOLS,
-  submissionTools: [
-    reportChangedFilesTool,
-    requestAgentSessionServiceScopeTool,
-  ],
+  submissionTools: [reportChangedFilesTool, requestAgentSessionServiceScopeTool],
 
   async prepare(
     run: AgenticSession,

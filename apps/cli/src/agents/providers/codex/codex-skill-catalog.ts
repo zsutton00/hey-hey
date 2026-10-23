@@ -5,7 +5,7 @@ import { promisify } from 'node:util';
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { createInterface, type Interface as ReadlineInterface } from 'node:readline';
 import { z } from 'zod';
-import type { CodexSdkSkillTurnInput } from '@hey-hey/ui-common/agents';
+import type { CodexSdkSkillTurnInput } from '../../../agent-runtime/index';
 import type {
   AgentSkillCatalog,
   AgentSkillCatalogEntry,
@@ -336,7 +336,10 @@ export type CodexSkillSelectionErrorCode =
   | 'SKILL_AMBIGUOUS';
 
 export class CodexSkillSelectionError extends Error {
-  public constructor(public readonly code: CodexSkillSelectionErrorCode, message: string) {
+  public constructor(
+    public readonly code: CodexSkillSelectionErrorCode,
+    message: string,
+  ) {
     super(message);
     this.name = 'CodexSkillSelectionError';
   }

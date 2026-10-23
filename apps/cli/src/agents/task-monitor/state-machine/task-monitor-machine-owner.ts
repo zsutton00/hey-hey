@@ -2,7 +2,7 @@ import { TaskMonitorStatePublication } from '../../../server/task-monitor-state-
 import type { PlatformWebSocketManager } from '../../../server/platform-ws';
 import type { TaskMonitorMachineRuntime, TaskMonitorStateStore } from './machine';
 import { TaskMonitorOutcomeJudgmentEffectHandler } from './outcome-judgment-effect-handlers';
-import type { ApiRuntime } from '@hey-hey/ui-common/clients';
+import type { ApiRuntime } from '../../../../../../packages/ui-common/src/clients/shared';
 import type { KeyPairStore } from '../../../credentials';
 import type { MessagePoster } from '../../../run/message-poster';
 import type { RunRegistry } from '../../../run/run-registry';

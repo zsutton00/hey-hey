@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   installCapabilityCatalog,
   resetCapabilityCatalogForTests,
-} from '@hey-hey/ui-common/capability-catalog';
+} from '../../../../../packages/ui-common/src/components/AgentSession/capabilityCatalog';
 import { StructuredServerLogger } from '../logger';
 import { readRuntimeModelCatalogResult } from './runtime-model-catalog-result';
 

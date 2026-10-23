@@ -31,8 +31,7 @@ test("an API-only change selects the API checks and API image", () => {
 
 test("a UI Common change reaches every package that depends on it", () => {
   const result = select("packages/ui-common/src/index.ts");
-  // The CLI still depends on UI Common directly; its checks follow until that
-  // dependency is removed from its manifest.
+  // The CLI consumes shared source even though its npm manifest has no local dependency.
   assert.deepEqual(result.targets, ["ui-common", "ui", "cli"]);
   assert.deepEqual(result.images, ["ui"]);
   assert.ok(result.checks.some(({ target }) => target === "cli"));
@@ -70,7 +69,7 @@ test("documentation alone selects nothing", () => {
   assert.deepEqual(result.images, []);
 });
 
-test("dependents come from the workspace manifests", () => {
+test("dependents include workspace packages and declared source consumers", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "affected-builds-"));
   const write = (directory, manifest) => {
     fs.mkdirSync(path.join(root, directory), { recursive: true });
@@ -86,14 +85,14 @@ test("dependents come from the workspace manifests", () => {
       dependencies: { "@hey-hey/ui-common": "workspace:*" },
     });
     write("apps/api", { name: "hey-hey-api" });
-    // A CLI that no longer depends on UI Common is no longer selected by it.
+    // Source consumers remain selected without an npm workspace dependency.
     write("apps/cli", { name: "@hey-hey/cli" });
     write("openapi", { name: "hey-hey-openapi" });
     const result = selectAffected(
       ["packages/ui-common/src/index.ts"],
       readDependents(root),
     );
-    assert.deepEqual(result.targets, ["ui-common", "ui"]);
+    assert.deepEqual(result.targets, ["ui-common", "ui", "cli"]);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -16,7 +16,7 @@ import {
   type ClaudeCodeSdkEvent,
   type ClaudeCodeTurnResult,
   type UsageData,
-} from '@hey-hey/ui-common/agents';
+} from '../../../agent-runtime/index';
 import type { RepoMappingStore } from '../../../repo/index';
 import type { RunStore } from '../../../run-store/run-store';
 import {

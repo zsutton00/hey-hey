@@ -13,7 +13,7 @@
  * and the dispatcher never sees the structured tool_use payloads it needs.
  */
 
-import type { ClaudeCodeSdkEvent } from '@hey-hey/ui-common/agents';
+import type { ClaudeCodeSdkEvent } from '../agent-runtime/index';
 import type { AgentOutputHandler } from './agent-event-stream';
 import {
   normalizeProviderEventPayload,

@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { claudeTurnContent, codexAttachmentInput } from '@hey-hey/ui-common/agents';
+import { claudeTurnContent, codexAttachmentInput } from '../../agent-runtime/index';
 import { opencodeAttachmentParts } from './opencode/session-runner-opencode';
 import { RunAttachmentStore } from '../../server/run-attachment-store';
 import {

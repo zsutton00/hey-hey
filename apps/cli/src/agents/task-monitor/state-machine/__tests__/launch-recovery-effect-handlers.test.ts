@@ -2,7 +2,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ApiRuntime } from '@hey-hey/ui-common/clients';
+import type { ApiRuntime } from '../../../../../../../packages/ui-common/src/clients/shared';
 import type { MessagePoster } from '../../../../run/message-poster';
 import { NOOP_LOGGER } from '../../../../server/logger';
 import type { TaskMonitorCoordinatorConversation } from '../../../../server/task-monitor-coordinator-conversation';

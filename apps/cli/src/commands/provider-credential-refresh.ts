@@ -3,7 +3,7 @@ import {
   createInteractivePrompter,
   type CredentialManager,
   type CredentialPrompter,
-} from '@hey-hey/ui-common/agents';
+} from '../agent-runtime/index';
 import {
   buildCredentialRefreshCommand,
   resolveAgentAccountId,

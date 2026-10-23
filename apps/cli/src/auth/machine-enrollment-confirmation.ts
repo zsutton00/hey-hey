@@ -1,6 +1,6 @@
 import { createPrivateKey, sign } from 'node:crypto';
 
-import type { CredentialPrompter } from '@hey-hey/ui-common/agents';
+import type { CredentialPrompter } from '../agent-runtime/index';
 import { isAxiosError } from 'axios';
 import { z } from 'zod';
 

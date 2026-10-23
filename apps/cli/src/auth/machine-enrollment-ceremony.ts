@@ -1,4 +1,4 @@
-import type { CredentialPrompter } from '@hey-hey/ui-common/agents';
+import type { CredentialPrompter } from '../agent-runtime/index';
 
 import type { MachineEnrollmentPollReadyDto } from '../shared/api/index';
 

@@ -41,7 +41,7 @@ import {
   type CodexSdkEvent,
   type CodexSdkServerRequest,
   type CodexSdkTokenUsage,
-} from '@hey-hey/ui-common/agents';
+} from '../agent-runtime/index';
 import type { AgentOutputHandler } from '../agents/agent-event-stream';
 import type { OAuthClient } from '../auth/index';
 import type {

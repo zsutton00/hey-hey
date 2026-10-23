@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
-import type { StartupSessionPlanResponse } from '@hey-hey/ui-common/agents';
-import { parseStartupSessionPlanResponseFromText } from '@hey-hey/ui-common/agents';
+import type { StartupSessionPlanResponse } from '../agent-runtime/index';
+import { parseStartupSessionPlanResponseFromText } from '../agent-runtime/index';
 
 interface RunStartupPlanCommandOptions {
   filePath: string;
