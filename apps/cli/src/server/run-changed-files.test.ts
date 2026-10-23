@@ -177,43 +177,52 @@ describe('getLiveRunChangedFiles', () => {
     ).rejects.toBeInstanceOf(RunChangedFilesContextError);
   });
 
-  it('classifies a non-Git service directory without exposing its path', async () => {
+  it('skips non-Git services without blocking changed files from other services', async () => {
     const serviceDirectory = await mkdtemp(path.join(os.tmpdir(), 'heyhey-non-git-'));
     tempDirs.push(serviceDirectory);
-    const reader = new RunChangedFilesReader(repoStore);
+    const repoPath = await initializeRepo();
+    await writeFile(path.join(repoPath, 'foo.ts'), 'after foo\n');
+    const logger = {
+      trace: vi.fn(),
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      child: vi.fn(() => NOOP_LOGGER),
+    } satisfies ServerLogger;
+    const reader = new RunChangedFilesReader(repoStore, logger);
+    const run = createRun('run-mixed-services', serviceDirectory);
+    run.services = [
+      { id: 'service-a', path: serviceDirectory },
+      { id: 'service-b', path: repoPath },
+    ];
+    run.scope = {
+      mode: 'default',
+      workspaceRoot: serviceDirectory,
+      allowedRepositoryRoots: [serviceDirectory, repoPath],
+    };
 
     await expect(
-      reader.getLiveRunChangedFilesInventory(createRun('run-non-git', serviceDirectory), [
+      reader.getLiveRunChangedFilesInventory(run, [
         { serviceId: 'service-a', repoRelativePath: 'foo.ts' },
       ]),
-    ).rejects.toMatchObject({
-      code: 'GIT_READ_FAILED',
-      details: {
-        failureClassification: 'NOT_A_REPOSITORY',
-        exitCode: expect.any(Number),
-        workspace: {
-          workspaceSource: 'service_directory',
-          workspaceIdentifier: expect.stringMatching(/^sha256:/),
-          sessionKind: 'service_bound',
-          workspaceResolutionStatus: 'resolved',
-          serviceId: 'service-a',
-          repositoryIdentity: expect.stringMatching(/^sha256:/),
-          worktreeIdentity: null,
-          gitRootDetected: false,
-        },
-      },
-    });
-    let error: Error | null = null;
-    try {
-      await reader.getLiveRunChangedFilesInventory(
-        createRun('run-non-git-again', serviceDirectory),
-        [{ serviceId: 'service-a', repoRelativePath: 'foo.ts' }],
-      );
-    } catch (reason) {
-      error = reason instanceof Error ? reason : new Error(String(reason));
-    }
-    expect(error).toBeInstanceOf(RunChangedFilesContextError);
-    expect(error?.message).not.toContain(serviceDirectory);
+    ).resolves.toEqual([]);
+    expect(logger.info).toHaveBeenCalledWith(
+      'local.run_changed_files.inventory_skipped_not_a_repository',
+      expect.objectContaining({
+        runId: 'run-mixed-services',
+        serviceId: 'service-a',
+        workspaceIdentifier: expect.stringMatching(/^sha256:/),
+        membershipCount: 1,
+      }),
+    );
+
+    await expect(
+      reader.getLiveRunChangedFilesInventory(run, [
+        { serviceId: 'service-a', repoRelativePath: 'foo.ts' },
+        { serviceId: 'service-b', repoRelativePath: 'foo.ts' },
+      ]),
+    ).resolves.toMatchObject([{ serviceId: 'service-b', repoPath, filePath: 'foo.ts' }]);
   });
 
   it('treats a removed persisted worktree as unavailable without falling back to the base repo', async () => {
