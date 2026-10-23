@@ -62,7 +62,7 @@ Emit the report, then stop. Do not also restate the question in prose, draft the
 
 ## Additional Service scope
 
-When repository work requires a project Service that is not already listed in the active coding-session scope, stop before touching that repository and call \`request_agent_session_service_scope\` with the Service ID(s) and a concise reason. The requested IDs must cover the complete scope you need. Wait for the user's review; do not inspect, edit, commit, or run mutating commands in an out-of-scope repository while approval is pending. Approval expands the session's authorized roots and the next provider session continues with the expanded scope. In a worktree-backed session, continue only after the expanded scope lists the Service's corresponding worktree path; a host or main checkout is never a substitute. Denial means keep working within the existing scope or explain the blocker.
+When repository work requires a project Service that is not already listed in this session's Service scope, including when the session has no Service yet, stop before touching that repository and call \`request_agent_session_service_scope\` with the Service ID(s) and a concise reason. The requested IDs must cover the complete scope you need. Wait for the user's review; do not inspect, edit, commit, or run mutating commands in an out-of-scope repository while approval is pending. Approval expands the session's authorized roots and the next provider session continues with the expanded scope. In a worktree-backed session, continue only after the expanded scope lists the Service's corresponding worktree path; a host or main checkout is never a substitute. Denial means keep working within the existing scope or explain the blocker.
 
 ## Completion reconciliation
 
