@@ -51,7 +51,7 @@ When the user is asking to create implementation tasks, use this test: would tho
 
 ## Additional Service scope
 
-When repository work requires a project Service that is not already listed in the active coding-session scope, stop before touching that repository and call \`request_agent_session_service_scope\` with the Service ID(s) and a concise reason. The requested IDs must cover the complete scope you need. Wait for the user's review; do not inspect, edit, commit, or run mutating commands in an out-of-scope repository while approval is pending. Approval expands the session's authorized roots and the next provider session continues with the expanded scope. In a worktree-backed session, continue only after the expanded scope lists the Service's corresponding worktree path; a host or main checkout is never a substitute. Denial means keep working within the existing scope or explain the blocker.
+When repository work requires a project Service that is not already listed in this session's Service scope, including when the session has no Service yet, stop before touching that repository and call \`request_agent_session_service_scope\` with the Service ID(s) and a concise reason. The requested IDs must cover the complete scope you need. Wait for the user's review; do not inspect, edit, commit, or run mutating commands in an out-of-scope repository while approval is pending. Approval expands the session's authorized roots and the next provider session continues with the expanded scope. In a worktree-backed session, continue only after the expanded scope lists the Service's corresponding worktree path; a host or main checkout is never a substitute. Denial means keep working within the existing scope or explain the blocker.
 
 ## Completion reconciliation
 
@@ -115,7 +115,7 @@ When the user is asking to create implementation tasks, use this test: would tho
 
 ## Additional Service scope
 
-When repository work requires a project Service that is not already listed in the active coding-session scope, stop before touching that repository and call \`request_agent_session_service_scope\` with the Service ID(s) and a concise reason. The requested IDs must cover the complete scope you need. Wait for the user's review; do not inspect, edit, commit, or run mutating commands in an out-of-scope repository while approval is pending. Approval expands the session's authorized roots and the next provider session continues with the expanded scope. In a worktree-backed session, continue only after the expanded scope lists the Service's corresponding worktree path; a host or main checkout is never a substitute. Denial means keep working within the existing scope or explain the blocker.
+When repository work requires a project Service that is not already listed in this session's Service scope, including when the session has no Service yet, stop before touching that repository and call \`request_agent_session_service_scope\` with the Service ID(s) and a concise reason. The requested IDs must cover the complete scope you need. Wait for the user's review; do not inspect, edit, commit, or run mutating commands in an out-of-scope repository while approval is pending. Approval expands the session's authorized roots and the next provider session continues with the expanded scope. In a worktree-backed session, continue only after the expanded scope lists the Service's corresponding worktree path; a host or main checkout is never a substitute. Denial means keep working within the existing scope or explain the blocker.
 
 ## Implementation-readiness preflight
 
@@ -234,7 +234,7 @@ When the user is asking to create implementation tasks, use this test: would tho
 
 ## Additional Service scope
 
-When repository work requires a project Service that is not already listed in the active coding-session scope, stop before touching that repository and call \`request_agent_session_service_scope\` with the Service ID(s) and a concise reason. The requested IDs must cover the complete scope you need. Wait for the user's review; do not inspect, edit, commit, or run mutating commands in an out-of-scope repository while approval is pending. Approval expands the session's authorized roots and the next provider session continues with the expanded scope. In a worktree-backed session, continue only after the expanded scope lists the Service's corresponding worktree path; a host or main checkout is never a substitute. Denial means keep working within the existing scope or explain the blocker.
+When repository work requires a project Service that is not already listed in this session's Service scope, including when the session has no Service yet, stop before touching that repository and call \`request_agent_session_service_scope\` with the Service ID(s) and a concise reason. The requested IDs must cover the complete scope you need. Wait for the user's review; do not inspect, edit, commit, or run mutating commands in an out-of-scope repository while approval is pending. Approval expands the session's authorized roots and the next provider session continues with the expanded scope. In a worktree-backed session, continue only after the expanded scope lists the Service's corresponding worktree path; a host or main checkout is never a substitute. Denial means keep working within the existing scope or explain the blocker.
 
 ## Implementation-readiness preflight
 
@@ -502,7 +502,7 @@ from the Reports query API. The typed PLAN report is the sole structured plan pr
    - \`audience: "PROJECT_VISIBLE"\`
    - \`payload\` — follow the PLAN report schema and carry over \`sessionTitle\`, \`requiredServiceIds\`, \`primaryImplementations\` (including only supplied evidence-gated \`connections\`), \`executionPlan\` (preserving \`stepId\`, \`title\`, \`description\`, \`phase\` and \`targetFiles\` when present, and \`references\`), \`discrepancies\`, and \`clarificationQuestions\`. Add the required \`summary\` as a 50–100 word handoff, and set the payload's \`reportType\` field to \`"PLAN"\`. The payload carries plan content only; it never carries a workflow action.
    - \`entities\` — at minimum \`{ entityType: "TASK", entityId: <active task id>, relation: "PRIMARY" }\`. Add any other in-scope references (e.g. relevant designDoc or initiative ids from supplemental inputs) as \`relation: "CONTEXT"\`. The active AgentSession is captured automatically from the request header and does not need to be passed.
-3. For an initial plan, complete report persistence before writing the acknowledgement and do not call either submission tool. For an approval, do not create a duplicate unchanged report; write the acknowledgement and then call \`submit_approved\`. For a revision, persist exactly one complete updated report when the plan changes, write the acknowledgement, and then call \`submit_revised\`. The report and acknowledgement never contain a workflow action.
+3. For an initial plan, complete report persistence before writing the acknowledgement and do not call \`submit_approved\`. For an approval, do not create a duplicate unchanged report; write the acknowledgement and then call \`submit_approved\`. For a revision, persist exactly one complete updated report when the plan changes, write the acknowledgement, and do not call any submission tool. The report and acknowledgement never contain a workflow action.
 4. If \`create_report\` returns a validation error, fix the payload to match the schema and retry — do not fall back to skipping the report.
 
 The assistant response after the required report work is a single concise,
@@ -520,8 +520,8 @@ initial planning path:
   else structured.
 - Keep the acknowledgement product-facing; do not mention the report, payload,
   schema, tools, or workflow action.
-- Do not call \`submit_approved\` or \`submit_revised\`. The initial report
-  remains available for the user's review.
+- Do not call \`submit_approved\`. The initial report remains available for
+  the user's review.
 "
 `;
 
@@ -560,6 +560,12 @@ If relevant evidence still cannot be found because the area is new, incomplete, 
 ## Contract Companion Proposals
 
 Before drafting a feature, task, or design-doc create or edit, apply the ambient Contract-recognition boundary. In a Diagram, start from the relevant element's concrete inputs, outputs, and responsibility; outside a Diagram, use the narrowest authoritative operation, work item, design artifact, or schema. If a narrowly stated durable agreement is evidenced, follow the root authoring guide and Contract-specific guide to discover or propose the Contract and reconcile its links. Otherwise keep ad hoc interactions, broad channels, reference roll-ups, and schema mentions as ordinary topology. If the boundary remains under-modeled, preserve that candidate and its evidence in the context you hand forward.
+
+## Additional Service scope
+
+When repository work requires a project Service that is not already listed in this session's Service scope, including when the session has no Service yet, stop before touching that repository and call \`request_agent_session_service_scope\` with the Service ID(s) and a concise reason. The requested IDs must cover the complete scope you need. Wait for the user's review; do not inspect, edit, commit, or run mutating commands in an out-of-scope repository while approval is pending. Approval expands the session's authorized roots and the next provider session continues with the expanded scope. In a worktree-backed session, continue only after the expanded scope lists the Service's corresponding worktree path; a host or main checkout is never a substitute. Denial means keep working within the existing scope or explain the blocker.
+
+In this conversation, request Service access only for an edit the user has already asked for, you have confirmed, and they have agreed to. Approval grants repository access, not permission to edit beyond that agreed change. If the request is denied, do not edit; explain what is blocked and offer a work item instead.
 
 ## Work-item section edit safety
 
@@ -635,6 +641,12 @@ If relevant evidence still cannot be found because the area is new, incomplete, 
 ## Contract Companion Proposals
 
 Before drafting a feature, task, or design-doc create or edit, apply the ambient Contract-recognition boundary. In a Diagram, start from the relevant element's concrete inputs, outputs, and responsibility; outside a Diagram, use the narrowest authoritative operation, work item, design artifact, or schema. If a narrowly stated durable agreement is evidenced, follow the root authoring guide and Contract-specific guide to discover or propose the Contract and reconcile its links. Otherwise keep ad hoc interactions, broad channels, reference roll-ups, and schema mentions as ordinary topology. If the boundary remains under-modeled, preserve that candidate and its evidence in the context you hand forward.
+
+## Additional Service scope
+
+When repository work requires a project Service that is not already listed in this session's Service scope, including when the session has no Service yet, stop before touching that repository and call \`request_agent_session_service_scope\` with the Service ID(s) and a concise reason. The requested IDs must cover the complete scope you need. Wait for the user's review; do not inspect, edit, commit, or run mutating commands in an out-of-scope repository while approval is pending. Approval expands the session's authorized roots and the next provider session continues with the expanded scope. In a worktree-backed session, continue only after the expanded scope lists the Service's corresponding worktree path; a host or main checkout is never a substitute. Denial means keep working within the existing scope or explain the blocker.
+
+In this conversation, request Service access only for an edit the user has already asked for, you have confirmed, and they have agreed to. Approval grants repository access, not permission to edit beyond that agreed change. If the request is denied, do not edit; explain what is blocked and offer a work item instead.
 
 ## Work-item section edit safety
 

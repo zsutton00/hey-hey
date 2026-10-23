@@ -373,6 +373,119 @@ describe('AgentSessionService', () => {
     expect(prisma.db.serviceAgentSession.createMany).not.toHaveBeenCalled();
   });
 
+  describe('grantServices launch anchor', () => {
+    const firstServiceId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const secondServiceId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const machineId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    const grant = (
+      overrides: Partial<{
+        launchServiceId: string;
+        machineId: string;
+        serviceIds: string[];
+      }> = {},
+    ) =>
+      service.grantServices({
+        organizationId: 'org-1' as any,
+        projectId: 'proj-1' as any,
+        agentSessionId: sessionId1,
+        userId: 'user-1' as any,
+        grant: {
+          machineId,
+          launchServiceId: firstServiceId,
+          serviceIds: [firstServiceId, secondServiceId],
+          ...overrides,
+        },
+        liveBoundServiceIds: [firstServiceId, secondServiceId],
+      });
+    const anchorless = () => ({
+      ...buildAgentSession({
+        id: sessionId1,
+        organizationId: 'org-1',
+        projectId: 'proj-1',
+        userId: 'user-1',
+        machineId,
+        serviceId: null,
+      }),
+      serviceRelations: [],
+    });
+
+    beforeEach(() => {
+      prisma.db.service.findMany.mockResolvedValue([
+        { id: firstServiceId, projectId: 'proj-1' },
+        { id: secondServiceId, projectId: 'proj-1' },
+      ]);
+    });
+
+    it('promotes the granted launch Service on a session with no launch Service', async () => {
+      prisma.db.agentSession.findFirst.mockResolvedValue(anchorless());
+      prisma.db.agentSession.findUnique.mockResolvedValue({
+        ...anchorless(),
+        serviceId: firstServiceId,
+        serviceRelations: [
+          { serviceId: firstServiceId },
+          { serviceId: secondServiceId },
+        ],
+      });
+
+      const result = await grant();
+
+      expect(prisma.db.agentSession.update).toHaveBeenCalledWith({
+        where: { id: sessionId1 },
+        data: { serviceId: firstServiceId },
+      });
+      expect(result.launchServiceId).toBe(firstServiceId);
+      expect(result.serviceIds).toEqual([firstServiceId, secondServiceId]);
+    });
+
+    it('preserves an existing launch Service', async () => {
+      const anchored = {
+        ...anchorless(),
+        serviceId: firstServiceId,
+        serviceRelations: [{ serviceId: firstServiceId }],
+      };
+      prisma.db.agentSession.findFirst.mockResolvedValue(anchored);
+      prisma.db.agentSession.findUnique.mockResolvedValue({
+        ...anchored,
+        serviceRelations: [
+          { serviceId: firstServiceId },
+          { serviceId: secondServiceId },
+        ],
+      });
+
+      const result = await grant({ serviceIds: [secondServiceId] });
+
+      expect(prisma.db.agentSession.update).not.toHaveBeenCalled();
+      expect(result.launchServiceId).toBe(firstServiceId);
+    });
+
+    it('rejects a launch Service that is not granted on an anchorless session', async () => {
+      prisma.db.agentSession.findFirst.mockResolvedValue(anchorless());
+
+      await expect(
+        grant({
+          launchServiceId: firstServiceId,
+          serviceIds: [secondServiceId],
+        }),
+      ).rejects.toThrow(
+        'launchServiceId must be one of the granted Services when the Agent Session has no launch Service',
+      );
+      expect(prisma.db.serviceAgentSession.createMany).not.toHaveBeenCalled();
+      expect(prisma.db.agentSession.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects a grant from a different machine', async () => {
+      prisma.db.agentSession.findFirst.mockResolvedValue(anchorless());
+
+      await expect(
+        grant({ machineId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' }),
+      ).rejects.toThrow(
+        'The authenticated machine does not match the Agent Session binding',
+      );
+      expect(prisma.db.serviceAgentSession.createMany).not.toHaveBeenCalled();
+      expect(prisma.db.agentSession.update).not.toHaveBeenCalled();
+    });
+  });
+
   it('creates a agent session with null conversationId and does not invoke conversation factory', async () => {
     const created: AgentSession = {
       id: 'cs-1',

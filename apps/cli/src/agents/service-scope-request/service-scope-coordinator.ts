@@ -82,7 +82,7 @@ const serviceScopeElement = (
   payload: serviceScopePayload(request),
 });
 const responseText = (additionalServiceNames: readonly string[]): string =>
-  `The coding session needs access to additional project Services: ${additionalServiceNames.join(', ')}. User review is required before repository changes continue.`;
+  `This conversation needs access to project Services: ${additionalServiceNames.join(', ')}. User review is required before repository changes continue.`;
 const serviceScopeMessageData = (
   request: AgentSessionServiceScopeRequest,
   additionalServiceNames: readonly string[],
@@ -108,7 +108,7 @@ export class AgentSessionServiceScopeCoordinator {
     const deps = this.dependencies;
     const scope = deps.serviceScope;
     const agentId = deps.currentAgentId();
-    if (!agentId) throw new Error('Cannot request Service scope without an active coding handler.');
+    if (!agentId) throw new Error('Cannot request Service scope without an active agent handler.');
     const currentServiceIds = deps.session().services.map((service) => service.id);
     const requestedServiceIds = uniqueInOrder([...currentServiceIds, ...args.serviceIds]);
     if (requestedServiceIds.every((serviceId) => currentServiceIds.includes(serviceId))) {
@@ -234,7 +234,9 @@ export class AgentSessionServiceScopeCoordinator {
     }
     const priorServiceIds = deps.session().services.map((service) => service.id);
     const serviceIds = uniqueInOrder([...priorServiceIds, ...pending.request.requestedServiceIds]);
-    const launchServiceId = deps.session().launchServiceId;
+    // Keep an existing anchor; otherwise promote the first Service in the ordered union,
+    // matching how typed Service mentions admit a launch anchor.
+    const launchServiceId = deps.session().launchServiceId ?? serviceIds[0] ?? null;
     if (!launchServiceId || !serviceIds.includes(launchServiceId)) {
       this.dependencies.logger.warn('local.service_scope.approval.launch_service_missing', {
         runId: deps.runId,

@@ -100,6 +100,14 @@ const resolveAdditionalAllowedTools = (
   });
 
 describe('buildEntityConversationHandler', () => {
+  it('offers the Service-access request alongside changed-file reporting', () => {
+    const handler = buildEntityConversationHandler(makeDeps());
+
+    expect(handler.submissionTools.map((tool) => tool.name)).toEqual(
+      expect.arrayContaining(['report_changed_files', 'request_agent_session_service_scope']),
+    );
+  });
+
   it('allows design-doc authoring and global Help tools for entity conversations by default', () => {
     const handler = buildEntityConversationHandler(makeDeps());
 

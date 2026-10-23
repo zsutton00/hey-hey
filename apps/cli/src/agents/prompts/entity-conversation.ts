@@ -4,6 +4,7 @@ import { formatAgentSessionTranscript } from '../entity-context/conversation-tra
 import type { LoadedEntityPromptContext } from '../entity-context/types';
 import { graphResearchGuidance } from './graph-research';
 import {
+  codingServiceScopeGuidance,
   customTypeDrafting,
   focalContextOrientation,
   futureRevisionAuthoring,
@@ -76,6 +77,12 @@ Creating and pruning graph links via \`create_edge\` / \`delete_edge\` is part o
     `## Contract Companion Proposals
 
 Before drafting a feature, task, or design-doc create or edit, apply the ambient Contract-recognition boundary. In a Diagram, start from the relevant element's concrete inputs, outputs, and responsibility; outside a Diagram, use the narrowest authoritative operation, work item, design artifact, or schema. If a narrowly stated durable agreement is evidenced, follow the root authoring guide and Contract-specific guide to discover or propose the Contract and reconcile its links. Otherwise keep ad hoc interactions, broad channels, reference roll-ups, and schema mentions as ordinary topology. If the boundary remains under-modeled, preserve that candidate and its evidence in the context you hand forward.`,
+  );
+
+  stableSections.push(
+    `${codingServiceScopeGuidance}
+
+In this conversation, request Service access only for an edit the user has already asked for, you have confirmed, and they have agreed to. Approval grants repository access, not permission to edit beyond that agreed change. If the request is denied, do not edit; explain what is blocked and offer a work item instead.`,
   );
 
   stableSections.push(lifecycleAwareTaskEditSafety);

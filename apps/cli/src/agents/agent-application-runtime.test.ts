@@ -70,7 +70,7 @@ describe('AgentApplicationRuntime', () => {
       runtime.promptTypeRegistry
         .get(LocalPromptType.EntityConversation)
         ?.submissionTools?.map((tool) => tool.name),
-    ).toEqual(['report_changed_files', 'submit_session_name', 'search_session']);
+    ).toEqual(['report_changed_files', 'request_agent_session_service_scope', 'submit_session_name', 'search_session']);
     expect(runtime.baseSubmissionTools.map((tool) => tool.name)).toEqual([
       CREATE_REPORT_TOOL_NAME,
       'suggest_feature_verification',

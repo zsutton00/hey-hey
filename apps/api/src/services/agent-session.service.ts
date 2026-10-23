@@ -1663,12 +1663,15 @@ export class AgentSessionService {
             'The authenticated machine does not match the Agent Session binding',
           );
         }
-        if (
-          !session.serviceId ||
-          session.serviceId !== input.grant.launchServiceId
-        ) {
+        if (session.serviceId) {
+          if (session.serviceId !== input.grant.launchServiceId) {
+            throw new BadRequestException(
+              'launchServiceId must match the Agent Session launch Service',
+            );
+          }
+        } else if (!requestedServiceIds.includes(input.grant.launchServiceId)) {
           throw new BadRequestException(
-            'launchServiceId must match the Agent Session launch Service',
+            'launchServiceId must be one of the granted Services when the Agent Session has no launch Service',
           );
         }
 
@@ -1685,6 +1688,14 @@ export class AgentSessionService {
           })),
           skipDuplicates: true,
         });
+        // An anchorless session promotes the first granted Service, matching
+        // typed-mention admission; an existing anchor is never replaced.
+        if (!session.serviceId) {
+          await tx.agentSession.update({
+            where: { id: session.id },
+            data: { serviceId: input.grant.launchServiceId },
+          });
+        }
 
         const persisted = await tx.agentSession.findUnique({
           where: { id: session.id },
@@ -2753,7 +2764,9 @@ export class AgentSessionService {
       type: config.type,
       version: config.version,
     };
-    if (config.type === AgentSessionConfigProjectReportV1.TypeEnum.ProjectReport) {
+    if (
+      config.type === AgentSessionConfigProjectReportV1.TypeEnum.ProjectReport
+    ) {
       return {
         ...serialized,
         requestId: config.requestId,
@@ -3527,7 +3540,9 @@ export class AgentSessionService {
       }
       return config;
     }
-    if (config.type === AgentSessionConfigProjectReportV1.TypeEnum.ProjectReport) {
+    if (
+      config.type === AgentSessionConfigProjectReportV1.TypeEnum.ProjectReport
+    ) {
       return parseProjectReportSessionConfig(config);
     }
     if (
@@ -4926,10 +4941,10 @@ export class AgentSessionService {
             userId: currentUserId,
             flowId: {
               in: [
-            WorkflowName.RepositoryImport,
-            WorkflowName.WorkTrackerImport,
-            WorkflowName.Onboarding,
-          ],
+                WorkflowName.RepositoryImport,
+                WorkflowName.WorkTrackerImport,
+                WorkflowName.Onboarding,
+              ],
             },
           },
         },
@@ -4945,10 +4960,10 @@ export class AgentSessionService {
             userId: currentUserId,
             flowId: {
               in: [
-            WorkflowName.RepositoryImport,
-            WorkflowName.WorkTrackerImport,
-            WorkflowName.Onboarding,
-          ],
+                WorkflowName.RepositoryImport,
+                WorkflowName.WorkTrackerImport,
+                WorkflowName.Onboarding,
+              ],
             },
           },
           orderBy: { startedAt: 'desc' },

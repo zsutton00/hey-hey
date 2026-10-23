@@ -46,6 +46,7 @@ const continuation: InternalRunPromptRequest = {
 };
 
 const makeSession = (input?: {
+  serviceless?: boolean;
   invalidWorkspace?: boolean;
   missingContinuation?: boolean;
   withoutPendingRequest?: boolean;
@@ -59,8 +60,9 @@ const makeSession = (input?: {
     provider_conversation_id: null,
     provider_session_agent_id: 'coding_freeform',
     status: 'ACTIVE',
-    services: [{ id: 'svc-1', path: '/tmp' }],
-    launchServiceId: 'svc-1',
+    ...(input?.serviceless
+      ? { services: [], launchServiceId: null }
+      : { services: [{ id: 'svc-1', path: '/tmp' }], launchServiceId: 'svc-1' }),
     conversationId: 'conv-1',
     contextMetadata: {
       organizationId: 'org-1',
@@ -83,6 +85,7 @@ const makeSession = (input?: {
   }) as unknown as AgenticSession;
 
 const makeHarness = (input?: {
+  serviceless?: boolean;
   missingServiceId?: string;
   invalidWorkspace?: boolean;
   missingContinuation?: boolean;
@@ -291,7 +294,7 @@ describe('AgentSessionServiceScopeCoordinator settlement', () => {
         dto: expect.objectContaining({
           data: expect.objectContaining({
             response:
-              'The coding session needs access to additional project Services: Payments API, Customer Portal. User review is required before repository changes continue.',
+              'This conversation needs access to project Services: Payments API, Customer Portal. User review is required before repository changes continue.',
           }),
         }),
       }),
@@ -366,6 +369,45 @@ describe('AgentSessionServiceScopeCoordinator settlement', () => {
       }),
       null,
     );
+  });
+
+  it('promotes the first approved Service when the session has no launch Service', async () => {
+    const { run, fetchImpl, runStore } = makeHarness({ serviceless: true });
+    vi.spyOn(run.serviceScope, 'resumeAfterServiceScopeApproval').mockResolvedValue(undefined);
+
+    await expect(run.serviceScopeCoordinator.decide(decision('approve'))).resolves.toEqual({
+      outcome: 'delivered',
+      callbackType: 'service_scope_decision',
+    });
+
+    expect(fetchImpl).toHaveBeenCalledExactlyOnceWith(
+      'https://api.example.test/api/v1/organizations/org-1/projects/proj-1/agent-sessions/run-1/service-grants',
+      expect.objectContaining({
+        body: JSON.stringify({
+          machineId: 'machine-1',
+          serviceIds: ['svc-1', 'svc-2'],
+          launchServiceId: 'svc-1',
+        }),
+      }),
+    );
+    expect(runStore.updateRunServices).toHaveBeenCalledWith('run-1', {
+      services: [
+        { id: 'svc-1', path: '/tmp' },
+        { id: 'svc-2', path: '/tmp' },
+      ],
+      launchServiceId: 'svc-1',
+    });
+  });
+
+  it('leaves a session with no launch Service unchanged on denial', async () => {
+    const { run, fetchImpl, runStore } = makeHarness({ serviceless: true });
+
+    await run.serviceScopeCoordinator.decide(decision('deny'));
+
+    expect(run.session.services).toEqual([]);
+    expect(run.session.launchServiceId).toBeNull();
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(runStore.updateRunServices).not.toHaveBeenCalled();
   });
 
   it('clears denial to IDLE without changing Service scope', async () => {

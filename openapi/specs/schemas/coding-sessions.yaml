@@ -1103,7 +1103,7 @@ GrantAgentSessionServicesDto:
     launchServiceId:
       type: string
       format: uuid
-      description: Existing immutable launch Service for the Agent Session.
+      description: Launch Service for the Agent Session. Must equal the existing launch Service when one is set; when the Agent Session has none, it must be one of serviceIds and becomes the launch Service.
     serviceIds:
       type: array
       minItems: 1

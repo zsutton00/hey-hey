@@ -19,7 +19,7 @@ export interface GrantAgentSessionServicesDto {
      */
     machineId: string;
     /**
-     * Existing immutable launch Service for the Agent Session.
+     * Launch Service for the Agent Session. Must equal the existing launch Service when one is set; when the Agent Session has none, it must be one of serviceIds and becomes the launch Service.
      */
     launchServiceId: string;
     /**

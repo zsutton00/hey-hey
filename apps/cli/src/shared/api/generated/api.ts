@@ -40328,49 +40328,6 @@ export interface GetLlmTrackingStats200ResponseStats {
 /**
  *
  * @export
- * @interface GetMcpToolCallLogsDebug200Response
- */
-export interface GetMcpToolCallLogsDebug200Response {
-    /**
-     * Indicates if the request was successful
-     * @type {boolean}
-     * @memberof GetMcpToolCallLogsDebug200Response
-     */
-    'success': boolean;
-    /**
-     * Human-readable message about the operation
-     * @type {string}
-     * @memberof GetMcpToolCallLogsDebug200Response
-     */
-    'message': string;
-    /**
-     *
-     * @type {McpToolCallLogsDebugResponseDto}
-     * @memberof GetMcpToolCallLogsDebug200Response
-     */
-    'data'?: McpToolCallLogsDebugResponseDto;
-    /**
-     * ISO timestamp of when the response was generated
-     * @type {string}
-     * @memberof GetMcpToolCallLogsDebug200Response
-     */
-    'timestamp': string;
-    /**
-     * HTTP status code
-     * @type {number}
-     * @memberof GetMcpToolCallLogsDebug200Response
-     */
-    'statusCode': number;
-    /**
-     * Request path
-     * @type {string}
-     * @memberof GetMcpToolCallLogsDebug200Response
-     */
-    'path'?: string;
-}
-/**
- *
- * @export
  * @interface GetMessage200Response
  */
 export interface GetMessage200Response {
@@ -42050,49 +42007,6 @@ export interface GetTopologyGraphTopology200Response {
      * Request path
      * @type {string}
      * @memberof GetTopologyGraphTopology200Response
-     */
-    'path'?: string;
-}
-/**
- *
- * @export
- * @interface GetUnifiedSearchLogsDebug200Response
- */
-export interface GetUnifiedSearchLogsDebug200Response {
-    /**
-     * Indicates if the request was successful
-     * @type {boolean}
-     * @memberof GetUnifiedSearchLogsDebug200Response
-     */
-    'success': boolean;
-    /**
-     * Human-readable message about the operation
-     * @type {string}
-     * @memberof GetUnifiedSearchLogsDebug200Response
-     */
-    'message': string;
-    /**
-     *
-     * @type {UnifiedSearchLogsDebugResponseDto}
-     * @memberof GetUnifiedSearchLogsDebug200Response
-     */
-    'data'?: UnifiedSearchLogsDebugResponseDto;
-    /**
-     * ISO timestamp of when the response was generated
-     * @type {string}
-     * @memberof GetUnifiedSearchLogsDebug200Response
-     */
-    'timestamp': string;
-    /**
-     * HTTP status code
-     * @type {number}
-     * @memberof GetUnifiedSearchLogsDebug200Response
-     */
-    'statusCode': number;
-    /**
-     * Request path
-     * @type {string}
-     * @memberof GetUnifiedSearchLogsDebug200Response
      */
     'path'?: string;
 }
@@ -44141,7 +44055,7 @@ export interface GrantAgentSessionServicesDto {
      */
     'machineId': string;
     /**
-     * Existing immutable launch Service for the Agent Session.
+     * Launch Service for the Agent Session. Must equal the existing launch Service when one is set; when the Agent Session has none, it must be one of serviceIds and becomes the launch Service.
      * @type {string}
      * @memberof GrantAgentSessionServicesDto
      */
@@ -55582,86 +55496,6 @@ export const McpServerState = {
 export type McpServerState = typeof McpServerState[keyof typeof McpServerState];
 
 
-/**
- *
- * @export
- * @interface McpToolCallLogDebugDto
- */
-export interface McpToolCallLogDebugDto {
-    /**
-     *
-     * @type {string}
-     * @memberof McpToolCallLogDebugDto
-     */
-    'id': string;
-    /**
-     *
-     * @type {string}
-     * @memberof McpToolCallLogDebugDto
-     */
-    'toolName': string;
-    /**
-     * Unique identifier for an organization (branded type)
-     * @type {string}
-     * @memberof McpToolCallLogDebugDto
-     */
-    'organizationId': string;
-    /**
-     *
-     * @type {string}
-     * @memberof McpToolCallLogDebugDto
-     */
-    'agentSessionId'?: string | null;
-    /**
-     *
-     * @type {number}
-     * @memberof McpToolCallLogDebugDto
-     */
-    'durationMs': number;
-    /**
-     *
-     * @type {number}
-     * @memberof McpToolCallLogDebugDto
-     */
-    'responseSizeBytes': number;
-    /**
-     *
-     * @type {string}
-     * @memberof McpToolCallLogDebugDto
-     */
-    'createdAt': string;
-}
-/**
- *
- * @export
- * @interface McpToolCallLogsDebugResponseDto
- */
-export interface McpToolCallLogsDebugResponseDto {
-    /**
-     *
-     * @type {number}
-     * @memberof McpToolCallLogsDebugResponseDto
-     */
-    'total': number;
-    /**
-     *
-     * @type {number}
-     * @memberof McpToolCallLogsDebugResponseDto
-     */
-    'limit': number;
-    /**
-     *
-     * @type {number}
-     * @memberof McpToolCallLogsDebugResponseDto
-     */
-    'offset': number;
-    /**
-     *
-     * @type {Array<McpToolCallLogDebugDto>}
-     * @memberof McpToolCallLogsDebugResponseDto
-     */
-    'data': Array<McpToolCallLogDebugDto>;
-}
 /**
  * Complete catalog of all registered MCP tools discovered at application bootstrap.
  * @export
@@ -97856,122 +97690,6 @@ export type UnifiedSearchIntent = typeof UnifiedSearchIntent[keyof typeof Unifie
 /**
  *
  * @export
- * @interface UnifiedSearchLogDebugDto
- */
-export interface UnifiedSearchLogDebugDto {
-    /**
-     *
-     * @type {string}
-     * @memberof UnifiedSearchLogDebugDto
-     */
-    'id': string;
-    /**
-     * Unique identifier for an organization (branded type)
-     * @type {string}
-     * @memberof UnifiedSearchLogDebugDto
-     */
-    'organizationId': string;
-    /**
-     * Unique identifier for a project (branded type)
-     * @type {string}
-     * @memberof UnifiedSearchLogDebugDto
-     */
-    'projectId': string;
-    /**
-     * Unique identifier for a conversation (branded type)
-     * @type {string}
-     * @memberof UnifiedSearchLogDebugDto
-     */
-    'conversationId'?: string | null;
-    /**
-     * Unique identifier for a message (branded type)
-     * @type {string}
-     * @memberof UnifiedSearchLogDebugDto
-     */
-    'messageId'?: string | null;
-    /**
-     * Unique identifier used to correlate requests (branded type)
-     * @type {string}
-     * @memberof UnifiedSearchLogDebugDto
-     */
-    'requestId'?: string | null;
-    /**
-     *
-     * @type {string}
-     * @memberof UnifiedSearchLogDebugDto
-     */
-    'intent': string;
-    /**
-     *
-     * @type {string}
-     * @memberof UnifiedSearchLogDebugDto
-     */
-    'query'?: string | null;
-    /**
-     *
-     * @type {{ [key: string]: any; }}
-     * @memberof UnifiedSearchLogDebugDto
-     */
-    'requestPayload': { [key: string]: any; };
-    /**
-     *
-     * @type {{ [key: string]: any; }}
-     * @memberof UnifiedSearchLogDebugDto
-     */
-    'graphResponse'?: { [key: string]: any; } | null;
-    /**
-     *
-     * @type {{ [key: string]: any; }}
-     * @memberof UnifiedSearchLogDebugDto
-     */
-    'embeddingsResponse'?: { [key: string]: any; } | null;
-    /**
-     *
-     * @type {{ [key: string]: any; }}
-     * @memberof UnifiedSearchLogDebugDto
-     */
-    'unifiedResponse': { [key: string]: any; };
-    /**
-     *
-     * @type {string}
-     * @memberof UnifiedSearchLogDebugDto
-     */
-    'createdAt': string;
-}
-/**
- *
- * @export
- * @interface UnifiedSearchLogsDebugResponseDto
- */
-export interface UnifiedSearchLogsDebugResponseDto {
-    /**
-     *
-     * @type {number}
-     * @memberof UnifiedSearchLogsDebugResponseDto
-     */
-    'total': number;
-    /**
-     *
-     * @type {number}
-     * @memberof UnifiedSearchLogsDebugResponseDto
-     */
-    'limit': number;
-    /**
-     *
-     * @type {number}
-     * @memberof UnifiedSearchLogsDebugResponseDto
-     */
-    'offset': number;
-    /**
-     *
-     * @type {Array<UnifiedSearchLogDebugDto>}
-     * @memberof UnifiedSearchLogsDebugResponseDto
-     */
-    'data': Array<UnifiedSearchLogDebugDto>;
-}
-/**
- *
- * @export
  * @interface UnifiedSearchPlanLineageBoost
  */
 export interface UnifiedSearchPlanLineageBoost {
@@ -132428,14 +132146,17 @@ export const DebugAdminApiAxiosParamCreator = function (configuration?: Configur
          * @summary Get debug info for an entity from the embeddings service
          * @param {string} type Entity content type (e.g. task, initiative, message)
          * @param {string} id Entity source ID
+         * @param {string} projectId Project the entity belongs to; only embeddings from this project are returned
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        getDebugEmbeddingsEntity: async (type: string, id: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        getDebugEmbeddingsEntity: async (type: string, id: string, projectId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'type' is not null or undefined
             assertParamExists('getDebugEmbeddingsEntity', 'type', type)
             // verify required parameter 'id' is not null or undefined
             assertParamExists('getDebugEmbeddingsEntity', 'id', id)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('getDebugEmbeddingsEntity', 'projectId', projectId)
             const localVarPath = `/debug/embeddings/entity`;
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
             const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
@@ -132458,6 +132179,10 @@ export const DebugAdminApiAxiosParamCreator = function (configuration?: Configur
 
             if (id !== undefined) {
                 localVarQueryParameter['id'] = id;
+            }
+
+            if (projectId !== undefined) {
+                localVarQueryParameter['projectId'] = projectId;
             }
 
 
@@ -132800,65 +132525,6 @@ export const DebugAdminApiAxiosParamCreator = function (configuration?: Configur
             };
         },
         /**
-         * Retrieve paginated MCP tool call logs with optional filters.
-         * @summary Get MCP tool call logs for debugging
-         * @param {string} [organizationId] Filter by organization ID
-         * @param {string} [agentSessionId] Filter by agent session ID
-         * @param {string} [toolName] Filter by tool name
-         * @param {number} [limit] Maximum number of logs to return
-         * @param {number} [offset] Number of logs to skip before returning results
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        getMcpToolCallLogsDebug: async (organizationId?: string, agentSessionId?: string, toolName?: string, limit?: number, offset?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
-            const localVarPath = `/debug/mcp-tool-call-logs`;
-            // use dummy base URL string because the URL constructor only accepts absolute URLs.
-            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
-            let baseOptions;
-            if (configuration) {
-                baseOptions = configuration.baseOptions;
-            }
-
-            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
-            const localVarHeaderParameter = {} as any;
-            const localVarQueryParameter = {} as any;
-
-            // authentication BearerAuth required
-            // http bearer authentication required
-            await setBearerAuthToObject(localVarHeaderParameter, configuration)
-
-            if (organizationId !== undefined) {
-                localVarQueryParameter['organizationId'] = organizationId;
-            }
-
-            if (agentSessionId !== undefined) {
-                localVarQueryParameter['agentSessionId'] = agentSessionId;
-            }
-
-            if (toolName !== undefined) {
-                localVarQueryParameter['toolName'] = toolName;
-            }
-
-            if (limit !== undefined) {
-                localVarQueryParameter['limit'] = limit;
-            }
-
-            if (offset !== undefined) {
-                localVarQueryParameter['offset'] = offset;
-            }
-
-
-
-            setSearchParams(localVarUrlObj, localVarQueryParameter);
-            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
-            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
-
-            return {
-                url: toPathString(localVarUrlObj),
-                options: localVarRequestOptions,
-            };
-        },
-        /**
          * Any authenticated caller. Answers with the same platform-admin decision the server applies to admin endpoints (the ADMIN_USER_IDS allowlist), so the browser shows admin surfaces to exactly the people the server admits.
          * @summary Report whether the caller is a platform admin
          * @param {*} [options] Override http request option.
@@ -133083,75 +132749,6 @@ export const DebugAdminApiAxiosParamCreator = function (configuration?: Configur
 
             if (limit !== undefined) {
                 localVarQueryParameter['limit'] = limit;
-            }
-
-
-
-            setSearchParams(localVarUrlObj, localVarQueryParameter);
-            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
-            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
-
-            return {
-                url: toPathString(localVarUrlObj),
-                options: localVarRequestOptions,
-            };
-        },
-        /**
-         * Retrieve paginated unified search logs with optional filters.
-         * @summary Get unified search logs for debugging
-         * @param {string} [organizationId] Filter by organization ID
-         * @param {string} [projectId] Filter by project ID
-         * @param {string} [conversationId] Filter by conversation ID
-         * @param {string} [messageId] Filter by message ID
-         * @param {string} [requestId] Filter by request ID
-         * @param {number} [limit] Maximum number of logs to return
-         * @param {number} [offset] Number of logs to skip before returning results
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        getUnifiedSearchLogsDebug: async (organizationId?: string, projectId?: string, conversationId?: string, messageId?: string, requestId?: string, limit?: number, offset?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
-            const localVarPath = `/debug/search/logs`;
-            // use dummy base URL string because the URL constructor only accepts absolute URLs.
-            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
-            let baseOptions;
-            if (configuration) {
-                baseOptions = configuration.baseOptions;
-            }
-
-            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
-            const localVarHeaderParameter = {} as any;
-            const localVarQueryParameter = {} as any;
-
-            // authentication BearerAuth required
-            // http bearer authentication required
-            await setBearerAuthToObject(localVarHeaderParameter, configuration)
-
-            if (organizationId !== undefined) {
-                localVarQueryParameter['organizationId'] = organizationId;
-            }
-
-            if (projectId !== undefined) {
-                localVarQueryParameter['projectId'] = projectId;
-            }
-
-            if (conversationId !== undefined) {
-                localVarQueryParameter['conversationId'] = conversationId;
-            }
-
-            if (messageId !== undefined) {
-                localVarQueryParameter['messageId'] = messageId;
-            }
-
-            if (requestId !== undefined) {
-                localVarQueryParameter['requestId'] = requestId;
-            }
-
-            if (limit !== undefined) {
-                localVarQueryParameter['limit'] = limit;
-            }
-
-            if (offset !== undefined) {
-                localVarQueryParameter['offset'] = offset;
             }
 
 
@@ -133771,11 +133368,12 @@ export const DebugAdminApiFp = function(configuration?: Configuration) {
          * @summary Get debug info for an entity from the embeddings service
          * @param {string} type Entity content type (e.g. task, initiative, message)
          * @param {string} id Entity source ID
+         * @param {string} projectId Project the entity belongs to; only embeddings from this project are returned
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async getDebugEmbeddingsEntity(type: string, id: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<DebugEmbeddingsEntityResponseDto>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.getDebugEmbeddingsEntity(type, id, options);
+        async getDebugEmbeddingsEntity(type: string, id: string, projectId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<DebugEmbeddingsEntityResponseDto>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getDebugEmbeddingsEntity(type, id, projectId, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['DebugAdminApi.getDebugEmbeddingsEntity']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
@@ -133882,23 +133480,6 @@ export const DebugAdminApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Retrieve paginated MCP tool call logs with optional filters.
-         * @summary Get MCP tool call logs for debugging
-         * @param {string} [organizationId] Filter by organization ID
-         * @param {string} [agentSessionId] Filter by agent session ID
-         * @param {string} [toolName] Filter by tool name
-         * @param {number} [limit] Maximum number of logs to return
-         * @param {number} [offset] Number of logs to skip before returning results
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        async getMcpToolCallLogsDebug(organizationId?: string, agentSessionId?: string, toolName?: string, limit?: number, offset?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetMcpToolCallLogsDebug200Response>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.getMcpToolCallLogsDebug(organizationId, agentSessionId, toolName, limit, offset, options);
-            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
-            const localVarOperationServerBasePath = operationServerMap['DebugAdminApi.getMcpToolCallLogsDebug']?.[localVarOperationServerIndex]?.url;
-            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
-        },
-        /**
          * Any authenticated caller. Answers with the same platform-admin decision the server applies to admin endpoints (the ADMIN_USER_IDS allowlist), so the browser shows admin surfaces to exactly the people the server admits.
          * @summary Report whether the caller is a platform admin
          * @param {*} [options] Override http request option.
@@ -133968,25 +133549,6 @@ export const DebugAdminApiFp = function(configuration?: Configuration) {
             const localVarAxiosArgs = await localVarAxiosParamCreator.getProjectMessagesDebug(projectId, conversationId, page, limit, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['DebugAdminApi.getProjectMessagesDebug']?.[localVarOperationServerIndex]?.url;
-            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
-        },
-        /**
-         * Retrieve paginated unified search logs with optional filters.
-         * @summary Get unified search logs for debugging
-         * @param {string} [organizationId] Filter by organization ID
-         * @param {string} [projectId] Filter by project ID
-         * @param {string} [conversationId] Filter by conversation ID
-         * @param {string} [messageId] Filter by message ID
-         * @param {string} [requestId] Filter by request ID
-         * @param {number} [limit] Maximum number of logs to return
-         * @param {number} [offset] Number of logs to skip before returning results
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        async getUnifiedSearchLogsDebug(organizationId?: string, projectId?: string, conversationId?: string, messageId?: string, requestId?: string, limit?: number, offset?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetUnifiedSearchLogsDebug200Response>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.getUnifiedSearchLogsDebug(organizationId, projectId, conversationId, messageId, requestId, limit, offset, options);
-            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
-            const localVarOperationServerBasePath = operationServerMap['DebugAdminApi.getUnifiedSearchLogsDebug']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
@@ -134211,7 +133773,7 @@ export const DebugAdminApiFactory = function (configuration?: Configuration, bas
          * @throws {RequiredError}
          */
         getDebugEmbeddingsEntity(requestParameters: DebugAdminApiGetDebugEmbeddingsEntityRequest, options?: RawAxiosRequestConfig): AxiosPromise<DebugEmbeddingsEntityResponseDto> {
-            return localVarFp.getDebugEmbeddingsEntity(requestParameters.type, requestParameters.id, options).then((request) => request(axios, basePath));
+            return localVarFp.getDebugEmbeddingsEntity(requestParameters.type, requestParameters.id, requestParameters.projectId, options).then((request) => request(axios, basePath));
         },
         /**
          * Return lifecycle counts and promotion indicators for topology subfacets.
@@ -134282,16 +133844,6 @@ export const DebugAdminApiFactory = function (configuration?: Configuration, bas
             return localVarFp.getLlmTrackingStats(options).then((request) => request(axios, basePath));
         },
         /**
-         * Retrieve paginated MCP tool call logs with optional filters.
-         * @summary Get MCP tool call logs for debugging
-         * @param {DebugAdminApiGetMcpToolCallLogsDebugRequest} requestParameters Request parameters.
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        getMcpToolCallLogsDebug(requestParameters: DebugAdminApiGetMcpToolCallLogsDebugRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<GetMcpToolCallLogsDebug200Response> {
-            return localVarFp.getMcpToolCallLogsDebug(requestParameters.organizationId, requestParameters.agentSessionId, requestParameters.toolName, requestParameters.limit, requestParameters.offset, options).then((request) => request(axios, basePath));
-        },
-        /**
          * Any authenticated caller. Answers with the same platform-admin decision the server applies to admin endpoints (the ADMIN_USER_IDS allowlist), so the browser shows admin surfaces to exactly the people the server admits.
          * @summary Report whether the caller is a platform admin
          * @param {*} [options] Override http request option.
@@ -134339,16 +133891,6 @@ export const DebugAdminApiFactory = function (configuration?: Configuration, bas
          */
         getProjectMessagesDebug(requestParameters: DebugAdminApiGetProjectMessagesDebugRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetProjectMessagesDebug200Response> {
             return localVarFp.getProjectMessagesDebug(requestParameters.projectId, requestParameters.conversationId, requestParameters.page, requestParameters.limit, options).then((request) => request(axios, basePath));
-        },
-        /**
-         * Retrieve paginated unified search logs with optional filters.
-         * @summary Get unified search logs for debugging
-         * @param {DebugAdminApiGetUnifiedSearchLogsDebugRequest} requestParameters Request parameters.
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        getUnifiedSearchLogsDebug(requestParameters: DebugAdminApiGetUnifiedSearchLogsDebugRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<GetUnifiedSearchLogsDebug200Response> {
-            return localVarFp.getUnifiedSearchLogsDebug(requestParameters.organizationId, requestParameters.projectId, requestParameters.conversationId, requestParameters.messageId, requestParameters.requestId, requestParameters.limit, requestParameters.offset, options).then((request) => request(axios, basePath));
         },
         /**
          * Get detailed statistics about WebSocket channels and their subscriber counts
@@ -134596,16 +134138,6 @@ export interface DebugAdminApiInterface {
     getLlmTrackingStats(options?: RawAxiosRequestConfig): AxiosPromise<GetLlmTrackingStats200Response>;
 
     /**
-     * Retrieve paginated MCP tool call logs with optional filters.
-     * @summary Get MCP tool call logs for debugging
-     * @param {DebugAdminApiGetMcpToolCallLogsDebugRequest} requestParameters Request parameters.
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof DebugAdminApiInterface
-     */
-    getMcpToolCallLogsDebug(requestParameters?: DebugAdminApiGetMcpToolCallLogsDebugRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetMcpToolCallLogsDebug200Response>;
-
-    /**
      * Any authenticated caller. Answers with the same platform-admin decision the server applies to admin endpoints (the ADMIN_USER_IDS allowlist), so the browser shows admin surfaces to exactly the people the server admits.
      * @summary Report whether the caller is a platform admin
      * @param {*} [options] Override http request option.
@@ -134653,16 +134185,6 @@ export interface DebugAdminApiInterface {
      * @memberof DebugAdminApiInterface
      */
     getProjectMessagesDebug(requestParameters: DebugAdminApiGetProjectMessagesDebugRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetProjectMessagesDebug200Response>;
-
-    /**
-     * Retrieve paginated unified search logs with optional filters.
-     * @summary Get unified search logs for debugging
-     * @param {DebugAdminApiGetUnifiedSearchLogsDebugRequest} requestParameters Request parameters.
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof DebugAdminApiInterface
-     */
-    getUnifiedSearchLogsDebug(requestParameters?: DebugAdminApiGetUnifiedSearchLogsDebugRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetUnifiedSearchLogsDebug200Response>;
 
     /**
      * Get detailed statistics about WebSocket channels and their subscriber counts
@@ -134858,6 +134380,13 @@ export interface DebugAdminApiGetDebugEmbeddingsEntityRequest {
      * @memberof DebugAdminApiGetDebugEmbeddingsEntity
      */
     readonly id: string
+
+    /**
+     * Project the entity belongs to; only embeddings from this project are returned
+     * @type {string}
+     * @memberof DebugAdminApiGetDebugEmbeddingsEntity
+     */
+    readonly projectId: string
 }
 
 /**
@@ -135015,48 +134544,6 @@ export interface DebugAdminApiGetLlmTrackingRecordsRequest {
 }
 
 /**
- * Request parameters for getMcpToolCallLogsDebug operation in DebugAdminApi.
- * @export
- * @interface DebugAdminApiGetMcpToolCallLogsDebugRequest
- */
-export interface DebugAdminApiGetMcpToolCallLogsDebugRequest {
-    /**
-     * Filter by organization ID
-     * @type {string}
-     * @memberof DebugAdminApiGetMcpToolCallLogsDebug
-     */
-    readonly organizationId?: string
-
-    /**
-     * Filter by agent session ID
-     * @type {string}
-     * @memberof DebugAdminApiGetMcpToolCallLogsDebug
-     */
-    readonly agentSessionId?: string
-
-    /**
-     * Filter by tool name
-     * @type {string}
-     * @memberof DebugAdminApiGetMcpToolCallLogsDebug
-     */
-    readonly toolName?: string
-
-    /**
-     * Maximum number of logs to return
-     * @type {number}
-     * @memberof DebugAdminApiGetMcpToolCallLogsDebug
-     */
-    readonly limit?: number
-
-    /**
-     * Number of logs to skip before returning results
-     * @type {number}
-     * @memberof DebugAdminApiGetMcpToolCallLogsDebug
-     */
-    readonly offset?: number
-}
-
-/**
  * Request parameters for getProjectArtifactsDebug operation in DebugAdminApi.
  * @export
  * @interface DebugAdminApiGetProjectArtifactsDebugRequest
@@ -135166,62 +134653,6 @@ export interface DebugAdminApiGetProjectMessagesDebugRequest {
      * @memberof DebugAdminApiGetProjectMessagesDebug
      */
     readonly limit?: number
-}
-
-/**
- * Request parameters for getUnifiedSearchLogsDebug operation in DebugAdminApi.
- * @export
- * @interface DebugAdminApiGetUnifiedSearchLogsDebugRequest
- */
-export interface DebugAdminApiGetUnifiedSearchLogsDebugRequest {
-    /**
-     * Filter by organization ID
-     * @type {string}
-     * @memberof DebugAdminApiGetUnifiedSearchLogsDebug
-     */
-    readonly organizationId?: string
-
-    /**
-     * Filter by project ID
-     * @type {string}
-     * @memberof DebugAdminApiGetUnifiedSearchLogsDebug
-     */
-    readonly projectId?: string
-
-    /**
-     * Filter by conversation ID
-     * @type {string}
-     * @memberof DebugAdminApiGetUnifiedSearchLogsDebug
-     */
-    readonly conversationId?: string
-
-    /**
-     * Filter by message ID
-     * @type {string}
-     * @memberof DebugAdminApiGetUnifiedSearchLogsDebug
-     */
-    readonly messageId?: string
-
-    /**
-     * Filter by request ID
-     * @type {string}
-     * @memberof DebugAdminApiGetUnifiedSearchLogsDebug
-     */
-    readonly requestId?: string
-
-    /**
-     * Maximum number of logs to return
-     * @type {number}
-     * @memberof DebugAdminApiGetUnifiedSearchLogsDebug
-     */
-    readonly limit?: number
-
-    /**
-     * Number of logs to skip before returning results
-     * @type {number}
-     * @memberof DebugAdminApiGetUnifiedSearchLogsDebug
-     */
-    readonly offset?: number
 }
 
 /**
@@ -135460,7 +134891,7 @@ export class DebugAdminApi extends BaseAPI implements DebugAdminApiInterface {
      * @memberof DebugAdminApi
      */
     public getDebugEmbeddingsEntity(requestParameters: DebugAdminApiGetDebugEmbeddingsEntityRequest, options?: RawAxiosRequestConfig) {
-        return DebugAdminApiFp(this.configuration).getDebugEmbeddingsEntity(requestParameters.type, requestParameters.id, options).then((request) => request(this.axios, this.basePath));
+        return DebugAdminApiFp(this.configuration).getDebugEmbeddingsEntity(requestParameters.type, requestParameters.id, requestParameters.projectId, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -135546,18 +134977,6 @@ export class DebugAdminApi extends BaseAPI implements DebugAdminApiInterface {
     }
 
     /**
-     * Retrieve paginated MCP tool call logs with optional filters.
-     * @summary Get MCP tool call logs for debugging
-     * @param {DebugAdminApiGetMcpToolCallLogsDebugRequest} requestParameters Request parameters.
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof DebugAdminApi
-     */
-    public getMcpToolCallLogsDebug(requestParameters: DebugAdminApiGetMcpToolCallLogsDebugRequest = {}, options?: RawAxiosRequestConfig) {
-        return DebugAdminApiFp(this.configuration).getMcpToolCallLogsDebug(requestParameters.organizationId, requestParameters.agentSessionId, requestParameters.toolName, requestParameters.limit, requestParameters.offset, options).then((request) => request(this.axios, this.basePath));
-    }
-
-    /**
      * Any authenticated caller. Answers with the same platform-admin decision the server applies to admin endpoints (the ADMIN_USER_IDS allowlist), so the browser shows admin surfaces to exactly the people the server admits.
      * @summary Report whether the caller is a platform admin
      * @param {*} [options] Override http request option.
@@ -135614,18 +135033,6 @@ export class DebugAdminApi extends BaseAPI implements DebugAdminApiInterface {
      */
     public getProjectMessagesDebug(requestParameters: DebugAdminApiGetProjectMessagesDebugRequest, options?: RawAxiosRequestConfig) {
         return DebugAdminApiFp(this.configuration).getProjectMessagesDebug(requestParameters.projectId, requestParameters.conversationId, requestParameters.page, requestParameters.limit, options).then((request) => request(this.axios, this.basePath));
-    }
-
-    /**
-     * Retrieve paginated unified search logs with optional filters.
-     * @summary Get unified search logs for debugging
-     * @param {DebugAdminApiGetUnifiedSearchLogsDebugRequest} requestParameters Request parameters.
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof DebugAdminApi
-     */
-    public getUnifiedSearchLogsDebug(requestParameters: DebugAdminApiGetUnifiedSearchLogsDebugRequest = {}, options?: RawAxiosRequestConfig) {
-        return DebugAdminApiFp(this.configuration).getUnifiedSearchLogsDebug(requestParameters.organizationId, requestParameters.projectId, requestParameters.conversationId, requestParameters.messageId, requestParameters.requestId, requestParameters.limit, requestParameters.offset, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
