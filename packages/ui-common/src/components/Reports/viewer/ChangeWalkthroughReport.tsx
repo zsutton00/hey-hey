@@ -39,6 +39,11 @@ export const ChangeWalkthroughReport: ReportRenderer<
                     spacing={0.5}
                     data-testid="walkthrough-step"
                   >
+                    <SyntaxHighlightedCodeBlock
+                      code={step.excerpt.code}
+                      language={step.excerpt.language}
+                      testId="walkthrough-code"
+                    />
                     <WalkthroughSourceLink
                       excerpt={step.excerpt}
                       runId={payload.targetRunId}
@@ -54,11 +59,6 @@ export const ChangeWalkthroughReport: ReportRenderer<
                         Unresolved source: {step.excerpt.verification.reason}
                       </Typography>
                     )}
-                    <SyntaxHighlightedCodeBlock
-                      code={step.excerpt.code}
-                      language={step.excerpt.language}
-                      testId="walkthrough-code"
-                    />
                     <ReportLabeledText
                       label="Explanation"
                       value={step.explanation}

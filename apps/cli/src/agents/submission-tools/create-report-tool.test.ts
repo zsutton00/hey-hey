@@ -134,7 +134,82 @@ describe('createCreateReportTool', () => {
       }),
     ).rejects.toThrow('Saving unavailable');
     expect(run.activeTurn?.handler).toBe(reviewHandler);
-    expect(reviewHandler.reports?.every((report) => !report.required)).toBe(true);
+    expect(
+      reviewHandler.reports?.find((report) => report.reportType === 'CHANGE_WALKTHROUGH')?.required,
+    ).toBe(true);
+    expect(reviewHandler.reports?.find((report) => report.reportType === 'REVIEW')?.required).toBe(
+      false,
+    );
+  });
+
+  it('saves a walkthrough that omits the host-owned run identity and verification', async () => {
+    const run = makeRun({ promptType: 'code_review' });
+    run.setActiveTurn({ turnId: 'review', handler: reviewHandler } as unknown as Turn);
+    const proxy = makeCreateReportProxy();
+    vi.mocked(proxy.create).mockResolvedValue({ content: [], reportId: 'walkthrough' });
+    const tool = new CreateReportTool(proxy, () => FIXED_NOW);
+    const payload = {
+      reportType: 'CHANGE_WALKTHROUGH',
+      summary: 'Changes',
+      groups: [
+        {
+          title: 'Behavior',
+          changes: [
+            {
+              title: 'Permission',
+              context: 'Context',
+              walkthrough: [
+                {
+                  explanation: 'Important change',
+                  excerpt: {
+                    serviceId: '22222222-2222-4222-8222-222222222222',
+                    file: 'missing.ts',
+                    startLine: 1,
+                    endLine: 1,
+                    code: 'literal',
+                    language: 'typescript',
+                    sourceVersion: { kind: 'WORKSPACE' },
+                  },
+                },
+              ],
+              behavioralConsequence: 'Access changes',
+            },
+          ],
+        },
+      ],
+    };
+    await tool.execute({
+      run,
+      runId: run.runId,
+      args: makeArgs({ reportType: 'CHANGE_WALKTHROUGH', payload }),
+    });
+    expect(proxy.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        args: expect.objectContaining({
+          payload: expect.objectContaining({
+            targetRunId: run.session.agentic_session_id,
+            groups: [
+              expect.objectContaining({
+                changes: [
+                  expect.objectContaining({
+                    walkthrough: [
+                      expect.objectContaining({
+                        excerpt: expect.objectContaining({
+                          verification: {
+                            status: 'UNRESOLVED',
+                            reason: 'Service workspace unavailable',
+                          },
+                        }),
+                      }),
+                    ],
+                  }),
+                ],
+              }),
+            ],
+          }),
+        }),
+      }),
+    );
   });
 
   afterEach(() => {

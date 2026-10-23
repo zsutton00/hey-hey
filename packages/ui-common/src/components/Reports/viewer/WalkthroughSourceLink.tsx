@@ -27,9 +27,7 @@ export function WalkthroughSourceLink({
   const [available, setAvailable] = useState(false);
   const [pending, setPending] = useState(false);
   const [setup, setSetup] = useState(false);
-  const eligible =
-    excerpt.sourceVersion.kind === "WORKSPACE" &&
-    excerpt.verification.status === "VERIFIED";
+  const eligible = excerpt.sourceVersion.kind === "WORKSPACE";
   const resolve = async () => {
     const baseUrl = resolveLocalDirectoryRuntimeBaseUrl();
     const repos = await createDirectoryBindingApi(baseUrl).listRepos();

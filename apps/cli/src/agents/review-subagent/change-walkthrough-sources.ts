@@ -44,6 +44,32 @@ export function walkthroughServiceRoot(
   return service.path || null;
 }
 
+/**
+ * Locates the excerpt's file in the current workspace so a reader can inspect it, whether or not
+ * its lines still match. Returns null unless the file is repository-relative, exists and stays
+ * inside the Service workspace.
+ */
+export async function resolveWalkthroughWorkspaceFile(
+  excerpt: ChangeWalkthroughExcerpt,
+  root: string | null,
+): Promise<string | null> {
+  if (!root || excerpt.sourceVersion.kind !== 'WORKSPACE') return null;
+  if (
+    excerpt.file.includes('\\') ||
+    path.isAbsolute(excerpt.file) ||
+    excerpt.file.split('/').some((part) => part === '' || part === '.' || part === '..')
+  ) {
+    return null;
+  }
+  try {
+    const canonicalRoot = await realpath(root);
+    const file = await realpath(path.resolve(canonicalRoot, excerpt.file));
+    return contained(canonicalRoot, file) ? path.resolve(root, excerpt.file) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Failure belongs to this excerpt; source evidence never changes canonical file membership. */
 export async function verifyWalkthroughExcerpt(
   excerpt: ChangeWalkthroughExcerpt,
@@ -96,6 +122,37 @@ export async function verifyWalkthroughExcerpt(
   } catch {
     return unresolved('Source file or revision unavailable');
   }
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/**
+ * Review submits the walkthrough without the host-owned `targetRunId` and per-excerpt
+ * `verification`. Fill placeholders so the full schema check covers everything the agent
+ * does own; `verifyChangeWalkthrough` then overwrites both with host-computed values.
+ */
+export function withHostOwnedWalkthroughFields(value: unknown): unknown {
+  if (!isRecord(value) || !Array.isArray(value['groups'])) return value;
+  const placeholder = { status: 'UNRESOLVED', reason: 'Awaiting host verification' };
+  const mapItems = (items: unknown, map: (item: Record<string, unknown>) => unknown): unknown =>
+    Array.isArray(items) ? items.map((item) => (isRecord(item) ? map(item) : item)) : items;
+  return {
+    ...value,
+    targetRunId: '00000000-0000-4000-8000-000000000000',
+    groups: mapItems(value['groups'], (group) => ({
+      ...group,
+      changes: mapItems(group['changes'], (change) => ({
+        ...change,
+        walkthrough: mapItems(change['walkthrough'], (step) => ({
+          ...step,
+          excerpt: isRecord(step['excerpt'])
+            ? { ...step['excerpt'], verification: placeholder }
+            : step['excerpt'],
+        })),
+      })),
+    })),
+  };
 }
 
 export async function verifyChangeWalkthrough(

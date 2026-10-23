@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { Router } from 'express';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
@@ -8,7 +7,7 @@ import type {
   LocalWalkthroughSourceLocation,
 } from '../../shared/local-agent-api/generated/api';
 import {
-  verifyWalkthroughExcerpt,
+  resolveWalkthroughWorkspaceFile,
   walkthroughServiceRoot,
 } from '../../agents/review-subagent/change-walkthrough-sources';
 import { admitMachine } from './local-run-admission';
@@ -65,25 +64,24 @@ export function createWalkthroughSourceRouter(
     try {
       const run = await deps.restoreCoordinator.restore(runId);
       const root = walkthroughServiceRoot(run.session, body.excerpt.serviceId);
-      const checked = await verifyWalkthroughExcerpt(body.excerpt, root, new Date().toISOString());
-      if (
-        !root ||
-        checked.sourceVersion.kind !== 'WORKSPACE' ||
-        checked.verification.status !== 'VERIFIED'
-      ) {
+      const filePath = await resolveWalkthroughWorkspaceFile(body.excerpt, root);
+      if (!filePath) {
         logger.debug('local.walkthrough.source.unresolved', { runId });
-        res.status(422).json({ message: 'Current source unavailable or changed' });
+        res.status(422).json({ message: 'Current source unavailable' });
         return;
       }
       const location = {
         runId,
-        serviceId: checked.serviceId,
-        file: checked.file,
-        path: path.resolve(root, checked.file),
-        line: checked.startLine,
+        serviceId: body.excerpt.serviceId,
+        file: body.excerpt.file,
+        path: filePath,
+        line: body.excerpt.startLine,
         column: 1,
       } satisfies LocalWalkthroughSourceLocation;
-      logger.debug('local.walkthrough.source.resolved', { runId, serviceId: checked.serviceId });
+      logger.debug('local.walkthrough.source.resolved', {
+        runId,
+        serviceId: body.excerpt.serviceId,
+      });
       res.json(location);
     } catch {
       logger.warn('local.walkthrough.source.unavailable', { runId });

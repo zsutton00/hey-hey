@@ -1,6 +1,7 @@
 import {
   parseChangeWalkthroughPayload,
   verifyChangeWalkthrough,
+  withHostOwnedWalkthroughFields,
 } from '../review-subagent/change-walkthrough-sources';
 /**
  * Universal `create_report` pass-through submission tool.
@@ -401,7 +402,9 @@ export class CreateReportTool implements PassThroughSubmissionToolDeclaration {
       if (run.activeTurn?.handler.promptType !== 'code_review') {
         throw new Error('CHANGE_WALKTHROUGH requires an active Review');
       }
-      const payload = parseChangeWalkthroughPayload(args['payload']);
+      const payload = parseChangeWalkthroughPayload(
+        withHostOwnedWalkthroughFields(args['payload']),
+      );
       args = { ...args, payload: await verifyChangeWalkthrough(payload, run.session, this.now()) };
       this.logger.debug('local.review.walkthrough.sources_checked', { runId: run.runId });
     }
