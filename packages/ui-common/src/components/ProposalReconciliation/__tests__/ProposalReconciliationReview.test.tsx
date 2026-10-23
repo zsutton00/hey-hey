@@ -149,6 +149,19 @@ describe("complete reconciliation review", () => {
       proposalsClient.createProposalReconciliationCandidate,
     ).not.toHaveBeenCalled();
   });
+  it("approves the reviewed result on the same standalone proposal", async () => {
+    const apply = mount(ready);
+    await waitFor(() =>
+      expect(screen.getByText("Approve displayed revision")).toBeEnabled(),
+    );
+    expect(
+      screen.queryByTestId("proposal-reconciliation-open-replacement"),
+    ).toBeNull();
+    fireEvent.click(screen.getByText("Approve displayed revision"));
+    expect(apply).toHaveBeenCalledWith({
+      reviewedReconciliationRevisionId: "revision",
+    });
+  });
   it("retains grouped Merge and replacement review", async () => {
     vi.mocked(proposalsClient.getProposalReconciliation).mockResolvedValue({
       data: { data: { ...ready, status: "RECONCILIATION_REQUIRED" } },

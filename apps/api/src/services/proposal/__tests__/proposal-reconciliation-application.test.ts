@@ -245,6 +245,42 @@ describe('reviewed reconciliation application', () => {
     });
   });
 
+  it('reviews and applies a standalone proposal without consulting replacements', async () => {
+    const f = fixture();
+    const state = await f.owner.state(f.tx, proposal);
+    expect(state.replacementProposalId).toBeUndefined();
+    await expect(
+      f.owner.assertApplicable(f.tx, proposal),
+    ).resolves.toBeUndefined();
+    expect(
+      f.db.proposalReconciliationReplacement.findFirst,
+    ).not.toHaveBeenCalled();
+  });
+  it.each([true, false])(
+    'records assisted reconciliation and retains votes only when requested (%s)',
+    async (preserveVotes) => {
+      const f = fixture();
+      await f.owner.captureAuthoring(f.tx, proposal, {
+        source: 'AGENT_FIX',
+        previousRevisionId: 'revision',
+        expectedBases: [original],
+        preserveVotes,
+      });
+      expect(f.db.proposalReconciliationRevision.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            proposalId: proposal.id,
+            source: 'AGENT_FIX',
+            previousRevisionId: 'revision',
+          }),
+        }),
+      );
+      expect(f.db.proposalApprovalRecord.deleteMany).toHaveBeenCalledTimes(
+        preserveVotes ? 0 : 1,
+      );
+    },
+  );
+
   it('records its own effect, skips replay, and rejects a later external write', async () => {
     const f = fixture();
     const write = jest.fn(async () => {
@@ -333,7 +369,7 @@ describe('reviewed reconciliation application', () => {
       'TASK:target.name',
       'TASK:target.sections.description',
     ]);
-    expect(body.issues[0].code).toBe('PROPOSAL_RECONCILIATION_REQUIRED');
+    expect(body.issues[0]!.code).toBe('PROPOSAL_RECONCILIATION_REQUIRED');
     expect(JSON.stringify(body)).not.toContain('Rewritten');
     expect(body.correlationId).toEqual(expect.any(String));
   });

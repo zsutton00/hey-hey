@@ -47,6 +47,7 @@ import type { AgentEdge } from 'src/generated/graphs';
 
 export type ReconciliationProvenance = {
   source: ProposalReconciliationRevision['source'];
+  preserveVotes?: boolean;
   previousRevisionId: string | null;
   expectedBases: ProposalReconciliationBasis[];
 };
@@ -500,7 +501,7 @@ export class ProposalReconciliationService {
       previous && !provenance
         ? (previous.bases as unknown as ProposalReconciliationBasis[])
         : current;
-    if (previous)
+    if (previous && !provenance?.preserveVotes)
       await tx.proposalApprovalRecord.deleteMany({
         where: { proposalId: proposal.id },
       });
@@ -761,10 +762,16 @@ export class ProposalReconciliationService {
           : 'RECONCILIATION_REQUIRED';
     }
     if (materialization?.status === 'PUBLISHED') status = 'NOT_APPLICABLE';
-    let replacement = await tx.proposalReconciliationReplacement.findFirst({
-      where: { proposalId: proposal.id },
-      orderBy: { createdAt: 'desc' },
-    });
+    let replacement =
+      proposal.action === 'VERSIONED_UPDATE' ||
+      (await tx.proposalGroupMember.findUnique({
+        where: { proposalId: proposal.id },
+      }))
+        ? await tx.proposalReconciliationReplacement.findFirst({
+            where: { proposalId: proposal.id },
+            orderBy: { createdAt: 'desc' },
+          })
+        : null;
     if (replacement?.replacementGroupId) {
       const group = await tx.proposalGroup.findUnique({
         where: { id: replacement.replacementGroupId },
@@ -979,10 +986,16 @@ export class ProposalReconciliationService {
     reviewedRevisionId?: string,
     requireRevisionReview = false,
   ): Promise<void> {
-    const replacement = await tx.proposalReconciliationReplacement.findFirst({
-      where: { proposalId: proposal.id },
-      orderBy: { createdAt: 'desc' },
-    });
+    const replacement =
+      proposal.action === 'VERSIONED_UPDATE' ||
+      (await tx.proposalGroupMember.findUnique({
+        where: { proposalId: proposal.id },
+      }))
+        ? await tx.proposalReconciliationReplacement.findFirst({
+            where: { proposalId: proposal.id },
+            orderBy: { createdAt: 'desc' },
+          })
+        : null;
     if (replacement) {
       const group = replacement.replacementGroupId
         ? await tx.proposalGroup.findUnique({

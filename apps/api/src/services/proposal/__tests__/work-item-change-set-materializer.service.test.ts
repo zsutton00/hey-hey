@@ -2231,12 +2231,11 @@ describe('WorkItemChangeSetMaterializerService', () => {
     ).rejects.toThrow('claim is no longer owned');
   });
 
-  it('serializes boundary claims with a transaction-scoped advisory lock', async () => {
+  it('claims a standalone proposal without consulting replacements', async () => {
     const queryRaw = jest.fn().mockResolvedValue([{ lockAcquired: '' }]);
     const tx = {
-      proposalReconciliationReplacement: {
-        findFirst: jest.fn().mockResolvedValue(null),
-      },
+      proposalGroupMember: { findUnique: jest.fn().mockResolvedValue(null) },
+      proposalReconciliationReplacement: { findFirst: jest.fn() },
       $queryRaw: queryRaw,
       workItemChangeSetMaterialization: {
         findMany: jest.fn().mockResolvedValue([]),
@@ -2274,6 +2273,9 @@ describe('WorkItemChangeSetMaterializerService', () => {
       ),
     ).resolves.toBeNull();
 
+    expect(
+      tx.proposalReconciliationReplacement.findFirst,
+    ).not.toHaveBeenCalled();
     const query = queryRaw.mock.calls[0][0];
     expect(query.strings.join('?')).toBe(
       'SELECT pg_advisory_xact_lock(hashtextextended(?, 0))::text AS "lockAcquired"',
@@ -2314,6 +2316,7 @@ describe('WorkItemChangeSetMaterializerService', () => {
       ],
     };
     const tx = {
+      proposalGroupMember: { findUnique: jest.fn().mockResolvedValue(null) },
       proposalReconciliationReplacement: {
         findFirst: jest.fn().mockResolvedValue(null),
       },
@@ -2721,6 +2724,7 @@ describe('WorkItemChangeSetMaterializerService', () => {
       ],
     };
     const tx = {
+      proposalGroupMember: { findUnique: jest.fn().mockResolvedValue(null) },
       proposalReconciliationReplacement: {
         findFirst: jest.fn().mockResolvedValue(null),
       },
@@ -2783,6 +2787,7 @@ describe('WorkItemChangeSetMaterializerService', () => {
       checkpoints: [],
     };
     const tx = {
+      proposalGroupMember: { findUnique: jest.fn().mockResolvedValue(null) },
       proposalReconciliationReplacement: {
         findFirst: jest.fn().mockResolvedValue(null),
       },
@@ -2826,6 +2831,7 @@ describe('WorkItemChangeSetMaterializerService', () => {
     };
     const claimed = { ...selected, claimToken: 'claim-1' };
     const tx = {
+      proposalGroupMember: { findUnique: jest.fn().mockResolvedValue(null) },
       proposalReconciliationReplacement: {
         findFirst: jest.fn().mockResolvedValue(null),
       },
@@ -3003,6 +3009,7 @@ describe('WorkItemChangeSetMaterializerService', () => {
       target: refreshedProjection,
     });
     const tx = {
+      proposalGroupMember: { findUnique: jest.fn().mockResolvedValue(null) },
       proposalReconciliationReplacement: {
         findFirst: jest.fn().mockResolvedValue(null),
       },
@@ -3183,6 +3190,7 @@ describe('WorkItemChangeSetMaterializerService', () => {
     const validationRevision = service.validationRevision(operationSet);
     const existing = preparedIntent({ operationSet, validationRevision });
     const tx = {
+      proposalGroupMember: { findUnique: jest.fn().mockResolvedValue(null) },
       proposalReconciliationReplacement: {
         findFirst: jest.fn().mockResolvedValue(null),
       },
@@ -3932,6 +3940,7 @@ function createService(workItemTypeRegistry?: {
   };
   const tx = {
     $queryRaw: jest.fn().mockResolvedValue([]),
+    proposalGroupMember: { findUnique: jest.fn().mockResolvedValue(null) },
     proposalReconciliationReplacement: {
       findFirst: jest.fn().mockResolvedValue(null),
     },

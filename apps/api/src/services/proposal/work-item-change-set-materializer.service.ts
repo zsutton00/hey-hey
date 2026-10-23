@@ -1512,23 +1512,31 @@ export class WorkItemChangeSetMaterializerService {
           Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${params.organizationId}:${params.projectId}`}, 0))::text AS "lockAcquired"`,
         ),
       );
-      const replacement = await tx.proposalReconciliationReplacement.findFirst({
+      const membership = await tx.proposalGroupMember.findUnique({
         where: { proposalId: params.proposalId },
       });
-      if (replacement) {
-        const replacementGroup = replacement.replacementGroupId
-          ? await tx.proposalGroup.findUnique({
-              where: { id: replacement.replacementGroupId },
-              select: { status: true },
-            })
-          : null;
-        if (
-          !replacement.replacementGroupId ||
-          replacementGroup?.status !== 'BUILDING'
-        ) {
-          throw new ConflictException(
-            'This proposal has a reconciled replacement requiring fresh review.',
-          );
+      if (membership) {
+        const replacement =
+          await tx.proposalReconciliationReplacement.findFirst({
+            where: {
+              proposalId: params.proposalId,
+            },
+          });
+        if (replacement) {
+          const replacementGroup = replacement.replacementGroupId
+            ? await tx.proposalGroup.findUnique({
+                where: { id: replacement.replacementGroupId },
+                select: { status: true },
+              })
+            : null;
+          if (
+            !replacement.replacementGroupId ||
+            replacementGroup?.status !== 'BUILDING'
+          ) {
+            throw new ConflictException(
+              'This proposal has a reconciled replacement requiring fresh review.',
+            );
+          }
         }
       }
       const now = new Date();

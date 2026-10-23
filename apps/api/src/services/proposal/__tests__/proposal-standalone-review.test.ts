@@ -38,6 +38,7 @@ const stale: ProposalReconciliationState = {
 function setup(state = stale, overrides = {}) {
   const proposal = {
     id: 'proposal',
+    eli5: 'Rename',
     action: 'UPDATE',
     status: 'DRAFT',
     updates: { name: 'Proposed' },
@@ -80,6 +81,14 @@ function setup(state = stale, overrides = {}) {
       },
     },
     reconciliation: owner,
+    validationEngine: {
+      assertAuthoringCandidatesValid: jest.fn(async ({ proposals }) => ({
+        candidates: proposals.map((candidate: object) => ({ candidate })),
+      })),
+      assertTaskMutationAuthoringValid: jest.fn(),
+      assertPlanStageProposalTopologyValid: jest.fn(),
+    },
+    prepareTaskMutationRequirements: jest.fn(async (candidate) => candidate),
   });
   const load = () =>
     service.reconciliationReviewState(
@@ -91,7 +100,7 @@ function setup(state = stale, overrides = {}) {
 }
 
 describe('standalone review preparation', () => {
-  it('persists the merged patch and immutable complete result on the original, invalidates earlier votes, and reuses it on repeat load', async () => {
+  it('persists the merged patch and immutable complete result on the original, preserves earlier votes, and reuses it on repeat load', async () => {
     const { load, owner, tx } = setup();
     expect((await load()).status).toBe('READY_FOR_REVIEW');
     expect(tx.$queryRaw).toHaveBeenCalled();
@@ -110,9 +119,7 @@ describe('standalone review preparation', () => {
         intent: 'Rename',
       }),
     );
-    expect(tx.proposalApprovalRecord.deleteMany).toHaveBeenCalledWith({
-      where: { proposalId: 'proposal' },
-    });
+    expect(tx.proposalApprovalRecord.deleteMany).not.toHaveBeenCalled();
     await load();
     expect(owner.appendRevision).toHaveBeenCalledTimes(1);
   });
@@ -120,7 +127,6 @@ describe('standalone review preparation', () => {
     [{ groupMembership: { groupId: 'group' } }, stale],
     [{ action: 'DELETE' }, stale],
     [{ status: 'APPROVED' }, stale],
-    [{}, { ...stale, replacementProposalId: 'replacement' }],
     [
       {},
       {
@@ -144,7 +150,7 @@ describe('standalone review preparation', () => {
       expect(tx.proposal.update).not.toHaveBeenCalled();
     },
   );
-  it('makes the legacy standalone MERGE endpoint reuse the original candidate', async () => {
+  it('keeps standalone MERGE on the original candidate', async () => {
     const { service, owner } = setup();
     const result = await service.reconcile(
       'proposal',
@@ -157,6 +163,62 @@ describe('standalone review preparation', () => {
     expect(result.status).toBe('READY_FOR_REVIEW');
     expect(result.replacementProposalId).toBeUndefined();
     expect(owner.appendRevision).toHaveBeenCalledTimes(1);
+  });
+  it.each([true, false])(
+    'resolves on the original and preserves votes only for an unchanged update (%s)',
+    async (unchanged) => {
+      const { service, owner, tx } = setup();
+      const capture = jest.spyOn(owner, 'captureAuthoring').mockResolvedValue();
+      const create = jest.spyOn(service, 'create');
+      // Both reads see the same unresolved revision under the proposal lock.
+      jest.mocked(owner.state).mockReset().mockResolvedValue(stale);
+      const updates = { name: unchanged ? 'Proposed' : 'Resolved' };
+      await service.reconcile(
+        'proposal',
+        'org' as OrganizationId,
+        'project' as ProjectId,
+        {} as never,
+        {
+          method: 'AGENT_FIX',
+          proposedResult: updates,
+          expectedCurrentBases: [basis],
+        },
+        {} as never,
+      );
+      expect(tx.proposal.update).toHaveBeenCalledWith({
+        where: { id: 'proposal' },
+        data: { updates },
+      });
+      expect(capture).toHaveBeenCalledWith(
+        tx,
+        expect.objectContaining({ id: 'proposal' }),
+        expect.objectContaining({
+          source: 'AGENT_FIX',
+          preserveVotes: unchanged,
+        }),
+      );
+      expect(create).not.toHaveBeenCalled();
+    },
+  );
+  it('refuses an assisted result when current content has drifted', async () => {
+    const { service, tx } = setup();
+    await expect(
+      service.reconcile(
+        'proposal',
+        'org' as OrganizationId,
+        'project' as ProjectId,
+        {} as never,
+        {
+          method: 'AGENT_FIX',
+          proposedResult: { name: 'Resolved' },
+          expectedCurrentBases: [
+            { ...basis, content: { ...basis.content, name: 'Older' } },
+          ],
+        },
+        {} as never,
+      ),
+    ).rejects.toThrow('changed');
+    expect(tx.proposal.update).not.toHaveBeenCalled();
   });
   it('keeps generic state reads free from automatic preparation', async () => {
     const { service, owner, tx } = setup();
