@@ -1,3 +1,4 @@
+import { isEqual } from 'lodash';
 import { projectReconciliationContent } from './proposal-reconciliation-content';
 import {
   parseFutureRevisionMutation,
@@ -565,9 +566,7 @@ export class ProposalService {
       proposal.action !== 'UPDATE' ||
       proposal.groupMembership ||
       proposal.status !== 'DRAFT' ||
-      state.status !== 'RECONCILIATION_REQUIRED' ||
-      state.replacementProposalId ||
-      state.replacementGroupId
+      state.status !== 'RECONCILIATION_REQUIRED'
     )
       return state;
     const merged = this.reconciliation.prepareMerge(proposal, state);
@@ -584,10 +583,6 @@ export class ProposalService {
       currentBasis.content as Prisma.JsonObject,
       merged.updates,
     );
-    // Votes on the old result cannot authorize this newly prepared candidate.
-    await tx.proposalApprovalRecord.deleteMany({
-      where: { proposalId: proposal.id },
-    });
     const updated = await tx.proposal.update({
       where: { id: proposal.id },
       data: { updates: merged.updates as Prisma.InputJsonValue },
@@ -682,69 +677,83 @@ export class ProposalService {
         ...replacement,
       };
     }
-    const materialization =
-      await this.prisma.db.workItemChangeSetMaterialization.findUnique({
-        where: { proposalId: original.id },
-        include: { checkpoints: true },
+    return this.prisma.db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM proposals WHERE id = ${id} AND organization_id = ${organizationId} AND project_id = ${projectId} FOR UPDATE`;
+      const current = await tx.proposal.findFirst({
+        where: { id, organizationId, projectId },
+        include: { groupMembership: true },
       });
-    const remaining = await this.reconciliationGroups.remainingCandidate(
-      original,
-      updates as Prisma.JsonValue,
-      materialization,
-    );
-    const replacement = await this.create(
-      organizationId,
-      projectId,
-      user.userId,
-      {
-        type: original.type,
-        action:
-          remaining.hasCompletedEffects && original.action === 'CREATE'
-            ? 'UPDATE'
-            : original.action,
-        targetEntityId: remaining.targetEntityId,
-        targetEntityType: original.targetEntityType,
-        title: original.title,
-        eli5: 'Reconciles the original proposal against current content for fresh review.',
-        updates: remaining.updates as import('src/generated').ProposalUpdates,
+      if (!current) throw new NotFoundException('Proposal not found');
+      if (current.status !== 'DRAFT' || current.groupMembership)
+        throw new ConflictException(
+          'The proposal is no longer available for standalone reconciliation.',
+        );
+      const latest = await this.reconciliation.state(tx, current);
+      if (latest.candidateRevisionId !== state.candidateRevisionId)
+        throw new ConflictException(
+          'The proposal changed. Review its current candidate.',
+        );
+      this.reconciliation.assertReviewedBasisCurrent(
+        state.currentBases,
+        latest.currentBases,
+        id,
+      );
+      if (current.eli5 === null)
+        throw new BadRequestException(
+          'An ELI5 explanation is required to reconcile this proposal.',
+        );
+      const candidate = {
+        type: current.type,
+        action: current.action,
+        targetEntityId: current.targetEntityId,
+        targetEntityType: current.targetEntityType,
+        title: current.title,
+        eli5: current.eli5,
+        updates,
+        edges:
+          (current.edges as unknown as CreateProposalDto['edges']) ?? undefined,
         requestorContext,
-        ...(original.conversationId
-          ? { conversationId: original.conversationId }
-          : {}),
-        ...(original.edges !== null
-          ? {
-              edges:
-                original.edges as unknown as import('src/generated').ProposalEdgeDeclaration[],
-            }
-          : {}),
-        influences: [
-          {
-            entityType: 'PROPOSAL',
-            entityId: original.id,
-            entityTitle: original.title,
-            reasonType: 'derived',
-            reasoning:
-              'Reconciles the original proposal against current content for fresh review.',
-          },
-        ],
-      },
-      provenance,
-    );
-    await this.prisma.db.proposalReconciliationReplacement.create({
-      data: {
-        proposalId: original.id,
-        replacementProposalId: replacement.id,
-        sourceState: { updatedAt: original.updatedAt.toISOString() },
-      },
-    });
-    return {
-      ...(await this.reconciliationState(
-        replacement.id,
+      } satisfies CreateProposalDto;
+      const admission =
+        await this.validationEngine.assertAuthoringCandidatesValid({
+          proposals: [candidate],
+          context: { organizationId, projectId, db: tx },
+        });
+      await this.validationEngine.assertTaskMutationAuthoringValid(
+        admission.candidates[0]!,
         organizationId,
         projectId,
-      )),
-      replacementProposalId: replacement.id,
-    };
+        tx,
+      );
+      const prepared = await this.prepareTaskMutationRequirements(
+        candidate,
+        organizationId,
+        projectId,
+        tx,
+      );
+      await this.validationEngine.assertTaskMutationAuthoringValid(
+        prepared,
+        organizationId,
+        projectId,
+        tx,
+      );
+      await this.validationEngine.assertPlanStageProposalTopologyValid(
+        [{ proposalId: id, proposal: prepared }],
+        organizationId,
+        projectId,
+      );
+      const updated = await tx.proposal.update({
+        where: { id },
+        data: { updates: prepared.updates as Prisma.InputJsonValue },
+      });
+      await this.reconciliation.captureAuthoring(tx, updated, {
+        ...provenance,
+        preserveVotes:
+          input.method === 'MERGE' ||
+          isEqual(current.updates, prepared.updates),
+      });
+      return this.reconciliation.state(tx, updated);
+    });
   }
 
   /** Turns an authored future delta into the complete mutation ordinary creation validates. */

@@ -17,6 +17,31 @@ describe('proposal reconciliation merge', () => {
     });
   });
 
+  it('combines compatible edits to different paragraphs of the same field', () => {
+    expect(
+      mergeProposalContent(
+        { sections: { description: 'First paragraph.\n\nSecond paragraph.' } },
+        {
+          sections: {
+            description: 'Changed first paragraph.\n\nSecond paragraph.',
+          },
+        },
+        {
+          sections: {
+            description: 'First paragraph.\n\nChanged second paragraph.',
+          },
+        },
+        new Set(['/sections/description']),
+      ),
+    ).toEqual({
+      kind: 'MERGED',
+      candidate: {
+        sections: {
+          description: 'Changed first paragraph.\n\nChanged second paragraph.',
+        },
+      },
+    });
+  });
   it('compares structured content independently of object key order', () => {
     expect(
       mergeProposalContent({ a: 1, b: 2 }, { b: 2, a: 1 }, { a: 3, b: 2 }),

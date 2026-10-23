@@ -34,6 +34,7 @@ import {
   type LatestTurnToolCallsState,
 } from "../../AgentSession/runtime/hooks/useLatestTurnToolCalls";
 import { isInterstitialMessageData } from "../../LlmForms/Registry/InterstitialField";
+import { ToolCallDisplayStateProvider } from "../../LlmForms/Registry/LatestTurnToolCalls";
 import { useWorkflowStatus } from "../../../hooks/useWorkflowStatus";
 import type {
   ConversationMessage,
@@ -994,7 +995,9 @@ export const ConversationProvider: React.FC<ConversationProviderProps> = ({
   return (
     <ConversationScrollPolicyContext.Provider value={scrollPolicy}>
       <ConversationContext.Provider value={contextValue}>
-        {children}
+        <ToolCallDisplayStateProvider scopeKey={activeConversation.id}>
+          {children}
+        </ToolCallDisplayStateProvider>
       </ConversationContext.Provider>
     </ConversationScrollPolicyContext.Provider>
   );

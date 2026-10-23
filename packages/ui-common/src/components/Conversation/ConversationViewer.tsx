@@ -19,7 +19,7 @@ import SvgIcon from "@mui/material/SvgIcon";
 
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { AgentSessionCurrentState } from "../../api";
+import { AgentSessionCurrentState, MessageType } from "../../api";
 import type {
   ConversationResponseDto,
   CreateUserMessage,
@@ -27,6 +27,7 @@ import type {
   GoalPmRoutingCreation,
   GoalPmRoutingEnactmentResponse,
   ProjectResponseDto,
+  SystemMessageData,
 } from "../../api";
 import type { GoalPmConversationLink } from "../LlmForms/Registry/types";
 import { useWorkflowConversations } from "../../data/hooks/useWorkflowConversations";
@@ -71,6 +72,10 @@ import {
   LatestTurnToolCalls,
   TOOL_CALLS_BEFORE_NARRATION_LIMIT,
 } from "../LlmForms/Registry/LatestTurnToolCalls";
+import {
+  isInterstitialMessageData,
+  splitInterstitialThoughts,
+} from "../LlmForms/Registry/InterstitialField";
 import { AgentSessionCurrentStateIndicator } from "../AgentSession/AgentSessionCurrentStateIndicator";
 import type {
   OnboardingReplySubmission,
@@ -396,7 +401,6 @@ const ConversationViewerContent: React.FC<{
     agentSessionId,
     agentSessionCurrentState,
     latestTurnToolCalls,
-    hasInterstitialInTimeline,
   } = useConversationContext();
 
   const isTurnActive =
@@ -428,6 +432,17 @@ const ConversationViewerContent: React.FC<{
       hiddenCount: 0,
     };
   }, [isStarting, latestTurnToolCalls, startingSince]);
+
+  const latestTimelineMessage = conversationTimeline.at(-1)?.message;
+  const latestMessageData =
+    latestTimelineMessage?.type === MessageType.System
+      ? (latestTimelineMessage.data as SystemMessageData | undefined)
+      : undefined;
+  const latestMessageHostsToolCalls =
+    latestMessageData !== undefined &&
+    isInterstitialMessageData(latestMessageData) &&
+    typeof latestMessageData.response === "string" &&
+    splitInterstitialThoughts(latestMessageData.response).length > 0;
 
   // Ref to track the last message for scrolling
   const lastMessageRef = React.useRef<HTMLDivElement>(null);
@@ -717,7 +732,7 @@ const ConversationViewerContent: React.FC<{
           )}
 
           {agentSessionId &&
-          !hasInterstitialInTimeline &&
+          !latestMessageHostsToolCalls &&
           isTurnActive &&
           liveToolCalls ? (
             <LatestTurnToolCalls

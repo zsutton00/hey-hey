@@ -331,6 +331,7 @@ function PendingProposalReconciliationReview({
     !state.revisions.some(
       (revision) => revision.id === state.candidateRevisionId,
     );
+  const usesReplacement = grouped || proposal.action === "VERSIONED_UPDATE";
   const approvalDisabled =
     !state ||
     !!error ||
@@ -338,8 +339,8 @@ function PendingProposalReconciliationReview({
     requiresReconciliation ||
     hasOverlaps ||
     missingCandidate ||
-    !!state.replacementProposalId ||
-    !!state.replacementGroupId;
+    (usesReplacement &&
+      (!!state.replacementProposalId || !!state.replacementGroupId));
   const submit = () => {
     if (approvalDisabled) return;
     onApply(
@@ -382,7 +383,8 @@ function PendingProposalReconciliationReview({
     busy,
   };
   const hasReplacement =
-    !!state?.replacementProposalId || !!state?.replacementGroupId;
+    usesReplacement &&
+    (!!state?.replacementProposalId || !!state?.replacementGroupId);
   return (
     <ProposalReconciliationContext.Provider
       value={{
@@ -461,7 +463,7 @@ function PendingProposalReconciliationReview({
             Review merged version
           </Button>
         ) : null}
-        {state?.replacementGroupId ? (
+        {usesReplacement && state?.replacementGroupId ? (
           <Button
             variant="contained"
             href={paths.proposalGroup({
