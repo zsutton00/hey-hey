@@ -1,0 +1,113 @@
+# =============================================
+# Machine Security Event Feed Schemas
+# =============================================
+# Shared so both the REST surface (api/openapi.yaml) and the realtime push
+# frame (websockets.yaml) reference one definition of a security event.
+
+MachineSecurityEventType:
+  type: string
+  enum:
+    - signature_failure
+    - replay_rejection
+    - timestamp_window_rejection
+    - allowlist_rejection
+    - rate_limit_trip
+    - revocation
+  description: >-
+    Audit category for a machine security event. The first five are recorded by
+    the CLI and reported to the server: signature_failure (a trigger envelope
+    failed Ed25519 verification), replay_rejection (a duplicate/seen nonce),
+    timestamp_window_rejection (an envelope outside the accepted clock-skew
+    window), allowlist_rejection (a frame addressed to a machine/kind not on the
+    allowlist), and rate_limit_trip (the CLI tripped its own inbound rate
+    limiter). revocation is recorded server-side when the machine's credential
+    is revoked; the CLI never reports it.
+
+MachineSecurityEventDto:
+  type: object
+  required:
+    - id
+    - machineId
+    - eventType
+    - occurredAt
+  properties:
+    id:
+      type: string
+      description: >-
+        Stable identifier for this event. For CLI-reported entries this is the
+        client-supplied id that makes re-reporting idempotent; for
+        server-recorded revocation entries it is a server-generated uuid.
+      example: "0f9c4d2e-1a2b-4c3d-8e4f-5a6b7c8d9e0f"
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    eventType:
+      $ref: "#/MachineSecurityEventType"
+    occurredAt:
+      type: string
+      format: date-time
+      description: Timestamp at which the event occurred on the reporting side.
+      example: "2026-06-14T12:05:00.000Z"
+    detail:
+      type: string
+      nullable: true
+      description: Optional human-readable detail describing the event.
+      example: "Ed25519 signature verification failed for trigger.conversation"
+    metadata:
+      type: object
+      additionalProperties: true
+      nullable: true
+      description: Optional structured context captured alongside the event.
+
+ReportMachineSecurityEventEntryDto:
+  type: object
+  required:
+    - id
+    - eventType
+    - occurredAt
+  properties:
+    id:
+      type: string
+      description: >-
+        Client-supplied stable identifier for this audit entry. Re-reporting an
+        entry with the same id is idempotent — it never creates a duplicate feed
+        row.
+      example: "0f9c4d2e-1a2b-4c3d-8e4f-5a6b7c8d9e0f"
+    eventType:
+      $ref: "#/MachineSecurityEventType"
+    occurredAt:
+      type: string
+      format: date-time
+      description: Timestamp at which the event occurred on the CLI.
+      example: "2026-06-14T12:05:00.000Z"
+    detail:
+      type: string
+      nullable: true
+      description: Optional human-readable detail describing the event.
+    metadata:
+      type: object
+      additionalProperties: true
+      nullable: true
+      description: Optional structured context captured alongside the event.
+
+ReportMachineSecurityEventsRequestDto:
+  type: object
+  required:
+    - events
+  properties:
+    events:
+      type: array
+      minItems: 1
+      description: Batch of locally-recorded audit entries the CLI is reporting.
+      items:
+        $ref: "#/ReportMachineSecurityEventEntryDto"
+
+MachineSecurityEventListResponseDto:
+  type: object
+  required:
+    - events
+  properties:
+    events:
+      type: array
+      description: Security events for the machine, most-recent-first.
+      items:
+        $ref: "#/MachineSecurityEventDto"

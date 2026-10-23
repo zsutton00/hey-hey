@@ -1,0 +1,16 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`InitiativeRefinementAgentNextLevelNode agent input snapshot captures initiative agent request snapshot 1`] = `
+{
+  "activeSection": "description",
+  "initiative": {
+    "acceptanceCriteria": "",
+    "description": "Improve onboarding and documentation.",
+    "details": "Phase 1 focuses on portal foundations.",
+    "title": "Developer Enablement",
+  },
+  "lastUserMessage": "Update the details section to reflect changes made to the description section.",
+  "recentConversationMessages": undefined,
+  "requiredOps": 1,
+}
+`;

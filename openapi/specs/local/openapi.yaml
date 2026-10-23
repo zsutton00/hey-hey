@@ -1,0 +1,1057 @@
+openapi: 3.0.3
+info:
+  title: Hey Hey Browser-Local CLI API
+  version: 1.0.0
+  description: >
+    Deliberately narrow browser-to-loopback contracts for host-owned behavior
+    on the same machine as the Hey Hey CLI. This surface does not expose a
+    general-purpose local API.
+servers:
+  - url: /api/local
+
+tags:
+  - name: LocalRuns
+    description: Revalidated source locations in resolved Run workspaces
+  - name: RunAttachments
+    description: Local Run attachment uploads and pre-Run staging
+  - name: RepositoryBindings
+    description: Local repository binding operations
+  - name: RunChangedFileDetail
+    description: Local changed-file detail operations
+  - name: RunChangedFilesInventory
+    description: Local changed-file inventory operations
+  - name: RunBrowser
+    description: Local Shared Browser operations for a Run
+
+paths:
+  /repos:
+    get:
+      tags:
+        - RepositoryBindings
+      summary: List this CLI machine's Service directory bindings
+      operationId: listLocalRepoBindings
+      responses:
+        "200":
+          description: The authoritative paired-machine identity and current bindings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalListRepoBindingsResponse"
+        "403":
+          $ref: "#/components/responses/OriginNotAllowed"
+        "500":
+          description: The repository binding store could not be read.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRepositoryBindingErrorResponse"
+        "503":
+          description: The CLI has no current paired-machine identity.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRepositoryBindingErrorResponse"
+
+  /repos/pick-directory:
+    post:
+      tags:
+        - RepositoryBindings
+      summary: Select an accessible directory on this CLI machine
+      description: >
+        Opens the CLI-owned native directory picker for a browser that has
+        verified it reached the selected machine. Selection does not persist a
+        Service binding; the browser submits the selected path through the
+        exact-Service binding operation after selection.
+      operationId: pickLocalRepoDirectory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocalPickRepoDirectoryRequest"
+      responses:
+        "200":
+          description: The user selected a directory or cancelled without mutation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalPickRepoDirectoryResponse"
+        "400":
+          description: The selected-machine identity is missing or invalid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRepositoryBindingErrorResponse"
+        "403":
+          $ref: "#/components/responses/OriginNotAllowed"
+        "409":
+          description: The requested machine does not match the CLI's paired machine.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRepositoryBindingErrorResponse"
+        "500":
+          description: The CLI could not open or complete the native directory picker.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRepositoryBindingErrorResponse"
+        "503":
+          description: The CLI has no current paired-machine identity or native directory picker.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRepositoryBindingErrorResponse"
+
+  /repos/{serviceId}:
+    put:
+      tags:
+        - RepositoryBindings
+      summary: Persist a directory binding for an exact Service on this CLI machine
+      operationId: setLocalRepoBinding
+      parameters:
+        - name: serviceId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/LocalServiceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocalSetRepoBindingRequest"
+      responses:
+        "200":
+          description: The canonical directory binding persisted for the exact Service.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalSetRepoBindingResponse"
+        "400":
+          description: The machine identity, Service identity, or directory path is missing or invalid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRepositoryBindingErrorResponse"
+        "403":
+          $ref: "#/components/responses/OriginNotAllowed"
+        "409":
+          description: The requested machine does not match the CLI's paired machine.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRepositoryBindingErrorResponse"
+        "422":
+          description: The supplied directory is not accessible to the CLI.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRepositoryBindingErrorResponse"
+        "500":
+          description: The repository binding could not be persisted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRepositoryBindingErrorResponse"
+        "503":
+          description: The CLI has no current paired-machine identity.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRepositoryBindingErrorResponse"
+
+  /run-attachments/staging:
+    post:
+      tags: [RunAttachments]
+      operationId: uploadLocalStagedRunAttachment
+      summary: Upload a supported host-local file before a Run exists
+      description: >
+        Accepts UTF-8 text/code files and PNG, JPEG or WebP images, up to 25 MiB.
+        Unsupported formats or invalid contents are rejected with INVALID_REQUEST.
+        Stores apart from any conversation or Run. Requires matching paired-machine
+        identity and an approved same-host browser origin, without platform signing.
+        Rejected uploads leave no uploaded file; successful uploads return references only.
+      parameters:
+        - name: machineId
+          in: query
+          required: true
+          schema: { type: string, minLength: 1 }
+        - name: fileName
+          in: query
+          required: true
+          schema: { type: string, minLength: 1 }
+          description: Plain file name; no directory separators, NUL, dot or dot-dot.
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        "200":
+          description: Stored attachment reference.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalStagedRunAttachmentSuccessResponse"
+        "400":
+          description: Upload rejected or failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalStagedRunAttachmentErrorResponse"
+        "403":
+          description: Upload rejected or failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalStagedRunAttachmentErrorResponse"
+        "409":
+          description: Upload rejected or failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalStagedRunAttachmentErrorResponse"
+        "413":
+          description: Upload rejected or failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalStagedRunAttachmentErrorResponse"
+        "500":
+          description: Upload rejected or failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalStagedRunAttachmentErrorResponse"
+        "503":
+          description: Upload rejected or failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalStagedRunAttachmentErrorResponse"
+
+  /runs/{runId}/attachments:
+    post:
+      tags: [RunAttachments]
+      operationId: uploadLocalRunAttachment
+      summary: Upload a supported host-local file to a persisted Run
+      description: >
+        Accepts UTF-8 text/code files and PNG, JPEG or WebP images, up to 25 MiB.
+        Unsupported formats or invalid contents are rejected with INVALID_REQUEST.
+        Returns references only; follow-up provider requests carry the file contents.
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: machineId
+          in: query
+          required: true
+          schema: { type: string, minLength: 1 }
+        - name: fileName
+          in: query
+          required: true
+          schema: { type: string, minLength: 1 }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        "200":
+          description: Stored attachment reference.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRunAttachmentSuccessResponse"
+        "400":
+          description: Upload rejected or failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRunAttachmentErrorResponse"
+        "403":
+          description: Upload rejected or failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRunAttachmentErrorResponse"
+        "404":
+          description: Upload rejected or failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRunAttachmentErrorResponse"
+        "409":
+          description: Upload rejected or failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRunAttachmentErrorResponse"
+        "413":
+          description: Upload rejected or failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRunAttachmentErrorResponse"
+        "422":
+          description: Upload rejected or failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRunAttachmentErrorResponse"
+        "500":
+          description: Upload rejected or failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRunAttachmentErrorResponse"
+        "503":
+          description: Upload rejected or failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRunAttachmentErrorResponse"
+
+  /runs/{runId}/attachments/{attachmentId}/open:
+    post:
+      tags: [RunAttachments]
+      operationId: openLocalRunAttachment
+      summary: Show one stored Run attachment on this computer
+      description: >
+        PNG, JPEG and WebP images open in the default image viewer. Every other
+        attachment is revealed in the file manager and never opened. Only files
+        stored for this Run's own attachments are reachable. An unknown Run or a
+        missing file returns ATTACHMENT_NOT_FOUND. The response never contains a
+        local path.
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: attachmentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: machineId
+          in: query
+          required: true
+          schema: { type: string, minLength: 1 }
+        - name: fileName
+          in: query
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        "200":
+          description: The attachment was opened or revealed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRunAttachmentOpenSuccessResponse"
+        "400":
+          description: Show request rejected or failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRunAttachmentOpenErrorResponse"
+        "403":
+          description: Show request rejected or failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRunAttachmentOpenErrorResponse"
+        "404":
+          description: Show request rejected or failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRunAttachmentOpenErrorResponse"
+        "409":
+          description: Show request rejected or failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRunAttachmentOpenErrorResponse"
+        "422":
+          description: Show request rejected or failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRunAttachmentOpenErrorResponse"
+        "500":
+          description: Show request rejected or failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRunAttachmentOpenErrorResponse"
+        "503":
+          description: Show request rejected or failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRunAttachmentOpenErrorResponse"
+
+  /runs/{runId}/changed-files/inventory:
+    post:
+      tags:
+        - RunChangedFilesInventory
+      summary: Read the content-free changed-file inventory of a persisted Run
+      description: >
+        Returns the same metadata-only, service-qualified inventory the remote
+        changed-file inventory read returns, only when the submitted
+        paired-machine identity identifies this CLI. Origin approval and the
+        machine-identity match are the whole authorization.
+      operationId: readLocalRunChangedFilesInventory
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocalRunChangedFilesInventoryRequest"
+      responses:
+        "200":
+          description: The persisted Run's canonical changed-file inventory without file content.
+          content:
+            application/json:
+              schema:
+                $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunChangedFilesInventorySuccessResponseDto"
+        "400":
+          $ref: "#/components/responses/RunChangedFilesInventoryFailure"
+        "403":
+          $ref: "#/components/responses/RunChangedFilesInventoryFailure"
+        "404":
+          $ref: "#/components/responses/RunChangedFilesInventoryFailure"
+        "409":
+          $ref: "#/components/responses/RunChangedFilesInventoryFailure"
+        "422":
+          $ref: "#/components/responses/RunChangedFilesInventoryFailure"
+        "500":
+          $ref: "#/components/responses/RunChangedFilesInventoryFailure"
+        "503":
+          $ref: "#/components/responses/RunChangedFilesInventoryFailure"
+
+  /runs/{runId}/changed-files/detail:
+    post:
+      tags:
+        - RunChangedFileDetail
+      summary: Read one inventory-selected changed file from a persisted Run
+      description: >
+        Returns the existing typed one-file detail outcome only when the
+        submitted paired-machine identity identifies this CLI. The file object
+        must be copied from the persisted Run's service-qualified changed-file
+        inventory; arbitrary filesystem paths and identities outside canonical
+        Run membership are rejected.
+      operationId: readLocalRunChangedFileDetail
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocalRunChangedFileDetailRequest"
+      responses:
+        "200":
+          description: The complete typed detail for exactly one inventory-selected file.
+          content:
+            application/json:
+              schema:
+                $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunChangedFileDetailSuccessResponseDto"
+        "400":
+          $ref: "#/components/responses/RunChangedFileDetailFailure"
+        "403":
+          $ref: "#/components/responses/RunChangedFileDetailFailure"
+        "404":
+          $ref: "#/components/responses/RunChangedFileDetailFailure"
+        "409":
+          $ref: "#/components/responses/RunChangedFileDetailFailure"
+        "422":
+          $ref: "#/components/responses/RunChangedFileDetailFailure"
+        "500":
+          $ref: "#/components/responses/RunChangedFileDetailFailure"
+        "503":
+          $ref: "#/components/responses/RunChangedFileDetailFailure"
+
+  /runs/{runId}/walkthrough/source:
+    post:
+      operationId: resolveWalkthroughSource
+      summary: Revalidate a current walkthrough excerpt in its Run workspace
+      tags: [LocalRuns]
+      parameters:
+        - in: path
+          name: runId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LocalWalkthroughSourceRequest'
+      responses:
+        '200':
+          description: Verified current source location
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LocalWalkthroughSourceLocation'
+        '422':
+          description: Source unavailable, historical, or changed
+  /runs/{runId}/browser/open:
+    post:
+      tags:
+        - RunBrowser
+      summary: Open and select a user-requested tab for a persisted Run
+      description: >
+        Opens a Run-owned tab in the Shared Browser, selects it as that Run's
+        current page, and records a pending notice for the Run's next Turn. Only
+        an approved origin whose submitted paired-machine identity identifies
+        this CLI may call it; origin approval and the machine-identity match are
+        the whole authorization. Every rejection leaves no tab and no notice.
+      operationId: openLocalRunBrowserTab
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocalRunBrowserOpenRequest"
+      responses:
+        "200":
+          description: The tab was opened and selected for the Run.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRunBrowserOpenSuccessResponse"
+        "400":
+          $ref: "#/components/responses/RunBrowserOpenFailure"
+        "403":
+          $ref: "#/components/responses/RunBrowserOpenFailure"
+        "404":
+          $ref: "#/components/responses/RunBrowserOpenFailure"
+        "409":
+          $ref: "#/components/responses/RunBrowserOpenFailure"
+        "422":
+          $ref: "#/components/responses/RunBrowserOpenFailure"
+        "500":
+          $ref: "#/components/responses/RunBrowserOpenFailure"
+        "503":
+          $ref: "#/components/responses/RunBrowserOpenFailure"
+  /browser/staged-tabs:
+    post:
+      tags:
+        - RunBrowser
+      summary: Open a Shared Browser tab before a Run exists
+      description: >
+        Opens a tab at the URL (defaults to about:blank) in the project's
+        Shared Browser, owned by no Run, and returns a staged-tab reference a
+        start-run request can carry so the new Run adopts the tab as its
+        selected page. Only an approved origin whose submitted paired-machine
+        identity identifies this CLI may call it; origin approval and the
+        machine-identity match are the whole authorization, and the call never
+        switches transport. Every rejection opens no tab. A tab no Run adopts
+        is left open.
+      operationId: openLocalStagedBrowserTab
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocalStagedBrowserTabOpenRequest"
+      responses:
+        "200":
+          description: The tab was opened and staged.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalStagedBrowserTabOpenSuccessResponse"
+        "400":
+          $ref: "#/components/responses/StagedBrowserTabOpenFailure"
+        "403":
+          $ref: "#/components/responses/StagedBrowserTabOpenFailure"
+        "409":
+          $ref: "#/components/responses/StagedBrowserTabOpenFailure"
+        "422":
+          $ref: "#/components/responses/StagedBrowserTabOpenFailure"
+        "500":
+          $ref: "#/components/responses/StagedBrowserTabOpenFailure"
+        "503":
+          $ref: "#/components/responses/StagedBrowserTabOpenFailure"
+
+components:
+  responses:
+    OriginNotAllowed:
+      description: The browser origin is not approved for the local repository-binding surface.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/LocalRepositoryBindingErrorResponse"
+
+    RunChangedFileDetailFailure:
+      description: The local detail request was rejected or could not be completed.
+      content:
+        application/json:
+          schema:
+            $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunChangedFileDetailErrorResponseDto"
+
+    RunChangedFilesInventoryFailure:
+      description: The local inventory request was rejected or could not be completed.
+      content:
+        application/json:
+          schema:
+            $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunChangedFilesInventoryErrorResponseDto"
+
+    RunBrowserOpenFailure:
+      description: The local open-browser request was rejected or could not be completed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/LocalRunBrowserOpenErrorResponse"
+
+    StagedBrowserTabOpenFailure:
+      description: The local pre-Run open-browser request was rejected or could not be completed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/LocalStagedBrowserTabOpenErrorResponse"
+
+  schemas:
+    LocalRunAttachment:
+      type: object
+      additionalProperties: false
+      required: [attachmentId, fileName, sizeBytes]
+      properties:
+        attachmentId: { type: string, format: uuid }
+        fileName: { type: string }
+        sizeBytes: { type: integer, minimum: 0, maximum: 26214400 }
+    LocalRunAttachmentResult:
+      type: object
+      additionalProperties: false
+      required: [runId, attachment]
+      properties:
+        runId: { type: string, format: uuid }
+        attachment:
+          $ref: "#/components/schemas/LocalRunAttachment"
+    LocalRunAttachmentSuccessResponse:
+      type: object
+      additionalProperties: false
+      required: [requestId, operation, status, result]
+      properties:
+        requestId: { type: string, format: uuid }
+        operation: { type: string, enum: [run.attachments.upload] }
+        status: { type: string, enum: [success] }
+        result:
+          $ref: "#/components/schemas/LocalRunAttachmentResult"
+    LocalRunAttachmentErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [requestId, operation, status, error]
+      properties:
+        requestId: { type: string, format: uuid }
+        operation: { type: string, enum: [run.attachments.upload] }
+        status: { type: string, enum: [error] }
+        error:
+          $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadError"
+    LocalRunAttachmentOpenAction:
+      type: string
+      enum: [opened, revealed]
+    LocalRunAttachmentOpenResult:
+      type: object
+      additionalProperties: false
+      required: [runId, attachmentId, action]
+      properties:
+        runId: { type: string, format: uuid }
+        attachmentId: { type: string, format: uuid }
+        action:
+          $ref: "#/components/schemas/LocalRunAttachmentOpenAction"
+    LocalRunAttachmentOpenSuccessResponse:
+      type: object
+      additionalProperties: false
+      required: [requestId, operation, status, result]
+      properties:
+        requestId: { type: string, format: uuid }
+        operation: { type: string, enum: [run.attachments.open] }
+        status: { type: string, enum: [success] }
+        result:
+          $ref: "#/components/schemas/LocalRunAttachmentOpenResult"
+    LocalRunAttachmentOpenErrorCode:
+      type: string
+      enum:
+        - INVALID_REQUEST
+        - MACHINE_NOT_BOUND
+        - ATTACHMENT_NOT_FOUND
+        - RUN_ID_MISMATCH
+        - INVALID_RUN_CONTEXT
+        - READ_FAILED
+        - OPENER_UNAVAILABLE
+        - OPEN_FAILED
+    LocalRunAttachmentOpenErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [requestId, operation, status, error]
+      properties:
+        requestId: { type: string, format: uuid }
+        operation: { type: string, enum: [run.attachments.open] }
+        status: { type: string, enum: [error] }
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              $ref: "#/components/schemas/LocalRunAttachmentOpenErrorCode"
+            message: { type: string, minLength: 1 }
+    LocalStagedRunAttachmentResult:
+      type: object
+      additionalProperties: false
+      required: [attachment]
+      properties:
+        attachment:
+          $ref: "#/components/schemas/LocalRunAttachment"
+    LocalStagedRunAttachmentSuccessResponse:
+      type: object
+      additionalProperties: false
+      required: [requestId, operation, status, result]
+      properties:
+        requestId: { type: string, format: uuid }
+        operation: { type: string, enum: [run.attachments.stage] }
+        status: { type: string, enum: [success] }
+        result:
+          $ref: "#/components/schemas/LocalStagedRunAttachmentResult"
+    LocalStagedRunAttachmentErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [requestId, operation, status, error]
+      properties:
+        requestId: { type: string, format: uuid }
+        operation: { type: string, enum: [run.attachments.stage] }
+        status: { type: string, enum: [error] }
+        error:
+          $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadError"
+    LocalMachineId:
+      type: string
+      minLength: 1
+
+    LocalServiceId:
+      type: string
+      minLength: 1
+
+    LocalRepositoryPath:
+      type: string
+      minLength: 1
+
+    LocalServiceRepoBinding:
+      type: object
+      additionalProperties: false
+      required:
+        - serviceId
+        - repositoryPath
+        - createdAt
+        - updatedAt
+      properties:
+        serviceId:
+          $ref: "#/components/schemas/LocalServiceId"
+        repositoryPath:
+          $ref: "#/components/schemas/LocalRepositoryPath"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    LocalListRepoBindingsResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - machineId
+        - bindings
+      properties:
+        machineId:
+          $ref: "#/components/schemas/LocalMachineId"
+        bindings:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalServiceRepoBinding"
+
+    LocalSetRepoBindingRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - machineId
+        - repositoryPath
+      properties:
+        machineId:
+          $ref: "#/components/schemas/LocalMachineId"
+        repositoryPath:
+          $ref: "#/components/schemas/LocalRepositoryPath"
+
+    LocalPickRepoDirectoryRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - machineId
+      properties:
+        machineId:
+          $ref: "#/components/schemas/LocalMachineId"
+
+    LocalPickRepoDirectoryResponse:
+      oneOf:
+        - $ref: "#/components/schemas/LocalPickRepoDirectorySelectedResponse"
+        - $ref: "#/components/schemas/LocalPickRepoDirectoryCancelledResponse"
+      discriminator:
+        propertyName: status
+        mapping:
+          selected: "#/components/schemas/LocalPickRepoDirectorySelectedResponse"
+          cancelled: "#/components/schemas/LocalPickRepoDirectoryCancelledResponse"
+
+    LocalPickRepoDirectorySelectedResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - machineId
+        - repositoryPath
+      properties:
+        status:
+          type: string
+          enum:
+            - selected
+        machineId:
+          $ref: "#/components/schemas/LocalMachineId"
+        repositoryPath:
+          $ref: "#/components/schemas/LocalRepositoryPath"
+
+    LocalPickRepoDirectoryCancelledResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - machineId
+      properties:
+        status:
+          type: string
+          enum:
+            - cancelled
+        machineId:
+          $ref: "#/components/schemas/LocalMachineId"
+
+    LocalSetRepoBindingResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - machineId
+        - binding
+      properties:
+        machineId:
+          $ref: "#/components/schemas/LocalMachineId"
+        binding:
+          $ref: "#/components/schemas/LocalServiceRepoBinding"
+
+    LocalRepositoryBindingErrorCode:
+      type: string
+      enum:
+        - ORIGIN_NOT_ALLOWED
+        - MACHINE_ID_UNAVAILABLE
+        - MACHINE_ID_REQUIRED
+        - MACHINE_MISMATCH
+        - INVALID_SERVICE_ID
+        - INVALID_REPOSITORY_PATH
+        - REPOSITORY_PATH_NOT_FOUND
+        - REPOSITORY_PATH_NOT_DIRECTORY
+        - REPOSITORY_PATH_NOT_READABLE
+        - BINDING_READ_FAILED
+        - BINDING_WRITE_FAILED
+        - DIRECTORY_PICKER_UNAVAILABLE
+        - DIRECTORY_PICKER_FAILED
+
+    LocalRepositoryBindingErrorResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - message
+      properties:
+        code:
+          $ref: "#/components/schemas/LocalRepositoryBindingErrorCode"
+        message:
+          type: string
+          minLength: 1
+
+    LocalRunChangedFilesInventoryRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - machineId
+      properties:
+        machineId:
+          $ref: "#/components/schemas/LocalMachineId"
+
+    LocalRunChangedFileDetailRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - machineId
+        - file
+      properties:
+        machineId:
+          $ref: "#/components/schemas/LocalMachineId"
+        file:
+          $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadChangedFileIdentity"
+
+    LocalWalkthroughSourceRequest:
+      type: object
+      additionalProperties: false
+      required: [machineId, excerpt]
+      properties:
+        machineId:
+          type: string
+          format: uuid
+        excerpt:
+          $ref: '../schemas/reports.yaml#/ChangeWalkthroughExcerpt'
+    LocalWalkthroughSourceLocation:
+      type: object
+      required: [runId, serviceId, file, path, line, column]
+      properties:
+        runId:
+          type: string
+          format: uuid
+        serviceId:
+          type: string
+          format: uuid
+        file:
+          type: string
+        path:
+          type: string
+        line:
+          type: integer
+          minimum: 1
+        column:
+          type: integer
+          minimum: 1
+    LocalRunBrowserOpenRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - machineId
+      properties:
+        machineId:
+          $ref: "#/components/schemas/LocalMachineId"
+        url:
+          description: http, https or about URL to open. Defaults to about:blank.
+          type: string
+          minLength: 1
+          maxLength: 8192
+
+    LocalRunBrowserOpenSuccessResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - runId
+        - url
+      properties:
+        runId:
+          type: string
+          format: uuid
+        url:
+          type: string
+
+    LocalRunBrowserOpenErrorCode:
+      type: string
+      enum:
+        - ORIGIN_NOT_ALLOWED
+        - INVALID_REQUEST
+        - UNSUPPORTED_URL
+        - MACHINE_ID_UNAVAILABLE
+        - MACHINE_MISMATCH
+        - RUN_NOT_FOUND
+        - SHARED_BROWSER_DISABLED
+        - OPEN_FAILED
+
+    LocalRunBrowserOpenErrorResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - message
+      properties:
+        code:
+          $ref: "#/components/schemas/LocalRunBrowserOpenErrorCode"
+        message:
+          type: string
+          minLength: 1
+
+    LocalStagedBrowserTabOpenRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - machineId
+        - projectId
+      properties:
+        machineId:
+          $ref: "#/components/schemas/LocalMachineId"
+        projectId:
+          type: string
+          format: uuid
+        url:
+          description: http, https or about URL to open. Defaults to about:blank.
+          type: string
+          minLength: 1
+          maxLength: 8192
+
+    LocalStagedBrowserTabOpenSuccessResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - stagedBrowserTab
+        - url
+      properties:
+        stagedBrowserTab:
+          $ref: "../schemas/trigger-payloads.yaml#/StagedBrowserTabReference"
+        url:
+          type: string
+
+    LocalStagedBrowserTabOpenErrorCode:
+      type: string
+      enum:
+        - ORIGIN_NOT_ALLOWED
+        - INVALID_REQUEST
+        - UNSUPPORTED_URL
+        - MACHINE_ID_UNAVAILABLE
+        - MACHINE_MISMATCH
+        - SHARED_BROWSER_DISABLED
+        - OPEN_FAILED
+
+    LocalStagedBrowserTabOpenErrorResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - message
+      properties:
+        code:
+          $ref: "#/components/schemas/LocalStagedBrowserTabOpenErrorCode"
+        message:
+          type: string
+          minLength: 1

@@ -1,0 +1,2 @@
+export const JOB_ENQUEUER_TOKEN = 'JOB_ENQUEUER';
+export const JOB_PROCESSOR_TOKEN = 'JOB_PROCESSOR';

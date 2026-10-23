@@ -1,0 +1,5788 @@
+openapi: 3.0.3
+info:
+  title: Hey Hey Agent Bridge Runtime Contract
+  version: 1.0.0
+  description: >-
+    Transport-neutral schemas consumed by the paired Agent Bridge runtime. This source contains signed platform
+    triggers, CLI run execution and response models, authorized remote reads, and Task Monitor validation contracts.
+paths: {}
+components:
+  schemas:
+    ChangedFileClaim:
+      $ref: ../schemas/changed-file-reporting.yaml#/ChangedFileClaim
+    ChangedFileReportInput:
+      $ref: ../schemas/changed-file-reporting.yaml#/ChangedFileReportInput
+    ChangedFileReportFinding:
+      $ref: ../schemas/changed-file-reporting.yaml#/ChangedFileReportFinding
+    ChangedFileReportResult:
+      $ref: ../schemas/changed-file-reporting.yaml#/ChangedFileReportResult
+    AgentBridgeStartRunAdmission:
+      allOf:
+        - $ref: "#/components/schemas/StartRunPromptPayload"
+      not:
+        allOf:
+          - required:
+              - fastMode
+          - properties:
+              provider:
+                not:
+                  enum:
+                    - codex
+                    - claude
+      description: >-
+        Transport-neutral admission shape used by Agent Bridge validation to
+        admit Fast mode only for Codex and Claude runs without exporting the
+        deprecated conversation HTTP request DTO.
+    RunContextMetadata:
+      $ref: ../schemas/run-context.yaml#/RunContextMetadata
+    RunReferences:
+      $ref: ../schemas/run-context.yaml#/RunReferences
+    LocalPromptType:
+      $ref: ../schemas/run-payloads.yaml#/LocalPromptType
+    AgentSkillProvider:
+      $ref: ../schemas/run-payloads.yaml#/AgentSkillProvider
+    AgentSkillCatalogScope:
+      $ref: ../schemas/run-payloads.yaml#/AgentSkillCatalogScope
+    AgentSkillSelection:
+      $ref: ../schemas/run-payloads.yaml#/AgentSkillSelection
+    AgentSkillCatalogEntry:
+      $ref: ../schemas/run-payloads.yaml#/AgentSkillCatalogEntry
+    AgentSkillDiscoveryError:
+      $ref: ../schemas/run-payloads.yaml#/AgentSkillDiscoveryError
+    AgentSkillCatalog:
+      $ref: ../schemas/run-payloads.yaml#/AgentSkillCatalog
+    RunCreatePayload:
+      $ref: ../schemas/run-payloads.yaml#/RunCreatePayload
+    RunCreatePayloadStartupSession:
+      $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadStartupSession
+    RunCreatePayloadEntityConversation:
+      $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadEntityConversation
+    RunCreatePayloadGoalPm:
+      $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadGoalPm
+    RunCreatePayloadFreeForm:
+      $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadFreeForm
+    RunCreatePayloadDebug:
+      $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadDebug
+    RunCreatePayloadResearch:
+      $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadResearch
+    RunCreatePayloadRunEval:
+      $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadRunEval
+    RunCreatePayloadQuick:
+      $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadQuick
+    RunCreatePayloadProjectMode:
+      $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadProjectMode
+    RunCreatePayloadProjectReport:
+      $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadProjectReport
+    RunCreatePayloadReleaseNotes:
+      $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadReleaseNotes
+    ProjectReportLaunchPayload:
+      $ref: ../schemas/project-reports.yaml#/ProjectReportLaunchPayload
+    RunCreatePayloadDailySession:
+      $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadDailySession
+    RunCreatePayloadAgentSearch:
+      $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadAgentSearch
+    RunCreatePayloadFeatureTreeConversation:
+      $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadFeatureTreeConversation
+    RunCreatePayloadOpenItemsTriage:
+      $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadOpenItemsTriage
+    RunCreatePayloadVerifyFeature:
+      $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadVerifyFeature
+    VerifyFeaturePromptPayload:
+      $ref: ../schemas/trigger-payloads.yaml#/VerifyFeaturePromptPayload
+    RunCreatePayloadRepositoryGrounding:
+      $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadRepositoryGrounding
+    RunCreatePayloadHtmlCssMockupRevision:
+      $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadHtmlCssMockupRevision
+    RunCreatePayloadValidationWalkthrough:
+      $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadValidationWalkthrough
+    RunCreatePayloadSetSplitting:
+      $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadSetSplitting
+    RunCreatePayloadWorkflowKickoff:
+      $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadWorkflowKickoff
+    FeatureSyncDiscrepancy:
+      $ref: ../schemas/trigger-payloads.yaml#/FeatureSyncDiscrepancy
+    PlanShapingValidationMode:
+      $ref: ../schemas/trigger-payloads.yaml#/PlanShapingValidationMode
+    FeatureSyncAnalyzePromptPayload:
+      $ref: ../schemas/trigger-payloads.yaml#/FeatureSyncAnalyzePromptPayload
+    FeatureSyncIteratePromptPayload:
+      $ref: ../schemas/trigger-payloads.yaml#/FeatureSyncIteratePromptPayload
+    PlanShapingFeatureSyncAnalyzePromptPayload:
+      $ref: ../schemas/trigger-payloads.yaml#/PlanShapingFeatureSyncAnalyzePromptPayload
+    PlanShapingFeatureSyncItemDecision:
+      $ref: ../schemas/conversations.yaml#/PlanShapingFeatureSyncItemDecision
+    PlanShapingFeatureSyncIteratePromptPayload:
+      $ref: ../schemas/trigger-payloads.yaml#/PlanShapingFeatureSyncIteratePromptPayload
+    SessionMonitorReportGuidance:
+      $ref: ../schemas/trigger-payloads.yaml#/SessionMonitorReportGuidance
+    SessionMonitorSettledTurnReport:
+      $ref: ../schemas/trigger-payloads.yaml#/SessionMonitorSettledTurnReport
+    SessionMonitorCompletedAssistantMessage:
+      $ref: ../schemas/trigger-payloads.yaml#/SessionMonitorCompletedAssistantMessage
+    SessionMonitorSettledTurnEvidence:
+      $ref: ../schemas/trigger-payloads.yaml#/SessionMonitorSettledTurnEvidence
+    AgentInteraction:
+      $ref: ../schemas/agent-interaction.yaml#/AgentInteraction
+    AgentInteractionAttempt:
+      $ref: ../schemas/agent-interaction.yaml#/AgentInteractionAttempt
+    AgentInteractionAdmissionRequest:
+      $ref: ../schemas/agent-interaction.yaml#/AgentInteractionAdmissionRequest
+    AgentInteractionAdmissionResponse:
+      $ref: ../schemas/agent-interaction.yaml#/AgentInteractionAdmissionResponse
+    AgentInteractionSettledTurn:
+      $ref: ../schemas/agent-interaction.yaml#/AgentInteractionSettledTurn
+    TurnAdmission:
+      $ref: ../schemas/agent-interaction.yaml#/TurnAdmission
+    SessionMonitorPromptPayload:
+      $ref: ../schemas/trigger-payloads.yaml#/SessionMonitorPromptPayload
+    OpenItemsTriageRequestKind:
+      $ref: ../schemas/trigger-payloads.yaml#/OpenItemsTriageRequestKind
+    OpenItemsTriagePromptPayload:
+      $ref: ../schemas/trigger-payloads.yaml#/OpenItemsTriagePromptPayload
+    PlanShapingProposedStagesPromptPayload:
+      $ref: ../schemas/trigger-payloads.yaml#/PlanShapingProposedStagesPromptPayload
+    ServiceNote:
+      $ref: ../schemas/trigger-payloads.yaml#/ServiceNote
+    JourneyStep:
+      $ref: ../schemas/trigger-payloads.yaml#/JourneyStep
+    JourneyMap:
+      $ref: ../schemas/trigger-payloads.yaml#/JourneyMap
+    PlanShapingPhaseBreakdownPromptPayload:
+      $ref: ../schemas/trigger-payloads.yaml#/PlanShapingPhaseBreakdownPromptPayload
+    PhaseBreakdownPriorPhase:
+      $ref: ../schemas/trigger-payloads.yaml#/PhaseBreakdownPriorPhase
+    PhaseBreakdownStepType:
+      $ref: ../schemas/trigger-payloads.yaml#/PhaseBreakdownStepType
+    PhaseBreakdownStep:
+      $ref: ../schemas/trigger-payloads.yaml#/PhaseBreakdownStep
+    PhaseBreakdownPlan:
+      $ref: ../schemas/trigger-payloads.yaml#/PhaseBreakdownPlan
+    PhaseBreakdownCompletionPayload:
+      $ref: ../schemas/trigger-payloads.yaml#/PhaseBreakdownCompletionPayload
+    PlanShapingStepReviewPromptPayload:
+      $ref: ../schemas/trigger-payloads.yaml#/PlanShapingStepReviewPromptPayload
+    StepReviewCompletionPayload:
+      $ref: ../schemas/trigger-payloads.yaml#/StepReviewCompletionPayload
+    PlanShapingRefineStagePromptPayload:
+      $ref: ../schemas/trigger-payloads.yaml#/PlanShapingRefineStagePromptPayload
+    LocalPromptTaskType:
+      $ref: ../schemas/trigger-payloads.yaml#/LocalPromptTaskType
+    LocalPromptWorkStatus:
+      $ref: ../schemas/trigger-payloads.yaml#/LocalPromptWorkStatus
+    LocalPromptTaskInput:
+      $ref: ../schemas/trigger-payloads.yaml#/LocalPromptTaskInput
+    LocalPromptDesignDocInput:
+      $ref: ../schemas/trigger-payloads.yaml#/LocalPromptDesignDocInput
+    LocalPromptPlanInput:
+      $ref: ../schemas/trigger-payloads.yaml#/LocalPromptPlanInput
+    LocalPromptTaskNeighborhoodTaskInput:
+      $ref: ../schemas/trigger-payloads.yaml#/LocalPromptTaskNeighborhoodTaskInput
+    LocalPromptTaskNeighborhoodInput:
+      $ref: ../schemas/trigger-payloads.yaml#/LocalPromptTaskNeighborhoodInput
+    LocalPromptStartupInput:
+      $ref: ../schemas/trigger-payloads.yaml#/LocalPromptStartupInput
+    TaskMonitorPlanGuidance:
+      $ref: ../schemas/trigger-payloads.yaml#/TaskMonitorPlanGuidance
+    LocalStartupSessionPromptPayload:
+      $ref: ../schemas/trigger-payloads.yaml#/LocalStartupSessionPromptPayload
+    StartRunWorktree:
+      $ref: ../schemas/trigger-payloads.yaml#/StartRunWorktree
+    StartRunPromptPayload:
+      $ref: ../schemas/trigger-payloads.yaml#/StartRunPromptPayload
+    TaskMonitorLifecycleCause:
+      $ref: ../schemas/trigger-payloads.yaml#/TaskMonitorLifecycleCause
+    TaskMonitorLaunchConfig:
+      $ref: ../schemas/trigger-payloads.yaml#/TaskMonitorLaunchConfig
+    TaskMonitorPromptPayload:
+      $ref: ../schemas/trigger-payloads.yaml#/TaskMonitorPromptPayload
+    UserMessagePromptPayload:
+      $ref: ../schemas/trigger-payloads.yaml#/UserMessagePromptPayload
+    RepositoryFeatureEnrichmentPromptPayload:
+      $ref: ../schemas/trigger-payloads.yaml#/RepositoryFeatureEnrichmentPromptPayload
+    RepositoryFeatureEnrichmentRequest:
+      $ref: ../schemas/repository-grounding.yaml#/RepositoryFeatureEnrichmentRequest
+    RepositoryFeatureEnrichmentCompletion:
+      $ref: ../schemas/repository-grounding.yaml#/RepositoryFeatureEnrichmentCompletion
+    RepositoryFeatureEnrichmentDecisionCompletion:
+      $ref: ../schemas/repository-grounding.yaml#/RepositoryFeatureEnrichmentDecisionCompletion
+    RepositoryFeatureEnrichmentQuestions:
+      $ref: ../schemas/repository-grounding.yaml#/RepositoryFeatureEnrichmentQuestions
+    RepositoryFeatureEnrichmentSuccess:
+      $ref: ../schemas/repository-grounding.yaml#/RepositoryFeatureEnrichmentSuccess
+    RepositoryFeatureEnrichmentSuccessDecision:
+      $ref: ../schemas/repository-grounding.yaml#/RepositoryFeatureEnrichmentSuccessDecision
+    RepositoryFeatureEnrichmentRetryableFailure:
+      $ref: ../schemas/repository-grounding.yaml#/RepositoryFeatureEnrichmentRetryableFailure
+    RepositoryFeatureEnrichmentTerminalFailure:
+      $ref: ../schemas/repository-grounding.yaml#/RepositoryFeatureEnrichmentTerminalFailure
+    RepositoryFirstWorkPromptPayload:
+      $ref: ../schemas/trigger-payloads.yaml#/RepositoryFirstWorkPromptPayload
+    RepositoryFirstWorkRequest:
+      $ref: ../schemas/repository-grounding.yaml#/RepositoryFirstWorkRequest
+    RepositoryFirstWorkCompletion:
+      $ref: ../schemas/repository-grounding.yaml#/RepositoryFirstWorkCompletion
+    RepositoryFirstWorkQuestions:
+      $ref: ../schemas/repository-grounding.yaml#/RepositoryFirstWorkQuestions
+    RepositoryFirstWorkSuccess:
+      $ref: ../schemas/repository-grounding.yaml#/RepositoryFirstWorkSuccess
+    RepositoryFirstWorkRetryableFailure:
+      $ref: ../schemas/repository-grounding.yaml#/RepositoryFirstWorkRetryableFailure
+    RepositoryFirstWorkTerminalFailure:
+      $ref: ../schemas/repository-grounding.yaml#/RepositoryFirstWorkTerminalFailure
+    RepositoryGroundingRequest:
+      $ref: ../schemas/repository-grounding.yaml#/RepositoryGroundingRequest
+    RepositoryGroundingCompletion:
+      $ref: ../schemas/repository-grounding.yaml#/RepositoryGroundingCompletion
+    RepositoryPlacementRequest:
+      $ref: ../schemas/repository-grounding.yaml#/RepositoryPlacementRequest
+    RepositoryPlacementCompletion:
+      $ref: ../schemas/repository-grounding.yaml#/RepositoryPlacementCompletion
+    RepositoryGroundingSuccess:
+      $ref: ../schemas/repository-grounding.yaml#/RepositoryGroundingSuccess
+    RepositoryGroundingRetryableFailure:
+      $ref: ../schemas/repository-grounding.yaml#/RepositoryGroundingRetryableFailure
+    RepositoryGroundingTerminalFailure:
+      $ref: ../schemas/repository-grounding.yaml#/RepositoryGroundingTerminalFailure
+    AgentSessionConfig:
+      $ref: ../schemas/coding-sessions.yaml#/AgentSessionConfig
+    AgentSessionConfigV2:
+      $ref: ../schemas/coding-sessions.yaml#/AgentSessionConfigV2
+    ProjectModeFiles:
+      $ref: ../schemas/work-items.yaml#/ProjectModeFiles
+    ProjectModeSettings:
+      $ref: ../schemas/work-items.yaml#/ProjectModeSettings
+    ProjectModeProjectAssistantSetting:
+      $ref: ../schemas/work-items.yaml#/ProjectModeProjectAssistantSetting
+    ProjectModeSelection:
+      $ref: ../schemas/coding-sessions.yaml#/ProjectModeSelection
+    ProjectModeSnapshot:
+      $ref: ../schemas/coding-sessions.yaml#/ProjectModeSnapshot
+    PromptTypeResponseDto:
+      $ref: ../schemas/workflows.yaml#/PromptTypeResponseDto
+    RunEntityReference:
+      $ref: ../schemas/run-entity.yaml#/RunEntityReference
+    TrackedEntitySnapshot:
+      $ref: ../schemas/tasks.yaml#/TrackedEntitySnapshot
+    TaskMonitorExecutionDefinition:
+      $ref: ../schemas/work-items.yaml#/TaskMonitorExecutionDefinition
+    TaskMonitorExecutionNodeLaunchConfiguration:
+      $ref: ../schemas/work-items.yaml#/TaskMonitorExecutionNodeLaunchConfiguration
+    TaskMonitorExecutionPlanNode:
+      $ref: ../schemas/work-items.yaml#/TaskMonitorExecutionPlanNode
+    TaskMonitorLaunchPolicy:
+      $ref: ../schemas/work-items.yaml#/TaskMonitorLaunchPolicy
+    TaskMonitorLaunchMethod:
+      $ref: ../schemas/work-items.yaml#/TaskMonitorLaunchMethod
+    TaskMonitorLaunchProvider:
+      $ref: ../schemas/work-items.yaml#/TaskMonitorLaunchProvider
+    TaskMonitorReasoningEffort:
+      $ref: ../schemas/work-items.yaml#/TaskMonitorReasoningEffort
+    TaskMonitorJudgmentResponse:
+      $ref: ../schemas/work-items.yaml#/TaskMonitorJudgmentResponse
+    AgentOperationId:
+      $ref: ../schemas/agent-operation.yaml#/AgentOperationId
+    AgentOperationSnapshot:
+      $ref: ../schemas/agent-operation.yaml#/AgentOperationSnapshot
+    AgentOperationDispatchAcknowledgement:
+      $ref: ../schemas/agent-operation.yaml#/AgentOperationDispatchAcknowledgement
+    AgentInputDisposition:
+      $ref: ../schemas/agent-operation.yaml#/AgentInputDisposition
+    CurrentAgentOperation:
+      $ref: ../schemas/controller-authorization.yaml#/CurrentAgentOperation
+    CurrentAgentOperations:
+      $ref: ../schemas/controller-authorization.yaml#/CurrentAgentOperations
+    AgentTrigger:
+      $ref: ../schemas/conversations.yaml#/AgentTrigger
+    ImplementRuntimeSelection:
+      $ref: ../schemas/conversations.yaml#/ImplementRuntimeSelection
+    ImplementPromptPayload:
+      $ref: ../schemas/conversations.yaml#/ImplementPromptPayload
+    AgentTriggerRepositoryGrounding:
+      $ref: ../schemas/conversations.yaml#/AgentTriggerRepositoryGrounding
+    AgentTriggerStartRun:
+      $ref: ../schemas/conversations.yaml#/AgentTriggerStartRun
+    AgentTriggerUserMessage:
+      $ref: ../schemas/conversations.yaml#/AgentTriggerUserMessage
+    ExternalAgentActionSchemas:
+      $ref: ../schemas/conversations.yaml#/ExternalAgentActionSchemas
+    PlanShapingProposedStagesCompletionPayload:
+      $ref: ../schemas/external-agent-completion.yaml#/PlanShapingProposedStagesCompletionPayload
+    PlanShapingVisualPreviewCompletionPayload:
+      $ref: ../schemas/external-agent-completion.yaml#/PlanShapingVisualPreviewCompletionPayload
+    PlanShapingVisualPreviewPromptPayload:
+      $ref: ../schemas/trigger-payloads.yaml#/PlanShapingVisualPreviewPromptPayload
+    LocalPlanExecutionPromptPayload:
+      type: object
+      required:
+        - plan
+        - review
+      properties:
+        plan:
+          $ref: "#/components/schemas/LocalPlanExecutionPromptPayloadPlan"
+        review:
+          $ref: "#/components/schemas/LocalStartupPlanReviewSummary"
+          description: |
+            The user's review of the plan: question answers, discrepancy dispositions, and feedback notes.
+        feedback:
+          type: string
+          nullable: true
+          description: Optional free-text user feedback submitted alongside the approval.
+    LocalEntityConversationPromptPayload:
+      type: object
+      required:
+        - entity
+        - userMessage
+      properties:
+        entity:
+          $ref: "#/components/schemas/LocalEntityConversationEntity"
+        pageContext:
+          type: string
+          description: >
+            Human-readable description of the current view context (e.g. "You are viewing the plan 'Q4 Roadmap' (planId:
+            abc123)")
+        influences:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalEntityConversationInfluence"
+          description: >
+            Entities that influenced the creation or current state of this entity. Provides decision lineage and design
+            rationale context.
+        originatingConversationId:
+          type: string
+          description: >
+            ID of the conversation that originated this entity, if applicable. Allows the agent to reference prior
+            discussion context.
+        userMessage:
+          type: string
+          description: |
+            Required free-form message from the user to guide the agent's response to this entity conversation turn.
+    LocalGoalPmPromptPayload:
+      type: object
+      required:
+        - entity
+        - userMessage
+        - activeConversationId
+        - conversationInventory
+      properties:
+        entity:
+          $ref: "#/components/schemas/LocalGoalPmGoal"
+        userMessage:
+          type: string
+          description: >-
+            Free-form request to resolve into one Goal PM destination or explicit next action.
+        activeConversationId:
+          type: string
+          format: uuid
+          description: Canonical conversation active when the request was submitted.
+        conversationInventory:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalGoalPmConversationInventoryItem"
+          description: >-
+            Authoritative inventory of canonical conversations owned by the active goal. Goal PM may use only these
+            conversations as existing-conversation destinations and message-evidence sources.
+    LocalGoalPmConversationInventoryItem:
+      type: object
+      additionalProperties: false
+      required:
+        - conversationId
+        - title
+        - owner
+        - workflowName
+      properties:
+        conversationId:
+          type: string
+          format: uuid
+          description: Canonical CONVERSATION identity.
+        title:
+          type: string
+          minLength: 1
+          description: Canonical meaningful conversation title.
+        owner:
+          $ref: "#/components/schemas/LocalGoalPmConversationOwner"
+        workflowName:
+          $ref: "../schemas/conversations.yaml#/WorkflowName"
+    LocalGoalPmConversationOwner:
+      type: object
+      additionalProperties: false
+      required:
+        - entityType
+        - entityId
+        - taskType
+      properties:
+        entityType:
+          type: string
+          enum:
+            - TASK
+        entityId:
+          type: string
+          format: uuid
+          description: Canonical GOAL task identity that owns the conversation.
+        taskType:
+          type: string
+          enum:
+            - GOAL
+    LocalGoalPmGoal:
+      allOf:
+        - $ref: "#/components/schemas/RunEntityReference"
+        - type: object
+          required:
+            - entityType
+            - taskType
+          properties:
+            entityType:
+              type: string
+              enum:
+                - TASK
+            taskType:
+              type: string
+              enum:
+                - GOAL
+            title:
+              type: string
+              description: Human-readable goal title
+            description:
+              type: string
+              description: Goal description
+            acceptanceCriteria:
+              type: string
+              description: Goal acceptance criteria, when present
+            dueDate:
+              type: string
+              format: date-time
+              description: Goal deadline
+            trackedEntities:
+              type: array
+              items:
+                $ref: "#/components/schemas/TrackedEntitySnapshot"
+              description: Existing work already tracked by this goal
+    LocalGoalPmRoutingEvidence:
+      type: object
+      additionalProperties: false
+      required:
+        - messageId
+        - excerpt
+        - rationale
+      properties:
+        messageId:
+          type: string
+          format: uuid
+          description: Canonical MESSAGE identity supporting this conversation match.
+        excerpt:
+          type: string
+          minLength: 1
+          description: Bounded excerpt from the canonical message; never a serialized message object.
+        rationale:
+          type: string
+          minLength: 1
+          description: Why this message supports the proposed destination.
+    LocalGoalPmRoutingConversationOption:
+      type: object
+      additionalProperties: false
+      required:
+        - optionId
+        - kind
+        - conversationId
+        - title
+        - evidence
+        - rationale
+      properties:
+        optionId:
+          type: string
+          minLength: 1
+          description: Stable identity of this offered option within the response.
+        kind:
+          type: string
+          enum:
+            - existingConversation
+        conversationId:
+          type: string
+          format: uuid
+          description: Canonical CONVERSATION identity; never a MESSAGE identity.
+        title:
+          type: string
+          minLength: 1
+          description: Meaningful canonical conversation title; placeholder labels are invalid.
+        evidence:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/LocalGoalPmRoutingEvidence"
+        rationale:
+          type: string
+          minLength: 1
+    LocalGoalPmStartNewConversationOption:
+      type: object
+      additionalProperties: false
+      required:
+        - optionId
+        - kind
+        - title
+        - rationale
+        - requiresConfirmation
+      properties:
+        optionId:
+          type: string
+          minLength: 1
+        kind:
+          type: string
+          enum:
+            - startNewConversation
+        title:
+          type: string
+          minLength: 1
+        rationale:
+          type: string
+          minLength: 1
+        requiresConfirmation:
+          type: boolean
+          enum:
+            - true
+    LocalGoalPmRefineSearchOption:
+      type: object
+      additionalProperties: false
+      required:
+        - optionId
+        - kind
+        - title
+        - prompt
+        - rationale
+      properties:
+        optionId:
+          type: string
+          minLength: 1
+        kind:
+          type: string
+          enum:
+            - refineSearch
+        title:
+          type: string
+          minLength: 1
+        prompt:
+          type: string
+          minLength: 1
+          description: Focused clarification prompt for a follow-up discovery turn.
+        rationale:
+          type: string
+          minLength: 1
+    LocalGoalPmWorkTarget:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required:
+            - entityType
+            - entityId
+            - title
+          properties:
+            entityType:
+              type: string
+              enum:
+                - TASK
+            entityId:
+              type: string
+              format: uuid
+            title:
+              type: string
+              minLength: 1
+        - type: object
+          additionalProperties: false
+          required:
+            - entityType
+            - entityId
+            - title
+          properties:
+            entityType:
+              type: string
+              enum:
+                - PLAN
+            entityId:
+              type: string
+              format: uuid
+            title:
+              type: string
+              minLength: 1
+      discriminator:
+        propertyName: entityType
+    LocalGoalPmTrackExistingWorkOption:
+      type: object
+      additionalProperties: false
+      required:
+        - optionId
+        - kind
+        - target
+        - rationale
+        - requiresSelection
+      properties:
+        optionId:
+          type: string
+          minLength: 1
+        kind:
+          type: string
+          enum:
+            - trackExistingWork
+        target:
+          $ref: "#/components/schemas/LocalGoalPmWorkTarget"
+        rationale:
+          type: string
+          minLength: 1
+        requiresSelection:
+          type: boolean
+          enum:
+            - true
+    LocalGoalPmCreateMissingWorkOption:
+      type: object
+      additionalProperties: false
+      required:
+        - optionId
+        - kind
+        - parentFeatureId
+        - workItemType
+        - title
+        - description
+        - acceptanceCriteria
+        - authoringMode
+        - rationale
+        - requiresSelection
+      properties:
+        optionId:
+          type: string
+          minLength: 1
+        kind:
+          type: string
+          enum:
+            - createMissingWork
+        parentFeatureId:
+          type: string
+          format: uuid
+        workItemType:
+          type: string
+          enum:
+            - TASK
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          minLength: 1
+        acceptanceCriteria:
+          type: string
+          minLength: 1
+        authoringMode:
+          type: string
+          enum:
+            - PROPOSAL
+        rationale:
+          type: string
+          minLength: 1
+        requiresSelection:
+          type: boolean
+          enum:
+            - true
+    LocalGoalPmProposalOption:
+      type: object
+      additionalProperties: false
+      required:
+        - optionId
+        - kind
+        - proposalId
+        - title
+        - rationale
+        - requiresSelection
+      properties:
+        optionId:
+          type: string
+          minLength: 1
+        kind:
+          type: string
+          enum:
+            - proposal
+        proposalId:
+          type: string
+          format: uuid
+          description: Canonical PROPOSAL identity; this option is not a conversation destination.
+        title:
+          type: string
+          minLength: 1
+        rationale:
+          type: string
+          minLength: 1
+        requiresSelection:
+          type: boolean
+          enum:
+            - true
+    LocalGoalPmRoutingOption:
+      oneOf:
+        - $ref: "#/components/schemas/LocalGoalPmRoutingConversationOption"
+        - $ref: "#/components/schemas/LocalGoalPmStartNewConversationOption"
+        - $ref: "#/components/schemas/LocalGoalPmRefineSearchOption"
+        - $ref: "#/components/schemas/LocalGoalPmTrackExistingWorkOption"
+        - $ref: "#/components/schemas/LocalGoalPmCreateMissingWorkOption"
+        - $ref: "#/components/schemas/LocalGoalPmProposalOption"
+      discriminator:
+        propertyName: kind
+        mapping:
+          existingConversation: "#/components/schemas/LocalGoalPmRoutingConversationOption"
+          startNewConversation: "#/components/schemas/LocalGoalPmStartNewConversationOption"
+          refineSearch: "#/components/schemas/LocalGoalPmRefineSearchOption"
+          trackExistingWork: "#/components/schemas/LocalGoalPmTrackExistingWorkOption"
+          createMissingWork: "#/components/schemas/LocalGoalPmCreateMissingWorkOption"
+          proposal: "#/components/schemas/LocalGoalPmProposalOption"
+    LocalGoalPmRoutingResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - responseType
+        - goalId
+        - options
+      properties:
+        responseType:
+          type: string
+          enum:
+            - goal_pm_routing_v1
+        goalId:
+          type: string
+          format: uuid
+          description: Canonical GOAL task identity for the routing turn.
+        options:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items:
+            $ref: "#/components/schemas/LocalGoalPmRoutingOption"
+          description: Ordered, bounded choices; the order is preserved for user review and later selection.
+    LocalOpenItemsTriageItem:
+      type: object
+      additionalProperties: false
+      required:
+        - entityType
+        - entityId
+        - title
+      properties:
+        entityType:
+          $ref: ../schemas/common.yaml#/EntityType
+        entityId:
+          type: string
+          format: uuid
+        title:
+          type: string
+          minLength: 1
+    LocalOpenItemsTriageEvidenceKind:
+      type: string
+      enum:
+        - attention
+        - edge
+        - sourceConversation
+        - coAttention
+        - title
+    LocalOpenItemsTriageEvidence:
+      type: object
+      additionalProperties: false
+      required:
+        - kind
+        - summary
+      properties:
+        kind:
+          $ref: "#/components/schemas/LocalOpenItemsTriageEvidenceKind"
+        summary:
+          type: string
+          minLength: 1
+    LocalOpenItemsTriageExistingGroup:
+      type: object
+      additionalProperties: false
+      required:
+        - kind
+        - groupId
+        - name
+      properties:
+        kind:
+          type: string
+          enum:
+            - existingGroup
+        groupId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          description: Presentation snapshot of the group name.
+    LocalOpenItemsTriageNewGroup:
+      type: object
+      additionalProperties: false
+      required:
+        - kind
+        - newGroupName
+      properties:
+        kind:
+          type: string
+          enum:
+            - newGroup
+        newGroupName:
+          $ref: ../schemas/open-items.yaml#/OpenItemGroupName
+    LocalOpenItemsTriageGroupTarget:
+      oneOf:
+        - $ref: "#/components/schemas/LocalOpenItemsTriageExistingGroup"
+        - $ref: "#/components/schemas/LocalOpenItemsTriageNewGroup"
+      discriminator:
+        propertyName: kind
+        mapping:
+          existingGroup: "#/components/schemas/LocalOpenItemsTriageExistingGroup"
+          newGroup: "#/components/schemas/LocalOpenItemsTriageNewGroup"
+    LocalOpenItemsTriageNewGoalDraft:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+        targetDate:
+          type: string
+          format: date-time
+    LocalOpenItemsTriageExistingGoal:
+      type: object
+      additionalProperties: false
+      required:
+        - kind
+        - goalId
+        - title
+      properties:
+        kind:
+          type: string
+          enum:
+            - existingGoal
+        goalId:
+          type: string
+          format: uuid
+        title:
+          type: string
+          minLength: 1
+          description: Presentation snapshot of the Goal title.
+    LocalOpenItemsTriageNewGoal:
+      type: object
+      additionalProperties: false
+      required:
+        - kind
+        - newGoal
+      properties:
+        kind:
+          type: string
+          enum:
+            - newGoal
+        newGoal:
+          $ref: "#/components/schemas/LocalOpenItemsTriageNewGoalDraft"
+    LocalOpenItemsTriageGoalTarget:
+      oneOf:
+        - $ref: "#/components/schemas/LocalOpenItemsTriageExistingGoal"
+        - $ref: "#/components/schemas/LocalOpenItemsTriageNewGoal"
+      discriminator:
+        propertyName: kind
+        mapping:
+          existingGoal: "#/components/schemas/LocalOpenItemsTriageExistingGoal"
+          newGoal: "#/components/schemas/LocalOpenItemsTriageNewGoal"
+    LocalOpenItemsTriageRemoveSuggestion:
+      type: object
+      additionalProperties: false
+      required:
+        - suggestionId
+        - kind
+        - items
+        - rationale
+        - evidence
+      properties:
+        suggestionId:
+          type: string
+          minLength: 1
+        kind:
+          type: string
+          enum:
+            - removeOpenItems
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/LocalOpenItemsTriageItem"
+        rationale:
+          type: string
+          minLength: 1
+        evidence:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items:
+            $ref: "#/components/schemas/LocalOpenItemsTriageEvidence"
+    LocalOpenItemsTriageReopenSuggestion:
+      type: object
+      additionalProperties: false
+      required:
+        - suggestionId
+        - kind
+        - items
+        - rationale
+        - evidence
+      properties:
+        suggestionId:
+          type: string
+          minLength: 1
+        kind:
+          type: string
+          enum:
+            - reopenItems
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/LocalOpenItemsTriageItem"
+        rationale:
+          type: string
+          minLength: 1
+        evidence:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items:
+            $ref: "#/components/schemas/LocalOpenItemsTriageEvidence"
+    LocalOpenItemsTriageGroupSuggestion:
+      type: object
+      additionalProperties: false
+      required:
+        - suggestionId
+        - kind
+        - group
+        - items
+        - rationale
+        - evidence
+      properties:
+        suggestionId:
+          type: string
+          minLength: 1
+        kind:
+          type: string
+          enum:
+            - groupOpenItems
+        group:
+          $ref: "#/components/schemas/LocalOpenItemsTriageGroupTarget"
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/LocalOpenItemsTriageItem"
+        rationale:
+          type: string
+          minLength: 1
+        evidence:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items:
+            $ref: "#/components/schemas/LocalOpenItemsTriageEvidence"
+    LocalOpenItemsTriageTrackOnGoalSuggestion:
+      type: object
+      additionalProperties: false
+      required:
+        - suggestionId
+        - kind
+        - goal
+        - items
+        - rationale
+        - evidence
+      properties:
+        suggestionId:
+          type: string
+          minLength: 1
+        kind:
+          type: string
+          enum:
+            - trackOnGoal
+        goal:
+          $ref: "#/components/schemas/LocalOpenItemsTriageGoalTarget"
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/LocalOpenItemsTriageItem"
+        rationale:
+          type: string
+          minLength: 1
+        evidence:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items:
+            $ref: "#/components/schemas/LocalOpenItemsTriageEvidence"
+    LocalOpenItemsTriagePromoteGroupSuggestion:
+      type: object
+      additionalProperties: false
+      required:
+        - suggestionId
+        - kind
+        - groupId
+        - groupName
+        - goalName
+        - affectedMembers
+        - rationale
+        - evidence
+      properties:
+        suggestionId:
+          type: string
+          minLength: 1
+        kind:
+          type: string
+          enum:
+            - promoteGroupToGoal
+        groupId:
+          type: string
+          format: uuid
+        groupName:
+          type: string
+          minLength: 1
+          description: Presentation snapshot of the group name.
+        goalName:
+          type: string
+          minLength: 1
+        targetDate:
+          type: string
+          format: date-time
+        affectedMembers:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/LocalOpenItemsTriageItem"
+          description: Presentation snapshot of the group members; promotion applies to the group's members at apply time.
+        rationale:
+          type: string
+          minLength: 1
+        evidence:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items:
+            $ref: "#/components/schemas/LocalOpenItemsTriageEvidence"
+    LocalOpenItemsTriageSuggestion:
+      oneOf:
+        - $ref: "#/components/schemas/LocalOpenItemsTriageRemoveSuggestion"
+        - $ref: "#/components/schemas/LocalOpenItemsTriageReopenSuggestion"
+        - $ref: "#/components/schemas/LocalOpenItemsTriageGroupSuggestion"
+        - $ref: "#/components/schemas/LocalOpenItemsTriageTrackOnGoalSuggestion"
+        - $ref: "#/components/schemas/LocalOpenItemsTriagePromoteGroupSuggestion"
+      discriminator:
+        propertyName: kind
+        mapping:
+          removeOpenItems: "#/components/schemas/LocalOpenItemsTriageRemoveSuggestion"
+          reopenItems: "#/components/schemas/LocalOpenItemsTriageReopenSuggestion"
+          groupOpenItems: "#/components/schemas/LocalOpenItemsTriageGroupSuggestion"
+          trackOnGoal: "#/components/schemas/LocalOpenItemsTriageTrackOnGoalSuggestion"
+          promoteGroupToGoal: "#/components/schemas/LocalOpenItemsTriagePromoteGroupSuggestion"
+    LocalOpenItemsTriageResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - responseType
+        - summary
+        - suggestions
+      properties:
+        responseType:
+          type: string
+          enum:
+            - open_items_triage_v1
+        summary:
+          type: string
+          minLength: 1
+        suggestions:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/LocalOpenItemsTriageSuggestion"
+    LocalFreeFormPromptPayload:
+      type: object
+      required:
+        - userMessage
+      properties:
+        startupInput:
+          deprecated: true
+          description: >-
+            Deprecated compatibility input. Entity-scoped launches load canonical context from the persisted Run entity;
+            this field is ignored by the CLI and will be removed in a later schema revision.
+          allOf:
+            - $ref: "#/components/schemas/LocalPromptStartupInput"
+        userMessage:
+          type: string
+    LocalDebugPromptPayload:
+      type: object
+      required:
+        - userMessage
+      properties:
+        startupInput:
+          deprecated: true
+          description: >-
+            Deprecated compatibility input. Entity-scoped launches load canonical context from the persisted Run entity;
+            this field is ignored by the CLI and will be removed in a later schema revision.
+          allOf:
+            - $ref: "#/components/schemas/LocalPromptStartupInput"
+        userMessage:
+          type: string
+    LocalResearchPromptPayload:
+      type: object
+      required:
+        - userMessage
+      properties:
+        startupInput:
+          deprecated: true
+          description: >-
+            Deprecated compatibility input. Entity-scoped launches load canonical context from the persisted Run entity;
+            this field is ignored by the CLI and will be removed in a later schema revision.
+          allOf:
+            - $ref: "#/components/schemas/LocalPromptStartupInput"
+        userMessage:
+          type: string
+    LocalRunEvalPromptPayload:
+      type: object
+      required:
+        - userMessage
+        - evalRunId
+        - attempts
+        - judgeSetup
+        - settings
+      properties:
+        startupInput:
+          deprecated: true
+          description: >-
+            Deprecated compatibility input. Entity-scoped launches load canonical context from the persisted Run entity;
+            this field is ignored by the CLI and will be removed in a later schema revision.
+          allOf:
+            - $ref: "#/components/schemas/LocalPromptStartupInput"
+        userMessage:
+          type: string
+        evalRunId:
+          type: string
+          format: uuid
+          description: Eval run this launch belongs to.
+        judgeSetup:
+          $ref: ../schemas/eval-runs.yaml#/EvalModelSetting
+        settings:
+          $ref: ../schemas/eval-runs.yaml#/EvalRunSettings
+        attempts:
+          type: array
+          minItems: 1
+          description: Recorded case x configuration attempts. Each carries its case input and configuration.
+          items:
+            $ref: ../schemas/eval-runs.yaml#/EvalRecordedAttempt
+    LocalQuickPromptPayload:
+      type: object
+      required:
+        - userMessage
+      properties:
+        startupInput:
+          deprecated: true
+          description: >-
+            Deprecated compatibility input. Entity-scoped launches load canonical context from the persisted Run entity;
+            this field is ignored by the CLI and will be removed in a later schema revision.
+          allOf:
+            - $ref: "#/components/schemas/LocalPromptStartupInput"
+        userMessage:
+          type: string
+    LocalDailySessionPromptPayload:
+      type: object
+      required:
+        - payloadVersion
+      properties:
+        payloadVersion:
+          type: integer
+          minimum: 1
+          description: Schema version for backward compatibility.
+          example: 1
+        userMessage:
+          type: string
+          description: User message to respond to.
+    LocalTaskRefinerPromptPayload:
+      type: object
+      required:
+        - payloadVersion
+        - task
+        - userMessage
+      properties:
+        payloadVersion:
+          type: integer
+          minimum: 1
+          description: Schema version for backward compatibility.
+          example: 1
+        task:
+          $ref: "#/components/schemas/LocalPromptTaskInput"
+        userMessage:
+          type: string
+    LocalFeatureRefinerPromptPayload:
+      type: object
+      required:
+        - payloadVersion
+        - feature
+        - userMessage
+      properties:
+        payloadVersion:
+          type: integer
+          minimum: 1
+          description: Schema version for backward compatibility.
+          example: 1
+        feature:
+          $ref: "#/components/schemas/LocalPromptTaskInput"
+        userMessage:
+          type: string
+    LocalDesignDocRefinerPromptPayload:
+      type: object
+      required:
+        - payloadVersion
+        - designDoc
+        - userMessage
+      properties:
+        payloadVersion:
+          type: integer
+          minimum: 1
+          description: Schema version for backward compatibility.
+          example: 1
+        designDoc:
+          $ref: "#/components/schemas/LocalPromptDesignDocInput"
+        userMessage:
+          type: string
+          description: User text for the first refiner turn; an empty bind seed before submission.
+    LocalProposalRefinerPromptPayload:
+      type: object
+      required:
+        - payloadVersion
+        - proposal
+        - userMessage
+      properties:
+        payloadVersion:
+          type: integer
+          minimum: 1
+          description: Schema version for backward compatibility.
+          example: 1
+        proposal:
+          $ref: "#/components/schemas/LocalPromptProposalInput"
+        userMessage:
+          type: string
+          description: User text for the first refiner turn; an empty bind seed before submission.
+    LocalAgentSearchPromptPayload:
+      type: object
+      required:
+        - payloadVersion
+        - userMessage
+      properties:
+        payloadVersion:
+          type: integer
+          minimum: 1
+          description: Schema version for backward compatibility.
+          example: 1
+        userMessage:
+          type: string
+          minLength: 1
+          description: >-
+            The user input. The agent decides whether it is a search request and, if so, uses unified_search (via MCP)
+            to find matching entities.
+        entityTypes:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalAgentSearchEntityType"
+          description: >-
+            Optional caller-imposed restriction on which entity types the search may target. The user's message may
+            narrow further within this set.
+    LocalReportUpdatePromptPayload:
+      type: object
+      required:
+        - payloadVersion
+        - reportId
+        - reportType
+        - text
+        - entities
+        - changedEntities
+      properties:
+        payloadVersion:
+          type: integer
+          minimum: 1
+          description: Schema version for backward compatibility.
+          example: 1
+        reportId:
+          type: string
+          minLength: 1
+          description: ID of the existing report being updated in place.
+        reportType:
+          type: string
+          minLength: 1
+          description: Current report type (e.g. GOAL_PROGRESS).
+        title:
+          type: string
+          description: Current title of the report, if any.
+        text:
+          type: string
+          minLength: 1
+          description: Current text content of the report (will be replaced).
+        entities:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalReportEntityRef"
+          description: Entity refs currently declared on the report.
+        changedEntities:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalReportUpdateChangedEntity"
+          description: Subset of `entities` whose changes triggered this incremental refresh.
+        events:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          description: Platform events, in arrival order, that accumulated to the threshold.
+    PlanShapingFinalizePromptPayload:
+      type: object
+      description: >
+        Payload for the terminal plan-shaping finalize EXTERNAL_AGENT node (promptType=plan_shaping_finalize). The plan
+        has already landed as platform proposals by this point; the finalize turn confirms and terminates via
+        submit_done. The wire payload carries only the optional user message that triggered the turn.
+      properties:
+        userMessage:
+          type: string
+          description: >
+            Optional free-form text from the user. Termination is enforced by the submit_done submission tool, not by
+            the payload.
+    LocalValidationWalkthroughPromptPayload:
+      type: object
+      description: >
+        Payload for the validation_walkthrough prompt type. The validation agent reads `scope` plus `entityId` as the
+        launch context the validation session is exercising — a single task, a parent task and its split children, or a
+        plan stage. The agent uses these inputs to decide which prior plan/implement reports to pull and which
+        integration seams to cover when authoring the VALIDATION_WALKTHROUGH report.
+      required:
+        - scope
+        - entityId
+      properties:
+        scope:
+          type: string
+          description: >
+            The scope of the validation walkthrough. `task` covers a single task. `parent_task` covers a parent task and
+            each split child, with explicit integration-seam checks across the children. `plan_stage` covers a plan
+            stage's design doc plus every step's plan/implement reports.
+          enum:
+            - task
+            - parent_task
+            - plan_stage
+        entityId:
+          type: string
+          format: uuid
+          description: |
+            ID of the in-scope entity (task id, parent task id, or plan stage id, matching `scope`).
+    LocalHtmlCssMockupRevisionBounds:
+      type: object
+      additionalProperties: false
+      required: [x, y, width, height]
+      properties:
+        x:
+          type: number
+        y:
+          type: number
+        width:
+          type: number
+          minimum: 0
+        height:
+          type: number
+          minimum: 0
+    LocalHtmlCssMockupRevisionRenderedContext:
+      type: object
+      additionalProperties: false
+      required: [outerHtmlExcerpt, bounds]
+      properties:
+        outerHtmlExcerpt:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          description: Bounded sanitized outer HTML for the stable target element.
+        bounds:
+          $ref: "#/components/schemas/LocalHtmlCssMockupRevisionBounds"
+    LocalHtmlCssMockupRevisionElementTarget:
+      type: object
+      additionalProperties: false
+      required: [type, nodeId, renderedContext]
+      properties:
+        type:
+          type: string
+          enum: [element]
+        nodeId:
+          type: string
+          minLength: 1
+        renderedContext:
+          $ref: "#/components/schemas/LocalHtmlCssMockupRevisionRenderedContext"
+    LocalHtmlCssMockupRevisionPositionTarget:
+      type: object
+      additionalProperties: false
+      required: [type, x, y, sizeKey]
+      properties:
+        type:
+          type: string
+          enum: [position]
+        x:
+          type: number
+          minimum: 0
+          maximum: 1
+        y:
+          type: number
+          minimum: 0
+          maximum: 1
+        sizeKey:
+          type: string
+          minLength: 1
+    LocalHtmlCssMockupRevisionTarget:
+      oneOf:
+        - $ref: "#/components/schemas/LocalHtmlCssMockupRevisionElementTarget"
+        - $ref: "#/components/schemas/LocalHtmlCssMockupRevisionPositionTarget"
+      discriminator:
+        propertyName: type
+    LocalHtmlCssMockupRevisionAnnotation:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          note,
+          category,
+          lifecycle,
+          authoredProposalId,
+          authoredSizeKey,
+          target,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        note:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        category:
+          type: string
+          enum: [context, suggestion, question, issue]
+        lifecycle:
+          type: string
+          enum: [open]
+        authoredProposalId:
+          type: string
+          format: uuid
+        authoredSizeKey:
+          type: string
+          minLength: 1
+        target:
+          $ref: "#/components/schemas/LocalHtmlCssMockupRevisionTarget"
+    LocalHtmlCssMockupRevisionRenderedSize:
+      type: object
+      additionalProperties: false
+      required: [width, height]
+      properties:
+        width:
+          type: number
+          exclusiveMinimum: true
+          minimum: 0
+        height:
+          type: number
+          exclusiveMinimum: true
+          minimum: 0
+    LocalHtmlCssMockupRevisionSection:
+      type: object
+      additionalProperties: false
+      required: [key, html, css, sizeKey, renderedSize, materializedProposalId]
+      properties:
+        key:
+          type: string
+          minLength: 1
+        html:
+          type: string
+        css:
+          type: string
+        sizeKey:
+          type: string
+          minLength: 1
+        renderedSize:
+          $ref: "#/components/schemas/LocalHtmlCssMockupRevisionRenderedSize"
+        materializedProposalId:
+          type: string
+          format: uuid
+    LocalHtmlCssMockupRevisionPromptPayload:
+      type: object
+      additionalProperties: false
+      description: >
+        Immutable authoritative HTML/CSS snapshot and selected open, current review annotations used to request one
+        source-plus-resolution proposal. The run entity is the focal task identity.
+      required: [payloadVersion, section, annotations]
+      properties:
+        payloadVersion:
+          type: integer
+          enum: [1]
+        section:
+          $ref: "#/components/schemas/LocalHtmlCssMockupRevisionSection"
+        annotations:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/LocalHtmlCssMockupRevisionAnnotation"
+    LocalSetSplittingPromptPayload:
+      type: object
+      required:
+        - splitMode
+        - userMessage
+      properties:
+        startupInput:
+          deprecated: true
+          description: >-
+            Deprecated compatibility input. Entity-scoped launches load canonical context from the persisted Run entity;
+            this field is ignored by the CLI and will be removed in a later schema revision.
+          allOf:
+            - $ref: "#/components/schemas/LocalPromptStartupInput"
+        splitMode:
+          $ref: "#/components/schemas/LocalSetSplittingSplitMode"
+        userGuidance:
+          type: string
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalSetSplittingService"
+          description: >-
+            Services to split across. OPTIONAL in both modes — the producer may omit it. In service mode, an explicit
+            list pins the split to exactly those services; when absent the agent discovers the services from the task
+            context. In feature mode the list is only a starting point for code exploration. Because the producer can
+            omit it, every consumer MUST treat this as possibly-undefined; the absence is a supported runtime state, not
+            an error.
+        userMessage:
+          type: string
+    LocalStartupSessionPlanResponse:
+      type: object
+      required:
+        - responseType
+        - sessionTitle
+        - requiredServiceIds
+        - primaryImplementations
+        - executionPlan
+        - discrepancies
+        - clarificationQuestions
+      properties:
+        responseType:
+          type: string
+          enum:
+            - startup_plan_v1
+        sessionTitle:
+          type: string
+          minLength: 1
+        requiredServiceIds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+          description: Complete deduplicated set of project Service IDs the proposed implementation may modify.
+        primaryImplementations:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/LocalResponseStartupPrimaryImplementation"
+        executionPlan:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/LocalResponseStartupPlanStep"
+        discrepancies:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalResponseStartupDiscrepancy"
+        clarificationQuestions:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalResponseStartupClarificationQuestion"
+        missedSteps:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalResponseStartupMissedStep"
+          description: >
+            Optional. Present only on the planned-task variant of the coding-plan turn (both `launchPlanId` and
+            `launchStepId` on the payload). Each entry records a precondition or artifact this session's execution plan
+            depends on that no upstream plan step produces, along with a `create_step` or `update_stage` DRAFT proposal
+            the agent authored to address the gap. Omitted entirely when no gap is detected and on the free-task variant
+            of the turn, so the silent-pass output is byte-identical to today.
+    LocalFinalAssessmentResponse:
+      type: object
+      required:
+        - responseType
+        - taskAssessment
+        - syncHandoff
+      properties:
+        responseType:
+          type: string
+          enum:
+            - final_assessment_v2
+        taskAssessment:
+          $ref: "#/components/schemas/LocalResponseFinalTaskAssessment"
+        hierarchyWalk:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalResponseHierarchyWalkEntry"
+          description: Each level the agent walked in the feature hierarchy, documenting action taken and why
+        syncHandoff:
+          $ref: "#/components/schemas/LocalFinalAssessmentSyncHandoff"
+    LocalVerificationPlanResponse:
+      type: object
+      required:
+        - responseType
+        - verificationChecks
+        - coverageSummary
+      properties:
+        responseType:
+          type: string
+          enum:
+            - verification_plan_v1
+        verificationChecks:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalResponseVerificationCheck"
+        coverageSummary:
+          $ref: "#/components/schemas/LocalResponseVerificationCoverageSummary"
+    LocalChildTaskDescriptionUpdateResponse:
+      type: object
+      required:
+        - responseType
+        - updates
+      properties:
+        responseType:
+          type: string
+          enum:
+            - child_task_description_update_v1
+        updates:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalResponseChildTaskDescriptionUpdateNote"
+    LocalNeighborhoodTaskUpdatesResponse:
+      type: object
+      required:
+        - responseType
+        - taskUpdates
+      properties:
+        responseType:
+          type: string
+          enum:
+            - neighborhood_task_updates_v1
+        taskUpdates:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalResponseNeighborhoodTaskUpdate"
+    LocalSetSplittingResponse:
+      type: object
+      required:
+        - responseType
+        - splitMode
+        - tasks
+        - reasoning
+      properties:
+        responseType:
+          type: string
+          enum:
+            - set_splitting_v1
+        splitMode:
+          $ref: "#/components/schemas/LocalSetSplittingSplitMode"
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalSetSplittingGeneratedTask"
+          minItems: 2
+        reasoning:
+          type: string
+          minLength: 1
+    LocalDailySessionResponse:
+      type: object
+      required:
+        - response
+        - reports
+      properties:
+        response:
+          type: string
+          description: Brief connective summary threading the reports together.
+        reports:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalReportSpec"
+          description: Structured report specs produced by the agent.
+    LocalReportUpdateResponse:
+      type: object
+      required:
+        - responseType
+        - text
+        - summary
+      properties:
+        responseType:
+          type: string
+          enum:
+            - report_update_v1
+        title:
+          type: string
+          description: Updated title. Omit when unchanged.
+        text:
+          type: string
+          minLength: 1
+          description: New text content that fully replaces the current text.
+        summary:
+          type: string
+          minLength: 1
+          description: One-sentence description of what changed and why.
+    LocalAgentSearchResultsResponse:
+      type: object
+      required:
+        - responseType
+        - response
+        - results
+      properties:
+        responseType:
+          type: string
+          enum:
+            - agent_search_results_v1
+        response:
+          type: string
+          minLength: 1
+          description: Short natural-language answer the agent writes to the user alongside the structured hits.
+        results:
+          type: array
+          description: The entities the agent surfaced for the user's query, in rank order. Empty when the search found nothing.
+          items:
+            $ref: "#/components/schemas/LocalResponseAgentSearchResultItem"
+    LocalRollupProposalResponse:
+      type: object
+      required:
+        - responseType
+        - parentFeatureProposalIds
+        - relatedFeatureProposalIds
+      properties:
+        responseType:
+          type: string
+          enum:
+            - rollup_proposal_v1
+        parentFeatureProposalIds:
+          type: array
+          items:
+            type: string
+          description: Proposal IDs from edit_work_item calls on direct parent feature tasks.
+        relatedFeatureProposalIds:
+          type: array
+          items:
+            type: string
+          description: Proposal IDs from edit_work_item calls on semantically related feature tasks.
+    LocalRunBase:
+      type: object
+      required:
+        - agentic_session_id
+        - provider
+        - provider_session_id
+        - provider_conversation_id
+        - status
+        - createdAt
+        - updatedAt
+        - events
+      properties:
+        agentic_session_id:
+          type: string
+          minLength: 1
+        serviceIds:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        launchServiceId:
+          type: string
+          minLength: 1
+        provider:
+          type: string
+          minLength: 1
+        provider_session_id:
+          type: string
+          minLength: 1
+        provider_conversation_id:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum:
+            - idle
+            - running
+            - complete
+        scope:
+          $ref: "#/components/schemas/LocalRunScope"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        tokenUsage:
+          $ref: "#/components/schemas/LocalTokenUsage"
+        promptType:
+          $ref: "#/components/schemas/LocalPromptType"
+        config:
+          allOf:
+            - $ref: "#/components/schemas/AgentSessionConfig"
+          nullable: true
+          description: |
+            Typed AgentSession launch config carried with the local Run. Null
+            or absent is a legacy/default run and consumers must resolve missing
+            optional behavior flags at their own boundary.
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalRunEvent"
+    LocalRun:
+      allOf:
+        - $ref: "#/components/schemas/LocalRunBase"
+        - type: object
+          required:
+            - contextMetadata
+          properties:
+            contextMetadata:
+              $ref: "#/components/schemas/RunContextMetadata"
+    LocalRunPromptResult:
+      type: object
+      required:
+        - providerRunId
+        - providerConversationId
+        - errorCount
+      properties:
+        providerRunId:
+          type: string
+          nullable: true
+        providerConversationId:
+          type: string
+          nullable: true
+        errorCount:
+          type: integer
+          minimum: 0
+    LocalRunEvent:
+      type: object
+      required:
+        - seq
+        - ts
+        - app_session_id
+        - run_id
+        - actor
+        - event_type
+        - state_version
+      properties:
+        seq:
+          type: integer
+          minimum: 1
+        ts:
+          type: string
+          format: date-time
+        app_session_id:
+          type: string
+          minLength: 1
+        run_id:
+          type: string
+          minLength: 1
+        actor:
+          type: string
+          enum:
+            - app
+            - agent
+            - system
+        event_type:
+          type: string
+          enum:
+            - run_started
+            - prompt_sent
+            - agent_output
+            - run_completed
+            - post_processed
+        state_version:
+          type: integer
+          minimum: 1
+        payload:
+          description: Arbitrary event payload.
+        payload_ref:
+          type: string
+    LocalRunDiffFilePatch:
+      type: object
+      required:
+        - serviceId
+        - repoPath
+        - filePath
+        - diff
+        - preContent
+        - postContent
+      properties:
+        serviceId:
+          type: string
+          description: Service that owns this changed file within the Run.
+        repoPath:
+          type: string
+          description: Absolute path of the repository or worktree this patch belongs to.
+        filePath:
+          type: string
+          description: Relative path of the file within that service repository or worktree.
+        diff:
+          type: string
+          description: Unified diff output for this file.
+        preContent:
+          type: string
+          nullable: true
+          description: >
+            File contents before the change, as a single string. Null when the file did not exist on the base side (e.g.
+            a newly added file).
+        postContent:
+          type: string
+          nullable: true
+          description: >
+            File contents after the change, as a single string. Null when the file no longer exists on disk (e.g. a
+            deleted file).
+    LocalTaskMonitorCoordinatorDecision:
+      oneOf:
+        - $ref: "#/components/schemas/LocalTaskMonitorRequestReviewDecision"
+        - $ref: "#/components/schemas/LocalTaskMonitorRequestChangesDecision"
+        - $ref: "#/components/schemas/LocalTaskMonitorAcceptTaskDecision"
+        - $ref: "#/components/schemas/LocalTaskMonitorWaitDecision"
+        - $ref: "#/components/schemas/LocalTaskMonitorRequestJudgmentDecision"
+        - $ref: "#/components/schemas/LocalTaskMonitorHaltDecision"
+      discriminator:
+        propertyName: action
+        mapping:
+          REQUEST_REVIEW: "#/components/schemas/LocalTaskMonitorRequestReviewDecision"
+          REQUEST_CHANGES: "#/components/schemas/LocalTaskMonitorRequestChangesDecision"
+          ACCEPT_TASK: "#/components/schemas/LocalTaskMonitorAcceptTaskDecision"
+          WAIT: "#/components/schemas/LocalTaskMonitorWaitDecision"
+          REQUEST_JUDGMENT: "#/components/schemas/LocalTaskMonitorRequestJudgmentDecision"
+          HALT: "#/components/schemas/LocalTaskMonitorHaltDecision"
+    LocalPlanExecutionPromptPayloadPlan:
+      type: object
+      required:
+        - responseType
+        - sessionTitle
+        - requiredServiceIds
+        - primaryImplementations
+        - executionPlan
+        - discrepancies
+        - clarificationQuestions
+      properties:
+        responseType:
+          type: string
+          enum:
+            - startup_plan_v1
+        sessionTitle:
+          type: string
+          minLength: 1
+        requiredServiceIds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+          description: Complete deduplicated set of project Service IDs the approved implementation may modify.
+        primaryImplementations:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/LocalResponseStartupPrimaryImplementation"
+        executionPlan:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalResponseStartupPlanStep"
+        discrepancies:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        clarificationQuestions:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+      description: >
+        The full approved startup plan as emitted by the planning session (responseType startup_plan_v1). Includes
+        primary implementations, executionPlan steps, discrepancies, and clarificationQuestions.
+    LocalStartupPlanReviewSummary:
+      type: object
+      required:
+        - responseType
+        - questionAnswers
+        - discrepancyDispositions
+      properties:
+        responseType:
+          type: string
+          enum:
+            - startup_plan_review_v1
+        questionAnswers:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalStartupPlanQuestionAnswer"
+        discrepancyDispositions:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalStartupPlanDiscrepancyReview"
+    LocalEntityConversationEntity:
+      allOf:
+        - $ref: "#/components/schemas/RunEntityReference"
+        - type: object
+          properties:
+            title:
+              type: string
+              description: Human-readable title of the entity
+            description:
+              type: string
+              description: Entity description or content
+            acceptanceCriteria:
+              type: string
+              description: Acceptance criteria (for tasks)
+            content:
+              type: string
+              description: Full content body (for design docs, artifacts, etc.)
+            metadata:
+              type: object
+              additionalProperties: true
+              description: Additional entity-specific metadata
+            taskType:
+              type: string
+              description: >-
+                Registry-authoritative subtype key for TASK entities. Present
+                when the underlying work item needs subtype context, including
+                built-in and project-defined custom work-item types. Preserve
+                the key exactly; it is separate from the canonical TASK
+                entityType and may be used by subtype-aware prompt branches.
+            dueDate:
+              type: string
+              format: date-time
+              description: >-
+                Optional target date on GOAL tasks; omit for an undated Goal. Missing dates must not produce a date-based closing prompt.
+                alongside the goal description.
+            trackedEntities:
+              type: array
+              items:
+                $ref: "#/components/schemas/TrackedEntitySnapshot"
+              description: >-
+                Outgoing TRACKS-edge snapshots. Populated when the entity is a GOAL task so the goal-scoping prompt
+                section can list what is already attached and avoid re-attaching it.
+    LocalEntityConversationInfluence:
+      type: object
+      required:
+        - entityId
+        - entityType
+        - reasoning
+        - reasonType
+      properties:
+        entityId:
+          type: string
+          format: uuid
+          description: ID of the influencing entity
+        entityType:
+          type: string
+          description: Type of the influencing entity (e.g. TASK, DESIGN_DOC, ARTIFACT)
+        reasoning:
+          type: string
+          description: Explanation of how this entity influenced the decision
+        reasonType:
+          type: string
+          description: >-
+            Type of influence relationship. Recognized values: `explicit_mention`, `implied`, `derived`, `origin`. The
+            `origin` value is system-injected to mark the host conversation's workflow-about entity and is not
+            declarable by agents.
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Confidence score for this influence relationship
+    LocalPromptProposalInput:
+      type: object
+      required:
+        - id
+        - action
+        - status
+        - targetEntityId
+        - targetEntityType
+        - updates
+      properties:
+        reconciliation:
+          $ref: '../schemas/proposals.yaml#/ProposalReconciliationState'
+          description: Server-owned original/current content and immutable revision history for reconciliation. Candidate submissions return to review and never approve or apply.
+        id:
+          type: string
+          description: Proposal ID.
+        action:
+          type: string
+          description: Proposal action (CREATE, UPDATE, DELETE).
+        status:
+          type: string
+          description: Current proposal status (DRAFT, APPROVED, REJECTED).
+        targetEntityId:
+          type: string
+          description: ID of the entity this proposal targets.
+        targetEntityType:
+          type: string
+          description: Type of the target entity (TASK, DESIGN_DOC, etc).
+        title:
+          type: string
+          nullable: true
+          description: >
+            Per-action snapshot of the proposal target's display title at the moment the proposal was written. Mirrors
+            `ProposalResponseDto.title` on the platform API. Null on legacy rows that pre-date the column.
+        updates:
+          type: object
+          additionalProperties: true
+          description: The proposed changes payload.
+        influences:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalPromptProposalInfluence"
+          description: Entities that influenced this proposal.
+        approvals:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          description: Approval history for this proposal.
+    LocalAgentSearchEntityType:
+      type: string
+      enum:
+        - ARTIFACT
+        - INITIATIVE
+        - PROJECT
+        - TASK
+        - MESSAGE
+        - CONVERSATION
+        - DESIGN_DOC
+        - AGENT_SESSION
+        - VALIDATION_SESSION
+        - SERVICE
+        - REPORT
+        - IMPLEMENTATION_HINT
+      description: Entity type supported by unified search. Mirrors the platform EntityType enum.
+    LocalReportEntityRef:
+      type: object
+      required:
+        - entityType
+        - entityId
+        - relation
+      properties:
+        entityType:
+          type: string
+          description: Entity type (e.g. TASK, FEATURE, INITIATIVE, AGENT_SESSION).
+        entityId:
+          type: string
+          description: Entity UUID.
+        relation:
+          $ref: "#/components/schemas/LocalReportEntityRelation"
+    LocalReportUpdateChangedEntity:
+      type: object
+      required:
+        - entityType
+        - entityId
+      properties:
+        entityType:
+          type: string
+          description: Entity type whose change contributed to this incremental update.
+        entityId:
+          type: string
+          description: Entity UUID whose change contributed to this incremental update.
+    LocalSetSplittingSplitMode:
+      type: string
+      enum:
+        - feature
+        - service
+    LocalSetSplittingService:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          description: Service identifier
+        name:
+          type: string
+          description: Human-readable service name
+    LocalResponseStartupPrimaryImplementation:
+      type: object
+      required:
+        - title
+        - content
+        - rationale
+      properties:
+        title:
+          type: string
+          minLength: 1
+        content:
+          type: string
+          minLength: 1
+          description: The proposed centerpiece, such as a DTO, table definition, or prose block.
+        rationale:
+          type: string
+          minLength: 1
+        location:
+          type: string
+          minLength: 1
+        language:
+          type: string
+          minLength: 1
+        connections:
+          type: array
+          minItems: 1
+          description: |
+            Optional evidence-bearing connections. Omit this property when no applicable connection is established.
+          items:
+            $ref: "#/components/schemas/LocalResponseStartupPrimaryImplementationConnection"
+    LocalResponseStartupPlanStep:
+      type: object
+      required:
+        - stepId
+        - title
+        - description
+        - phase
+        - references
+      properties:
+        stepId:
+          type: string
+          minLength: 1
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          minLength: 1
+        phase:
+          type: integer
+          minimum: 1
+          description: >
+            1-based phase this step belongs to. Steps sharing a phase number are grouped together in the execution
+            sequence.
+        references:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalResponseStartupPlanReference"
+    LocalResponseStartupDiscrepancy:
+      type: object
+      required:
+        - sourceRef
+        - sourceExcerpt
+        - reasoning
+        - discrepancyText
+        - severity
+      properties:
+        sourceRef:
+          $ref: "#/components/schemas/LocalResponseSourceRef"
+        sourceField:
+          type: string
+          minLength: 1
+        sourceExcerpt:
+          type: string
+          minLength: 1
+        reasoning:
+          type: string
+          minLength: 1
+        discrepancyText:
+          type: string
+          minLength: 1
+        severity:
+          $ref: "#/components/schemas/LocalResponseDiscrepancySeverity"
+    LocalResponseStartupClarificationQuestion:
+      type: object
+      required:
+        - question
+      properties:
+        question:
+          type: string
+          minLength: 1
+        reason:
+          type: string
+          minLength: 1
+        relatedSourceRefs:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalResponseSourceRef"
+    LocalResponseStartupMissedStep:
+      type: object
+      required:
+        - title
+        - description
+        - suggestedResolution
+      properties:
+        title:
+          type: string
+          minLength: 1
+          description: Short product-language title for the gap.
+        description:
+          type: string
+          minLength: 1
+          description: |
+            One- or two-sentence description of what the missed step is and why the in-session execution plan needs it.
+        missingPrecondition:
+          type: string
+          minLength: 1
+          description: >
+            The named precondition the in-session plan depends on but that no upstream plan step produces. Set when the
+            gap is best described by a missing precondition; otherwise prefer `referencedArtifact`.
+        referencedArtifact:
+          type: string
+          minLength: 1
+          description: >
+            The artifact (file, type, contract) the in-session plan references but that no upstream plan step delivers.
+            Set when the gap is best described by a missing artifact.
+        suggestedResolution:
+          $ref: "#/components/schemas/LocalResponseStartupMissedStepResolution"
+        references:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalResponseStartupPlanReference"
+          description: >
+            Optional supporting references — same shape as `executionPlan[].references`. Use to point at the upstream
+            steps, design docs, or evidence that motivated this entry.
+    LocalResponseFinalTaskAssessment:
+      type: object
+      required:
+        - target
+        - verdict
+        - statusRecommendation
+        - summary
+      properties:
+        target:
+          $ref: "#/components/schemas/LocalResponseFinalTaskAssessmentTarget"
+        verdict:
+          $ref: "#/components/schemas/LocalResponseFinalAssessmentVerdict"
+        statusRecommendation:
+          $ref: "#/components/schemas/LocalResponseFinalTaskAssessmentStatusRecommendation"
+        summary:
+          type: string
+          minLength: 1
+    LocalResponseHierarchyWalkEntry:
+      type: object
+      required:
+        - entityType
+        - entityId
+        - name
+        - distance
+        - action
+        - rationale
+      properties:
+        entityType:
+          type: string
+          description: Entity type walked (e.g. task, feature)
+        entityId:
+          type: string
+          format: uuid
+          description: ID of the entity
+        name:
+          type: string
+          description: Display name of the entity
+        distance:
+          type: integer
+          minimum: 0
+          description: Hops from the originating task
+        section:
+          $ref: "#/components/schemas/LocalResponseHierarchyWalkSection"
+          description: >-
+            Which feature section was evaluated for this entry. Required on feature ancestors (emit one entry per
+            section visited); omitted on the distance-0 task entry.
+        action:
+          $ref: "#/components/schemas/LocalResponseHierarchyWalkAction"
+        rationale:
+          type: string
+          minLength: 1
+          description: Why this action was chosen for the evaluated section
+    LocalFinalAssessmentSyncHandoff:
+      type: object
+      required:
+        - taskId
+        - criteriaAssessed
+        - keyDecisions
+      properties:
+        taskId:
+          type: string
+          description: The ID of the task that was worked on
+        criteriaAssessed:
+          type: array
+          items:
+            type: string
+          description: Each acceptance criterion, assessed as met or not (one string per criterion, e.g. "Criterion X — met")
+        keyDecisions:
+          type: array
+          items:
+            type: string
+          description: Architectural or implementation decisions made during the session that are non-obvious from the code alone
+        executionSummary:
+          type: string
+          description: Brief narrative of what was implemented, for the subagent's orientation
+    LocalResponseVerificationCheck:
+      type: object
+      required:
+        - checkId
+        - tier
+        - priority
+        - goal
+        - target
+        - steps
+        - expectedResult
+        - evidenceRefs
+      properties:
+        checkId:
+          type: string
+          minLength: 1
+        tier:
+          $ref: "#/components/schemas/LocalResponseVerificationTier"
+        priority:
+          type: integer
+          minimum: 1
+        goal:
+          type: string
+          minLength: 1
+        target:
+          $ref: "#/components/schemas/LocalResponseVerificationTargetRef"
+        steps:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            minLength: 1
+        expectedResult:
+          type: string
+          minLength: 1
+        fallback:
+          $ref: "#/components/schemas/LocalResponseVerificationFallback"
+          nullable: true
+        evidenceRefs:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalResponseVerificationEvidenceRef"
+    LocalResponseVerificationCoverageSummary:
+      type: object
+      required:
+        - verifiedBehaviors
+        - remainingRisks
+        - recommendedNextAction
+      properties:
+        verifiedBehaviors:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        remainingRisks:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        recommendedNextAction:
+          type: string
+          minLength: 1
+    LocalResponseChildTaskDescriptionUpdateNote:
+      type: object
+      required:
+        - taskId
+        - integrationNote
+      properties:
+        taskId:
+          type: string
+          minLength: 1
+        integrationNote:
+          type: string
+          minLength: 1
+    LocalResponseNeighborhoodTaskUpdate:
+      type: object
+      required:
+        - taskId
+        - descriptionUpdate
+        - acceptanceCriteriaUpdate
+        - reasoning
+      properties:
+        taskId:
+          type: string
+          minLength: 1
+        descriptionUpdate:
+          type: string
+          nullable: true
+          minLength: 1
+        acceptanceCriteriaUpdate:
+          type: string
+          nullable: true
+          minLength: 1
+        reasoning:
+          type: string
+          minLength: 1
+    LocalSetSplittingGeneratedTask:
+      type: object
+      required:
+        - title
+        - description
+        - acceptanceCriteria
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          minLength: 1
+        acceptanceCriteria:
+          type: string
+          minLength: 1
+    LocalReportSpec:
+      type: object
+      required:
+        - reportType
+        - text
+      properties:
+        reportType:
+          type: string
+          enum:
+            - GOAL_PROGRESS
+            - RISK_ALERT
+            - SESSION_SUMMARY
+          description: Report type from the catalog.
+        title:
+          type: string
+          description: >-
+            Short title summarizing the report finding. Required for GOAL_PROGRESS and RISK_ALERT; omit for
+            SESSION_SUMMARY.
+        text:
+          type: string
+          description: Goal-oriented analysis text.
+        entities:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalReportEntityRef"
+          description: Entity references for this report.
+    LocalResponseAgentSearchResultItem:
+      type: object
+      required:
+        - entityType
+        - entityId
+        - title
+        - reason
+      properties:
+        entityType:
+          $ref: "#/components/schemas/LocalAgentSearchEntityType"
+        entityId:
+          type: string
+          minLength: 1
+        title:
+          type: string
+          minLength: 1
+          description: Human-readable title of the entity, used as the link label.
+        reason:
+          type: string
+          minLength: 1
+          description: One short sentence on why this hit matches, or a snippet from it.
+    LocalRunScope:
+      type: object
+      required:
+        - mode
+        - allowedRepositoryRoots
+      properties:
+        mode:
+          $ref: "#/components/schemas/LocalRunMode"
+        allowedRepositoryRoots:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            minLength: 1
+        workspaceRoot:
+          type: string
+          minLength: 1
+        workspaceLayout:
+          $ref: "#/components/schemas/LocalRunWorkspaceLayout"
+    LocalTokenUsage:
+      type: object
+      required:
+        - inputTokens
+        - outputTokens
+        - cacheCreationInputTokens
+        - cacheReadInputTokens
+        - cacheAvailability
+      properties:
+        inputTokens:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: Cumulative uncached input tokens consumed, or null when unavailable.
+        outputTokens:
+          type: integer
+          minimum: 0
+          description: Cumulative output tokens produced.
+        cacheCreationInputTokens:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: Cumulative input tokens written to prompt cache, or null when unavailable.
+        cacheReadInputTokens:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: Cumulative input tokens read from prompt cache, or null when unavailable.
+        cacheAvailability:
+          type: string
+          enum:
+            - reported
+            - partial
+            - unsupported
+          description: Availability of the provider's cache measurements.
+    LocalTaskMonitorRequestReviewDecision:
+      type: object
+      additionalProperties: false
+      required:
+        - action
+        - rationale
+      properties:
+        action:
+          type: string
+          enum:
+            - REQUEST_REVIEW
+        rationale:
+          type: string
+          minLength: 1
+    LocalTaskMonitorRequestChangesDecision:
+      type: object
+      additionalProperties: false
+      required:
+        - action
+        - rationale
+        - guidance
+      properties:
+        action:
+          type: string
+          enum:
+            - REQUEST_CHANGES
+        rationale:
+          type: string
+          minLength: 1
+        guidance:
+          type: string
+          minLength: 1
+          maxLength: 5000
+    LocalTaskMonitorAcceptTaskDecision:
+      type: object
+      additionalProperties: false
+      required:
+        - action
+        - rationale
+      properties:
+        action:
+          type: string
+          enum:
+            - ACCEPT_TASK
+        rationale:
+          type: string
+          minLength: 1
+    LocalTaskMonitorWaitDecision:
+      type: object
+      additionalProperties: false
+      required:
+        - action
+        - rationale
+      properties:
+        action:
+          type: string
+          enum:
+            - WAIT
+        rationale:
+          type: string
+          minLength: 1
+    LocalTaskMonitorRequestJudgmentDecision:
+      type: object
+      additionalProperties: false
+      required:
+        - action
+        - rationale
+        - guidance
+      properties:
+        action:
+          type: string
+          enum:
+            - REQUEST_JUDGMENT
+        rationale:
+          type: string
+          minLength: 1
+        guidance:
+          type: string
+          minLength: 1
+          maxLength: 5000
+    LocalTaskMonitorHaltDecision:
+      type: object
+      additionalProperties: false
+      required:
+        - action
+        - rationale
+        - failureContext
+      properties:
+        action:
+          type: string
+          enum:
+            - HALT
+        rationale:
+          type: string
+          minLength: 1
+        failureContext:
+          type: string
+          minLength: 1
+          maxLength: 5000
+    LocalStartupPlanQuestionAnswer:
+      type: object
+      required:
+        - question
+        - answer
+      properties:
+        question:
+          type: string
+          minLength: 1
+        answer:
+          type: string
+          minLength: 1
+    LocalStartupPlanDiscrepancyReview:
+      type: object
+      required:
+        - discrepancyIndex
+        - disposition
+      properties:
+        discrepancyIndex:
+          type: integer
+          minimum: 0
+        disposition:
+          $ref: "#/components/schemas/LocalStartupPlanDiscrepancyDisposition"
+        note:
+          type: string
+          minLength: 1
+    LocalPromptProposalInfluence:
+      type: object
+      required:
+        - entityId
+        - entityType
+        - reasoning
+        - reasonType
+      properties:
+        entityId:
+          type: string
+        entityType:
+          type: string
+        reasoning:
+          type: string
+        reasonType:
+          type: string
+          description: >-
+            Type of influence relationship. Recognized values: `explicit_mention`, `implied`, `derived`, `origin`. The
+            `origin` value is system-injected to mark the host conversation's workflow-about entity and is not
+            declarable by agents.
+    LocalReportEntityRelation:
+      type: string
+      enum:
+        - PRIMARY
+        - CONTEXT
+      description: Whether the entity is the primary subject of the report or provides context.
+    LocalResponseStartupPrimaryImplementationConnection:
+      type: object
+      description: >
+        Evidence-backed connection between a primary implementation and a resolved, non-archived workflow step or
+        Contract. This records plan evidence only and does not create graph topology.
+      required:
+        - entityType
+        - entityId
+        - entityTitle
+        - relationship
+        - sourceField
+        - sourceExcerpt
+        - rationale
+      properties:
+        entityType:
+          type: string
+          enum:
+            - workflowStep
+            - contract
+        entityId:
+          type: string
+          format: uuid
+        entityTitle:
+          type: string
+          minLength: 1
+        relationship:
+          type: string
+          enum:
+            - fulfills
+            - authors
+            - enforces
+            - consumes
+        sourceField:
+          type: string
+          minLength: 1
+          description: Field path or graph edge that establishes the connection.
+        sourceExcerpt:
+          type: string
+          minLength: 1
+          description: Complete source excerpt supporting the connection.
+        rationale:
+          type: string
+          minLength: 1
+    LocalResponseStartupPlanReference:
+      type: object
+      required:
+        - sourceType
+        - sourceId
+        - rationale
+      properties:
+        sourceType:
+          $ref: "#/components/schemas/LocalResponseSourceType"
+        sourceId:
+          type: string
+          minLength: 1
+        rationale:
+          type: string
+          minLength: 1
+    LocalResponseSourceRef:
+      type: object
+      required:
+        - sourceType
+        - sourceId
+      properties:
+        sourceType:
+          $ref: "#/components/schemas/LocalResponseSourceType"
+        sourceId:
+          type: string
+          minLength: 1
+    LocalResponseDiscrepancySeverity:
+      type: string
+      enum:
+        - low
+        - medium
+        - high
+    LocalResponseStartupMissedStepResolution:
+      type: object
+      required:
+        - type
+        - description
+      properties:
+        type:
+          $ref: "#/components/schemas/LocalResponseStartupMissedStepResolutionType"
+        description:
+          type: string
+          minLength: 1
+          description: >
+            One-sentence product-language description of the proposed insert-step or amend-stage edit. The agent must
+            author the corresponding DRAFT proposal through the plan-shaping proposal tools (`create_step` /
+            `update_stage`) before emitting the missed step.
+        targetStageId:
+          type: string
+          minLength: 1
+          description: >
+            Stage id the proposal targets. Required when the resolution edits a specific stage (typical for both
+            insert_step and amend_stage).
+        proposalId:
+          type: string
+          minLength: 1
+          description: >
+            DRAFT proposal id returned by `create_step` or `update_stage`. Optional because the agent may surface a
+            missed step that it could not author a proposal for (e.g. the plan-shaping tools rejected the draft); in
+            that case the agent should still emit the entry so the gap is recorded.
+    LocalResponseFinalTaskAssessmentTarget:
+      type: object
+      required:
+        - entityType
+        - entityId
+      properties:
+        entityType:
+          type: string
+          enum:
+            - task
+        entityId:
+          type: string
+    LocalResponseFinalAssessmentVerdict:
+      type: string
+      enum:
+        - completed
+        - partiallyCompleted
+        - blocked
+        - notCompleted
+        - unknown
+    LocalResponseFinalTaskAssessmentStatusRecommendation:
+      type: object
+      required:
+        - status
+        - reason
+      properties:
+        status:
+          $ref: "#/components/schemas/LocalPromptWorkStatus"
+        reason:
+          type: string
+          minLength: 1
+    LocalResponseHierarchyWalkSection:
+      type: string
+      enum:
+        - description
+        - requirements
+    LocalResponseHierarchyWalkAction:
+      type: string
+      enum:
+        - proposed_update
+        - no_update
+    LocalResponseVerificationTier:
+      type: string
+      enum:
+        - product_walkthrough
+        - api_or_script
+        - automated_test
+    LocalResponseVerificationTargetRef:
+      type: object
+      required:
+        - entityType
+        - entityId
+      properties:
+        entityType:
+          type: string
+          enum:
+            - task
+            - designDoc
+            - service
+            - artifact
+        entityId:
+          type: string
+    LocalResponseVerificationFallback:
+      type: object
+      required:
+        - tier
+        - trigger
+        - steps
+      properties:
+        tier:
+          type: string
+          enum:
+            - api_or_script
+            - automated_test
+        trigger:
+          type: string
+          minLength: 1
+        steps:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            minLength: 1
+    LocalResponseVerificationEvidenceRef:
+      type: object
+      required:
+        - sourceType
+        - sourceId
+      properties:
+        sourceType:
+          $ref: "#/components/schemas/LocalResponseFinalAssessmentSourceType"
+        sourceId:
+          type: string
+          minLength: 1
+    LocalRunMode:
+      type: string
+      enum:
+        - default
+        - cross_service_review
+    LocalRunWorkspaceLayout:
+      type: string
+      enum:
+        - single_repo
+        - symlink_tree
+    LocalStartupPlanDiscrepancyDisposition:
+      type: string
+      enum:
+        - acknowledged
+        - blocker
+    LocalResponseSourceType:
+      type: string
+      enum:
+        - evidenceItem
+        - task
+        - designDoc
+        - plan
+        - initiative
+    LocalResponseStartupMissedStepResolutionType:
+      type: string
+      enum:
+        - insert_step
+        - amend_stage
+      description: >
+        Discriminator for `suggestedResolution.type`. `insert_step` maps to a `create_step` DRAFT proposal on the
+        surrounding stage; `amend_stage` maps to an `update_stage` DRAFT proposal that adds the missing artifact or
+        precondition.
+    LocalResponseFinalAssessmentSourceType:
+      type: string
+      enum:
+        - evidenceItem
+        - task
+        - designDoc
+        - plan
+        - initiative
+        - sessionOutput
+    SignedEnvelopeFields:
+      type: object
+      required:
+        - machineId
+        - userId
+        - nonce
+        - timestampMs
+        - signature
+      properties:
+        machineId:
+          $ref: ../schemas/common.yaml#/MachineId
+        userId:
+          $ref: ../schemas/common.yaml#/UserId
+        nonce:
+          type: string
+          format: uuid
+          description: >-
+            Random UUID minted by the server per envelope. The CLI rejects an envelope whose nonce it has already seen
+            within the freshness window, defeating replay of a captured envelope.
+          example: 550e8400-e29b-41d4-a716-446655440099
+        timestampMs:
+          type: integer
+          format: int64
+          description: >-
+            Unix epoch milliseconds at which the server signed the envelope. The CLI rejects an envelope whose timestamp
+            is outside ±30s of local time, bounding the replay window.
+          example: 1747920000000
+        signature:
+          type: string
+          description: >-
+            Base64-encoded Ed25519 signature produced with the server's private signing key, covering the canonical byte
+            string defined below. The CLI verifies it against the server public signing key delivered at machine
+            pairing.
+          example: k7wQ2k1m...base64-ed25519-signature...==
+      description: >-
+        The shared security core composed (via `allOf`) into legacy and protocol-2 signed envelopes. Carries
+        machine/owner binding (`machineId`, `userId`), replay protection (`nonce`, `timestampMs`), and the server
+        `signature`. Each concrete envelope adds one `event` field carrying its body; protocol-2 executable envelopes
+        additionally add `protocolVersion` and the shared closed authorization union. Its activation arm carries fresh
+        assertion evidence plus the complete immutable descriptor; its reuse arm carries only the active grant
+        reference. The CLI runs the ordered verification pipeline (schema validation → signature → machineId → userId →
+        timestamp → nonce → frame-type/kind allowlist) and silently drops any envelope that fails; an unknown field
+        rejects the whole frame.
+
+
+        ## Signature canonicalization contract
+
+
+        The server signer and the CLI verifier MUST canonicalize identical bytes. The signed message is the UTF-8
+        encoding of the RFC 8785 (JSON Canonicalization Scheme) serialization of the envelope with the `signature`
+        property removed. For a legacy envelope that object is `{ event, machineId, userId, nonce, timestampMs }`; for a
+        protocol-2 executable envelope it is `{ authorization, event, machineId, nonce, protocolVersion, timestampMs,
+        userId }`. RFC 8785 fixes object key ordering (lexicographic by UTF-16 code unit), number formatting, and string
+        escaping, so the trigger body and the four binding fields serialize to one deterministic byte string on both
+        sides. The server signs those bytes with its Ed25519 private key; the CLI reconstructs the same object from the
+        received envelope (dropping `signature`), canonicalizes it identically, and verifies. The signature therefore
+        covers every concrete-envelope property except `signature`. For protocol 2 this explicitly includes the complete
+        authorization union, protocol version, event body, and all binding fields; tampering with any of them
+        invalidates it. Outer WebSocketEvent routing fields are not signed.
+    SignedConversationTriggerEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SignedEnvelopeFields"
+        - type: object
+          required:
+            - event
+          properties:
+            event:
+              $ref: ../schemas/conversations.yaml#/AgentTrigger
+      description: >-
+        Server-signed envelope wrapping the rich `AgentTrigger` body, whose `promptType` payloads drive a conversation
+        agent turn. Carried by the `trigger.conversation` frame. Unlike `PlatformEventBody`, this body is
+        content-carrying by design — its safety rests on the server signature and machine/owner binding, not on
+        structural minimality. See `SignedEnvelopeFields` for the signature canonicalization contract.
+    SignedConversationControlEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SignedEnvelopeFields"
+        - type: object
+          required:
+            - event
+          properties:
+            event:
+              $ref: "#/components/schemas/ConversationControlBody"
+      description: >-
+        Server-signed envelope wrapping the closed, `kind`-discriminated `ConversationControlBody` — the entity-IDs-only
+        control body sent by the conversation owner to remotely command the CLI run that owns the conversation. Carried
+        by the `trigger.control` frame. Mirrors `SignedPlatformEventEnvelope`'s discipline: entity IDs only, no
+        free-form text or `payload` escape hatch. See `SignedEnvelopeFields` for the signature canonicalization
+        contract.
+    SignedMonitorCommandEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SignedEnvelopeFields"
+        - type: object
+          required:
+            - event
+          properties:
+            event:
+              $ref: ../schemas/monitor-commands.yaml#/MonitorCommandBody
+      description: >-
+        Server-signed envelope wrapping the complete explicit monitor command. Every routing and execution field is
+        inside `event` and therefore covered by the signature canonicalization contract in `SignedEnvelopeFields`.
+    SignedCliReadEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SignedEnvelopeFields"
+        - type: object
+          required:
+            - event
+          properties:
+            event:
+              $ref: "#/components/schemas/CliReadEnvelopeBody"
+      description: >-
+        Server-signed envelope wrapping a closed, operation-discriminated CLI read body. Carried by the
+        `cli.read.request` frame and verified under the same signature, machine/user binding, freshness, and replay
+        rules as trigger envelopes.
+    ControllerAuthorizedSignedConversationTriggerEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - machineId
+        - userId
+        - nonce
+        - timestampMs
+        - signature
+        - protocolVersion
+        - authorization
+        - event
+      properties:
+        machineId:
+          $ref: ../schemas/common.yaml#/MachineId
+        userId:
+          $ref: ../schemas/common.yaml#/UserId
+        nonce:
+          type: string
+          format: uuid
+        timestampMs:
+          type: integer
+          format: int64
+        signature:
+          type: string
+        protocolVersion:
+          type: integer
+          enum:
+            - 2
+        authorization:
+          $ref: ../schemas/controller-authorization.yaml#/ExecutableEnvelopeAuthorization
+        event:
+          $ref: ../schemas/conversations.yaml#/AgentTrigger
+      description: Protocol-2 conversation envelope whose complete authorization and event are covered by the platform signature.
+    ControllerAuthorizedSignedConversationControlEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - machineId
+        - userId
+        - nonce
+        - timestampMs
+        - signature
+        - protocolVersion
+        - authorization
+        - event
+      properties:
+        machineId:
+          $ref: ../schemas/common.yaml#/MachineId
+        userId:
+          $ref: ../schemas/common.yaml#/UserId
+        nonce:
+          type: string
+          format: uuid
+        timestampMs:
+          type: integer
+          format: int64
+        signature:
+          type: string
+        protocolVersion:
+          type: integer
+          enum:
+            - 2
+        authorization:
+          $ref: ../schemas/controller-authorization.yaml#/ExecutableEnvelopeAuthorization
+        event:
+          $ref: "#/components/schemas/ConversationAuthorityIncreasingControlBody"
+    ControllerAuthorizedSignedMonitorCommandEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - machineId
+        - userId
+        - nonce
+        - timestampMs
+        - signature
+        - protocolVersion
+        - authorization
+        - event
+      properties:
+        machineId:
+          $ref: ../schemas/common.yaml#/MachineId
+        userId:
+          $ref: ../schemas/common.yaml#/UserId
+        nonce:
+          type: string
+          format: uuid
+        timestampMs:
+          type: integer
+          format: int64
+        signature:
+          type: string
+        protocolVersion:
+          type: integer
+          enum:
+            - 2
+        authorization:
+          $ref: ../schemas/controller-authorization.yaml#/ExecutableEnvelopeAuthorization
+        event:
+          $ref: ../schemas/monitor-commands.yaml#/MonitorCommandBodyV2
+    SignedMonitorAuthorityNeutralEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - machineId
+        - userId
+        - nonce
+        - timestampMs
+        - signature
+        - protocolVersion
+        - event
+      properties:
+        machineId:
+          $ref: ../schemas/common.yaml#/MachineId
+        userId:
+          $ref: ../schemas/common.yaml#/UserId
+        nonce:
+          type: string
+          format: uuid
+        timestampMs:
+          type: integer
+          format: int64
+        signature:
+          type: string
+        protocolVersion:
+          type: integer
+          enum:
+            - 2
+        event:
+          $ref: ../schemas/monitor-commands.yaml#/MonitorAuthorityNeutralBodyV2
+      description: >-
+        Protocol-2 authenticated Task Monitor input signed by the platform. It
+        carries no controller execution authorization because admission cannot
+        directly start, resume, or terminate host work.
+    ControllerAuthorizedSignedCliReadEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - machineId
+        - userId
+        - nonce
+        - timestampMs
+        - signature
+        - protocolVersion
+        - authorization
+        - event
+      properties:
+        machineId:
+          $ref: ../schemas/common.yaml#/MachineId
+        userId:
+          $ref: ../schemas/common.yaml#/UserId
+        nonce:
+          type: string
+          format: uuid
+        timestampMs:
+          type: integer
+          format: int64
+        signature:
+          type: string
+        protocolVersion:
+          type: integer
+          enum:
+            - 2
+        authorization:
+          $ref: ../schemas/controller-authorization.yaml#/ExecutableEnvelopeAuthorization
+        event:
+          $ref: "#/components/schemas/CliReadEnvelopeBody"
+    CliReadRequestDto:
+      oneOf:
+        - $ref: "#/components/schemas/CliReadRunChangedFilesCountRequest"
+        - $ref: "#/components/schemas/CliReadRunChangedFilesInventoryRequest"
+        - $ref: "#/components/schemas/CliReadRunChangedFileDetailRequest"
+        - $ref: "#/components/schemas/CliReadRunContextUsageGetRequest"
+        - $ref: "#/components/schemas/CliReadRunSkillsListRequest"
+        - $ref: "#/components/schemas/CliReadRunToolCallsLatestTurnRequest"
+        - $ref: "#/components/schemas/CliReadProjectSessionCostsListRequest"
+        - $ref: "#/components/schemas/CliReadProviderUsageGetRequest"
+      discriminator:
+        propertyName: operation
+        mapping:
+          run.changed_files.count: "#/components/schemas/CliReadRunChangedFilesCountRequest"
+          run.changed_files.inventory: "#/components/schemas/CliReadRunChangedFilesInventoryRequest"
+          run.changed_files.detail: "#/components/schemas/CliReadRunChangedFileDetailRequest"
+          run.context_usage.get: "#/components/schemas/CliReadRunContextUsageGetRequest"
+          run.skills.list: "#/components/schemas/CliReadRunSkillsListRequest"
+          run.tool_calls.latest_turn: "#/components/schemas/CliReadRunToolCallsLatestTurnRequest"
+          project.session_costs.list: "#/components/schemas/CliReadProjectSessionCostsListRequest"
+          provider.usage.get: "#/components/schemas/CliReadProviderUsageGetRequest"
+      description: >-
+        Closed union of host-owned state reads accepted by the platform Agent Session endpoint. New operations extend
+        this union without creating a new transport.
+    CliReadEnvelopeBody:
+      oneOf:
+        - $ref: "#/components/schemas/CliReadRunChangedFilesCountEnvelopeBody"
+        - $ref: "#/components/schemas/CliReadRunChangedFilesInventoryEnvelopeBody"
+        - $ref: "#/components/schemas/CliReadRunChangedFileDetailEnvelopeBody"
+        - $ref: "#/components/schemas/CliReadRunContextUsageGetEnvelopeBody"
+        - $ref: "#/components/schemas/CliReadRunSkillsListEnvelopeBody"
+        - $ref: "#/components/schemas/CliReadRunToolCallsLatestTurnEnvelopeBody"
+        - $ref: "#/components/schemas/CliReadWorkspaceSkillsListEnvelopeBody"
+        - $ref: "#/components/schemas/CliReadProjectSessionCostsListEnvelopeBody"
+        - $ref: "#/components/schemas/CliReadProviderUsageGetEnvelopeBody"
+        - $ref: "#/components/schemas/CliReadRuntimeModelCatalogGetEnvelopeBody"
+      discriminator:
+        propertyName: operation
+        mapping:
+          run.changed_files.count: "#/components/schemas/CliReadRunChangedFilesCountEnvelopeBody"
+          run.changed_files.inventory: "#/components/schemas/CliReadRunChangedFilesInventoryEnvelopeBody"
+          run.changed_files.detail: "#/components/schemas/CliReadRunChangedFileDetailEnvelopeBody"
+          run.context_usage.get: "#/components/schemas/CliReadRunContextUsageGetEnvelopeBody"
+          run.skills.list: "#/components/schemas/CliReadRunSkillsListEnvelopeBody"
+          run.tool_calls.latest_turn: "#/components/schemas/CliReadRunToolCallsLatestTurnEnvelopeBody"
+          workspace.skills.list: "#/components/schemas/CliReadWorkspaceSkillsListEnvelopeBody"
+          project.session_costs.list: "#/components/schemas/CliReadProjectSessionCostsListEnvelopeBody"
+          provider.usage.get: "#/components/schemas/CliReadProviderUsageGetEnvelopeBody"
+          runtime.model_catalog.get: "#/components/schemas/CliReadRuntimeModelCatalogGetEnvelopeBody"
+    CliReadResponseDto:
+      oneOf:
+        - $ref: "#/components/schemas/CliReadSuccessResponseDto"
+        - $ref: "#/components/schemas/CliReadErrorResponseDto"
+      description: >-
+        Correlated terminal result for a CLI read. Transport failures are returned through the same typed error arm so
+        callers never interpret silence as a successful empty read.
+    CliReadSuccessResponseDto:
+      oneOf:
+        - $ref: "#/components/schemas/CliReadRunChangedFilesCountSuccessResponseDto"
+        - $ref: "#/components/schemas/CliReadRunChangedFilesInventorySuccessResponseDto"
+        - $ref: "#/components/schemas/CliReadRunChangedFileDetailSuccessResponseDto"
+        - $ref: "#/components/schemas/CliReadRunContextUsageGetSuccessResponseDto"
+        - $ref: "#/components/schemas/CliReadRunSkillsListSuccessResponseDto"
+        - $ref: "#/components/schemas/CliReadRunToolCallsLatestTurnSuccessResponseDto"
+        - $ref: "#/components/schemas/CliReadWorkspaceSkillsListSuccessResponseDto"
+        - $ref: "#/components/schemas/CliReadProjectSessionCostsListSuccessResponseDto"
+        - $ref: "#/components/schemas/CliReadProviderUsageGetSuccessResponseDto"
+        - $ref: "#/components/schemas/CliReadRuntimeModelCatalogGetSuccessResponseDto"
+      discriminator:
+        propertyName: operation
+        mapping:
+          run.changed_files.count: "#/components/schemas/CliReadRunChangedFilesCountSuccessResponseDto"
+          run.changed_files.inventory: "#/components/schemas/CliReadRunChangedFilesInventorySuccessResponseDto"
+          run.changed_files.detail: "#/components/schemas/CliReadRunChangedFileDetailSuccessResponseDto"
+          run.context_usage.get: "#/components/schemas/CliReadRunContextUsageGetSuccessResponseDto"
+          run.skills.list: "#/components/schemas/CliReadRunSkillsListSuccessResponseDto"
+          run.tool_calls.latest_turn: "#/components/schemas/CliReadRunToolCallsLatestTurnSuccessResponseDto"
+          workspace.skills.list: "#/components/schemas/CliReadWorkspaceSkillsListSuccessResponseDto"
+          project.session_costs.list: "#/components/schemas/CliReadProjectSessionCostsListSuccessResponseDto"
+          provider.usage.get: "#/components/schemas/CliReadProviderUsageGetSuccessResponseDto"
+          runtime.model_catalog.get: "#/components/schemas/CliReadRuntimeModelCatalogGetSuccessResponseDto"
+    CliReadErrorResponseDto:
+      oneOf:
+        - $ref: "#/components/schemas/CliReadRunChangedFilesCountErrorResponseDto"
+        - $ref: "#/components/schemas/CliReadRunChangedFilesInventoryErrorResponseDto"
+        - $ref: "#/components/schemas/CliReadRunChangedFileDetailErrorResponseDto"
+        - $ref: "#/components/schemas/CliReadRunContextUsageGetErrorResponseDto"
+        - $ref: "#/components/schemas/CliReadRunSkillsListErrorResponseDto"
+        - $ref: "#/components/schemas/CliReadRunToolCallsLatestTurnErrorResponseDto"
+        - $ref: "#/components/schemas/CliReadWorkspaceSkillsListErrorResponseDto"
+        - $ref: "#/components/schemas/CliReadProjectSessionCostsListErrorResponseDto"
+        - $ref: "#/components/schemas/CliReadProviderUsageGetErrorResponseDto"
+        - $ref: "#/components/schemas/CliReadRuntimeModelCatalogGetErrorResponseDto"
+      discriminator:
+        propertyName: operation
+        mapping:
+          run.changed_files.count: "#/components/schemas/CliReadRunChangedFilesCountErrorResponseDto"
+          run.changed_files.inventory: "#/components/schemas/CliReadRunChangedFilesInventoryErrorResponseDto"
+          run.changed_files.detail: "#/components/schemas/CliReadRunChangedFileDetailErrorResponseDto"
+          run.context_usage.get: "#/components/schemas/CliReadRunContextUsageGetErrorResponseDto"
+          run.skills.list: "#/components/schemas/CliReadRunSkillsListErrorResponseDto"
+          run.tool_calls.latest_turn: "#/components/schemas/CliReadRunToolCallsLatestTurnErrorResponseDto"
+          workspace.skills.list: "#/components/schemas/CliReadWorkspaceSkillsListErrorResponseDto"
+          project.session_costs.list: "#/components/schemas/CliReadProjectSessionCostsListErrorResponseDto"
+          provider.usage.get: "#/components/schemas/CliReadProviderUsageGetErrorResponseDto"
+          runtime.model_catalog.get: "#/components/schemas/CliReadRuntimeModelCatalogGetErrorResponseDto"
+    CliReadErrorCode:
+      type: string
+      enum:
+        - RUN_NOT_FOUND
+        - RUN_ID_MISMATCH
+        - INVALID_RUN_CONTEXT
+        - INVALID_PROJECT_CONTEXT
+        - INVALID_REQUEST
+        - INVALID_CURSOR
+        - SERVICE_NOT_FOUND
+        - REPOSITORY_NOT_FOUND
+        - INVALID_REPOSITORY_PATH
+        - FILE_TOO_LARGE
+        - INVALID_FILE_MEMBERSHIP
+        - RESULT_TOO_LARGE
+        - READ_FAILED
+        - PROVIDER_UNAVAILABLE
+        - PROVIDER_FAILURE
+        - CATALOG_BUSY
+        - INVALID_WORKSPACE
+        - MACHINE_NOT_BOUND
+        - NO_RECIPIENT
+        - TIMEOUT
+        - CORRELATION_MISMATCH
+        - MALFORMED_ACK
+    ConversationControlBody:
+      oneOf:
+        - $ref: "#/components/schemas/ConversationControlCancelInput"
+        - $ref: "#/components/schemas/ConversationControlStopRun"
+        - $ref: "#/components/schemas/ConversationControlCompactRun"
+        - $ref: "#/components/schemas/ConversationControlPermissionDecision"
+        - $ref: "#/components/schemas/ConversationControlQuestionAnswer"
+      discriminator:
+        propertyName: kind
+        mapping:
+          cancel_input: "#/components/schemas/ConversationControlCancelInput"
+          stop_run: "#/components/schemas/ConversationControlStopRun"
+          compact_run: "#/components/schemas/ConversationControlCompactRun"
+          permission_decision: "#/components/schemas/ConversationControlPermissionDecision"
+          question_answer: "#/components/schemas/ConversationControlQuestionAnswer"
+      description: >-
+        The closed, `kind`-discriminated control body that a SignedConversationControlEnvelope wraps. Every variant has
+        shape `{ kind, ...fields }`. `stop_run`, `compact_run`, `permission_decision`, and `question_answer` are the
+        control kinds defined today; further control kinds extend the union via a new variant plus a new discriminator-mapping entry. The kind
+        allowlist enforced by the CLI verifier is intentionally distinct from the `trigger.conversation` promptType
+        allowlist — control kinds and prompt types do not share namespace.
+    ConversationControlCancelInput:
+      $ref: "../schemas/websockets.yaml#/ConversationControlCancelInput"
+    ConversationControlStopRun:
+      type: object
+      required:
+        - kind
+        - conversationId
+        - runId
+      properties:
+        kind:
+          type: string
+          enum:
+            - stop_run
+          description: >-
+            Discriminator for the stop-run control. Selects the dispatcher branch that aborts the active Turn on the
+            addressed Run.
+        conversationId:
+          $ref: ../schemas/common.yaml#/ConversationId
+        runId:
+          type: string
+          format: uuid
+          description: >-
+            Agentic-session id of the CLI Run to stop. The dispatcher uses the `conversationId` to locate the active Run
+            binding and verifies the binding's runId matches before invoking the stop path.
+          example: 550e8400-e29b-41d4-a716-446655440099
+      additionalProperties: false
+      description: >-
+        Structural control body for stopping a CLI Run owned by the conversation. Carries entity IDs only: no free-form
+        text, prompt fragment, or `payload` escape hatch. The CLI dispatcher resolves the Run via `conversationId` and
+        calls the run-service stop path — idempotent on the absent / already-stopped cases.
+    ConversationControlCompactRun:
+      type: object
+      required:
+        - kind
+        - agentSessionId
+        - conversationId
+        - runId
+      properties:
+        kind:
+          type: string
+          enum:
+            - compact_run
+          description: >-
+            Discriminator for the compact-run control. Selects the dispatcher branch that compacts the conversation
+            history of the addressed Run.
+        agentSessionId:
+          type: string
+          format: uuid
+          description: Canonical Agent Session authorization target.
+        conversationId:
+          $ref: ../schemas/common.yaml#/ConversationId
+        runId:
+          type: string
+          format: uuid
+          description: >-
+            Agentic-session id of the live CLI Run to compact. The dispatcher uses the `conversationId` to locate the
+            active Run binding and verifies the binding's runId matches before invoking the compaction path.
+          example: 550e8400-e29b-41d4-a716-446655440099
+      additionalProperties: false
+      description: >-
+        Structural control body for compacting a CLI Run owned by the conversation. Carries entity IDs only: no
+        free-form text, prompt fragment, or `payload` escape hatch. The CLI dispatcher resolves the Run via
+        `conversationId` and invokes the compaction path on the addressed Run.
+    ConversationControlPermissionDecision:
+      type: object
+      required:
+        - kind
+        - agentSessionId
+        - decision
+        - requestId
+        - sessionId
+        - agentType
+        - idempotencyToken
+      properties:
+        kind:
+          type: string
+          enum:
+            - permission_decision
+          description: >-
+            Discriminator for the permission-decision control. Selects the dispatcher branch that delivers the user's
+            permission decision to the live runner awaiting the gate.
+        agentSessionId:
+          type: string
+          format: uuid
+          description: Canonical Agent Session authorization target.
+        decision:
+          type: string
+          enum:
+            - approve
+            - always_approve
+            - deny
+            - whitelist
+          description: The user's approval decision for the pending permission request.
+        requestId:
+          type: string
+          minLength: 1
+          description: >-
+            Stable identifier for the permission request this decision responds to. The CLI dispatcher uses this to
+            locate the awaiting runner.
+        sessionId:
+          type: string
+          minLength: 1
+          description: >-
+            Provider session identifier. Together with `agentType`, uniquely identifies the agent session holding the
+            permission gate.
+        agentType:
+          type: string
+          enum:
+            - claude
+            - codex
+            - opencode
+          description: Agent provider that issued the permission request.
+        reason:
+          type: string
+          nullable: true
+          description: User-supplied explanation for the decision, rendered alongside the Approved/Denied message in CLI output.
+        idempotencyToken:
+          type: string
+          minLength: 1
+          description: >-
+            Stable token for deduplicating delivery of this decision. The CLI discards duplicate frames that arrive from
+            re-sends.
+      additionalProperties: false
+      description: >-
+        Structural control body for delivering a user permission decision to a live CLI runner awaiting a permission
+        gate. Carries the decision payload and matching identifiers only: no free-form prompt fragment or `payload`
+        escape hatch. The CLI dispatcher matches the frame to the awaiting runner via `requestId`, `sessionId`, and
+        `agentType`, then unblocks the gate with the received `decision`.
+    ConversationControlQuestionAnswer:
+      $ref: "../schemas/websockets.yaml#/ConversationControlQuestionAnswer"
+    ConversationAuthorityIncreasingControlBody:
+      oneOf:
+        - $ref: "#/components/schemas/ConversationControlCompactRun"
+        - $ref: "#/components/schemas/ConversationControlPermissionDecision"
+        - $ref: "#/components/schemas/ConversationControlQuestionAnswer"
+      discriminator:
+        propertyName: kind
+        mapping:
+          compact_run: "#/components/schemas/ConversationControlCompactRun"
+          permission_decision: "#/components/schemas/ConversationControlPermissionDecision"
+          question_answer: "#/components/schemas/ConversationControlQuestionAnswer"
+    CliReadRunChangedFilesCountRequest:
+      type: object
+      required:
+        - operation
+        - runId
+        - authorization
+      properties:
+        operation:
+          type: string
+          enum:
+            - run.changed_files.count
+        runId:
+          type: string
+          format: uuid
+          description: Persisted CLI Run identity to prepare and read.
+        authorization:
+          $ref: ../schemas/controller-authorization.yaml#/AdmissionEnvelopeAuthorization
+      additionalProperties: false
+    CliReadRunChangedFilesInventoryRequest:
+      type: object
+      required:
+        - operation
+        - runId
+        - authorization
+      properties:
+        operation:
+          type: string
+          enum:
+            - run.changed_files.inventory
+        runId:
+          type: string
+          format: uuid
+          description: Persisted CLI Run identity whose content-free changed-file inventory is requested.
+        authorization:
+          $ref: ../schemas/controller-authorization.yaml#/AdmissionEnvelopeAuthorization
+      additionalProperties: false
+    CliReadRunChangedFileDetailRequest:
+      type: object
+      required:
+        - operation
+        - runId
+        - file
+        - authorization
+      properties:
+        operation:
+          type: string
+          enum:
+            - run.changed_files.detail
+        runId:
+          type: string
+          format: uuid
+          description: Persisted CLI Run identity whose selected changed file is requested.
+        file:
+          $ref: "#/components/schemas/CliReadChangedFileIdentity"
+        authorization:
+          $ref: ../schemas/controller-authorization.yaml#/AdmissionEnvelopeAuthorization
+      additionalProperties: false
+    CliReadRunContextUsageGetRequest:
+      type: object
+      required:
+        - operation
+        - runId
+        - authorization
+      properties:
+        operation:
+          type: string
+          enum:
+            - run.context_usage.get
+        runId:
+          type: string
+          format: uuid
+          description: Persisted CLI Run identity whose selected provider-session context is requested.
+        providerSessionId:
+          type: string
+          minLength: 1
+          description: Selected provider session. When omitted, the CLI resolves the latest persisted session.
+        authorization:
+          $ref: ../schemas/controller-authorization.yaml#/AdmissionEnvelopeAuthorization
+      additionalProperties: false
+    CliReadRunSkillsListRequest:
+      type: object
+      required:
+        - operation
+        - runId
+        - authorization
+      properties:
+        operation:
+          type: string
+          enum:
+            - run.skills.list
+        runId:
+          type: string
+          format: uuid
+          description: Persisted CLI Run identity whose provider Skill catalog is requested.
+        authorization:
+          $ref: ../schemas/controller-authorization.yaml#/AdmissionEnvelopeAuthorization
+      additionalProperties: false
+    CliReadRunToolCallsLatestTurnRequest:
+      type: object
+      required:
+        - operation
+        - runId
+        - authorization
+      properties:
+        operation:
+          type: string
+          enum:
+            - run.tool_calls.latest_turn
+        runId:
+          type: string
+          format: uuid
+          description: Persisted CLI Run identity whose latest Turn's tool calls are requested.
+        authorization:
+          $ref: ../schemas/controller-authorization.yaml#/AdmissionEnvelopeAuthorization
+      additionalProperties: false
+    CliReadProjectSessionCostsListRequest:
+      type: object
+      required:
+        - operation
+        - projectId
+        - limit
+        - authorization
+      properties:
+        operation:
+          type: string
+          enum:
+            - project.session_costs.list
+        projectId:
+          type: string
+          format: uuid
+          description: Project whose persisted Run-owned provider-session costs are requested.
+        activityFrom:
+          type: string
+          format: date-time
+          description: Inclusive lower bound for the Run's latest activity.
+        activityTo:
+          type: string
+          format: date-time
+          description: Inclusive upper bound for the Run's latest activity.
+        minKnownCostUsd:
+          type: number
+          minimum: 0
+          description: Minimum numeric aggregate cost. Fully unavailable rows do not match.
+        limit:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 100
+        cursor:
+          type: string
+          nullable: true
+          minLength: 1
+          description: Opaque continuation bound to the normalized filters.
+        authorization:
+          $ref: ../schemas/controller-authorization.yaml#/AdmissionEnvelopeAuthorization
+      additionalProperties: false
+    CliReadProviderUsageGetRequest:
+      type: object
+      required:
+        - operation
+        - authorization
+      properties:
+        operation:
+          type: string
+          enum:
+            - provider.usage.get
+        authorization:
+          $ref: ../schemas/controller-authorization.yaml#/AdmissionEnvelopeAuthorization
+      additionalProperties: false
+    CliReadRuntimeModelCatalogGetRequest:
+      type: object
+      required:
+        - operation
+        - authorization
+      properties:
+        operation:
+          type: string
+          enum:
+            - runtime.model_catalog.get
+        authorization:
+          $ref: ../schemas/controller-authorization.yaml#/AdmissionEnvelopeAuthorization
+      additionalProperties: false
+    CliReadRunChangedFilesCountEnvelopeBody:
+      type: object
+      required:
+        - requestId
+        - agentSessionId
+        - operation
+        - runId
+      properties:
+        requestId:
+          type: string
+          format: uuid
+          description: Correlation identity minted by the platform for this read.
+        agentSessionId:
+          type: string
+          format: uuid
+          description: Canonical Agent Session authorization target.
+        operation:
+          type: string
+          enum:
+            - run.changed_files.count
+        runId:
+          type: string
+          format: uuid
+          description: Persisted CLI Run identity to prepare and read.
+      additionalProperties: false
+    CliReadRunChangedFilesInventoryEnvelopeBody:
+      type: object
+      required:
+        - requestId
+        - agentSessionId
+        - operation
+        - runId
+      properties:
+        requestId:
+          type: string
+          format: uuid
+          description: Correlation identity minted by the platform for this read.
+        agentSessionId:
+          type: string
+          format: uuid
+          description: Canonical Agent Session authorization target.
+        operation:
+          type: string
+          enum:
+            - run.changed_files.inventory
+        runId:
+          type: string
+          format: uuid
+          description: Persisted CLI Run identity whose content-free changed-file inventory is requested.
+      additionalProperties: false
+    CliReadRunChangedFileDetailEnvelopeBody:
+      type: object
+      required:
+        - requestId
+        - agentSessionId
+        - operation
+        - runId
+        - file
+      properties:
+        requestId:
+          type: string
+          format: uuid
+          description: Correlation identity minted by the platform for this read.
+        agentSessionId:
+          type: string
+          format: uuid
+          description: Canonical Agent Session authorization target.
+        operation:
+          type: string
+          enum:
+            - run.changed_files.detail
+        runId:
+          type: string
+          format: uuid
+          description: Persisted CLI Run identity whose selected changed file is requested.
+        file:
+          $ref: "#/components/schemas/CliReadChangedFileIdentity"
+      additionalProperties: false
+    CliReadRunContextUsageGetEnvelopeBody:
+      type: object
+      required:
+        - requestId
+        - agentSessionId
+        - operation
+        - runId
+      properties:
+        requestId:
+          type: string
+          format: uuid
+          description: Correlation identity minted by the platform for this read.
+        agentSessionId:
+          type: string
+          format: uuid
+          description: Canonical Agent Session authorization target.
+        operation:
+          type: string
+          enum:
+            - run.context_usage.get
+        runId:
+          type: string
+          format: uuid
+        providerSessionId:
+          type: string
+          minLength: 1
+      additionalProperties: false
+    CliReadRunSkillsListEnvelopeBody:
+      type: object
+      required:
+        - requestId
+        - agentSessionId
+        - operation
+        - runId
+      properties:
+        requestId:
+          type: string
+          format: uuid
+          description: Correlation identity minted by the platform for this read.
+        agentSessionId:
+          type: string
+          format: uuid
+          description: Canonical Agent Session authorization target.
+        operation:
+          type: string
+          enum:
+            - run.skills.list
+        runId:
+          type: string
+          format: uuid
+          description: Persisted CLI Run identity whose provider Skill catalog is requested.
+      additionalProperties: false
+    CliReadRunToolCallsLatestTurnEnvelopeBody:
+      type: object
+      required:
+        - requestId
+        - agentSessionId
+        - operation
+        - runId
+      properties:
+        requestId:
+          type: string
+          format: uuid
+          description: Correlation identity minted by the platform for this read.
+        agentSessionId:
+          type: string
+          format: uuid
+          description: Canonical Agent Session authorization target.
+        operation:
+          type: string
+          enum:
+            - run.tool_calls.latest_turn
+        runId:
+          type: string
+          format: uuid
+          description: Persisted CLI Run identity whose latest Turn's tool calls are requested.
+      additionalProperties: false
+    CliReadProjectSessionCostsListEnvelopeBody:
+      type: object
+      required:
+        - requestId
+        - agentSessionId
+        - operation
+        - projectId
+        - limit
+      properties:
+        requestId:
+          type: string
+          format: uuid
+          description: Correlation identity minted by the platform for this read.
+        agentSessionId:
+          type: string
+          format: uuid
+          description: Canonical Agent Session authorization target.
+        operation:
+          type: string
+          enum:
+            - project.session_costs.list
+        projectId:
+          type: string
+          format: uuid
+        activityFrom:
+          type: string
+          format: date-time
+        activityTo:
+          type: string
+          format: date-time
+        minKnownCostUsd:
+          type: number
+          minimum: 0
+        limit:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 100
+        cursor:
+          type: string
+          nullable: true
+          minLength: 1
+      additionalProperties: false
+    CliReadProviderUsageGetEnvelopeBody:
+      type: object
+      required:
+        - requestId
+        - agentSessionId
+        - operation
+      properties:
+        requestId:
+          type: string
+          format: uuid
+          description: Correlation identity minted by the platform for this read.
+        agentSessionId:
+          type: string
+          format: uuid
+          description: Canonical Agent Session authorization target.
+        operation:
+          type: string
+          enum:
+            - provider.usage.get
+      additionalProperties: false
+    CliReadRuntimeModelCatalogGetEnvelopeBody:
+      type: object
+      required:
+        - requestId
+        - operation
+        - organizationId
+        - projectId
+        - machineId
+        - authorizationRequestId
+      properties:
+        requestId:
+          type: string
+          format: uuid
+          description: Correlation identity minted by the platform for this read.
+        operation:
+          type: string
+          enum:
+            - runtime.model_catalog.get
+        organizationId:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        machineId:
+          type: string
+          format: uuid
+        authorizationRequestId:
+          type: string
+          format: uuid
+      additionalProperties: false
+    CliReadRunChangedFilesCountSuccessResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - result
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - run.changed_files.count
+        status:
+          type: string
+          enum:
+            - success
+        result:
+          $ref: "#/components/schemas/CliReadChangedFilesCountResult"
+      additionalProperties: false
+    CliReadRunChangedFilesInventorySuccessResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - result
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - run.changed_files.inventory
+        status:
+          type: string
+          enum:
+            - success
+        result:
+          $ref: "#/components/schemas/CliReadChangedFilesInventoryResult"
+      additionalProperties: false
+    CliReadRunChangedFileDetailSuccessResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - result
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - run.changed_files.detail
+        status:
+          type: string
+          enum:
+            - success
+        result:
+          $ref: "#/components/schemas/CliReadChangedFileDetailResult"
+      additionalProperties: false
+    CliReadRunContextUsageGetSuccessResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - result
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - run.context_usage.get
+        status:
+          type: string
+          enum:
+            - success
+        result:
+          $ref: "#/components/schemas/CliReadRunContextUsageResult"
+      additionalProperties: false
+    CliReadRunSkillsListSuccessResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - result
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - run.skills.list
+        status:
+          type: string
+          enum:
+            - success
+        result:
+          type: object
+          required:
+            - runId
+            - provider
+            - skills
+            - errors
+          properties:
+            runId:
+              type: string
+              format: uuid
+            provider:
+              $ref: "#/components/schemas/AgentSkillProvider"
+            skills:
+              type: array
+              items:
+                $ref: "#/components/schemas/AgentSkillCatalogEntry"
+            errors:
+              type: array
+              items:
+                $ref: "#/components/schemas/AgentSkillDiscoveryError"
+          additionalProperties: false
+      additionalProperties: false
+    CliReadRunToolCallsLatestTurnSuccessResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - result
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - run.tool_calls.latest_turn
+        status:
+          type: string
+          enum:
+            - success
+        result:
+          $ref: "#/components/schemas/CliReadToolCallsLatestTurnResult"
+      additionalProperties: false
+    CliReadToolCallsLatestTurnResult:
+      oneOf:
+        - $ref: "#/components/schemas/CliReadToolCallsLatestTurnAvailable"
+        - $ref: "#/components/schemas/CliReadToolCallsLatestTurnDisabled"
+      discriminator:
+        propertyName: state
+        mapping:
+          available: "#/components/schemas/CliReadToolCallsLatestTurnAvailable"
+          disabled: "#/components/schemas/CliReadToolCallsLatestTurnDisabled"
+      description: >-
+        Live, transient view of the latest Turn's tool calls, or the typed outcome that remote viewing is turned off on
+        this machine. Nothing here is stored by the CLI, the platform or the browser.
+    CliReadToolCallsLatestTurnAvailable:
+      type: object
+      required:
+        - state
+        - runId
+        - turnId
+        - toolCalls
+        - omittedEarlierCount
+        - evictedCount
+      properties:
+        state:
+          type: string
+          enum:
+            - available
+        runId:
+          type: string
+          format: uuid
+        turnId:
+          type: string
+          nullable: true
+          description: CLI-owned identity of the latest Turn (the active Turn, else the newest Turn with activity). Null when the Run has no tool activity.
+        toolCalls:
+          type: array
+          description: The Turn's tool calls in the order they began, subagent calls included and distinguished by lane.
+          items:
+            $ref: "#/components/schemas/CliReadToolCall"
+        omittedEarlierCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Earliest tool calls of the Turn dropped so the response fits the transport budget.
+        evictedCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Entries the CLI's bounded activity history has already discarded for this Run; earlier calls may be missing.
+      additionalProperties: false
+    CliReadToolCallsLatestTurnDisabled:
+      type: object
+      required:
+        - state
+        - runId
+      properties:
+        state:
+          type: string
+          enum:
+            - disabled
+        runId:
+          type: string
+          format: uuid
+      additionalProperties: false
+    CliReadToolCall:
+      type: object
+      required:
+        - entryId
+        - toolUseId
+        - toolName
+        - summary
+        - status
+        - exitCode
+        - lane
+        - createdAt
+        - updatedAt
+        - detail
+      properties:
+        entryId:
+          type: string
+          description: Stable within the live Run instance; unique per tool call.
+        toolUseId:
+          type: string
+        toolName:
+          type: string
+          nullable: true
+          description: Null until the provider names the tool.
+        summary:
+          type: string
+          description: One short line naming the tool and its most telling argument.
+        status:
+          type: string
+          enum:
+            - running
+            - completed
+            - failed
+        exitCode:
+          type: integer
+          format: int32
+          nullable: true
+        lane:
+          $ref: "#/components/schemas/CliReadToolCallLane"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        detail:
+          $ref: "#/components/schemas/CliReadToolCallDetail"
+      additionalProperties: false
+    CliReadToolCallLane:
+      type: object
+      description: Who produced the call. All null means the Run's root agent.
+      required:
+        - subagentTurnId
+        - providerThreadId
+        - parentToolUseId
+      properties:
+        subagentTurnId:
+          type: string
+          nullable: true
+        providerThreadId:
+          type: string
+          nullable: true
+        parentToolUseId:
+          type: string
+          nullable: true
+      additionalProperties: false
+    CliReadToolCallDetail:
+      type: object
+      description: Expandable content of a tool call, each part cut off with an explicit marker when large.
+      required:
+        - input
+        - output
+        - result
+      properties:
+        input:
+          allOf:
+            - $ref: "#/components/schemas/CliReadToolCallText"
+          nullable: true
+          description: Serialized arguments; null when the provider supplied none.
+        output:
+          allOf:
+            - $ref: "#/components/schemas/CliReadToolCallText"
+          nullable: true
+          description: Streamed command output; null when none was streamed.
+        result:
+          allOf:
+            - $ref: "#/components/schemas/CliReadToolCallText"
+          nullable: true
+          description: Result content; null before a result arrives.
+      additionalProperties: false
+    CliReadToolCallText:
+      type: object
+      required:
+        - text
+        - truncated
+      properties:
+        text:
+          type: string
+        truncated:
+          type: boolean
+          description: True when content was cut off, either earlier by the CLI's activity history or to fit the response budget.
+      additionalProperties: false
+    CliReadProjectSessionCostsListSuccessResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - result
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - project.session_costs.list
+        status:
+          type: string
+          enum:
+            - success
+        result:
+          $ref: "#/components/schemas/CliReadProjectSessionCostsResult"
+      additionalProperties: false
+    CliReadProviderUsageGetSuccessResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - result
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - provider.usage.get
+        status:
+          type: string
+          enum:
+            - success
+        result:
+          $ref: "#/components/schemas/CliReadProviderUsageResult"
+      additionalProperties: false
+    CliReadRuntimeModelCatalogGetSuccessResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - result
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - runtime.model_catalog.get
+        status:
+          type: string
+          enum:
+            - success
+        result:
+          $ref: "#/components/schemas/CliReadRuntimeModelCatalogResult"
+      additionalProperties: false
+    CliReadRunChangedFilesCountErrorResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - error
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - run.changed_files.count
+        status:
+          type: string
+          enum:
+            - error
+        error:
+          $ref: "#/components/schemas/CliReadError"
+      additionalProperties: false
+    CliReadRunChangedFilesInventoryErrorResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - error
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - run.changed_files.inventory
+        status:
+          type: string
+          enum:
+            - error
+        error:
+          $ref: "#/components/schemas/CliReadError"
+      additionalProperties: false
+    CliReadRunChangedFileDetailErrorResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - error
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - run.changed_files.detail
+        status:
+          type: string
+          enum:
+            - error
+        error:
+          $ref: "#/components/schemas/CliReadError"
+      additionalProperties: false
+    CliReadRunContextUsageGetErrorResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - error
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - run.context_usage.get
+        status:
+          type: string
+          enum:
+            - error
+        error:
+          $ref: "#/components/schemas/CliReadError"
+      additionalProperties: false
+    CliReadRunSkillsListErrorResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - error
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - run.skills.list
+        status:
+          type: string
+          enum:
+            - error
+        error:
+          $ref: "#/components/schemas/CliReadError"
+      additionalProperties: false
+    CliReadRunToolCallsLatestTurnErrorResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - error
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - run.tool_calls.latest_turn
+        status:
+          type: string
+          enum:
+            - error
+        error:
+          $ref: "#/components/schemas/CliReadError"
+      additionalProperties: false
+    CliReadProjectSessionCostsListErrorResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - error
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - project.session_costs.list
+        status:
+          type: string
+          enum:
+            - error
+        error:
+          $ref: "#/components/schemas/CliReadError"
+      additionalProperties: false
+    CliReadProviderUsageGetErrorResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - error
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - provider.usage.get
+        status:
+          type: string
+          enum:
+            - error
+        error:
+          $ref: "#/components/schemas/CliReadError"
+      additionalProperties: false
+    CliReadRuntimeModelCatalogGetErrorResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - error
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - runtime.model_catalog.get
+        status:
+          type: string
+          enum:
+            - error
+        error:
+          $ref: "#/components/schemas/CliReadError"
+      additionalProperties: false
+    CliReadChangedFilesCountResult:
+      type: object
+      required:
+        - runId
+        - changedFilesCount
+      properties:
+        runId:
+          type: string
+          format: uuid
+        changedFilesCount:
+          type: integer
+          format: int32
+          minimum: 0
+      additionalProperties: false
+    CliReadChangedFileIdentity:
+      type: object
+      required:
+        - serviceId
+        - repoPath
+        - filePath
+      properties:
+        serviceId:
+          type: string
+          format: uuid
+        repoPath:
+          type: string
+          maxLength: 4096
+        filePath:
+          type: string
+          maxLength: 4096
+      additionalProperties: false
+    CliReadChangedFileInventoryEntry:
+      allOf:
+        - $ref: "#/components/schemas/CliReadChangedFileIdentity"
+        - type: object
+          required:
+            - status
+          properties:
+            status:
+              type: string
+              enum:
+                - create
+                - modify
+                - delete
+          additionalProperties: false
+    CliReadChangedFileDetail:
+      allOf:
+        - $ref: "#/components/schemas/CliReadChangedFileInventoryEntry"
+        - type: object
+          required:
+            - diff
+            - preContent
+            - postContent
+          properties:
+            diff:
+              type: string
+              maxLength: 1048576
+            preContent:
+              type: string
+              nullable: true
+              maxLength: 1048576
+            postContent:
+              type: string
+              nullable: true
+              maxLength: 1048576
+          additionalProperties: false
+    CliReadChangedFilesInventoryResult:
+      type: object
+      required:
+        - runId
+        - entries
+      properties:
+        runId:
+          type: string
+          format: uuid
+        entries:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/CliReadChangedFileInventoryEntry"
+      additionalProperties: false
+    CliReadChangedFileDetailResult:
+      type: object
+      required:
+        - runId
+        - file
+      properties:
+        runId:
+          type: string
+          format: uuid
+        file:
+          $ref: "#/components/schemas/CliReadChangedFileDetail"
+      additionalProperties: false
+    CliReadRunContextUsageResult:
+      type: object
+      required:
+        - runId
+        - providerSessionId
+        - contextData
+        - cost
+      properties:
+        runId:
+          type: string
+          format: uuid
+        providerSessionId:
+          type: string
+          minLength: 1
+        contextData:
+          $ref: "#/components/schemas/ContextData"
+        cost:
+          $ref: "#/components/schemas/CliReadProviderSessionUsageCost"
+      additionalProperties: false
+    ContextData:
+      type: object
+      required:
+        - categories
+        - totalTokens
+        - maxTokens
+        - rawMaxTokens
+        - percentage
+        - gridRows
+        - model
+        - memoryFiles
+        - mcpTools
+        - agents
+        - isAutoCompactEnabled
+        - apiUsage
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContextCategory"
+        totalTokens:
+          type: integer
+          minimum: 0
+        maxTokens:
+          type: integer
+          minimum: 0
+        rawMaxTokens:
+          type: integer
+          minimum: 0
+        percentage:
+          type: number
+          minimum: 0
+        gridRows:
+          type: array
+          items:
+            type: array
+            items:
+              $ref: "#/components/schemas/ContextGridSquare"
+        model:
+          type: string
+          minLength: 1
+        memoryFiles:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContextMemoryFile"
+        mcpTools:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContextMcpTool"
+        deferredBuiltinTools:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContextToolDetail"
+        systemTools:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContextToolDetail"
+        systemPromptSections:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContextSystemPromptSection"
+        agents:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContextAgent"
+        slashCommands:
+          $ref: "#/components/schemas/ContextSlashCommandInfo"
+        skills:
+          $ref: "#/components/schemas/ContextSkillInfo"
+        autoCompactThreshold:
+          type: integer
+          minimum: 0
+        isAutoCompactEnabled:
+          type: boolean
+        messageBreakdown:
+          $ref: "#/components/schemas/ContextMessageBreakdown"
+        apiUsage:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/ContextApiUsage"
+      additionalProperties: false
+    ContextCategory:
+      type: object
+      required:
+        - name
+        - tokens
+        - color
+      properties:
+        name:
+          type: string
+          minLength: 1
+        tokens:
+          type: integer
+          minimum: 0
+        color:
+          type: string
+          minLength: 1
+        isDeferred:
+          type: boolean
+      additionalProperties: false
+    ContextGridSquare:
+      type: object
+      required:
+        - color
+        - isFilled
+        - categoryName
+        - tokens
+        - percentage
+        - squareFullness
+      properties:
+        color:
+          type: string
+          minLength: 1
+        isFilled:
+          type: boolean
+        categoryName:
+          type: string
+          minLength: 1
+        tokens:
+          type: integer
+          minimum: 0
+        percentage:
+          type: number
+          minimum: 0
+        squareFullness:
+          type: number
+          minimum: 0
+          maximum: 1
+      additionalProperties: false
+    ContextMemoryFile:
+      type: object
+      required:
+        - path
+        - type
+        - tokens
+      properties:
+        path:
+          type: string
+          minLength: 1
+        type:
+          type: string
+          minLength: 1
+        tokens:
+          type: integer
+          minimum: 0
+      additionalProperties: false
+    ContextMcpTool:
+      type: object
+      required:
+        - name
+        - serverName
+        - tokens
+      properties:
+        name:
+          type: string
+          minLength: 1
+        serverName:
+          type: string
+          minLength: 1
+        tokens:
+          type: integer
+          minimum: 0
+        isLoaded:
+          type: boolean
+      additionalProperties: false
+    ContextToolDetail:
+      type: object
+      required:
+        - name
+        - tokens
+      properties:
+        name:
+          type: string
+          minLength: 1
+        tokens:
+          type: integer
+          minimum: 0
+        isLoaded:
+          type: boolean
+      additionalProperties: false
+    ContextSystemPromptSection:
+      type: object
+      required:
+        - name
+        - tokens
+      properties:
+        name:
+          type: string
+          minLength: 1
+        tokens:
+          type: integer
+          minimum: 0
+      additionalProperties: false
+    ContextAgent:
+      type: object
+      required:
+        - agentType
+        - source
+        - tokens
+      properties:
+        agentType:
+          type: string
+          minLength: 1
+        source:
+          type: string
+          minLength: 1
+        tokens:
+          type: integer
+          minimum: 0
+      additionalProperties: false
+    ContextSkillFrontmatter:
+      type: object
+      required:
+        - name
+        - source
+        - tokens
+      properties:
+        name:
+          type: string
+          minLength: 1
+        source:
+          type: string
+          minLength: 1
+        tokens:
+          type: integer
+          minimum: 0
+      additionalProperties: false
+    ContextSkillInfo:
+      type: object
+      required:
+        - totalSkills
+        - includedSkills
+        - tokens
+        - skillFrontmatter
+      properties:
+        totalSkills:
+          type: integer
+          minimum: 0
+        includedSkills:
+          type: integer
+          minimum: 0
+        tokens:
+          type: integer
+          minimum: 0
+        skillFrontmatter:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContextSkillFrontmatter"
+      additionalProperties: false
+    ContextSlashCommandInfo:
+      type: object
+      required:
+        - totalCommands
+        - includedCommands
+        - tokens
+      properties:
+        totalCommands:
+          type: integer
+          minimum: 0
+        includedCommands:
+          type: integer
+          minimum: 0
+        tokens:
+          type: integer
+          minimum: 0
+      additionalProperties: false
+    ContextApiUsage:
+      type: object
+      required:
+        - input_tokens
+        - output_tokens
+        - cache_creation_input_tokens
+        - cache_read_input_tokens
+      properties:
+        input_tokens:
+          type: integer
+          minimum: 0
+        output_tokens:
+          type: integer
+          minimum: 0
+        cache_creation_input_tokens:
+          type: integer
+          minimum: 0
+        cache_read_input_tokens:
+          type: integer
+          minimum: 0
+      additionalProperties: false
+    ContextMessageToolCallBreakdown:
+      type: object
+      required:
+        - name
+        - callTokens
+        - resultTokens
+      properties:
+        name:
+          type: string
+          minLength: 1
+        callTokens:
+          type: integer
+          minimum: 0
+        resultTokens:
+          type: integer
+          minimum: 0
+      additionalProperties: false
+    ContextMessageAttachmentBreakdown:
+      type: object
+      required:
+        - name
+        - tokens
+      properties:
+        name:
+          type: string
+          minLength: 1
+        tokens:
+          type: integer
+          minimum: 0
+      additionalProperties: false
+    ContextMessageBreakdown:
+      type: object
+      required:
+        - toolCallTokens
+        - toolResultTokens
+        - attachmentTokens
+        - assistantMessageTokens
+        - userMessageTokens
+        - toolCallsByType
+        - attachmentsByType
+      properties:
+        toolCallTokens:
+          type: integer
+          minimum: 0
+        toolResultTokens:
+          type: integer
+          minimum: 0
+        attachmentTokens:
+          type: integer
+          minimum: 0
+        assistantMessageTokens:
+          type: integer
+          minimum: 0
+        userMessageTokens:
+          type: integer
+          minimum: 0
+        toolCallsByType:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContextMessageToolCallBreakdown"
+        attachmentsByType:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContextMessageAttachmentBreakdown"
+      additionalProperties: false
+    CliReadProjectSessionCostsResult:
+      type: object
+      required:
+        - items
+        - nextCursor
+        - sourceAvailability
+        - costReadAt
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CliReadProjectSessionCostRow"
+        nextCursor:
+          type: string
+          nullable: true
+        sourceAvailability:
+          type: string
+          enum:
+            - available
+            - partial
+            - unavailable
+        costReadAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+    CliReadProviderUsageResult:
+      type: object
+      required:
+        - providers
+      properties:
+        providers:
+          type: array
+          minItems: 3
+          maxItems: 3
+          description: Exactly one latest usage entry for Claude Code, Codex, and OpenCode.
+          items:
+            $ref: "#/components/schemas/CliReadProviderUsage"
+      additionalProperties: false
+    CliReadProviderUsage:
+      type: object
+      required:
+        - provider
+        - status
+        - observedAt
+        - fiveHour
+        - weekly
+      properties:
+        provider:
+          type: string
+          enum:
+            - claude
+            - codex
+            - opencode
+        status:
+          type: string
+          enum:
+            - reported
+            - unreported
+            - error
+          description: Error marks a provider snapshot that could not be read; other provider entries remain available.
+        observedAt:
+          type: string
+          format: date-time
+          nullable: true
+        fiveHour:
+          $ref: "#/components/schemas/CliReadProviderUsageLimitWindow"
+        weekly:
+          $ref: "#/components/schemas/CliReadProviderUsageLimitWindow"
+      additionalProperties: false
+    CliReadProviderUsageLimitWindow:
+      type: object
+      nullable: true
+      required:
+        - usedPercent
+        - resetsAt
+      properties:
+        usedPercent:
+          type: number
+          minimum: 0
+          nullable: true
+        resetsAt:
+          type: string
+          format: date-time
+          nullable: true
+      additionalProperties: false
+    CliReadRuntimeModelCatalogResult:
+      type: object
+      required:
+        - providers
+      description: >-
+        The addressed CLI's own catalog of launchable providers, models and reasoning efforts, returned exactly as the
+        CLI built it. A provider is listed only when it is installed on that machine.
+      properties:
+        providers:
+          type: array
+          items:
+            $ref: "#/components/schemas/CliReadRuntimeModelCatalogProvider"
+      additionalProperties: false
+    CliReadRuntimeModelCatalogProvider:
+      type: object
+      required:
+        - provider
+        - models
+      properties:
+        provider:
+          type: string
+          enum:
+            - claude
+            - codex
+            - opencode
+        models:
+          type: array
+          items:
+            $ref: "#/components/schemas/CliReadRuntimeModelCatalogModel"
+        notice:
+          type: string
+          minLength: 1
+          description: >-
+            Plain-language explanation present only when this installed provider reported zero models. Never present
+            alongside models.
+      additionalProperties: false
+    CliReadRuntimeModelCatalogModel:
+      type: object
+      required:
+        - id
+        - label
+        - efforts
+      properties:
+        id:
+          type: string
+          minLength: 1
+        label:
+          type: string
+          minLength: 1
+        efforts:
+          type: array
+          items:
+            type: string
+            enum: [none, minimal, low, medium, high, xhigh, max, ultra, default]
+        serviceTiers:
+          type: array
+          items:
+            type: string
+            enum:
+              - priority
+        opencodeModelRef:
+          type: object
+          required:
+            - providerID
+            - modelID
+          description: OpenCode rows only. Omitted on the OpenCode default row.
+          properties:
+            providerID:
+              type: string
+              minLength: 1
+            modelID:
+              type: string
+              minLength: 1
+          additionalProperties: false
+      additionalProperties: false
+    CliReadError:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          $ref: "#/components/schemas/CliReadErrorCode"
+        message:
+          type: string
+      additionalProperties: false
+    CliReadProjectSessionCostRow:
+      type: object
+      required:
+        - agentSessionId
+        - conversationId
+        - context
+        - providerSessions
+        - knownCostUsd
+        - completeness
+        - latestActivityAt
+        - costReadAt
+      properties:
+        agentSessionId:
+          type: string
+          format: uuid
+        conversationId:
+          type: string
+          format: uuid
+        context:
+          $ref: "#/components/schemas/CliReadProjectSessionCostContext"
+        providerSessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/CliReadProjectSessionCostMember"
+        knownCostUsd:
+          type: number
+          nullable: true
+          minimum: 0
+        completeness:
+          type: string
+          enum:
+            - complete
+            - partial
+            - unavailable
+        latestActivityAt:
+          type: string
+          format: date-time
+        costReadAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+    CliReadProjectSessionCostContext:
+      type: object
+      required:
+        - entityType
+        - entityId
+        - entityTitle
+        - promptType
+      properties:
+        entityType:
+          type: string
+          nullable: true
+        entityId:
+          type: string
+          nullable: true
+        entityTitle:
+          type: string
+          nullable: true
+        promptType:
+          type: string
+          nullable: true
+      additionalProperties: false
+    CliReadProjectSessionCostMember:
+      type: object
+      required:
+        - providerId
+        - providerSessionId
+        - providerConversationId
+        - providerSessionAgentId
+        - observedAt
+        - cost
+      properties:
+        providerId:
+          type: string
+          enum:
+            - claude
+            - codex
+            - opencode
+        providerSessionId:
+          type: string
+          minLength: 1
+        providerConversationId:
+          type: string
+          nullable: true
+        providerSessionAgentId:
+          type: string
+          nullable: true
+        observedAt:
+          type: string
+          format: date-time
+        cost:
+          $ref: "#/components/schemas/CliReadProviderSessionUsageCost"
+      additionalProperties: false
+    CliReadProviderSessionUsageCost:
+      oneOf:
+        - $ref: "#/components/schemas/CliReadProviderSessionUsageCostAvailable"
+        - $ref: "#/components/schemas/CliReadProviderSessionUsageCostUnavailable"
+      discriminator:
+        propertyName: state
+        mapping:
+          available: "#/components/schemas/CliReadProviderSessionUsageCostAvailable"
+          unavailable: "#/components/schemas/CliReadProviderSessionUsageCostUnavailable"
+    CliReadProviderSessionUsageCostAvailable:
+      type: object
+      required:
+        - state
+        - amountUsd
+        - currency
+        - source
+      properties:
+        state:
+          type: string
+          enum:
+            - available
+        amountUsd:
+          type: number
+          minimum: 0
+        currency:
+          type: string
+          enum:
+            - USD
+        source:
+          type: string
+          enum:
+            - ccusage
+      additionalProperties: false
+    CliReadProviderSessionUsageCostUnavailable:
+      type: object
+      required:
+        - state
+        - reason
+      properties:
+        state:
+          type: string
+          enum:
+            - unavailable
+        reason:
+          type: string
+          enum:
+            - unsupported_provider
+            - provider_session_id_missing
+            - cost_source_unavailable
+            - session_not_found
+            - malformed_cost_data
+            - adapter_error
+        message:
+          type: string
+          minLength: 1
+      additionalProperties: false
+    TaskMonitorExternalCommand:
+      oneOf:
+        - $ref: "#/components/schemas/TaskMonitorStartCommand"
+        - $ref: "#/components/schemas/TaskMonitorPauseCommand"
+        - $ref: "#/components/schemas/TaskMonitorResumeCommand"
+        - $ref: "#/components/schemas/TaskMonitorStopCommand"
+        - $ref: "#/components/schemas/TaskMonitorJudgmentResolvedCommand"
+        - $ref: "#/components/schemas/TaskMonitorContinueCommand"
+        - $ref: "#/components/schemas/TaskMonitorCompleteCommand"
+        - $ref: "#/components/schemas/TaskMonitorHaltCommand"
+      discriminator:
+        propertyName: cause
+        mapping:
+          START: "#/components/schemas/TaskMonitorStartCommand"
+          PAUSE: "#/components/schemas/TaskMonitorPauseCommand"
+          RESUME: "#/components/schemas/TaskMonitorResumeCommand"
+          STOP: "#/components/schemas/TaskMonitorStopCommand"
+          JUDGMENT_RESOLVED: "#/components/schemas/TaskMonitorJudgmentResolvedCommand"
+          CONTINUE: "#/components/schemas/TaskMonitorContinueCommand"
+          COMPLETE: "#/components/schemas/TaskMonitorCompleteCommand"
+          HALT: "#/components/schemas/TaskMonitorHaltCommand"
+      description: >-
+        Closed union of user-authored Task Monitor lifecycle commands. Automated progression is driven by canonical
+        report and Agent Session lifecycle events.
+    MonitorCommandBody:
+      type: object
+      additionalProperties: false
+      required:
+        - version
+        - kind
+        - commandId
+        - createdAt
+        - expiresAt
+        - organizationId
+        - projectId
+        - target
+        - command
+      properties:
+        version:
+          type: integer
+          enum:
+            - 1
+        kind:
+          type: string
+          enum:
+            - task_monitor_command
+        commandId:
+          type: string
+          format: uuid
+          description: Durable command, idempotency, acknowledgement, and log correlation identity.
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        organizationId:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        target:
+          $ref: "#/components/schemas/TaskMonitorCommandTarget"
+        command:
+          $ref: "#/components/schemas/TaskMonitorExternalCommand"
+      description: >-
+        Complete signed monitor command. It deliberately contains no Run, conversation, agent-session, handler, or
+        internal declaration identity.
+    MonitorCommandAcknowledgement:
+      oneOf:
+        - $ref: "#/components/schemas/MonitorCommandAdmittedAcknowledgement"
+        - $ref: "#/components/schemas/MonitorCommandRejectedAcknowledgement"
+      discriminator:
+        propertyName: status
+        mapping:
+          ADMITTED: "#/components/schemas/MonitorCommandAdmittedAcknowledgement"
+          REJECTED: "#/components/schemas/MonitorCommandRejectedAcknowledgement"
+    TaskMonitorStartCommand:
+      type: object
+      additionalProperties: false
+      required:
+        - cause
+        - launchConfig
+      properties:
+        cause:
+          type: string
+          enum:
+            - START
+        launchConfig:
+          $ref: ../schemas/trigger-payloads.yaml#/TaskMonitorLaunchConfig
+        userMessage:
+          type: string
+          maxLength: 5000
+    TaskMonitorPauseCommand:
+      type: object
+      additionalProperties: false
+      required:
+        - cause
+      properties:
+        cause:
+          type: string
+          enum:
+            - PAUSE
+    TaskMonitorResumeCommand:
+      type: object
+      additionalProperties: false
+      required:
+        - cause
+      properties:
+        cause:
+          type: string
+          enum:
+            - RESUME
+    TaskMonitorStopCommand:
+      type: object
+      additionalProperties: false
+      required:
+        - cause
+      properties:
+        cause:
+          type: string
+          enum:
+            - STOP
+    TaskMonitorJudgmentResolvedCommand:
+      type: object
+      additionalProperties: false
+      required:
+        - cause
+        - judgment
+      properties:
+        cause:
+          type: string
+          enum:
+            - JUDGMENT_RESOLVED
+        judgment:
+          $ref: ../schemas/work-items.yaml#/TaskMonitorJudgmentResponse
+    TaskMonitorContinueCommand:
+      type: object
+      additionalProperties: false
+      required:
+        - cause
+      properties:
+        cause:
+          type: string
+          enum:
+            - CONTINUE
+    TaskMonitorCompleteCommand:
+      type: object
+      additionalProperties: false
+      required:
+        - cause
+      properties:
+        cause:
+          type: string
+          enum:
+            - COMPLETE
+    TaskMonitorHaltCommand:
+      type: object
+      additionalProperties: false
+      required:
+        - cause
+      properties:
+        cause:
+          type: string
+          enum:
+            - HALT
+    TaskMonitorCommandTarget:
+      type: object
+      additionalProperties: false
+      required:
+        - workItemType
+        - workItemId
+      properties:
+        workItemType:
+          type: string
+          enum:
+            - TASK_MONITOR
+        workItemId:
+          type: string
+          format: uuid
+    MonitorCommandAdmittedAcknowledgement:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - commandId
+        - replayed
+      properties:
+        status:
+          type: string
+          enum:
+            - ADMITTED
+        commandId:
+          type: string
+          format: uuid
+        replayed:
+          type: boolean
+    MonitorCommandRejectedAcknowledgement:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - stage
+        - reason
+      properties:
+        status:
+          type: string
+          enum:
+            - REJECTED
+        commandId:
+          type: string
+          format: uuid
+        stage:
+          $ref: "#/components/schemas/MonitorCommandRejectionStage"
+        reason:
+          $ref: "#/components/schemas/MonitorCommandRejectionReason"
+        message:
+          type: string
+          maxLength: 1000
+    MonitorCommandRejectionStage:
+      type: string
+      enum:
+        - VERIFICATION
+        - ADMISSION
+    MonitorCommandRejectionReason:
+      type: string
+      enum:
+        - SCHEMA_INVALID
+        - SIGNATURE_INVALID
+        - MACHINE_MISMATCH
+        - OWNER_MISMATCH
+        - STALE
+        - EXPIRED
+        - NONCE_REPLAY
+        - KIND_NOT_ALLOWED
+        - ROUTING_MISMATCH
+        - MONITOR_NOT_FOUND
+        - INVALID_CONTEXT
+        - INVALID_LIFECYCLE
+        - PAUSED
+        - HALTED
+        - NOT_READY
+        - GUIDANCE_REQUIRED
+        - DUPLICATE
+        - NO_ELIGIBLE_WORK
+        - MISSING_JUDGMENT
+        - ROUTE_REJECTED
+        - INTERNAL_ERROR
+
+    CliReadWorkspaceSkillsListRequest:
+      type: object
+      required:
+        - operation
+        - authorization
+        - provider
+        - catalogContext
+      properties:
+        operation:
+          type: string
+          enum:
+            - workspace.skills.list
+        authorization:
+          $ref: ../schemas/controller-authorization.yaml#/AdmissionEnvelopeAuthorization
+        provider:
+          $ref: "#/components/schemas/AgentSkillProvider"
+        catalogContext:
+          $ref: "#/components/schemas/AgentSkillCatalogContext"
+      additionalProperties: false
+
+    CliReadWorkspaceSkillsListEnvelopeBody:
+      type: object
+      required:
+        - requestId
+        - operation
+        - provider
+        - catalogContext
+        - organizationId
+        - projectId
+        - machineId
+        - authorizationRequestId
+      properties:
+        requestId:
+          type: string
+          format: uuid
+          description: Correlation identity minted by the platform for this read.
+        operation:
+          type: string
+          enum:
+            - workspace.skills.list
+        provider:
+          $ref: "#/components/schemas/AgentSkillProvider"
+        catalogContext:
+          $ref: "#/components/schemas/AgentSkillCatalogContext"
+        organizationId:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        machineId:
+          type: string
+          format: uuid
+        authorizationRequestId:
+          type: string
+          format: uuid
+      additionalProperties: false
+
+    CliReadWorkspaceSkillsListSuccessResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - result
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - workspace.skills.list
+        status:
+          type: string
+          enum:
+            - success
+        result:
+          type: object
+          required:
+            - provider
+            - skills
+            - errors
+          properties:
+            provider:
+              $ref: "#/components/schemas/AgentSkillProvider"
+            skills:
+              type: array
+              items:
+                $ref: "#/components/schemas/AgentSkillCatalogEntry"
+            errors:
+              type: array
+              items:
+                $ref: "#/components/schemas/AgentSkillDiscoveryError"
+          additionalProperties: false
+      additionalProperties: false
+
+    CliReadWorkspaceSkillsListErrorResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - error
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - workspace.skills.list
+        status:
+          type: string
+          enum:
+            - error
+        error:
+          $ref: "#/components/schemas/CliReadError"
+      additionalProperties: false
+
+    AgentSkillCatalogContext:
+      oneOf:
+        - $ref: "#/components/schemas/AgentSkillNonRepositoryCatalogContext"
+        - $ref: "#/components/schemas/AgentSkillServiceCatalogContext"
+      discriminator:
+        propertyName: policy
+        mapping:
+          non_repository: "#/components/schemas/AgentSkillNonRepositoryCatalogContext"
+          service_workspace: "#/components/schemas/AgentSkillServiceCatalogContext"
+    AgentSkillNonRepositoryCatalogContext:
+      type: object
+      additionalProperties: false
+      required: [policy]
+      properties:
+        policy:
+          type: string
+          enum: [non_repository]
+    AgentSkillServiceCatalogContext:
+      type: object
+      additionalProperties: false
+      required: [policy, serviceId]
+      properties:
+        policy:
+          type: string
+          enum: [service_workspace]
+        serviceId:
+          type: string
+          format: uuid
+    WorkTrackerImportRequest:
+      $ref: ../schemas/work-tracker-import.yaml#/WorkTrackerImportRequest
+    WorkTrackerConnectionCompletion:
+      $ref: ../schemas/work-tracker-import.yaml#/WorkTrackerConnectionCompletion
+    WorkTrackerImportSuccess:
+      $ref: ../schemas/work-tracker-import.yaml#/WorkTrackerImportSuccess
+    WorkTrackerImportCompletion:
+      $ref: ../schemas/work-tracker-import.yaml#/WorkTrackerImportCompletion

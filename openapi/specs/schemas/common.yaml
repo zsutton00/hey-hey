@@ -1,0 +1,653 @@
+# =============================================
+# Common Shared Schema Definitions
+# =============================================
+
+# Security Schemes
+BearerAuth:
+  type: http
+  scheme: bearer
+  bearerFormat: JWT
+  description: JWT token for authentication
+
+# =============================================
+# Branded Type Definitions
+# =============================================
+ProjectId:
+  type: string
+  format: branded-ProjectId
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+  description: "Unique identifier for a project (branded type)"
+  example: "550e8400-e29b-41d4-a716-446655440000"
+  x-typescript-type: "ProjectId"
+  x-brand: "ProjectId"
+  x-semantic-type: "resource-identifier"
+
+UserId:
+  type: string
+  format: branded-UserId
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+  description: "Unique identifier for a user (branded type)"
+  example: "550e8400-e29b-41d4-a716-446655440001"
+  x-typescript-type: "UserId"
+  x-brand: "UserId"
+  x-semantic-type: "resource-identifier"
+
+MachineId:
+  type: string
+  format: branded-MachineId
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+  description: "Unique identifier for a paired machine (branded type)"
+  example: "550e8400-e29b-41d4-a716-446655440030"
+  x-typescript-type: "MachineId"
+  x-brand: "MachineId"
+  x-semantic-type: "resource-identifier"
+
+OrganizationId:
+  type: string
+  format: branded-OrganizationId
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+  description: "Unique identifier for an organization (branded type)"
+  example: "550e8400-e29b-41d4-a716-446655440002"
+  x-typescript-type: "OrganizationId"
+  x-brand: "OrganizationId"
+  x-semantic-type: "resource-identifier"
+
+EntityType:
+  type: string
+  enum:
+    - ARTIFACT
+    - INITIATIVE
+    - PROJECT
+    - TASK
+    - MESSAGE
+    - CONVERSATION
+    - DESIGN_DOC
+    - AGENT_SESSION
+    - VALIDATION_SESSION
+    - SERVICE
+    - REPORT
+    - PROPOSAL
+    - IMPLEMENTATION_HINT
+    - USER
+  description: >-
+    Entity type for canonical entities. `USER` is used in proposal influence
+    rows to attribute a change to the human who authored it (resolved to the
+    user's display name on snapshot); users are not stored in the entity
+    registry.
+
+ConversationId:
+  type: string
+  format: branded-ConversationId
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+  description: "Unique identifier for a conversation (branded type)"
+  example: "550e8400-e29b-41d4-a716-446655440003"
+  x-typescript-type: "ConversationId"
+  x-brand: "ConversationId"
+  x-semantic-type: "resource-identifier"
+
+WorkflowId:
+  type: string
+  format: branded-WorkflowId
+  description: "Unique identifier for a workflow (branded type)"
+  example: "550e8400-e29b-41d4-a716-446655440004"
+  x-typescript-type: "WorkflowId"
+  x-brand: "WorkflowId"
+  x-semantic-type: "resource-identifier"
+
+RequestId:
+  type: string
+  format: branded-RequestId
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+  description: "Unique identifier used to correlate requests (branded type)"
+  example: "550e8400-e29b-41d4-a716-446655440009"
+  x-typescript-type: "RequestId"
+  x-brand: "RequestId"
+  x-semantic-type: "resource-identifier"
+
+MessageId:
+  type: string
+  format: branded-MessageId
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+  description: "Unique identifier for a message (branded type)"
+  example: "550e8400-e29b-41d4-a716-446655440005"
+  x-typescript-type: "MessageId"
+  x-brand: "MessageId"
+  x-semantic-type: "resource-identifier"
+
+ArtifactId:
+  type: string
+  format: branded-ArtifactId
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+  description: "Unique identifier for an artifact (branded type)"
+  example: "550e8400-e29b-41d4-a716-446655440006"
+  x-typescript-type: "ArtifactId"
+  x-brand: "ArtifactId"
+  x-semantic-type: "resource-identifier"
+
+InitiativeId:
+  type: string
+  format: branded-InitiativeId
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+  description: "Unique identifier for an initiative (branded type)"
+  example: "550e8400-e29b-41d4-a716-446655440007"
+  x-typescript-type: "InitiativeId"
+  x-brand: "InitiativeId"
+  x-semantic-type: "resource-identifier"
+
+IntegrationId:
+  type: string
+  format: branded-IntegrationId
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+  description: "Unique identifier for an integration (branded type)"
+  example: "550e8400-e29b-41d4-a716-446655440008"
+  x-typescript-type: "IntegrationId"
+  x-brand: "IntegrationId"
+  x-semantic-type: "resource-identifier"
+
+JobId:
+  type: string
+  format: branded-JobId
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+  description: "Unique identifier for a queued job (branded type)"
+  example: "550e8400-e29b-41d4-a716-446655440012"
+  x-typescript-type: "JobId"
+  x-brand: "JobId"
+  x-semantic-type: "resource-identifier"
+
+TaskId:
+  type: string
+  format: branded-TaskId
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+  description: "Unique identifier for a task (branded type)"
+  example: "550e8400-e29b-41d4-a716-446655440010"
+  x-typescript-type: "TaskId"
+  x-brand: "TaskId"
+  x-semantic-type: "resource-identifier"
+
+DesignDocId:
+  type: string
+  format: branded-DesignDocId
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+  description: "Unique identifier for a design doc (branded type)"
+  example: "550e8400-e29b-41d4-a716-446655440011"
+  x-typescript-type: "DesignDocId"
+  x-brand: "DesignDocId"
+  x-semantic-type: "resource-identifier"
+
+InteractionTypeId:
+  type: string
+  format: branded-InteractionTypeId
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+  description: "Unique identifier for an interaction type (branded type)"
+  example: "550e8400-e29b-41d4-a716-446655440013"
+  x-typescript-type: "InteractionTypeId"
+  x-brand: "InteractionTypeId"
+  x-semantic-type: "resource-identifier"
+
+AgentSessionId:
+  type: string
+  format: branded-AgentSessionId
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+  description: "Unique identifier for an agent session (branded type)"
+  example: "550e8400-e29b-41d4-a716-446655440021"
+  x-typescript-type: "AgentSessionId"
+  x-brand: "AgentSessionId"
+  x-semantic-type: "resource-identifier"
+
+ValidationSessionId:
+  type: string
+  format: branded-ValidationSessionId
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+  description: "Unique identifier for a validation session (branded type)"
+  example: "550e8400-e29b-41d4-a716-446655440024"
+  x-typescript-type: "ValidationSessionId"
+  x-brand: "ValidationSessionId"
+  x-semantic-type: "resource-identifier"
+
+ReportId:
+  type: string
+  format: branded-ReportId
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+  description: "Unique identifier for a report (branded type)"
+  example: "550e8400-e29b-41d4-a716-446655440022"
+  x-typescript-type: "ReportId"
+  x-brand: "ReportId"
+  x-semantic-type: "resource-identifier"
+
+ServiceId:
+  type: string
+  format: branded-ServiceId
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+  description: "Unique identifier for a service (branded type)"
+  example: "550e8400-e29b-41d4-a716-446655440015"
+  x-typescript-type: "ServiceId"
+  x-brand: "ServiceId"
+  x-semantic-type: "resource-identifier"
+
+ImplementationHintId:
+  type: string
+  format: branded-ImplementationHintId
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+  description: "Unique identifier for an implementation hint (branded type)"
+  example: "550e8400-e29b-41d4-a716-446655440023"
+  x-typescript-type: "ImplementationHintId"
+  x-brand: "ImplementationHintId"
+  x-semantic-type: "resource-identifier"
+
+SubfacetId:
+  type: string
+  format: branded-SubfacetId
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+  description: "Unique identifier for a topology subfacet (branded type)"
+  example: "550e8400-e29b-41d4-a716-446655440020"
+  x-typescript-type: "SubfacetId"
+  x-brand: "SubfacetId"
+  x-semantic-type: "resource-identifier"
+
+PlanId:
+  type: string
+  format: branded-PlanId
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+  description: "Unique identifier for a plan (branded type)"
+  example: "550e8400-e29b-41d4-a716-446655440016"
+  x-typescript-type: "PlanId"
+  x-brand: "PlanId"
+  x-semantic-type: "resource-identifier"
+
+PlanRelationshipId:
+  type: string
+  format: branded-PlanRelationshipId
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+  description: "Unique identifier for a plan relationship (branded type)"
+  example: "550e8400-e29b-41d4-a716-446655440019"
+  x-typescript-type: "PlanRelationshipId"
+  x-brand: "PlanRelationshipId"
+  x-semantic-type: "resource-identifier"
+
+ProposalId:
+  type: string
+  format: branded-ProposalId
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+  description: "Unique identifier for a proposal (branded type)"
+  example: "550e8400-e29b-41d4-a716-446655440025"
+  x-typescript-type: "ProposalId"
+  x-brand: "ProposalId"
+  x-semantic-type: "resource-identifier"
+
+# =============================================
+# Standard Response Schemas
+# =============================================
+ApiResponse:
+  type: object
+  required:
+    - success
+    - message
+    - timestamp
+    - statusCode
+  properties:
+    success:
+      type: boolean
+      description: Indicates if the request was successful
+      example: true
+    message:
+      type: string
+      description: Human-readable message about the operation
+      example: "Request processed successfully"
+    data:
+      description: Response data (type varies by endpoint)
+    timestamp:
+      type: string
+      format: date-time
+      description: ISO timestamp of when the response was generated
+      example: "2023-12-01T12:00:00.000Z"
+    statusCode:
+      type: integer
+      description: HTTP status code
+      example: 200
+    path:
+      type: string
+      description: Request path
+      example: "/api/v1/projects"
+
+ApiErrorResponse:
+  type: object
+  required:
+    - success
+    - message
+    - timestamp
+    - statusCode
+  properties:
+    success:
+      type: boolean
+      description: Indicates if the request was successful
+      example: false
+    message:
+      type: string
+      description: Error message
+      example: "Resource not found"
+    data:
+      nullable: true
+      description: No data for error responses
+    timestamp:
+      type: string
+      format: date-time
+      description: ISO timestamp of when the response was generated
+      example: "2023-12-01T12:00:00.000Z"
+    statusCode:
+      type: integer
+      description: HTTP status code
+      example: 404
+    path:
+      type: string
+      description: Request path
+      example: "/api/v1/projects/123"
+
+PlanTierGatingErrorDto:
+  type: object
+  required:
+    - success
+    - message
+    - timestamp
+    - statusCode
+    - code
+    - gatedFeature
+  properties:
+    success:
+      type: boolean
+      description: Indicates if the request was successful
+      example: false
+    message:
+      type: string
+      description: Human-readable error message describing the plan tier violation
+      example: "Your current plan does not include access to the user-assistant feature"
+    code:
+      type: string
+      enum:
+        - PLAN_TIER_INSUFFICIENT
+        - PLAN_TIER_EXPIRED
+      description: Machine-readable error code for plan tier violations
+      example: "PLAN_TIER_INSUFFICIENT"
+    gatedFeature:
+      type: string
+      description: Identifier of the feature that is gated
+      example: "user-assistant"
+    upgradeGuidance:
+      type: string
+      description: Human-readable upgrade messaging for UI-driven conversion flows
+      example: "Upgrade your plan to access the daily session assistant"
+    timestamp:
+      type: string
+      format: date-time
+      description: ISO timestamp of when the response was generated
+      example: "2023-12-01T12:00:00.000Z"
+    statusCode:
+      type: integer
+      description: HTTP status code (always 402 for plan tier gating errors)
+      example: 402
+    path:
+      type: string
+      description: Request path
+      example: "/api/v1/organizations/org-123/projects/proj-456/conversations"
+
+# =============================================
+# Common Simple Response Objects
+# =============================================
+SimpleMessageResponse:
+  type: object
+  properties:
+    message:
+      type: string
+      description: Simple message response
+      example: "Operation completed successfully"
+
+ValidateTokenRequest:
+  type: object
+  required:
+    - token
+  properties:
+    token:
+      type: string
+      description: JWT token to validate
+
+TokenValidationResponse:
+  type: object
+  properties:
+    valid:
+      type: boolean
+      description: Whether the token is valid
+    payload:
+      type: object
+      properties:
+        userId:
+          type: string
+          description: User ID from token
+        email:
+          type: string
+          description: Email from token
+        currentOrgId:
+          type: string
+          description: Current organization ID
+        orgMemberships:
+          type: array
+          items:
+            type: object
+            properties:
+              orgId:
+                type: string
+                description: Organization ID
+              role:
+                type: string
+                description: User role in organization
+        iat:
+          type: number
+          description: Token issued at timestamp
+        exp:
+          type: number
+          description: Token expiration timestamp
+    error:
+      type: string
+      nullable: true
+      description: Error message if validation failed
+
+JWKSResponse:
+  type: object
+  properties:
+    keys:
+      type: array
+      items:
+        type: object
+        properties:
+          kty:
+            type: string
+            description: Key type
+          use:
+            type: string
+            description: Key use
+          kid:
+            type: string
+            description: Key ID
+          n:
+            type: string
+            description: RSA modulus
+          e:
+            type: string
+            description: RSA exponent
+          alg:
+            type: string
+            description: Algorithm
+
+AssignTagRequest:
+  type: object
+  required:
+    - tagId
+  properties:
+    tagId:
+      type: string
+      format: uuid
+      description: Tag ID to assign
+
+AssignProjectTagRequest:
+  type: object
+  required:
+    - tagId
+  properties:
+    tagId:
+      type: string
+      format: uuid
+      description: Tag ID to assign to the project
+
+ConnectionStatsResponse:
+  type: object
+  properties:
+    totalConnections:
+      type: integer
+      description: Total number of active connections
+    connectionsByProject:
+      type: object
+      additionalProperties:
+        type: integer
+      description: Number of connections per project
+    connectionsByUser:
+      type: object
+      additionalProperties:
+        type: integer
+      description: Number of connections per user
+
+HealthCheckResponse:
+  type: object
+  properties:
+    status:
+      type: string
+      enum: ["healthy", "unhealthy"]
+      description: Health status
+    connections:
+      type: integer
+      description: Number of active connections
+    redisConnected:
+      type: boolean
+      description: Whether Redis is connected
+
+NotificationRequest:
+  type: object
+  required:
+    - message
+  properties:
+    message:
+      type: string
+      description: Notification message
+    severity:
+      type: string
+      enum: ["info", "warning", "error"]
+      default: "info"
+      description: Notification severity
+
+NotificationResponse:
+  type: object
+  properties:
+    status:
+      type: string
+      example: "success"
+      description: Operation status
+    projectId:
+      type: string
+      nullable: true
+      description: Project ID (for project notifications)
+    message:
+      type: string
+      description: Notification message that was sent
+
+# =============================================
+# Enums
+# =============================================
+Priority:
+  type: string
+  enum:
+    - LOW
+    - MEDIUM
+    - HIGH
+    - CRITICAL
+  description: Priority level
+
+RefinementLevel:
+  type: string
+  enum:
+    - description
+    - details
+    - acceptanceCriteria
+  description: Refinement level for work items (initiatives and tasks)
+
+WorkStatus:
+  type: string
+  enum:
+    - GENERATED
+    - BACKLOG
+    - READY
+    - REFINING
+    - BLOCKED
+    - REFINING_DESCRIPTION
+    - REFINING_DETAILS
+    - REFINING_ACCEPTANCE_CRITERIA
+    - GENERATING_DESCRIPTION
+    - GENERATING_DETAILS
+    - GENERATING_DESCRIPTION_AND_DETAILS
+    - GENERATING_ACCEPTANCE_CRITERIA
+    - GENERATING_ALL
+    - ACTIVE
+    - ON_HOLD
+    - VERIFYING
+    - COMPLETED
+    - CANCELLED
+    - ARCHIVED
+    - SUPERSEDED
+  description: Unified work status for initiatives and tasks
+
+TopologyCategory:
+  type: string
+  enum:
+    - technology
+    - process
+    - product
+    - people
+  description: Primary project topology classification
+
+TopologyFacet:
+  type: object
+  required:
+    - category
+    - subfacet
+  properties:
+    category:
+      $ref: "#/TopologyCategory"
+      description: High-level topology category for the entity
+    subfacet:
+      type: string
+      description: Required narrower subfacet within the category
+  additionalProperties: false
+
+# =============================================
+# Flow System Types
+# =============================================
+
+# Additional Flow System Types
+ConversationEntry:
+  type: object
+  required:
+    - type
+    - message
+    - timestamp
+  properties:
+    type:
+      type: string
+      enum: [user, system, assistant]
+      description: The type of conversation entry
+    message:
+      type: string
+      description: The message content
+    timestamp:
+      type: string
+      format: date-time
+      description: When the entry was created
+    metadata:
+      type: object
+      additionalProperties: true
+      description: Additional entry metadata

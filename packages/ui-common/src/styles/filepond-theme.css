@@ -1,0 +1,370 @@
+/* Custom FilePond Theme for hey-hey application */
+
+/* Root container animations and styling */
+.filepond--root {
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  font-family: inherit;
+}
+
+.filepond--root:hover {
+  transform: translateY(-1px);
+}
+
+/* Panel styling with gradient and animations */
+.filepond--panel-root {
+  background: linear-gradient(145deg, #f8f9fa 0%, #e9ecef 100%);
+  border: 2px dashed transparent;
+  border-radius: 16px;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  position: relative;
+  overflow: hidden;
+}
+
+.filepond--panel-root::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    45deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  transition: transform 0.6s ease;
+}
+
+.filepond--panel-root:hover::before {
+  transform: translateX(100%);
+}
+
+/* Drag over state with enhanced animations */
+.filepond--panel-root[data-FilePond-drag-state="drag-over"] {
+  background: linear-gradient(
+    145deg,
+    rgba(0, 150, 10, 0.1) 0%,
+    rgba(0, 150, 10, 0.05) 100%
+  );
+  border-color: #00960a;
+  transform: scale(1.02);
+  box-shadow: 0 8px 25px rgba(0, 150, 10, 0.15);
+}
+
+/* Drop label styling */
+.filepond--drop-label {
+  color: #333;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.3s ease;
+}
+
+.filepond--drop-label:hover {
+  transform: scale(1.02);
+}
+
+/* Label action (browse button) styling */
+.filepond--label-action {
+  color: #007acc;
+  text-decoration: underline;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.filepond--label-action:hover {
+  color: #005a9e;
+  text-shadow: 0 0 8px rgba(0, 122, 204, 0.3);
+}
+
+/* File item animations */
+.filepond--item {
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transform-origin: center;
+}
+
+.filepond--item:hover {
+  transform: scale(1.02) translateY(-2px);
+}
+
+/* File item panel with enhanced styling */
+.filepond--item-panel {
+  background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.filepond--item-panel:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+/* File info styling */
+.filepond--file-info {
+  padding: 8px 12px;
+}
+
+.filepond--file-info-main {
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.filepond--file-info-sub {
+  color: #666;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+/* Progress indicator animations */
+.filepond--load-indicator {
+  background: linear-gradient(45deg, #007acc, #00a0ff);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Processing indicator */
+.filepond--process-indicator {
+  background: linear-gradient(45deg, #00960a, #28a745);
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+/* Error state styling */
+.filepond--item[data-filepond-item-state="load-error"] .filepond--item-panel,
+.filepond--item[data-filepond-item-state="processing-error"]
+  .filepond--item-panel {
+  background: linear-gradient(145deg, #fff5f5 0%, #fed7d7 100%);
+  border-color: #fc8181;
+  animation: shake 0.5s ease-in-out;
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-5px);
+  }
+  75% {
+    transform: translateX(5px);
+  }
+}
+
+/* Success state */
+.filepond--item[data-filepond-item-state="processing-complete"]
+  .filepond--item-panel {
+  background: linear-gradient(145deg, #f0fff4 0%, #c6f6d5 100%);
+  border-color: #48bb78;
+  animation: success-bounce 0.6s ease;
+}
+
+@keyframes success-bounce {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Button styling */
+.filepond--action-remove-item,
+.filepond--action-abort-item-load,
+.filepond--action-retry-item-load,
+.filepond--action-abort-item-processing,
+.filepond--action-undo-item-processing,
+.filepond--action-retry-item-processing,
+.filepond--action-process-item {
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+}
+
+.filepond--action-remove-item:hover,
+.filepond--action-abort-item-load:hover,
+.filepond--action-retry-item-load:hover {
+  background: rgba(255, 255, 255, 1);
+  transform: scale(1.1);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Remove button specific styling */
+.filepond--action-remove-item {
+  background: rgba(255, 67, 54, 0.1);
+  border-color: rgba(255, 67, 54, 0.3);
+}
+
+.filepond--action-remove-item:hover {
+  background: rgba(255, 67, 54, 0.2);
+  transform: scale(1.1) rotate(90deg);
+}
+
+/* Process button styling */
+.filepond--action-process-item {
+  background: rgba(0, 150, 10, 0.1);
+  border-color: rgba(0, 150, 10, 0.3);
+}
+
+.filepond--action-process-item:hover {
+  background: rgba(0, 150, 10, 0.2);
+  transform: scale(1.1);
+}
+
+/* Image preview enhancements */
+.filepond--image-preview {
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.filepond--image-preview:hover {
+  transform: scale(1.02);
+}
+
+.filepond--image-preview-wrapper {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.filepond--image-preview-overlay {
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.3) 100%);
+}
+
+/* File status indicator */
+.filepond--file-status {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.filepond--file-status[data-filepond-file-status="idle"] {
+  background: rgba(108, 117, 125, 0.1);
+  color: #6c757d;
+}
+
+.filepond--file-status[data-filepond-file-status="loading"] {
+  background: rgba(0, 122, 204, 0.1);
+  color: #007acc;
+  animation: pulse 1.5s infinite;
+}
+
+.filepond--file-status[data-filepond-file-status="processing"] {
+  background: rgba(255, 193, 7, 0.1);
+  color: #ffc107;
+  animation: pulse 1.5s infinite;
+}
+
+.filepond--file-status[data-filepond-file-status="complete"] {
+  background: rgba(40, 167, 69, 0.1);
+  color: #28a745;
+}
+
+.filepond--file-status[data-filepond-file-status="error"] {
+  background: rgba(220, 53, 69, 0.1);
+  color: #dc3545;
+  animation: shake 0.5s ease-in-out;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .filepond--panel-root {
+    border-radius: 12px;
+  }
+
+  .filepond--item {
+    margin: 4px;
+  }
+
+  .filepond--item-panel {
+    border-radius: 8px;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .filepond--panel-root {
+    background: linear-gradient(145deg, #2d3748 0%, #1a202c 100%);
+    border-color: #4a5568;
+  }
+
+  .filepond--drop-label {
+    color: #e2e8f0;
+  }
+
+  .filepond--label-action {
+    color: #63b3ed;
+  }
+
+  .filepond--item-panel {
+    background: linear-gradient(145deg, #4a5568 0%, #2d3748 100%);
+    border-color: #718096;
+  }
+
+  .filepond--file-info-main {
+    color: #e2e8f0;
+  }
+
+  .filepond--file-info-sub {
+    color: #a0aec0;
+  }
+}
+
+/* Accessibility enhancements */
+.filepond--root:focus-within {
+  outline: 2px solid #007acc;
+  outline-offset: 2px;
+}
+
+.filepond--action-remove-item:focus,
+.filepond--action-abort-item-load:focus,
+.filepond--action-retry-item-load:focus,
+.filepond--action-process-item:focus {
+  outline: 2px solid #007acc;
+  outline-offset: 2px;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .filepond--root,
+  .filepond--panel-root,
+  .filepond--item,
+  .filepond--item-panel,
+  .filepond--action-remove-item,
+  .filepond--action-process-item,
+  .filepond--image-preview {
+    transition: none;
+    animation: none;
+  }
+
+  .filepond--load-indicator {
+    animation: none;
+  }
+}

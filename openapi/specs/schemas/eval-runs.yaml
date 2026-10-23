@@ -1,0 +1,460 @@
+EvalRunStatus:
+  type: string
+  description: Lifecycle of an eval run as a whole.
+  enum: [QUEUED, RUNNING, FINISHED, STOPPED]
+
+EvalAttemptStatus:
+  type: string
+  description: Lifecycle of one case x configuration attempt.
+  enum: [QUEUED, PREPARING, RUNNING, JUDGING, COMPLETED, ERROR, STOPPED]
+
+EvalAttemptStopReason:
+  type: string
+  description: Why a STOPPED attempt stopped.
+  enum: [USER, TIME_LIMIT, TOKEN_LIMIT]
+
+EvalRunSettings:
+  type: object
+  description: How the run executes. An absent limit means no limit.
+  required: [maxConcurrentAttempts]
+  additionalProperties: false
+  properties:
+    maxConcurrentAttempts:
+      type: integer
+      minimum: 1
+      default: 3
+    attemptTimeLimitSeconds:
+      type: integer
+      minimum: 1
+    attemptTokenLimit:
+      type: integer
+      minimum: 1
+
+EvalMeasurementScope:
+  type: string
+  description: >
+    TARGET_PREPARATION, TARGET_HANDLER and JUDGE are measured per attempt.
+    COORDINATOR is measured per run. Scopes are never summed into one another.
+  enum: [TARGET_PREPARATION, TARGET_HANDLER, JUDGE, COORDINATOR]
+
+EvalModelSetting:
+  type: object
+  required: [provider, model]
+  properties:
+    provider:
+      type: string
+    model:
+      type: string
+    reasoningEffort:
+      type: string
+    handlerConfig:
+      type: object
+      additionalProperties: true
+      description: Handler settings recorded from Agent Config.
+
+EvalConfiguration:
+  type: object
+  description: One model and handler setting a run is repeated across.
+  required: [id, target]
+  properties:
+    id:
+      type: string
+      format: uuid
+    target:
+      $ref: "#/EvalModelSetting"
+    preparation:
+      allOf:
+        - $ref: "#/EvalModelSetting"
+      description: Distinct preparation setting, present only when it differs from the target.
+
+EvalCaseTarget:
+  type: object
+  description: Everything the target handler may see. Never contains checks or rubric.
+  required: [situation, initiatingRequest, targetHandler]
+  properties:
+    situation:
+      type: string
+      description: Approved case content as recorded at launch.
+    focalItemId:
+      type: string
+      format: uuid
+      nullable: true
+    supportingItemIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+    initiatingRequest:
+      type: string
+      description: The single request that starts the case.
+    targetHandler:
+      type: string
+      description: Handler the case runs through.
+
+EvalCheckDefinition:
+  type: object
+  required: [id, description]
+  properties:
+    id:
+      type: string
+    description:
+      type: string
+
+EvalRubricDimension:
+  type: object
+  required: [key, name, description]
+  properties:
+    key:
+      type: string
+    name:
+      type: string
+    description:
+      type: string
+
+EvalCaseGrading:
+  type: object
+  description: For the coordinator and judge only. Never passed to the target.
+  required: [checks, rubric]
+  properties:
+    expectations:
+      type: string
+      description: Expected and forbidden behavior recorded from the approved case.
+    checks:
+      type: array
+      items:
+        $ref: "#/EvalCheckDefinition"
+    rubric:
+      type: array
+      description: Dimensions are data, not an enum.
+      items:
+        $ref: "#/EvalRubricDimension"
+
+EvalRunCaseInput:
+  type: object
+  description: >
+    Approved case content and selections recorded when the run was launched.
+    No project snapshot is implied; discovery reads the live project.
+  required: [id, evalCaseId, title, target, grading]
+  properties:
+    id:
+      type: string
+      format: uuid
+    evalCaseId:
+      type: string
+      format: uuid
+    title:
+      type: string
+    target:
+      $ref: "#/EvalCaseTarget"
+    grading:
+      $ref: "#/EvalCaseGrading"
+
+EvalRecordedAttempt:
+  type: object
+  description: One case x configuration attempt as recorded for the coordinator.
+  required: [attemptId, caseInput, configuration, targetSessionId, targetConversationId]
+  properties:
+    attemptId:
+      type: string
+      format: uuid
+    targetSessionId:
+      type: string
+      format: uuid
+      description: Agent Session the attempt's target runs and writes under.
+    targetConversationId:
+      type: string
+      format: uuid
+      description: Conversation prepared at launch alongside the target session.
+    caseInput:
+      $ref: "#/EvalRunCaseInput"
+    configuration:
+      $ref: "#/EvalConfiguration"
+
+EvalAttemptError:
+  type: object
+  required: [message]
+  properties:
+    message:
+      type: string
+    code:
+      type: string
+
+EvalCostMeasurement:
+  type: object
+  required: [amount, currency, basis]
+  properties:
+    amount:
+      type: number
+    currency:
+      type: string
+    basis:
+      type: string
+      description: How the cost was derived.
+
+EvalMeasurement:
+  type: object
+  description: >
+    Every number is optional and absent when the provider did not report it.
+    It is never defaulted to 0.
+  required: [scope]
+  properties:
+    scope:
+      $ref: "#/EvalMeasurementScope"
+    elapsedMs:
+      type: integer
+      minimum: 0
+    inputTokens:
+      type: integer
+      minimum: 0
+    outputTokens:
+      type: integer
+      minimum: 0
+    toolCalls:
+      type: integer
+      minimum: 0
+    cost:
+      $ref: "#/EvalCostMeasurement"
+
+EvalCheckResult:
+  type: object
+  required: [checkId, passed]
+  properties:
+    checkId:
+      type: string
+    passed:
+      type: boolean
+    explanation:
+      type: string
+
+EvalRecognitionResult:
+  type: object
+  description: Whether the target recognised that the case called for an update, assessed apart from quality.
+  required: [recognized, explanation]
+  properties:
+    recognized:
+      type: boolean
+    explanation:
+      type: string
+
+EvalQualityDimensionResult:
+  type: object
+  required: [key, name, explanation]
+  properties:
+    key:
+      type: string
+    name:
+      type: string
+    score:
+      type: number
+    explanation:
+      type: string
+
+EvalAutomatedAssessment:
+  type: object
+  description: Judge output. Stored apart from human review and never overwritten by it.
+  required: [checkResults, recognition, quality, createdAt]
+  properties:
+    judgeSessionId:
+      type: string
+      format: uuid
+      nullable: true
+    checkResults:
+      type: array
+      items:
+        $ref: "#/EvalCheckResult"
+    recognition:
+      $ref: "#/EvalRecognitionResult"
+    quality:
+      type: array
+      items:
+        $ref: "#/EvalQualityDimensionResult"
+    createdAt:
+      type: string
+      format: date-time
+
+LaunchEvalRunRequest:
+  type: object
+  required: [evalCaseIds, configurations, judgeSetup]
+  properties:
+    evalCaseIds:
+      type: array
+      minItems: 1
+      items:
+        type: string
+        format: uuid
+    configurations:
+      type: array
+      minItems: 1
+      items:
+        $ref: "#/EvalConfiguration"
+    judgeSetup:
+      $ref: "#/EvalModelSetting"
+    settings:
+      type: object
+      description: Omitted fields take the EvalRunSettings defaults.
+      additionalProperties: false
+      properties:
+        maxConcurrentAttempts:
+          type: integer
+          minimum: 1
+        attemptTimeLimitSeconds:
+          type: integer
+          minimum: 1
+        attemptTokenLimit:
+          type: integer
+          minimum: 1
+
+EvalRunReportPayload:
+  description: >
+    Payload for EVAL_RUN reports. The run report is attached to its Eval and
+    records exactly what was run; later edits to the cases do not change it.
+    Its attempts are the EVAL_ATTEMPT reports whose parentReportId is this
+    report.
+  allOf:
+    - $ref: "./reports.yaml#/BaseReportPayload"
+    - type: object
+      required:
+        [
+          reportType,
+          evalId,
+          status,
+          cases,
+          configurations,
+          judgeSetup,
+          settings,
+          coordinatorAgentSessionId,
+          coordinatorConversationId,
+        ]
+      additionalProperties: false
+      properties:
+        reportType:
+          type: string
+          enum: [EVAL_RUN]
+        summary: {}
+        evalId:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/EvalRunStatus"
+        judgeSetup:
+          $ref: "#/EvalModelSetting"
+        cases:
+          type: array
+          items:
+            $ref: "#/EvalRunCaseInput"
+        configurations:
+          type: array
+          items:
+            $ref: "#/EvalConfiguration"
+        settings:
+          $ref: "#/EvalRunSettings"
+        coordinatorMeasurement:
+          allOf:
+            - $ref: "#/EvalMeasurement"
+          description: COORDINATOR-scope usage for the run as a whole. Absent until reported.
+        coordinatorAgentSessionId:
+          type: string
+          format: uuid
+          nullable: true
+          description: >
+            Agent Session prepared at launch for the run's coordinator. The
+            app starts it; launch starts no agent.
+        coordinatorConversationId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Conversation prepared at launch alongside the coordinator session.
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+EvalAttemptReportPayload:
+  description: >
+    Payload for EVAL_ATTEMPT reports, one per case and configuration. The
+    report id is the attempt's identity; parentReportId is the run report.
+    Status is updated in place. The attempt's output is whatever its target
+    session wrote while the attempt was in flight. The target session is
+    referenced by id only and never attached, so deleting the session does
+    not delete the attempt.
+  allOf:
+    - $ref: "./reports.yaml#/BaseReportPayload"
+    - type: object
+      required: [reportType, caseInputId, configuration, status, measurements]
+      additionalProperties: false
+      properties:
+        reportType:
+          type: string
+          enum: [EVAL_ATTEMPT]
+        summary: {}
+        caseInputId:
+          type: string
+          format: uuid
+          description: Id of the EvalRunCaseInput recorded in the run report's cases.
+        configuration:
+          $ref: "#/EvalConfiguration"
+        status:
+          $ref: "#/EvalAttemptStatus"
+        stopReason:
+          allOf:
+            - $ref: "#/EvalAttemptStopReason"
+          nullable: true
+          description: Set only when status is STOPPED.
+        error:
+          type: object
+          allOf:
+            - $ref: "#/EvalAttemptError"
+          nullable: true
+        targetSessionId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Agent Session prepared at launch for the attempt's target.
+        targetConversationId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Conversation prepared at launch alongside the target session.
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        measurements:
+          type: array
+          description: At most one each of TARGET_PREPARATION, TARGET_HANDLER and JUDGE.
+          items:
+            $ref: "#/EvalMeasurement"
+        automatedAssessment:
+          type: object
+          allOf:
+            - $ref: "#/EvalAutomatedAssessment"
+          nullable: true
+
+EvalHumanReviewReportPayload:
+  description: >
+    Payload for EVAL_HUMAN_REVIEW reports. parentReportId is the attempt
+    report. Kept apart from the attempt's automated assessment and never
+    alters it.
+  allOf:
+    - $ref: "./reports.yaml#/BaseReportPayload"
+    - type: object
+      required: [reportType, score, challengeCase]
+      additionalProperties: false
+      properties:
+        reportType:
+          type: string
+          enum: [EVAL_HUMAN_REVIEW]
+        summary: {}
+        score:
+          type: integer
+          minimum: 0
+          maximum: 5
+        comment:
+          type: string
+          nullable: true
+        challengeCase:
+          type: boolean

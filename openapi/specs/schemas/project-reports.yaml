@@ -1,0 +1,772 @@
+ProjectReportProvider:
+  type: string
+  enum: [claude, codex, opencode]
+  description: Provider selected through the existing agent launch configuration.
+
+ProjectReportKind:
+  type: string
+  enum: [PROJECT_REPORT, RELEASE_NOTES]
+  description: >-
+    PROJECT_REPORT answers a question from the project graph only. RELEASE_NOTES reports what shipped: changes
+    merged into selected project repositories, correlated with graph evidence. Only changes that have been merged into each project repository's default branch will be included. It is the
+    only kind with repository access and launches through the release_notes prompt type.
+
+ProjectReportSubject:
+  type: object
+  additionalProperties: false
+  required:
+    - entityType
+    - entityId
+  properties:
+    entityType:
+      $ref: ./common.yaml#/EntityType
+    entityId:
+      type: string
+      format: uuid
+ProjectReportScope:
+  type: object
+  additionalProperties: false
+  required:
+    - projectId
+    - windowStart
+    - windowEnd
+    - timeZone
+  properties:
+    projectId:
+      type: string
+      format: uuid
+    windowStart:
+      type: string
+      format: date-time
+    windowEnd:
+      type: string
+      format: date-time
+    timeZone:
+      type: string
+      minLength: 1
+    userId:
+      type: string
+      format: uuid
+    activityTypes:
+      type: array
+      items:
+        $ref: ./activity-correlation.yaml#/ActivityCorrelationActivityType
+      uniqueItems: true
+    sources:
+      type: array
+      items:
+        $ref: ./activity-correlation.yaml#/ActivityCorrelationSource
+      uniqueItems: true
+    includeAttentionEvents:
+      type: boolean
+      default: false
+  description: >-
+    Fixed UTC start-inclusive/end-exclusive window; start must precede end. timeZone is the display IANA
+    timezone. Omitted actor/classification filters include all authorized matching evidence; empty
+    classification arrays select none. Retains canonical queryActivity semantics.
+ProjectReportPreset:
+  type: object
+  description: Outline-guide provenance retaining the accepted question and edited outline. Applying a guide changes only the outline.
+  additionalProperties: false
+  required:
+    - key
+    - prompt
+    - outline
+  properties:
+    key:
+      type: string
+      minLength: 1
+    prompt:
+      type: string
+      minLength: 1
+    outline:
+      type: string
+      minLength: 1
+ProjectReportLaunchConfig:
+  type: object
+  additionalProperties: false
+  required:
+    - machineId
+    - provider
+    - model
+    - effort
+  properties:
+    machineId:
+      type: string
+      format: uuid
+    provider:
+      $ref: '#/ProjectReportProvider'
+    model:
+      type: string
+      minLength: 1
+    effort:
+      type: string
+      enum: [none, minimal, low, medium, high, xhigh, max, ultra, default]
+    fastMode:
+      type: boolean
+  description: >-
+    Existing reachable-machine and provider configuration. PROJECT_REPORT requires no Service or repository.
+    RELEASE_NOTES requires machineId to be a ready machine reporting bindings for selected project Services;
+    otherwise launch fails with code SERVICE_REPOSITORIES_UNAVAILABLE and names unavailable Services.
+ProjectReportSubmission:
+  type: object
+  additionalProperties: false
+  required: &projectReportSubmissionRequired
+    - question
+    - scope
+    - exclusions
+    - launch
+    - idempotencyKey
+  properties: &projectReportSubmissionProperties
+    kind:
+      $ref: '#/ProjectReportKind'
+    serviceIds:
+      type: array
+      minItems: 1
+      uniqueItems: true
+      items:
+        type: string
+        format: uuid
+      description: Accepted repository selection. Absent on graph-only requests and historical release-note requests whose original selection is unknown.
+    question:
+      type: string
+      minLength: 1
+      maxLength: 20000
+    preset:
+      $ref: '#/ProjectReportPreset'
+    scope:
+      $ref: '#/ProjectReportScope'
+    exclusions:
+      type: array
+      items:
+        $ref: '#/ProjectReportSubject'
+      uniqueItems: true
+    launch:
+      $ref: '#/ProjectReportLaunchConfig'
+    idempotencyKey:
+      type: string
+      minLength: 1
+      maxLength: 200
+  description: Accepted request input. Historical release-note repository coverage remains absent when it was not recorded.
+CreateProjectReportRequestDto:
+  type: object
+  additionalProperties: false
+  required: *projectReportSubmissionRequired
+  properties: *projectReportSubmissionProperties
+  not:
+    anyOf:
+      - required: [kind]
+        properties:
+          kind:
+            enum: [RELEASE_NOTES]
+        not:
+          required: [serviceIds]
+      - required: [serviceIds]
+        not:
+          required: [kind]
+          properties:
+            kind:
+              enum: [RELEASE_NOTES]
+  description: >-
+    Persist the edited question and reviewed scope before launch. Idempotency is scoped to organization,
+    project and requesting user; reuse with changed input is a conflict. Exclusions remove primary subjects,
+    not necessary authorized context. Empty/all-excluded populations cannot submit. Omitted kind means
+    PROJECT_REPORT.
+ProjectReportStatus:
+  type: string
+  enum:
+    - QUEUED
+    - RUNNING
+    - COMPLETED
+    - FAILED
+ProjectReportFailure:
+  type: object
+  additionalProperties: false
+  required:
+    - stage
+    - code
+    - message
+    - retryable
+  properties:
+    stage:
+      type: string
+      enum:
+        - LAUNCH
+        - EVIDENCE
+        - GENERATION
+        - SUBMISSION
+    code:
+      type: string
+      minLength: 1
+      description: >-
+        Machine-readable failure code. SERVICE_REPOSITORIES_UNAVAILABLE (stage LAUNCH, not retryable) means the
+        selected machine does not hold every project Service repository required for RELEASE_NOTES.
+    message:
+      type: string
+      minLength: 1
+    retryable:
+      type: boolean
+ProjectReportAttempt:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - attemptNumber
+    - status
+    - idempotencyKey
+    - createdAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    attemptNumber:
+      type: integer
+      minimum: 1
+    status:
+      $ref: '#/ProjectReportStatus'
+    idempotencyKey:
+      type: string
+      minLength: 1
+    agentSessionId:
+      type: string
+      format: uuid
+    conversationId:
+      type: string
+      format: uuid
+    reportId:
+      type: string
+      format: uuid
+    createdAt:
+      type: string
+      format: date-time
+    startedAt:
+      type: string
+      format: date-time
+    completedAt:
+      type: string
+      format: date-time
+    failedAt:
+      type: string
+      format: date-time
+    failure:
+      $ref: '#/ProjectReportFailure'
+  description: >-
+    Each retry has a distinct identity. Session, Conversation and terminal Report references are actual
+    persisted identities, never Message IDs. COMPLETED requires a durable reportId and completedAt; FAILED
+    requires failure and failedAt.
+ProjectReportRequestDto:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - organizationId
+    - projectId
+    - userId
+    - kind
+    - submission
+    - status
+    - attempts
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    organizationId:
+      type: string
+      format: uuid
+    projectId:
+      type: string
+      format: uuid
+    userId:
+      type: string
+      format: uuid
+    kind:
+      $ref: '#/ProjectReportKind'
+      description: Resolved report kind; selects the prompt type the attempt launches through.
+    submission:
+      $ref: '#/ProjectReportSubmission'
+    status:
+      $ref: '#/ProjectReportStatus'
+    attempts:
+      type: array
+      items:
+        $ref: '#/ProjectReportAttempt'
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+  description: >-
+    Durable authoritative state. Attempts are ordered by attemptNumber, latest last. Request status follows
+    the latest attempt. Retries preserve submission and kind unchanged.
+RetryProjectReportRequestDto:
+  type: object
+  additionalProperties: false
+  required:
+    - idempotencyKey
+    - expectedAttemptId
+  properties:
+    idempotencyKey:
+      type: string
+      minLength: 1
+      maxLength: 200
+    expectedAttemptId:
+      type: string
+      format: uuid
+  description: >-
+    Retry a failed attempt with the original submission and launch configuration. Repeated retry keys return
+    the same attempt; stale expectedAttemptId is a conflict.
+ProjectReportPreviewRequestDto:
+  type: object
+  additionalProperties: false
+  required:
+    - scope
+    - exclusions
+  properties:
+    scope:
+      $ref: '#/ProjectReportScope'
+    exclusions:
+      type: array
+      items:
+        $ref: '#/ProjectReportSubject'
+      uniqueItems: true
+    search:
+      type: string
+      maxLength: 500
+    limit:
+      type: integer
+      minimum: 1
+      maximum: 200
+      default: 50
+    offset:
+      type: integer
+      minimum: 0
+  description: >-
+    Search changes displayed rows only, not evidence inclusion or population counts. Scope changes require
+    clearing exclusions.
+ProjectReportPreviewRow:
+  type: object
+  additionalProperties: false
+  required:
+    - subject
+    - title
+    - matchingActivityCount
+    - explanation
+    - excluded
+  properties:
+    subject:
+      $ref: '#/ProjectReportSubject'
+    title:
+      type: string
+      minLength: 1
+    matchingActivityCount:
+      type: integer
+      minimum: 0
+    explanation:
+      type: string
+      minLength: 1
+    excluded:
+      type: boolean
+ProjectReportPreviewDto:
+  type: object
+  additionalProperties: false
+  required:
+    - subjects
+    - matchingSubjectCount
+    - includedSubjectCount
+    - excludedSubjectCount
+    - displayedSubjectCount
+    - queriedAt
+  properties:
+    subjects:
+      type: array
+      items:
+        $ref: '#/ProjectReportPreviewRow'
+    matchingSubjectCount:
+      type: integer
+      minimum: 0
+    includedSubjectCount:
+      type: integer
+      minimum: 0
+    excludedSubjectCount:
+      type: integer
+      minimum: 0
+    displayedSubjectCount:
+      type: integer
+      minimum: 0
+    nextOffset:
+      type: integer
+      minimum: 0
+    queriedAt:
+      type: string
+      format: date-time
+  description: >-
+    Counts cover all authorized distinct subjects, including unseen pages. matching = included + excluded;
+    displayedSubjectCount reflects preview search. Evidence is live, not snapshot-isolated.
+ProjectReportActivityPageDto:
+  type: object
+  additionalProperties: false
+  required:
+    - requestId
+    - attemptId
+    - records
+    - total
+    - queriedAt
+  properties:
+    requestId:
+      type: string
+      format: uuid
+    attemptId:
+      type: string
+      format: uuid
+    records:
+      type: array
+      items:
+        $ref: ./activity-correlation.yaml#/ActivityCorrelationRecordDto
+    total:
+      type: integer
+      minimum: 0
+    nextOffset:
+      type: integer
+      minimum: 0
+    queriedAt:
+      type: string
+      format: date-time
+  description: >-
+    Canonical activity after persisted scope and primary-subject exclusions. Stable canonical ordering and
+    limit/offset semantics. Authorization is checked per page; absence of nextOffset ends the live read.
+ProjectReportContextPageDto:
+  type: object
+  additionalProperties: false
+  required:
+    - requestId
+    - attemptId
+    - subject
+    - kind
+    - title
+    - relatedSubjects
+    - queriedAt
+  properties:
+    requestId:
+      type: string
+      format: uuid
+    attemptId:
+      type: string
+      format: uuid
+    subject:
+      $ref: '#/ProjectReportSubject'
+    kind:
+      type: string
+      enum: [CURRENT_STATE_CONTEXT]
+    title:
+      type: string
+      minLength: 1
+    status:
+      type: string
+    updatedAt:
+      type: string
+      format: date-time
+    relatedSubjects:
+      type: array
+      maxItems: 50
+      items:
+        $ref: '#/ProjectReportSubject'
+    queriedAt:
+      type: string
+      format: date-time
+  description: >-
+    Bounded current-state context for one included primary subject. Related subjects are context references,
+    never additional primary subjects. Authorization and active attempt binding are checked on each read.
+ProjectReportContextBatchRequestDto:
+  type: object
+  additionalProperties: false
+  required:
+    - attemptId
+    - subjects
+  properties:
+    attemptId:
+      type: string
+      format: uuid
+    subjects:
+      type: array
+      minItems: 1
+      maxItems: 100
+      uniqueItems: true
+      items:
+        $ref: '#/ProjectReportSubject'
+  description: >-
+    Included primary subjects of the active attempt whose current-state context and placement are read together.
+    Subjects must be unique by entityType and entityId.
+ProjectReportPlacementEntry:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - title
+  properties:
+    id:
+      type: string
+      format: uuid
+    title:
+      type: string
+      minLength: 1
+  description: A work item in the request's project that a report subject belongs to.
+ProjectReportSubjectPlacement:
+  type: object
+  additionalProperties: false
+  required:
+    - features
+  properties:
+    plan:
+      $ref: '#/ProjectReportPlacementEntry'
+    features:
+      type: array
+      maxItems: 50
+      items:
+        $ref: '#/ProjectReportPlacementEntry'
+  description: >-
+    Where a subject sits in the project's work. plan is the nearest Plan in the subject's parent chain, including
+    the subject itself. features lists the Feature lineage nearest first, including the subject itself when it is
+    a Feature. Design docs resolve through their parent task and agent sessions through their task; a subject with
+    no task anchor has no plan and an empty features list. Only work items in the request's project are returned.
+ProjectReportContextBatchItemDto:
+  type: object
+  additionalProperties: false
+  required:
+    - context
+    - placement
+  properties:
+    context:
+      $ref: '#/ProjectReportContextPageDto'
+    placement:
+      $ref: '#/ProjectReportSubjectPlacement'
+ProjectReportContextBatchResponseDto:
+  type: object
+  additionalProperties: false
+  required:
+    - requestId
+    - attemptId
+    - items
+    - queriedAt
+  properties:
+    requestId:
+      type: string
+      format: uuid
+    attemptId:
+      type: string
+      format: uuid
+    items:
+      type: array
+      maxItems: 100
+      items:
+        $ref: '#/ProjectReportContextBatchItemDto'
+    queriedAt:
+      type: string
+      format: date-time
+  description: >-
+    Current-state context and placement for every requested subject, in request order. Each context item carries
+    the same identity, authorization and active-attempt guarantees as getProjectReportContextPage.
+ProjectReportCoverage:
+  type: object
+  additionalProperties: false
+  required:
+    - status
+    - matchingActivityCount
+    - processedActivityCount
+    - pagesRead
+    - limitations
+  properties:
+    status:
+      type: string
+      enum:
+        - COMPLETE
+        - INCOMPLETE
+    matchingActivityCount:
+      type: integer
+      minimum: 0
+    processedActivityCount:
+      type: integer
+      minimum: 0
+    pagesRead:
+      type: integer
+      minimum: 0
+    limitations:
+      type: array
+      items:
+        type: string
+        minLength: 1
+  description: >-
+    COMPLETE accounts for all matching activity retrieved during generation. Bounds, failures or missing pages
+    require INCOMPLETE and explicit limitations. Counts are live observations, not a snapshot guarantee.
+ProjectReportEvidenceReference:
+  type: object
+  additionalProperties: false
+  required:
+    - key
+    - subject
+    - title
+    - kind
+  properties:
+    key:
+      type: string
+      minLength: 1
+      description: >-
+        Opaque report-local evidence key. Authored body citations use data-evidence-key with this exact,
+        case-sensitive value; the host resolves it through provenance.evidence, never as a URL or entity ID.
+    subject:
+      $ref: '#/ProjectReportSubject'
+    title:
+      type: string
+      minLength: 1
+    kind:
+      type: string
+      enum:
+        - SELECTED_PERIOD
+        - CURRENT_STATE_CONTEXT
+    occurredAt:
+      type: string
+      format: date-time
+    source:
+      $ref: ./activity-correlation.yaml#/ActivityCorrelationSource
+  description: Host-owned evidence target. Current-state context is separate from selected-period evidence.
+ProjectReportProvenance:
+  type: object
+  additionalProperties: false
+  required:
+    - requestId
+    - attemptId
+    - evidenceReadStartedAt
+    - evidenceReadCompletedAt
+    - evidence
+  properties:
+    requestId:
+      type: string
+      format: uuid
+    attemptId:
+      type: string
+      format: uuid
+    evidenceReadStartedAt:
+      type: string
+      format: date-time
+    evidenceReadCompletedAt:
+      type: string
+      format: date-time
+    evidence:
+      type: array
+      items:
+        $ref: '#/ProjectReportEvidenceReference'
+ProjectReportBody:
+  type: object
+  additionalProperties: false
+  required:
+    - html
+    - css
+  properties:
+    html:
+      type: string
+      minLength: 1
+    css:
+      type: string
+  description: >-
+    Static HTML/CSS in an isolated document. No scripts, external resources, executable navigation or escaping
+    styles. Host owns evidence navigation and report presentation. Cite evidence using data-evidence-key
+    attributes whose exact values match provenance.evidence keys. Repeated citations may reuse a key;
+    producers should include one provenance entry per key. Unknown citations remain unresolved and inert.
+ProjectReportPayload:
+  type: object
+  additionalProperties: false
+  required:
+    - reportType
+    - title
+    - summary
+    - question
+    - scope
+    - exclusions
+    - provenance
+    - coverage
+    - body
+  properties:
+    reportType:
+      type: string
+      enum:
+        - PROJECT_REPORT
+    title:
+      type: string
+      minLength: 1
+    summary:
+      type: string
+      minLength: 1
+    question:
+      type: string
+      minLength: 1
+    preset:
+      $ref: '#/ProjectReportPreset'
+    scope:
+      $ref: '#/ProjectReportScope'
+    exclusions:
+      type: array
+      items:
+        $ref: '#/ProjectReportSubject'
+    provenance:
+      $ref: '#/ProjectReportProvenance'
+    coverage:
+      $ref: '#/ProjectReportCoverage'
+    body:
+      $ref: '#/ProjectReportBody'
+  description: >-
+    Single PROJECT_REPORT for custom questions and presets. Retains edited request and provenance. Identity,
+    creation time, visibility and source execution belong exclusively to the shared report envelope.
+ProjectReportLaunchPayload:
+  type: object
+  additionalProperties: false
+  required:
+    - requestId
+    - attemptId
+    - projectId
+  properties:
+    requestId:
+      type: string
+      format: uuid
+    attemptId:
+      type: string
+      format: uuid
+    projectId:
+      type: string
+      format: uuid
+  description: >-
+    Bounded launch references shared by the project_report and release_notes prompt types. Load the durable request and page evidence through authorized
+    operations; never embed the activity population or substitute Message IDs.
+AgentSessionConfigProjectReportV1:
+  type: object
+  additionalProperties: false
+  required:
+    - type
+    - version
+    - requestId
+    - attemptId
+    - model
+  properties:
+    type:
+      type: string
+      enum:
+        - PROJECT_REPORT
+    version:
+      type: string
+      enum:
+        - v1
+    requestId:
+      type: string
+      format: uuid
+    attemptId:
+      type: string
+      format: uuid
+    model:
+      type: string
+      minLength: 1
+    effort:
+      type: string
+      minLength: 1
+    fastMode:
+      type: boolean

@@ -1,0 +1,921 @@
+{
+  "schemaVersion": 3,
+  "writerApplicationVersion": "4.1.0",
+  "instances": [
+    {
+      "identity": {
+        "machineType": "input-admission",
+        "instanceId": "338eacd7-4983-495a-a73d-e331f67a2950"
+      },
+      "revision": 6,
+      "state": "ready",
+      "context": {
+        "records": [
+          {
+            "key": "f416646e-c44f-4072-b49b-c3e4373f9ae5",
+            "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "agentSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+            "runId": "09584637-da7a-4c20-ac1a-cac355c0ceae",
+            "organizationId": "2b1f2c9e-f8ab-41a2-b77b-20dfbc041871",
+            "projectId": "77a0a31b-4fbd-4122-9656-5836be4925c2",
+            "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+            "userId": "5459c83b-2e4a-47f8-a0f0-ab556ce61ac1",
+            "messageId": "33c03437-ed8d-45c4-b9b8-f8a436944c1b",
+            "admissionId": "81bf04a1-28c1-4729-a74e-078f088a530d",
+            "sequence": 0,
+            "payload": {
+              "kind": "session_message",
+              "generation": 1,
+              "platformAdmissionId": "f416646e-c44f-4072-b49b-c3e4373f9ae5",
+              "input": {
+                "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                "interactionId": "dca694bc-1f54-44f8-9624-e86010601486",
+                "attemptId": "a48f59eb-6c3e-47cf-8f51-962b3d5cc7cc",
+                "authorKind": "AGENT",
+                "objective": "Investigate",
+                "authority": {
+                  "kind": "MACHINE_SESSION",
+                  "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                  "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                  "targetSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                  "subagentCapability": "RESEARCH"
+                }
+              }
+            },
+            "state": "settled",
+            "turnId": "c883e116-6af2-4310-9122-7cc378bf4d41",
+            "revision": 4,
+            "projectedRevision": 4,
+            "settlement": {
+              "turnId": "c883e116-6af2-4310-9122-7cc378bf4d41",
+              "reports": []
+            },
+            "settlementDelivered": true,
+            "projectionRetry": {
+              "attempts": 0,
+              "nextAttemptAt": 0
+            }
+          },
+          {
+            "key": "096b51e7-eb76-4730-a549-d540288a80fe",
+            "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "agentSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+            "runId": "49b54562-4fd3-4892-bbba-b4682c61e866",
+            "organizationId": "2b1f2c9e-f8ab-41a2-b77b-20dfbc041871",
+            "projectId": "77a0a31b-4fbd-4122-9656-5836be4925c2",
+            "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+            "userId": "5459c83b-2e4a-47f8-a0f0-ab556ce61ac1",
+            "messageId": "f9ff38c2-f055-427f-b7ce-3c6c5b0325e5",
+            "admissionId": "8322a9ee-1203-4bcf-8887-860cf1cf8187",
+            "sequence": 1,
+            "payload": {
+              "kind": "session_message",
+              "generation": 1,
+              "platformAdmissionId": "096b51e7-eb76-4730-a549-d540288a80fe",
+              "input": {
+                "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                "interactionId": "b1d8366c-57cd-4dce-8d19-7d9e2132ebc5",
+                "attemptId": "5a0d560d-8f77-448f-b608-417363466d19",
+                "authorKind": "AGENT",
+                "objective": "Investigate",
+                "authority": {
+                  "kind": "MACHINE_SESSION",
+                  "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                  "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                  "targetSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                  "subagentCapability": "RESEARCH"
+                }
+              }
+            },
+            "state": "queued",
+            "turnId": null,
+            "revision": 1,
+            "projectedRevision": 0,
+            "settlement": null,
+            "settlementDelivered": false
+          }
+        ]
+      },
+      "acceptedIngress": [
+        {
+          "ingressId": "81bf04a1-28c1-4729-a74e-078f088a530d:1:113522c7-9175-4223-996a-3fd25c1f4c5a",
+          "revision": 1,
+          "state": "ready",
+          "context": {
+            "records": [
+              {
+                "key": "f416646e-c44f-4072-b49b-c3e4373f9ae5",
+                "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "agentSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                "runId": "09584637-da7a-4c20-ac1a-cac355c0ceae",
+                "organizationId": "2b1f2c9e-f8ab-41a2-b77b-20dfbc041871",
+                "projectId": "77a0a31b-4fbd-4122-9656-5836be4925c2",
+                "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                "userId": "5459c83b-2e4a-47f8-a0f0-ab556ce61ac1",
+                "messageId": "33c03437-ed8d-45c4-b9b8-f8a436944c1b",
+                "payload": {
+                  "kind": "session_message",
+                  "generation": 1,
+                  "platformAdmissionId": "f416646e-c44f-4072-b49b-c3e4373f9ae5",
+                  "input": {
+                    "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                    "interactionId": "dca694bc-1f54-44f8-9624-e86010601486",
+                    "attemptId": "a48f59eb-6c3e-47cf-8f51-962b3d5cc7cc",
+                    "authorKind": "AGENT",
+                    "objective": "Investigate",
+                    "authority": {
+                      "kind": "MACHINE_SESSION",
+                      "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                      "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                      "targetSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                      "subagentCapability": "RESEARCH"
+                    }
+                  }
+                },
+                "admissionId": "81bf04a1-28c1-4729-a74e-078f088a530d",
+                "sequence": 0,
+                "state": "queued",
+                "revision": 1,
+                "projectedRevision": 0,
+                "turnId": null,
+                "settlement": null,
+                "settlementDelivered": false
+              }
+            ]
+          },
+          "effects": []
+        },
+        {
+          "ingressId": "8322a9ee-1203-4bcf-8887-860cf1cf8187:1:0f52c0a4-d6cd-4cd5-b958-d032100e4d20",
+          "revision": 2,
+          "state": "ready",
+          "context": {
+            "records": [
+              {
+                "key": "f416646e-c44f-4072-b49b-c3e4373f9ae5",
+                "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "agentSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                "runId": "09584637-da7a-4c20-ac1a-cac355c0ceae",
+                "organizationId": "2b1f2c9e-f8ab-41a2-b77b-20dfbc041871",
+                "projectId": "77a0a31b-4fbd-4122-9656-5836be4925c2",
+                "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                "userId": "5459c83b-2e4a-47f8-a0f0-ab556ce61ac1",
+                "messageId": "33c03437-ed8d-45c4-b9b8-f8a436944c1b",
+                "admissionId": "81bf04a1-28c1-4729-a74e-078f088a530d",
+                "sequence": 0,
+                "payload": {
+                  "kind": "session_message",
+                  "generation": 1,
+                  "platformAdmissionId": "f416646e-c44f-4072-b49b-c3e4373f9ae5",
+                  "input": {
+                    "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                    "interactionId": "dca694bc-1f54-44f8-9624-e86010601486",
+                    "attemptId": "a48f59eb-6c3e-47cf-8f51-962b3d5cc7cc",
+                    "authorKind": "AGENT",
+                    "objective": "Investigate",
+                    "authority": {
+                      "kind": "MACHINE_SESSION",
+                      "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                      "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                      "targetSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                      "subagentCapability": "RESEARCH"
+                    }
+                  }
+                },
+                "state": "queued",
+                "turnId": null,
+                "revision": 1,
+                "projectedRevision": 0,
+                "settlement": null,
+                "settlementDelivered": false
+              },
+              {
+                "key": "096b51e7-eb76-4730-a549-d540288a80fe",
+                "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "agentSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                "runId": "49b54562-4fd3-4892-bbba-b4682c61e866",
+                "organizationId": "2b1f2c9e-f8ab-41a2-b77b-20dfbc041871",
+                "projectId": "77a0a31b-4fbd-4122-9656-5836be4925c2",
+                "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                "userId": "5459c83b-2e4a-47f8-a0f0-ab556ce61ac1",
+                "messageId": "f9ff38c2-f055-427f-b7ce-3c6c5b0325e5",
+                "payload": {
+                  "kind": "session_message",
+                  "generation": 1,
+                  "platformAdmissionId": "096b51e7-eb76-4730-a549-d540288a80fe",
+                  "input": {
+                    "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                    "interactionId": "b1d8366c-57cd-4dce-8d19-7d9e2132ebc5",
+                    "attemptId": "5a0d560d-8f77-448f-b608-417363466d19",
+                    "authorKind": "AGENT",
+                    "objective": "Investigate",
+                    "authority": {
+                      "kind": "MACHINE_SESSION",
+                      "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                      "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                      "targetSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                      "subagentCapability": "RESEARCH"
+                    }
+                  }
+                },
+                "admissionId": "8322a9ee-1203-4bcf-8887-860cf1cf8187",
+                "sequence": 1,
+                "state": "queued",
+                "revision": 1,
+                "projectedRevision": 0,
+                "turnId": null,
+                "settlement": null,
+                "settlementDelivered": false
+              }
+            ]
+          },
+          "effects": []
+        },
+        {
+          "ingressId": "81bf04a1-28c1-4729-a74e-078f088a530d:2:82a49a76-bde7-4e97-a491-8384c08af623",
+          "revision": 3,
+          "state": "ready",
+          "context": {
+            "records": [
+              {
+                "key": "f416646e-c44f-4072-b49b-c3e4373f9ae5",
+                "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "agentSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                "runId": "09584637-da7a-4c20-ac1a-cac355c0ceae",
+                "organizationId": "2b1f2c9e-f8ab-41a2-b77b-20dfbc041871",
+                "projectId": "77a0a31b-4fbd-4122-9656-5836be4925c2",
+                "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                "userId": "5459c83b-2e4a-47f8-a0f0-ab556ce61ac1",
+                "messageId": "33c03437-ed8d-45c4-b9b8-f8a436944c1b",
+                "admissionId": "81bf04a1-28c1-4729-a74e-078f088a530d",
+                "sequence": 0,
+                "payload": {
+                  "kind": "session_message",
+                  "generation": 1,
+                  "platformAdmissionId": "f416646e-c44f-4072-b49b-c3e4373f9ae5",
+                  "input": {
+                    "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                    "interactionId": "dca694bc-1f54-44f8-9624-e86010601486",
+                    "attemptId": "a48f59eb-6c3e-47cf-8f51-962b3d5cc7cc",
+                    "authorKind": "AGENT",
+                    "objective": "Investigate",
+                    "authority": {
+                      "kind": "MACHINE_SESSION",
+                      "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                      "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                      "targetSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                      "subagentCapability": "RESEARCH"
+                    }
+                  }
+                },
+                "state": "picked",
+                "turnId": "c883e116-6af2-4310-9122-7cc378bf4d41",
+                "revision": 2,
+                "projectedRevision": 0,
+                "settlement": null,
+                "settlementDelivered": false
+              },
+              {
+                "key": "096b51e7-eb76-4730-a549-d540288a80fe",
+                "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "agentSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                "runId": "49b54562-4fd3-4892-bbba-b4682c61e866",
+                "organizationId": "2b1f2c9e-f8ab-41a2-b77b-20dfbc041871",
+                "projectId": "77a0a31b-4fbd-4122-9656-5836be4925c2",
+                "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                "userId": "5459c83b-2e4a-47f8-a0f0-ab556ce61ac1",
+                "messageId": "f9ff38c2-f055-427f-b7ce-3c6c5b0325e5",
+                "admissionId": "8322a9ee-1203-4bcf-8887-860cf1cf8187",
+                "sequence": 1,
+                "payload": {
+                  "kind": "session_message",
+                  "generation": 1,
+                  "platformAdmissionId": "096b51e7-eb76-4730-a549-d540288a80fe",
+                  "input": {
+                    "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                    "interactionId": "b1d8366c-57cd-4dce-8d19-7d9e2132ebc5",
+                    "attemptId": "5a0d560d-8f77-448f-b608-417363466d19",
+                    "authorKind": "AGENT",
+                    "objective": "Investigate",
+                    "authority": {
+                      "kind": "MACHINE_SESSION",
+                      "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                      "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                      "targetSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                      "subagentCapability": "RESEARCH"
+                    }
+                  }
+                },
+                "state": "queued",
+                "turnId": null,
+                "revision": 1,
+                "projectedRevision": 0,
+                "settlement": null,
+                "settlementDelivered": false
+              }
+            ]
+          },
+          "effects": []
+        },
+        {
+          "ingressId": "81bf04a1-28c1-4729-a74e-078f088a530d:3:d1da4acc-3149-442c-80d2-9f0b9e03233b",
+          "revision": 4,
+          "state": "ready",
+          "context": {
+            "records": [
+              {
+                "key": "f416646e-c44f-4072-b49b-c3e4373f9ae5",
+                "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "agentSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                "runId": "09584637-da7a-4c20-ac1a-cac355c0ceae",
+                "organizationId": "2b1f2c9e-f8ab-41a2-b77b-20dfbc041871",
+                "projectId": "77a0a31b-4fbd-4122-9656-5836be4925c2",
+                "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                "userId": "5459c83b-2e4a-47f8-a0f0-ab556ce61ac1",
+                "messageId": "33c03437-ed8d-45c4-b9b8-f8a436944c1b",
+                "admissionId": "81bf04a1-28c1-4729-a74e-078f088a530d",
+                "sequence": 0,
+                "payload": {
+                  "kind": "session_message",
+                  "generation": 1,
+                  "platformAdmissionId": "f416646e-c44f-4072-b49b-c3e4373f9ae5",
+                  "input": {
+                    "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                    "interactionId": "dca694bc-1f54-44f8-9624-e86010601486",
+                    "attemptId": "a48f59eb-6c3e-47cf-8f51-962b3d5cc7cc",
+                    "authorKind": "AGENT",
+                    "objective": "Investigate",
+                    "authority": {
+                      "kind": "MACHINE_SESSION",
+                      "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                      "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                      "targetSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                      "subagentCapability": "RESEARCH"
+                    }
+                  }
+                },
+                "state": "started",
+                "turnId": "c883e116-6af2-4310-9122-7cc378bf4d41",
+                "revision": 3,
+                "projectedRevision": 0,
+                "settlement": null,
+                "settlementDelivered": false
+              },
+              {
+                "key": "096b51e7-eb76-4730-a549-d540288a80fe",
+                "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "agentSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                "runId": "49b54562-4fd3-4892-bbba-b4682c61e866",
+                "organizationId": "2b1f2c9e-f8ab-41a2-b77b-20dfbc041871",
+                "projectId": "77a0a31b-4fbd-4122-9656-5836be4925c2",
+                "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                "userId": "5459c83b-2e4a-47f8-a0f0-ab556ce61ac1",
+                "messageId": "f9ff38c2-f055-427f-b7ce-3c6c5b0325e5",
+                "admissionId": "8322a9ee-1203-4bcf-8887-860cf1cf8187",
+                "sequence": 1,
+                "payload": {
+                  "kind": "session_message",
+                  "generation": 1,
+                  "platformAdmissionId": "096b51e7-eb76-4730-a549-d540288a80fe",
+                  "input": {
+                    "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                    "interactionId": "b1d8366c-57cd-4dce-8d19-7d9e2132ebc5",
+                    "attemptId": "5a0d560d-8f77-448f-b608-417363466d19",
+                    "authorKind": "AGENT",
+                    "objective": "Investigate",
+                    "authority": {
+                      "kind": "MACHINE_SESSION",
+                      "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                      "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                      "targetSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                      "subagentCapability": "RESEARCH"
+                    }
+                  }
+                },
+                "state": "queued",
+                "turnId": null,
+                "revision": 1,
+                "projectedRevision": 0,
+                "settlement": null,
+                "settlementDelivered": false
+              }
+            ]
+          },
+          "effects": []
+        },
+        {
+          "ingressId": "81bf04a1-28c1-4729-a74e-078f088a530d:4:2c39acda-d4d9-4fc9-95c2-56dae49856a0",
+          "revision": 5,
+          "state": "ready",
+          "context": {
+            "records": [
+              {
+                "key": "f416646e-c44f-4072-b49b-c3e4373f9ae5",
+                "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "agentSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                "runId": "09584637-da7a-4c20-ac1a-cac355c0ceae",
+                "organizationId": "2b1f2c9e-f8ab-41a2-b77b-20dfbc041871",
+                "projectId": "77a0a31b-4fbd-4122-9656-5836be4925c2",
+                "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                "userId": "5459c83b-2e4a-47f8-a0f0-ab556ce61ac1",
+                "messageId": "33c03437-ed8d-45c4-b9b8-f8a436944c1b",
+                "admissionId": "81bf04a1-28c1-4729-a74e-078f088a530d",
+                "sequence": 0,
+                "payload": {
+                  "kind": "session_message",
+                  "generation": 1,
+                  "platformAdmissionId": "f416646e-c44f-4072-b49b-c3e4373f9ae5",
+                  "input": {
+                    "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                    "interactionId": "dca694bc-1f54-44f8-9624-e86010601486",
+                    "attemptId": "a48f59eb-6c3e-47cf-8f51-962b3d5cc7cc",
+                    "authorKind": "AGENT",
+                    "objective": "Investigate",
+                    "authority": {
+                      "kind": "MACHINE_SESSION",
+                      "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                      "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                      "targetSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                      "subagentCapability": "RESEARCH"
+                    }
+                  }
+                },
+                "state": "settled",
+                "turnId": "c883e116-6af2-4310-9122-7cc378bf4d41",
+                "revision": 4,
+                "projectedRevision": 0,
+                "settlement": {
+                  "turnId": "c883e116-6af2-4310-9122-7cc378bf4d41",
+                  "reports": []
+                },
+                "settlementDelivered": false
+              },
+              {
+                "key": "096b51e7-eb76-4730-a549-d540288a80fe",
+                "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "agentSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                "runId": "49b54562-4fd3-4892-bbba-b4682c61e866",
+                "organizationId": "2b1f2c9e-f8ab-41a2-b77b-20dfbc041871",
+                "projectId": "77a0a31b-4fbd-4122-9656-5836be4925c2",
+                "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                "userId": "5459c83b-2e4a-47f8-a0f0-ab556ce61ac1",
+                "messageId": "f9ff38c2-f055-427f-b7ce-3c6c5b0325e5",
+                "admissionId": "8322a9ee-1203-4bcf-8887-860cf1cf8187",
+                "sequence": 1,
+                "payload": {
+                  "kind": "session_message",
+                  "generation": 1,
+                  "platformAdmissionId": "096b51e7-eb76-4730-a549-d540288a80fe",
+                  "input": {
+                    "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                    "interactionId": "b1d8366c-57cd-4dce-8d19-7d9e2132ebc5",
+                    "attemptId": "5a0d560d-8f77-448f-b608-417363466d19",
+                    "authorKind": "AGENT",
+                    "objective": "Investigate",
+                    "authority": {
+                      "kind": "MACHINE_SESSION",
+                      "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                      "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                      "targetSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                      "subagentCapability": "RESEARCH"
+                    }
+                  }
+                },
+                "state": "queued",
+                "turnId": null,
+                "revision": 1,
+                "projectedRevision": 0,
+                "settlement": null,
+                "settlementDelivered": false
+              }
+            ]
+          },
+          "effects": []
+        },
+        {
+          "ingressId": "81bf04a1-28c1-4729-a74e-078f088a530d:4:52509cf2-33b4-44ca-b7b4-651c04eb8d69",
+          "revision": 6,
+          "state": "ready",
+          "context": {
+            "records": [
+              {
+                "key": "f416646e-c44f-4072-b49b-c3e4373f9ae5",
+                "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "agentSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                "runId": "09584637-da7a-4c20-ac1a-cac355c0ceae",
+                "organizationId": "2b1f2c9e-f8ab-41a2-b77b-20dfbc041871",
+                "projectId": "77a0a31b-4fbd-4122-9656-5836be4925c2",
+                "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                "userId": "5459c83b-2e4a-47f8-a0f0-ab556ce61ac1",
+                "messageId": "33c03437-ed8d-45c4-b9b8-f8a436944c1b",
+                "admissionId": "81bf04a1-28c1-4729-a74e-078f088a530d",
+                "sequence": 0,
+                "payload": {
+                  "kind": "session_message",
+                  "generation": 1,
+                  "platformAdmissionId": "f416646e-c44f-4072-b49b-c3e4373f9ae5",
+                  "input": {
+                    "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                    "interactionId": "dca694bc-1f54-44f8-9624-e86010601486",
+                    "attemptId": "a48f59eb-6c3e-47cf-8f51-962b3d5cc7cc",
+                    "authorKind": "AGENT",
+                    "objective": "Investigate",
+                    "authority": {
+                      "kind": "MACHINE_SESSION",
+                      "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                      "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                      "targetSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                      "subagentCapability": "RESEARCH"
+                    }
+                  }
+                },
+                "state": "settled",
+                "turnId": "c883e116-6af2-4310-9122-7cc378bf4d41",
+                "revision": 4,
+                "projectedRevision": 4,
+                "settlement": {
+                  "turnId": "c883e116-6af2-4310-9122-7cc378bf4d41",
+                  "reports": []
+                },
+                "settlementDelivered": true,
+                "projectionRetry": {
+                  "attempts": 0,
+                  "nextAttemptAt": 0
+                }
+              },
+              {
+                "key": "096b51e7-eb76-4730-a549-d540288a80fe",
+                "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "agentSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                "runId": "49b54562-4fd3-4892-bbba-b4682c61e866",
+                "organizationId": "2b1f2c9e-f8ab-41a2-b77b-20dfbc041871",
+                "projectId": "77a0a31b-4fbd-4122-9656-5836be4925c2",
+                "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                "userId": "5459c83b-2e4a-47f8-a0f0-ab556ce61ac1",
+                "messageId": "f9ff38c2-f055-427f-b7ce-3c6c5b0325e5",
+                "admissionId": "8322a9ee-1203-4bcf-8887-860cf1cf8187",
+                "sequence": 1,
+                "payload": {
+                  "kind": "session_message",
+                  "generation": 1,
+                  "platformAdmissionId": "096b51e7-eb76-4730-a549-d540288a80fe",
+                  "input": {
+                    "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                    "interactionId": "b1d8366c-57cd-4dce-8d19-7d9e2132ebc5",
+                    "attemptId": "5a0d560d-8f77-448f-b608-417363466d19",
+                    "authorKind": "AGENT",
+                    "objective": "Investigate",
+                    "authority": {
+                      "kind": "MACHINE_SESSION",
+                      "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                      "sourceSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                      "targetSessionId": "338eacd7-4983-495a-a73d-e331f67a2950",
+                      "subagentCapability": "RESEARCH"
+                    }
+                  }
+                },
+                "state": "queued",
+                "turnId": null,
+                "revision": 1,
+                "projectedRevision": 0,
+                "settlement": null,
+                "settlementDelivered": false
+              }
+            ]
+          },
+          "effects": []
+        }
+      ],
+      "effects": [],
+      "payloadSchemaVersion": 1,
+      "transitionHistory": [
+        {
+          "sequence": 1,
+          "ingressId": "81bf04a1-28c1-4729-a74e-078f088a530d:1:113522c7-9175-4223-996a-3fd25c1f4c5a",
+          "eventType": "write",
+          "priorRevision": 0,
+          "revision": 1,
+          "priorState": "ready",
+          "nextState": "ready",
+          "disposition": {
+            "status": "committed",
+            "effectIds": []
+          },
+          "evidence": "complete"
+        },
+        {
+          "sequence": 2,
+          "ingressId": "8322a9ee-1203-4bcf-8887-860cf1cf8187:1:0f52c0a4-d6cd-4cd5-b958-d032100e4d20",
+          "eventType": "write",
+          "priorRevision": 1,
+          "revision": 2,
+          "priorState": "ready",
+          "nextState": "ready",
+          "disposition": {
+            "status": "committed",
+            "effectIds": []
+          },
+          "evidence": "complete"
+        },
+        {
+          "sequence": 3,
+          "ingressId": "81bf04a1-28c1-4729-a74e-078f088a530d:2:82a49a76-bde7-4e97-a491-8384c08af623",
+          "eventType": "write",
+          "priorRevision": 2,
+          "revision": 3,
+          "priorState": "ready",
+          "nextState": "ready",
+          "disposition": {
+            "status": "committed",
+            "effectIds": []
+          },
+          "evidence": "complete"
+        },
+        {
+          "sequence": 4,
+          "ingressId": "81bf04a1-28c1-4729-a74e-078f088a530d:3:d1da4acc-3149-442c-80d2-9f0b9e03233b",
+          "eventType": "write",
+          "priorRevision": 3,
+          "revision": 4,
+          "priorState": "ready",
+          "nextState": "ready",
+          "disposition": {
+            "status": "committed",
+            "effectIds": []
+          },
+          "evidence": "complete"
+        },
+        {
+          "sequence": 5,
+          "ingressId": "81bf04a1-28c1-4729-a74e-078f088a530d:4:2c39acda-d4d9-4fc9-95c2-56dae49856a0",
+          "eventType": "write",
+          "priorRevision": 4,
+          "revision": 5,
+          "priorState": "ready",
+          "nextState": "ready",
+          "disposition": {
+            "status": "committed",
+            "effectIds": []
+          },
+          "evidence": "complete"
+        },
+        {
+          "sequence": 6,
+          "ingressId": "81bf04a1-28c1-4729-a74e-078f088a530d:4:52509cf2-33b4-44ca-b7b4-651c04eb8d69",
+          "eventType": "write",
+          "priorRevision": 5,
+          "revision": 6,
+          "priorState": "ready",
+          "nextState": "ready",
+          "disposition": {
+            "status": "committed",
+            "effectIds": []
+          },
+          "evidence": "complete"
+        }
+      ]
+    },
+    {
+      "identity": {
+        "machineType": "input-admission",
+        "instanceId": "335cfe52-2687-41c0-b61a-8a4434976643"
+      },
+      "revision": 3,
+      "state": "ready",
+      "context": {
+        "records": [
+          {
+            "key": "5887cc13-eb87-47b3-925e-5196702d60fa",
+            "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "agentSessionId": "335cfe52-2687-41c0-b61a-8a4434976643",
+            "runId": "01c71083-5f6b-4c80-ab72-9e43e6ded651",
+            "organizationId": "2b1f2c9e-f8ab-41a2-b77b-20dfbc041871",
+            "projectId": "77a0a31b-4fbd-4122-9656-5836be4925c2",
+            "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+            "userId": "5459c83b-2e4a-47f8-a0f0-ab556ce61ac1",
+            "messageId": "c966cb0c-3a54-43f5-b0eb-e1fd1752db6f",
+            "admissionId": "db03f79d-2f67-4d35-a7d5-05792f4c1433",
+            "sequence": 0,
+            "payload": {
+              "kind": "session_message",
+              "generation": 1,
+              "platformAdmissionId": "5887cc13-eb87-47b3-925e-5196702d60fa",
+              "input": {
+                "sourceSessionId": "335cfe52-2687-41c0-b61a-8a4434976643",
+                "interactionId": "5d600b60-93af-433d-95e2-499a9ef45184",
+                "attemptId": "54beef30-dca5-4af2-ac15-0646bad3df1f",
+                "authorKind": "AGENT",
+                "objective": "Investigate",
+                "authority": {
+                  "kind": "MACHINE_SESSION",
+                  "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                  "sourceSessionId": "335cfe52-2687-41c0-b61a-8a4434976643",
+                  "targetSessionId": "335cfe52-2687-41c0-b61a-8a4434976643",
+                  "subagentCapability": "RESEARCH"
+                }
+              }
+            },
+            "state": "started",
+            "turnId": "3f93ddc3-d16f-4852-929b-23d0a4c5be89",
+            "revision": 3,
+            "projectedRevision": 0,
+            "settlement": null,
+            "settlementDelivered": false
+          }
+        ]
+      },
+      "acceptedIngress": [
+        {
+          "ingressId": "db03f79d-2f67-4d35-a7d5-05792f4c1433:1:03bedf4c-b2ec-44a9-a580-7fd701d2cdb8",
+          "revision": 1,
+          "state": "ready",
+          "context": {
+            "records": [
+              {
+                "key": "5887cc13-eb87-47b3-925e-5196702d60fa",
+                "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "agentSessionId": "335cfe52-2687-41c0-b61a-8a4434976643",
+                "runId": "01c71083-5f6b-4c80-ab72-9e43e6ded651",
+                "organizationId": "2b1f2c9e-f8ab-41a2-b77b-20dfbc041871",
+                "projectId": "77a0a31b-4fbd-4122-9656-5836be4925c2",
+                "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                "userId": "5459c83b-2e4a-47f8-a0f0-ab556ce61ac1",
+                "messageId": "c966cb0c-3a54-43f5-b0eb-e1fd1752db6f",
+                "payload": {
+                  "kind": "session_message",
+                  "generation": 1,
+                  "platformAdmissionId": "5887cc13-eb87-47b3-925e-5196702d60fa",
+                  "input": {
+                    "sourceSessionId": "335cfe52-2687-41c0-b61a-8a4434976643",
+                    "interactionId": "5d600b60-93af-433d-95e2-499a9ef45184",
+                    "attemptId": "54beef30-dca5-4af2-ac15-0646bad3df1f",
+                    "authorKind": "AGENT",
+                    "objective": "Investigate",
+                    "authority": {
+                      "kind": "MACHINE_SESSION",
+                      "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                      "sourceSessionId": "335cfe52-2687-41c0-b61a-8a4434976643",
+                      "targetSessionId": "335cfe52-2687-41c0-b61a-8a4434976643",
+                      "subagentCapability": "RESEARCH"
+                    }
+                  }
+                },
+                "admissionId": "db03f79d-2f67-4d35-a7d5-05792f4c1433",
+                "sequence": 0,
+                "state": "queued",
+                "revision": 1,
+                "projectedRevision": 0,
+                "turnId": null,
+                "settlement": null,
+                "settlementDelivered": false
+              }
+            ]
+          },
+          "effects": []
+        },
+        {
+          "ingressId": "db03f79d-2f67-4d35-a7d5-05792f4c1433:2:69c8a5a5-e2b9-4f76-bebb-61a5c463ba46",
+          "revision": 2,
+          "state": "ready",
+          "context": {
+            "records": [
+              {
+                "key": "5887cc13-eb87-47b3-925e-5196702d60fa",
+                "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "agentSessionId": "335cfe52-2687-41c0-b61a-8a4434976643",
+                "runId": "01c71083-5f6b-4c80-ab72-9e43e6ded651",
+                "organizationId": "2b1f2c9e-f8ab-41a2-b77b-20dfbc041871",
+                "projectId": "77a0a31b-4fbd-4122-9656-5836be4925c2",
+                "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                "userId": "5459c83b-2e4a-47f8-a0f0-ab556ce61ac1",
+                "messageId": "c966cb0c-3a54-43f5-b0eb-e1fd1752db6f",
+                "admissionId": "db03f79d-2f67-4d35-a7d5-05792f4c1433",
+                "sequence": 0,
+                "payload": {
+                  "kind": "session_message",
+                  "generation": 1,
+                  "platformAdmissionId": "5887cc13-eb87-47b3-925e-5196702d60fa",
+                  "input": {
+                    "sourceSessionId": "335cfe52-2687-41c0-b61a-8a4434976643",
+                    "interactionId": "5d600b60-93af-433d-95e2-499a9ef45184",
+                    "attemptId": "54beef30-dca5-4af2-ac15-0646bad3df1f",
+                    "authorKind": "AGENT",
+                    "objective": "Investigate",
+                    "authority": {
+                      "kind": "MACHINE_SESSION",
+                      "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                      "sourceSessionId": "335cfe52-2687-41c0-b61a-8a4434976643",
+                      "targetSessionId": "335cfe52-2687-41c0-b61a-8a4434976643",
+                      "subagentCapability": "RESEARCH"
+                    }
+                  }
+                },
+                "state": "picked",
+                "turnId": "3f93ddc3-d16f-4852-929b-23d0a4c5be89",
+                "revision": 2,
+                "projectedRevision": 0,
+                "settlement": null,
+                "settlementDelivered": false
+              }
+            ]
+          },
+          "effects": []
+        },
+        {
+          "ingressId": "db03f79d-2f67-4d35-a7d5-05792f4c1433:3:5d117e4f-1fa6-4582-abab-0847ab699a56",
+          "revision": 3,
+          "state": "ready",
+          "context": {
+            "records": [
+              {
+                "key": "5887cc13-eb87-47b3-925e-5196702d60fa",
+                "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "agentSessionId": "335cfe52-2687-41c0-b61a-8a4434976643",
+                "runId": "01c71083-5f6b-4c80-ab72-9e43e6ded651",
+                "organizationId": "2b1f2c9e-f8ab-41a2-b77b-20dfbc041871",
+                "projectId": "77a0a31b-4fbd-4122-9656-5836be4925c2",
+                "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                "userId": "5459c83b-2e4a-47f8-a0f0-ab556ce61ac1",
+                "messageId": "c966cb0c-3a54-43f5-b0eb-e1fd1752db6f",
+                "admissionId": "db03f79d-2f67-4d35-a7d5-05792f4c1433",
+                "sequence": 0,
+                "payload": {
+                  "kind": "session_message",
+                  "generation": 1,
+                  "platformAdmissionId": "5887cc13-eb87-47b3-925e-5196702d60fa",
+                  "input": {
+                    "sourceSessionId": "335cfe52-2687-41c0-b61a-8a4434976643",
+                    "interactionId": "5d600b60-93af-433d-95e2-499a9ef45184",
+                    "attemptId": "54beef30-dca5-4af2-ac15-0646bad3df1f",
+                    "authorKind": "AGENT",
+                    "objective": "Investigate",
+                    "authority": {
+                      "kind": "MACHINE_SESSION",
+                      "machineId": "e92560ab-3442-48d6-9bb8-88732cbaffbb",
+                      "sourceSessionId": "335cfe52-2687-41c0-b61a-8a4434976643",
+                      "targetSessionId": "335cfe52-2687-41c0-b61a-8a4434976643",
+                      "subagentCapability": "RESEARCH"
+                    }
+                  }
+                },
+                "state": "started",
+                "turnId": "3f93ddc3-d16f-4852-929b-23d0a4c5be89",
+                "revision": 3,
+                "projectedRevision": 0,
+                "settlement": null,
+                "settlementDelivered": false
+              }
+            ]
+          },
+          "effects": []
+        }
+      ],
+      "effects": [],
+      "transitionHistory": [
+        {
+          "sequence": 1,
+          "ingressId": "db03f79d-2f67-4d35-a7d5-05792f4c1433:1:03bedf4c-b2ec-44a9-a580-7fd701d2cdb8",
+          "eventType": "write",
+          "priorRevision": 0,
+          "revision": 1,
+          "priorState": "ready",
+          "nextState": "ready",
+          "disposition": {
+            "status": "committed",
+            "effectIds": []
+          },
+          "evidence": "complete"
+        },
+        {
+          "sequence": 2,
+          "ingressId": "db03f79d-2f67-4d35-a7d5-05792f4c1433:2:69c8a5a5-e2b9-4f76-bebb-61a5c463ba46",
+          "eventType": "write",
+          "priorRevision": 1,
+          "revision": 2,
+          "priorState": "ready",
+          "nextState": "ready",
+          "disposition": {
+            "status": "committed",
+            "effectIds": []
+          },
+          "evidence": "complete"
+        },
+        {
+          "sequence": 3,
+          "ingressId": "db03f79d-2f67-4d35-a7d5-05792f4c1433:3:5d117e4f-1fa6-4582-abab-0847ab699a56",
+          "eventType": "write",
+          "priorRevision": 2,
+          "revision": 3,
+          "priorState": "ready",
+          "nextState": "ready",
+          "disposition": {
+            "status": "committed",
+            "effectIds": []
+          },
+          "evidence": "complete"
+        }
+      ],
+      "payloadSchemaVersion": 1
+    }
+  ]
+}

@@ -1,0 +1,242 @@
+PlanShapingProposedStagesCompletionPayload:
+  type: object
+  additionalProperties: false
+  required:
+    - expectedStageCount
+  properties:
+    expectedStageCount:
+      type: integer
+      minimum: 0
+      description: >-
+        Advisory decided total number of stages, not the number of proposal writes.
+        Supplied on every initial and refinement completion, including unchanged
+        totals and completions without new stage creation. A mismatch informs
+        review but does not itself reject progression.
+  description: >-
+    The decided stage total for this completion, projected exactly into its
+    corresponding stage-review field. Message correlation and proposal ownership
+    remain on their existing envelope identities.
+ExternalAgentGenericPayload:
+  type: object
+  properties:
+    outcome:
+      type: string
+      description: Optional generic action outcome; repository-grounding outcome values use the typed branches below.
+  additionalProperties: true
+  not:
+    anyOf:
+      - type: object
+        required:
+          - outcome
+          - serviceId
+          - provider
+          - resolvedFrontierModel
+          - narrative
+          - hierarchy
+          - evidence
+          - briefDiscrepancies
+        properties:
+          outcome:
+            type: string
+            enum: [success]
+      - type: object
+        required: [outcome, code, message]
+        properties:
+          outcome:
+            type: string
+            enum: [retryable_failure]
+      - type: object
+        required: [outcome, code, message]
+        properties:
+          outcome:
+            type: string
+            enum: [terminal_failure]
+      - type: object
+        required: [outcome, questionGroup]
+        properties:
+          outcome:
+            type: string
+            enum: [questions]
+      - type: object
+        required: [outcome, placements]
+        properties:
+          outcome:
+            type: string
+            enum: [success]
+      - type: object
+        required: [outcome, summary, taskProposalIds, featureProposalIds]
+        properties:
+          outcome:
+            type: string
+            enum: [success]
+  description: >-
+    Generic action payload retained for external-agent actions without a
+    dedicated typed contract. Complete repository-grounding outcome shapes are
+    reserved for the typed branches below.
+
+ExternalAgentRetryableFailurePayload:
+  type: object
+  additionalProperties: false
+  required:
+    - outcome
+    - code
+    - message
+  properties:
+    outcome:
+      type: string
+      enum:
+        - retryable_failure
+    code:
+      type: string
+      enum:
+        - machine_unavailable
+        - directory_unresolved
+        - provider_unavailable
+        - provider_timeout
+        - rate_limited
+        - transient_read_failure
+        - graph_unavailable
+    message:
+      type: string
+      minLength: 1
+      description: User-safe explanation of the retryable failure.
+    retryAfterSeconds:
+      type: integer
+      minimum: 0
+      description: Optional hint for the next retry attempt.
+  description: >-
+    Typed failure outcome that preserves the accepted choices and may be retried without changing the contract
+    family.
+ExternalAgentTerminalFailurePayload:
+  type: object
+  additionalProperties: false
+  required:
+    - outcome
+    - code
+    - message
+  properties:
+    outcome:
+      type: string
+      enum:
+        - terminal_failure
+    code:
+      type: string
+      enum:
+        - invalid_request
+        - unsupported_scope
+        - unsupported_provider
+        - unsupported_model
+        - access_denied
+        - invalid_completion
+    message:
+      type: string
+      minLength: 1
+      description: User-safe explanation of the terminal failure.
+  description: Typed failure outcome that requires user correction or cannot be retried under the accepted choices.
+
+RepositoryGroundingExternalCompletionPayload:
+  x-schema-union: true
+  oneOf:
+    - $ref: '#/ExternalAgentRetryableFailurePayload'
+    - $ref: '#/ExternalAgentTerminalFailurePayload'
+    - $ref: ./repository-grounding.yaml#/RepositoryGroundingSuccess
+    - $ref: ./repository-grounding.yaml#/RepositoryFeatureEnrichmentQuestions
+    - $ref: ./repository-grounding.yaml#/RepositoryFeatureEnrichmentSuccess
+    - $ref: ./repository-grounding.yaml#/RepositoryFirstWorkSuccess
+    - $ref: ./repository-grounding.yaml#/RepositoryPlacementSuccess
+    - $ref: '#/ExternalAgentGenericPayload'
+  description: >-
+    Completion payload accepted by the existing external-agent transport. The repository-grounding and
+    repository-placement outcomes are typed; unrelated actions retain the generic object branch.
+  x-schema-candidates:
+    - model: ExternalAgentRetryableFailurePayload
+      schema: openapi:/event-schemas/external-agent-completion.yaml#/ExternalAgentRetryableFailurePayload
+    - model: ExternalAgentTerminalFailurePayload
+      schema: openapi:/event-schemas/external-agent-completion.yaml#/ExternalAgentTerminalFailurePayload
+    - model: RepositoryGroundingSuccess
+      schema: openapi:/event-schemas/repository-grounding.yaml#/RepositoryGroundingSuccess
+    - model: RepositoryFeatureEnrichmentQuestions
+      schema: openapi:/event-schemas/repository-grounding.yaml#/RepositoryFeatureEnrichmentQuestions
+    - model: RepositoryFeatureEnrichmentSuccess
+      schema: openapi:/event-schemas/repository-grounding.yaml#/RepositoryFeatureEnrichmentSuccess
+    - model: RepositoryFirstWorkSuccess
+      schema: openapi:/event-schemas/repository-grounding.yaml#/RepositoryFirstWorkSuccess
+    - model: RepositoryPlacementSuccess
+      schema: openapi:/event-schemas/repository-grounding.yaml#/RepositoryPlacementSuccess
+    - model: ExternalAgentGenericPayload
+      schema: openapi:/event-schemas/external-agent-completion.yaml#/ExternalAgentGenericPayload
+
+PlanShapingVisualPreviewCompletionPayload:
+  type: object
+  additionalProperties: false
+  required:
+    - refinementRound
+    - entries
+  properties:
+    refinementRound:
+      type: integer
+      minimum: 0
+    entries:
+      type: array
+      items:
+        $ref: "./conversations.yaml#/PlanGenerationVisualPreviewEntry"
+  description: >-
+    The complete ordered visual proposal set emitted after the CLI has finished
+    its narrative and proposal authoring for this refinement round. Each entry
+    references one independently reviewable Mockup or Diagram proposal.
+
+SubmitExternalAgentCompletionRequestDto:
+  type: object
+  additionalProperties: false
+  required:
+    - conversationId
+    - workflowNodeId
+    - pendingTriggerMessageId
+    - action
+    - proof
+  properties:
+    conversationId:
+      $ref: "./common.yaml#/ConversationId"
+    workflowNodeId:
+      type: string
+      minLength: 1
+    pendingTriggerMessageId:
+      $ref: "./common.yaml#/MessageId"
+    action:
+      type: string
+      minLength: 1
+    payload:
+      $ref: "#/RepositoryGroundingExternalCompletionPayload"
+      description: >-
+        Action-specific data validated against the active workflow node. A
+        repository-grounding completion uses RepositoryGroundingCompletion;
+        other external-agent actions retain their generic object payload.
+    response:
+      type: string
+      default: ""
+      description: Optional user-visible completion text.
+    hidden:
+      type: boolean
+      default: false
+      description: Whether the server-authored completion projection is hidden in the conversation UI.
+    providerSessionId:
+      type: string
+      description: Optional SDK session correlation recorded as passive provenance.
+    promptHandler:
+      type: string
+      description: Optional prompt-handler correlation recorded as passive provenance.
+    proof:
+      $ref: "./machine-effect-admission.yaml#/MachineEffectProofDto"
+  description: >-
+    Machine-authenticated input for completing the currently pending
+    EXTERNAL_AGENT workflow node. The API resolves the session, active node,
+    pending trigger, permitted action, message identity, and executable
+    completion envelope from persisted state before authoring the message.
+
+SubmitExternalAgentCompletionResponseDto:
+  type: object
+  additionalProperties: false
+  required: [completionMessageId]
+  properties:
+    completionMessageId:
+      $ref: "./common.yaml#/MessageId"

@@ -1,0 +1,34 @@
+# =============================================
+# Canonical Run entity identity
+# =============================================
+
+RunEntityReference:
+  type: object
+  required:
+    - entityType
+    - entityId
+  properties:
+    entityType:
+      type: string
+      enum:
+        - PROJECT
+        - ARTIFACT
+        - INITIATIVE
+        - TASK
+        - DESIGN_DOC
+        - SERVICE
+        - AGENT_SESSION
+        - VALIDATION_SESSION
+        - MESSAGE
+        - CONVERSATION
+        - REPORT
+        - IMPLEMENTATION_HINT
+        - PROPOSAL
+      description: >-
+        Canonical platform entity family that scopes the Run. Every work item
+        uses TASK here; its registry-authoritative subtype is carried separately
+        by the work-item payload when a consumer needs it.
+    entityId:
+      type: string
+      format: uuid
+      description: Canonical platform entity id that scopes the Run.

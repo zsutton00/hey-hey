@@ -1,0 +1,1102 @@
+# =============================================
+# Entity Context Schemas
+# =============================================
+# Unified context endpoint for any entity, returning
+# proposal lineage, available MCP tools, and metadata.
+
+AvailableMcpToolDto:
+  type: object
+  description: >
+    An MCP tool available in the context menu for a given viewing context.
+    The tool's targetEntityType indicates what entity type the tool
+    operates on, which may differ from the entity being viewed.
+  required:
+    - toolName
+    - targetEntityType
+    - label
+    - description
+  additionalProperties: false
+  properties:
+    toolName:
+      type: string
+      description: Canonical MCP tool identifier
+      example: edit_task
+    targetEntityType:
+      $ref: "./common.yaml#/EntityType"
+    label:
+      type: string
+      description: Human-readable label for UI display
+      example: "Edit Task..."
+    description:
+      type: string
+      description: Brief explanation of what the tool does
+      example: Propose changes to this task
+    validTaskTypes:
+      type: array
+      items:
+        $ref: "./tasks.yaml#/TaskType"
+      description: >
+        Optional. When absent or empty, the tool surfaces in every
+        viewing context the entry is registered under. When present
+        and non-empty, the tool only surfaces when the host entity is
+        a TASK whose subtype is included in this list — letting a
+        single TASK registration target a subset of task subtypes
+        without splitting the registration table.
+
+ProposalDetail:
+  type: string
+  enum:
+    - summary
+    - full
+  default: summary
+  description: >
+    Proposal-history representation used by Context. Summary is the bounded
+    default; full preserves the authoritative ProposalResponseDto payloads.
+
+ContextProposalFieldChangeDto:
+  type: object
+  additionalProperties: false
+  required: [path, type]
+  description: >
+    Compact field history, selected independently per stable path within the
+    bounded history window. When a nearest older same-target proposal carries
+    the same path, diff is a zero-context unified diff over deterministic text.
+    Otherwise unavailableReason and searchedProposalCount explain why no diff
+    is present. Current entity state is never a history baseline.
+  properties:
+    path:
+      type: string
+      description: Stable update path; section content uses sections.<sectionKey>.content.
+    type:
+      type: string
+      enum: [markdown, string, number, boolean, object, array, "null"]
+      description: Type of the newer proposal's source value.
+    diff:
+      type: string
+      maxLength: 2000
+      description: Bounded zero-context unified diff from the older proposed value to the newer proposed value.
+    diffTruncated:
+      type: boolean
+    diffOmittedCharacters:
+      type: integer
+      minimum: 0
+      description: Number of trailing diff characters omitted; zero when untruncated.
+    unavailableReason:
+      type: string
+      enum: [no-older-proposal, no-same-path-in-window]
+    searchedProposalCount:
+      type: integer
+      minimum: 0
+    proposedPreview:
+      type: string
+      maxLength: 400
+      description: Bounded Markdown preview when no comparison baseline is available.
+    proposedLength:
+      type: integer
+      minimum: 0
+    proposedPreviewTruncated:
+      type: boolean
+
+ContextProposalSummaryDto:
+  type: object
+  required:
+    - id
+    - organizationId
+    - projectId
+    - type
+    - action
+    - status
+    - targetEntityId
+    - targetEntityType
+    - requestorId
+    - requiredApprovals
+    - approvals
+    - changes
+    - createdAt
+    - updatedAt
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: branded-ProposalId
+      x-typescript-type: "ProposalId"
+      x-brand: "ProposalId"
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+    groupMembership:
+      $ref: "./proposals.yaml#/ProposalGroupMembership"
+    type:
+      $ref: "./proposals.yaml#/ProposalType"
+    action:
+      $ref: "./proposals.yaml#/ProposalAction"
+    status:
+      $ref: "./proposals.yaml#/ProposalStatus"
+    targetEntityId:
+      type: string
+    targetEntityType:
+      $ref: "./proposals.yaml#/TargetEntityType"
+    title:
+      type: string
+      nullable: true
+    eli5:
+      type: string
+      maxLength: 150
+      description: Optional proposal-owned explanation captured at write time.
+    requestorId:
+      type: string
+    requestorContext:
+      type: object
+      additionalProperties: true
+    requiredApprovals:
+      type: integer
+    influences:
+      type: array
+      items:
+        $ref: "./artifacts.yaml#/Influence"
+    generatedWithVersion:
+      type: string
+    validationSessionId:
+      $ref: "./common.yaml#/ValidationSessionId"
+    conversationId:
+      $ref: "./common.yaml#/ConversationId"
+    messageId:
+      $ref: "./common.yaml#/MessageId"
+    edges:
+      type: array
+      items:
+        $ref: "./proposals.yaml#/ProposalEdgeDeclaration"
+    approvals:
+      type: array
+      items:
+        $ref: "./proposals.yaml#/ProposalApprovalDto"
+    materialization:
+      $ref: "./proposals.yaml#/WorkItemChangeSetMaterializationProgress"
+    changes:
+      type: array
+      items:
+        $ref: "#/ContextProposalFieldChangeDto"
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+EntityContextDto:
+  type: object
+  description: >
+    Unified context for any entity, combining proposal lineage,
+    available MCP tools, and creation metadata. Returned by the
+    entity context endpoint to power contextual menus and
+    lineage display.
+  required:
+    - entityId
+    - entityType
+    - displayName
+    - createdAt
+  properties:
+    entityId:
+      type: string
+      description: The entity's unique identifier
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    taskType:
+      type: string
+      description: >
+        Persisted, resolved work-item type key for TASK seeds (GOAL,
+        STANDARD, BUG, FEATURE, or a project-defined key). Absent for
+        non-TASK seeds.
+    displayName:
+      type: string
+      description: >
+        Human-readable name or title of the entity, resolved from the
+        entity's primary name field (e.g. name for tasks, title for plans).
+    createdAt:
+      type: string
+      format: date-time
+      description: When the entity was originally created (ISO 8601)
+    creatingProposalId:
+      type: string
+      format: branded-ProposalId
+      description: >
+        ID of the proposal that originally created this entity, if one exists.
+        Derived from the earliest CREATE-action proposal targeting this entity.
+      x-typescript-type: "ProposalId"
+      x-brand: "ProposalId"
+    proposalDetail:
+      $ref: "#/ProposalDetail"
+      description: Representation used for the proposals collection.
+    olderProposalsOmitted:
+      type: boolean
+      description: >
+        True when the bounded summary omits older visible proposal history.
+        False for full detail and when all visible proposals fit the summary.
+    proposals:
+      type: array
+      items:
+        oneOf:
+          - $ref: "#/ContextProposalSummaryDto"
+          - $ref: "./proposals.yaml#/ProposalResponseDto"
+      description: >
+        Proposals that created or modified this entity, in reverse
+        chronological order. Summary mode returns at most four compact
+        entries; full mode returns authoritative ProposalResponseDto entries.
+        Empty array if no proposals exist.
+    availableMcpTools:
+      type: array
+      items:
+        $ref: "#/AvailableMcpToolDto"
+      description: >
+        MCP tools available in this entity's context menu. Each tool
+        declares its targetEntityType, which may differ from the
+        entity being viewed (e.g., create_task targets TASK but
+        appears when viewing an INITIATIVE).
+
+FullEntityContextDto:
+  allOf:
+    - $ref: "#/EntityContextDto"
+    - type: object
+      properties:
+        relatedEntities:
+          type: array
+          items:
+            $ref: "#/ContextRelatedEntityDto"
+          description: >
+            Entities related to the seed within a 2-hop traversal, in a
+            single flat list with the relationship inline on each entry.
+            Replaces the prior topology nodes/edges split — an entry is
+            never a free-floating endpoint. Features are excluded
+            (they live in featureHierarchy) and agent sessions are
+            excluded (they live in agentSessions).
+        agentSessions:
+          type: array
+          items:
+            $ref: "#/AgentSessionEntryDto"
+          description: >
+            Agent sessions attached to the seed entity via the
+            HasAgentSession traversal. Broken out from relatedEntities
+            because agent sessions are lifecycle attachments rather than
+            graph relationships.
+        featureHierarchy:
+          type: array
+          items:
+            $ref: "#/FeatureHierarchyEntryDto"
+          description: >
+            Where this entity sits in the product/feature hierarchy.
+            Structural entries (relationshipType: 'structural') enumerate
+            ancestor, sibling, and descendant features —
+            e.g. UI → Web UI → Design → Colors — each with its hop count.
+            When the seed itself is a FEATURE task, agent-authored edges
+            between FEATURE tasks are appended after the structural entries
+            with relationshipType set to the edge type (RELATED_TO,
+            DEPENDS_ON, DERIVES_FROM, SUPERSEDES, CONTRADICTS, EVOLVES,
+            PROPOSED_TOGETHER) and the
+            connected feature's direction, parentTaskId, and reasoning.
+            Empty array when the entity has no feature hierarchy. FEATURE
+            tasks are excluded from relatedEntities to avoid duplication.
+        planContext:
+          $ref: "#/PlanContextDto"
+          description: >
+            Structural context within the canonical Task hierarchy, mirroring
+            the role featureHierarchy plays for features. Canonical PLAN and
+            PLAN_STAGE work items are represented as TASK entries carrying a
+            taskType. Implementation leaves are TASK entities.
+        content:
+          $ref: "#/EntityContentDto"
+          description: >
+            The seed entity's own content body: its sections and work-tracking
+            metadata. Present for TASK (including Plan and Stage work items)
+            and DESIGN_DOC seeds.
+
+EntityContentDto:
+  type: object
+  description: >
+    An entity's content body — its materialized sections plus
+    work-tracking metadata. Returned on get_context for TASK and
+    DESIGN_DOC seeds. Plan and Stage work items use TASK content.
+    The status / priority / assigneeId / dueDate fields are task-shaped:
+    they are absent for content sourced from a design doc, which has no
+    such fields, and are likewise absent for non-status-bearing
+    work-item types (FEATURE, GOAL), whose state is read from links and
+    tasks rather than stored. Only status-bearing types (STANDARD, BUG)
+    carry all four.
+  required:
+    - sections
+  additionalProperties: false
+  properties:
+    sections:
+      type: object
+      additionalProperties:
+        type: string
+      description: >
+        Materialized section content keyed by section key
+        (e.g. description, acceptanceCriteria, requirements). Values are
+        each section's materialized markdown. Empty object when the
+        entity has no sections.
+    status:
+      type: string
+      description: >
+        Current work status of the entity. A WorkStatus for task-backed
+        content, a design-doc status string for design-doc content, or a
+        PlanStepStatus for un-backed step content. Absent for
+        non-status-bearing work-item types (FEATURE, GOAL).
+    priority:
+      type: string
+      nullable: true
+      description: >
+        Priority of the backing task (LOW / MEDIUM / HIGH / CRITICAL).
+        Null when the task has no priority set; absent for content with
+        no priority concept (design docs, un-backed steps) and for
+        non-status-bearing work-item types (FEATURE, GOAL).
+    assigneeId:
+      type: string
+      format: uuid
+      nullable: true
+      description: >
+        User the backing task is assigned to. Null when unassigned;
+        absent for content with no assignee concept (design docs,
+        un-backed steps) and for non-status-bearing work-item types
+        (FEATURE, GOAL).
+    dueDate:
+      type: string
+      format: date-time
+      nullable: true
+      description: >
+        When the backing task is due (ISO 8601). Null when no due date is
+        set; absent for content with no due-date concept (design docs,
+        un-backed steps) and for non-status-bearing work-item types
+        (FEATURE, GOAL).
+    requirementsSection:
+      $ref: "./tasks.yaml#/FeatureRequirementsSection"
+      description: |
+        Authoritative structured requirements for FEATURE content. Each record
+        keeps its durable UUID identity, explicit typed citation slots, and
+        optional feature-local group. Absent when the entity is not a FEATURE
+        or has no requirements section.
+
+FeatureHierarchyEntryDto:
+  type: object
+  description: >
+    A FEATURE-typed task related to the seed entity in the product hierarchy.
+    Two shapes share this object, discriminated by relationshipType:
+
+    - relationshipType: 'structural' — the entry came from the parent/sibling/
+      descendant tree walk. Carries `relationship` (ancestor/sibling/
+      descendant) and `distance` (hop count). `direction`, `parentTaskId`,
+      and `reasoning` are absent.
+
+    - relationshipType: 'RELATED_TO' | 'DEPENDS_ON' | 'DERIVES_FROM' |
+      'SUPERSEDES' | 'CONTRADICTS' | 'EVOLVES' | 'PROPOSED_TOGETHER' —
+      the entry came from an agent-authored or system-emitted edge between
+      two FEATURE tasks. PROPOSED_TOGETHER entries are symmetric and
+      carry `source: system`; the remaining types are agent-
+      authored. Carries `direction`
+      (outbound when the seed is the edge source, inbound when the seed is
+      the edge target),
+      `parentTaskId` (the connected feature's parent task ID, nullable for
+      roots), and `reasoning` (the edge's natural-language rationale).
+      `relationship` and `distance` are absent because typed-edge entries
+      live outside the structural tree.
+
+    `BLOCKS` agent edges are intentionally excluded. Direction values match
+    `DependentTaskDto.direction` (outbound/inbound) so consumers can reuse the
+    same vocabulary across agent-edge surfaces.
+  required:
+    - id
+    - name
+    - relationshipType
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Feature task ID
+    name:
+      type: string
+      description: Feature task name
+    tag:
+      $ref: "./tasks.yaml#/FeatureTag"
+      description: >
+        Feature classification (FeatureTag). Optional during the rollout
+        window: features created before tag plumbing landed may not have
+        a value yet. Once the backfill is complete this becomes effectively
+        required for FEATURE tasks.
+    description:
+      type: string
+      nullable: true
+      description: >
+        Feature description truncated to 225 characters (materialized from
+        its description section). Null when the feature has no description
+        section. Compare with descriptionFullLength to determine whether
+        the full text was returned or truncated.
+    descriptionFullLength:
+      type: integer
+      nullable: true
+      description: >
+        Total character count of the untruncated description. Null when the
+        feature has no description section. When equal to description.length,
+        the full text is present; when greater, a batched
+        get_full_entity({ entities: [{ entityType: 'FEATURE', entityId }] })
+        call is needed for the complete content.
+    relationshipType:
+      type: string
+      enum:
+        - structural
+        - RELATED_TO
+        - DEPENDS_ON
+        - DERIVES_FROM
+        - SUPERSEDES
+        - CONTRADICTS
+        - EVOLVES
+        - PROPOSED_TOGETHER
+      description: >
+        Discriminator for how this feature is connected to the seed.
+        `structural` denotes a parent/sibling/descendant entry from the tree
+        walk. The remaining values mirror the shared AgentEdgeType
+        (see schemas/agent-edges.yaml#/AgentEdgeType) and represent
+        agent-authored or system-emitted edge types between two FEATURE
+        tasks. PROPOSED_TOGETHER is symmetric and is always paired with
+        `source: system` (see schemas/agent-edges.yaml#/EdgeSource)
+        on the underlying edge.
+    source:
+      $ref: "./agent-edges.yaml#/EdgeSource"
+      description: >
+        Origin of the edge backing this entry. Present only on typed-edge
+        entries (absent on `structural` entries). PROPOSED_TOGETHER entries
+        always carry `system`; remaining edge types default to
+        `agent`. Absent on responses from older deployments that predate
+        this field — callers should treat the missing value as `agent`.
+    relationship:
+      type: string
+      enum:
+        - ancestor
+        - descendant
+        - sibling
+      description: >
+        Structural position relative to the queried entity. Present only when
+        relationshipType is `structural`.
+        ancestor: feature is above this entity in the hierarchy.
+        descendant: feature is below this entity in the hierarchy.
+        sibling: feature shares the same direct parent.
+    distance:
+      type: integer
+      minimum: 1
+      description: >
+        Number of hops from the entity (minimum 1). Present only when
+        relationshipType is `structural`.
+    direction:
+      type: string
+      enum:
+        - outbound
+        - inbound
+      description: >
+        Edge direction relative to the seed feature. `outbound` when the seed
+        is the edge source; `inbound` when the seed is the edge target.
+        Present only on typed-edge entries. Mirrors the vocabulary used by
+        DependentTaskDto.direction.
+    parentTaskId:
+      type: string
+      format: uuid
+      nullable: true
+      description: >
+        Parent task ID of the connected feature (null when the connected
+        feature is a root). Present only on typed-edge entries so consumers
+        can place the related feature within the broader feature tree without
+        another lookup.
+    reasoning:
+      type: string
+      description: >
+        Natural-language rationale recorded on the agent edge. Present only on
+        typed-edge entries.
+
+PlanContextEntryDto:
+  type: object
+  description: >
+    A single canonical Task hierarchy node referenced from the seed's
+    planContext. New responses use entityType TASK and identify PLAN or
+    PLAN_STAGE through taskType. PLAN, PLAN_STAGE, and PLAN_STEP are retained
+    only for legacy compatibility reads.
+  required:
+    - id
+    - entityType
+    - displayName
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Entity ID of the plan, stage, or step.
+    entityType:
+      type: string
+      enum:
+        - TASK
+      description: >
+        TASK is the canonical entity identity for hierarchy entries.
+    taskType:
+      $ref: "./tasks.yaml#/TaskType"
+      description: >
+        Canonical work-item subtype. Present when entityType is TASK; plan
+        hierarchy entries use PLAN or PLAN_STAGE.
+    displayName:
+      type: string
+      description: Human-readable title.
+    status:
+      type: string
+      description: Current status, if available.
+    sequenceOrder:
+      type: integer
+      minimum: 0
+      deprecated: true
+      description: >
+        Legacy PlanStage ordering. Canonical siblingStages are dependency-
+        ordered and do not expose a separate sequence number.
+
+PlanContextDto:
+  type: object
+  description: >
+    Structural context within the canonical Task hierarchy for plan work
+    items. Mirrors featureHierarchy's role and lets callers place PLAN,
+    PLAN_STAGE, and STANDARD work items without reading legacy Plan tables.
+
+    Population by seed type:
+    - PLAN Task seed: siblingStages is its dependency-ordered PLAN_STAGE
+      children; parentPlan and parentStage are absent.
+    - PLAN_STAGE Task seed: parentPlan is its PLAN parent; siblingStages is
+      every other PLAN_STAGE child of that plan.
+    - STANDARD Task seed under a PLAN_STAGE: parentPlan and parentStage are
+      populated; siblingStages contains every PLAN_STAGE child of the plan.
+    - Legacy PLAN / PLAN_STAGE / PLAN_STEP and tracked DESIGN_DOC seeds use
+      the compatibility projection while those entity types remain supported.
+  additionalProperties: false
+  properties:
+    parentPlan:
+      $ref: "#/PlanContextEntryDto"
+      description: >
+        The canonical PLAN Task the seed sits in. Compatibility reads may
+        return a legacy PLAN entry. Absent when the seed is itself the plan.
+    parentStage:
+      $ref: "#/PlanContextEntryDto"
+      description: >
+        The canonical PLAN_STAGE Task the seed sits in. Compatibility reads
+        may return a legacy PLAN_STAGE entry.
+    siblingStages:
+      type: array
+      items:
+        $ref: "#/PlanContextEntryDto"
+      description: >
+        Canonical PLAN_STAGE Task children in dependency order. For a PLAN
+        Task this lists its own stages; for a PLAN_STAGE Task it excludes the
+        seed; for a STANDARD Task it lists every stage of the parent plan.
+
+RelationshipValue:
+  type: string
+  description: >
+    Canonical relationship between the seed entity and a related entity.
+    Direction is encoded in the value (e.g. supersedes vs superseded-by,
+    mentions vs mentioned-by, blocks vs blocked-by) rather than carried
+    in a separate field. Combines agent-authored edge types with
+    system-graph semantic edges.
+    sibling-via-parent is a structural pivot for tasks reached only
+    through an excluded parent (a parent feature, or a non-FEATURE parent
+    task); the path is recorded in via[]. parent marks the seed's direct
+    structural parent when that parent is a non-FEATURE task — FEATURE
+    parents live in featureHierarchy and are not duplicated here.
+    proposed-together is a symmetric, system-emitted relationship between
+    two entities created or modified by the same approved proposal; emitted
+    by the Graph service from PROPOSED_TOGETHER edges and carried through
+    relatedEntities so callers see co-authored siblings.
+    Inbound-direction values: blocked-by (seed is blocked by the related
+    entity), depended-on-by (seed is depended on by the related entity),
+    derived-from-by (seed is the origin of the related entity's derivation),
+    evolved-by (seed is the predecessor that the related entity evolves).
+    For TRACKS, tracked-by means the seed tracks the related work item
+    (outbound Goal-to-work edge), while tracks means the related Goal tracks
+    the seed work item (inbound work-to-Goal edge).
+  enum:
+    - depends-on
+    - depended-on-by
+    - blocks
+    - blocked-by
+    - superseded-by
+    - supersedes
+    - derives-from
+    - derived-from-by
+    - contradicts
+    - related-to
+    - evolves
+    - evolved-by
+    - mentions
+    - mentioned-by
+    - created-via
+    - proposed-together
+    - sibling-via-parent
+    - parent
+    - tracked-by
+    - tracks
+
+RelatedEntityViaDto:
+  type: object
+  description: >
+    A pivot in the path from the seed to a related entity. Used when the
+    related entity is reachable only through an excluded entity (e.g. a
+    parent feature in the sibling-task case) so that the relationship
+    path stays explicit.
+  required:
+    - entityId
+    - entityType
+    - displayName
+    - relationship
+  additionalProperties: false
+  properties:
+    entityId:
+      type: string
+      description: Application entity ID of the pivot.
+    entityType:
+      type: string
+      description: Entity type of the pivot (e.g. TASK).
+    displayName:
+      type: string
+      description: Human-readable name or title of the pivot.
+    relationship:
+      $ref: "#/RelationshipValue"
+
+ContextRelatedEntityDto:
+  type: object
+  description: >
+    A single entity related to the seed within the 2-hop traversal,
+    with its relationship inline. Replaces the prior split nodes/edges
+    representation; an entry is never a free-floating endpoint.
+    FEATURE-typed tasks never appear here (they live in
+    featureHierarchy). Agent sessions never appear here (they live in
+    agentSessions).
+  required:
+    - entityId
+    - entityType
+    - displayName
+    - relationship
+  additionalProperties: false
+  properties:
+    entityId:
+      type: string
+      description: Application entity ID.
+    entityType:
+      type: string
+      description: Entity type (e.g. TASK, PLAN, DESIGN_DOC).
+    displayName:
+      type: string
+      description: Human-readable name or title of the entity.
+    status:
+      type: string
+      description: Current status of the entity, if available.
+    relationship:
+      $ref: "#/RelationshipValue"
+    via:
+      type: array
+      items:
+        $ref: "#/RelatedEntityViaDto"
+      description: >
+        Ordered path from the seed to this entity when reached through
+        an excluded pivot (e.g. a parent feature). Empty/absent for
+        direct one-hop relationships.
+    source:
+      $ref: "./agent-edges.yaml#/EdgeSource"
+      description: >
+        Origin of the connection. `agent` for edges authored via
+        create_edge (carries reasoning); `system` for edges materialised by
+        platform code (e.g. proposed-together). Absent on responses from
+        deployments that predate this field — callers should treat the
+        missing value as `agent`.
+    reasoning:
+      type: string
+      description: >
+        Natural language rationale recorded on create_edge. Present only
+        for agent-authored relationships; absent for system-graph
+        relationships.
+    taskType:
+      type: string
+      description: >
+        Work-item type key for TASK entries (STANDARD, BUG, FEATURE, GOAL,
+        or a project-registered custom key). Present only when entityType
+        is TASK; absent for all other entity types.
+
+AgentSessionEntryDto:
+  type: object
+  description: >
+    An agent session attached to the seed entity via the HasAgentSession
+    traversal. Mirrors RelatedEntityDto entries minus relationship/via —
+    agent sessions are lifecycle attachments, not graph relationships.
+  required:
+    - entityId
+    - entityType
+    - displayName
+  additionalProperties: false
+  properties:
+    entityId:
+      type: string
+      description: Agent session entity ID.
+    entityType:
+      type: string
+      description: Always AGENT_SESSION.
+    displayName:
+      type: string
+      description: Human-readable session title.
+    status:
+      type: string
+      description: Current status of the session, if available.
+
+AncestorFeatureDto:
+  type: object
+  description: >
+    A FEATURE-typed ancestor of a task, hydrated with its full description
+    and requirements content. Returned by the feature-sync context endpoint
+    so that drift and enrichment checks can read authoritative text rather
+    than truncated previews or per-entity round-trips.
+  required:
+    - id
+    - name
+    - description
+    - requirements
+    - distance
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Feature task ID.
+    name:
+      type: string
+      description: Feature task name.
+    tag:
+      $ref: "./tasks.yaml#/FeatureTag"
+      description: >
+        Feature classification (FeatureTag). Optional during the rollout
+        window: ancestor features created before tag plumbing landed may
+        not have a value yet.
+    description:
+      type: string
+      nullable: true
+      description: >
+        The feature's full description content (materialized markdown).
+        Null when the feature has no description section.
+    requirements:
+      type: string
+      nullable: true
+      description: >
+        The feature's full requirements content (materialized markdown).
+        Features use a requirements section — not acceptanceCriteria, which
+        is reserved for STANDARD and BUG tasks. Null when the feature has
+        no requirements section.
+    distance:
+      type: integer
+      minimum: 1
+      description: >
+        Number of hops from the queried task up to this ancestor. 1 is the
+        nearest ancestor; the chain is ordered by distance ascending.
+
+FeatureSyncContextDto:
+  type: object
+  description: >
+    Ancestor FEATURE chain for a task, with each feature's full description
+    and requirements inline. Purpose-built for the feature-sync sub-agent
+    to perform hierarchy-walk drift and enrichment checks in a single call,
+    without per-entity round-trips — the caller can fetch all ancestor
+    descriptions in a single batched get_full_entity call
+    ({ entities: [{ entityType: 'FEATURE', entityId }, ...] }, up to 10
+    per call). Only FEATURE-typed
+    ancestors are returned — standard tasks and non-feature parents are
+    filtered out of the chain.
+  required:
+    - taskId
+    - ancestorFeatures
+  additionalProperties: false
+  properties:
+    taskId:
+      type: string
+      format: uuid
+      description: ID of the task whose ancestors were walked.
+    ancestorFeatures:
+      type: array
+      description: >
+        FEATURE-typed ancestors of the task, in walk order (nearest first).
+        Empty when the task has no FEATURE ancestors.
+      items:
+        $ref: "#/AncestorFeatureDto"
+
+FeatureListItemDto:
+  type: object
+  description: >
+    A single FEATURE entry in the project-wide feature list. Carries just
+    enough structure (parentFeatureId + depth) for an agent to reconstruct
+    the tree in O(n) without forcing a nested response shape.
+  required:
+    - id
+    - name
+    - parentFeatureId
+    - depth
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Feature task ID.
+    name:
+      type: string
+      description: Feature task name.
+    tag:
+      $ref: "./tasks.yaml#/FeatureTag"
+      description: >
+        Feature classification (FeatureTag). Optional during the rollout
+        window: features created before tag plumbing landed may not have
+        a value yet.
+    parentFeatureId:
+      type: string
+      format: uuid
+      nullable: true
+      description: >
+        Parent FEATURE task ID, or null when this feature is a root in the
+        project's feature hierarchy.
+    depth:
+      type: integer
+      minimum: 0
+      description: >
+        Depth in the hierarchy. 0 for roots, 1 for direct children of roots,
+        and so on. When indented by depth the list reads as a tree.
+
+ListFeaturesResponseDto:
+  type: object
+  description: >
+    Project-wide flat list of FEATURE-typed tasks ordered pre-order DFS
+    (root, then each child's subtree). Designed as the bird's-eye
+    counterpart to semantic search_features: cheap to call freely for
+    orientation, structure preserved via parentFeatureId + depth so the
+    caller can rebuild the tree in O(n) without nesting in the wire format.
+  required:
+    - items
+    - total
+    - hasMore
+    - limit
+    - offset
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      description: >
+        Features in the current pagination window, ordered pre-order DFS
+        across the full result set. Reading top-to-bottom shows the
+        hierarchy as it would render when indented by depth.
+      items:
+        $ref: "#/FeatureListItemDto"
+    total:
+      type: integer
+      minimum: 0
+      description: >
+        Total number of features in the project (across all pages).
+    hasMore:
+      type: boolean
+      description: >
+        True when more features exist beyond this window
+        (offset + items.length < total).
+    limit:
+      type: integer
+      minimum: 1
+      description: Maximum items requested for this page.
+    offset:
+      type: integer
+      minimum: 0
+      description: Offset into the full DFS-ordered result set.
+
+FeatureSkeletonNode:
+  type: object
+  description: >
+    Compact, full-tree skeleton entry for a single FEATURE-typed task,
+    consumed by the Feature Tree Conversation CLI at session init. Carries
+    just enough shape (id, name, tag, status, parentId, depth, taskCount)
+    to let the agent reason over the whole feature tree from its system
+    prompt without round-tripping for detail. Direct (non-recursive)
+    `taskCount` only — descendant rollups are derived agent-side from the
+    flat array.
+  required:
+    - id
+    - name
+    - tag
+    - status
+    - parentId
+    - depth
+    - taskCount
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Feature task ID.
+    name:
+      type: string
+      description: Feature task name.
+    tag:
+      allOf:
+        - $ref: "./tasks.yaml#/FeatureTag"
+      nullable: true
+      description: >
+        Feature classification (FeatureTag). Nullable: features created
+        before tag plumbing landed may not have a value yet.
+    status:
+      $ref: "./common.yaml#/WorkStatus"
+    parentId:
+      type: string
+      format: uuid
+      nullable: true
+      description: >
+        Parent FEATURE task ID, or null when this feature is a root in the
+        project's feature hierarchy.
+    depth:
+      type: integer
+      minimum: 0
+      description: >
+        Depth in the hierarchy. 0 for roots, 1 for direct children of
+        roots, and so on.
+    taskCount:
+      type: integer
+      minimum: 0
+      description: >
+        Count of non-FEATURE tasks parented directly to this feature.
+        Direct count only — agents derive descendant rollups from the
+        flat array if needed.
+
+DependentTaskDto:
+  type: object
+  description: >
+    A task discovered via agent-authored topology edges, hydrated with
+    content (description, acceptance criteria) for assessment. Each entry
+    represents a single directed edge between the queried entity and the
+    dependent task.
+  required:
+    - entityId
+    - entityType
+    - displayName
+    - status
+    - relationshipType
+    - direction
+    - edgeReasoning
+  additionalProperties: false
+  properties:
+    entityId:
+      type: string
+      format: uuid
+      description: The dependent task's ID
+    entityType:
+      type: string
+      description: Always "TASK" for dependent task resolution
+      example: TASK
+    displayName:
+      type: string
+      description: The dependent task's name
+    status:
+      type: string
+      description: Current status of the dependent task
+      example: ACTIVE
+    relationshipType:
+      $ref: "./agent-edges.yaml#/AgentEdgeType"
+    direction:
+      type: string
+      enum:
+        - outbound
+        - inbound
+      description: >
+        Whether the edge goes from the queried entity to the dependent
+        task (outbound) or from the dependent task to the queried entity
+        (inbound).
+    description:
+      type: string
+      nullable: true
+      description: >
+        The dependent task's description content (materialized markdown).
+        Null when the task has no description section.
+    acceptanceCriteria:
+      type: string
+      nullable: true
+      description: >
+        The dependent task's acceptance criteria content (materialized markdown).
+        Null when the task has no acceptance criteria section.
+    edgeReasoning:
+      type: string
+      description: >
+        Natural language rationale for why this edge exists,
+        authored by the agent that created the relationship.
+
+GoalAudience:
+  type: string
+  description: >
+    Who a goal is targeted at. PROJECT is emitted when no goal_memberships
+    rows exist for the goal — every project member sees it. MEMBERS is
+    emitted as soon as one or more goal_memberships rows exist; the goal
+    is then scoped to that subset rather than the whole project. PERSONAL
+    is reserved for future per-user rollup work and is not yet emitted.
+  enum:
+    - PROJECT
+    - MEMBERS
+
+ActiveGoalDto:
+  type: object
+  description: >
+    A goal returned by the active-goals endpoint: a GOAL-typed task that
+    is not done (status not in COMPLETED/CANCELLED/ARCHIVED), not
+    archived, and is undated or whose dueDate falls inside the requested look-ahead
+    window. Carries just enough for a dashboard or sidebar surface to
+    render the goal without a follow-up lookup.
+  required:
+    - id
+    - name
+    - dueDate
+    - audience
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Goal task ID.
+    name:
+      type: string
+      description: Goal task name.
+    dueDate:
+      type: string
+      format: date-time
+      nullable: true
+      description: When the goal is due (ISO 8601), or null for an undated Goal.
+    audience:
+      $ref: "#/GoalAudience"
+
+ActiveGoalsResponseDto:
+  type: object
+  description: >
+    Active goals for a user within a fixed look-ahead window. Echoes
+    back the userId and windowDays the caller passed so consumers can
+    confirm the request shape that produced the items, without needing
+    to thread the original query separately through the UI.
+  required:
+    - items
+    - userId
+    - windowDays
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      description: >
+        Active goals in the window. Goals the caller is a member of
+        (per goal_memberships) sort first regardless of dueDate so the
+        caller's own goals are surfaced ahead of project-wide ones.
+        Within each partition (member-of vs not) entries are ordered by
+        dueDate ascending then name ascending so the soonest deadline
+        appears first.
+      items:
+        $ref: "#/ActiveGoalDto"
+    userId:
+      type: string
+      format: uuid
+      description: The userId the caller asked about (echoed unchanged).
+    windowDays:
+      type: integer
+      minimum: 1
+      description: >
+        Look-ahead window in days from now, echoed back to the caller.

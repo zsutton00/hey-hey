@@ -1,0 +1,189 @@
+# Help schema definitions
+
+HelpNode:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - parentId
+    - slug
+    - title
+    - ordering
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique identifier for the help node.
+    parentId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Parent help node ID, or null for a root node.
+    slug:
+      type: string
+      description: URL-friendly slug for the help node.
+    title:
+      type: string
+      description: Human-readable title for the help node.
+    ordering:
+      type: integer
+      description: Ordering among sibling help nodes.
+
+HelpTreeResponse:
+  type: object
+  additionalProperties: false
+  required:
+    - items
+  properties:
+    items:
+      type: array
+      description: Ordered help nodes that make up the shallow browse tree.
+      items:
+        $ref: "#/HelpNode"
+
+HelpSearchResult:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - slug
+    - title
+    - snippet
+    - rank
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique identifier for the help node.
+    slug:
+      type: string
+      description: URL-friendly slug for the help node.
+    title:
+      type: string
+      description: Human-readable title for the help node.
+    snippet:
+      type: string
+      description: Highlighted excerpt showing where the query matched the help body or title.
+    rank:
+      type: number
+      format: float
+      description: Search relevance rank for the help node.
+
+HelpSearchResponse:
+  type: object
+  additionalProperties: false
+  required:
+    - results
+  properties:
+    results:
+      type: array
+      description: Ranked help search results.
+      items:
+        $ref: "#/HelpSearchResult"
+
+HelpNodeWithBody:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - parentId
+    - slug
+    - title
+    - ordering
+    - body
+    - demos
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique identifier for the help node.
+    parentId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Parent help node ID, or null for a root node.
+    slug:
+      type: string
+      description: URL-friendly slug for the help node.
+    title:
+      type: string
+      description: Human-readable title for the help node.
+    ordering:
+      type: integer
+      description: Ordering among sibling help nodes.
+    body:
+      type: string
+      description: Full help article body.
+    demos:
+      type: array
+      description: Ordered inline mini-demos attached to the help node.
+      items:
+        $ref: "#/HelpDemo"
+
+HelpDemo:
+  oneOf:
+    - $ref: "#/HelpDemoPreset"
+    - $ref: "#/HelpDemoDsl"
+  discriminator:
+    propertyName: kind
+    mapping:
+      preset: "#/HelpDemoPreset"
+      dsl: "#/HelpDemoDsl"
+
+HelpDemoPreset:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - ordering
+    - caption
+    - kind
+    - presetKey
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique identifier for the help demo row.
+    ordering:
+      type: integer
+      description: Ordering among sibling help demos.
+    caption:
+      type: string
+      description: Caption text displayed with the demo.
+    kind:
+      type: string
+      enum:
+        - preset
+      description: Demo renderer discriminator.
+    presetKey:
+      type: string
+      description: Preset scene key the mini-demo player resolves.
+
+HelpDemoDsl:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - ordering
+    - caption
+    - kind
+    - definition
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique identifier for the help demo row.
+    ordering:
+      type: integer
+      description: Ordering among sibling help demos.
+    caption:
+      type: string
+      description: Caption text displayed with the demo.
+    kind:
+      type: string
+      enum:
+        - dsl
+      description: Demo renderer discriminator.
+    definition:
+      type: object
+      description: Reserved DSL definition payload for future help demos.

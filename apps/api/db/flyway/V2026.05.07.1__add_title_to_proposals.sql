@@ -1,0 +1,16 @@
+-- Add a per-action title snapshot to proposals so renderers don't have
+-- to fetch the target entity to display its name.
+-- CREATE proposals carry the caller-supplied to-be entity name (the
+-- entity has no registry row yet; the service rejects a CREATE proposal
+-- authored without a title).
+-- UPDATE / DELETE proposals carry the caller-supplied title when one is
+-- provided; otherwise the service resolves the target's title from the
+-- EntityRegistry at write time. UPDATE proposals therefore record the
+-- target's *prior* title (the registry hasn't been updated yet — the
+-- rename only applies on approval); the diff body carries the new name.
+-- The snapshot is intentionally not refreshed on later renames or
+-- deletes, mirroring proposal_edges.targetEntityTitle and
+-- influences.entityTitle.
+-- No backfill: legacy rows stay null and renderers fall back to
+-- fetching the target entity for those rows only.
+ALTER TABLE "proposals" ADD COLUMN "title" TEXT NULL;

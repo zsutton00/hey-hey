@@ -1,0 +1,72 @@
+{
+  "type": "QUESTIONS",
+  "title": "Discover Gaps: Design Docs",
+  "response": "You've confirmed readiness to move forward with design_docs. Based on the plan proposal and clarifying answers, the design_docs category focuses on the structural decisions, interfaces, and ownership boundaries needed to deliver the plan generation flow validation.\n\nThe key design decisions that need documentation are: how the plan generation flow queries and selects existing tasks and initiatives without duplication, how plan steps wrap underlying work items while maintaining synchronization, and how the event system connects task completion to plan step status updates. The success criteria you've defined—that the plan initiative and its tasks must be discoverable—provides a concrete validation target.\n\nSince you're the sole internal validator and performance requirements are deferred, the design docs should focus on the selection logic interface, the wrapping mechanism between plan steps and tasks, and the event synchronization protocol. These are the structural boundaries that must be clear before validation testing begins.\n\nWhat specific design decisions or interface contracts do you need documented first to unblock the validation testing?",
+  "uiElements": [
+    {
+      "id": "bf576b44-8100-462b-a265-275e43547cc4",
+      "type": "plan_gaps_design_docs",
+      "label": "Share details for the design docs questions",
+      "payload": {
+        "gaps": {
+          "tasks": [],
+          "services": [],
+          "design_docs": [
+            {
+              "notes": "Critical for validation; success criteria requires that the plan initiative and its tasks are discoverable. Must define query interface, matching algorithm, and how relevance is determined.",
+              "title": "Plan Generation Selection Logic Design",
+              "description": "Design document specifying the algorithm and criteria used to identify and select relevant existing tasks and initiatives for plan inclusion, including deduplication logic and relevance matching rules.",
+              "sourceCategory": "design_docs"
+            },
+            {
+              "notes": "Needed to clarify the synchronization boundary between plan steps and wrapped tasks. Must specify read/write delegation and state mapping.",
+              "title": "Plan Step Wrapping Interface Design",
+              "description": "Design document defining how plan steps encapsulate and reference underlying tasks and initiatives, including the data model, ownership boundaries, and how user interactions on plan steps map to underlying task operations.",
+              "sourceCategory": "design_docs"
+            },
+            {
+              "notes": "Defines the integration boundary between task completion and plan step state. Must clarify which events trigger updates and how status transitions are handled.",
+              "title": "Event System Synchronization Protocol",
+              "description": "Design document specifying how task completion events trigger plan step status updates, including event schema, listener registration, status mapping rules, and error handling for synchronization failures.",
+              "sourceCategory": "design_docs"
+            },
+            {
+              "notes": "Clarifies the boundary between plan generation and storage systems. Must specify query language/API, pagination if needed, and how unrestricted read access is enforced.",
+              "title": "Storage Query Interface and Permissions Model",
+              "description": "Design document defining the read interface for accessing Hey Hey's task and initiative storage, including query capabilities, permission enforcement, and any limits or constraints on the plan generation flow's access.",
+              "sourceCategory": "design_docs"
+            }
+          ]
+        },
+        "category": "design_docs",
+        "response": "You've confirmed readiness to move forward with design_docs. Based on the plan proposal and clarifying answers, the design_docs category focuses on the structural decisions, interfaces, and ownership boundaries needed to deliver the plan generation flow validation.\n\nThe key design decisions that need documentation are: how the plan generation flow queries and selects existing tasks and initiatives without duplication, how plan steps wrap underlying work items while maintaining synchronization, and how the event system connects task completion to plan step status updates. The success criteria you've defined—that the plan initiative and its tasks must be discoverable—provides a concrete validation target.\n\nSince you're the sole internal validator and performance requirements are deferred, the design docs should focus on the selection logic interface, the wrapping mechanism between plan steps and tasks, and the event synchronization protocol. These are the structural boundaries that must be clear before validation testing begins.\n\nWhat specific design decisions or interface contracts do you need documented first to unblock the validation testing?",
+        "clarificationQuestions": {
+          "tasks": [],
+          "services": [],
+          "design_docs": [
+            "For the selection logic design, should the matching algorithm prioritize exact keyword matches, semantic similarity, or a combination? How will you handle ambiguous relevance cases during validation?",
+            "When a plan step wraps a task, should the plan step inherit the task's status directly, or maintain its own status state that is synchronized via events?",
+            "Should the event synchronization protocol handle partial failures (e.g., task completed but plan step update fails), and if so, what is the recovery mechanism?",
+            "Are there any existing query patterns or APIs in Hey Hey's storage layer that the plan generation flow should conform to, or is this a new integration?"
+          ]
+        }
+      },
+      "required": false,
+      "multiline": true,
+      "submitText": "Approve",
+      "placeholder": "",
+      "secondaryAction": {
+        "id": "7ff67e87-bd1a-4b0e-8717-362af22bdea0",
+        "type": "field_action",
+        "label": "Continue Revising",
+        "fieldId": "bf576b44-8100-462b-a265-275e43547cc4",
+        "handler": "plan_gap_continue_revising",
+        "payload": {
+          "handlerType": "plan_gap_continue_revising"
+        },
+        "disabled": false,
+        "presentation": "BUTTON"
+      }
+    }
+  ]
+}

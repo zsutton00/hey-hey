@@ -1,0 +1,1 @@
+ALTER TYPE "target_entity_type" ADD VALUE IF NOT EXISTS 'CONVERSATION';

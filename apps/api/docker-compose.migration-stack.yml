@@ -1,0 +1,401 @@
+x-logging: &default-logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  postgres-bootstrap:
+    image: alpine:3.22
+    restart: "no"
+    logging: *default-logging
+    volumes:
+      - ${STACK_BOOTSTRAP_DUMP}:/source/application.dump:ro
+      - ${API_ROOT}/docker/migration-stack/restore-postgres-bootstrap.sh:/source/10-restore-bootstrap.sh:ro
+      - postgres-bootstrap:/bootstrap
+    command:
+      - sh
+      - -c
+      - cp /source/application.dump /bootstrap/application.dump && cp /source/10-restore-bootstrap.sh /bootstrap/10-restore-bootstrap.sh && chmod 0444 /bootstrap/application.dump && chmod 0555 /bootstrap/10-restore-bootstrap.sh
+
+  postgres:
+    image: postgres:13
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      postgres-bootstrap:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_USER: ${STACK_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${STACK_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${STACK_POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - postgres-bootstrap:/bootstrap:ro
+      - postgres-bootstrap:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${STACK_POSTGRES_USER} -d ${STACK_POSTGRES_DB}"]
+      start_period: 5m
+      interval: 3s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${STACK_REDIS_PASSWORD}"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a '${STACK_REDIS_PASSWORD}' ping | grep PONG"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+
+  temporal:
+    image: temporalio/auto-setup:latest
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: ${STACK_POSTGRES_USER}
+      POSTGRES_PWD: ${STACK_POSTGRES_PASSWORD}
+      POSTGRES_SEEDS: postgres
+
+  temporal-ui:
+    image: temporalio/ui:2.34.0
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      temporal:
+        condition: service_started
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://${STACK_HOSTNAME:?Run the migration-stack launcher}:${STACK_UI_PORT}
+    ports:
+      - "127.0.0.1:${STACK_TEMPORAL_UI_PORT}:8080"
+
+  flyway:
+    build:
+      context: ${API_ROOT}
+      dockerfile: Dockerfile
+      labels:
+        com.heyhey.migration-stack: ${COMPOSE_PROJECT_NAME}
+    image: ${COMPOSE_PROJECT_NAME}-api:local
+    restart: "no"
+    logging: *default-logging
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/${STACK_POSTGRES_DB}
+      FLYWAY_USER: ${STACK_POSTGRES_USER}
+      FLYWAY_PASSWORD: ${STACK_POSTGRES_PASSWORD}
+      FLYWAY_SCHEMAS: public
+      FLYWAY_DEFAULT_SCHEMA: public
+      FLYWAY_OUT_OF_ORDER: "true"
+    entrypoint: ["bash", "/app/scripts/flyway.sh"]
+    command: ["migrate"]
+
+  postgres-data-import:
+    image: postgres:13
+    restart: "no"
+    logging: *default-logging
+    depends_on:
+      flyway:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_USER: ${STACK_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${STACK_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${STACK_POSTGRES_DB}
+      PGPASSWORD: ${STACK_POSTGRES_PASSWORD}
+      PGHOST: postgres
+    volumes:
+      - ${API_ROOT}/docker/migration-stack/import-postgres-bootstrap.sh:/import-postgres-bootstrap.sh:ro
+    entrypoint: ["bash", "/import-postgres-bootstrap.sh"]
+
+  neo4j:
+    image: neo4j:5-community
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      NEO4J_AUTH: neo4j/${STACK_NEO4J_PASSWORD}
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+      NEO4J_dbms_security_procedures_allowlist: apoc.*
+      NEO4J_dbms_memory_pagecache_size: 512M
+      NEO4J_dbms_memory_heap_max__size: 1G
+    volumes:
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+      - neo4j-plugins:/plugins
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:7474 || exit 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+    ports:
+      - "127.0.0.1:${STACK_NEO4J_HTTP_PORT}:7474"
+      - "127.0.0.1:${STACK_NEO4J_BOLT_PORT}:7687"
+
+  neo4j-identity-seed:
+    image: neo4j:5-community
+    restart: "no"
+    logging: *default-logging
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    environment:
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: ${STACK_NEO4J_PASSWORD}
+      NEO4J_EXPECTED_ENVIRONMENT: migration-test
+      NEO4J_EXPECTED_DATABASE_IDENTITY: ${COMPOSE_PROJECT_NAME}
+    volumes:
+      - ${API_ROOT}/docker/migration-stack/seed-neo4j.sh:/seed-neo4j.sh:ro
+    entrypoint: ["bash", "/seed-neo4j.sh"]
+
+  graph-service:
+    build:
+      context: ${API_ROOT}
+      dockerfile: docker/migration-stack/graph.Dockerfile
+      labels:
+        com.heyhey.migration-stack: ${COMPOSE_PROJECT_NAME}
+      additional_contexts:
+        graph: ${GRAPH_ROOT}
+        openapi: ${OPENAPI_ROOT}
+    image: ${COMPOSE_PROJECT_NAME}-graph:local
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      neo4j-identity-seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: dev,container
+      SERVER_PORT: 8081
+      AUTH_JWKS_URI: http://api:3000/api/v1/auth/jwks
+      JWT_ISSUER: http://${STACK_HOSTNAME:?Run the migration-stack launcher}
+      NEO4J_HOST: neo4j
+      NEO4J_PORT: 7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: ${STACK_NEO4J_PASSWORD}
+      NEO4J_EXPECTED_ENVIRONMENT: migration-test
+      NEO4J_EXPECTED_DATABASE_IDENTITY: ${COMPOSE_PROJECT_NAME}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${STACK_REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    ports:
+      - "127.0.0.1:${STACK_GRAPH_PORT}:8081"
+
+  vespa-app-sync:
+    build:
+      context: ${API_ROOT}
+      dockerfile: docker/migration-stack/embeddings.Dockerfile
+      additional_contexts:
+        embeddings: ${EMBEDDINGS_ROOT}
+      labels:
+        com.heyhey.migration-stack: ${COMPOSE_PROJECT_NAME}
+    image: ${COMPOSE_PROJECT_NAME}-embeddings:local
+    restart: "no"
+    logging: *default-logging
+    command: ["sh", "-c", "cp -R /app/vespa-app/. /vespa-app/"]
+    volumes:
+      - vespa-app:/vespa-app
+
+  vespa:
+    image: vespaengine/vespa:8.544.32
+    hostname: vespa
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      vespa-app-sync:
+        condition: service_completed_successfully
+    environment:
+      VESPA_CONFIGSERVERS: vespa
+      VESPA_HOSTNAME: vespa
+    volumes:
+      - vespa-app:/opt/vespa/var/vespa/application
+      - vespa-data:/opt/vespa/var
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:19071/state/v1/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 90s
+    ports:
+      - "127.0.0.1:${STACK_VESPA_PORT}:8080"
+
+  vespa-deploy:
+    image: vespaengine/vespa:8.544.32
+    restart: "no"
+    logging: *default-logging
+    depends_on:
+      vespa:
+        condition: service_healthy
+      vespa-app-sync:
+        condition: service_completed_successfully
+    environment:
+      VESPA_CONFIGSERVERS: vespa
+    entrypoint: ["vespa"]
+    command: ["deploy", "-t", "http://vespa:19071", "--wait", "300", "/vespa-app"]
+    volumes:
+      - vespa-app:/vespa-app:ro
+
+  embeddings:
+    image: ${COMPOSE_PROJECT_NAME}-embeddings:local
+    restart: unless-stopped
+    logging: *default-logging
+    env_file:
+      - path: ${EMBEDDINGS_ENV_FILE}
+        required: false
+    depends_on:
+      vespa-deploy:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: migration-test
+      DEBUG: "false"
+      HOST: 0.0.0.0
+      PORT: 5005
+      GUNICORN_WORKERS: 1
+      VECTOR_DB_TYPE: vespa
+      VESPA_URL: http://vespa:8080
+      REDIS_URL: redis://:${STACK_REDIS_PASSWORD}@redis:6379
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${STACK_REDIS_PASSWORD}
+      AUTH_ENABLED: "true"
+      JWKS_URL: http://api:3000/api/v1/auth/jwks
+      JWT_ISSUER: http://${STACK_HOSTNAME:?Run the migration-stack launcher}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:5005/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+    ports:
+      - "127.0.0.1:${STACK_EMBEDDINGS_PORT}:5005"
+
+  api:
+    image: ${COMPOSE_PROJECT_NAME}-api:local
+    restart: unless-stopped
+    logging: *default-logging
+    env_file:
+      - path: ${API_ENV_FILE}
+        required: false
+      - path: ${API_LOCAL_ENV_FILE}
+        required: false
+    depends_on:
+      postgres-data-import:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    environment:
+      NODE_ENV: production
+      DEPLOYMENT_ENVIRONMENT: local
+      PORT: 3000
+      START_WORKER: "true"
+      LOG_FORMAT: json
+      LOG_TO_FILE: "false"
+      LOGSTASH_ENABLED: "false"
+      PROJECT_DATABASE_URL: postgresql://${STACK_POSTGRES_USER}:${STACK_POSTGRES_PASSWORD}@postgres:5432/${STACK_POSTGRES_DB}?schema=public
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${STACK_POSTGRES_DB}
+      POSTGRES_USER: ${STACK_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${STACK_POSTGRES_PASSWORD}
+      REDIS_URL: redis://:${STACK_REDIS_PASSWORD}@redis:6379
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${STACK_REDIS_PASSWORD}
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: default
+      GRAPH_SERVICE_URL: http://graph-service:8081/api
+      EMBEDDINGS_SERVICE_URL: http://embeddings:5005
+      MASTRA_BASE_URL: http://host.docker.internal:4112/api
+      API_BASE_URL: http://${STACK_HOSTNAME:?Run the migration-stack launcher}:${STACK_API_PORT}
+      WEBHOOK_BASE_URL: http://${STACK_HOSTNAME:?Run the migration-stack launcher}:${STACK_API_PORT}
+      WEB_APP_URL: http://${STACK_HOSTNAME:?Run the migration-stack launcher}:${STACK_UI_PORT}
+      FRONTEND_URL: http://${STACK_HOSTNAME:?Run the migration-stack launcher}:${STACK_UI_PORT}
+      APP_BASE_URL: http://${STACK_HOSTNAME:?Run the migration-stack launcher}:${STACK_UI_PORT}
+      CORS_WHITELIST: http://${STACK_HOSTNAME:?Run the migration-stack launcher}:${STACK_UI_PORT},http://${STACK_HOSTNAME:?Run the migration-stack launcher}:${STACK_API_PORT}
+      MACHINE_ENROLLMENT_WEBAUTHN_RP_ID: ${STACK_HOSTNAME:?Run the migration-stack launcher}
+      MACHINE_ENROLLMENT_WEBAUTHN_ORIGIN: http://${STACK_HOSTNAME:?Run the migration-stack launcher}:${STACK_UI_PORT}
+      JWT_SECRET: ${STACK_JWT_SECRET}
+      JWT_ISSUER: http://${STACK_HOSTNAME:?Run the migration-stack launcher}
+      SECRET_KEY: ${STACK_SECRET_KEY}
+      INTEGRATION_ENCRYPTION_KEY: ${STACK_INTEGRATION_ENCRYPTION_KEY}
+      MACHINE_ENROLLMENT_CODE_HMAC_KEY: ${STACK_MACHINE_ENROLLMENT_CODE_HMAC_KEY}
+      TRIGGER_SIGNING_PRIVATE_KEY: ${STACK_TRIGGER_SIGNING_PRIVATE_KEY}
+      DISABLE_TOPOLOGY_CRON: "true"
+    volumes:
+      - api-jwt-keys:/app/config/keys
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/v1/auth/jwks').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    ports:
+      - "127.0.0.1:${STACK_API_PORT}:3000"
+
+  ui:
+    build:
+      context: ${API_ROOT}
+      dockerfile: docker/migration-stack/ui.Dockerfile
+      labels:
+        com.heyhey.migration-stack: ${COMPOSE_PROJECT_NAME}
+      additional_contexts:
+        ui: ${UI_ROOT}
+        ui_common: ${UI_COMMON_ROOT}
+    image: ${COMPOSE_PROJECT_NAME}-ui:local
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 5173
+      HOST: 0.0.0.0
+      API_PROTOCOL: http
+      API_HOST: ${STACK_HOSTNAME:?Run the migration-stack launcher}
+      API_PORT: ${STACK_API_PORT}
+      API_BASE_PATH: /api/v1
+      VITE_ENV: migration-test
+      VITE_LOCAL_AGENT_PORT: ${STACK_CLI_PORT}
+    ports:
+      - "127.0.0.1:${STACK_UI_PORT}:5173"
+
+volumes:
+  postgres-bootstrap:
+  postgres-data:
+  redis-data:
+  neo4j-data:
+  neo4j-logs:
+  neo4j-plugins:
+  vespa-app:
+  vespa-data:
+  api-jwt-keys:
+    name: ${COMPOSE_PROJECT_NAME}_api-jwt-keys
+    external: true

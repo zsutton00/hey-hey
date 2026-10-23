@@ -1,0 +1,46 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildCommitPrompt > snapshots the complete message-only agent contract 1`] = `
+"# Generate a Commit Message
+
+Return only a concise conventional-commit message for the session-owned changes below. The runtime owns validation, staging, commit execution, traceability trailers, and COMMIT report emission.
+
+## Services
+
+- **service-cli**: \`/repo\`
+
+## Canonical Run Files
+
+- /repo/src/foo.ts
+- /repo/src/bar.ts
+
+## Instructions
+
+1. Treat Canonical Run Files as the complete scope. Repository-wide status must never expand it.
+2. Use the current diffs for the listed files to understand what changed.
+3. You may inspect only the listed files and read-only git output (\`status\`, \`diff\`, \`log\`, \`show\`, or \`rev-parse\`) to understand the change.
+4. Do not stage files, create commits, construct trailers, or emit reports.
+5. Call \`submit_commit_message\` exactly once with a single-line conventional-commit message under 72 characters. Do not include trailers in the message."
+`;
+
+exports[`buildCommitPrompt > snapshots the empty-scope contract 1`] = `
+"# Generate a Commit Message
+
+Return only a concise conventional-commit message for the session-owned changes below. The runtime owns validation, staging, commit execution, traceability trailers, and COMMIT report emission.
+
+## Services
+
+- **service-cli**: \`/repo\`
+
+## Canonical Run Files
+
+- No uncommitted session-owned files were found.
+
+## Instructions
+
+1. Treat Canonical Run Files as the complete scope. Repository-wide status must never expand it.
+2. Use the current diffs for the listed files to understand what changed.
+3. You may inspect only the listed files and read-only git output (\`status\`, \`diff\`, \`log\`, \`show\`, or \`rev-parse\`) to understand the change.
+4. Do not stage files, create commits, construct trailers, or emit reports.
+5. Call \`submit_commit_message\` exactly once with a single-line conventional-commit message under 72 characters. Do not include trailers in the message."
+`;

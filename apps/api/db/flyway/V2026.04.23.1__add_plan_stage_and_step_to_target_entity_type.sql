@@ -1,0 +1,2 @@
+ALTER TYPE "target_entity_type" ADD VALUE IF NOT EXISTS 'PLAN_STAGE';
+ALTER TYPE "target_entity_type" ADD VALUE IF NOT EXISTS 'PLAN_STEP';

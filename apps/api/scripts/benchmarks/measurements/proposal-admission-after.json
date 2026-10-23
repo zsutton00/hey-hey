@@ -1,0 +1,31 @@
+{
+  "node": "v22.17.0",
+  "measuredAt": "2026-09-22T01:59:42.842Z",
+  "baseline": false,
+  "results": [
+    {
+      "workload": "create",
+      "samples": 30,
+      "medianMs": 10.319625000000087,
+      "p95Ms": 12.197582999999213,
+      "minQueries": 12,
+      "maxQueries": 12
+    },
+    {
+      "workload": "update",
+      "samples": 30,
+      "medianMs": 10.91399999999976,
+      "p95Ms": 14.442458000000443,
+      "minQueries": 13,
+      "maxQueries": 13
+    },
+    {
+      "workload": "batch-20",
+      "samples": 30,
+      "medianMs": 111.64912499999991,
+      "p95Ms": 132.891791,
+      "minQueries": 107,
+      "maxQueries": 107
+    }
+  ]
+}

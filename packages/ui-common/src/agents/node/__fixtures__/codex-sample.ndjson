@@ -1,0 +1,7 @@
+{"type":"task_started","session_id":"codex-sess-1"}
+{"type":"agent_message","message":"Working on it","session_id":"codex-sess-1"}
+{"type":"exec_approval_request","call_id":"call-1","codex_command":["ls","-la"],"codex_cwd":"/tmp","data":{"session_id":"codex-sess-1"}}
+{"type":"exec_command_end","call_id":"call-1","output":"done","session_id":"codex-sess-1"}
+{"type":"patch_apply_begin","call_id":"call-2","auto_approved":true,"changes":{"src/index.ts":{"op":"update"}},"session_id":"codex-sess-1"}
+{"type":"patch_apply_end","call_id":"call-2","success":true,"stdout":"patched","stderr":"","session_id":"codex-sess-1"}
+{"type":"task_complete","session_id":"codex-sess-1"}

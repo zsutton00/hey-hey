@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "../..",
+    "target": "ES2021",
+    "lib": ["ES2021", "DOM", "DOM.Iterable"],
+    "tsBuildInfoFile": "../../.tsbuild/browser/.tsbuildinfo"
+  },
+  "include": [
+    "./project-report.tsx",
+    "./conversation-scroll.tsx",
+    "../../src/types/vite-env.d.ts"
+  ],
+  "exclude": [],
+  "references": [{ "path": "../../tsconfig.api.json" }]
+}

@@ -1,0 +1,570 @@
+# =============================================
+# Entity Prompt Template Read Schemas
+# =============================================
+
+EntityPromptTemplateKey:
+  type: string
+  minLength: 1
+  pattern: "^[a-z][a-z0-9._-]*$"
+  description: >-
+    Stable identifier for a supported entity prompt template. The key is
+    shared by canonical defaults, project-owned revisions, and effective reads.
+  example: entity_context
+
+EntityPromptTemplateSyntaxVersion:
+  type: string
+  enum:
+    - V1
+  description: >-
+    Version of the bounded entity prompt-template language used to validate
+    and render the content. Callers must reject unsupported versions rather
+    than interpreting them with a different or permissive renderer.
+
+EntityPromptTemplatePathFamilyDto:
+  type: object
+  additionalProperties: false
+  required:
+    - template
+    - pattern
+  properties:
+    template:
+      type: string
+      minLength: 1
+      description: Human-readable description of a bounded path family.
+    pattern:
+      type: string
+      minLength: 1
+      description: Anchored regular expression for the bounded path family.
+  description: >-
+    One generated, bounded path family accepted by the substitution-only
+    entity prompt-template language. Path families never grant arbitrary
+    property traversal or expression evaluation.
+
+EntityPromptTemplateAuthoringPathDto:
+  type: object
+  additionalProperties: false
+  required: [path, description]
+  properties:
+    path:
+      type: string
+    description:
+      type: string
+
+EntityPromptTemplateAuthoringFamilyDto:
+  type: object
+  additionalProperties: false
+  required: [template, pattern, description]
+  properties:
+    template:
+      type: string
+    pattern:
+      type: string
+    description:
+      type: string
+
+EntityPromptTemplateAuthoringMetadataDto:
+  type: object
+  additionalProperties: false
+  required: [openingDelimiter, closingDelimiter, inputPathPattern, paths, pathFamilies]
+  properties:
+    openingDelimiter:
+      type: string
+    closingDelimiter:
+      type: string
+    inputPathPattern:
+      type: string
+    paths:
+      type: array
+      items:
+        $ref: '#/EntityPromptTemplateAuthoringPathDto'
+    pathFamilies:
+      type: array
+      items:
+        $ref: '#/EntityPromptTemplateAuthoringFamilyDto'
+
+EntityPromptTemplateDraftValidationRequestDto:
+  type: object
+  additionalProperties: false
+  required: [selector, syntaxVersion, content]
+  properties:
+    selector:
+      $ref: '#/EntityPromptTemplateSelectorDto'
+    syntaxVersion:
+      $ref: '#/EntityPromptTemplateSyntaxVersion'
+    content:
+      type: string
+      description: Exact unsaved source, including empty content for validation.
+
+EntityPromptTemplateDraftValidationResultDto:
+  type: object
+  additionalProperties: false
+  required: [status, issues]
+  properties:
+    status:
+      type: string
+      enum: [VALID, INVALID]
+    issues:
+      type: array
+      items:
+        $ref: '#/EntityPromptTemplateValidationIssueDto'
+
+EntityPromptTemplateLanguageDto:
+  type: object
+  additionalProperties: false
+  required:
+    - syntaxVersion
+    - supportedPaths
+    - pathFamilies
+    - missingPathBehavior
+    - malformedSubstitutionBehavior
+    - malformedSubstitutions
+    - authoring
+  properties:
+    authoring:
+      $ref: '#/EntityPromptTemplateAuthoringMetadataDto'
+    syntaxVersion:
+      $ref: "#/EntityPromptTemplateSyntaxVersion"
+    supportedPaths:
+      type: array
+      minItems: 1
+      items:
+        type: string
+        minLength: 1
+      description: >-
+        Explicit generated identifiers accepted by this syntax version,
+        including structured collection identifiers.
+    pathFamilies:
+      type: array
+      items:
+        $ref: "#/EntityPromptTemplatePathFamilyDto"
+      description: >-
+        Generated bounded identifiers for dynamic section keys. These are
+        finite path families, not arbitrary property traversal.
+    missingPathBehavior:
+      type: string
+      enum:
+        - ERROR
+      description: Missing supported values fail closed during validation and rendering.
+    malformedSubstitutionBehavior:
+      type: string
+      enum:
+        - ERROR
+      description: Malformed substitutions fail closed during validation and rendering.
+    malformedSubstitutions:
+      type: array
+      items:
+        type: string
+        minLength: 1
+      description: Canonical malformed examples used by conformance checks.
+  description: >-
+    Generated V1 entity prompt-template language metadata shared by API
+    validation and CLI rendering. The catalog describes substitution-only
+    identifiers and fail-closed behavior; it does not add loops, arbitrary
+    expressions, or executable template logic.
+
+EntityPromptTemplateSelectorEntityType:
+  type: string
+  enum:
+    - PROJECT
+    - DESIGN_DOC
+    - AGENT_SESSION
+    - WORK_ITEM
+  description: >-
+    Authoritative focal-entity family selected by an entity prompt template.
+    WORK_ITEM is refined by the work item's authoritative type key.
+
+EntityPromptTemplateFixedEntitySelectorDto:
+  type: object
+  additionalProperties: false
+  required:
+    - entityType
+  properties:
+    entityType:
+      type: string
+      enum:
+        - PROJECT
+        - DESIGN_DOC
+        - AGENT_SESSION
+  description: Selector for a non-Work-Item focal entity family.
+
+EntityPromptTemplateWorkItemSelectorDto:
+  type: object
+  additionalProperties: false
+  required:
+    - entityType
+    - workItemTypeKey
+  properties:
+    entityType:
+      type: string
+      enum:
+        - WORK_ITEM
+    workItemTypeKey:
+      $ref: "./work-item-type-definition.yaml#/WorkItemTypeKey"
+      description: >-
+        Authoritative persisted task.type value, including project-defined
+        Work Item types. Clients must not derive or normalize this key.
+  description: Selector for one authoritative Work Item type.
+
+EntityPromptTemplateSelectorDto:
+  oneOf:
+    - $ref: "#/EntityPromptTemplateFixedEntitySelectorDto"
+    - $ref: "#/EntityPromptTemplateWorkItemSelectorDto"
+  discriminator:
+    propertyName: entityType
+    mapping:
+      PROJECT: "#/EntityPromptTemplateFixedEntitySelectorDto"
+      DESIGN_DOC: "#/EntityPromptTemplateFixedEntitySelectorDto"
+      AGENT_SESSION: "#/EntityPromptTemplateFixedEntitySelectorDto"
+      WORK_ITEM: "#/EntityPromptTemplateWorkItemSelectorDto"
+  description: >-
+    Complete entity-specific selector for a prompt template. The selector is
+    shared by effective-template consumers and proposal-backed mutations so
+    clients do not maintain a separate string-key mapping.
+
+EntityPromptTemplateOwnershipScope:
+  type: string
+  enum:
+    - CANONICAL
+    - PROJECT
+  description: >-
+    Ownership scope of a template revision. CANONICAL identifies the
+    platform-published default; PROJECT identifies a revision owned by the
+    requested project.
+
+EntityPromptTemplateLifecycleState:
+  type: string
+  enum:
+    - DRAFT
+    - UNPUBLISHED
+    - PUBLISHED
+    - RETIRED
+  description: >-
+    Lifecycle state of a template revision. DRAFT and UNPUBLISHED revisions
+    are retained for management and review but are never eligible for an
+    effective read. RETIRED revisions remain readable in history only.
+
+EntityPromptTemplateValidationStatus:
+  type: string
+  enum:
+    - UNVALIDATED
+    - VALID
+    - INVALID
+  description: >-
+    Authoritative validation outcome persisted on a template revision.
+    UNVALIDATED is the initial state for a newly created draft; VALID and
+    INVALID are persisted outcomes of the saved-revision validation operation.
+
+EntityPromptTemplateValidationIssueDto:
+  type: object
+  additionalProperties: false
+  required:
+    - code
+    - path
+    - message
+  properties:
+    code:
+      type: string
+      minLength: 1
+      pattern: "^[A-Z][A-Z0-9_]*$"
+      description: Stable machine-readable code for this validation issue.
+    path:
+      type: string
+      minLength: 1
+      description: Field or content path or location that failed template validation.
+    message:
+      type: string
+      minLength: 1
+      description: User-facing explanation of the validation failure.
+  description: >-
+    One structured validation issue associated with a saved template revision.
+    The code is stable for programmatic handling, while path and message are
+    suitable for direct UI rendering.
+
+EntityPromptTemplateValidationMetadataDto:
+  type: object
+  additionalProperties: false
+  required:
+    - status
+    - issues
+  properties:
+    status:
+      $ref: "#/EntityPromptTemplateValidationStatus"
+    issues:
+      type: array
+      items:
+        $ref: "#/EntityPromptTemplateValidationIssueDto"
+      description: >-
+        Validation issues found for the revision. The array is empty when the
+        status is UNVALIDATED or VALID and contains structured issues when the
+        status is INVALID.
+    validatedAt:
+      type: string
+      format: date-time
+      description: Time at which the revision was validated.
+    validatorVersion:
+      type: string
+      minLength: 1
+      description: Version of the validator that produced this metadata.
+  description: Validation provenance retained with a template revision.
+
+EntityPromptTemplateValidValidationMetadataDto:
+  allOf:
+    - $ref: "#/EntityPromptTemplateValidationMetadataDto"
+    - type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - VALID
+  description: Validation metadata for a revision eligible for effective use.
+
+EntityPromptTemplateCanonicalOwnershipScopeDto:
+  type: object
+  additionalProperties: false
+  required:
+    - scope
+  properties:
+    scope:
+      type: string
+      enum:
+        - CANONICAL
+      description: The revision is owned by the platform canonical catalog.
+  description: Explicit canonical ownership provenance.
+
+EntityPromptTemplateProjectOwnershipScopeDto:
+  type: object
+  additionalProperties: false
+  required:
+    - scope
+    - projectId
+  properties:
+    scope:
+      type: string
+      enum:
+        - PROJECT
+      description: The revision is owned by a project.
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+      description: Project that owns the revision.
+  description: Explicit project ownership provenance.
+
+EntityPromptTemplateRevisionDto:
+  type: object
+  additionalProperties: false
+  required:
+    - templateKey
+    - selector
+    - syntaxVersion
+    - revisionId
+    - revisionNumber
+    - content
+    - ownershipScope
+    - lifecycleState
+    - validation
+  properties:
+    templateKey:
+      $ref: "#/EntityPromptTemplateKey"
+    selector:
+      $ref: "#/EntityPromptTemplateSelectorDto"
+    syntaxVersion:
+      $ref: "#/EntityPromptTemplateSyntaxVersion"
+    revisionId:
+      type: string
+      format: uuid
+      description: Immutable identity of this template revision.
+    revisionNumber:
+      type: integer
+      format: int64
+      minimum: 1
+      description: Monotonic immutable revision number for the template key and scope.
+    content:
+      type: string
+      minLength: 1
+      description: Immutable prompt-template content for this revision.
+    ownershipScope:
+      oneOf:
+        - $ref: "#/EntityPromptTemplateCanonicalOwnershipScopeDto"
+        - $ref: "#/EntityPromptTemplateProjectOwnershipScopeDto"
+      discriminator:
+        propertyName: scope
+      description: Explicit owner and scope of the revision.
+    lifecycleState:
+      $ref: "#/EntityPromptTemplateLifecycleState"
+    validation:
+      $ref: "#/EntityPromptTemplateValidationMetadataDto"
+      description: >-
+        Authoritative validation state persisted on this immutable revision.
+        Validation outcomes and issues are returned as revision data rather
+        than being converted into a transport error.
+    createdAt:
+      type: string
+      format: date-time
+      description: Time at which this immutable revision was created.
+    publishedAt:
+      type: string
+      format: date-time
+      description: Time at which this revision became published, when applicable.
+    retiredAt:
+      type: string
+      format: date-time
+      description: Time at which this revision was retired, when applicable.
+  description: >-
+    Immutable management representation of one canonical or project-owned
+    template revision. Revisions are never edited in place.
+
+EntityPromptTemplatePublishedCanonicalRevisionDto:
+  allOf:
+    - $ref: "#/EntityPromptTemplateRevisionDto"
+    - type: object
+      required:
+        - ownershipScope
+        - lifecycleState
+        - validation
+      properties:
+        ownershipScope:
+          $ref: "#/EntityPromptTemplateCanonicalOwnershipScopeDto"
+        lifecycleState:
+          type: string
+          enum:
+            - PUBLISHED
+        validation:
+          $ref: "#/EntityPromptTemplateValidValidationMetadataDto"
+  description: >-
+    The published, valid canonical default selected for a template key. This
+    shape cannot represent an unpublished, invalid, retired, or project-owned
+    revision.
+
+EntityPromptTemplateProjectRevisionDto:
+  allOf:
+    - $ref: "#/EntityPromptTemplateRevisionDto"
+    - type: object
+      required:
+        - ownershipScope
+      properties:
+        ownershipScope:
+          $ref: "#/EntityPromptTemplateProjectOwnershipScopeDto"
+  description: Project-owned revision retained in the project catalog.
+
+EntityPromptTemplateEffectiveDto:
+  type: object
+  additionalProperties: false
+  required:
+    - templateKey
+    - selector
+    - syntaxVersion
+    - content
+    - ownershipSource
+    - revisionId
+    - revisionNumber
+    - lifecycleState
+    - validationStatus
+    - publishedAt
+  properties:
+    templateKey:
+      $ref: "#/EntityPromptTemplateKey"
+    selector:
+      $ref: "#/EntityPromptTemplateSelectorDto"
+    syntaxVersion:
+      $ref: "#/EntityPromptTemplateSyntaxVersion"
+    content:
+      type: string
+      minLength: 1
+      description: >-
+        The single effective prompt-template content selected by the API.
+    ownershipSource:
+      oneOf:
+        - $ref: "#/EntityPromptTemplateCanonicalOwnershipScopeDto"
+        - $ref: "#/EntityPromptTemplateProjectOwnershipScopeDto"
+      discriminator:
+        propertyName: scope
+      description: >-
+        Required provenance identifying whether the effective content came
+        from the canonical default or the requested project's published
+        override.
+    revisionId:
+      type: string
+      format: uuid
+      description: Immutable identity of the revision that supplied the content.
+    revisionNumber:
+      type: integer
+      format: int64
+      minimum: 1
+      description: Immutable revision number that supplied the content.
+    lifecycleState:
+      type: string
+      enum:
+        - PUBLISHED
+      description: Effective reads return only published revisions.
+    validationStatus:
+      type: string
+      enum:
+        - VALID
+      description: Effective reads return only revisions that passed validation.
+    publishedAt:
+      type: string
+      format: date-time
+      description: Time at which the effective revision became published.
+  description: >-
+    Exactly one API-selected effective template. Content, ownership source,
+    and immutable revision provenance are required and are never fabricated or
+    returned as nullable fields.
+
+EntityPromptTemplateCatalogEntryDto:
+  type: object
+  additionalProperties: false
+  required:
+    - templateKey
+    - revisionHistory
+    - effective
+  properties:
+    templateKey:
+      $ref: "#/EntityPromptTemplateKey"
+    canonicalDefault:
+      $ref: "#/EntityPromptTemplatePublishedCanonicalRevisionDto"
+      description: >-
+        Published canonical revision for this exact key. Omitted for active
+        project-defined work-item selectors whose effective template is
+        necessarily project-owned.
+    projectOverride:
+      $ref: "#/EntityPromptTemplateProjectRevisionDto"
+      description: >-
+        Optional project-owned revision for this key. Management data may show
+        a draft, invalid, unpublished, or retired override even though the
+        effective result never selects it.
+    revisionHistory:
+      type: array
+      items:
+        $ref: "#/EntityPromptTemplateRevisionDto"
+      description: >-
+        All known revisions for this key, ordered from newest to oldest by
+        immutable revision number. Ineligible revisions remain visible here
+        for management and audit purposes.
+    effective:
+      $ref: "#/EntityPromptTemplateEffectiveDto"
+      description: API-selected effective result for this key.
+  description: >-
+    Project-visible catalog entry containing available canonical,
+    project-owned, history, lifecycle, validation, and effective-template
+    projections. Project-defined work-item keys do not fabricate a canonical
+    revision.
+
+EntityPromptTemplateCatalogDto:
+  type: object
+  additionalProperties: false
+  required:
+    - projectId
+    - language
+    - templates
+  properties:
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+      description: Project whose prompt-template settings were resolved.
+    language:
+      $ref: "#/EntityPromptTemplateLanguageDto"
+      description: Generated language catalog used to validate project overrides.
+    templates:
+      type: array
+      items:
+        $ref: "#/EntityPromptTemplateCatalogEntryDto"
+      description: Every supported entity prompt-template key in the catalog.
+  description: Project-visible entity prompt-template settings aggregate.

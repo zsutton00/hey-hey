@@ -1,0 +1,362 @@
+{
+  "common": {
+    "thinking": "Pensando...",
+    "processing": "Procesando tu respuesta...",
+    "loading": "Cargando...",
+    "analyzing": "Analizando tu solicitud...",
+    "error": "Error",
+    "success": "Éxito",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "create": "Crear",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "submit": "Enviar",
+    "refresh": "Actualizar",
+    "search": "Buscar",
+    "yes": "Sí",
+    "no": "No"
+  },
+  "navigation": {
+    "home": "Inicio",
+    "contact": "Contacto",
+    "projects": "Proyectos",
+    "initiatives": "Iniciativas",
+    "artifacts": "Artefactos",
+    "integrations": "Integraciones",
+    "myProjects": "Mis Proyectos",
+    "welcome": "Bienvenido, {{name}}",
+    "settings": "Configuración"
+  },
+  "projects": {
+    "title": "Proyectos",
+    "create": "Nuevo Proyecto",
+    "edit": "Editar Proyecto",
+    "delete": "Eliminar Proyecto",
+    "noProjects": "No se encontraron proyectos",
+    "createFirst": "Crea tu primer proyecto para comenzar"
+  },
+  "initiatives": {
+    "title": "Iniciativas",
+    "subtitle": "Gestiona las iniciativas de tu organización y rastrea su progreso",
+    "create": "Nueva Iniciativa",
+    "edit": "Editar Iniciativa",
+    "viewTasks": "Ver Tareas",
+    "noInitiatives": "No se encontraron iniciativas",
+    "createFirst": "Crea tu primera iniciativa para comenzar",
+    "form": {
+      "title": "Título",
+      "description": "Descripción",
+      "status": "Estado",
+      "priority": "Prioridad",
+      "tags": "Etiquetas"
+    },
+    "status": {
+      "planning": "Planificación",
+      "active": "Activo",
+      "onHold": "En Espera",
+      "completed": "Completado",
+      "cancelled": "Cancelado"
+    },
+    "priority": {
+      "low": "Baja",
+      "medium": "Media",
+      "high": "Alta"
+    }
+  },
+  "tasks": {
+    "title": "Tareas",
+    "subtitle": "Gestionando tareas para: {{initiativeTitle}}",
+    "create": "Nueva Tarea",
+    "edit": "Editar Tarea",
+    "delete": "Eliminar Tarea",
+    "deleteConfirm": "¿Estás seguro de que quieres eliminar la tarea \"{{title}}\"? Esta acción no se puede deshacer.",
+    "noTasks": "No se encontraron tareas",
+    "createFirst": "Crea tu primera tarea para comenzar",
+    "form": {
+      "title": "Título",
+      "description": "Descripción",
+      "status": "Estado",
+      "type": "Tipo",
+      "priority": "Prioridad"
+    },
+    "status": {
+      "todo": "Por Hacer",
+      "inProgress": "En Progreso",
+      "done": "Terminado",
+      "blocked": "Bloqueado"
+    },
+    "type": {
+      "task": "Tarea",
+      "bug": "Error",
+      "feature": "Funcionalidad",
+      "improvement": "Mejora"
+    }
+  },
+  "artifacts": {
+    "title": "Artefactos",
+    "subtitle": "Navega y busca a través de artefactos almacenados ({{count}} total)",
+    "search": "Buscar artefactos",
+    "noArtifacts": "No se encontraron artefactos",
+    "adjustSearch": "Intenta ajustar tus términos de búsqueda",
+    "noArtifactsYet": "Aún no se han creado artefactos",
+    "filters": {
+      "type": "Tipo",
+      "status": "Estado",
+      "category": "Categoría",
+      "allTypes": "Todos los Tipos",
+      "allStatuses": "Todos los Estados"
+    },
+    "types": {
+      "qaPair": "Par P&R",
+      "document": "Documento",
+      "codeSnippet": "Fragmento de Código",
+      "conversationSummary": "Resumen de Conversación",
+      "projectInsight": "Perspectiva del Proyecto"
+    },
+    "status": {
+      "active": "Activo",
+      "archived": "Archivado",
+      "draft": "Borrador"
+    },
+    "metadata": {
+      "source": "Fuente: {{sourceType}}",
+      "public": "Público: {{isPublic}}"
+    }
+  },
+  "integrations": {
+    "title": "Integraciones",
+    "loadingIntegrations": "Cargando integraciones...",
+    "allConfigured": "Todas las integraciones disponibles han sido configuradas.",
+    "noIntegrations": "No hay integraciones disponibles en este momento.",
+    "addNew": "Agregar Nueva Integración",
+    "dialog": {
+      "add": "Agregar",
+      "edit": "Editar",
+      "createIntegration": "Crear Integración",
+      "updateIntegration": "Actualizar Integración",
+      "selectType": "Seleccionar Tipo de Integración",
+      "integrationType": "Tipo de Integración",
+      "chooseService": "Elige el servicio a integrar",
+      "cannotBeChanged": "(no se puede cambiar)",
+      "integrationTypes": {
+        "github": "GitHub",
+        "jira": "Jira"
+      },
+      "placeholders": {
+        "githubRepo": "Mi Repositorio de GitHub",
+        "jiraProject": "Mi Proyecto de Jira"
+      }
+    },
+    "github": {
+      "configuration": "Configuración de GitHub",
+      "personalAccessToken": "Token de Acceso Personal de GitHub",
+      "tokenHelp": "Tu PAT necesita estos ámbitos: repo (para repos privados) y admin:org_hook (para webhooks de organización).",
+      "createToken": "Crear un nuevo token",
+      "targetType": "Tipo de Objetivo",
+      "singleRepository": "Repositorio Individual",
+      "entireOrganization": "Toda la Organización",
+      "repositoryUrl": "URL del Repositorio",
+      "repositoryUrlPlaceholder": "https://github.com/owner/repository",
+      "repositoryUrlHelp": "URL completa del repositorio de GitHub. Si está en blanco, la integración se creará para todos los repositorios del usuario.",
+      "organizationName": "Nombre de la Organización",
+      "organizationNamePlaceholder": "mi-org",
+      "organizationNameHelp": "Nombre de la organización de GitHub (no la URL completa)"
+    },
+    "jira": {
+      "configuration": "Configuración de Jira",
+      "instanceType": "Tipo de Instancia",
+      "jiraCloud": "Jira Cloud",
+      "jiraServerDataCenter": "Jira Server/Data Center",
+      "jiraCloudUrl": "URL de Jira Cloud",
+      "jiraServerUrl": "URL de Jira Server",
+      "jiraCloudUrlPlaceholder": "https://tu-dominio.atlassian.net",
+      "jiraServerUrlPlaceholder": "https://tu-servidor-jira.com",
+      "jiraCloudUrlHelp": "URL de tu instancia de Atlassian Cloud",
+      "jiraServerUrlHelp": "URL de tu servidor Jira local",
+      "emailAddress": "Dirección de Email",
+      "emailPlaceholder": "tu-email@empresa.com",
+      "emailHelp": "La dirección de email asociada con tu cuenta de Jira",
+      "apiToken": "Token API",
+      "passwordApiToken": "Contraseña/Token API",
+      "apiTokenHelp": "Crea un token API en tu Configuración de Cuenta de Atlassian",
+      "serverPasswordHelp": "Tu contraseña de Jira o token API (recomendado)",
+      "projectKey": "Clave del Proyecto (Opcional)",
+      "projectKeyPlaceholder": "PROJ",
+      "projectKeyHelp": "Especifica una clave de proyecto para limitar la integración a un proyecto específico, o déjalo en blanco para todos los proyectos",
+      "serverAlert": "Para instancias de Jira Server/Data Center, asegúrate de que tu servidor sea accesible desde nuestro servicio y que tengas los permisos necesarios para crear y gestionar issues."
+    },
+    "forms": {
+      "name": "Nombre",
+      "description": "Descripción",
+      "testConnection": "Probar Conexión",
+      "testingConnection": "Probando Conexión...",
+      "fillRequiredFields": "Por favor completa todos los campos requeridos primero.",
+      "orgIdNotAvailable": "ID de organización no disponible. Por favor actualiza e intenta de nuevo.",
+      "connectionTestSuccess": "¡Prueba de conexión exitosa!",
+      "connectionTestFailed": "Prueba de conexión falló",
+      "connectionNotImplemented": "La prueba de conexión no está implementada para {{type}} aún.",
+      "noHelpAvailable": "No hay ayuda disponible para este tipo de integración."
+    }
+  },
+  "onboarding": {
+    "title": "Incorporación",
+    "subtitle": "Nuestra IA te ayudará a desglosar tu proyecto en pasos accionables",
+    "loadingInitiative": "Cargando iniciativa..."
+  },
+  "auth": {
+    "login": "Iniciar Sesión",
+    "logout": "Cerrar Sesión",
+    "welcome": "¡Bienvenido de vuelta!",
+    "signIn": "Registrarse"
+  },
+  "forms": {
+    "required": "Este campo es obligatorio",
+    "invalidEmail": "Por favor ingresa un email válido",
+    "passwordTooShort": "La contraseña debe tener al menos 8 caracteres",
+    "passwordMismatch": "Las contraseñas no coinciden"
+  },
+  "alerts": {
+    "deleteSuccess": "Eliminado exitosamente",
+    "createSuccess": "Creado exitosamente",
+    "updateSuccess": "Actualizado exitosamente",
+    "saveSuccess": "Guardado exitosamente",
+    "errorOccurred": "Ocurrió un error",
+    "tryAgain": "Por favor intenta de nuevo"
+  },
+  "workflow": {
+    "templates": {
+      "title": "Plantillas de flujo de trabajo",
+      "searchPlaceholder": "Buscar plantillas...",
+      "sortBy": "Ordenar por",
+      "order": "Orden",
+      "filters": "Filtros",
+      "activeFilters": "Filtros activos",
+      "filterByStatus": "Filtrar por estado",
+      "noResults": "No se encontraron flujos de trabajo",
+      "tryAdjustingFilters": "Intenta ajustar tus filtros"
+    },
+    "fields": {
+      "name": "Nombre",
+      "created": "Creado",
+      "updated": "Actualizado",
+      "executions": "Ejecuciones",
+      "search": "Buscar",
+      "nodes": "Nodos",
+      "lastExecuted": "Última ejecución"
+    },
+    "sort": {
+      "ascending": "Ascendente",
+      "descending": "Descendente"
+    },
+    "diagram": {
+      "noNodes": "No se encontraron nodos de flujo de trabajo",
+      "simulationMode": "Modo simulación",
+      "loadingStructure": "Cargando estructura del flujo de trabajo..."
+    },
+    "status": {
+      "current": "Actual"
+    },
+    "node": {
+      "hasConfiguration": "Tiene configuración"
+    },
+    "errors": {
+      "loadTemplate": "Error al cargar plantilla de flujo de trabajo: {{error}}",
+      "loadTemplates": "Error al cargar plantillas de flujo de trabajo: {{error}}"
+    },
+    "actions": {
+      "back": "Atrás",
+      "refresh": "Actualizar",
+      "execute": "Ejecutar",
+      "simulate": "Simular",
+      "edit": "Editar",
+      "share": "Compartir",
+      "export": "Exportar",
+      "clearFilters": "Limpiar filtros",
+      "view": "Ver",
+      "details": "Detalles"
+    },
+    "tabs": {
+      "overview": "Resumen",
+      "diagram": "Diagrama",
+      "simulation": "Simulación",
+      "executions": "Ejecuciones",
+      "analytics": "Analíticas",
+      "raw": "Crudo"
+    },
+    "simulation": {
+      "loadingStructure": "Cargando estructura del flujo de trabajo..."
+    },
+    "never": "Nunca"
+  },
+  "conversation": {
+    "suggestedAction": {
+      "generated": "Generado",
+      "rejected": "Rechazado"
+    }
+  },
+  "triage": {
+    "open": "Organizar elementos abiertos",
+    "title": "Organizar elementos abiertos",
+    "runAgain": "Ejecutar de nuevo",
+    "apply": "Aplicar",
+    "applyAll": "Aplicar seleccionados",
+    "retry": "Reintentar trabajo pendiente",
+    "select": "Seleccionar sugerencia",
+    "unavailable": "Las sugerencias no están disponibles.",
+    "sessionError": "No se puede abrir la sesión.",
+    "conversationError": "La conversación no está disponible.",
+    "sessionCouldNotOpen": "No se pudo abrir la sesión",
+    "opening": "Abriendo la organización…",
+    "close": "Cerrar organización",
+    "applyWithConfirmation": "Aplicar…",
+    "applyNote": "Cada sugerencia se aplica de forma independiente. La conversión te pide confirmar su nombre y una fecha opcional.",
+    "kind": {
+      "removeOpenItems": "Quitar de elementos abiertos",
+      "reopenItems": "Reabrir en elementos abiertos",
+      "groupOpenItems": "Agrupar elementos abiertos",
+      "trackOnGoal": "Vincular a un objetivo",
+      "promoteGroupToGoal": "Convertir grupo en objetivo"
+    },
+    "state": {
+      "pending": "Aplicando…",
+      "success": "Aplicado",
+      "failure": "No se pudo aplicar parte del trabajo",
+      "cancelled": "Conversión cancelada"
+    },
+    "evidence": {
+      "attention": "Atención",
+      "edge": "Relación",
+      "sourceConversation": "Conversación de origen",
+      "coAttention": "Vistos juntos",
+      "title": "Título"
+    },
+    "createdGoal": "Objetivo creado",
+    "createdGroup": "Grupo creado",
+    "recoverPromotion": "Recuperar conversión",
+    "recoverMissingGroup": "Este grupo ya no está disponible. Confirma para recuperar el intento anterior.",
+    "waitingCollection": "Los elementos abiertos deben terminar de cargarse antes de aplicar sugerencias.",
+    "help": {
+      "lead": "Ejecuta un agente para ordenar tus elementos abiertos.",
+      "removes": "Quita los elementos que ya no necesitas",
+      "groups": "Agrupa los elementos relacionados",
+      "tracks": "Sigue el trabajo en curso en un objetivo"
+    },
+    "run": "Ejecutar",
+    "discard": {
+      "message": "Cerrar la organización descartará estos resultados. No podrás volver a ellos. Los cambios que ya aplicaste se mantendrán.",
+      "keep": "Seguir revisando",
+      "confirm": "Descartar y cerrar"
+    },
+    "cancel": {
+      "message": "La organización sigue en curso. Cerrar cancelará esta ejecución y no podrás volver a ella. Los cambios que ya aplicaste se mantendrán.",
+      "keep": "Seguir ejecutando",
+      "confirm": "Cancelar y cerrar",
+      "stopping": "Cancelando la ejecución…",
+      "failed": "No se pudo cancelar la ejecución",
+      "retry": "Reintentar"
+    }
+  }
+}

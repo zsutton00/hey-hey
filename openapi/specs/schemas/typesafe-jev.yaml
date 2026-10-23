@@ -1,0 +1,140 @@
+JevEntry:
+  nullable: true
+  oneOf:
+    - type: string
+      nullable: true
+    - type: object
+      nullable: true
+      additionalProperties: true
+    - type: array
+      nullable: true
+      items: {}
+  description: Text, a JSON object or array, or null passed to Jev as state, instructions, or a criterion description.
+
+JevChoiceEvaluationRequestDto:
+  type: object
+  additionalProperties: false
+  required:
+    - state
+    - question
+    - criteria
+  properties:
+    state:
+      $ref: "#/JevEntry"
+      description: State supplied to the Jev evaluator.
+    question:
+      $ref: "#/JevEntry"
+      description: Choice question instructions supplied to the Jev evaluator.
+    criteria:
+      type: object
+      additionalProperties:
+        $ref: "#/JevEntry"
+      description: Named candidate labels and their descriptions.
+  description: Inputs for one server-side TypeSafe Jev choice evaluation.
+
+JevChoiceEvaluationAnswerDto:
+  type: object
+  additionalProperties: false
+  required:
+    - choice
+    - confidence
+    - probabilities
+  properties:
+    choice:
+      type: string
+      description: Label selected by the evaluator.
+    confidence:
+      type: number
+      format: float
+      description: Confidence reported for the selected label.
+    probabilities:
+      type: object
+      additionalProperties:
+        type: number
+        format: float
+      description: Probability reported for each candidate label.
+  description: Typed answer returned by a Jev choice evaluation.
+
+JevChoiceEvaluationUsageDto:
+  type: object
+  additionalProperties: false
+  required:
+    - inputTokens
+    - outputTokens
+  properties:
+    inputTokens:
+      type: integer
+      description: Number of input tokens consumed by the provider.
+    outputTokens:
+      type: integer
+      description: Number of output tokens consumed by the provider.
+  description: Provider usage metadata for a successful Jev evaluation.
+
+JevChoiceEvaluationSuccessDto:
+  type: object
+  additionalProperties: false
+  required:
+    - ok
+    - answer
+    - model
+    - usage
+  properties:
+    ok:
+      type: boolean
+      enum: [true]
+      description: Discriminator for a successful evaluation.
+    answer:
+      $ref: "#/JevChoiceEvaluationAnswerDto"
+    model:
+      type: string
+      description: Provider model that produced the answer.
+    usage:
+      $ref: "#/JevChoiceEvaluationUsageDto"
+  description: Successful Jev choice evaluation result.
+
+JevChoiceEvaluationFailureDto:
+  type: object
+  additionalProperties: false
+  required:
+    - code
+    - message
+  properties:
+    code:
+      type: string
+      enum:
+        - MISSING_API_KEY
+        - PROVIDER_ERROR
+      description: Bounded failure category safe for API clients.
+    message:
+      type: string
+      description: Safe failure message that does not contain provider response details.
+    status:
+      type: integer
+      description: Optional provider HTTP status code.
+  description: Bounded provider failure details for a Jev evaluation.
+
+JevChoiceEvaluationFailureResponseDto:
+  type: object
+  additionalProperties: false
+  required:
+    - ok
+    - failure
+  properties:
+    ok:
+      type: boolean
+      enum: [false]
+      description: Discriminator for a failed evaluation.
+    failure:
+      $ref: "#/JevChoiceEvaluationFailureDto"
+  description: Failed Jev choice evaluation result.
+
+JevChoiceEvaluationResponseDto:
+  oneOf:
+    - $ref: "#/JevChoiceEvaluationSuccessDto"
+    - $ref: "#/JevChoiceEvaluationFailureResponseDto"
+  discriminator:
+    propertyName: ok
+    mapping:
+      "true": "#/JevChoiceEvaluationSuccessDto"
+      "false": "#/JevChoiceEvaluationFailureResponseDto"
+  description: Discriminated result of one server-side TypeSafe Jev choice evaluation.

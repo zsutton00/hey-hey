@@ -1,0 +1,4216 @@
+---
+openapi: 3.0.3
+info:
+  title: Hey Hey Message Domain Events
+  version: 0.1.0
+  description:
+    Portable contracts for message domain events emitted by the Hey Hey
+    API.
+paths: {}
+components:
+  schemas:
+    PayloadType:
+      type: string
+      description: Discriminator for event payload types
+      enum:
+        - agent.complete
+        - agent.error
+        - agent.progress
+        - agent.request
+        - artifact.archived
+        - artifact.created
+        - artifact.deleted
+        - artifact.embedding_generated
+        - artifact.generation_requested
+        - artifact.restored
+        - artifact.updated
+        - implementation_hint.created
+        - implementation_hint.deleted
+        - implementation_hint.updated
+        - agent_session.created
+        - agent_session.deleted
+        - agent_session.status_changed
+        - service.created
+        - service.updated
+        - service.archived
+        - conversation.created
+        - conversation.deleted
+        - conversation.status_changed
+        - conversation.updated
+        - design_doc.archived
+        - design_doc.created
+        - design_doc.restored
+        - design_doc.updated
+        - design_doc.status_changed
+        - design_doc.content_changed
+        - flow_node.complete
+        - flow_node.start
+        - initiative.archived
+        - initiative.created
+        - initiative.project_linked
+        - initiative.project_unlinked
+        - initiative.status_changed
+        - initiative.updated
+        - initiative.content_changed
+        - llm.complete
+        - llm.progress
+        - llm.request
+        - message.created
+        - message.deleted
+        - message.updated
+        - message.realtime
+        - mention.created
+        - mention.removed
+        - message_processor.error
+        - non_interactive_flow_node.complete
+        - non_interactive_flow_node.error
+        - non_interactive_flow_node.start
+        - organization.closed
+        - project.created
+        - project.deleted
+        - project.status_changed
+        - project.updated
+        - report.created
+        - queue.job
+        - queue.llm_analysis
+        - queue.llm_initiative_creation
+        - summary.created
+        - summary.deleted
+        - summary.updated
+        - subfacet.created
+        - subfacet.deprecated
+        - system
+        - task.archived
+        - task.assigned
+        - task.created
+        - task.status_changed
+        - task.unassigned
+        - task.updated
+        - task.content_changed
+        - proposal.approved
+        - proposal_group.lifecycle
+        - eval_run.updated
+        - eval_attempt.updated
+        - github.webhook.accepted
+        - help.content_changed
+
+    MessageEventContract:
+      description: Union of all message event envelopes.
+      oneOf:
+        - "$ref": "#/components/schemas/MessageCreatedEvent"
+        - "$ref": "#/components/schemas/MessageUpdatedEvent"
+        - "$ref": "#/components/schemas/MessageRealtimeEvent"
+        - "$ref": "#/components/schemas/MessageDeletedEvent"
+    MessageEvents:
+      $ref: "#/components/schemas/MessageEventContract"
+    MessageEventEnvelope:
+      type: object
+      description: Base shape shared by every message event.
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this event.
+        type:
+          type: string
+          description: Discriminator for the concrete event type.
+        aggregateId:
+          "$ref": "./common.yaml#/MessageId"
+        payload:
+          type: object
+          description:
+            Event-specific payload that always includes the shared execution
+            context.
+      additionalProperties: false
+    MessageCreatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - message
+          properties:
+            message:
+              "$ref": "#/components/schemas/MessageCreatedMessage"
+            messageDataType:
+              type: string
+              description: Elevated type discriminator from message.data.type (e.g. QUESTIONS, ANALYSIS, CONTROL).
+            completesExternalAgentNode:
+              "$ref": "./conversations.yaml#/ExternalAgentNodeCompletion"
+              description: |
+                Elevated routing envelope from message.data.completesExternalAgentNode.
+                Present iff this SYSTEM message closes an EXTERNAL_AGENT node;
+                the MessageProcessor routes on this to re-enter workflow signaling.
+            triggersAgent:
+              "$ref": "./conversations.yaml#/AgentTrigger"
+              description: |
+                Elevated routing envelope from message.data.triggersAgent.
+                Present iff this message is a trigger the CLI should dispatch.
+                Carried at the payload root so trigger consumers route off the
+                wire without unpacking the dropped data blob.
+            triggerNotification:
+              type: boolean
+              description: |
+                Elevated routing flag from message.data.triggerNotification.
+                Gates the SYSTEM_MESSAGE notification pipeline at the wire root
+                so the consumer can decide whether to fire without unpacking
+                the dropped data blob.
+            mentions:
+              type: array
+              description: Validated entity mentions extracted from the message content.
+              items:
+                "$ref": "#/components/schemas/MessageMention"
+            sequenceNumber:
+              type: integer
+              format: int64
+              description: Ordering key for messages within a conversation.
+          additionalProperties: false
+    MessageCreatedMessage:
+      allOf:
+        - "$ref": "./conversations.yaml#/CreateMessageDto"
+        - type: object
+          required: [shouldProcess]
+          properties:
+            userMessage:
+              type: string
+            shouldProcess:
+              type: boolean
+      discriminator:
+        propertyName: type
+        mapping:
+          SYSTEM: "#/components/schemas/MessageCreatedSystemMessage"
+          USER: "#/components/schemas/MessageCreatedUserMessage"
+    MessageCreatedParentMessage:
+      type: object
+      required:
+        - id
+        - content
+      properties:
+        id:
+          "$ref": "./common.yaml#/MessageId"
+        content:
+          type: string
+      additionalProperties: false
+    MessageCreatedSystemMessage:
+      allOf:
+        - "$ref": "#/components/schemas/MessageCreatedMessage"
+        - type: object
+          x-discriminator-value: SYSTEM
+    MessageCreatedUserMessage:
+      allOf:
+        - "$ref": "#/components/schemas/MessageCreatedMessage"
+        - type: object
+          properties:
+            parentMessage:
+              "$ref": "#/components/schemas/MessageCreatedParentMessage"
+              nullable: true
+          x-discriminator-value: USER
+    MessageCreatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/MessageEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - message.created
+            payload:
+              "$ref": "#/components/schemas/MessageCreatedEventPayload"
+    MessageUpdatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - update
+          properties:
+            update:
+              type: object
+              required: [shouldProcess, contentChanged]
+              properties:
+                contentChanged:
+                  type: boolean
+                status:
+                  "$ref": "./conversations.yaml#/MessageStatus"
+                parentMessageId:
+                  "$ref": "./common.yaml#/MessageId"
+                  description: Optional new parent message ID (used when rewiring thread order)
+                systemMessage:
+                  type: string
+                shouldProcess:
+                  type: boolean
+            messageDataType:
+              type: string
+              description: Elevated type discriminator from update.data.type when present.
+            completesExternalAgentNode:
+              "$ref": "./conversations.yaml#/ExternalAgentNodeCompletion"
+              description: Elevated routing envelope from update.data.completesExternalAgentNode when present.
+            triggersAgent:
+              "$ref": "./conversations.yaml#/AgentTrigger"
+              description: Elevated routing envelope from update.data.triggersAgent when present.
+          additionalProperties: false
+    MessageUpdatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/MessageEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - message.updated
+            payload:
+              "$ref": "#/components/schemas/MessageUpdatedEventPayload"
+    MessageRealtimeKind:
+      type: string
+      enum:
+        - response.delta
+        - response.replace
+        - loading.update
+        - tool.progress
+        - run.status
+        - run.error
+    MessageRealtimePayload:
+      type: object
+      additionalProperties: false
+      properties:
+        responseDelta:
+          type: string
+        response:
+          type: string
+        loadingText:
+          type: string
+        currentStep:
+          type: string
+        progress:
+          type: number
+        status:
+          type: string
+        toolName:
+          type: string
+        toolPhase:
+          type: string
+        error:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+    MessageRealtimeEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - conversationId
+            - messageId
+            - requestId
+            - projectId
+            - sequence
+            - kind
+            - source
+            - timestamp
+          properties:
+            conversationId:
+              "$ref": "./common.yaml#/ConversationId"
+            messageId:
+              "$ref": "./common.yaml#/MessageId"
+            requestId:
+              "$ref": "./common.yaml#/RequestId"
+            sequence:
+              type: integer
+              format: int64
+              minimum: 0
+            kind:
+              "$ref": "#/components/schemas/MessageRealtimeKind"
+            source:
+              type: string
+            timestamp:
+              type: string
+              format: date-time
+            payload:
+              "$ref": "#/components/schemas/MessageRealtimePayload"
+          additionalProperties: false
+    MessageRealtimeEvent:
+      allOf:
+        - "$ref": "#/components/schemas/MessageEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - message.realtime
+            payload:
+              "$ref": "#/components/schemas/MessageRealtimeEventPayload"
+    MessageDeletedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - deletedBy
+          properties:
+            deletedBy:
+              type: string
+              description: Identifier for the actor that removed the message.
+          additionalProperties: false
+    MessageDeletedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/MessageEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - message.deleted
+            payload:
+              "$ref": "#/components/schemas/MessageDeletedEventPayload"
+    MessageMention:
+      type: object
+      description: Entity reference parsed from a message mention token.
+      required:
+        - entityId
+        - entityType
+      properties:
+        entityId:
+          type: string
+          description: Identifier of the mentioned entity.
+        entityType:
+          description: Domain entity type encoded in the mention token (matches Prisma EntityType enum).
+          $ref: "./common.yaml#/EntityType"
+      additionalProperties: false
+    MentionEventContract:
+      description: Union of all mention event envelopes.
+      oneOf:
+        - "$ref": "#/components/schemas/MentionCreatedEvent"
+        - "$ref": "#/components/schemas/MentionRemovedEvent"
+    MentionEvents:
+      $ref: "#/components/schemas/MentionEventContract"
+    MentionEventEnvelope:
+      type: object
+      description: Base shape shared by every mention event.
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this event.
+        type:
+          type: string
+          description: Discriminator for the concrete event type.
+        aggregateId:
+          type: string
+          description: Unique identifier for the mention.
+        payload:
+          type: object
+          description:
+            Event-specific payload that always includes the shared execution
+            context.
+      additionalProperties: false
+    MentionCreatedEventPayload:
+      description:
+        Emitted when a mention is added to an entity body or message.
+        Producer contract — mention.created and mention.removed are
+        always derived from an explicit prior-vs-new diff of the
+        mentions persisted on the source entity. Producers MUST
+        snapshot prior mentions before mutation, compute the new set
+        after mutation, and emit one mention.created per added entityId
+        alongside one mention.removed per removed entityId. Removals
+        are NEVER inferred from the absence of a mention.created — a
+        subscriber cannot distinguish "no event arrived yet" from
+        "mention was dropped" without an explicit removal.
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - sourceEntityId
+            - sourceEntityType
+            - entityId
+            - entityType
+          properties:
+            sourceEntityId:
+              type: string
+              description:
+                Identifier of the entity whose body or content carries the
+                mention. For message mentions this is the messageId; for
+                task or design-doc body mentions this is the task or
+                design-doc id.
+            sourceEntityType:
+              type: string
+              description: Domain entity type of sourceEntityId.
+              enum:
+                - MESSAGE
+                - TASK
+                - DESIGN_DOC
+            messageId:
+              $ref: "./common.yaml#/MessageId"
+              description:
+                Optional. Set when the mention was carried by a message.
+                Omitted for entity-body mentions emitted from proposal
+                enactment.
+            conversationId:
+              $ref: "./common.yaml#/ConversationId"
+              description:
+                Optional. Set when the mention emission has a conversation
+                context (e.g. a message or a proposal enacted via an
+                in-conversation approval).
+            workflowAboutId:
+              type: string
+              description:
+                Optional. Entity ID that the conversation is primarily
+                about. Set only when conversationId is set.
+            workflowAboutType:
+              type: string
+              description: Type of entity that workflowAboutId refers to.
+            entityId:
+              type: string
+              description: Identifier of the mentioned entity.
+            entityType:
+              type: string
+              description: Domain entity type encoded in the mention token.
+              enum:
+                - ARTIFACT
+                - INITIATIVE
+                - PROJECT
+                - TASK
+                - MESSAGE
+                - CONVERSATION
+                - DESIGN_DOC
+                - AGENT_SESSION
+                - SERVICE
+                - AGENT_SESSION
+          additionalProperties: false
+    MentionCreatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/MentionEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - mention.created
+            payload:
+              "$ref": "#/components/schemas/MentionCreatedEventPayload"
+    MentionRemovedEventPayload:
+      description:
+        Emitted when a mention previously persisted on an entity body has
+        been removed (e.g. by an edit-task or edit-design-doc proposal that
+        dropped the mention token). Mirrors the shape of MentionCreatedEventPayload
+        so the same source attribution and target identifiers are available
+        for the consumer to prune the corresponding edge. See
+        MentionCreatedEventPayload for the prior-vs-new diff contract that
+        producers MUST follow — removals are never inferred from absence
+        of a mention.created.
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - sourceEntityId
+            - sourceEntityType
+            - entityId
+            - entityType
+          properties:
+            sourceEntityId:
+              type: string
+              description:
+                Identifier of the entity whose body or content previously
+                carried the mention.
+            sourceEntityType:
+              type: string
+              description: Domain entity type of sourceEntityId.
+              enum:
+                - MESSAGE
+                - TASK
+                - DESIGN_DOC
+            conversationId:
+              $ref: "./common.yaml#/ConversationId"
+              description:
+                Optional. Set when the removal has a conversation context.
+            entityId:
+              type: string
+              description: Identifier of the previously-mentioned entity.
+            entityType:
+              type: string
+              description: Domain entity type encoded in the original mention token.
+              enum:
+                - ARTIFACT
+                - INITIATIVE
+                - PROJECT
+                - TASK
+                - MESSAGE
+                - CONVERSATION
+                - DESIGN_DOC
+                - AGENT_SESSION
+                - SERVICE
+                - AGENT_SESSION
+          additionalProperties: false
+    MentionRemovedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/MentionEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - mention.removed
+            payload:
+              "$ref": "#/components/schemas/MentionRemovedEventPayload"
+    InitiativeEvents:
+      description: Union of all initiative event envelopes.
+      oneOf:
+        - "$ref": "#/components/schemas/InitiativeCreatedEvent"
+        - "$ref": "#/components/schemas/InitiativeUpdatedEvent"
+        - "$ref": "#/components/schemas/InitiativeContentChangedEvent"
+        - "$ref": "#/components/schemas/InitiativeStatusChangedEvent"
+        - "$ref": "#/components/schemas/InitiativeArchivedEvent"
+        - "$ref": "#/components/schemas/InitiativeProjectLinkedEvent"
+        - "$ref": "#/components/schemas/InitiativeProjectUnlinkedEvent"
+    InitiativeEventEnvelope:
+      type: object
+      description: Base shape shared by every initiative event.
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this event.
+        type:
+          type: string
+          description: Discriminator for the concrete event type.
+        aggregateId:
+          "$ref": "./common.yaml#/InitiativeId"
+        payload:
+          type: object
+          description: Event-specific payload that always includes the shared execution context.
+      additionalProperties: false
+    InitiativeCreatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - initiative
+          properties:
+            initiative:
+              "$ref": "#/components/schemas/InitiativeEventSnapshot"
+          additionalProperties: false
+    InitiativeCreatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/InitiativeEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - initiative.created
+            payload:
+              "$ref": "#/components/schemas/InitiativeCreatedEventPayload"
+    InitiativeUpdatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - update
+            - projectId
+          properties:
+            update:
+              "$ref": "#/components/schemas/InitiativeEventUpdateSnapshot"
+            projectId:
+              "$ref": "./common.yaml#/ProjectId"
+              description: Active project that triggered the update. Falls back to originatingProjectId if no request context.
+            linkedProjectIds:
+              type: array
+              items:
+                "$ref": "./common.yaml#/ProjectId"
+              description: All projects currently linked to the initiative.
+            originatingProjectId:
+              "$ref": "./common.yaml#/ProjectId"
+              nullable: true
+              description: Canonical project captured at initiative creation.
+            changes:
+              type: array
+              items:
+                "$ref": "./initiatives.yaml#/FieldChangeDto"
+            changedBy:
+              "$ref": "./initiatives.yaml#/ChangedByDto"
+            totalFieldsChanged:
+              type: integer
+              minimum: 0
+            changeMetadata:
+              "$ref": "#/components/schemas/InitiativeChangeMetadata"
+          additionalProperties: false
+    InitiativeUpdatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/InitiativeEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - initiative.updated
+            payload:
+              "$ref": "#/components/schemas/InitiativeUpdatedEventPayload"
+    InitiativeContentChangedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - content
+            - projectId
+          properties:
+            content:
+              "$ref": "#/components/schemas/InitiativeEventContentSnapshot"
+            projectId:
+              "$ref": "./common.yaml#/ProjectId"
+              description: Active project that triggered the content change. Falls back to originatingProjectId if no request context.
+            linkedProjectIds:
+              type: array
+              items:
+                "$ref": "./common.yaml#/ProjectId"
+              description: All projects currently linked to the initiative.
+            originatingProjectId:
+              "$ref": "./common.yaml#/ProjectId"
+              nullable: true
+              description: Canonical project captured at initiative creation.
+          additionalProperties: false
+    InitiativeContentChangedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/InitiativeEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - initiative.content_changed
+            payload:
+              "$ref": "#/components/schemas/InitiativeContentChangedEventPayload"
+    InitiativeStatusChangedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - previousStatus
+            - newStatus
+          properties:
+            previousStatus:
+              "$ref": "./common.yaml#/WorkStatus"
+            newStatus:
+              "$ref": "./common.yaml#/WorkStatus"
+            originatingProjectId:
+              "$ref": "./common.yaml#/ProjectId"
+              nullable: true
+          additionalProperties: false
+    InitiativeStatusChangedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/InitiativeEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - initiative.status_changed
+            payload:
+              "$ref": "#/components/schemas/InitiativeStatusChangedEventPayload"
+    InitiativeArchivedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - archivedAt
+          properties:
+            archivedAt:
+              type: string
+              format: date-time
+          additionalProperties: false
+    InitiativeArchivedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/InitiativeEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - initiative.archived
+            payload:
+              "$ref": "#/components/schemas/InitiativeArchivedEventPayload"
+    InitiativeProjectLinkedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - projectId
+          properties:
+            projectId:
+              "$ref": "./common.yaml#/ProjectId"
+            role:
+              type: string
+          additionalProperties: false
+    InitiativeProjectLinkedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/InitiativeEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - initiative.project_linked
+            payload:
+              "$ref": "#/components/schemas/InitiativeProjectLinkedEventPayload"
+    InitiativeProjectUnlinkedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - projectId
+          properties:
+            projectId:
+              "$ref": "./common.yaml#/ProjectId"
+          additionalProperties: false
+    InitiativeProjectUnlinkedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/InitiativeEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - initiative.project_unlinked
+            payload:
+              "$ref": "#/components/schemas/InitiativeProjectUnlinkedEventPayload"
+    ConversationEvents:
+      description: Union of all conversation event envelopes.
+      oneOf:
+        - "$ref": "#/components/schemas/ConversationCreatedEvent"
+        - "$ref": "#/components/schemas/ConversationUpdatedEvent"
+        - "$ref": "#/components/schemas/ConversationDeletedEvent"
+        - "$ref": "#/components/schemas/ConversationStatusChangedEvent"
+    ConversationEventEnvelope:
+      type: object
+      description: Base shape shared by every conversation event.
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this event.
+        type:
+          type: string
+          description: Discriminator for the concrete event type.
+        aggregateId:
+          "$ref": "./common.yaml#/ConversationId"
+        payload:
+          type: object
+          description: Event-specific payload that always includes the shared execution context.
+      additionalProperties: false
+    ConversationCreatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - workflowName
+            - initiatedBy
+            - status
+          properties:
+            workflowAboutId:
+              type: string
+              description: Entity ID associated with the conversation workflow.
+            workflowAboutType:
+              type: string
+              description: Entity type associated with workflowAboutId.
+            workflowName:
+              "$ref": "./conversations.yaml#/WorkflowName"
+            conversationTitle:
+              type: string
+              description: Human-readable conversation title when available.
+            initiatedBy:
+              "$ref": "./conversations.yaml#/InitiationType"
+            status:
+              "$ref": "./conversations.yaml#/ConversationStatus"
+            version:
+              type: integer
+              minimum: 0
+              description: Optional version number included with the event.
+          additionalProperties: false
+    ConversationCreatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/ConversationEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - conversation.created
+            payload:
+              "$ref": "#/components/schemas/ConversationCreatedEventPayload"
+    ConversationUpdateEventData:
+      allOf:
+        - "$ref": "./conversations.yaml#/UpdateConversationDto"
+        - type: object
+          properties:
+            workflowAboutType:
+              type: string
+              description: |
+                Persisted entity type associated with workflowAboutId. Producers
+                include this metadata when publishing a workflowAboutId update
+                so consumers can materialize the correctly typed endpoint.
+            messageAdded:
+              type: string
+              description: ID of message added to the conversation.
+            messageDeleted:
+              type: string
+              description: ID of message deleted from the conversation.
+            messageUpdated:
+              type: string
+              description: ID of message updated in the conversation.
+    ConversationUpdatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - update
+          properties:
+            update:
+              "$ref": "#/components/schemas/ConversationUpdateEventData"
+            latestMessageId:
+              type: string
+              description: |
+                ID of the most recent message in the conversation at the time
+                this event was emitted. Clients use it to no-op when their
+                cache already contains this id, or to fetch a delta with
+                `?since=<previousLatestMessageId>` otherwise. Absent only
+                when the conversation has no messages yet (e.g. a status-only
+                update on a freshly created conversation).
+            previousVersion:
+              type: integer
+            newVersion:
+              type: integer
+            changeType:
+              type: string
+            lastModifiedBy:
+              type: string
+            triggersAgent:
+              "$ref": "./conversations.yaml#/AgentTrigger"
+              description: |
+                Elevated routing envelope set on message-added publishes when
+                the newly-added message carries `data.triggersAgent`. Lets the
+                websocket bridge gate trigger emission on a typed top-level
+                read (no `as SystemMessageData` cast, no DB round-trip on the
+                non-trigger common case). Absent on non-message-added publishes
+                (message updated/deleted) and on message-added publishes whose
+                message is not a trigger.
+          additionalProperties: false
+    ConversationUpdatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/ConversationEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - conversation.updated
+            payload:
+              "$ref": "#/components/schemas/ConversationUpdatedEventPayload"
+    ConversationDeletedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - conversation
+          properties:
+            workflowId:
+              "$ref": "./common.yaml#/WorkflowId"
+            workflowTerminated:
+              type: boolean
+            hardDelete:
+              type: boolean
+            deletedBy:
+              type: string
+            reason:
+              type: string
+          additionalProperties: false
+    ConversationDeletedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/ConversationEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - conversation.deleted
+            payload:
+              "$ref": "#/components/schemas/ConversationDeletedEventPayload"
+    ConversationStatusChangedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - conversationId
+            - previousStatus
+            - newStatus
+          properties:
+            conversationId:
+              "$ref": "./common.yaml#/ConversationId"
+            previousStatus:
+              "$ref": "./conversations.yaml#/ConversationStatus"
+            newStatus:
+              "$ref": "./conversations.yaml#/ConversationStatus"
+            restoredBy:
+              type: string
+            timestamp:
+              type: string
+              format: date-time
+          additionalProperties: false
+    ConversationStatusChangedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/ConversationEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - conversation.status_changed
+            payload:
+              "$ref": "#/components/schemas/ConversationStatusChangedEventPayload"
+    TaskEvents:
+      description: Union of all task event envelopes.
+      oneOf:
+        - "$ref": "#/components/schemas/TaskCreatedEvent"
+        - "$ref": "#/components/schemas/TaskUpdatedEvent"
+        - "$ref": "#/components/schemas/TaskContentChangedEvent"
+        - "$ref": "#/components/schemas/TaskStatusChangedEvent"
+        - "$ref": "#/components/schemas/TaskArchivedEvent"
+        - "$ref": "#/components/schemas/TaskAssignedEvent"
+        - "$ref": "#/components/schemas/TaskUnassignedEvent"
+    TaskEventEnvelope:
+      type: object
+      description: Base shape shared by every task event.
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this event.
+        type:
+          type: string
+          description: Discriminator for the concrete event type.
+        aggregateId:
+          "$ref": "./common.yaml#/TaskId"
+        payload:
+          type: object
+          description: Event-specific payload that always includes the shared execution context.
+      additionalProperties: false
+    TaskCreatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - task
+            - summaryPayload
+          properties:
+            task:
+              "$ref": "#/components/schemas/TaskEventTaskSnapshot"
+            initiativeId:
+              "$ref": "./common.yaml#/InitiativeId"
+          additionalProperties: false
+    TaskCreatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/TaskEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - task.created
+            payload:
+              "$ref": "#/components/schemas/TaskCreatedEventPayload"
+    TaskUpdatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - update
+          properties:
+            update:
+              "$ref": "#/components/schemas/TaskEventUpdateSnapshot"
+            previousData:
+              type: object
+              additionalProperties: true
+              description: Snapshot of the previous task values (partial CreateTaskDto).
+            initiativeId:
+              "$ref": "./common.yaml#/InitiativeId"
+          additionalProperties: false
+    TaskUpdatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/TaskEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - task.updated
+            payload:
+              "$ref": "#/components/schemas/TaskUpdatedEventPayload"
+    TaskContentChangedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - content
+          properties:
+            content:
+              "$ref": "#/components/schemas/TaskEventContentSnapshot"
+            initiativeId:
+              "$ref": "./common.yaml#/InitiativeId"
+          additionalProperties: false
+    TaskContentChangedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/TaskEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - task.content_changed
+            payload:
+              "$ref": "#/components/schemas/TaskContentChangedEventPayload"
+    TaskStatusChangedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - previousStatus
+            - newStatus
+          properties:
+            previousStatus:
+              "$ref": "./common.yaml#/WorkStatus"
+            newStatus:
+              "$ref": "./common.yaml#/WorkStatus"
+            initiativeId:
+              "$ref": "./common.yaml#/InitiativeId"
+            originatingProjectId:
+              "$ref": "./common.yaml#/ProjectId"
+              nullable: true
+          additionalProperties: false
+    TaskStatusChangedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/TaskEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - task.status_changed
+            payload:
+              "$ref": "#/components/schemas/TaskStatusChangedEventPayload"
+    TaskArchivedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - archivedAt
+          properties:
+            archivedAt:
+              type: string
+              format: date-time
+            initiativeId:
+              "$ref": "./common.yaml#/InitiativeId"
+          additionalProperties: false
+    TaskArchivedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/TaskEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - task.archived
+            payload:
+              "$ref": "#/components/schemas/TaskArchivedEventPayload"
+    TaskAssignedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - assigneeId
+          properties:
+            assigneeId:
+              "$ref": "./common.yaml#/UserId"
+            previousAssigneeId:
+              "$ref": "./common.yaml#/UserId"
+            initiativeId:
+              "$ref": "./common.yaml#/InitiativeId"
+          additionalProperties: false
+    TaskAssignedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/TaskEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - task.assigned
+            payload:
+              "$ref": "#/components/schemas/TaskAssignedEventPayload"
+    TaskUnassignedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - previousAssigneeId
+          properties:
+            previousAssigneeId:
+              "$ref": "./common.yaml#/UserId"
+            initiativeId:
+              "$ref": "./common.yaml#/InitiativeId"
+          additionalProperties: false
+    TaskUnassignedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/TaskEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - task.unassigned
+            payload:
+              "$ref": "#/components/schemas/TaskUnassignedEventPayload"
+    LLMEvents:
+      description: Union of all LLM event envelopes.
+      oneOf:
+        - "$ref": "#/components/schemas/LlmRequestEvent"
+        - "$ref": "#/components/schemas/LlmProgressEvent"
+        - "$ref": "#/components/schemas/LlmCompleteEvent"
+    LlmEventEnvelope:
+      type: object
+      description: Base shape shared by every LLM event.
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this event.
+        type:
+          type: string
+          description: Discriminator for the concrete event type.
+        aggregateId:
+          type: string
+          description: Aggregate identifier referencing the LLM job.
+        payload:
+          type: object
+          description: Event-specific payload that always includes the shared execution context.
+      additionalProperties: false
+    LlmRequestEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - prompt
+            - conversationId
+          properties:
+            prompt:
+              type: string
+            model:
+              type: string
+            temperature:
+              type: number
+              format: float
+            maxTokens:
+              type: integer
+            stream:
+              type: boolean
+            conversationId:
+              "$ref": "./common.yaml#/ConversationId"
+          additionalProperties: false
+    LlmRequestEvent:
+      allOf:
+        - "$ref": "#/components/schemas/LlmEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - llm.request
+            payload:
+              "$ref": "#/components/schemas/LlmRequestEventPayload"
+    LlmProgressEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - chunk
+          properties:
+            chunk:
+              type: string
+            tokensGenerated:
+              type: integer
+            estimatedTotal:
+              type: integer
+          additionalProperties: false
+    LlmProgressEvent:
+      allOf:
+        - "$ref": "#/components/schemas/LlmEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - llm.progress
+            payload:
+              "$ref": "#/components/schemas/LlmProgressEventPayload"
+    LlmCompleteEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - status
+            - systemMessageData
+            - conversationId
+          properties:
+            status:
+              type: string
+              enum:
+                - success
+                - failed
+            usage:
+              "$ref": "#/components/schemas/LlmUsageMetrics"
+            error:
+              "$ref": "#/components/schemas/LlmErrorInfo"
+            duration:
+              type: number
+              description: Execution duration in milliseconds.
+            flowConfig:
+              "$ref": "#/components/schemas/AgentFlowConfig"
+            systemMessageData:
+              "$ref": "#/components/schemas/SystemMessageData"
+            conversationId:
+              "$ref": "./common.yaml#/ConversationId"
+            provider:
+              type: string
+            requestType:
+              type: string
+            temperature:
+              type: number
+              format: float
+            maxTokens:
+              type: integer
+            metadata:
+              type: object
+              additionalProperties: true
+            costData:
+              "$ref": "#/components/schemas/LlmCostData"
+          additionalProperties: false
+    LlmCompleteEvent:
+      allOf:
+        - "$ref": "#/components/schemas/LlmEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - llm.complete
+            payload:
+              "$ref": "#/components/schemas/LlmCompleteEventPayload"
+    AgentEvents:
+      description: Union of all agent event envelopes.
+      oneOf:
+        - "$ref": "#/components/schemas/AgentRequestEvent"
+        - "$ref": "#/components/schemas/AgentProgressEvent"
+        - "$ref": "#/components/schemas/AgentCompleteEvent"
+        - "$ref": "#/components/schemas/AgentErrorEvent"
+    AgentEventEnvelope:
+      type: object
+      description: Base shape shared by every agent event.
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        aggregateId:
+          type: string
+        payload:
+          type: object
+      additionalProperties: false
+    AgentRequestEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - agentId
+            - nodeId
+            - conversationId
+            - flowConfig
+          properties:
+            agentId:
+              type: string
+            nodeId:
+              type: string
+            conversationId:
+              "$ref": "./common.yaml#/ConversationId"
+            flowConfig:
+              "$ref": "#/components/schemas/AgentFlowConfig"
+          additionalProperties: false
+    AgentRequestEvent:
+      allOf:
+        - "$ref": "#/components/schemas/AgentEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - agent.request
+            payload:
+              "$ref": "#/components/schemas/AgentRequestEventPayload"
+    AgentProgressEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - status
+          properties:
+            status:
+              type: string
+              description: Short description of what the agent is currently working on
+            executionTime:
+              type: number
+            currentStep:
+              type: string
+            progress:
+              type: number
+              description: Fractional progress in 0..1 reported by the agent runner.
+          additionalProperties: false
+    AgentProgressEvent:
+      allOf:
+        - "$ref": "#/components/schemas/AgentEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - agent.progress
+            payload:
+              "$ref": "#/components/schemas/AgentProgressEventPayload"
+    AgentCompleteEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - status
+            - result
+            - executionTime
+            - cost
+            - conversationId
+            - workflowId
+            - flowConfig
+          properties:
+            status:
+              type: string
+              enum:
+                - success
+                - failed
+            result:
+              "$ref": "#/components/schemas/AgentExecutionResultPayload"
+            executionTime:
+              type: number
+            cost:
+              type: number
+            requestId:
+              "$ref": "./common.yaml#/RequestId"
+            conversationId:
+              "$ref": "./common.yaml#/ConversationId"
+            workflowId:
+              "$ref": "./common.yaml#/WorkflowId"
+            flowConfig:
+              "$ref": "#/components/schemas/AgentFlowConfig"
+            contextUpdates:
+              "$ref": "#/components/schemas/ContextPatch"
+          additionalProperties: false
+    AgentCompleteEvent:
+      allOf:
+        - "$ref": "#/components/schemas/AgentEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - agent.complete
+            payload:
+              "$ref": "#/components/schemas/AgentCompleteEventPayload"
+    AgentErrorEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - error
+            - conversationId
+            - flowConfig
+          properties:
+            error:
+              "$ref": "#/components/schemas/AgentExecutionErrorPayload"
+            conversationId:
+              "$ref": "./common.yaml#/ConversationId"
+            flowConfig:
+              "$ref": "#/components/schemas/AgentFlowConfig"
+          additionalProperties: false
+    AgentErrorEvent:
+      allOf:
+        - "$ref": "#/components/schemas/AgentEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - agent.error
+            payload:
+              "$ref": "#/components/schemas/AgentErrorEventPayload"
+    FlowNodeEvents:
+      description: Union of all flow node event envelopes.
+      oneOf:
+        - "$ref": "#/components/schemas/FlowNodeStartEvent"
+        - "$ref": "#/components/schemas/FlowNodeCompleteEvent"
+    FlowNodeEventEnvelope:
+      type: object
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        aggregateId:
+          type: string
+        payload:
+          type: object
+      additionalProperties: false
+    FlowNodeStartEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - nodeId
+            - nodeType
+            - conversationId
+            - flowPath
+          properties:
+            nodeId:
+              type: string
+            nodeType:
+              type: string
+            conversationId:
+              "$ref": "./common.yaml#/ConversationId"
+            flowPath:
+              "$ref": "#/components/schemas/FlowPathState"
+          additionalProperties: false
+    FlowNodeStartEvent:
+      allOf:
+        - "$ref": "#/components/schemas/FlowNodeEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - flow_node.start
+            payload:
+              "$ref": "#/components/schemas/FlowNodeStartEventPayload"
+    FlowNodeCompleteEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - nodeId
+            - nodeType
+            - status
+            - systemMessageData
+            - conversationId
+            - flowPath
+          properties:
+            nodeId:
+              type: string
+            nodeType:
+              type: string
+            status:
+              type: string
+              enum:
+                - success
+                - failed
+            systemMessageData:
+              "$ref": "#/components/schemas/SystemMessageData"
+            conversationId:
+              "$ref": "./common.yaml#/ConversationId"
+            flowPath:
+              "$ref": "#/components/schemas/FlowPathState"
+            error:
+              "$ref": "#/components/schemas/FlowNodeError"
+          additionalProperties: false
+    FlowNodeCompleteEvent:
+      allOf:
+        - "$ref": "#/components/schemas/FlowNodeEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - flow_node.complete
+            payload:
+              "$ref": "#/components/schemas/FlowNodeCompleteEventPayload"
+    NonInteractiveFlowNodeEvents:
+      description: Union of all non-interactive flow node event envelopes.
+      oneOf:
+        - "$ref": "#/components/schemas/NonInteractiveFlowNodeStartEvent"
+        - "$ref": "#/components/schemas/NonInteractiveFlowNodeCompleteEvent"
+        - "$ref": "#/components/schemas/NonInteractiveFlowNodeErrorEvent"
+    NonInteractiveFlowNodeEventEnvelope:
+      type: object
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        aggregateId:
+          type: string
+        organizationId:
+          "$ref": "./common.yaml#/OrganizationId"
+        payload:
+          type: object
+      additionalProperties: false
+    NonInteractiveFlowNodeStartEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - workflowId
+            - flowId
+            - nodeId
+          properties:
+            workflowId:
+              "$ref": "./common.yaml#/WorkflowId"
+            flowId:
+              type: string
+            nodeId:
+              type: string
+          additionalProperties: false
+    NonInteractiveFlowNodeStartEvent:
+      allOf:
+        - "$ref": "#/components/schemas/NonInteractiveFlowNodeEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - non_interactive_flow_node.start
+            payload:
+              "$ref": "#/components/schemas/NonInteractiveFlowNodeStartEventPayload"
+    NonInteractiveFlowNodeCompleteEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - workflowId
+            - flowId
+            - nodeId
+          properties:
+            workflowId:
+              "$ref": "./common.yaml#/WorkflowId"
+            flowId:
+              type: string
+            nodeId:
+              type: string
+            result:
+              "$ref": "#/components/schemas/SystemMessageData"
+          additionalProperties: false
+    NonInteractiveFlowNodeCompleteEvent:
+      allOf:
+        - "$ref": "#/components/schemas/NonInteractiveFlowNodeEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - non_interactive_flow_node.complete
+            payload:
+              "$ref": "#/components/schemas/NonInteractiveFlowNodeCompleteEventPayload"
+    NonInteractiveFlowNodeErrorEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - workflowId
+            - flowId
+            - nodeId
+            - error
+          properties:
+            workflowId:
+              "$ref": "./common.yaml#/WorkflowId"
+            flowId:
+              type: string
+            nodeId:
+              type: string
+            error:
+              type: string
+          additionalProperties: false
+    NonInteractiveFlowNodeErrorEvent:
+      allOf:
+        - "$ref": "#/components/schemas/NonInteractiveFlowNodeEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - non_interactive_flow_node.error
+            payload:
+              "$ref": "#/components/schemas/NonInteractiveFlowNodeErrorEventPayload"
+    QueueEvents:
+      description: Union of all queue job events.
+      oneOf:
+        - "$ref": "#/components/schemas/QueueJobEvent"
+        - "$ref": "#/components/schemas/LlmAnalysisQueueEvent"
+        - "$ref": "#/components/schemas/LlmInitiativeCreationQueueEvent"
+    QueueEventEnvelope:
+      type: object
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        aggregateId:
+          "$ref": "./common.yaml#/JobId"
+        payload:
+          type: object
+      additionalProperties: false
+    QueueJobEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - queueName
+            - jobType
+            - nodeId
+            - nodeType
+            - status
+            - id
+          properties:
+            queueName:
+              "$ref": "#/components/schemas/QueueName"
+            jobType:
+              "$ref": "#/components/schemas/JobType"
+            nodeId:
+              type: string
+            nodeType:
+              type: string
+            status:
+              "$ref": "#/components/schemas/QueueJobStatus"
+            id:
+              "$ref": "./common.yaml#/JobId"
+            error:
+              type: string
+          additionalProperties: false
+    QueueJobEvent:
+      allOf:
+        - "$ref": "#/components/schemas/QueueEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - queue.job_created
+                - queue.job_started
+                - queue.job_completed
+                - queue.job_failed
+                - queue.job_retried
+                - queue.job_status_changed
+            payload:
+              "$ref": "#/components/schemas/QueueJobEventPayload"
+    LlmAnalysisQueueEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - projectId
+            - interactionTypeId
+            - queueName
+            - jobType
+            - status
+            - id
+          properties:
+            projectId:
+              "$ref": "./common.yaml#/ProjectId"
+            interactionTypeId:
+              "$ref": "./common.yaml#/InteractionTypeId"
+            queueName:
+              "$ref": "#/components/schemas/QueueName"
+            jobType:
+              "$ref": "#/components/schemas/JobType"
+            status:
+              "$ref": "#/components/schemas/QueueJobStatus"
+            id:
+              "$ref": "./common.yaml#/JobId"
+            error:
+              type: string
+          additionalProperties: false
+    LlmAnalysisQueueEvent:
+      allOf:
+        - "$ref": "#/components/schemas/QueueEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - queue.job_created
+                - queue.job_started
+                - queue.job_completed
+                - queue.job_failed
+                - queue.job_retried
+                - queue.job_status_changed
+            payload:
+              "$ref": "#/components/schemas/LlmAnalysisQueueEventPayload"
+    LlmInitiativeCreationQueueEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - projectId
+            - interactionTypeId
+            - queueName
+            - jobType
+            - status
+            - id
+          properties:
+            projectId:
+              "$ref": "./common.yaml#/ProjectId"
+            interactionTypeId:
+              "$ref": "./common.yaml#/InteractionTypeId"
+            queueName:
+              "$ref": "#/components/schemas/QueueName"
+            jobType:
+              "$ref": "#/components/schemas/JobType"
+            status:
+              "$ref": "#/components/schemas/QueueJobStatus"
+            id:
+              "$ref": "./common.yaml#/JobId"
+            error:
+              type: string
+          additionalProperties: false
+    LlmInitiativeCreationQueueEvent:
+      allOf:
+        - "$ref": "#/components/schemas/QueueEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - queue.job_created
+                - queue.job_started
+                - queue.job_completed
+                - queue.job_failed
+                - queue.job_retried
+                - queue.job_status_changed
+            payload:
+              "$ref": "#/components/schemas/LlmInitiativeCreationQueueEventPayload"
+    SystemEvents:
+      description: Union of all system-level events.
+      oneOf:
+        - "$ref": "#/components/schemas/SystemEvent"
+    SystemEventEnvelope:
+      type: object
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        aggregateId:
+          type: string
+        payload:
+          type: object
+      additionalProperties: false
+    SystemEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - systemMessage
+            - severity
+          properties:
+            systemMessage:
+              type: string
+            severity:
+              "$ref": "#/components/schemas/SystemEventSeverity"
+          additionalProperties: false
+    SystemEvent:
+      allOf:
+        - "$ref": "#/components/schemas/SystemEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - system.notification
+                - system.alert
+                - system.maintenance
+            payload:
+              "$ref": "#/components/schemas/SystemEventPayload"
+    MessageProcessorEvents:
+      description: Union of message processor events.
+      oneOf:
+        - "$ref": "#/components/schemas/MessageProcessorErrorEvent"
+    MessageProcessorEventEnvelope:
+      type: object
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        aggregateId:
+          type: string
+        payload:
+          type: object
+      additionalProperties: false
+    MessageProcessorErrorEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - requestId
+            - conversationId
+            - workflowId
+            - nodeId
+            - error
+            - operation
+          properties:
+            requestId:
+              "$ref": "./common.yaml#/RequestId"
+            conversationId:
+              "$ref": "./common.yaml#/ConversationId"
+            workflowId:
+              "$ref": "./common.yaml#/WorkflowId"
+            nodeId:
+              type: string
+            error:
+              type: string
+            errorStack:
+              type: string
+            errorName:
+              type: string
+            operation:
+              type: string
+          additionalProperties: false
+    MessageProcessorErrorEvent:
+      allOf:
+        - "$ref": "#/components/schemas/MessageProcessorEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - message_processor.error
+            payload:
+              "$ref": "#/components/schemas/MessageProcessorErrorEventPayload"
+    HelpEvents:
+      description: Union of global Help content event envelopes.
+      oneOf:
+        - "$ref": "#/components/schemas/HelpContentChangedEvent"
+    HelpEventEnvelope:
+      type: object
+      description: Base shape shared by every global Help event.
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for this event.
+        type:
+          type: string
+          description: Discriminator for the concrete event type.
+        aggregateId:
+          type: string
+          format: uuid
+          description: Stable identifier of the changed Help node.
+        payload:
+          type: object
+          description: Event-specific payload for a global Help node.
+      additionalProperties: false
+    HelpContentChangedEventPayload:
+      type: object
+      additionalProperties: false
+      required:
+        - payloadType
+        - helpNode
+        - contentHash
+      properties:
+        payloadType:
+          type: string
+          enum:
+            - help.content_changed
+        helpNode:
+          "$ref": "./help.yaml#/HelpNodeWithBody"
+        contentHash:
+          type: string
+          pattern: "^[a-f0-9]{64}$"
+          description: SHA-256 of the canonical persisted Help node and ordered demos.
+    HelpContentChangedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/HelpEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - help.content_changed
+            payload:
+              "$ref": "#/components/schemas/HelpContentChangedEventPayload"
+    DesignDocEvents:
+      description: Union of all design doc event envelopes.
+      oneOf:
+        - "$ref": "#/components/schemas/DesignDocCreatedEvent"
+        - "$ref": "#/components/schemas/DesignDocUpdatedEvent"
+        - "$ref": "#/components/schemas/DesignDocContentChangedEvent"
+        - "$ref": "#/components/schemas/DesignDocStatusChangedEvent"
+        - "$ref": "#/components/schemas/DesignDocArchivedEvent"
+        - "$ref": "#/components/schemas/DesignDocRestoredEvent"
+    DesignDocEventEnvelope:
+      type: object
+      description: Base shape shared by every design doc event.
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this event.
+        type:
+          type: string
+          description: Discriminator for the concrete event type.
+        aggregateId:
+          "$ref": "./common.yaml#/DesignDocId"
+        payload:
+          type: object
+          description: Event-specific payload that always includes the shared execution context.
+      additionalProperties: false
+    DesignDocCreatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - designDoc
+          properties:
+            designDoc:
+              "$ref": "./design-docs.yaml#/DesignDocResponseDto"
+          additionalProperties: false
+    DesignDocCreatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/DesignDocEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - design_doc.created
+            payload:
+              "$ref": "#/components/schemas/DesignDocCreatedEventPayload"
+    DesignDocUpdatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - designDoc
+          properties:
+            designDoc:
+              "$ref": "#/components/schemas/DesignDocEventMetadataSnapshot"
+          additionalProperties: false
+    DesignDocUpdatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/DesignDocEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - design_doc.updated
+            payload:
+              "$ref": "#/components/schemas/DesignDocUpdatedEventPayload"
+    DesignDocContentChangedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - designDoc
+          properties:
+            designDoc:
+              "$ref": "./design-docs.yaml#/DesignDocResponseDto"
+          additionalProperties: false
+    DesignDocContentChangedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/DesignDocEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - design_doc.content_changed
+            payload:
+              "$ref": "#/components/schemas/DesignDocContentChangedEventPayload"
+    DesignDocStatusChangedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - previousStatus
+            - newStatus
+          properties:
+            previousStatus:
+              type: string
+              description: Previous workflow status of the design document.
+            newStatus:
+              type: string
+              description: New workflow status of the design document.
+          additionalProperties: false
+    DesignDocStatusChangedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/DesignDocEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - design_doc.status_changed
+            payload:
+              "$ref": "#/components/schemas/DesignDocStatusChangedEventPayload"
+    DesignDocArchivedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - designDoc
+          properties:
+            designDoc:
+              "$ref": "./design-docs.yaml#/DesignDocResponseDto"
+          additionalProperties: false
+    DesignDocArchivedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/DesignDocEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - design_doc.archived
+            payload:
+              "$ref": "#/components/schemas/DesignDocArchivedEventPayload"
+    DesignDocRestoredEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - designDoc
+          properties:
+            designDoc:
+              "$ref": "./design-docs.yaml#/DesignDocResponseDto"
+          additionalProperties: false
+    DesignDocRestoredEvent:
+      allOf:
+        - "$ref": "#/components/schemas/DesignDocEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - design_doc.restored
+            payload:
+              "$ref": "#/components/schemas/DesignDocRestoredEventPayload"
+    ProjectEvents:
+      description: Union of all project event envelopes.
+      oneOf:
+        - "$ref": "#/components/schemas/ProjectCreatedEvent"
+        - "$ref": "#/components/schemas/ProjectUpdatedEvent"
+        - "$ref": "#/components/schemas/ProjectStatusChangedEvent"
+        - "$ref": "#/components/schemas/ProjectDeletedEvent"
+    ProjectEventEnvelope:
+      type: object
+      description: Base shape shared by every project event.
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this event.
+        type:
+          type: string
+          description: Discriminator for the concrete event type.
+        aggregateId:
+          "$ref": "./common.yaml#/ProjectId"
+        payload:
+          type: object
+          description: Event-specific payload that always includes the shared execution context.
+      additionalProperties: false
+    ProjectCreatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - project
+          properties:
+            project:
+              "$ref": "./projects.yaml#/CreateProjectDto"
+          additionalProperties: false
+    ProjectCreatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/ProjectEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - project.created
+            payload:
+              "$ref": "#/components/schemas/ProjectCreatedEventPayload"
+    ProjectUpdatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - update
+          properties:
+            update:
+              "$ref": "./projects.yaml#/UpdateProjectDto"
+          additionalProperties: false
+    ProjectUpdatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/ProjectEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - project.updated
+            payload:
+              "$ref": "#/components/schemas/ProjectUpdatedEventPayload"
+    ProjectStatusChangedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - status
+          properties:
+            status:
+              "$ref": "./projects.yaml#/ProjectStatus"
+          additionalProperties: false
+    ProjectStatusChangedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/ProjectEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - project.status_changed
+            payload:
+              "$ref": "#/components/schemas/ProjectStatusChangedEventPayload"
+    ProjectDeletedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - deletedAt
+          properties:
+            deletedAt:
+              type: string
+              format: date-time
+          additionalProperties: false
+    ProjectDeletedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/ProjectEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - project.deleted
+            payload:
+              "$ref": "#/components/schemas/ProjectDeletedEventPayload"
+    OrganizationEvents:
+      description: Union of organization lifecycle event envelopes.
+      oneOf:
+        - "$ref": "#/components/schemas/OrganizationClosedEvent"
+    OrganizationEventEnvelope:
+      type: object
+      description: Base shape shared by organization lifecycle events.
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this event.
+        type:
+          type: string
+          description: Discriminator for the concrete event type.
+        aggregateId:
+          "$ref": "./common.yaml#/OrganizationId"
+        payload:
+          type: object
+          description: Event-specific payload with organization execution context.
+      additionalProperties: false
+    OrganizationClosedEventPayload:
+      type: object
+      description: Complete execution context and closure snapshot for organization.closed.
+      required:
+        - payloadType
+        - organizationId
+        - markerId
+        - irreversibleClosureAt
+        - deletionDeadline
+      properties:
+        payloadType:
+          type: string
+          enum:
+            - organization.closed
+        organizationId:
+          "$ref": "./common.yaml#/OrganizationId"
+        correlationId:
+          type: string
+        causationId:
+          type: string
+        markerId:
+          type: string
+          format: uuid
+          description: Server-generated identity of the retained deletion marker.
+        irreversibleClosureAt:
+          type: string
+          format: date-time
+          description: >-
+            Immutable server-recorded time at which irreversible closure
+            committed; recoverable suspension does not produce this event.
+        deletionDeadline:
+          type: string
+          format: date-time
+          description: Immutable server-derived deadline for completing live account-data deletion.
+      additionalProperties: false
+    OrganizationClosedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/OrganizationEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - organization.closed
+            payload:
+              "$ref": "#/components/schemas/OrganizationClosedEventPayload"
+    ArtifactEvents:
+      description: Union of all artifact event envelopes.
+      oneOf:
+        - "$ref": "#/components/schemas/ArtifactCreatedEvent"
+        - "$ref": "#/components/schemas/ArtifactUpdatedEvent"
+        - "$ref": "#/components/schemas/ArtifactDeletedEvent"
+        - "$ref": "#/components/schemas/ArtifactArchivedEvent"
+        - "$ref": "#/components/schemas/ArtifactRestoredEvent"
+        - "$ref": "#/components/schemas/ArtifactEmbeddingGeneratedEvent"
+        - "$ref": "#/components/schemas/ArtifactGenerationRequestedEvent"
+    ImplementationHintEvents:
+      description: Union of all implementation hint event envelopes.
+      oneOf:
+        - "$ref": "#/components/schemas/ImplementationHintCreatedEvent"
+        - "$ref": "#/components/schemas/ImplementationHintUpdatedEvent"
+        - "$ref": "#/components/schemas/ImplementationHintDeletedEvent"
+    AgentSessionEvents:
+      description: Union of all agent session event envelopes.
+      oneOf:
+        - "$ref": "#/components/schemas/AgentSessionCreatedEvent"
+        - "$ref": "#/components/schemas/AgentSessionDeletedEvent"
+        - "$ref": "#/components/schemas/AgentSessionStatusChangedEvent"
+    ReportEvents:
+      description: Union of all report event envelopes.
+      oneOf:
+        - "$ref": "#/components/schemas/ReportCreatedEvent"
+    SummaryEvents:
+      description: Union of all summary event envelopes.
+      oneOf:
+        - "$ref": "#/components/schemas/SummaryCreatedEvent"
+        - "$ref": "#/components/schemas/SummaryUpdatedEvent"
+        - "$ref": "#/components/schemas/SummaryDeletedEvent"
+    SubfacetEvents:
+      description: Union of all subfacet event envelopes.
+      oneOf:
+        - "$ref": "#/components/schemas/SubfacetCreatedEvent"
+        - "$ref": "#/components/schemas/SubfacetDeprecatedEvent"
+    ArtifactEventEnvelope:
+      type: object
+      description: Base shape shared by every artifact event.
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this event.
+        type:
+          type: string
+          description: Discriminator for the concrete event type.
+        aggregateId:
+          "$ref": "./common.yaml#/ArtifactId"
+        payload:
+          type: object
+          description: Event-specific payload that always includes the shared execution context.
+      additionalProperties: false
+    SummaryEventEnvelope:
+      type: object
+      description: Base shape shared by every summary event.
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this event.
+        type:
+          type: string
+          description: Discriminator for the concrete event type.
+        aggregateId:
+          type: string
+          description: Aggregate identifier for the summary entity.
+        payload:
+          type: object
+          description: Event-specific payload that always includes the shared execution context.
+      additionalProperties: false
+    SubfacetEventEnvelope:
+      type: object
+      description: Base shape shared by every subfacet event.
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this event.
+        type:
+          type: string
+          description: Discriminator for the concrete event type.
+        aggregateId:
+          "$ref": "./common.yaml#/SubfacetId"
+        payload:
+          type: object
+          description: Event-specific payload that always includes the shared execution context.
+      additionalProperties: false
+    SummaryCreatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - entityId
+            - summary
+            - category
+            - subfacets
+            - entityType
+          properties:
+            entityId:
+              type: string
+              description: Identifier for referenced entityId
+            entityType:
+              type: string
+            summary:
+              "$ref": "#/components/schemas/SummaryPayload"
+            category:
+              type: string
+              enum:
+                - technology
+                - process
+                - product
+                - people
+            subfacets:
+              type: array
+              maxItems: 3
+              items:
+                type: string
+              description: Ordered subfacets linked to the summary
+          additionalProperties: false
+    SummaryCreatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/SummaryEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - summary.created
+            payload:
+              "$ref": "#/components/schemas/SummaryCreatedEventPayload"
+    SummaryUpdatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - entityId
+            - entityType
+            - summary
+            - category
+            - subfacets
+          properties:
+            entityId:
+              type: string
+              description: Identifier for referenced entityId
+            entityType:
+              type: string
+            summary:
+              "$ref": "#/components/schemas/SummaryPayload"
+            category:
+              type: string
+              enum:
+                - technology
+                - process
+                - product
+                - people
+            subfacets:
+              type: array
+              maxItems: 3
+              items:
+                type: string
+              description: Ordered subfacets linked to the summary
+          additionalProperties: false
+    SummaryUpdatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/SummaryEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - summary.updated
+            payload:
+              "$ref": "#/components/schemas/SummaryUpdatedEventPayload"
+    SummaryDeletedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - entityId
+            - entityType
+            - category
+            - subfacets
+          properties:
+            entityId:
+              type: string
+              description: Identifier for referenced entityId
+            entityType:
+              type: string
+            category:
+              type: string
+              enum:
+                - technology
+                - process
+                - product
+                - people
+            subfacets:
+              type: array
+              maxItems: 3
+              items:
+                type: string
+              description: Ordered subfacets linked to the summary
+          additionalProperties: false
+    SummaryDeletedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/SummaryEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - summary.deleted
+            payload:
+              "$ref": "#/components/schemas/SummaryDeletedEventPayload"
+    SubfacetCreatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - subfacet
+          properties:
+            subfacet:
+              "$ref": "./topology.yaml#/TopologySubfacetDto"
+          additionalProperties: false
+    SubfacetCreatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/SubfacetEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - subfacet.created
+            payload:
+              "$ref": "#/components/schemas/SubfacetCreatedEventPayload"
+    SubfacetDeprecatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - subfacet
+          properties:
+            subfacet:
+              "$ref": "./topology.yaml#/TopologySubfacetDto"
+          additionalProperties: false
+    SubfacetDeprecatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/SubfacetEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - subfacet.deprecated
+            payload:
+              "$ref": "#/components/schemas/SubfacetDeprecatedEventPayload"
+    ArtifactCreatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - artifact
+          properties:
+            artifact:
+              "$ref": "./artifacts.yaml#/CreateArtifactDto"
+          additionalProperties: false
+    ArtifactCreatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/ArtifactEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - artifact.created
+            payload:
+              "$ref": "#/components/schemas/ArtifactCreatedEventPayload"
+    ArtifactUpdatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - update
+          properties:
+            update:
+              type: object
+              additionalProperties: true
+              description: Partial artifact update payload.
+          additionalProperties: false
+    ArtifactUpdatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/ArtifactEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - artifact.updated
+            payload:
+              "$ref": "#/components/schemas/ArtifactUpdatedEventPayload"
+    ArtifactDeletedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - artifactId
+          properties:
+            artifactId:
+              "$ref": "./common.yaml#/ArtifactId"
+          additionalProperties: false
+    ArtifactDeletedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/ArtifactEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - artifact.deleted
+            payload:
+              "$ref": "#/components/schemas/ArtifactDeletedEventPayload"
+    ArtifactArchivedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - artifactId
+            - sourceType
+            - archivedAt
+          properties:
+            artifactId:
+              "$ref": "./common.yaml#/ArtifactId"
+            sourceType:
+              "$ref": "./artifacts.yaml#/ArtifactSourceType"
+            sourceId:
+              type: string
+              nullable: true
+            archivedAt:
+              type: string
+              format: date-time
+          additionalProperties: false
+    ArtifactArchivedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/ArtifactEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - artifact.archived
+            payload:
+              "$ref": "#/components/schemas/ArtifactArchivedEventPayload"
+    ArtifactRestoredEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - artifactId
+            - sourceType
+            - restoredAt
+          properties:
+            artifactId:
+              "$ref": "./common.yaml#/ArtifactId"
+            sourceType:
+              "$ref": "./artifacts.yaml#/ArtifactSourceType"
+            sourceId:
+              type: string
+              nullable: true
+            restoredAt:
+              type: string
+              format: date-time
+          additionalProperties: false
+    ArtifactRestoredEvent:
+      allOf:
+        - "$ref": "#/components/schemas/ArtifactEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - artifact.restored
+            payload:
+              "$ref": "#/components/schemas/ArtifactRestoredEventPayload"
+    ArtifactEmbeddingGeneratedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - artifactId
+            - embeddingId
+          properties:
+            artifactId:
+              "$ref": "./common.yaml#/ArtifactId"
+            embeddingId:
+              type: string
+          additionalProperties: false
+    ArtifactEmbeddingGeneratedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/ArtifactEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - artifact.embedding_generated
+            payload:
+              "$ref": "#/components/schemas/ArtifactEmbeddingGeneratedEventPayload"
+    ArtifactGenerationRequestedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - userMessage
+            - parentMessage
+            - generationContext
+          properties:
+            userMessage:
+              "$ref": "#/components/schemas/FlowUserMessage"
+            parentMessage:
+              "$ref": "./conversations.yaml#/MessageResponseDto"
+              nullable: true
+            generationContext:
+              type: object
+              required:
+                - trigger
+                - systemMessageType
+                - validResponseCount
+                - skippedResponseCount
+              properties:
+                trigger:
+                  type: string
+                systemMessageType:
+                  type: string
+                validResponseCount:
+                  type: integer
+                skippedResponseCount:
+                  type: integer
+              additionalProperties: false
+          additionalProperties: false
+    ArtifactGenerationRequestedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/ArtifactEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - artifact.generation_requested
+            aggregateId:
+              "$ref": "./common.yaml#/MessageId"
+            payload:
+              "$ref": "#/components/schemas/ArtifactGenerationRequestedEventPayload"
+    ImplementationHintEventEnvelope:
+      type: object
+      description: Base shape shared by every implementation hint event.
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this event.
+        type:
+          type: string
+          description: Discriminator for the concrete event type.
+        aggregateId:
+          "$ref": "./common.yaml#/ImplementationHintId"
+        payload:
+          type: object
+          description: Event-specific payload that always includes the shared execution context.
+      additionalProperties: false
+    ImplementationHintCreatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - implementationHint
+          properties:
+            implementationHint:
+              "$ref": "./services.yaml#/ImplementationHintDto"
+          additionalProperties: false
+    ImplementationHintCreatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/ImplementationHintEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - implementation_hint.created
+            payload:
+              "$ref": "#/components/schemas/ImplementationHintCreatedEventPayload"
+    ImplementationHintUpdatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - implementationHint
+          properties:
+            implementationHint:
+              "$ref": "./services.yaml#/ImplementationHintDto"
+            changes:
+              type: object
+              additionalProperties: true
+              description: Partial payload describing changed fields.
+          additionalProperties: false
+    ImplementationHintUpdatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/ImplementationHintEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - implementation_hint.updated
+            payload:
+              "$ref": "#/components/schemas/ImplementationHintUpdatedEventPayload"
+    ImplementationHintDeletedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - implementationHintId
+          properties:
+            implementationHintId:
+              "$ref": "./common.yaml#/ImplementationHintId"
+          additionalProperties: false
+    ImplementationHintDeletedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/ImplementationHintEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - implementation_hint.deleted
+            payload:
+              "$ref": "#/components/schemas/ImplementationHintDeletedEventPayload"
+    ExecutionContext:
+      type: object
+      description: Shared context describing where the event originated.
+      discriminator:
+        propertyName: payloadType
+        mapping:
+          message.created: "#/components/schemas/MessageCreatedEventPayload"
+          message.updated: "#/components/schemas/MessageUpdatedEventPayload"
+          message.realtime: "#/components/schemas/MessageRealtimeEventPayload"
+          message.deleted: "#/components/schemas/MessageDeletedEventPayload"
+          initiative.created: "#/components/schemas/InitiativeCreatedEventPayload"
+          initiative.updated: "#/components/schemas/InitiativeUpdatedEventPayload"
+          initiative.content_changed: "#/components/schemas/InitiativeContentChangedEventPayload"
+          initiative.status_changed: "#/components/schemas/InitiativeStatusChangedEventPayload"
+          initiative.archived: "#/components/schemas/InitiativeArchivedEventPayload"
+          initiative.project_linked: "#/components/schemas/InitiativeProjectLinkedEventPayload"
+          initiative.project_unlinked: "#/components/schemas/InitiativeProjectUnlinkedEventPayload"
+          conversation.created: "#/components/schemas/ConversationCreatedEventPayload"
+          conversation.updated: "#/components/schemas/ConversationUpdatedEventPayload"
+          conversation.deleted: "#/components/schemas/ConversationDeletedEventPayload"
+          conversation.status_changed: "#/components/schemas/ConversationStatusChangedEventPayload"
+          task.created: "#/components/schemas/TaskCreatedEventPayload"
+          task.updated: "#/components/schemas/TaskUpdatedEventPayload"
+          task.content_changed: "#/components/schemas/TaskContentChangedEventPayload"
+          task.status_changed: "#/components/schemas/TaskStatusChangedEventPayload"
+          task.archived: "#/components/schemas/TaskArchivedEventPayload"
+          task.assigned: "#/components/schemas/TaskAssignedEventPayload"
+          task.unassigned: "#/components/schemas/TaskUnassignedEventPayload"
+          llm.request: "#/components/schemas/LlmRequestEventPayload"
+          llm.progress: "#/components/schemas/LlmProgressEventPayload"
+          llm.complete: "#/components/schemas/LlmCompleteEventPayload"
+          agent.request: "#/components/schemas/AgentRequestEventPayload"
+          agent.progress: "#/components/schemas/AgentProgressEventPayload"
+          agent.complete: "#/components/schemas/AgentCompleteEventPayload"
+          agent.error: "#/components/schemas/AgentErrorEventPayload"
+          flow_node.start: "#/components/schemas/FlowNodeStartEventPayload"
+          flow_node.complete: "#/components/schemas/FlowNodeCompleteEventPayload"
+          non_interactive_flow_node.start: "#/components/schemas/NonInteractiveFlowNodeStartEventPayload"
+          non_interactive_flow_node.complete: "#/components/schemas/NonInteractiveFlowNodeCompleteEventPayload"
+          non_interactive_flow_node.error: "#/components/schemas/NonInteractiveFlowNodeErrorEventPayload"
+          queue.job: "#/components/schemas/QueueJobEventPayload"
+          queue.llm_analysis: "#/components/schemas/LlmAnalysisQueueEventPayload"
+          queue.llm_initiative_creation: "#/components/schemas/LlmInitiativeCreationQueueEventPayload"
+          system: "#/components/schemas/SystemEventPayload"
+          message_processor.error: "#/components/schemas/MessageProcessorErrorEventPayload"
+          design_doc.created: "#/components/schemas/DesignDocCreatedEventPayload"
+          design_doc.updated: "#/components/schemas/DesignDocUpdatedEventPayload"
+          design_doc.content_changed: "#/components/schemas/DesignDocContentChangedEventPayload"
+          design_doc.status_changed: "#/components/schemas/DesignDocStatusChangedEventPayload"
+          design_doc.archived: "#/components/schemas/DesignDocArchivedEventPayload"
+          design_doc.restored: "#/components/schemas/DesignDocRestoredEventPayload"
+          project.created: "#/components/schemas/ProjectCreatedEventPayload"
+          project.deleted: "#/components/schemas/ProjectDeletedEventPayload"
+          project.updated: "#/components/schemas/ProjectUpdatedEventPayload"
+          project.status_changed: "#/components/schemas/ProjectStatusChangedEventPayload"
+          artifact.created: "#/components/schemas/ArtifactCreatedEventPayload"
+          artifact.updated: "#/components/schemas/ArtifactUpdatedEventPayload"
+          artifact.deleted: "#/components/schemas/ArtifactDeletedEventPayload"
+          artifact.archived: "#/components/schemas/ArtifactArchivedEventPayload"
+          artifact.restored: "#/components/schemas/ArtifactRestoredEventPayload"
+          artifact.embedding_generated: "#/components/schemas/ArtifactEmbeddingGeneratedEventPayload"
+          artifact.generation_requested: "#/components/schemas/ArtifactGenerationRequestedEventPayload"
+          implementation_hint.created: "#/components/schemas/ImplementationHintCreatedEventPayload"
+          implementation_hint.updated: "#/components/schemas/ImplementationHintUpdatedEventPayload"
+          implementation_hint.deleted: "#/components/schemas/ImplementationHintDeletedEventPayload"
+          agent_session.created: "#/components/schemas/AgentSessionCreatedEventPayload"
+          agent_session.deleted: "#/components/schemas/AgentSessionDeletedEventPayload"
+          agent_session.status_changed: "#/components/schemas/AgentSessionStatusChangedEventPayload"
+          summary.created: "#/components/schemas/SummaryCreatedEventPayload"
+          summary.updated: "#/components/schemas/SummaryUpdatedEventPayload"
+          summary.deleted: "#/components/schemas/SummaryDeletedEventPayload"
+          subfacet.created: "#/components/schemas/SubfacetCreatedEventPayload"
+          subfacet.deprecated: "#/components/schemas/SubfacetDeprecatedEventPayload"
+          mention.created: "#/components/schemas/MentionCreatedEventPayload"
+          mention.removed: "#/components/schemas/MentionRemovedEventPayload"
+          report.created: "#/components/schemas/ReportCreatedEventPayload"
+          service.created: "#/components/schemas/ServiceCreatedEventPayload"
+          service.updated: "#/components/schemas/ServiceUpdatedEventPayload"
+          service.archived: "#/components/schemas/ServiceArchivedEventPayload"
+          proposal.approved: "#/components/schemas/ProposalApprovedEventPayload"
+          proposal_group.lifecycle: "#/components/schemas/ProposalGroupLifecycleEventPayload"
+          eval_run.updated: "#/components/schemas/EvalRunUpdatedEventPayload"
+          eval_attempt.updated: "#/components/schemas/EvalAttemptUpdatedEventPayload"
+      required:
+        - payloadType
+        - organizationId
+        - projectId
+      properties:
+        payloadType:
+          $ref: "#/components/schemas/PayloadType"
+          description: Discriminator field for payload type inheritance
+        organizationId:
+          "$ref": "./common.yaml#/OrganizationId"
+        projectId:
+          "$ref": "./common.yaml#/ProjectId"
+        requestId:
+          "$ref": "./common.yaml#/RequestId"
+        workflowId:
+          "$ref": "./common.yaml#/WorkflowId"
+        nodeId:
+          type: string
+          description: Identifier for the workflow node that produced the event.
+        conversationId:
+          allOf:
+            - "$ref": "./common.yaml#/ConversationId"
+          nullable: true
+        userId:
+          "$ref": "./common.yaml#/UserId"
+        messageId:
+          "$ref": "./common.yaml#/MessageId"
+        userMessage:
+          "$ref": "#/components/schemas/FlowUserMessage"
+        correlationId:
+          type: string
+        causationId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+      additionalProperties: false
+    ContextPatch:
+      type: array
+      description: Patch operations applied to the flow context.
+      items:
+        "$ref": "#/components/schemas/ContextChange"
+    ContextChange:
+      type: object
+      required:
+        - op
+        - path
+      properties:
+        op:
+          type: string
+          description: Patch operation to perform.
+          enum:
+            - set
+            - delete
+        path:
+          type: array
+          description: Path to the field to set or delete.
+          items:
+            "$ref": "#/components/schemas/PathSegment"
+        value:
+          description: Value to assign when op is `set`.
+      additionalProperties: false
+    PathSegment:
+      description: A path segment within the context object.
+      type: string
+    SummaryPayload:
+      type: object
+      required:
+        - summary
+        - category
+        - subfacets
+      properties:
+        summary:
+          type: string
+          description: High-level summary for the entity
+        category:
+          type: string
+          enum:
+            - technology
+            - product
+            - process
+            - people
+          description: Classification category for the entity
+        subfacets:
+          type: array
+          maxItems: 3
+          items:
+            type: string
+          description: Up to three subfacets for the entity
+      additionalProperties: false
+    FlowUserMessage:
+      allOf:
+        - "$ref": "./conversations.yaml#/UserMessage"
+        - type: object
+          required:
+            - timestamp
+          properties:
+            nodeId:
+              type: string
+              description: Workflow node that captured this message.
+            timestamp:
+              type: string
+              format: date-time
+              description:
+                Timestamp associated with the message inside the workflow
+                engine.
+            classification:
+              "$ref": "#/components/schemas/MessageClassificationResult"
+    DesignDocEventMetadataSnapshot:
+      type: object
+      required:
+        - id
+        - name
+        - template
+        - status
+        - organizationId
+        - tags
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          "$ref": "./common.yaml#/DesignDocId"
+        name:
+          type: string
+        template:
+          "$ref": "./design-docs.yaml#/DesignDocTemplate"
+        status:
+          type: string
+        organizationId:
+          "$ref": "./common.yaml#/OrganizationId"
+        projectId:
+          "$ref": "./common.yaml#/ProjectId"
+        tags:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        summary:
+          type: string
+    InitiativeEventSnapshot:
+      type: object
+      required:
+        - id
+        - name
+        - description
+        - details
+        - acceptanceCriteria
+        - organizationId
+        - status
+        - tags
+      properties:
+        id:
+          "$ref": "./common.yaml#/InitiativeId"
+        name:
+          type: string
+        description:
+          type: string
+        details:
+          type: string
+        acceptanceCriteria:
+          type: string
+        organizationId:
+          "$ref": "./common.yaml#/OrganizationId"
+        originatingProjectId:
+          "$ref": "./common.yaml#/ProjectId"
+          nullable: true
+        linkedProjectIds:
+          type: array
+          items:
+            "$ref": "./common.yaml#/ProjectId"
+        status:
+          "$ref": "./common.yaml#/WorkStatus"
+        priority:
+          type: string
+        dueDate:
+          type: string
+          format: date-time
+        tags:
+          type: array
+          items:
+            type: string
+    InitiativeEventContentSnapshot:
+      type: object
+      required:
+        - description
+        - details
+        - acceptanceCriteria
+      properties:
+        description:
+          type: string
+        details:
+          type: string
+        acceptanceCriteria:
+          type: string
+    InitiativeEventUpdateSnapshot:
+      type: object
+      properties:
+        name:
+          type: string
+        assigneeId:
+          "$ref": "./common.yaml#/UserId"
+        reasoning:
+          type: string
+        status:
+          "$ref": "./common.yaml#/WorkStatus"
+        priority:
+          "$ref": "./common.yaml#/Priority"
+        creatorType:
+          "$ref": "./initiatives.yaml#/InitiativeCreatorType"
+        dueDate:
+          type: string
+          format: date-time
+        tags:
+          type: array
+          items:
+            type: string
+    InitiativeChangeMetadata:
+      type: object
+      required:
+        - timestamp
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        userAgent:
+          type: string
+        ipAddress:
+          type: string
+      additionalProperties: true
+    TaskEventSectionSnapshot:
+      type: object
+      required:
+        - key
+        - order
+        - materializedMarkdown
+      properties:
+        key:
+          type: string
+          minLength: 1
+          description: Exact section key, including project-defined keys.
+        order:
+          type: integer
+          description: Canonical section ordering index.
+        materializedMarkdown:
+          nullable: true
+          description: Current materialized content without coercion; only strings are textual input.
+    TaskEventTaskSnapshot:
+      type: object
+      required:
+        - name
+        - description
+        - type
+        - id
+        - organizationId
+        - projectId
+        - createdAt
+        - updatedAt
+      properties:
+        name:
+          type: string
+          description: The name or title of the task.
+        sections:
+          type: array
+          description: |
+            Complete current section snapshot. Empty arrays clear section text.
+            Legacy producers omit this field; consumers then use the legacy
+            description and acceptanceCriteria fields.
+          items:
+            "$ref": "#/components/schemas/TaskEventSectionSnapshot"
+        description:
+          type: string
+          description: Task description content.
+        type:
+          "$ref": "./tasks.yaml#/TaskType"
+        tag:
+          allOf:
+            - "$ref": "./tasks.yaml#/FeatureTag"
+          description: |
+            Feature tag classification. Present only when `type` is `FEATURE`;
+            absent for all non-FEATURE work-item types.
+        acceptanceCriteria:
+          type: string
+          description: Task acceptance criteria content.
+        requirements:
+          type: string
+          description: |
+            Requirements section content for FEATURE tasks, stored as the materialized
+            markdown of the `requirements` section. Only meaningful when `type` is
+            `FEATURE`; absent for non-FEATURE work-item types.
+        projectId:
+          "$ref": "./common.yaml#/ProjectId"
+        initiativeId:
+          "$ref": "./common.yaml#/InitiativeId"
+        status:
+          "$ref": "./common.yaml#/WorkStatus"
+        priority:
+          "$ref": "./tasks.yaml#/TaskPriority"
+        dueDate:
+          type: string
+          format: date-time
+          nullable: true
+        assigneeId:
+          allOf:
+            - "$ref": "./common.yaml#/UserId"
+          nullable: true
+        parentTaskId:
+          allOf:
+            - "$ref": "./common.yaml#/TaskId"
+          nullable: true
+        id:
+          "$ref": "./common.yaml#/TaskId"
+        organizationId:
+          "$ref": "./common.yaml#/OrganizationId"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    TaskEventContentSnapshot:
+      type: object
+      required:
+        - type
+        - description
+      properties:
+        sections:
+          type: array
+          description: |
+            Complete current section snapshot. Empty arrays clear section text.
+            Legacy producers omit this field; consumers then use the legacy
+            description and acceptanceCriteria fields.
+          items:
+            "$ref": "#/components/schemas/TaskEventSectionSnapshot"
+        type:
+          "$ref": "./tasks.yaml#/TaskType"
+        tag:
+          allOf:
+            - "$ref": "./tasks.yaml#/FeatureTag"
+          description: |
+            Feature tag classification. Present only when `type` is `FEATURE`;
+            absent for all non-FEATURE work-item types.
+        description:
+          type: string
+          description: Task description content.
+        acceptanceCriteria:
+          type: string
+          description: Task acceptance criteria content.
+        requirements:
+          type: string
+          description: |
+            Requirements section content for FEATURE tasks, stored as the materialized
+            markdown of the `requirements` section. Only meaningful when `type` is
+            `FEATURE`; absent for non-FEATURE work-item types.
+    TaskEventUpdateSnapshot:
+      type: object
+      properties:
+        name:
+          type: string
+          description: The new name or title of the task.
+        type:
+          "$ref": "./tasks.yaml#/TaskType"
+        tag:
+          allOf:
+            - "$ref": "./tasks.yaml#/FeatureTag"
+          description: |
+            Updated feature tag. Only meaningful for FEATURE tasks; absent on
+            non-FEATURE update events.
+        status:
+          "$ref": "./common.yaml#/WorkStatus"
+        priority:
+          "$ref": "./tasks.yaml#/TaskPriority"
+        dueDate:
+          type: string
+          format: date-time
+          nullable: true
+        assigneeId:
+          allOf:
+            - "$ref": "./common.yaml#/UserId"
+          nullable: true
+        parentTaskId:
+          allOf:
+            - "$ref": "./common.yaml#/TaskId"
+          nullable: true
+    CreateMessageDto:
+      "$ref": "./conversations.yaml#/CreateMessageDto"
+    CreateSystemMessage:
+      "$ref": "./conversations.yaml#/CreateSystemMessage"
+    CreateUserMessage:
+      "$ref": "./conversations.yaml#/CreateUserMessage"
+    UpdateMessageDto:
+      "$ref": "./conversations.yaml#/UpdateMessageDto"
+    UserMessage:
+      "$ref": "./conversations.yaml#/UserMessage"
+    SystemMessage:
+      "$ref": "./conversations.yaml#/SystemMessage"
+    MessageResponseDto:
+      "$ref": "./conversations.yaml#/MessageResponseDto"
+    SystemMessageData:
+      "$ref": "./conversations.yaml#/SystemMessageData"
+    UserMessageData:
+      "$ref": "./conversations.yaml#/UserMessageData"
+    MessageStatus:
+      "$ref": "./conversations.yaml#/MessageStatus"
+    MessageClassificationResult:
+      type: object
+      required:
+        - intent
+        - confidence
+        - reasoning
+      properties:
+        intent:
+          "$ref": "#/components/schemas/MessageIntent"
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        targetInitiativeId:
+          allOf:
+            - "$ref": "./common.yaml#/InitiativeId"
+          description: Identifier of the initiative referenced by the message.
+        targetLevel:
+          "$ref": "#/components/schemas/InitiativeLevel"
+        suggestedAction:
+          "$ref": "#/components/schemas/InitiativeAction"
+        reasoning:
+          type: string
+        metadata:
+          type: object
+          properties:
+            autoClassified:
+              type: boolean
+            alternatives:
+              type: array
+              items:
+                type: object
+                required:
+                  - intent
+                  - confidence
+                properties:
+                  intent:
+                    "$ref": "#/components/schemas/MessageIntent"
+                  confidence:
+                    type: number
+                    format: float
+                additionalProperties: false
+            model:
+              type: string
+            levelAware:
+              type: boolean
+            currentLevel:
+              "$ref": "#/components/schemas/InitiativeLevel"
+          additionalProperties: true
+      additionalProperties: false
+    MessageIntent:
+      type: string
+      enum:
+        - initiative_feedback
+        - content_update
+        - review_request
+        - approval
+        - rejection
+        - general
+    InitiativeAction:
+      type: string
+      enum:
+        - refine
+        - update
+        - review
+        - approve
+        - reject
+    InitiativeLevel:
+      type: string
+      enum:
+        - description
+        - details
+        - acceptanceCriteria
+    QueueJobStatus:
+      type: string
+      enum:
+        - waiting
+        - active
+        - completed
+        - failed
+        - retried
+    QueueName:
+      type: string
+      enum:
+        - artifacts
+        - llm
+        - agent
+        - integration
+        - flow_node
+        - non_interactive_flow_node
+    JobType:
+      type: string
+      description: Identifier for the queued job type
+    SystemEventSeverity:
+      type: string
+      enum:
+        - info
+        - warning
+        - error
+    LlmUsageMetrics:
+      type: object
+      required:
+        - promptTokens
+        - completionTokens
+        - totalTokens
+      properties:
+        promptTokens:
+          type: integer
+        completionTokens:
+          type: integer
+        totalTokens:
+          type: integer
+      additionalProperties: false
+    LlmErrorInfo:
+      type: object
+      properties:
+        message:
+          type: string
+        code:
+          type: string
+      additionalProperties: false
+    LlmCostData:
+      type: object
+      properties:
+        model:
+          type: string
+        inputTokens:
+          type: integer
+        outputTokens:
+          type: integer
+        totalTokens:
+          type: integer
+        inputCost:
+          type: number
+          format: float
+        outputCost:
+          type: number
+          format: float
+        totalCost:
+          type: number
+          format: float
+      additionalProperties: false
+    AgentFlowConfig:
+      type: object
+      required:
+        - jobId
+        - nodeId
+        - nodeType
+        - context
+      properties:
+        jobId:
+          "$ref": "./common.yaml#/JobId"
+        nodeId:
+          type: string
+        nodeType:
+          type: string
+        context:
+          "$ref": "#/components/schemas/FlowContextSnapshot"
+      additionalProperties: false
+    FlowContextSnapshot:
+      type: object
+      description: Generic flow execution context payload.
+      properties:
+        repositoryGrounding:
+          $ref: "./workflows.yaml#/RepositoryGroundingWorkflowContext"
+          description: Typed repository-grounding state available to flow execution.
+      additionalProperties: true
+    AgentExecutionResultPayload:
+      type: object
+      description: Agent execution result payload as produced by the agent runtime.
+      additionalProperties: true
+    AgentExecutionErrorPayload:
+      type: object
+      description: Agent execution error payload as produced by the agent runtime.
+      additionalProperties: true
+    FlowPathState:
+      type: object
+      required:
+        - pathTaken
+      properties:
+        pathTaken:
+          type: array
+          items:
+            type: string
+        previousNode:
+          type: string
+        previousTransition:
+          type: string
+      additionalProperties: false
+    FlowNodeError:
+      type: object
+      properties:
+        message:
+          type: string
+        code:
+          type: string
+      additionalProperties: false
+
+    AgentSessionEventEnvelope:
+      type: object
+      description: Base shape shared by every agent session event.
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this event.
+        type:
+          type: string
+          description: Discriminator for the concrete event type.
+        aggregateId:
+          "$ref": "./common.yaml#/AgentSessionId"
+        payload:
+          type: object
+          description: Event-specific payload that always includes the shared execution context.
+      additionalProperties: false
+    AgentSessionCreatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - conversationId
+            - agentSession
+          properties:
+            conversationId:
+              allOf:
+                - "$ref": "./common.yaml#/ConversationId"
+              nullable: true
+            taskId:
+              "$ref": "./common.yaml#/TaskId"
+              nullable: true
+            planId:
+              "$ref": "./common.yaml#/PlanId"
+              nullable: true
+            serviceId:
+              "$ref": "./common.yaml#/ServiceId"
+              nullable: true
+            agentSession:
+              "$ref": "./coding-sessions.yaml#/AgentSessionDto"
+            type:
+              "$ref": "./coding-sessions.yaml#/AgentSessionType"
+          additionalProperties: false
+    AgentSessionCreatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/AgentSessionEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - agent_session.created
+            payload:
+              "$ref": "#/components/schemas/AgentSessionCreatedEventPayload"
+    AgentSessionStatusChangedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - conversationId
+            - agentSession
+            - previousStatus
+            - newStatus
+          properties:
+            conversationId:
+              allOf:
+                - "$ref": "./common.yaml#/ConversationId"
+              nullable: true
+            agentSession:
+              "$ref": "./coding-sessions.yaml#/AgentSessionDto"
+            previousStatus:
+              "$ref": "./coding-sessions.yaml#/AgentSessionStatus"
+            newStatus:
+              "$ref": "./coding-sessions.yaml#/AgentSessionStatus"
+            type:
+              "$ref": "./coding-sessions.yaml#/AgentSessionType"
+          additionalProperties: false
+    AgentSessionStatusChangedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/AgentSessionEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - agent_session.status_changed
+            payload:
+              "$ref": "#/components/schemas/AgentSessionStatusChangedEventPayload"
+    AgentSessionDeletedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - conversationId
+            - agentSession
+          properties:
+            conversationId:
+              allOf:
+                - "$ref": "./common.yaml#/ConversationId"
+              nullable: true
+            agentSession:
+              "$ref": "./coding-sessions.yaml#/AgentSessionDto"
+            type:
+              "$ref": "./coding-sessions.yaml#/AgentSessionType"
+          additionalProperties: false
+    AgentSessionDeletedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/AgentSessionEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - agent_session.deleted
+            payload:
+              "$ref": "#/components/schemas/AgentSessionDeletedEventPayload"
+
+    ReportEventEnvelope:
+      type: object
+      description: Base shape shared by every report event.
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this event.
+        type:
+          type: string
+          description: Discriminator for the concrete event type.
+        aggregateId:
+          "$ref": "./common.yaml#/ReportId"
+        payload:
+          type: object
+          description: Event-specific payload that always includes the shared execution context.
+      additionalProperties: false
+    ReportCreatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - report
+            - shouldProcess
+          properties:
+            report:
+              "$ref": "./reports.yaml#/ReportDto"
+            shouldProcess:
+              type: boolean
+              description: False when consumers must not ingest this report into project knowledge.
+    ReportCreatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/ReportEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - report.created
+            payload:
+              "$ref": "#/components/schemas/ReportCreatedEventPayload"
+
+    ServiceEvents:
+      description: Union of all service event envelopes.
+      oneOf:
+        - "$ref": "#/components/schemas/ServiceCreatedEvent"
+        - "$ref": "#/components/schemas/ServiceUpdatedEvent"
+        - "$ref": "#/components/schemas/ServiceArchivedEvent"
+    ServiceEventEnvelope:
+      type: object
+      description: Base shape shared by every service event.
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this event.
+        type:
+          type: string
+          description: Discriminator for the concrete event type.
+        aggregateId:
+          type: string
+          format: uuid
+        payload:
+          type: object
+          description: Event-specific payload that always includes the shared execution context.
+      additionalProperties: false
+    ServiceCreatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - service
+          properties:
+            service:
+              "$ref": "./services.yaml#/ServiceDto"
+          additionalProperties: false
+    ServiceCreatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/ServiceEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - service.created
+            payload:
+              "$ref": "#/components/schemas/ServiceCreatedEventPayload"
+    ServiceUpdatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - service
+          properties:
+            service:
+              "$ref": "./services.yaml#/ServiceDto"
+          additionalProperties: false
+    ServiceUpdatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/ServiceEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - service.updated
+            payload:
+              "$ref": "#/components/schemas/ServiceUpdatedEventPayload"
+    ServiceArchivedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - service
+          properties:
+            service:
+              "$ref": "./services.yaml#/ServiceDto"
+          additionalProperties: false
+    ServiceArchivedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/ServiceEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - service.archived
+            payload:
+              "$ref": "#/components/schemas/ServiceArchivedEventPayload"
+    EvalEvents:
+      description: Union of all eval run and attempt progress event envelopes.
+      oneOf:
+        - "$ref": "#/components/schemas/EvalRunUpdatedEvent"
+        - "$ref": "#/components/schemas/EvalAttemptUpdatedEvent"
+    EvalEventEnvelope:
+      type: object
+      description: Base shape shared by every eval progress event.
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this event.
+        type:
+          type: string
+          description: Discriminator for the concrete event type.
+        aggregateId:
+          type: string
+          format: uuid
+          description: Id of the EVAL_RUN report.
+        payload:
+          type: object
+          description: Event-specific payload that always includes the shared execution context.
+      additionalProperties: false
+    EvalRunUpdatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - evalId
+            - run
+          properties:
+            evalId:
+              type: string
+              format: uuid
+            run:
+              "$ref": "./reports.yaml#/ReportDto"
+              description: The EVAL_RUN report as read after the change.
+    EvalRunUpdatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/EvalEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - eval_run.updated
+            payload:
+              "$ref": "#/components/schemas/EvalRunUpdatedEventPayload"
+    EvalAttemptUpdatedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - evalId
+            - evalRunId
+            - attempt
+          properties:
+            evalId:
+              type: string
+              format: uuid
+            evalRunId:
+              type: string
+              format: uuid
+              description: Id of the EVAL_RUN report.
+            attempt:
+              "$ref": "./reports.yaml#/ReportDto"
+              description: The EVAL_ATTEMPT report as read after the change.
+    EvalAttemptUpdatedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/EvalEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - eval_attempt.updated
+            payload:
+              "$ref": "#/components/schemas/EvalAttemptUpdatedEventPayload"
+    ProposalEvents:
+      description: Union of all proposal event envelopes.
+      oneOf:
+        - "$ref": "#/components/schemas/ProposalApprovedEvent"
+        - "$ref": "#/components/schemas/ProposalGroupLifecycleEvent"
+    ProposalEventEnvelope:
+      type: object
+      description: Base shape shared by every proposal event.
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this event.
+        type:
+          type: string
+          description: Discriminator for the concrete event type.
+        aggregateId:
+          "$ref": "./common.yaml#/ProposalId"
+        payload:
+          type: object
+          description: Event-specific payload that always includes the shared execution context.
+      additionalProperties: false
+    ProposalGroupEventEnvelope:
+      type: object
+      description: Base shape for project-scoped proposal-group lifecycle events.
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this event.
+        type:
+          type: string
+          description: Discriminator for the concrete event type.
+        aggregateId:
+          type: string
+          format: uuid
+          description: Proposal-group identity.
+        payload:
+          type: object
+      additionalProperties: false
+    ProposalApprovedEventPayload:
+      allOf:
+        - "$ref": "#/components/schemas/ExecutionContext"
+        - type: object
+          required:
+            - proposalId
+            - targetEntityId
+            - targetEntityType
+            - action
+            - requestorId
+            - createdAt
+            - shouldProcess
+          properties:
+            proposalId:
+              "$ref": "./common.yaml#/ProposalId"
+            shouldProcess:
+              type: boolean
+              description: False when consumers must not ingest this proposal into project knowledge.
+            targetEntityId:
+              type: string
+              format: uuid
+              description: ID of the entity targeted by the proposal.
+            targetEntityType:
+              type: string
+              description: Type of the target entity (TASK, DESIGN_DOC).
+            action:
+              type: string
+              description: Proposal action (CREATE, UPDATE, DELETE).
+            requestorId:
+              "$ref": "./common.yaml#/UserId"
+            requestorContext:
+              type: object
+              additionalProperties: true
+              description: Metadata about the requestor and request context.
+            influences:
+              type: array
+              items:
+                "$ref": "./artifacts.yaml#/Influence"
+              description: Entities that influenced this proposal.
+            generatedWithVersion:
+              type: string
+              description: Model or tool version used to generate the proposal.
+            resultingEntityId:
+              type: string
+              format: uuid
+              description: ID of the entity created or modified as a result of enacting the proposal.
+            createdAt:
+              type: string
+              format: date-time
+              description: Timestamp when the proposal was created.
+          additionalProperties: false
+    ProposalApprovedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/ProposalEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - proposal.approved
+            payload:
+              "$ref": "#/components/schemas/ProposalApprovedEventPayload"
+    ProposalGroupLifecycleEventPayload:
+      type: object
+      required:
+        - payloadType
+        - organizationId
+        - projectId
+        - groupId
+        - revision
+        - changedMemberIds
+      properties:
+        payloadType:
+          type: string
+          enum:
+            - proposal_group.lifecycle
+        organizationId:
+          "$ref": "./common.yaml#/OrganizationId"
+        projectId:
+          "$ref": "./common.yaml#/ProjectId"
+        groupId:
+          type: string
+          format: uuid
+        revision:
+          type: integer
+          minimum: 0
+        changedMemberIds:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+      additionalProperties: false
+      description: Compact invalidation signal; consumers refetch the canonical proposal-group snapshot
+    ProposalGroupLifecycleEvent:
+      allOf:
+        - "$ref": "#/components/schemas/ProposalGroupEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - proposal_group.lifecycle
+            payload:
+              "$ref": "#/components/schemas/ProposalGroupLifecycleEventPayload"
+
+    GitHubWebhookEvents:
+      description: Union of normalized GitHub webhook acceptance events.
+      oneOf:
+        - "$ref": "#/components/schemas/GitHubWebhookAcceptedEvent"
+    GitHubWebhookEventEnvelope:
+      type: object
+      description: Base shape shared by normalized GitHub webhook events.
+      required:
+        - id
+        - type
+        - aggregateId
+        - payload
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this event.
+        type:
+          type: string
+          description: Discriminator for the concrete event type.
+        aggregateId:
+          type: string
+          format: uuid
+          description: Durable GitHub webhook inbox identity.
+        payload:
+          type: object
+          description: Normalized, project-scoped delivery facts.
+      additionalProperties: false
+    GitHubWebhookAcceptedEventPayload:
+      type: object
+      additionalProperties: false
+      required:
+        - organizationId
+        - projectId
+        - integrationId
+        - inboxId
+        - deliveryId
+        - eventName
+        - repository
+        - action
+        - acceptedAt
+      properties:
+        organizationId:
+          "$ref": "./common.yaml#/OrganizationId"
+        projectId:
+          "$ref": "./common.yaml#/ProjectId"
+        integrationId:
+          type: string
+          format: uuid
+        inboxId:
+          type: string
+          format: uuid
+        deliveryId:
+          type: string
+          minLength: 1
+        eventName:
+          type: string
+          minLength: 1
+        repository:
+          type: object
+          additionalProperties: false
+          required:
+            - id
+            - fullName
+            - htmlUrl
+          properties:
+            id:
+              type: integer
+              format: int64
+            fullName:
+              type: string
+              minLength: 1
+            htmlUrl:
+              type: string
+              format: uri
+        action:
+          type: string
+          nullable: true
+        pullRequest:
+          type: object
+          additionalProperties: false
+          required:
+            - id
+            - number
+            - title
+            - state
+            - merged
+            - mergedAt
+            - mergedByLogin
+            - htmlUrl
+            - headSha
+            - baseSha
+          properties:
+            id:
+              type: integer
+              format: int64
+            number:
+              type: integer
+            title:
+              type: string
+            state:
+              type: string
+            merged:
+              type: boolean
+            mergedAt:
+              type: string
+              format: date-time
+              nullable: true
+            mergedByLogin:
+              type: string
+              nullable: true
+            htmlUrl:
+              type: string
+              format: uri
+            headSha:
+              type: string
+            baseSha:
+              type: string
+        acceptedAt:
+          type: string
+          format: date-time
+    GitHubWebhookAcceptedEvent:
+      allOf:
+        - "$ref": "#/components/schemas/GitHubWebhookEventEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - github.webhook.accepted
+            payload:
+              "$ref": "#/components/schemas/GitHubWebhookAcceptedEventPayload"

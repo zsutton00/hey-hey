@@ -1,0 +1,24 @@
+{
+  "session": {
+    "total_cost_usd": 0,
+    "total_api_duration_ms": 0,
+    "total_duration_ms": 412,
+    "total_lines_added": 0,
+    "total_lines_removed": 0,
+    "model_usage": {}
+  },
+  "subscription_type": "max",
+  "rate_limits_available": true,
+  "rate_limits": {
+    "five_hour": { "utilization": 23, "resets_at": "2026-10-14T03:00:00.000000+00:00" },
+    "seven_day": { "utilization": 41, "resets_at": "2026-10-19T14:00:00.000000+00:00" },
+    "seven_day_oauth_apps": null,
+    "seven_day_opus": { "utilization": 12, "resets_at": "2026-10-19T14:00:00.000000+00:00" },
+    "seven_day_sonnet": null,
+    "model_scoped": [
+      { "display_name": "Fable", "utilization": 5, "resets_at": "2026-10-19T14:00:00.000000+00:00" }
+    ],
+    "extra_usage": null
+  },
+  "behaviors": null
+}

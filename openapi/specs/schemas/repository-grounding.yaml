@@ -1,0 +1,1395 @@
+# =============================================
+# Repository-grounding workflow contracts
+# One source for the onboarding answers, saved analysis choices, the
+# machine-addressed CLI handoff, and the evidence-backed completion.
+# These are transport and message shapes only; they do not describe a
+# persistence model or carry machine-local directory contents.
+# =============================================
+
+RepositoryGroundingIntentAnswer:
+  type: object
+  additionalProperties: false
+  required:
+    - choice
+  properties:
+    choice:
+      type: string
+      enum:
+        - "yes"
+        - "no"
+      description: >-
+        The only value collected by the new-project intent gate: whether the
+        user has existing work Hey Hey may use to understand the project.
+        Service, brief, machine, scope, provider, and model choices belong to
+        later contracts and are deliberately not accepted here.
+  description: >-
+    Exact Yes/No branch answer for the new-project repository-grounding gate.
+
+RepositoryGroundingEntryMode:
+  type: string
+  enum:
+    - new_project
+    - existing_project
+  description: >-
+    Entry path into repository grounding. Both paths converge on the same
+    accepted prerequisites and analysis handoff.
+
+RepositoryGroundingAction:
+  type: string
+  enum:
+    - START_ANALYSIS
+    - RETRY_ANALYSIS
+    - FINISH_LATER
+    - CONTINUE_CONVERSATION
+  description: Explicit user action for the current repository-grounding step.
+
+RepositoryGroundingFieldPayload:
+  type: object
+  additionalProperties: true
+  properties:
+    initialValue:
+      type: object
+      additionalProperties: true
+      description: API-authored resumable choices for the field.
+    state:
+      type: object
+      additionalProperties: true
+      description: API-authored progress and result projection for the field.
+    bounds:
+      $ref: "./repository-grounding.yaml#/RepositoryGroundingDeterministicBounds"
+      description: API-authored deterministic read bounds for analysis.
+  description: >-
+    API-authored presentation data for the shared repository-grounding field.
+    It carries no machine-local directory path or repository source body.
+
+RepositoryPlacementExistingFeatureTarget:
+  type: object
+  additionalProperties: false
+  required: [targetType, featureId]
+  properties:
+    targetType:
+      type: string
+      enum: [EXISTING_FEATURE]
+    featureId:
+      $ref: "./common.yaml#/TaskId"
+
+RepositoryPlacementPendingHolder:
+  type: object
+  additionalProperties: false
+  required: [targetType, name, description, tag]
+  properties:
+    targetType:
+      type: string
+      enum: [PENDING_HOLDER]
+    name:
+      type: string
+    description:
+      type: string
+    tag:
+      $ref: "./tasks.yaml#/FeatureTag"
+
+RepositoryPlacementSharedParent:
+  oneOf:
+    - $ref: "#/RepositoryPlacementExistingFeatureTarget"
+    - $ref: "#/RepositoryPlacementPendingHolder"
+  discriminator:
+    propertyName: targetType
+    mapping:
+      EXISTING_FEATURE: "#/RepositoryPlacementExistingFeatureTarget"
+      PENDING_HOLDER: "#/RepositoryPlacementPendingHolder"
+
+RepositoryPlacementCandidateChild:
+  type: object
+  additionalProperties: false
+  required: [childKey, name, description, tag]
+  properties:
+    childKey:
+      type: string
+      format: uuid
+      description: Stable display identity; never valid as a root placement key.
+    name:
+      type: string
+    description:
+      type: string
+    tag:
+      $ref: "./tasks.yaml#/FeatureTag"
+
+RepositoryPlacementCandidateRoot:
+  type: object
+  additionalProperties: false
+  required: [rootKey, name, description, tag, children]
+  properties:
+    rootKey:
+      type: string
+      format: uuid
+      description: Stable candidate identity retained throughout placement review.
+    name:
+      type: string
+    description:
+      type: string
+    tag:
+      $ref: "./tasks.yaml#/FeatureTag"
+    children:
+      type: array
+      items:
+        $ref: "#/RepositoryPlacementCandidateChild"
+
+RepositoryPlacementStrategyPayload:
+  type: object
+  additionalProperties: false
+  required: [roots]
+  properties:
+    roots:
+      type: array
+      items:
+        $ref: "#/RepositoryPlacementCandidateRoot"
+
+RepositoryPlacementAddAtRootSubmission:
+  type: object
+  additionalProperties: false
+  required: [action]
+  properties:
+    action:
+      type: string
+      enum: [ADD_AT_ROOT]
+
+RepositoryPlacementAddToExistingSubmission:
+  type: object
+  additionalProperties: false
+  required: [action, parent]
+  properties:
+    action:
+      type: string
+      enum: [ADD_TO_EXISTING]
+    parent:
+      $ref: "#/RepositoryPlacementSharedParent"
+
+RepositoryPlacementIntelligentlyIntegrateSubmission:
+  type: object
+  additionalProperties: false
+  required: [action]
+  properties:
+    action:
+      type: string
+      enum: [INTELLIGENTLY_INTEGRATE]
+
+RepositoryPlacementStrategySubmission:
+  oneOf:
+    - $ref: "#/RepositoryPlacementAddAtRootSubmission"
+    - $ref: "#/RepositoryPlacementAddToExistingSubmission"
+    - $ref: "#/RepositoryPlacementIntelligentlyIntegrateSubmission"
+  discriminator:
+    propertyName: action
+    mapping:
+      ADD_AT_ROOT: "#/RepositoryPlacementAddAtRootSubmission"
+      ADD_TO_EXISTING: "#/RepositoryPlacementAddToExistingSubmission"
+      INTELLIGENTLY_INTEGRATE: "#/RepositoryPlacementIntelligentlyIntegrateSubmission"
+
+RepositoryPlacementLineageFeature:
+  type: object
+  additionalProperties: false
+  required: [featureId, name, tag]
+  properties:
+    featureId:
+      $ref: "./common.yaml#/TaskId"
+    name:
+      type: string
+    tag:
+      $ref: "./tasks.yaml#/FeatureTag"
+    parentFeatureId:
+      $ref: "./common.yaml#/TaskId"
+      nullable: true
+
+RepositoryPlacementReviewRoot:
+  type: object
+  additionalProperties: false
+  required: [root, selectedParent, selectedParentLineage]
+  properties:
+    root:
+      $ref: "#/RepositoryPlacementCandidateRoot"
+    selectedParent:
+      $ref: "#/RepositoryPlacementCompletionTarget"
+    selectedParentLineage:
+      type: array
+      items:
+        $ref: "#/RepositoryPlacementLineageFeature"
+      description: >-
+        Ordered from the highest existing Feature ancestor through the selected
+        parent; empty when the proposed root is placed at project root.
+
+RepositoryPlacementReviewPayload:
+  type: object
+  additionalProperties: false
+  required: [roots]
+  properties:
+    roots:
+      type: array
+      items:
+        $ref: "#/RepositoryPlacementReviewRoot"
+
+RepositoryPlacementParentOverride:
+  type: object
+  additionalProperties: false
+  required: [rootKey, target]
+  properties:
+    rootKey:
+      type: string
+      format: uuid
+    target:
+      $ref: "#/RepositoryPlacementCompletionTarget"
+
+RepositoryPlacementReviewSubmissionPayload:
+  type: object
+  additionalProperties: false
+  required: [overrides]
+  properties:
+    overrides:
+      type: array
+      items:
+        $ref: "#/RepositoryPlacementParentOverride"
+
+RepositoryPlacementReviewSubmission:
+  type: object
+  additionalProperties: false
+  required: [action, payload]
+  properties:
+    action:
+      type: string
+      enum: [APPROVED]
+    payload:
+      $ref: "#/RepositoryPlacementReviewSubmissionPayload"
+
+RepositoryGroundingConversationSeed:
+  type: object
+  additionalProperties: false
+  required:
+    - entryMode
+  properties:
+    entryMode:
+      $ref: "./repository-grounding.yaml#/RepositoryGroundingEntryMode"
+      description: Entry path selected before the full prerequisite context exists.
+    serviceId:
+      $ref: "./common.yaml#/ServiceId"
+      nullable: true
+      description: Optional Service retained while the onboarding conversation is initialized.
+    confirmedServiceBrief:
+      type: string
+      minLength: 1
+      nullable: true
+      description: Optional confirmed Service brief retained during initialization.
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+      nullable: true
+      description: Optional paired machine retained during initialization.
+  description: >-
+    Typed entry context used when an onboarding conversation is created from an
+    existing-project surface before the complete repository-grounding
+    prerequisites and analysis configuration have been accepted. This seed is
+    promoted to RepositoryGroundingWorkflowContext by the onboarding workflow.
+
+RepositoryGroundingPrerequisites:
+  type: object
+  additionalProperties: false
+  required:
+    - entryMode
+    - serviceId
+    - confirmedServiceBrief
+    - machineId
+  properties:
+    entryMode:
+      $ref: "./repository-grounding.yaml#/RepositoryGroundingEntryMode"
+    serviceId:
+      $ref: "./common.yaml#/ServiceId"
+      description: >-
+        Selected Service identity whose locally bound directory the paired CLI
+        may resolve on the selected machine.
+    confirmedServiceBrief:
+      type: string
+      minLength: 1
+      description: >-
+        Non-empty brief confirmed by the user. It guides interpretation but
+        does not override repository evidence.
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+      description: >-
+        Selected machine identity. Directory linkage remains machine-local;
+        no directory path is carried by this contract.
+  description: >-
+    Accepted repository prerequisites shared by new-project and
+    existing-project entry.
+
+RepositoryGroundingFocusedScope:
+  type: object
+  additionalProperties: false
+  required:
+    - scope
+    - focus
+  properties:
+    scope:
+      type: string
+      enum:
+        - focused
+    focus:
+      type: string
+      minLength: 1
+      description: Non-empty user-confirmed focus for a focused analysis.
+  description: Focused analysis scope, which requires a focus statement.
+
+RepositoryGroundingComprehensiveScope:
+  type: object
+  additionalProperties: false
+  required:
+    - scope
+  properties:
+    scope:
+      type: string
+      enum:
+        - comprehensive
+  description: >-
+    Comprehensive analysis scope. A focus statement is not accepted for this
+    branch because the scope itself is the complete repository request.
+
+RepositoryGroundingScope:
+  oneOf:
+    - $ref: "./repository-grounding.yaml#/RepositoryGroundingFocusedScope"
+    - $ref: "./repository-grounding.yaml#/RepositoryGroundingComprehensiveScope"
+  discriminator:
+    propertyName: scope
+    mapping:
+      focused: "#/RepositoryGroundingFocusedScope"
+      comprehensive: "#/RepositoryGroundingComprehensiveScope"
+  description: Discriminated focused or comprehensive analysis scope.
+
+RepositoryGroundingDeterministicBounds:
+  type: object
+  additionalProperties: false
+  required:
+    - maxFiles
+    - maxTotalBytes
+    - maxFileBytes
+    - maxDepth
+    - maxGeneratedFiles
+    - maxIgnoredFiles
+    - maxUnsupportedFiles
+    - maxBinaryFiles
+  properties:
+    maxFiles:
+      type: integer
+      minimum: 1
+      description: Maximum number of repository files the CLI may inspect.
+    maxTotalBytes:
+      type: integer
+      minimum: 1
+      description: Maximum aggregate bytes the CLI may read.
+    maxFileBytes:
+      type: integer
+      minimum: 1
+      description: Maximum bytes read from any one repository file.
+    maxDepth:
+      type: integer
+      minimum: 0
+      description: Maximum directory depth traversed from the Service root.
+    maxGeneratedFiles:
+      type: integer
+      minimum: 0
+      description: Maximum generated files admitted to the bounded read.
+    maxIgnoredFiles:
+      type: integer
+      minimum: 0
+      description: Maximum ignored files the CLI may consider during analysis.
+    maxUnsupportedFiles:
+      type: integer
+      minimum: 0
+      description: Maximum unsupported files the CLI may consider during analysis.
+    maxBinaryFiles:
+      type: integer
+      minimum: 0
+      description: Maximum binary files the CLI may consider during analysis.
+  description: >-
+    Explicit deterministic read bounds copied into the CLI request as analysis
+    controls. They constrain execution and are not echoed in the success
+    completion.
+
+RepositoryGroundingAnalysisConfiguration:
+  type: object
+  additionalProperties: false
+  required:
+    - scope
+    - provider
+    - resolvedFrontierModel
+    - reasoningEffort
+    - bounds
+  properties:
+    scope:
+      $ref: "./repository-grounding.yaml#/RepositoryGroundingScope"
+    provider:
+      type: string
+      enum:
+        - claude
+        - codex
+        - opencode
+      description: >-
+        Provider selected from the currently supported repository-analysis
+        catalog.
+    resolvedFrontierModel:
+      type: string
+      minLength: 1
+      description: >-
+        Frontier model resolved by the provider catalog for this request;
+        callers must not substitute an unqualified model alias.
+    reasoningEffort:
+      type: string
+      enum:
+        - none
+        - minimal
+        - low
+        - medium
+        - high
+        - xhigh
+        - max
+        - ultra
+        - default
+      description: >-
+        Catalog-valid reasoning effort selected for this provider and model.
+        It is required so saved analysis choices cannot represent a partial
+        runtime configuration.
+    fastMode:
+      type: boolean
+      description: >-
+        Optional catalog-supported Fast mode preference. True, false,
+        and omission are distinct; omit it when the selected provider and
+        model do not expose Fast mode.
+    bounds:
+      $ref: "./repository-grounding.yaml#/RepositoryGroundingDeterministicBounds"
+  description: >-
+    Saved, user-confirmed analysis choices. It is a workflow value, not a
+    durable analysis-attempt or review record.
+
+RepositoryGroundingRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - projectId
+    - conversationId
+    - workflowId
+    - workflowNodeId
+    - entryMode
+    - serviceId
+    - confirmedServiceBrief
+    - machineId
+    - scope
+    - provider
+    - resolvedFrontierModel
+    - reasoningEffort
+    - bounds
+  properties:
+    promptType:
+      type: string
+      enum:
+        - repository_grounding
+      description: >-
+        Optional transport routing discriminator. It is required by the
+        start-run wrapper and omitted from the standalone machine request
+        carried by a workflow trigger.
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+    conversationId:
+      $ref: "./common.yaml#/ConversationId"
+    workflowId:
+      $ref: "./common.yaml#/WorkflowId"
+    workflowNodeId:
+      type: string
+      minLength: 1
+    entryMode:
+      $ref: "./repository-grounding.yaml#/RepositoryGroundingEntryMode"
+    serviceId:
+      $ref: "./common.yaml#/ServiceId"
+    confirmedServiceBrief:
+      type: string
+      minLength: 1
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    scope:
+      $ref: "./repository-grounding.yaml#/RepositoryGroundingScope"
+    provider:
+      type: string
+      enum:
+        - claude
+        - codex
+        - opencode
+    resolvedFrontierModel:
+      type: string
+      minLength: 1
+    reasoningEffort:
+      type: string
+      enum:
+        - none
+        - minimal
+        - low
+        - medium
+        - high
+        - xhigh
+        - max
+        - ultra
+        - default
+    fastMode:
+      type: boolean
+      description: >-
+        Optional catalog-supported Fast mode preference forwarded
+        unchanged to execution; omitted for unsupported selections.
+    bounds:
+      $ref: "./repository-grounding.yaml#/RepositoryGroundingDeterministicBounds"
+  description: >-
+    Machine-addressed repository-analysis request. The selected machine
+    resolves the Service directory from its local binding; this wire shape
+    intentionally carries neither an absolute path nor source bodies.
+
+RepositoryPlacementInstruction:
+  type: object
+  additionalProperties: false
+  required: [rootKey, instruction]
+  properties:
+    rootKey:
+      type: string
+      format: uuid
+    instruction:
+      type: string
+      minLength: 1
+      description: Concise root-only placement guidance; never authorizes candidate mutation.
+
+RepositoryPlacementRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - projectId
+    - conversationId
+    - workflowId
+    - workflowNodeId
+    - serviceId
+    - machineId
+    - provider
+    - resolvedFrontierModel
+    - reasoningEffort
+    - candidates
+    - instructions
+  properties:
+    promptType:
+      type: string
+      enum: [repository_placement]
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+    conversationId:
+      $ref: "./common.yaml#/ConversationId"
+    workflowId:
+      $ref: "./common.yaml#/WorkflowId"
+    workflowNodeId:
+      type: string
+      minLength: 1
+    serviceId:
+      $ref: "./common.yaml#/ServiceId"
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    provider:
+      type: string
+      enum: [claude, codex, opencode]
+    resolvedFrontierModel:
+      type: string
+      minLength: 1
+    reasoningEffort:
+      type: string
+      enum: [none, minimal, low, medium, high, xhigh, max, ultra, default]
+    fastMode:
+      type: boolean
+    candidates:
+      type: array
+      items:
+        $ref: "./repository-grounding.yaml#/RepositoryPlacementCandidateRoot"
+      description: Immutable two-level proposed hierarchy with stable root and child keys.
+    instructions:
+      type: array
+      items:
+        $ref: "./repository-grounding.yaml#/RepositoryPlacementInstruction"
+      description: Exactly one concise instruction for each proposed root.
+  description: >-
+    Existing-project-only request asking the paired CLI to suggest one parent
+    for each immutable proposed root. Existing Feature data is read on demand.
+
+RepositoryPlacementProjectRootCompletionTarget:
+  type: object
+  additionalProperties: false
+  required: [kind]
+  properties:
+    kind:
+      type: string
+      enum: [PROJECT_ROOT]
+
+RepositoryPlacementExistingFeatureCompletionTarget:
+  type: object
+  additionalProperties: false
+  required: [kind, featureId]
+  properties:
+    kind:
+      type: string
+      enum: [EXISTING_FEATURE]
+    featureId:
+      $ref: "./common.yaml#/TaskId"
+
+RepositoryPlacementCompletionTarget:
+  oneOf:
+    - $ref: "./repository-grounding.yaml#/RepositoryPlacementProjectRootCompletionTarget"
+    - $ref: "./repository-grounding.yaml#/RepositoryPlacementExistingFeatureCompletionTarget"
+  discriminator:
+    propertyName: kind
+    mapping:
+      PROJECT_ROOT: "#/RepositoryPlacementProjectRootCompletionTarget"
+      EXISTING_FEATURE: "#/RepositoryPlacementExistingFeatureCompletionTarget"
+
+RepositoryPlacementSuggestion:
+  type: object
+  additionalProperties: false
+  required: [rootKey, target, rationale, confidence]
+  properties:
+    rootKey:
+      type: string
+      format: uuid
+    target:
+      $ref: "./repository-grounding.yaml#/RepositoryPlacementCompletionTarget"
+    rationale:
+      type: string
+      minLength: 1
+    confidence:
+      type: number
+      minimum: 0
+      maximum: 1
+
+RepositoryPlacementSuccess:
+  type: object
+  additionalProperties: false
+  required: [outcome, placements]
+  properties:
+    outcome:
+      type: string
+      enum: [success]
+    placements:
+      type: array
+      items:
+        $ref: "./repository-grounding.yaml#/RepositoryPlacementSuggestion"
+
+RepositoryPlacementRetryableFailure:
+  type: object
+  additionalProperties: false
+  required: [outcome, code, message]
+  properties:
+    outcome:
+      type: string
+      enum: [retryable_failure]
+    code:
+      type: string
+      enum: [provider_unavailable, provider_timeout, rate_limited, graph_unavailable]
+    message:
+      type: string
+      minLength: 1
+    retryAfterSeconds:
+      type: integer
+      minimum: 0
+
+RepositoryPlacementTerminalFailure:
+  type: object
+  additionalProperties: false
+  required: [outcome, code, message]
+  properties:
+    outcome:
+      type: string
+      enum: [terminal_failure]
+    code:
+      type: string
+      enum: [invalid_request, unsupported_provider, unsupported_model, access_denied, invalid_completion]
+    message:
+      type: string
+      minLength: 1
+
+RepositoryPlacementCompletion:
+  oneOf:
+    - $ref: "./repository-grounding.yaml#/RepositoryPlacementSuccess"
+    - $ref: "./repository-grounding.yaml#/RepositoryPlacementRetryableFailure"
+    - $ref: "./repository-grounding.yaml#/RepositoryPlacementTerminalFailure"
+  discriminator:
+    propertyName: outcome
+    mapping:
+      success: "#/RepositoryPlacementSuccess"
+      retryable_failure: "#/RepositoryPlacementRetryableFailure"
+      terminal_failure: "#/RepositoryPlacementTerminalFailure"
+
+RepositoryGroundingEvidenceItem:
+  type: object
+  additionalProperties: false
+  required:
+    - path
+    - summary
+  properties:
+    path:
+      type: string
+      minLength: 1
+      pattern: '^(?!/)(?![A-Za-z]:)(?!.*\\)(?!.*(^|/)\.\.(?:/|$)).+'
+      description: >-
+        Repository-relative evidence path. It must not be absolute, traverse
+        upward, or contain the machine-local Service root.
+    summary:
+      type: string
+      minLength: 1
+      description: Concise interpretation of the evidence without source text.
+    lineStart:
+      type: integer
+      minimum: 1
+    lineEnd:
+      type: integer
+      minimum: 1
+  description: >-
+    Reference to repository evidence. Summaries and line locations are
+    admissible; source bodies and arbitrary local paths are not.
+
+RepositoryGroundingChildNode:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - name
+    - description
+    - tag
+  properties:
+    id:
+      type: string
+      minLength: 1
+      description: Stable display identity for the proposed child feature.
+    name:
+      type: string
+      minLength: 1
+      description: Capability-oriented child feature name.
+    description:
+      type: string
+      minLength: 1
+      description: Markdown describing the capability. Enrichment retains supported purpose, behavior, boundaries, dependencies, and requirements here for review and materialization.
+    tag:
+      $ref: "./tasks.yaml#/FeatureTag"
+  description: >-
+    Leaf node of the proposed hierarchy. Children cannot nest below this
+    level, making the result exactly two levels deep.
+
+RepositoryGroundingTopLevelNode:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - name
+    - description
+    - tag
+    - children
+  properties:
+    id:
+      type: string
+      minLength: 1
+      description: Stable display identity for the proposed top-level feature.
+    name:
+      type: string
+      minLength: 1
+      description: Capability-oriented top-level feature name.
+    description:
+      type: string
+      minLength: 1
+      description: Markdown describing the capability. Enrichment retains supported purpose, behavior, boundaries, dependencies, and requirements here for review and materialization.
+    tag:
+      $ref: "./tasks.yaml#/FeatureTag"
+    children:
+      type: array
+      minItems: 1
+      items:
+        $ref: "./repository-grounding.yaml#/RepositoryGroundingChildNode"
+  description: Top-level node with one non-empty child level.
+
+RepositoryGroundingHierarchy:
+  type: object
+  additionalProperties: false
+  required:
+    - topLevels
+  properties:
+    topLevels:
+      type: array
+      minItems: 1
+      items:
+        $ref: "./repository-grounding.yaml#/RepositoryGroundingTopLevelNode"
+  description: One tagged, exactly two-level proposed feature hierarchy.
+
+RepositoryGroundingBriefDiscrepancy:
+  type: object
+  additionalProperties: false
+  required:
+    - summary
+    - rationale
+    - material
+  properties:
+    summary:
+      type: string
+      minLength: 1
+      description: Material difference between the confirmed brief and evidence.
+    rationale:
+      type: string
+      minLength: 1
+      description: Evidence-backed explanation of the difference.
+    material:
+      type: boolean
+      enum:
+        - true
+      description: Every discrepancy in a successful result is material.
+    evidencePaths:
+      type: array
+      items:
+        type: string
+        minLength: 1
+        pattern: '^(?!/)(?![A-Za-z]:)(?!.*\\)(?!.*(^|/)\.\.(?:/|$)).+'
+      description: Repository-relative paths supporting the discrepancy.
+  description: >-
+    Material discrepancy between the user-confirmed Service brief and
+    repository evidence.
+
+RepositoryGroundingSuccess:
+  type: object
+  additionalProperties: false
+  required:
+    - outcome
+    - serviceId
+    - provider
+    - resolvedFrontierModel
+    - narrative
+    - hierarchy
+    - evidence
+    - briefDiscrepancies
+  properties:
+    outcome:
+      type: string
+      enum:
+        - success
+    serviceId:
+      $ref: "./common.yaml#/ServiceId"
+      description: Service identity analyzed by the paired CLI.
+    provider:
+      type: string
+      minLength: 1
+      description: Provider that produced the bounded repository analysis.
+    resolvedFrontierModel:
+      type: string
+      minLength: 1
+      description: Resolved provider model used for the bounded analysis.
+    narrative:
+      type: string
+      minLength: 1
+      description: The single narrative describing the repository-grounded proposal.
+    hierarchy:
+      $ref: "./repository-grounding.yaml#/RepositoryGroundingHierarchy"
+    evidence:
+      type: array
+      minItems: 1
+      items:
+        $ref: "./repository-grounding.yaml#/RepositoryGroundingEvidenceItem"
+      description: Repository-relative evidence supporting the result.
+    briefDiscrepancies:
+      type: array
+      items:
+        $ref: "./repository-grounding.yaml#/RepositoryGroundingBriefDiscrepancy"
+      description: Material discrepancies from the confirmed Service brief.
+  description: >-
+    Successful repository capability analysis: exactly one narrative and one
+    tagged two-level hierarchy with repository-relative evidence and material
+    brief discrepancies. Analysis controls and internal review bookkeeping are
+    not part of this completion representation.
+
+RepositoryGroundingRetryableFailure:
+  type: object
+  additionalProperties: false
+  required:
+    - outcome
+    - code
+    - message
+  properties:
+    outcome:
+      type: string
+      enum:
+        - retryable_failure
+    code:
+      type: string
+      enum:
+        - machine_unavailable
+        - directory_unresolved
+        - provider_unavailable
+        - provider_timeout
+        - rate_limited
+        - transient_read_failure
+    message:
+      type: string
+      minLength: 1
+      description: User-safe explanation of the retryable failure.
+    retryAfterSeconds:
+      type: integer
+      minimum: 0
+      description: Optional hint for the next retry attempt.
+  description: >-
+    Typed failure outcome that preserves the accepted choices and may be
+    retried without changing the contract family.
+
+RepositoryGroundingTerminalFailure:
+  type: object
+  additionalProperties: false
+  required:
+    - outcome
+    - code
+    - message
+  properties:
+    outcome:
+      type: string
+      enum:
+        - terminal_failure
+    code:
+      type: string
+      enum:
+        - invalid_request
+        - unsupported_scope
+        - unsupported_provider
+        - unsupported_model
+        - access_denied
+        - invalid_completion
+    message:
+      type: string
+      minLength: 1
+      description: User-safe explanation of the terminal failure.
+  description: >-
+    Typed failure outcome that requires user correction or cannot be retried
+    under the accepted choices.
+
+RepositoryGroundingCompletion:
+  oneOf:
+    - $ref: "./repository-grounding.yaml#/RepositoryGroundingSuccess"
+    - $ref: "./repository-grounding.yaml#/RepositoryGroundingRetryableFailure"
+    - $ref: "./repository-grounding.yaml#/RepositoryGroundingTerminalFailure"
+  discriminator:
+    propertyName: outcome
+    mapping:
+      success: "#/RepositoryGroundingSuccess"
+      retryable_failure: "#/RepositoryGroundingRetryableFailure"
+      terminal_failure: "#/RepositoryGroundingTerminalFailure"
+  description: >-
+    Exactly one mutually exclusive completion outcome for a repository
+    analysis handoff.
+
+RepositoryFeatureEnrichmentAnswer:
+  type: object
+  additionalProperties: false
+  required: [question, answer]
+  properties:
+    question:
+      type: string
+      minLength: 1
+    answer:
+      type: string
+      minLength: 1
+
+RepositoryFeatureEnrichmentAnswerBatch:
+  type: object
+  additionalProperties: false
+  required: [round, answers]
+  properties:
+    round:
+      type: integer
+      minimum: 1
+      maximum: 2
+    answers:
+      type: array
+      minItems: 1
+      maxItems: 3
+      items:
+        $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentAnswer"
+
+RepositoryFeatureEnrichmentRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - projectId
+    - conversationId
+    - workflowId
+    - workflowNodeId
+    - serviceId
+    - machineId
+    - provider
+    - resolvedFrontierModel
+    - reasoningEffort
+    - analysis
+    - reviewedCandidates
+    - completedRounds
+    - answerBatches
+  properties:
+    promptType:
+      type: string
+      enum: [repository_feature_enrichment]
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+    conversationId:
+      $ref: "./common.yaml#/ConversationId"
+    workflowId:
+      $ref: "./common.yaml#/WorkflowId"
+    workflowNodeId:
+      type: string
+      minLength: 1
+    serviceId:
+      $ref: "./common.yaml#/ServiceId"
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    provider:
+      type: string
+      enum: [claude, codex, opencode]
+    resolvedFrontierModel:
+      type: string
+      minLength: 1
+    reasoningEffort:
+      type: string
+      enum: [none, minimal, low, medium, high, xhigh, max, ultra, default]
+    fastMode:
+      type: boolean
+    analysis:
+      $ref: "./repository-grounding.yaml#/RepositoryGroundingSuccess"
+      description: Latest accepted repository analysis snapshot. Continuing candidate IDs are preserved when a candidate remains in the analysis; candidates may be added, removed, reparented, or retagged within the two-level hierarchy.
+    reviewedCandidates:
+      $ref: "./repository-grounding.yaml#/RepositoryGroundingHierarchy"
+      description: User-reviewed candidates with stable analysis identities that guide deeper research, including accepted outline corrections.
+    completedRounds:
+      type: integer
+      minimum: 0
+      maximum: 2
+    answerBatches:
+      type: array
+      maxItems: 2
+      items:
+        $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentAnswerBatch"
+  description: >-
+    Stateless enrichment request. Each turn consumes the latest accepted
+    repository analysis snapshot, while the API owns runtime identity, the
+    ordered round count, and answer history. Enrichment is user-selected and may
+    succeed without questions when repository evidence is sufficient.
+
+RepositoryFeatureEnrichmentChoice:
+  type: string
+  enum: [ENRICH, SKIP]
+  description: Explicit choice after outline review. SKIP proceeds to placement and final approval without enrichment.
+
+RepositoryFeatureEnrichmentQuestions:
+  type: object
+  additionalProperties: false
+  required: [outcome, questionGroup]
+  properties:
+    outcome:
+      type: string
+      enum: [questions]
+    questionGroup:
+      $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentQuestionGroup"
+
+RepositoryFeatureEnrichmentQuestionGroup:
+  type: object
+  additionalProperties: false
+  required: [questions]
+  properties:
+    questions:
+      type: array
+      minItems: 1
+      maxItems: 3
+      items:
+        type: string
+        minLength: 1
+  description: >-
+    Bounded specialization of the existing QuestionsGroupPayload shape so the
+    standard question_group renderer can be reused without a second UI contract.
+
+RepositoryFeatureEnrichmentSupport:
+  type: object
+  additionalProperties: false
+  required: [candidateKey, detail, source]
+  properties:
+    candidateKey:
+      type: string
+      minLength: 1
+    detail:
+      type: string
+      minLength: 1
+    source:
+      type: string
+      enum: [repository_evidence, user_answer]
+    evidencePaths:
+      type: array
+      items:
+        type: string
+        minLength: 1
+        pattern: '^(?!/)(?![A-Za-z]:)(?!.*\\)(?!.*(^|/)\.\.(?:/|$)).+'
+    answerRound:
+      type: integer
+      minimum: 1
+      maximum: 2
+    answerQuestion:
+      type: string
+      minLength: 1
+
+RepositoryFeatureEnrichmentSuccessDecision:
+  type: object
+  additionalProperties: false
+  required:
+    - outcome
+    - serviceId
+    - provider
+    - resolvedFrontierModel
+    - narrative
+    - hierarchy
+    - evidence
+    - briefDiscrepancies
+    - support
+  properties:
+    outcome: { type: string, enum: [success] }
+    serviceId: { $ref: "./common.yaml#/ServiceId" }
+    provider: { type: string, minLength: 1 }
+    resolvedFrontierModel: { type: string, minLength: 1 }
+    narrative: { type: string, minLength: 1 }
+    hierarchy: { $ref: "./repository-grounding.yaml#/RepositoryGroundingHierarchy" }
+    evidence:
+      type: array
+      minItems: 1
+      items: { $ref: "./repository-grounding.yaml#/RepositoryGroundingEvidenceItem" }
+    briefDiscrepancies:
+      type: array
+      items: { $ref: "./repository-grounding.yaml#/RepositoryGroundingBriefDiscrepancy" }
+    support:
+      type: array
+      items: { $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentSupport" }
+  description: >-
+    Provider-facing success decision containing the complete latest analysis
+    snapshot. The provider may evolve evidence, narrative, and
+    the two-level tagged hierarchy; continuing candidates keep their IDs, while
+    additions, removals, reparenting, and tag changes are represented directly
+    in the returned snapshot.
+
+RepositoryFeatureEnrichmentSuccess:
+  type: object
+  additionalProperties: false
+  required:
+    - outcome
+    - serviceId
+    - provider
+    - resolvedFrontierModel
+    - narrative
+    - hierarchy
+    - evidence
+    - briefDiscrepancies
+    - support
+  properties:
+    outcome: { type: string, enum: [success] }
+    serviceId: { $ref: "./common.yaml#/ServiceId" }
+    provider: { type: string, minLength: 1 }
+    resolvedFrontierModel: { type: string, minLength: 1 }
+    narrative: { type: string, minLength: 1 }
+    hierarchy: { $ref: "./repository-grounding.yaml#/RepositoryGroundingHierarchy" }
+    evidence:
+      type: array
+      minItems: 1
+      items: { $ref: "./repository-grounding.yaml#/RepositoryGroundingEvidenceItem" }
+    briefDiscrepancies:
+      type: array
+      items: { $ref: "./repository-grounding.yaml#/RepositoryGroundingBriefDiscrepancy" }
+    support:
+      type: array
+      items: { $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentSupport" }
+  description: >-
+    Complete enrichment success carrying the latest accepted tagged hierarchy,
+    narrative, repository-relative evidence, material brief discrepancies, and
+    evidence-or-answer support. Analysis controls and internal review
+    bookkeeping are not part of this completion representation.
+
+RepositoryFeatureEnrichmentRetryableFailure:
+  type: object
+  additionalProperties: false
+  required: [outcome, code, message]
+  properties:
+    outcome: { type: string, enum: [retryable_failure] }
+    code:
+      type: string
+      enum: [provider_unavailable, provider_timeout, rate_limited, transient_read_failure]
+    message: { type: string, minLength: 1 }
+    retryAfterSeconds: { type: integer, minimum: 0 }
+
+RepositoryFeatureEnrichmentTerminalFailure:
+  type: object
+  additionalProperties: false
+  required: [outcome, code, message]
+  properties:
+    outcome: { type: string, enum: [terminal_failure] }
+    code:
+      type: string
+      enum: [invalid_request, unsupported_provider, unsupported_model, access_denied, invalid_completion]
+    message: { type: string, minLength: 1 }
+
+RepositoryFeatureEnrichmentCompletion:
+  oneOf:
+    - $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentQuestions"
+    - $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentSuccess"
+    - $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentRetryableFailure"
+    - $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentTerminalFailure"
+  discriminator:
+    propertyName: outcome
+    mapping:
+      questions: "#/RepositoryFeatureEnrichmentQuestions"
+      success: "#/RepositoryFeatureEnrichmentSuccess"
+      retryable_failure: "#/RepositoryFeatureEnrichmentRetryableFailure"
+      terminal_failure: "#/RepositoryFeatureEnrichmentTerminalFailure"
+
+RepositoryFeatureEnrichmentDecisionCompletion:
+  oneOf:
+    - $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentQuestions"
+    - $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentSuccessDecision"
+    - $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentRetryableFailure"
+    - $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentTerminalFailure"
+  discriminator:
+    propertyName: outcome
+    mapping:
+      questions: "#/RepositoryFeatureEnrichmentQuestions"
+      success: "#/RepositoryFeatureEnrichmentSuccessDecision"
+      retryable_failure: "#/RepositoryFeatureEnrichmentRetryableFailure"
+      terminal_failure: "#/RepositoryFeatureEnrichmentTerminalFailure"
+
+RepositoryFirstWorkRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - projectId
+    - conversationId
+    - workflowId
+    - workflowNodeId
+    - serviceId
+    - machineId
+    - provider
+    - resolvedFrontierModel
+    - reasoningEffort
+    - analysis
+    - materializedFeatureIds
+    - workRequest
+    - followUpRoundCount
+    - followUpAnswers
+  properties:
+    promptType:
+      type: string
+      enum: [repository_first_work]
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+    conversationId:
+      $ref: "./common.yaml#/ConversationId"
+    workflowId:
+      $ref: "./common.yaml#/WorkflowId"
+    workflowNodeId:
+      type: string
+      minLength: 1
+    serviceId:
+      $ref: "./common.yaml#/ServiceId"
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    provider:
+      type: string
+      enum: [claude, codex, opencode]
+    resolvedFrontierModel:
+      type: string
+      minLength: 1
+    reasoningEffort:
+      type: string
+      enum: [none, minimal, low, medium, high, xhigh, max, ultra, default]
+    fastMode:
+      type: boolean
+    analysis:
+      $ref: "./repository-grounding.yaml#/RepositoryGroundingSuccess"
+    materializedFeatureIds:
+      type: array
+      minItems: 1
+      items:
+        $ref: "./common.yaml#/TaskId"
+    workRequest:
+      type: string
+      minLength: 1
+    followUpRoundCount:
+      type: integer
+      minimum: 0
+      maximum: 1
+    followUpAnswers:
+      type: array
+      maxItems: 3
+      items:
+        $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentAnswer"
+  description: >-
+    Stateless first-work request sent after final approval materialized the
+    imported Features. The API owns the follow-up round count and answers so
+    each turn is evaluated from complete state.
+
+RepositoryFirstWorkQuestions:
+  type: object
+  additionalProperties: false
+  required: [outcome, questionGroup]
+  properties:
+    outcome:
+      type: string
+      enum: [questions]
+    questionGroup:
+      $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentQuestionGroup"
+
+RepositoryFirstWorkSuccess:
+  type: object
+  additionalProperties: false
+  required: [outcome, summary, taskProposalIds, featureProposalIds]
+  properties:
+    outcome: { type: string, enum: [success] }
+    summary: { type: string, minLength: 1 }
+    taskProposalIds:
+      type: array
+      minItems: 1
+      items: { $ref: "./common.yaml#/ProposalId" }
+    featureProposalIds:
+      type: array
+      items: { $ref: "./common.yaml#/ProposalId" }
+  description: >-
+    Proposals already created through the ordinary proposal tools; the
+    completion carries only their identities so review stays on the normal
+    proposal surface.
+
+RepositoryFirstWorkRetryableFailure:
+  type: object
+  additionalProperties: false
+  required: [outcome, code, message]
+  properties:
+    outcome: { type: string, enum: [retryable_failure] }
+    code:
+      type: string
+      enum: [provider_unavailable, provider_timeout, rate_limited, transient_read_failure]
+    message: { type: string, minLength: 1 }
+    retryAfterSeconds: { type: integer, minimum: 0 }
+
+RepositoryFirstWorkTerminalFailure:
+  type: object
+  additionalProperties: false
+  required: [outcome, code, message]
+  properties:
+    outcome: { type: string, enum: [terminal_failure] }
+    code:
+      type: string
+      enum: [invalid_request, unsupported_provider, unsupported_model, access_denied, invalid_completion]
+    message: { type: string, minLength: 1 }
+
+RepositoryFirstWorkCompletion:
+  oneOf:
+    - $ref: "./repository-grounding.yaml#/RepositoryFirstWorkQuestions"
+    - $ref: "./repository-grounding.yaml#/RepositoryFirstWorkSuccess"
+    - $ref: "./repository-grounding.yaml#/RepositoryFirstWorkRetryableFailure"
+    - $ref: "./repository-grounding.yaml#/RepositoryFirstWorkTerminalFailure"
+  discriminator:
+    propertyName: outcome
+    mapping:
+      questions: "#/RepositoryFirstWorkQuestions"
+      success: "#/RepositoryFirstWorkSuccess"
+      retryable_failure: "#/RepositoryFirstWorkRetryableFailure"
+      terminal_failure: "#/RepositoryFirstWorkTerminalFailure"

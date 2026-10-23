@@ -1,0 +1,157 @@
+SetDemoTemplateDto:
+  type: object
+  additionalProperties: false
+  required: [projectId, repositoryUrl]
+  properties:
+    projectId:
+      type: string
+      format: uuid
+    repositoryUrl:
+      type: string
+      format: uri
+      pattern: '^https://github[.]com/[A-Za-z0-9-]+/[A-Za-z0-9_.-]+/?$'
+      description: Public GitHub repository URL; an optional .git suffix is accepted.
+
+DemoTemplateDto:
+  type: object
+  required: [id, projectId, repositoryUrl, active, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    projectId:
+      type: string
+      format: uuid
+    repositoryUrl:
+      type: string
+      format: uri
+    active:
+      type: boolean
+    createdAt:
+      type: string
+      format: date-time
+
+ProvisionDemoSandboxDto:
+  type: object
+  additionalProperties: false
+  required: [botCheckToken, demoTermsVersion, agentBridgeAcknowledgmentVersion]
+  properties:
+    botCheckToken:
+      type: string
+      description: Token issued by the bot-check widget; verified server-side before provisioning.
+    demoTermsVersion:
+      type: string
+      description: Version of the demo terms the visitor agreed to.
+    agentBridgeAcknowledgmentVersion:
+      type: string
+      description: Version of the Agent Bridge acknowledgment the visitor acknowledged.
+
+DemoSandboxResponseDto:
+  type: object
+  required:
+    - organizationId
+    - projectId
+    - expiresAt
+    - inactivityTimeoutSeconds
+    - repositoryUrl
+    - resumed
+  properties:
+    organizationId:
+      type: string
+      format: uuid
+    projectId:
+      type: string
+      format: uuid
+    expiresAt:
+      type: string
+      format: date-time
+      description: When the sandbox expires if it sees no further activity.
+    inactivityTimeoutSeconds:
+      type: integer
+      description: Idle time after which the sandbox expires.
+    repositoryUrl:
+      type: string
+      format: uri
+      description: Public repository of the designated demo template.
+    resumed:
+      type: boolean
+      description: True when an existing sandbox was reused instead of provisioning a new one.
+
+DemoSandboxUnavailableCode:
+  type: string
+  enum: [DISABLED, AT_CAPACITY, PROVISIONING_FAILED, RATE_LIMITED, BOT_CHECK_FAILED]
+  description: >-
+    DISABLED, AT_CAPACITY and PROVISIONING_FAILED are returned with 503,
+    RATE_LIMITED with 429 and BOT_CHECK_FAILED with 400.
+
+DemoSandboxUnavailableDto:
+  allOf:
+    - $ref: "./common.yaml#/ApiErrorResponse"
+    - type: object
+      required: [code]
+      properties:
+        code:
+          $ref: "#/DemoSandboxUnavailableCode"
+
+DemoSandboxResumeState:
+  type: string
+  enum: [EXPIRED, NONE]
+  description: EXPIRED when this browser had a sandbox that is gone; NONE when it never had one.
+
+DemoSandboxResumeMissDto:
+  allOf:
+    - $ref: "./common.yaml#/ApiErrorResponse"
+    - type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [state]
+          properties:
+            state:
+              $ref: "#/DemoSandboxResumeState"
+
+DemoSandboxProgramDto:
+  type: object
+  additionalProperties: false
+  required: [enabled, activeCap, perIpLimit, perIpWindowSeconds]
+  properties:
+    enabled:
+      type: boolean
+      description: The single switch for the demo; off hides View demo and refuses new sandboxes.
+    activeCap:
+      type: integer
+      minimum: 0
+      description: Maximum ACTIVE sandboxes plus provisioning attempts.
+    perIpLimit:
+      type: integer
+      minimum: 1
+      description: Sandboxes one creator address may create per window.
+    perIpWindowSeconds:
+      type: integer
+      minimum: 1
+
+DemoSandboxAdminOverviewDto:
+  type: object
+  required: [program, template, activeCount]
+  properties:
+    program:
+      $ref: "#/DemoSandboxProgramDto"
+    template:
+      description: The active demo template, or null when none is designated.
+      nullable: true
+      allOf:
+        - $ref: "#/DemoTemplateDto"
+    activeCount:
+      type: integer
+      minimum: 0
+      description: ACTIVE sandboxes only; provisioning reservations also count toward the cap.
+
+DemoSandboxAvailabilityDto:
+  type: object
+  additionalProperties: false
+  required: [available]
+  properties:
+    available:
+      type: boolean
+      description: True when the demo is switched on and a template is designated.

@@ -1,0 +1,95 @@
+MachineEffectProofVersion:
+  type: integer
+  enum: [1]
+  description: Version of the paired-machine HTTP effect proof contract.
+
+MachineEffectHttpMethod:
+  type: string
+  enum: [DELETE, GET, PATCH, POST, PUT]
+  description: Uppercase HTTP method covered by the machine signature.
+
+MachineEffectProofDto:
+  type: object
+  additionalProperties: false
+  required:
+    - version
+    - operationId
+    - method
+    - path
+    - bodySha256
+    - organizationId
+    - effectId
+    - nonce
+    - timestampMs
+    - signature
+  properties:
+    version:
+      $ref: "#/MachineEffectProofVersion"
+    operationId:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: "^[A-Za-z][A-Za-z0-9._:-]*$"
+      description: Exact OpenAPI operationId of the platform effect being invoked.
+    method:
+      $ref: "#/MachineEffectHttpMethod"
+    path:
+      type: string
+      minLength: 1
+      maxLength: 2048
+      pattern: "^/"
+      description: >-
+        Exact origin-form request target covered by the signature, including
+        its leading slash and any canonical query string. It never includes a
+        scheme, authority, or fragment.
+    bodySha256:
+      type: string
+      minLength: 64
+      maxLength: 64
+      pattern: "^[a-f0-9]{64}$"
+      description: >-
+        Lowercase hexadecimal SHA-256 of the RFC 8785 canonical JSON effect
+        payload. The proof envelope itself is not part of this payload.
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+      description: >-
+        Organization covered by the signature. The API compares this value to
+        the organization bound to the verified machine credential; it is never
+        accepted as caller-selected identity.
+    effectId:
+      type: string
+      format: uuid
+      description: >-
+        Stable identity of this platform effect. A fresh-nonce retry for the
+        same machine is accepted only when the complete stable request binding
+        matches the original request; conflicting reuse is rejected before
+        endpoint persistence or delivery.
+    nonce:
+      type: string
+      format: uuid
+      description: >-
+        Single-use random request nonce. Reusing it for the same machine is
+        rejected even when another effect identity is supplied.
+    timestampMs:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Unix epoch milliseconds used by the API freshness window.
+    signature:
+      type: string
+      format: byte
+      minLength: 86
+      maxLength: 88
+      pattern: "^[A-Za-z0-9+/]+={0,2}$"
+      description: >-
+        Base64-encoded Ed25519 signature made by the paired machine key over
+        the UTF-8 RFC 8785 serialization of this object with signature removed.
+  description: >-
+    Closed proof envelope for one machine-originated platform HTTP effect.
+    MachineCredentialAuth resolves the candidate machine; this proof then
+    binds its paired Ed25519 key to the exact operation, method, request target,
+    canonical payload hash, organization, stable effect identity, nonce, and
+    timestamp. No machine identifier or provenance field is accepted because
+    those values are derived by the API after credential and signature
+    verification. This authenticates the caller only and never substitutes for
+    controller authorization required by a host-affecting effect.

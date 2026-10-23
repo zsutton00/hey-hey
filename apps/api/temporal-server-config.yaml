@@ -1,0 +1,177 @@
+global:
+  membership:
+    maxJoinDuration: 30s
+    broadcastAddress: '127.0.0.1'
+  pprof:
+    port: 7936
+
+persistence:
+  defaultStore: default
+  visibilityStore: visibility
+  numHistoryShards: 4
+  datastores:
+    default:
+      sql:
+        pluginName: 'postgres'
+        databaseName: 'temporal'
+        connectAddr: '127.0.0.1:5432'
+        connectProtocol: 'tcp'
+        user: 'temporal'
+        password: 'temporal'
+        maxConns: 20
+        maxIdleConns: 20
+        maxConnLifetime: '1h'
+    visibility:
+      sql:
+        pluginName: 'postgres'
+        databaseName: 'temporal_visibility'
+        connectAddr: '127.0.0.1:5432'
+        connectProtocol: 'tcp'
+        user: 'temporal'
+        password: 'temporal'
+        maxConns: 20
+        maxIdleConns: 20
+        maxConnLifetime: '1h'
+
+log:
+  stdout: false
+  level: 'info'
+  format: 'json'
+  outputFile: '/var/log/temporal/temporal-server.log'
+  # Additional log files for different components
+  files:
+    - name: 'workflow'
+      outputFile: '/var/log/temporal/workflow.log'
+      level: 'info'
+      format: 'json'
+      filter:
+        - 'workflow'
+        - 'activity'
+    - name: 'matching'
+      outputFile: '/var/log/temporal/matching.log'
+      level: 'info'
+      format: 'json'
+      filter:
+        - 'matching'
+        - 'taskqueue'
+    - name: 'history'
+      outputFile: '/var/log/temporal/history.log'
+      level: 'info'
+      format: 'json'
+      filter:
+        - 'history'
+        - 'execution'
+    - name: 'frontend'
+      outputFile: '/var/log/temporal/frontend.log'
+      level: 'info'
+      format: 'json'
+      filter:
+        - 'frontend'
+        - 'grpc'
+
+# Log rotation configuration
+logRotation:
+  maxSize: '100MB'
+  maxAge: 7
+  maxBackups: 10
+  compress: true
+
+services:
+  frontend:
+    rpc:
+      grpcPort: 7233
+      membershipPort: 6933
+      bindOnIP: '127.0.0.1'
+    metrics:
+      statsd:
+        hostPort: '127.0.0.1:8125'
+        prefix: 'temporal'
+    pprof:
+      port: 7934
+
+  matching:
+    rpc:
+      grpcPort: 7235
+      membershipPort: 6935
+      bindOnIP: '127.0.0.1'
+    metrics:
+      statsd:
+        hostPort: '127.0.0.1:8125'
+        prefix: 'temporal'
+    pprof:
+      port: 7935
+
+  history:
+    rpc:
+      grpcPort: 7234
+      membershipPort: 6934
+      bindOnIP: '127.0.0.1'
+    metrics:
+      statsd:
+        hostPort: '127.0.0.1:8125'
+        prefix: 'temporal'
+    pprof:
+      port: 7936
+
+  worker:
+    rpc:
+      grpcPort: 7236
+      membershipPort: 6936
+      bindOnIP: '127.0.0.1'
+    metrics:
+      statsd:
+        hostPort: '127.0.0.1:8125'
+        prefix: 'temporal'
+    pprof:
+      port: 7937
+
+clusterMetadata:
+  enableGlobalNamespace: false
+  failoverVersionIncrement: 10
+  masterClusterName: 'active'
+  currentClusterName: 'active'
+  clusterInformation:
+    active:
+      enabled: true
+      initialFailoverVersion: 1
+      rpcName: 'frontend'
+      rpcAddress: '127.0.0.1:7233'
+
+dcRedirectionPolicy:
+  policy: 'noop'
+
+archival:
+  history:
+    state: 'enabled'
+    enableRead: true
+    provider:
+      filestore:
+        fileMode: '0666'
+        dirMode: '0766'
+        defaultBucket:
+          name: 'temporal-archival'
+          owner: 'temporal'
+          retentionDays: 30
+  visibility:
+    state: 'enabled'
+    enableRead: true
+    provider:
+      filestore:
+        fileMode: '0666'
+        dirMode: '0766'
+        defaultBucket:
+          name: 'temporal-visibility-archival'
+          owner: 'temporal'
+          retentionDays: 30
+
+namespaceDefaults:
+  archival:
+    history:
+      state: 'enabled'
+      URI: 'file:///tmp/temporal_archival/development'
+    visibility:
+      state: 'enabled'
+      URI: 'file:///tmp/temporal_vis_archival/development'
+
+publicClient:
+  hostPort: '127.0.0.1:7233'

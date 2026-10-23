@@ -1,0 +1,8 @@
+allowBuilds:
+  '@nestjs/core': false
+  '@openapitools/openapi-generator-cli': true
+  esbuild: true
+minimumReleaseAgeExclude:
+  - playwright-core@1.64.0
+overrides:
+  '@hey-hey/ui-common': link:../ui-common

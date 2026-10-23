@@ -1,0 +1,289 @@
+{
+  "name": "@hey-hey/ui-common",
+  "private": false,
+  "license": "AGPL-3.0-only",
+  "version": "0.2.0",
+  "type": "module",
+  "packageManager": "pnpm@10.18.1",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./src/index.ts",
+  "files": [
+    "dist",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "publishConfig": {
+    "access": "restricted"
+  },
+  "sideEffects": [
+    "src/utils/prismLanguage.ts",
+    "dist/utils.mjs",
+    "dist/utils.cjs",
+    "dist/chunk-*.mjs",
+    "dist/chunk-*.cjs"
+  ],
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.mjs"
+    },
+    "./animations": {
+      "types": "./src/animations/index.ts",
+      "import": "./dist/animations.mjs",
+      "require": "./dist/animations.cjs",
+      "default": "./dist/animations.mjs"
+    },
+    "./api": {
+      "types": "./src/api/index.ts",
+      "import": "./dist/api.mjs",
+      "require": "./dist/api.cjs",
+      "default": "./dist/api.mjs"
+    },
+    "./components": {
+      "types": "./src/components/index.ts",
+      "import": "./dist/components.mjs",
+      "require": "./dist/components.cjs",
+      "default": "./dist/components.mjs"
+    },
+    "./agent-sessions-runtime": {
+      "types": "./src/components/AgentSession/runtime/index.ts",
+      "import": "./dist/agent-sessions-runtime.mjs",
+      "require": "./dist/agent-sessions-runtime.cjs",
+      "default": "./dist/agent-sessions-runtime.mjs"
+    },
+    "./context": {
+      "types": "./src/contexts/index.ts",
+      "import": "./dist/context.mjs",
+      "require": "./dist/context.cjs",
+      "default": "./dist/context.mjs"
+    },
+    "./data": {
+      "types": "./src/data/index.ts",
+      "import": "./dist/data.mjs",
+      "require": "./dist/data.cjs",
+      "default": "./dist/data.mjs"
+    },
+    "./hooks": {
+      "types": "./src/hooks/index.ts",
+      "import": "./dist/hooks.mjs",
+      "require": "./dist/hooks.cjs",
+      "default": "./dist/hooks.mjs"
+    },
+    "./clients": {
+      "types": "./dist/types/clients/index.d.ts",
+      "import": "./dist/clients.mjs",
+      "require": "./dist/clients.cjs",
+      "default": "./dist/clients.mjs"
+    },
+    "./agents": {
+      "types": "./dist/types/agents/index.d.ts",
+      "import": "./dist/agents.mjs",
+      "require": "./dist/agents.cjs",
+      "default": "./dist/agents.mjs"
+    },
+    "./agents-prompts": {
+      "types": "./src/agents/prompts.ts",
+      "import": "./dist/agents-prompts.mjs",
+      "require": "./dist/agents-prompts.cjs",
+      "default": "./dist/agents-prompts.mjs"
+    },
+    "./services": {
+      "types": "./src/services/index.ts",
+      "import": "./dist/services.mjs",
+      "require": "./dist/services.cjs",
+      "default": "./dist/services.mjs"
+    },
+    "./i18n": {
+      "types": "./src/i18n/index.ts",
+      "import": "./dist/i18n.mjs",
+      "require": "./dist/i18n.cjs",
+      "default": "./dist/i18n.mjs"
+    },
+    "./utils": {
+      "types": "./src/utils/index.ts",
+      "import": "./dist/utils.mjs",
+      "require": "./dist/utils.cjs",
+      "default": "./dist/utils.mjs"
+    },
+    "./permissions": {
+      "types": "./src/permissions/index.ts",
+      "import": "./dist/permissions.mjs",
+      "require": "./dist/permissions.cjs",
+      "default": "./dist/permissions.mjs"
+    },
+    "./capability-catalog": {
+      "types": "./dist/types/components/AgentSession/capabilityCatalog.d.ts",
+      "import": "./dist/capability-catalog.mjs",
+      "require": "./dist/capability-catalog.cjs",
+      "default": "./dist/capability-catalog.mjs"
+    }
+  },
+  "scripts": {
+    "dev": "pnpm --filter @hey-hey/ui-common-playground dev",
+    "check": "pnpm lint && pnpm type-check && pnpm test:run",
+    "prebuild": "pnpm lint && pnpm type-check",
+    "build": "node scripts/run-tsup-with-heap.cjs && pnpm build:cli-declarations",
+    "build:cli-declarations": "tsc -p tsconfig.cli-declarations.json",
+    "fix:api": "node scripts/openapi-post.js",
+    "type-check": "tsc --build",
+    "lint": "eslint .",
+    "lint:fix": "eslint --fix",
+    "preview": "pnpm --filter @hey-hey/ui-common-playground preview",
+    "test": "vitest run",
+    "test:changed": "vitest run --changed origin/main --passWithNoTests",
+    "test:file": "vitest run",
+    "test:related": "vitest related --run --passWithNoTests",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "test:browser:project-report": "pnpm tsc --noEmit -p scripts/browser/tsconfig.json && node scripts/verify-project-report-browser.mjs",
+    "clean:api": "rm -rf src/api src/local-agent-api/generated src/generated /tmp/ui-common-local-agent-api",
+    "generate:contract": "node \"$(node scripts/openapi-root.cjs)/scripts/task-monitor-contract.js\" --typescript-output src/generated/task-monitor-contract.schema.ts",
+    "generate:entity-prompt-template-language": "node scripts/generate-entity-prompt-template-language.cjs",
+    "generate:api": "pnpm generate:contract && pnpm generate:entity-prompt-template-language && openapi-generator-cli generate -i \"$(node scripts/openapi-root.cjs)/specs/api/openapi.yaml\" -g typescript-axios -o src/api --additional-properties=npmName=hey-hey-api,supportsES6=true,withInterfaces=true,modelPropertyNaming=camelCase,typescriptThreePlus=true,useSingleRequestParameter=true --global-property=apiDocs=false,modelDocs=false && node \"$(node scripts/openapi-root.cjs)/scripts/postprocess-project-report-models.js\" src/api/api.ts && node scripts/generate-private-beta-access-contract.cjs && node scripts/generate-browser-session-contract.cjs && node scripts/generate-activity-history-contract.cjs && node scripts/generate-open-items-contract.cjs",
+    "generate:all": "pnpm clean:api && pnpm generate:api && pnpm generate:local",
+    "generate:check": "pnpm generate:all",
+    "verify:deploy": "pnpm generate:all && pnpm build && pnpm test:run",
+    "changeset": "changeset",
+    "changeset:version": "changeset version",
+    "changeset:status": "changeset status --verbose",
+    "release": "pnpm build && changeset publish",
+    "release:dry-run": "pnpm build && changeset publish --dry-run",
+    "generate:i18n-keys": "node scripts/generate-i18n-keys.cjs",
+    "codex:smoke": "tsx scripts/codex-smoke.ts",
+    "analyze:openapi": "tsx scripts/schema-analysis/parse-openapi.ts",
+    "analyze:prisma": "tsx scripts/schema-analysis/parse-prisma.ts",
+    "analyze:relationships": "tsx scripts/schema-analysis/detect-relationships.ts",
+    "generate:relationship-config": "tsx scripts/schema-analysis/generate-config.ts",
+    "validate:relationship-config": "tsx scripts/schema-analysis/validate-config-cli.ts",
+    "generate:local": "openapi-generator-cli generate -i \"$(node scripts/openapi-root.cjs)/specs/local/openapi.yaml\" -g typescript-axios -o /tmp/ui-common-local-agent-api --additional-properties=supportsES6=true,withInterfaces=true,modelPropertyNaming=camelCase,typescriptThreePlus=true,useSingleRequestParameter=true --global-property=apiDocs=false,modelDocs=false && mkdir -p src/local-agent-api/generated && cp /tmp/ui-common-local-agent-api/api.ts /tmp/ui-common-local-agent-api/base.ts /tmp/ui-common-local-agent-api/common.ts /tmp/ui-common-local-agent-api/configuration.ts /tmp/ui-common-local-agent-api/index.ts src/local-agent-api/generated/ && node scripts/clean-generated-api-imports.cjs src/local-agent-api/generated/api.ts && pnpm exec prettier --write src/local-agent-api/generated",
+    "prepare": "husky",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@hookform/resolvers": "^5.0.1",
+    "@jridgewell/trace-mapping": "0.3.31",
+    "@lexical/code": "^0.38.2",
+    "@lexical/link": "^0.38.2",
+    "@lexical/list": "^0.38.2",
+    "@lexical/markdown": "^0.38.2",
+    "@lexical/react": "^0.38.2",
+    "@lexical/rich-text": "^0.38.2",
+    "@lexical/utils": "^0.38.2",
+    "@mermaid-js/layout-elk": "^0.2.1",
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "@mui/x-charts": "^8.27.0",
+    "@mui/x-date-pickers": "^8.11.1",
+    "@puckeditor/core": "^0.23.0",
+    "@tanstack/react-virtual": "^3.13.24",
+    "@types/jest": "^30.0.0",
+    "@types/lodash": "^4.17.18",
+    "@types/node": "^22.15.21",
+    "@types/pluralize": "^0.0.33",
+    "@uidotdev/usehooks": "^2.4.1",
+    "@xyflow/react": "^12.8.1",
+    "ajv": "8.17.1",
+    "ajv-formats": "3.0.1",
+    "axios": "^1.9.0",
+    "dagre": "^0.8.5",
+    "date-fns": "^4.1.0",
+    "diff": "^8.0.3",
+    "elkjs": "^0.12.0",
+    "filepond": "^4.32.8",
+    "filepond-plugin-file-validate-size": "^2.2.8",
+    "filepond-plugin-file-validate-type": "^1.2.9",
+    "filepond-plugin-image-exif-orientation": "^1.0.11",
+    "filepond-plugin-image-preview": "^4.6.12",
+    "i18next-browser-languagedetector": "^8.2.0",
+    "lexical": "^0.38.2",
+    "lib0": "^0.2.88",
+    "lodash": "^4.17.21",
+    "mermaid": "^11.12.3",
+    "motion": "^12.19.2",
+    "nuqs": "^2.6.0",
+    "pluralize": "^8.0.0",
+    "prismjs": "^1.30.0",
+    "react-filepond": "^7.1.3",
+    "react-hook-form": "^7.56.4",
+    "react-icons": "^5.6.0",
+    "react-markdown": "^10.1.0",
+    "react-toastify": "^11.0.5",
+    "reactflow": "^11.11.4",
+    "remark-breaks": "^4.0.0",
+    "remark-gfm": "^4.0.1",
+    "socket.io-client": "^4.8.1",
+    "y-protocols": "^1.0.6",
+    "yjs": "^13.6.18",
+    "zod": "^3.25.30"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.81.5",
+    "i18next": "^25.3.0",
+    "jotai": "^2.13.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-i18next": "^15.5.3",
+    "react-router-dom": "^7.6.0"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.7",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@eslint/js": "^9.25.0",
+    "@mui/icons-material": "^7.3.5",
+    "@mui/material": "^7.3.5",
+    "@openapitools/openapi-generator-cli": "2.29.0",
+    "@storybook/addon-essentials": "^8.6.18",
+    "@storybook/react": "^8.6.18",
+    "@storybook/react-vite": "^8.6.18",
+    "@tanstack/react-query": "^5.81.5",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/dagre": "^0.7.53",
+    "@types/js-yaml": "^4.0.9",
+    "@types/prismjs": "^1.26.6",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.5",
+    "eslint": "^9.25.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.19",
+    "eslint-plugin-unused-imports": "^4.0.0",
+    "globals": "^16.0.0",
+    "husky": "^9.1.7",
+    "i18next": "^25.3.0",
+    "jest-websocket-mock": "^2.5.0",
+    "jotai": "^2.13.1",
+    "js-yaml": "^4.1.1",
+    "jsdom": "^26.1.0",
+    "lint-staged": "^16.2.0",
+    "msw": "^2.11.0",
+    "prettier": "^3.8.3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-i18next": "^15.5.3",
+    "react-router-dom": "^7.6.0",
+    "storybook": "^8.6.18",
+    "tsup": "^8.3.0",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.3",
+    "typescript-eslint": "^8.30.1",
+    "vite": "^6.3.5",
+    "vitest": "^3.2.4"
+  },
+  "msw": {
+    "workerDirectory": [
+      "public"
+    ]
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,mjs,cjs,json,css,md,yml,yaml}": "prettier --write --ignore-unknown"
+  }
+}

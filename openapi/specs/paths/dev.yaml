@@ -1,0 +1,88 @@
+# =============================================
+# Development/Testing API Endpoints
+# =============================================
+
+/dev/llm/trigger-request:
+  post:
+    tags:
+      - Dev/LLM
+    summary: Trigger LLM request for testing
+    description: Trigger an LLM request for development and testing purposes
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../schemas/dev.yaml#/TriggerLLMRequestDto"
+    responses:
+      '200':
+        description: Request triggered successfully
+
+/dev/llm/trigger-progress:
+  post:
+    tags:
+      - Dev/LLM
+    summary: Trigger LLM progress update
+    description: Send progress update for an LLM request
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../schemas/dev.yaml#/TriggerLLMProgressDto"
+    responses:
+      '200':
+        description: Progress update sent successfully
+
+/dev/llm/trigger-complete:
+  post:
+    tags:
+      - Dev/LLM
+    summary: Trigger LLM completion
+    description: Mark an LLM request as completed
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../schemas/dev.yaml#/TriggerLLMCompleteDto"
+    responses:
+      '200':
+        description: Completion triggered successfully
+
+/dev/llm/active-requests:
+  get:
+    tags:
+      - Dev/LLM
+    summary: Get active LLM requests
+    description: Get list of currently active LLM requests
+    responses:
+      '200':
+        description: Active requests retrieved successfully
+
+/dev/llm/request/{requestId}/status:
+  get:
+    tags:
+      - Dev/LLM
+    summary: Get LLM request status
+    description: Get status of a specific LLM request
+    parameters:
+      - name: requestId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Request ID to check
+    responses:
+      '200':
+        description: Request status retrieved successfully
+
+/dev/llm/simulate-flow:
+  post:
+    tags:
+      - Dev/LLM
+    summary: Simulate LLM flow
+    description: Simulate an LLM flow for testing
+    responses:
+      '200':
+        description: Flow simulation completed successfully

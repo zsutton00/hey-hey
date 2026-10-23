@@ -1,0 +1,3560 @@
+openapi: 3.0.3
+info:
+  title: Graph Service API
+  description: |
+    API for managing knowledge graphs including nodes (artifacts), relationships, and graph queries.
+    Supports organizational knowledge management with decision lineage tracking.
+  version: 1.0.0
+  contact:
+    name: Graph Service Team
+    email: graph-service@organization.com
+
+servers:
+  - url: http://localhost:8080/api
+    description: Local development server
+  - url: https://graph-service.organization.com/api
+    description: Production server
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Nodes
+    description: Graph node operations
+  - name: Relationships
+    description: Graph relationship operations
+  - name: Queries
+    description: Graph query operations
+  - name: AgentEdges
+    description: Agent-authored edge operations (mutable hints created by agents)
+  - name: Hints
+    description: Graph-native hints with weighted connections to project items
+  - name: Admin
+    description: Administrative operations
+  - name: Lifecycle
+    description: Organization projection lifecycle operations
+  - name: TemplateGraph
+    description: Internal template topology snapshot and durable copy operations
+
+paths:
+  /organizations/{organizationId}/projects/{projectId}/template-graph:
+    get:
+      tags: [TemplateGraph]
+      operationId: exportTemplateGraph
+      summary: Export all persisted authored project edges without ranking or truncation
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+      responses:
+        "200":
+          description: Authored edges and their endpoint labels; ordinary lifecycle and mention events rebuild system projections
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TemplateGraphSnapshot"
+    put:
+      tags: [TemplateGraph]
+      operationId: applyTemplateGraphCopy
+      summary: Atomically apply a remapped topology snapshot; identical retries converge
+      description: Requires an API system credential scoped to project template copy and the target tenancy. Closed organizations reject writes. Missing canonical endpoints are stubbed as in ordinary edge creation and filled by lifecycle events. Retries cannot overwrite later edits. Never writes source tenancy.
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TemplateGraphCopyCommand"
+      responses:
+        "204":
+          description: Complete topology applied
+        "409":
+          description: Copy command identity or endpoint tenancy conflicts
+
+  /organizations/{organizationId}/projection-deletion:
+    post:
+      tags:
+        - Lifecycle
+      summary: Delete all content for an irreversibly closed organization
+      operationId: deleteOrganizationProjection
+      description: >-
+        Authenticated, idempotent Graph projection deletion. The command records
+        or loads the immutable local tombstone before deleting and verifying
+        organization-owned content. Identical commands return the retained
+        identity and verified completion; conflicting identity cannot overwrite
+        the tombstone.
+      security:
+        - BearerAuth: []
+      x-required-jwt-claims:
+        scopes:
+          - organization:projection:delete
+        audience: graph-service
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectionDeletionCommand"
+      responses:
+        "200":
+          description: Projection deletion completed or was an identical retry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionDeletionResult"
+        "400":
+          description: Command validation failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionDeletionValidationErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: Immutable deletion identity conflicts with retained evidence.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionDeletionIdentityConflictResponse"
+        "503":
+          description: Projection deletion failed transiently; retry the same command.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionDeletionRetryableFailureResponse"
+
+  /nodes:
+    post:
+      tags:
+        - Nodes
+      summary: Create a new graph node
+      operationId: createNode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNodeRequest"
+      responses:
+        "201":
+          description: Node created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+    get:
+      tags:
+        - Nodes
+      summary: List graph nodes
+      operationId: listNodes
+      parameters:
+        - $ref: "#/components/parameters/NodeType"
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/OrganizationId"
+        - $ref: "#/components/parameters/Status"
+        - $ref: "#/components/parameters/Label"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+        - $ref: "#/components/parameters/Sort"
+      responses:
+        "200":
+          description: List of nodes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedNodeResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /nodes/{nodeId}:
+    get:
+      tags:
+        - Nodes
+      summary: Get a graph node by ID
+      operationId: getNode
+      parameters:
+        - $ref: "#/components/parameters/NodeId"
+      responses:
+        "200":
+          description: Node details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    put:
+      tags:
+        - Nodes
+      summary: Update a graph node
+      operationId: updateNode
+      parameters:
+        - $ref: "#/components/parameters/NodeId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateNodeRequest"
+      responses:
+        "200":
+          description: Node updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    delete:
+      tags:
+        - Nodes
+      summary: Delete a graph node
+      operationId: deleteNode
+      parameters:
+        - $ref: "#/components/parameters/NodeId"
+      responses:
+        "204":
+          description: Node deleted successfully
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /relationships:
+    post:
+      tags:
+        - Relationships
+      summary: Create a new relationship
+      operationId: createRelationship
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRelationshipRequest"
+      responses:
+        "201":
+          description: Relationship created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RelationshipResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    get:
+      tags:
+        - Relationships
+      summary: List relationships
+      operationId: listRelationships
+      parameters:
+        - $ref: "#/components/parameters/RelationshipType"
+        - $ref: "#/components/parameters/SourceNodeId"
+        - $ref: "#/components/parameters/TargetNodeId"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+      responses:
+        "200":
+          description: List of relationships
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedRelationshipResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /relationships/batch:
+    post:
+      tags:
+        - Relationships
+      summary: Create multiple relationships in batch
+      operationId: createRelationshipsBatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchRelationshipRequest"
+      responses:
+        "201":
+          description: Relationships created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchRelationshipResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /relationships/{relationshipId}:
+    get:
+      tags:
+        - Relationships
+      summary: Get a relationship by ID
+      operationId: getRelationship
+      parameters:
+        - $ref: "#/components/parameters/RelationshipId"
+      responses:
+        "200":
+          description: Relationship details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RelationshipResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    delete:
+      tags:
+        - Relationships
+      summary: Delete a relationship
+      operationId: deleteRelationship
+      parameters:
+        - $ref: "#/components/parameters/RelationshipId"
+      responses:
+        "204":
+          description: Relationship deleted successfully
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /organizations/{organizationId}/projects/{projectId}/query:
+    post:
+      tags:
+        - Queries
+      summary: Execute a graph query
+      operationId: executeQuery
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GraphQueryRequest"
+      responses:
+        "200":
+          description: Query results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GraphQueryResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "408":
+          $ref: "#/components/responses/RequestTimeout"
+
+  /organizations/{organizationId}/projects/{projectId}/traversal:
+    post:
+      tags:
+        - Queries
+      summary: Traverse graph from seed entities
+      operationId: traverseGraph
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearchRequest"
+      responses:
+        "200":
+          description: Traversal results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /organizations/{organizationId}/projects/{projectId}/incident-edges:
+    post:
+      tags:
+        - Queries
+      summary: Read exact grouped incident relationships
+      operationId: readIncidentEdges
+      description: >
+        One-hop stored and requested derived relationships, grouped by seed.
+        Preserve empty groups and seed-to-seed edges. Select at most 100 distinct
+        neighbors per seed over the complete category union. At or below 100,
+        return all without scoring; above 100, rank by mean configured relationship
+        weight plus capped logarithmic parallel-edge consensus. Return every edge
+        for retained neighbors and the untruncated distinct neighbor total.
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IncidentEdgesRequest"
+      responses:
+        "200":
+          description: Exact incident groups with endpoint display metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncidentEdgesResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /organizations/{organizationId}/projects/{projectId}/entity-neighborhood:
+    post:
+      tags:
+        - Queries
+      summary: Get the labeled neighborhood of an entity
+      description: >
+        Builds the flat `relatedEntities[]` and `agentSessions[]` lists for the
+        seed entity by traversing the graph, applying the same labeling and
+        exclusion rules as the entity-context view:
+
+        - The seed entity, ARTIFACT entities, and structural pivots
+          (provided featureIds, provided planPivotEntityIds, and inbound
+          HAS_TASK parents that are non-FEATURE tasks) are never surfaced
+          in `relatedEntities`.
+
+        - AGENT_SESSION entries (only at depth 1) are split into
+          `agentSessions[]`.
+
+        - Direct system-graph semantic edges (Mentions, CreatedVia,
+          Blocks, DerivesFrom) emit a labeled `relatedEntities` row with
+          the relationship value encoded from the seed's perspective.
+
+        - Non-FEATURE task-parent rows surface explicitly with
+          relationship `parent`. FEATURE parents are not duplicated here;
+          they live in the caller's featureHierarchy.
+
+        - Sibling-via-parent: a non-pivot entity reachable from the seed
+          only through an adjacent pivot is emitted with relationship
+          `sibling-via-parent` and the pivot recorded in `via[]`. Plan-tree
+          pivots (PLAN, PLAN_STAGE) bypass the adjacency requirement;
+          FEATURE pivots require seed adjacency.
+
+        Agent-authored edges (DEPENDS_ON, SUPERSEDES, etc.) are not
+        emitted by this endpoint — callers fetch and merge those edges
+        separately because the agent-edge taxonomy carries reasoning
+        text the graph traversal does not produce.
+      operationId: getEntityNeighborhood
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EntityNeighborhoodRequest"
+      responses:
+        "200":
+          description: Labeled neighborhood for the seed entity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EntityNeighborhoodResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /organizations/{organizationId}/projects/{projectId}/topology:
+    get:
+      tags:
+        - Queries
+      summary: Get the knowledge topology for a project
+      operationId: getTopologyGraph
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+      responses:
+        "200":
+          description: Topology results grouped by category and subfacet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopologyGraphResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /organizations/{organizationId}/projects/{projectId}/entities/{entityId}/provenance:
+    get:
+      tags:
+        - Queries
+      summary: Get provenance lineage for an entity
+      description: >
+        Retrieves the full provenance lineage for a given entity by traversing
+        CREATED_VIA, DERIVES_FROM, and INFLUENCES relationships. Returns the
+        chain of influencing entities, version history, and creation sources.
+      operationId: getProvenanceLineage
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+        - name: entityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The entity ID to retrieve provenance for
+        - name: depth
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10
+            default: 3
+          description: Maximum traversal depth for lineage chain
+      responses:
+        "200":
+          description: Provenance lineage for the entity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProvenanceLineageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /organizations/{organizationId}/projects/{projectId}/agent-edges:
+    post:
+      tags:
+        - AgentEdges
+      summary: Create an agent-authored edge
+      operationId: createAgentEdge
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAgentEdgeDto"
+      responses:
+        "201":
+          description: Agent edge created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentEdge"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    get:
+      tags:
+        - AgentEdges
+      summary: List agent-authored edges
+      operationId: listAgentEdges
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+        - $ref: "#/components/parameters/RelationshipType"
+        - $ref: "#/components/parameters/SourceNodeId"
+        - $ref: "#/components/parameters/TargetNodeId"
+        - name: createdBySessionId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by the agent session that created the edge
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+        - $ref: "#/components/parameters/Sort"
+      responses:
+        "200":
+          description: List of agent-authored edges
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedAgentEdgeResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /organizations/{organizationId}/projects/{projectId}/agent-edges/batch:
+    post:
+      tags:
+        - AgentEdges
+      summary: Create agent-authored edges in a scoped batch
+      operationId: createAgentEdgesBatch
+      description: >
+        Creates each submitted agent edge independently and returns exactly one
+        position-correlated outcome for every input entry. Entries are processed
+        in input order so overlapping stable relationship identities retain the
+        same replay and conflict semantics as the single-edge operation. A
+        failure for one entry does not roll back successful entries. This scoped
+        acknowledgement defines the transport behavior of this operation; it is
+        a boundary candidate and does not by itself declare a standalone product
+        Contract.
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchCreateAgentEdgesRequest"
+      responses:
+        "200":
+          description: Position-correlated outcomes for all submitted edges
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchCreateAgentEdgesResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /organizations/{organizationId}/projects/{projectId}/agent-edges/incident-query:
+    post:
+      tags:
+        - AgentEdges
+      summary: Find incident agent-authored edges
+      operationId: findIncidentAgentEdges
+      description: >
+        Returns direct persisted agent-authored edges where either endpoint is
+        in the requested node ID set and the relationship label is in the
+        requested type set. This lookup is intended for explicit edge hydration
+        and does not apply traversal, search-result filtering, seed exclusion,
+        ranking, or pagination semantics.
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FindIncidentAgentEdgesRequest"
+      responses:
+        "200":
+          description: Direct incident agent-authored edges
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgentEdge"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /organizations/{organizationId}/projects/{projectId}/agent-edges/incident-delete:
+    post:
+      tags:
+        - AgentEdges
+      summary: Delete incident agent-authored edges in bulk
+      operationId: deleteIncidentAgentEdges
+      description: >
+        Deletes every direct persisted agent-authored edge where either
+        endpoint is in the requested node ID set. An edge whose source and
+        target are both requested is deleted and counted once. Non-incident
+        edges and system-emitted relationships are preserved. An empty node
+        set is an idempotent no-op and returns deletedEdgeCount 0, allowing
+        callers to complete a valid zero-item cascade without a special case.
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteIncidentAgentEdgesRequest"
+      responses:
+        "200":
+          description: Count of distinct incident agent-authored edges deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteIncidentAgentEdgesResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /organizations/{organizationId}/projects/{projectId}/agent-edges/{agentEdgeId}:
+    get:
+      tags:
+        - AgentEdges
+      summary: Get an agent-authored edge by ID
+      operationId: getAgentEdge
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+        - $ref: "#/components/parameters/AgentEdgeId"
+      responses:
+        "200":
+          description: Agent edge details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentEdge"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    patch:
+      tags:
+        - AgentEdges
+      summary: Update an agent-authored edge
+      operationId: updateAgentEdge
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+        - $ref: "#/components/parameters/AgentEdgeId"
+        - name: expectedUpdatedAt
+          in: query
+          required: false
+          description: Reviewed edge version. When supplied, comparison and mutation are atomic; missing or changed edges return 409 without mutation.
+          schema:
+            type: string
+            format: date-time
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAgentEdgeDto"
+      responses:
+        "409":
+          description: The reviewed edge version is no longer current; reconciliation is required.
+        "200":
+          description: Agent edge updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentEdge"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    delete:
+      tags:
+        - AgentEdges
+      summary: Delete an agent-authored edge
+      operationId: deleteAgentEdge
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+        - $ref: "#/components/parameters/AgentEdgeId"
+        - name: expectedUpdatedAt
+          in: query
+          required: false
+          description: Reviewed edge version. Comparison and deletion are atomic. A retry of the exact recorded deletion basis succeeds without repeating effects; other missing or changed edges return 409.
+          schema:
+            type: string
+            format: date-time
+        - name: reason
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Optional reason for deletion, for audit trail
+      responses:
+        "409":
+          description: The reviewed edge version is no longer current; reconciliation is required.
+        "204":
+          description: Agent edge deleted successfully
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /organizations/{organizationId}/projects/{projectId}/hints:
+    post:
+      tags:
+        - Hints
+      summary: Create a hint with at least one connection
+      operationId: createHint
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/hints.yaml#/CreateHintDto"
+      responses:
+        "201":
+          description: Hint created
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/hints.yaml#/Hint"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /organizations/{organizationId}/projects/{projectId}/hints/connected-items-query:
+    post:
+      tags:
+        - Hints
+      summary: Find live hints connected to any of the given items
+      operationId: findHintsByConnectedItems
+      description: >
+        Returns each live hint with at least one connection to a requested
+        item, deduplicated, with all of its connections and strengths. Retired
+        hints are never returned and origin evidence is never used to match.
+        Callers filter by the visibility of each returned connection endpoint.
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/hints.yaml#/FindHintsByConnectedItemsRequest"
+      responses:
+        "200":
+          description: Matching live hints
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/hints.yaml#/FindHintsByConnectedItemsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /organizations/{organizationId}/projects/{projectId}/hints/{hintId}:
+    get:
+      tags:
+        - Hints
+      summary: Get a hint, including a retired one
+      operationId: getHint
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+        - $ref: "#/components/parameters/HintId"
+      responses:
+        "200":
+          description: The hint
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/hints.yaml#/Hint"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    patch:
+      tags:
+        - Hints
+      summary: Edit a live hint's text
+      operationId: updateHintText
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+        - $ref: "#/components/parameters/HintId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/hints.yaml#/UpdateHintTextDto"
+      responses:
+        "200":
+          description: Updated hint
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/hints.yaml#/Hint"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+    delete:
+      tags:
+        - Hints
+      summary: Retire a hint
+      operationId: retireHint
+      description: >
+        Soft retirement. The hint keeps its text and origin for later review
+        and loses its connections, so retrieval never reaches it. Retiring an
+        already retired hint succeeds.
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+        - $ref: "#/components/parameters/HintId"
+      responses:
+        "204":
+          description: Hint retired
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /organizations/{organizationId}/projects/{projectId}/hints/{hintId}/connections:
+    post:
+      tags:
+        - Hints
+      summary: Connect an existing hint to another item
+      operationId: addHintConnection
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+        - $ref: "#/components/parameters/HintId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/hints.yaml#/HintConnectionInput"
+      responses:
+        "201":
+          description: Updated hint
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/hints.yaml#/Hint"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /organizations/{organizationId}/projects/{projectId}/hints/{hintId}/connections/{connectionId}:
+    patch:
+      tags:
+        - Hints
+      summary: Set a connection's strength
+      operationId: setHintConnectionStrength
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+        - $ref: "#/components/parameters/HintId"
+        - $ref: "#/components/parameters/HintConnectionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/hints.yaml#/SetHintConnectionStrengthDto"
+      responses:
+        "200":
+          description: Updated hint
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/hints.yaml#/Hint"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+    delete:
+      tags:
+        - Hints
+      summary: Remove a connection, retiring the hint if it was the last
+      operationId: removeHintConnection
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+        - $ref: "#/components/parameters/HintId"
+        - $ref: "#/components/parameters/HintConnectionId"
+      responses:
+        "200":
+          description: Resulting hint state
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/hints.yaml#/RemoveHintConnectionResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /admin/backup:
+    post:
+      tags:
+        - Admin
+      summary: Trigger manual backup
+      operationId: createBackup
+      responses:
+        "200":
+          description: Backup created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackupResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    TemplateGraphNode:
+      type: object
+      required: [id, label]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+          pattern: '^[A-Za-z][A-Za-z0-9_]*$'
+    TemplateGraphSnapshot:
+      type: object
+      required: [nodes, edges]
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/TemplateGraphNode'
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/GraphRelationship'
+    TemplateGraphCopyCommand:
+      type: object
+      required: [id, snapshot]
+      properties:
+        id:
+          type: string
+          format: uuid
+        snapshot:
+          $ref: '#/components/schemas/TemplateGraphSnapshot'
+    ProjectionDeletionIdentity:
+      $ref: "../schemas/projection-deletion.yaml#/ProjectionDeletionIdentity"
+    ProjectionDeletionCommand:
+      $ref: "../schemas/projection-deletion.yaml#/ProjectionDeletionCommand"
+    ProjectionDeletionResult:
+      $ref: "../schemas/projection-deletion.yaml#/ProjectionDeletionResult"
+    ProjectionDeletionValidationErrorResponse:
+      $ref: "../schemas/projection-deletion.yaml#/ProjectionDeletionValidationErrorResponse"
+    ProjectionDeletionIdentityConflictResponse:
+      $ref: "../schemas/projection-deletion.yaml#/ProjectionDeletionIdentityConflictResponse"
+    ProjectionDeletionRetryableFailureResponse:
+      $ref: "../schemas/projection-deletion.yaml#/ProjectionDeletionRetryableFailureResponse"
+    # Base schemas
+    GraphNode:
+      type: object
+      required:
+        - id
+        - type
+        - labels
+        - properties
+        - organizationId
+        - projectId
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the node
+          example: "node-123"
+        type:
+          $ref: "#/components/schemas/EntityType"
+        labels:
+          type: array
+          items:
+            type: string
+          description: Labels associated with the node
+          example: ["Artifact", "CodeArtifact"]
+        properties:
+          type: object
+          additionalProperties: true
+          description: Node properties
+        organizationId:
+          type: string
+          format: uuid
+          description: Organization identifier for the node
+        projectId:
+          type: string
+          format: uuid
+          description: Project identifier for the node
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    NodeType:
+      type: string
+      enum:
+        - ARTIFACT
+        - CODE_ARTIFACT
+        - DOCUMENT_ARTIFACT
+        - EXTERNAL_COMMENT_ARTIFACT
+        - PERSON_ARTIFACT
+        - DECISION
+        - GOAL
+        - TAG
+
+    EntityType:
+      $ref: "../api/openapi.yaml#/components/schemas/EntityType"
+      description: Type of graph node
+
+    TraversalNode:
+      oneOf:
+        - $ref: "#/components/schemas/ProjectTraversalNode"
+        - $ref: "#/components/schemas/TaskTraversalNode"
+
+        - $ref: "#/components/schemas/AgentSessionTraversalNode"
+        - $ref: "#/components/schemas/ValidationSessionTraversalNode"
+        - $ref: "#/components/schemas/MessageTraversalNode"
+        - $ref: "#/components/schemas/ReportTraversalNode"
+        - $ref: "#/components/schemas/InitiativeTraversalNode"
+        - $ref: "#/components/schemas/ServiceTraversalNode"
+        - $ref: "#/components/schemas/DesignDocTraversalNode"
+        - $ref: "#/components/schemas/ConversationTraversalNode"
+        - $ref: "#/components/schemas/ArtifactTraversalNode"
+        - $ref: "#/components/schemas/GenericTraversalNode"
+      discriminator:
+        propertyName: type
+        mapping:
+          ARTIFACT: "#/components/schemas/ArtifactTraversalNode"
+          INITIATIVE: "#/components/schemas/InitiativeTraversalNode"
+          PROJECT: "#/components/schemas/ProjectTraversalNode"
+          MESSAGE: "#/components/schemas/MessageTraversalNode"
+          CONVERSATION: "#/components/schemas/ConversationTraversalNode"
+          DESIGN_DOC: "#/components/schemas/DesignDocTraversalNode"
+          VALIDATION_SESSION: "#/components/schemas/ValidationSessionTraversalNode"
+          SERVICE: "#/components/schemas/ServiceTraversalNode"
+          TASK: "#/components/schemas/TaskTraversalNode"
+          AGENT_SESSION: "#/components/schemas/AgentSessionTraversalNode"
+          REPORT: "#/components/schemas/ReportTraversalNode"
+
+    GenericTraversalNode:
+      allOf:
+        - $ref: "#/components/schemas/GraphNode"
+
+    ArtifactTraversalNodeProperties:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+        type:
+          $ref: "../schemas/artifacts.yaml#/ArtifactType"
+        status:
+          $ref: "../schemas/artifacts.yaml#/ArtifactStatus"
+        source:
+          type: string
+
+    ArtifactTraversalNode:
+      allOf:
+        - $ref: "#/components/schemas/GraphNode"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - ARTIFACT
+            properties:
+              $ref: "#/components/schemas/ArtifactTraversalNodeProperties"
+
+    ProjectTraversalNodeProperties:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: "../schemas/projects.yaml#/ProjectStatus"
+        source:
+          type: string
+
+    ProjectTraversalNode:
+      allOf:
+        - $ref: "#/components/schemas/GraphNode"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - PROJECT
+            properties:
+              $ref: "#/components/schemas/ProjectTraversalNodeProperties"
+
+    InitiativeTraversalNodeProperties:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        status:
+          $ref: "../schemas/common.yaml#/WorkStatus"
+        previousStatus:
+          $ref: "../schemas/common.yaml#/WorkStatus"
+        priority:
+          $ref: "../schemas/common.yaml#/Priority"
+        source:
+          type: string
+        statusChangedAt:
+          type: string
+          format: date-time
+
+    InitiativeTraversalNode:
+      allOf:
+        - $ref: "#/components/schemas/GraphNode"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - INITIATIVE
+            properties:
+              $ref: "#/components/schemas/InitiativeTraversalNodeProperties"
+
+    TaskTraversalNodeProperties:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        status:
+          $ref: "../schemas/common.yaml#/WorkStatus"
+        priority:
+          $ref: "../schemas/tasks.yaml#/TaskPriority"
+        type:
+          $ref: "../schemas/tasks.yaml#/TaskType"
+        assigneeId:
+          $ref: "../schemas/common.yaml#/UserId"
+        source:
+          type: string
+        statusChangedAt:
+          type: string
+          format: date-time
+
+    TaskTraversalNode:
+      allOf:
+        - $ref: "#/components/schemas/GraphNode"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - TASK
+            properties:
+              $ref: "#/components/schemas/TaskTraversalNodeProperties"
+
+    AgentSessionProvider:
+      type: string
+      enum:
+        - claude
+        - codex
+        - opencode
+
+    AgentSessionTraversalNodeProperties:
+      type: object
+      additionalProperties: false
+      properties:
+        userId:
+          type: string
+          description: User who owns the session. May be a UUID or a sentinel like "system".
+        status:
+          $ref: "../schemas/coding-sessions.yaml#/AgentSessionStatus"
+        sessionDate:
+          type: string
+          format: date-time
+        title:
+          type: string
+        conversationId:
+          $ref: "../schemas/common.yaml#/ConversationId"
+        initiativeId:
+          $ref: "../schemas/common.yaml#/InitiativeId"
+        taskId:
+          $ref: "../schemas/common.yaml#/TaskId"
+        designDocId:
+          $ref: "../schemas/common.yaml#/DesignDocId"
+        serviceId:
+          $ref: "../schemas/common.yaml#/ServiceId"
+        planId:
+          $ref: "../schemas/common.yaml#/PlanId"
+        provider:
+          $ref: "#/components/schemas/AgentSessionProvider"
+        agentSessionId:
+          type: string
+        type:
+          $ref: "../schemas/coding-sessions.yaml#/AgentSessionType"
+        source:
+          type: string
+
+    AgentSessionTraversalNode:
+      allOf:
+        - $ref: "#/components/schemas/GraphNode"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - AGENT_SESSION
+            properties:
+              $ref: "#/components/schemas/AgentSessionTraversalNodeProperties"
+
+    ValidationSessionTraversalNodeProperties:
+      type: object
+      additionalProperties: false
+      properties:
+        userId:
+          type: string
+        taskId:
+          $ref: "../schemas/common.yaml#/TaskId"
+        conversationId:
+          $ref: "../schemas/common.yaml#/ConversationId"
+        title:
+          type: string
+        status:
+          $ref: "../schemas/validation-sessions.yaml#/ValidationSessionStatus"
+        serviceIds:
+          type: array
+          items:
+            $ref: "../schemas/common.yaml#/ServiceId"
+        source:
+          type: string
+
+    ValidationSessionTraversalNode:
+      allOf:
+        - $ref: "#/components/schemas/GraphNode"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - VALIDATION_SESSION
+            properties:
+              $ref: "#/components/schemas/ValidationSessionTraversalNodeProperties"
+
+    MessageTraversalNodeProperties:
+      type: object
+      additionalProperties: false
+      properties:
+        content:
+          type: string
+        authorId:
+          type: string
+        conversationId:
+          $ref: "../schemas/common.yaml#/ConversationId"
+        messageType:
+          type: string
+        source:
+          type: string
+
+    MessageTraversalNode:
+      allOf:
+        - $ref: "#/components/schemas/GraphNode"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - MESSAGE
+            properties:
+              $ref: "#/components/schemas/MessageTraversalNodeProperties"
+
+    ReportTraversalNodeProperties:
+      type: object
+      additionalProperties: false
+      properties:
+        reportType:
+          $ref: "../schemas/reports.yaml#/ReportType"
+        audience:
+          $ref: "../schemas/reports.yaml#/ReportAudience"
+        title:
+          type: string
+        version:
+          type: integer
+        schemaVersion:
+          type: integer
+        sourceExecutionId:
+          type: string
+          format: uuid
+        expiresAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+
+    ReportTraversalNode:
+      allOf:
+        - $ref: "#/components/schemas/GraphNode"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - REPORT
+            properties:
+              $ref: "#/components/schemas/ReportTraversalNodeProperties"
+
+    ServiceTraversalNodeProperties:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: "../schemas/services.yaml#/ServiceDto/properties/status"
+        repositoryUrl:
+          type: string
+        repositoryType:
+          $ref: "../schemas/services.yaml#/ServiceDto/properties/repositoryType"
+        repositoryId:
+          type: string
+        serviceType:
+          $ref: "../schemas/services.yaml#/ServiceDto/properties/serviceType"
+        language:
+          type: string
+        framework:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        source:
+          type: string
+
+    ServiceTraversalNode:
+      allOf:
+        - $ref: "#/components/schemas/GraphNode"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - SERVICE
+            properties:
+              $ref: "#/components/schemas/ServiceTraversalNodeProperties"
+
+    DesignDocTraversalNodeProperties:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+        status:
+          type: string
+        source:
+          type: string
+
+    DesignDocTraversalNode:
+      allOf:
+        - $ref: "#/components/schemas/GraphNode"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - DESIGN_DOC
+            properties:
+              $ref: "#/components/schemas/DesignDocTraversalNodeProperties"
+
+    ConversationTraversalNodeProperties:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+        status:
+          $ref: "../schemas/conversations.yaml#/ConversationStatus"
+        source:
+          type: string
+
+    ConversationTraversalNode:
+      allOf:
+        - $ref: "#/components/schemas/GraphNode"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - CONVERSATION
+            properties:
+              $ref: "#/components/schemas/ConversationTraversalNodeProperties"
+
+    # Relationship schemas
+    GraphRelationship:
+      type: object
+      required:
+        - id
+        - type
+        - sourceNodeId
+        - targetNodeId
+        - properties
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the relationship
+        type:
+          $ref: "#/components/schemas/RelationshipType"
+        category:
+          allOf:
+            - $ref: "../schemas/agent-edges.yaml#/AgentEdgeCategory"
+          default: meta
+          description: >
+            Edge category. Missing values on legacy relationships default to
+            `meta`; workflow flow relationships use `flow`.
+        sourceNodeId:
+          type: string
+          description: ID of the source node
+        targetNodeId:
+          type: string
+          description: ID of the target node
+        direction:
+          allOf:
+            - $ref: "../schemas/agent-edges.yaml#/AgentEdgeDirection"
+          nullable: true
+          description: >
+            Required for STANDARD and CONDITIONAL workflow flow relationships;
+            omitted for LOOP and meta relationships.
+        predicate:
+          allOf:
+            - $ref: "../schemas/agent-edges.yaml#/WorkflowEdgePredicate"
+          nullable: true
+          description: >
+            Required for CONDITIONAL workflow flow relationships, optional for
+            LOOP relationships, and omitted for STANDARD and meta relationships.
+        properties:
+          type: object
+          additionalProperties: true
+          description: Relationship properties
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    RelationshipType:
+      type: string
+      enum:
+        - SCOPED_TO_PROJECT
+        - SCOPED_TO_ORG
+        - HAS_INITIATIVE
+        - HAS_PLAN_STAGE
+        - HAS_PLAN_STEP
+        - HAS_TASK
+        - HAS_AGENT_SESSION
+        - HAS_IMPLEMENTATION_HINT
+        - HAS_PROMPT
+        - HAS_CATEGORY
+        - HAS_FACET
+        - HAS_KB_ENTRY
+        - HAS_DESIGN_DOC
+        - HAS_SUB_DOC
+        - ABOUT
+        - HAS_MESSAGE
+        - MENTIONS
+        - MESSAGE_FOLLOWS
+        - TRACKS
+        - PLAN_TRACKS
+        - PLAN_STAGE_TRACKS
+        - PLAN_STEP_TRACKS
+        - REPORTS_ON
+        - BLOCKS
+        - CREATED_VIA
+        - DERIVES_FROM
+        - INFLUENCES
+        - RELATED_TO
+        - DEPENDS_ON
+        - SUPERSEDES
+        - CONTRADICTS
+        - EVOLVES
+        - AGENT_LINKED
+        - PROPOSED_TOGETHER
+        - AUTHORED_IN
+        - TARGET_OF
+        - FULFILLED_BY
+        - GUARANTEES
+        - IMPLEMENTS
+        - CONSUMES
+        - STANDARD
+        - CONDITIONAL
+        - LOOP
+      description: >
+        Type of relationship between nodes in the graph. Mixes structural
+        edges (e.g. HAS_TASK, MENTIONS, CREATED_VIA) with the agent-authored
+        edge subset (RELATED_TO, DEPENDS_ON, DERIVES_FROM, SUPERSEDES,
+        CONTRADICTS, EVOLVES), workflow meta edge FULFILLED_BY, and workflow
+        flow edges STANDARD, CONDITIONAL, and LOOP defined as AgentEdgeType in
+        schemas/agent-edges.yaml. EVOLVES denotes that the source entity
+        refines or extends a canonical predecessor without displacing it
+        (contrast with SUPERSEDES, where the predecessor is displaced).
+        PROPOSED_TOGETHER is a symmetric, system-emitted edge emitted by
+        the Graph service when two entities are created or modified by the
+        same approved proposal — it carries no semantic claim beyond
+        co-authorship and is always paired with `source: system`
+        on the edge envelope (see schemas/agent-edges.yaml#/EdgeSource).
+        AUTHORED_IN links a Proposal to the Message it was authored in.
+        HAS_PLAN_STAGE, HAS_PLAN_STEP, PLAN_TRACKS, PLAN_STAGE_TRACKS, and
+        PLAN_STEP_TRACKS are deprecated compatibility projections; canonical
+        plan hierarchy uses HAS_TASK and canonical dependency edges use
+        DEPENDS_ON.
+        TARGET_OF links a Proposal to its subject entity, materialized on
+        approval (CREATE proposals point at resultingEntityId; UPDATE/DELETE
+        proposals point at targetEntityId).
+        Workflow flow edges carry category `flow`: STANDARD and CONDITIONAL
+        require direction, CONDITIONAL also requires predicate, and LOOP does
+        not carry direction but may carry a predicate. FULFILLED_BY remains
+        category `meta`. Cross-
+        workflow edges always originate from a TASK node whose work-item type
+        is WORKFLOW_STEP and may target WORKFLOW_STEP or WORKFLOW.
+
+    # Request/Response schemas
+    CreateNodeRequest:
+      type: object
+      required:
+        - type
+        - properties
+        - organizationId
+        - projectId
+      properties:
+        type:
+          $ref: "#/components/schemas/NodeType"
+        labels:
+          type: array
+          items:
+            type: string
+          description: Additional labels for the node
+        properties:
+          type: object
+          additionalProperties: true
+          description: Node-specific properties
+        projectId:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+
+    UpdateNodeRequest:
+      type: object
+      properties:
+        labels:
+          type: array
+          items:
+            type: string
+        properties:
+          type: object
+          additionalProperties: true
+          description: Properties to update
+
+    NodeResponse:
+      allOf:
+        - $ref: "#/components/schemas/GraphNode"
+        - type: object
+          properties:
+            relationships:
+              type: object
+              properties:
+                incoming:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/RelationshipSummary"
+                outgoing:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/RelationshipSummary"
+
+    RelationshipSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          $ref: "#/components/schemas/RelationshipType"
+        nodeId:
+          type: string
+        nodeType:
+          $ref: "#/components/schemas/NodeType"
+        nodeLabel:
+          type: string
+
+    CreateRelationshipRequest:
+      type: object
+      required:
+        - type
+        - sourceNodeId
+        - targetNodeId
+      properties:
+        type:
+          $ref: "#/components/schemas/RelationshipType"
+        category:
+          allOf:
+            - $ref: "../schemas/agent-edges.yaml#/AgentEdgeCategory"
+          default: meta
+          description: >
+            Edge category. Existing meta-edge callers may omit this field and
+            are treated as `meta`; workflow flow relationships must send
+            `flow`.
+        sourceNodeId:
+          type: string
+          description: >
+            Source node ID. Cross-workflow STANDARD, CONDITIONAL, LOOP, and
+            FULFILLED_BY relationships originate from TASK nodes whose
+            work-item type is WORKFLOW_STEP.
+        targetNodeId:
+          type: string
+          description: >
+            Target node ID. Cross-workflow flow relationships may target TASK
+            nodes whose work-item type is WORKFLOW_STEP or WORKFLOW.
+        direction:
+          allOf:
+            - $ref: "../schemas/agent-edges.yaml#/AgentEdgeDirection"
+          nullable: true
+          description: >
+            Required for STANDARD and CONDITIONAL workflow flow relationships;
+            omitted for LOOP and meta relationships.
+        predicate:
+          allOf:
+            - $ref: "../schemas/agent-edges.yaml#/WorkflowEdgePredicate"
+          nullable: true
+          description: >
+            Required for CONDITIONAL workflow flow relationships, optional for
+            LOOP relationships, and omitted for STANDARD and meta relationships.
+        properties:
+          type: object
+          additionalProperties: true
+
+    RelationshipResponse:
+      allOf:
+        - $ref: "#/components/schemas/GraphRelationship"
+        - type: object
+          properties:
+            sourceNode:
+              $ref: "#/components/schemas/NodeSummary"
+            targetNode:
+              $ref: "#/components/schemas/NodeSummary"
+
+    DeleteIncidentAgentEdgesRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - nodeIds
+      properties:
+        nodeIds:
+          type: array
+          minItems: 0
+          uniqueItems: true
+          description: >
+            Node IDs whose direct incident agent-authored edges must be
+            deleted. An empty set is a documented idempotent no-op.
+          items:
+            type: string
+            format: uuid
+
+    DeleteIncidentAgentEdgesResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - deletedEdgeCount
+      properties:
+        deletedEdgeCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Number of distinct incident agent-authored edges deleted.
+
+    # Batch relationship schemas
+    BatchRelationshipRequest:
+      type: object
+      required:
+        - relationships
+      properties:
+        relationships:
+          type: array
+          items:
+            $ref: "#/components/schemas/RelationshipDto"
+          minItems: 1
+          maxItems: 50
+          description: List of relationships to create
+
+    RelationshipDto:
+      type: object
+      required:
+        - fromArtifactId
+        - toArtifactId
+        - type
+      properties:
+        fromArtifactId:
+          type: string
+          format: uuid
+          description: Source artifact identifier
+        toArtifactId:
+          type: string
+          format: uuid
+          description: Target artifact identifier
+        type:
+          $ref: "#/components/schemas/RelationshipType"
+        metadata:
+          $ref: "#/components/schemas/RelationshipMetadata"
+
+    RelationshipMetadata:
+      type: object
+      properties:
+        reasoning:
+          type: string
+          description: Text explanation from LLM about the relationship
+          example: "This artifact defines the authentication requirements for the user login feature"
+        confidence:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          description: Confidence score for the relationship inference
+          example: 0.95
+        inferredBy:
+          $ref: "#/components/schemas/InferredBy"
+        createdAt:
+          type: string
+          format: date-time
+          description: When the relationship was inferred
+        conversationId:
+          type: string
+          format: uuid
+          description: Source conversation that generated this relationship
+        nodeId:
+          type: string
+          description: Flow node that generated the relationship
+        baseType:
+          $ref: "#/components/schemas/RelationshipType"
+          description: Original relationship category before specialization
+        requestorId:
+          type: string
+          format: uuid
+          description: ID of the user or agent that requested the action producing this relationship
+
+    InferredBy:
+      type: string
+      enum:
+        - llm
+        - system
+      description: Source of relationship inference
+
+    BatchRelationshipResponse:
+      type: object
+      properties:
+        created:
+          type: array
+          items:
+            type: string
+          description: IDs of successfully created relationships
+        failed:
+          type: array
+          items:
+            $ref: "#/components/schemas/RelationshipError"
+          description: Relationships that failed to create
+        summary:
+          $ref: "#/components/schemas/BatchRelationshipSummary"
+
+    BatchRelationshipSummary:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: Total number of relationships requested
+        successful:
+          type: integer
+          description: Number of relationships created successfully
+        failed:
+          type: integer
+          description: Number of relationships that failed
+
+    RelationshipError:
+      type: object
+      properties:
+        relationship:
+          $ref: "#/components/schemas/RelationshipDto"
+        error:
+          type: string
+          description: Error message explaining why the relationship failed
+
+    InfluenceCategory:
+      type: string
+      enum:
+        - requirement
+        - constraint
+        - context
+      description: Category of artifact influence on initiative
+
+    NodeSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          $ref: "#/components/schemas/NodeType"
+        label:
+          type: string
+
+    # Query schemas
+    GraphQueryRequest:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          description: Cypher query to execute
+          example: "MATCH (n:Artifact) WHERE n.type = 'CODE_ARTIFACT' RETURN n LIMIT 10"
+        parameters:
+          type: object
+          additionalProperties: true
+          description: Query parameters
+        timeout:
+          type: integer
+          description: Query timeout in milliseconds
+          default: 30000
+          maximum: 300000
+
+    GraphQueryResponse:
+      type: object
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/GraphNode"
+        relationships:
+          type: array
+          items:
+            $ref: "#/components/schemas/GraphRelationship"
+        executionTime:
+          type: integer
+          description: Query execution time in milliseconds
+
+    # Search schemas
+    SearchRequest:
+      type: object
+      properties:
+        projection:
+          $ref: "#/components/schemas/SearchProjection"
+        structuredRead:
+          $ref: "#/components/schemas/StructuredGraphReadRequest"
+        seedEntityIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Canonical entity identifiers to seed traversal
+        seedNodeIds:
+          type: array
+          items:
+            type: string
+          description: Graph node identifiers to seed traversal
+        traversal:
+          $ref: "#/components/schemas/TraversalOptions"
+        filters:
+          $ref: "#/components/schemas/SearchFilters"
+        scoring:
+          $ref: "#/components/schemas/TraversalScoringConfig"
+        boosts:
+          $ref: "#/components/schemas/SearchBoosts"
+        includeRelationships:
+          type: boolean
+          default: false
+        includeSeedEntities:
+          type: boolean
+          default: false
+          description: When true, allow seed entities to appear in traversal results.
+        trackPathCount:
+          type: boolean
+          default: false
+        groupResultsBySeed:
+          type: boolean
+          default: false
+          description: When true, return additional per-seed traversal result groups.
+        page:
+          type: integer
+          minimum: 0
+          default: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 500
+          default: 20
+      anyOf:
+        - required:
+            - structuredRead
+        - required: [seedEntityIds]
+        - required: [seedNodeIds]
+      not:
+        anyOf:
+          - required: [structuredRead]
+            not:
+              required: [projection]
+              properties:
+                projection:
+                  enum: [STRUCTURED_READ]
+          - required: [projection]
+            properties:
+              projection:
+                enum: [STRUCTURED_READ]
+            not:
+              required: [structuredRead]
+
+    SearchBoosts:
+      type: object
+      properties:
+        entityIds:
+          type: array
+          description: Per-entity additive boosts, expressed as deltas (e.g., 0.1 means +0.1).
+          items:
+            type: object
+            required:
+              - id
+              - weight
+            properties:
+              id:
+                type: string
+                format: uuid
+              weight:
+                type: number
+                format: float
+                example: 0.1
+        entityTypes:
+          type: array
+          description: Per-entity-type additive boosts, expressed as deltas (e.g., 0.05 means +0.05).
+          items:
+            type: object
+            required:
+              - type
+              - weight
+            properties:
+              type:
+                $ref: "#/components/schemas/EntityType"
+              weight:
+                type: number
+                format: float
+                example: 0.05
+
+    SearchFilters:
+      type: object
+      properties:
+        entityTypes:
+          type: array
+          items:
+            $ref: "#/components/schemas/EntityType"
+        labels:
+          type: array
+          items:
+            type: string
+        statuses:
+          type: array
+          items:
+            type: string
+          description: Canonical statuses to apply before graph results are returned
+        taskTypes:
+          type: array
+          items:
+            $ref: "../schemas/tasks.yaml#/TaskType"
+          description: >-
+            Task type filter applied when entityTypes includes TASK.
+            Only task nodes whose type property matches are returned.
+        tags:
+          type: array
+          items:
+            $ref: "../schemas/tasks.yaml#/FeatureTag"
+          description: >-
+            Feature tag filter applied to FEATURE-typed task nodes. When
+            provided, task nodes whose `tag` property matches one of the
+            given values are kept; non-task nodes pass through unaffected.
+        dateRange:
+          type: object
+          description: Inclusive createdAt instant bounds; either bound may be omitted.
+          properties:
+            from:
+              type: string
+              format: date-time
+            to:
+              type: string
+              format: date-time
+        updatedAtRange:
+          type: object
+          description: Inclusive updatedAt instant bounds; either bound may be omitted.
+          properties:
+            from:
+              type: string
+              format: date-time
+            to:
+              type: string
+              format: date-time
+
+    SearchProjection:
+      type: string
+      enum: [IDENTITIES_BY_SEED, STRUCTURED_READ, COMPACT_RANKED]
+      description: >-
+        STRUCTURED_READ requires structuredRead and returns only structuredRead;
+        all legacy seed, traversal, filter, scoring and pagination fields are ignored.
+        Omit for existing rich ranked search. COMPACT_RANKED preserves ranked node
+        payloads, scores, score breakdowns and pagination, including per-seed groups,
+        but omits paths, pathCount and relationships regardless of materialization
+        options. Path multiplicity still contributes to ranking. IDENTITIES_BY_SEED returns only
+        identitiesBySeed, exhaustively without pagination or ranking. Scoring,
+        boosts, page, size, groupResultsBySeed, includeRelationships and trackPathCount
+        are ignored. Scope, traversal and endpoint filters still apply. Explicit
+        pathExpansions add their declared chains independently of the base traversal
+        relationship include/exclude filters. includeSeedEntities applies to all seeds.
+        Endpoint labels match any supplied Neo4j label. dateRange and updatedAtRange
+        apply inclusive createdAt and updatedAt instant bounds respectively; either
+        bound may be omitted. Endpoint filter
+        categories combine with AND and values within each category with OR.
+
+    GraphEntityIdentity:
+      type: object
+      required: [entityId, entityType]
+      properties:
+        entityId:
+          type: string
+          format: uuid
+        entityType:
+          $ref: "#/components/schemas/EntityType"
+
+    SeedIdentityResult:
+      type: object
+      required: [seedNodeId, targets]
+      properties:
+        seedNodeId:
+          type: string
+          description: Requested seed identifier, including unmatched seeds.
+        targets:
+          type: array
+          description: Canonical identities, deduplicated within this seed; order is unspecified.
+          items:
+            $ref: "#/components/schemas/GraphEntityIdentity"
+
+    StructuredGraphReadRequest:
+      type: object
+      required: [root, seeds, directEdgeTypes, expansions]
+      description: >-
+        Type-neutral structured read. Direct edges are complete incident edges touching
+        seeds, including seed-to-seed edges, independent of expansions and their limits.
+        Empty directEdgeTypes selects no edges. Expansion keys must be unique.
+      properties:
+        root:
+          $ref: "#/components/schemas/GraphEntityIdentity"
+        seeds:
+          type: array
+          items:
+            $ref: "#/components/schemas/GraphEntityIdentity"
+        directEdgeTypes:
+          type: array
+          items:
+            $ref: "../schemas/agent-edges.yaml#/AgentEdgeType"
+        expansions:
+          type: array
+          items:
+            $ref: "#/components/schemas/StructuredGraphReadExpansion"
+
+    StructuredGraphReadExpansion:
+      type: object
+      required: [key, seeds, path, excludeRoot, limit]
+      properties:
+        key:
+          type: string
+        seeds:
+          type: array
+          items:
+            $ref: "#/components/schemas/GraphEntityIdentity"
+        path:
+          type: array
+          minItems: 1
+          maxItems: 5
+          items:
+            $ref: "#/components/schemas/StructuredGraphReadHop"
+        excludeRoot:
+          type: boolean
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 500
+          description: >-
+            Applied after all hop constraints, root exclusion and target deduplication.
+            Targets sort by entityType then entityId ascending. Retain every identity
+            path for selected targets; no global search pagination applies.
+
+    StructuredGraphReadHop:
+      type: object
+      required: [relationshipType, direction, entityTypes]
+      properties:
+        relationshipType:
+          $ref: "#/components/schemas/RelationshipType"
+        direction:
+          $ref: "#/components/schemas/TraversalDirection"
+        entityTypes:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/EntityType"
+        workItemTypeKeys:
+          type: array
+          items:
+            type: string
+          description: When nonempty, the reached entity must be a TASK of one of these subtypes.
+
+    StructuredGraphReadResponse:
+      type: object
+      required: [directEdges, expansions]
+      properties:
+        directEdges:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentEdge"
+        expansions:
+          type: array
+          description: One group per declaration in request order, including empty groups.
+          items:
+            $ref: "#/components/schemas/StructuredGraphReadExpansionResult"
+
+    StructuredGraphReadExpansionResult:
+      type: object
+      required: [key, targets]
+      properties:
+        key:
+          type: string
+        targets:
+          type: array
+          items:
+            $ref: "#/components/schemas/StructuredGraphReadTarget"
+
+    StructuredGraphReadTarget:
+      type: object
+      required: [identity, paths]
+      properties:
+        identity:
+          $ref: "#/components/schemas/GraphEntityIdentity"
+        paths:
+          type: array
+          description: >-
+            All distinct identity sequences connecting a declared seed to this target.
+            Each sequence includes the seed and every reached identity in hop order.
+            Scope is checked at every segment. Relationships cannot repeat in a path;
+            User entities cannot be intermediate bridges. Parallel relationships with
+            the same identity sequence need only one sequence.
+          items:
+            $ref: "#/components/schemas/StructuredGraphReadPath"
+
+    StructuredGraphReadPath:
+      type: object
+      required: [identities]
+      properties:
+        identities:
+          type: array
+          minItems: 2
+          items:
+            $ref: "#/components/schemas/GraphEntityIdentity"
+
+    SearchResponse:
+      type: object
+      properties:
+        structuredRead:
+          $ref: "#/components/schemas/StructuredGraphReadResponse"
+        identitiesBySeed:
+          type: array
+          description: >-
+            Exclusive response field for IDENTITIES_BY_SEED. One group per requested
+            seed, in seedEntityIds followed by seedNodeIds order, retaining duplicate
+            seeds and empty groups. Specialized task types have canonical TASK identity.
+          items:
+            $ref: "#/components/schemas/SeedIdentityResult"
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchResult"
+        seedResults:
+          type: array
+          description: Per-seed traversal results when groupResultsBySeed is enabled.
+          items:
+            $ref: "#/components/schemas/SeedSearchResult"
+        relationships:
+          description: Requested rich relationships; omitted for COMPACT_RANKED.
+          type: array
+          items:
+            $ref: "#/components/schemas/GraphRelationship"
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        page:
+          type: integer
+        size:
+          type: integer
+
+    TopologyGraphResponse:
+      type: object
+      required:
+        - categories
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/TopologyCategory"
+        agentEdges:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentEdge"
+          description: Agent-authored edges linking entities across the topology
+
+    EntityNeighborhoodRequest:
+      type: object
+      required:
+        - seedEntityType
+        - seedEntityId
+      additionalProperties: false
+      properties:
+        seedEntityType:
+          $ref: "#/components/schemas/EntityType"
+        seedEntityId:
+          type: string
+          format: uuid
+          description: Canonical entity ID to seed the traversal
+        featureIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: >
+            Entity IDs of FEATURE nodes the caller has already placed in
+            featureHierarchy. These nodes act as structural pivots and
+            are suppressed from `relatedEntities`; their non-feature
+            neighbors surface as sibling-via-parent rows. Adjacency to
+            the seed is required for a feature ID to act as a pivot.
+        planPivotEntityIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: >
+            Entity IDs of PLAN / PLAN_STAGE nodes the caller has placed
+            in planContext. These nodes act as structural pivots and are
+            suppressed from `relatedEntities`; the adjacency requirement
+            is waived for plan-tree pivots so that a grandparent plan
+            two hops from the seed still pivots its tracked tasks.
+        depth:
+          type: integer
+          minimum: 1
+          maximum: 5
+          default: 2
+          description: Traversal depth from the seed. Defaults to 2.
+        relationshipTypes:
+          type: array
+          items:
+            $ref: "#/components/schemas/RelationshipType"
+          description: >
+            Edge types included in the traversal. When omitted, the
+            graph service applies its topology whitelist (structural
+            HAS_*, plan-tracks, AGENT_LINKED, and the direct semantic
+            edges Mentions / CreatedVia / Blocks / DerivesFrom /
+            Influences / Tracks).
+
+    EntityNeighborhoodResponse:
+      type: object
+      required:
+        - relatedEntities
+        - agentSessions
+      additionalProperties: false
+      properties:
+        relatedEntities:
+          type: array
+          items:
+            $ref: "#/components/schemas/EntityNeighborhoodRelatedEntity"
+        agentSessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/EntityNeighborhoodAgentSession"
+        nodeCatalog:
+          type: array
+          items:
+            $ref: "#/components/schemas/EntityNeighborhoodNode"
+          description: >
+            Hydration map for entities reached by the traversal but not
+            necessarily surfaced in `relatedEntities`. Callers use it to
+            hydrate metadata for entities they discover through other
+            channels (e.g. agent-edge fetch) without round-tripping back
+            to the graph service. ARTIFACT and AGENT_SESSION entries are
+            excluded — agent sessions live in `agentSessions[]` and
+            artifacts are excluded from neighborhood views entirely.
+
+    EntityNeighborhoodNode:
+      type: object
+      required:
+        - entityId
+        - entityType
+        - displayName
+      additionalProperties: false
+      properties:
+        entityId:
+          type: string
+        entityType:
+          type: string
+        displayName:
+          type: string
+        status:
+          type: string
+        taskType:
+          type: string
+          description: >
+            Work-item type key for TASK entries (STANDARD, BUG, FEATURE, GOAL,
+            or a project-registered custom key). Present only when entityType
+            is TASK; absent for all other entity types.
+
+    EntityNeighborhoodRelationshipValue:
+      type: string
+      description: >
+        Canonical relationship between the seed entity and a related
+        entity, with direction encoded in the value. Mirrors the
+        relationship taxonomy used by the entity-context view. Agent-
+        authored relationships (depends-on, blocks, blocked-by,
+        superseded-by, supersedes, derives-from, derived-from-by,
+        depends-on, depended-on-by, contradicts, related-to) are not
+        emitted by this endpoint — they are merged in by the caller
+        from the agent-edge fetch — but are kept in the enum so the
+        type matches the caller-facing wire shape.
+
+        Inbound-direction values follow the same encoding as the
+        existing `superseded-by` and `mentioned-by` precedents:
+        `blocked-by` (seed is the target of a BLOCKS edge),
+        `depended-on-by` (seed is the target of a DEPENDS_ON edge),
+        `derived-from-by` (seed is the target of a DERIVES_FROM edge).
+
+        For TRACKS, `tracked-by` means the seed is the source that tracks
+        the related work item, while `tracks` means the related source Goal
+        tracks the seed work item.
+
+        `proposed-together` is symmetric and is emitted by this
+        endpoint when the seed entity and the related entity were each
+        the subject of an APPROVED proposal authored in the same
+        message.
+      enum:
+        - depends-on
+        - depended-on-by
+        - blocks
+        - blocked-by
+        - superseded-by
+        - supersedes
+        - derives-from
+        - derived-from-by
+        - contradicts
+        - related-to
+        - mentions
+        - mentioned-by
+        - created-via
+        - proposed-together
+        - sibling-via-parent
+        - parent
+        - tracked-by
+        - tracks
+
+    EntityNeighborhoodRelatedEntityVia:
+      type: object
+      description: >
+        Pivot on the path from the seed to a sibling-via-parent entity.
+      required:
+        - entityId
+        - entityType
+        - displayName
+        - relationship
+      additionalProperties: false
+      properties:
+        entityId:
+          type: string
+        entityType:
+          type: string
+        displayName:
+          type: string
+        relationship:
+          $ref: "#/components/schemas/EntityNeighborhoodRelationshipValue"
+
+    EntityNeighborhoodRelatedEntity:
+      type: object
+      required:
+        - entityId
+        - entityType
+        - displayName
+        - relationship
+      additionalProperties: false
+      properties:
+        entityId:
+          type: string
+        entityType:
+          type: string
+        displayName:
+          type: string
+        status:
+          type: string
+        relationship:
+          $ref: "#/components/schemas/EntityNeighborhoodRelationshipValue"
+        via:
+          type: array
+          items:
+            $ref: "#/components/schemas/EntityNeighborhoodRelatedEntityVia"
+          description: >
+            Ordered pivot path for sibling-via-parent rows. Absent or
+            empty for direct-edge rows.
+        taskType:
+          type: string
+          description: >
+            Work-item type key for TASK entries (STANDARD, BUG, FEATURE, GOAL,
+            or a project-registered custom key). Present only when entityType
+            is TASK; absent for all other entity types.
+
+    EntityNeighborhoodAgentSession:
+      type: object
+      required:
+        - entityId
+        - entityType
+        - displayName
+      additionalProperties: false
+      properties:
+        entityId:
+          type: string
+        entityType:
+          type: string
+          description: Always AGENT_SESSION.
+        displayName:
+          type: string
+        status:
+          type: string
+
+    TopologyCategory:
+      type: object
+      required:
+        - id
+        - name
+        - subfacets
+      properties:
+        id:
+          type: string
+          description: Category identifier
+        name:
+          type: string
+          description: Category name
+        subfacets:
+          type: array
+          items:
+            $ref: "#/components/schemas/TopologyFacet"
+
+    TopologyFacet:
+      type: object
+      required:
+        - id
+        - name
+        - entities
+      properties:
+        id:
+          type: string
+          description: Subfacet identifier
+        name:
+          type: string
+          description: Subfacet name
+        entities:
+          type: array
+          items:
+            $ref: "#/components/schemas/GraphNode"
+
+    ProvenanceLineageResponse:
+      type: object
+      required:
+        - entityId
+        - edges
+      properties:
+        entityId:
+          type: string
+          format: uuid
+          description: The seed entity whose provenance was queried
+        edges:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProvenanceEdge"
+          description: All provenance edges in the lineage chain
+        depth:
+          type: integer
+          description: Actual traversal depth reached
+
+    ProvenanceEdge:
+      type: object
+      required:
+        - sourceNodeId
+        - targetNodeId
+        - type
+      properties:
+        sourceNodeId:
+          type: string
+          format: uuid
+          description: Source entity in the provenance relationship
+        targetNodeId:
+          type: string
+          format: uuid
+          description: Target entity in the provenance relationship
+        type:
+          $ref: "#/components/schemas/RelationshipType"
+        sourceNodeType:
+          type: string
+          description: Label of the source node (e.g. Initiative, Task, Artifact)
+        targetNodeType:
+          type: string
+          description: Label of the target node
+        reasoning:
+          type: string
+          description: Explanation of the provenance relationship
+        confidence:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+        inferredBy:
+          $ref: "#/components/schemas/InferredBy"
+        requestorId:
+          type: string
+          format: uuid
+          description: Who requested the action that produced this edge
+        conversationId:
+          type: string
+          format: uuid
+          description: Conversation context for this provenance edge
+        createdAt:
+          type: string
+          format: date-time
+        depth:
+          type: integer
+          description: How many hops from the seed entity this edge is
+
+    SearchResult:
+      type: object
+      properties:
+        node:
+          $ref: "#/components/schemas/TraversalNode"
+        entityId:
+          type: string
+          format: uuid
+          description: Canonical entity identifier for the node
+        entityType:
+          $ref: "#/components/schemas/EntityType"
+        score:
+          type: number
+          format: float
+          description: Traversal score for the node
+        scoreBreakdown:
+          $ref: "#/components/schemas/TraversalScoreBreakdown"
+        path:
+          $ref: "#/components/schemas/TraversalPath"
+          description: Representative path; omitted for COMPACT_RANKED.
+        pathCount:
+          type: integer
+          format: int64
+          description: Number of distinct paths discovered to the node; omitted for COMPACT_RANKED.
+
+    SeedSearchResult:
+      type: object
+      required:
+        - seedNodeId
+        - results
+        - totalElements
+        - totalPages
+        - page
+        - size
+      properties:
+        seedNodeId:
+          type: string
+          description: Seed identifier used to discover this result group.
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchResult"
+        relationships:
+          description: Requested rich relationships; omitted for COMPACT_RANKED.
+          type: array
+          items:
+            $ref: "#/components/schemas/GraphRelationship"
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        page:
+          type: integer
+        size:
+          type: integer
+
+    TraversalOptions:
+      type: object
+      properties:
+        direction:
+          $ref: "#/components/schemas/SearchDirection"
+        depth:
+          type: integer
+          minimum: 1
+          maximum: 3
+          default: 2
+        relationshipTypes:
+          type: array
+          items:
+            $ref: "#/components/schemas/RelationshipType"
+        excludeRelationshipTypes:
+          type: array
+          description: Exclude paths containing these relationship types.
+          items:
+            $ref: "#/components/schemas/RelationshipType"
+        pathExpansions:
+          type: array
+          description: >
+            Additional fixed-length path patterns to include beyond the global traversal depth.
+            Each expansion starts from the seed node and follows an explicit relationship chain.
+          items:
+            $ref: "#/components/schemas/TraversalPathExpansion"
+
+    TraversalScoringConfig:
+      type: object
+      properties:
+        depthPenalty:
+          type: number
+          format: float
+          minimum: 0.0
+          description: Penalty applied per hop beyond the first
+        relationshipWeights:
+          type: array
+          items:
+            $ref: "#/components/schemas/RelationshipWeight"
+
+    TraversalPathExpansion:
+      type: object
+      required:
+        - relationshipChain
+      properties:
+        seedEntityTypes:
+          type: array
+          description: Optional seed entity types this expansion applies to.
+          items:
+            $ref: "#/components/schemas/EntityType"
+        relationshipChain:
+          type: array
+          minItems: 1
+          maxItems: 5
+          items:
+            $ref: "#/components/schemas/TraversalPathExpansionHop"
+
+    TraversalPathExpansionHop:
+      type: object
+      required:
+        - type
+      properties:
+        direction:
+          $ref: "#/components/schemas/SearchDirection"
+        type:
+          $ref: "#/components/schemas/RelationshipType"
+
+    RelationshipWeight:
+      type: object
+      required:
+        - type
+        - weight
+      properties:
+        type:
+          $ref: "#/components/schemas/RelationshipType"
+        weight:
+          type: number
+          format: float
+          minimum: 0.0
+
+    TraversalScoreBreakdown:
+      type: object
+      properties:
+        relationshipWeight:
+          type: number
+          format: float
+        depthPenalty:
+          type: number
+          format: float
+        totalScore:
+          type: number
+          format: float
+
+    TraversalPath:
+      type: object
+      properties:
+        depth:
+          type: integer
+        nodeIds:
+          type: array
+          items:
+            type: string
+        segments:
+          type: array
+          items:
+            $ref: "#/components/schemas/TraversalPathSegment"
+
+    TraversalPathSegment:
+      type: object
+      required:
+        - type
+        - direction
+      properties:
+        type:
+          $ref: "#/components/schemas/RelationshipType"
+        direction:
+          $ref: "#/components/schemas/TraversalDirection"
+        sourceNodeId:
+          type: string
+        targetNodeId:
+          type: string
+
+    TraversalDirection:
+      type: string
+      enum:
+        - INCOMING
+        - OUTGOING
+
+    # Pagination schemas
+    PaginatedNodeResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/NodeResponse"
+        page:
+          $ref: "#/components/schemas/PageInfo"
+
+    PaginatedRelationshipResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/RelationshipResponse"
+        page:
+          $ref: "#/components/schemas/PageInfo"
+
+    PageInfo:
+      type: object
+      properties:
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        number:
+          type: integer
+
+    # Admin schemas
+    BackupResponse:
+      type: object
+      properties:
+        backupName:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        nodeCount:
+          type: integer
+          format: int64
+        relationshipCount:
+          type: integer
+          format: int64
+        fileSize:
+          type: integer
+          format: int64
+        success:
+          type: boolean
+
+    SearchDirection:
+      type: string
+      enum:
+        - INCOMING
+        - OUTGOING
+        - BOTH
+      description: Direction of relationships to traverse
+
+    # Agent-authored edge schemas
+    AgentEdge:
+      type: object
+      required:
+        - id
+        - sourceNodeId
+        - targetNodeId
+        - type
+        - reasoning
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the agent edge
+        sourceNodeId:
+          type: string
+          format: uuid
+          description: ID of the source node
+        sourceEntityType:
+          $ref: "../schemas/agent-edges.yaml#/AgentEdgeEndpointEntityType"
+          description: >
+            Canonical entity type for the source endpoint, as persisted by
+            the Graph service for validation and reconnect operations.
+        sourceNodeName:
+          type: string
+          nullable: true
+          description: >
+            Display name for the source endpoint when the node has a materialized
+            name, title, or label property; omitted for stub endpoints.
+        targetNodeId:
+          type: string
+          format: uuid
+          description: ID of the target node
+        targetEntityType:
+          $ref: "../schemas/agent-edges.yaml#/AgentEdgeEndpointEntityType"
+          description: >
+            Canonical entity type for the target endpoint, as persisted by
+            the Graph service for validation and reconnect operations.
+        targetNodeName:
+          type: string
+          nullable: true
+          description: >
+            Display name for the target endpoint when the node has a materialized
+            name, title, or label property; omitted for stub endpoints.
+        targetNodeType:
+          type: string
+          nullable: true
+          description: >
+            Work-item subtype materialized on the target endpoint, such as
+            `CONTRACT`; omitted when the endpoint is not a work item or has not
+            been materialized.
+        type:
+          $ref: "#/components/schemas/RelationshipType"
+        category:
+          allOf:
+            - $ref: "../schemas/agent-edges.yaml#/AgentEdgeCategory"
+          default: meta
+          description: >
+            Edge category. Missing values on legacy records default to `meta`.
+        direction:
+          allOf:
+            - $ref: "../schemas/agent-edges.yaml#/AgentEdgeDirection"
+          nullable: true
+          description: >
+            Required for STANDARD and CONDITIONAL workflow flow edges; omitted
+            for LOOP and meta edges.
+        predicate:
+          allOf:
+            - $ref: "../schemas/agent-edges.yaml#/WorkflowEdgePredicate"
+          nullable: true
+          description: >
+            Required for CONDITIONAL workflow flow edges, optional for LOOP
+            flow edges, and omitted for STANDARD and meta edges.
+        reasoning:
+          type: string
+          minLength: 1
+          description: Natural language rationale for why this edge exists
+        createdBySessionId:
+          type: string
+          format: uuid
+          nullable: true
+          description: The agent session that created this edge
+        lastModifiedBySessionId:
+          type: string
+          format: uuid
+          nullable: true
+          description: The agent session that last updated this edge, if different from creator
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Label-specific relationship metadata declared by the edge contract.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateAgentEdgeDto:
+      type: object
+      required:
+        - sourceNodeId
+        - sourceEntityType
+        - targetNodeId
+        - targetEntityType
+        - type
+        - reasoning
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: >
+            Optional caller-supplied stable relationship identity. Equivalent
+            retries with this UUID return one canonical relationship;
+            conflicting reuse within the same organization and project is
+            rejected. Omit to retain server-generated relationship identities.
+        sourceNodeId:
+          type: string
+          format: uuid
+          description: ID of the source node
+        sourceEntityType:
+          $ref: "../schemas/agent-edges.yaml#/AgentEdgeEndpointEntityType"
+          description: >
+            Canonical entity type for the source endpoint. Used to resolve or
+            create missing graph nodes under an allow-listed Neo4j label.
+        targetNodeId:
+          type: string
+          format: uuid
+          description: ID of the target node
+        targetEntityType:
+          $ref: "../schemas/agent-edges.yaml#/AgentEdgeEndpointEntityType"
+          description: >
+            Canonical entity type for the target endpoint. Used to resolve or
+            create missing graph nodes under an allow-listed Neo4j label.
+        type:
+          $ref: "../schemas/agent-edges.yaml#/AgentEdgeType"
+        category:
+          allOf:
+            - $ref: "../schemas/agent-edges.yaml#/AgentEdgeCategory"
+          default: meta
+          description: >
+            Edge category. Existing meta-edge callers may omit this field and
+            are treated as `meta`; workflow flow edges must send `flow`.
+        direction:
+          allOf:
+            - $ref: "../schemas/agent-edges.yaml#/AgentEdgeDirection"
+          nullable: true
+          description: >
+            Required for STANDARD and CONDITIONAL workflow flow edges; omitted
+            for LOOP and meta edges.
+        predicate:
+          allOf:
+            - $ref: "../schemas/agent-edges.yaml#/WorkflowEdgePredicate"
+          nullable: true
+          description: >
+            Required for CONDITIONAL workflow flow edges, optional for LOOP
+            flow edges, and omitted for STANDARD and meta edges.
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Label-specific relationship metadata declared by the edge contract.
+        reasoning:
+          type: string
+          minLength: 1
+          description: Natural language rationale for why this edge exists
+        createdBySessionId:
+          type: string
+          format: uuid
+          nullable: true
+          description: The agent session creating this edge
+
+    BatchCreateAgentEdgesRequest:
+      type: object
+      required:
+        - edges
+      properties:
+        edges:
+          type: array
+          minItems: 1
+          maxItems: 100
+          description: Agent edges to create in input order.
+          items:
+            $ref: "#/components/schemas/CreateAgentEdgeDto"
+
+    BatchCreateAgentEdgesResponse:
+      type: object
+      required:
+        - results
+      properties:
+        results:
+          type: array
+          description: >
+            Exactly one result per submitted entry, ordered by and explicitly
+            correlated to the entry's zero-based input index.
+          items:
+            $ref: "#/components/schemas/BatchCreateAgentEdgeResult"
+
+    BatchCreateAgentEdgeResult:
+      type: object
+      required:
+        - index
+        - success
+      description: >
+        The independent outcome for one submitted entry. Successful results
+        contain edge and omit error; failed results contain error and omit edge.
+      properties:
+        index:
+          type: integer
+          minimum: 0
+          description: Zero-based position of the corresponding request entry.
+        success:
+          type: boolean
+        edge:
+          allOf:
+            - $ref: "#/components/schemas/AgentEdge"
+          nullable: true
+        error:
+          type: string
+          nullable: true
+          description: Failure message for this entry.
+
+    UpdateAgentEdgeDto:
+      type: object
+      required:
+        - lastModifiedBySessionId
+      properties:
+        sourceNodeId:
+          type: string
+          format: uuid
+          description: Reconnect the edge to this source node ID.
+        sourceEntityType:
+          $ref: "../schemas/agent-edges.yaml#/AgentEdgeEndpointEntityType"
+          description: Canonical entity type for a reconnected source endpoint.
+        targetNodeId:
+          type: string
+          format: uuid
+          description: Reconnect the edge to this target node ID.
+        targetEntityType:
+          $ref: "../schemas/agent-edges.yaml#/AgentEdgeEndpointEntityType"
+          description: Canonical entity type for a reconnected target endpoint.
+        type:
+          $ref: "../schemas/agent-edges.yaml#/AgentEdgeType"
+        category:
+          allOf:
+            - $ref: "../schemas/agent-edges.yaml#/AgentEdgeCategory"
+          description: >
+            Updated edge category. Existing meta-edge callers may omit this
+            field; workflow flow edges use `flow`.
+        direction:
+          allOf:
+            - $ref: "../schemas/agent-edges.yaml#/AgentEdgeDirection"
+          nullable: true
+          description: >
+            Required when the resulting edge type is STANDARD or CONDITIONAL;
+            omitted for LOOP and meta edges.
+        predicate:
+          allOf:
+            - $ref: "../schemas/agent-edges.yaml#/WorkflowEdgePredicate"
+          nullable: true
+          description: >
+            Required when the resulting edge type is CONDITIONAL, optional for
+            LOOP, and omitted for STANDARD and meta edges.
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Label-specific relationship metadata declared by the edge contract.
+        reasoning:
+          type: string
+          minLength: 1
+          description: Updated rationale for the edge
+        lastModifiedBySessionId:
+          type: string
+          format: uuid
+          description: The agent session making this update
+
+    IncidentEdgesRequest:
+      type: object
+      required: [seedEntityIds, relationshipTypes]
+      properties:
+        seedEntityIds:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            format: uuid
+        relationshipTypes:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/RelationshipType"
+
+    IncidentEdgeEndpoint:
+      type: object
+      required: [entityId, entityType, displayName]
+      properties:
+        entityId:
+          type: string
+        entityType:
+          $ref: "#/components/schemas/EntityType"
+        displayName:
+          type: string
+        taskType:
+          type: string
+          description: Work-item subtype for TASK endpoints
+
+    IncidentEdgeGroup:
+      type: object
+      required: [seedEntityId, neighborTotal, relationships, endpoints]
+      properties:
+        seedEntityId:
+          type: string
+        neighborTotal:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Distinct neighbors before the fixed 100-neighbor selection
+        relationships:
+          type: array
+          items:
+            $ref: "#/components/schemas/GraphRelationship"
+        endpoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/IncidentEdgeEndpoint"
+
+    IncidentEdgesResponse:
+      type: object
+      required: [groups]
+      properties:
+        groups:
+          type: array
+          description: One group per distinct requested seed, including empty groups
+          items:
+            $ref: "#/components/schemas/IncidentEdgeGroup"
+
+    FindIncidentAgentEdgesRequest:
+      type: object
+      required:
+        - nodeIds
+        - types
+      properties:
+        nodeIds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          description: >
+            Node IDs to hydrate incident agent-authored edges for. Edges are
+            returned when either sourceNodeId or targetNodeId is in this set,
+            including edges where both endpoints are requested nodes.
+          items:
+            type: string
+            format: uuid
+        types:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          description: >
+            Agent-authored relationship labels to return. The request uses the
+            authored-edge enum; responses continue to expose AgentEdge.type as
+            RelationshipType.
+          items:
+            $ref: "../schemas/agent-edges.yaml#/AgentEdgeType"
+
+    PaginatedAgentEdgeResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentEdge"
+        page:
+          $ref: "#/components/schemas/PageInfo"
+
+    # Error schemas
+    ErrorResponse:
+      type: object
+      required:
+        - timestamp
+        - status
+        - error
+        - message
+        - path
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+        path:
+          type: string
+
+    ProjectionDeletionRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - organizationId
+        - markerId
+        - irreversibleClosureAt
+        - deletionDeadline
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        markerId:
+          type: string
+          format: uuid
+        irreversibleClosureAt:
+          type: string
+          format: date-time
+        deletionDeadline:
+          type: string
+          format: date-time
+
+  parameters:
+    NodeId:
+      name: nodeId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Node identifier
+
+    RelationshipId:
+      name: relationshipId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Relationship identifier
+
+    NodeType:
+      name: type
+      in: query
+      schema:
+        $ref: "#/components/schemas/NodeType"
+      description: Filter by node type
+
+    RelationshipType:
+      name: type
+      in: query
+      schema:
+        $ref: "#/components/schemas/RelationshipType"
+      description: Filter by relationship type
+
+    ProjectId:
+      name: projectId
+      in: query
+      schema:
+        type: string
+        format: uuid
+      description: Filter by project ID
+
+    ProjectIdPath:
+      name: projectId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Project identifier
+
+    OrganizationId:
+      name: organizationId
+      in: query
+      schema:
+        type: string
+        format: uuid
+      description: Filter by organization ID
+
+    OrganizationIdPath:
+      name: organizationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Organization identifier
+
+    Status:
+      name: status
+      in: query
+      schema:
+        type: string
+      description: Filter by status
+
+    Label:
+      name: label
+      in: query
+      schema:
+        type: string
+      description: Filter by label
+
+    SourceNodeId:
+      name: sourceNodeId
+      in: query
+      schema:
+        type: string
+      description: Filter by source node ID
+
+    TargetNodeId:
+      name: targetNodeId
+      in: query
+      schema:
+        type: string
+      description: Filter by target node ID
+
+    AgentEdgeId:
+      name: agentEdgeId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Agent edge identifier
+
+    HintId:
+      name: hintId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Hint identifier
+
+    HintConnectionId:
+      name: connectionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Hint connection identifier
+
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+      description: Page number
+
+    Size:
+      name: size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: Page size
+
+    Sort:
+      name: sort
+      in: query
+      schema:
+        type: string
+      description: Sort criteria (e.g., createdAt,desc)
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    RequestTimeout:
+      description: Request timeout
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"

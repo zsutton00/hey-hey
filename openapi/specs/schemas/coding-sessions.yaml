@@ -1,0 +1,1287 @@
+AgentSessionType:
+  type: string
+  enum:
+    - CODING
+    - PROJECT_REPORT
+    - DAILY_SESSION
+    - SESSION_MONITOR
+    - TASK_MONITOR
+    - TASK_REFINING
+    - ENTITY_CONVERSATION
+    - PROJECT_CONVERSATION
+    - DESIGN_DOC_REFINING
+    - PROPOSAL_REFINING
+    - AGENT_SEARCH
+    - PLAN_GENERATION
+    - PLAN_STAGE_REFINING
+    - VALIDATION
+  description: Type of agent session
+
+SessionMethod:
+  type: string
+  enum:
+    - plan
+    - open
+    - quick
+    - debug
+    - research
+    - split_by_service
+    - split_by_function
+  description: |
+    Launch method selected by the user in the new-session wizard. Plan is workflow-bound
+    (dispatched through the `workflowName` arm of `/start-run`); the other arms go through
+    the handler path.
+
+ProjectModeSelection:
+  type: object
+  additionalProperties: false
+  required:
+    - schemaVersion
+    - modeId
+  properties:
+    schemaVersion:
+      type: string
+      enum:
+        - project-mode-selection.v1
+    modeId:
+      type: string
+      format: uuid
+      description: Canonical work-item identity of the explicitly selected MODE.
+  description: |
+    Stable identity of an explicitly selected project MODE. This is launch
+    selection data, not a CLI prompt type or logical provider-session agent
+    identity.
+
+ProjectModeSnapshot:
+  type: object
+  additionalProperties: false
+  required:
+    - schemaVersion
+    - modeId
+    - catalogDescription
+    - applicableWorkItemTypeKeys
+    - files
+    - snapshotHash
+  properties:
+    schemaVersion:
+      type: string
+      enum:
+        - project-mode-snapshot.v1
+        - project-mode-snapshot.v2
+      description: |
+        v2 adds `projectAssistant`. v1 is kept so snapshots captured before the
+        setting existed still verify against their original hash.
+    modeId:
+      type: string
+      format: uuid
+      description: MODE identity this immutable launch snapshot was captured from.
+    catalogDescription:
+      type: string
+      description: Canonical catalog description captured when the session was created.
+    applicableWorkItemTypeKeys:
+      type: array
+      items:
+        type: string
+        minLength: 1
+      description: Stable effective work-item type keys the MODE applied to at capture time.
+    files:
+      $ref: "./work-items.yaml#/ProjectModeFiles"
+    projectAssistant:
+      $ref: "./work-items.yaml#/ProjectModeProjectAssistantSetting"
+    snapshotHash:
+      type: string
+      pattern: '^[a-f0-9]{64}$'
+      description: |
+        Lowercase hexadecimal SHA-256 digest of the platform-canonicalized
+        snapshot content. Consumers preserve and compare this value; they do
+        not refresh the snapshot from the live MODE.
+  description: |
+    Platform-captured immutable MODE configuration persisted with a coding
+    session. The repeated mode identity lets admission verify that the snapshot
+    matches `ProjectModeSelection` before constructing a Run or Turn.
+
+AgentSessionConfigV1:
+  type: object
+  required:
+    - type
+    - version
+  properties:
+    type:
+      type: string
+      enum:
+        - CODING_SESSION_V1
+      description: |
+        Legacy config-level discriminator for coding-session launch context stored before
+        the current config variant. New callers should emit AgentSessionConfigV2.
+    version:
+      type: string
+      enum: ["v1"]
+      description: |
+        Schema-version literal for the legacy coding-session config shape. Required const
+        so a future required-field bump can mint a new schema version without mutating
+        persisted rows.
+    method:
+      $ref: "#/SessionMethod"
+      description: |
+        Wizard-selected launch method. Persisted on the session so it survives reload
+        and deep-link navigation, instead of riding URL params and being lost.
+  description: |
+    Originating versioned blob. Carries only `method`. Retained for read compatibility
+    with rows persisted before V2 landed; the read path normalizes legacy stored rows by
+    adding the config-level `type` discriminator. New callers should not emit V1.
+
+AgentSessionConfigV2:
+  type: object
+  required:
+    - type
+    - version
+    - model
+  properties:
+    type:
+      type: string
+      enum:
+        - CODING_SESSION
+      description: |
+        Config-level discriminator for coding-session launch context. Agent-specific
+        config variants are selected by this `type`; `version` only evolves the schema
+        within the selected variant.
+    version:
+      type: string
+      enum: ["v2"]
+      description: |
+        Schema-version literal for the current coding-session config variant. Following
+        the rule encoded on V1, a future required-field bump mints a new version const
+        rather than mutating this shape; the UI always emits the latest version.
+    method:
+      $ref: "#/SessionMethod"
+      description: |
+        Wizard-selected launch method. Persisted on the session so it survives reload
+        and deep-link navigation, instead of riding URL params and being lost.
+    model:
+      type: string
+      description: |
+        Wizard-selected model for the session. Required in V2 so that a session's
+        full launch context can be reconstructed from `config` alone.
+    effort:
+      type: string
+      description: |
+        Wizard-selected reasoning effort, if any. Omitted entirely when the user did
+        not pick one — V2 optionality is "absent", not "explicit null".
+    fastMode:
+      type: boolean
+      description: |
+        Optional provider-neutral Fast mode preference selected for a session.
+        `true`, `false`, and omission remain distinct; the provider runner decides
+        how omission applies. This shared persisted intent never carries
+        provider-native values.
+    worktree:
+      type: string
+      minLength: 1
+      description: |
+        Branch name to materialize as a git worktree per selected service at launch.
+        Presence means worktree-enabled (the branch to materialize); absence means
+        worktree off. Omitted entirely when the wizard has not enabled worktree.
+    sessionMonitorTerminalPolicy:
+      $ref: "#/SessionMonitorTerminalPolicy"
+      description: |
+        Optional explicit policy consumed by the session-monitor when terminal
+        reports arrive for this coding session. Absence preserves the existing
+        monitoringEnabled/autoDecide behavior.
+    taskMonitorId:
+      type: string
+      format: uuid
+      description: |
+        Canonical TASK_MONITOR work-item identity that launched this coding
+        session. Present only for Task Monitor-owned sessions and immutable
+        after creation. The platform validates the referenced active work item
+        belongs to the same project before creating the AgentSession.
+    projectAssistant:
+      $ref: "#/ProjectAssistantConfig"
+      description: |
+        Optional Project Assistant behavior flags for this coding session.
+        Absence preserves read-only/default behavior.
+    planCombinationAggressiveness:
+      $ref: "#/PlanCombinationAggressiveness"
+      description: |
+        Optional launch/session choice consumed by the plan-shaping step-review
+        sweep to decide how aggressively drafted steps may be combined before
+        materialization. Absence means medium.
+    projectModeSelection:
+      $ref: "#/ProjectModeSelection"
+      description: |
+        Explicit project MODE identity. When present, `projectModeSnapshot` is
+        also required by the session-creation and Agent Bridge admission
+        boundaries; built-in selections continue to use `method` unchanged.
+    projectModeSnapshot:
+      $ref: "#/ProjectModeSnapshot"
+      description: |
+        Immutable platform-captured configuration for `projectModeSelection`.
+        It is never reconstructed from live work-item state by a consumer.
+  description: |
+    Typed, versioned blob that persists wizard-selected launch context on the
+    AgentSession entity. Grows the V1 shape with a config-level `type` discriminator,
+    `model` (required), `effort`, `fastMode`, and `worktree`. The field grows when a
+    new launch-time concept needs a durable home. Built-in routing remains on
+    `method`; an explicit project MODE is represented by the paired selection
+    and snapshot fields and routes through the dedicated `project_mode` prompt
+    type without using `modeId` as a prompt type.
+
+AgentSessionConfigEntityConversationV1:
+  type: object
+  additionalProperties: false
+  required:
+    - type
+    - version
+    - model
+  properties:
+    type:
+      type: string
+      enum:
+        - ENTITY_CONVERSATION
+      description: |
+        Config-level discriminator for Entity Conversation launch context.
+    version:
+      type: string
+      enum: ["v1"]
+      description: |
+        Schema-version literal for the first Entity Conversation config variant.
+    model:
+      type: string
+      minLength: 1
+      description: |
+        Model selected when the Entity Conversation session was launched.
+    effort:
+      type: string
+      enum:
+        - none
+        - minimal
+        - low
+        - medium
+        - high
+        - xhigh
+        - max
+        - ultra
+        - default
+      description: |
+        Optional reasoning effort selected at launch. Omission preserves the
+        handler-owned default rather than recording an inferred selection.
+    projectAssistant:
+      $ref: "#/ProjectAssistantConfig"
+      description: |
+        Optional participation intent for the one-shot Project Assistant
+        bootstrap. Omission preserves handler-default behavior; enabled false
+        remains distinct from enabled true.
+    disableCodexSystemPrompt:
+      type: boolean
+      description: |
+        Optional Codex-only pilot selection. True replaces Codex's built-in
+        base instructions with the assembled Hey Hey platform prompt when a
+        fresh provider thread is started. False or omission preserves the
+        existing initial-prefix delivery mode. The persisted value remains
+        authoritative when the AgentSession is resumed.
+    verifyFeature:
+      type: object
+      additionalProperties: false
+      required:
+        - concern
+        - parentAgentSessionId
+      properties:
+        concern:
+          type: string
+          minLength: 1
+        parentAgentSessionId:
+          type: string
+          format: uuid
+        impactedEntities:
+          type: array
+          default: []
+          description: Starting points named by the session that raised the concern, in its order. May be empty; sessions created before the field existed read as empty.
+          items:
+            $ref: ./conversations.yaml#/VerifyImpactedEntityReference
+      description: |
+        Present only on a Verify Feature session. Its presence keeps the
+        session's replies in the verify_feature handler mode, with the
+        flagged concern, the session that raised it and the possibly
+        impacted entities it named as starting points.
+  description: |
+    Typed, versioned launch context for an Entity Conversation AgentSession.
+    Provider remains on AgentSession itself, and this graph-only config carries
+    no Service, repository, directory, or worktree identity.
+
+ProjectAssistantConfig:
+  type: object
+  additionalProperties: false
+  properties:
+    enabled:
+      type: boolean
+      description: |
+        Whether the consuming handler's Project Assistant bootstrap may run for
+        this session. False disables only Project Assistant; true or omission
+        preserves the handler-declared participation baseline.
+    allowEdgeUpdates:
+      type: boolean
+    notifyDiscrepancies:
+      type: boolean
+    allowUpdateProposals:
+      type: boolean
+  description: |
+    Optional launch-time Project Assistant participation and behavior settings
+    persisted on AgentSession config. Omitting the object or an individual flag
+    preserves the handler-declared baseline.
+
+PlanCombinationAggressiveness:
+  type: string
+  enum:
+    - low
+    - medium
+    - high
+  description: |
+    Controls how aggressively the final per-stage plan-shaping step-review sweep
+    combines drafted steps before materialization. Absence means medium.
+
+SessionMonitorTerminalPolicyAction:
+  type: object
+  required:
+    - action
+  additionalProperties: false
+  properties:
+    action:
+      type: string
+      minLength: 1
+      description: |
+        Workflow action key the monitor may choose. The API validates this against
+        the originating report's `reportGuidance.actions` vocabulary before it writes
+        any continuation completion message.
+    response:
+      type: string
+      description: |
+        Optional response text to carry on the completion envelope.
+
+SessionMonitorImplementationTerminalPolicy:
+  type: object
+  additionalProperties: false
+  anyOf:
+    - required:
+        - completion
+    - required:
+        - requestReview
+  properties:
+    completion:
+      $ref: "#/SessionMonitorTerminalPolicyAction"
+    requestReview:
+      type: boolean
+      enum:
+        - true
+      description: |
+        Request the canonical Review path instead of settling from implementation
+        evidence. The report type is intrinsic to this semantic policy arm.
+
+SessionMonitorReviewTerminalPolicy:
+  type: object
+  required:
+    - completion
+  additionalProperties: false
+  properties:
+    completion:
+      $ref: "#/SessionMonitorTerminalPolicyAction"
+      description: |
+        Completion applied after Session Monitor interprets a canonical REVIEW
+        outcome. The report type is intrinsic to this semantic policy arm.
+
+SessionMonitorTerminalPolicy:
+  type: object
+  required:
+    - implementationDone
+  additionalProperties: false
+  properties:
+    implementationDone:
+      $ref: "#/SessionMonitorImplementationTerminalPolicy"
+      description: Policy arm applied to canonical IMPLEMENT evidence.
+    reviewDone:
+      $ref: "#/SessionMonitorReviewTerminalPolicy"
+      description: Optional policy arm applied to canonical REVIEW evidence.
+AgentSessionConfig:
+  oneOf:
+    - $ref: "#/AgentSessionConfigV1"
+    - $ref: "#/AgentSessionConfigV2"
+    - $ref: "#/AgentSessionConfigEntityConversationV1"
+    - $ref: "./project-reports.yaml#/AgentSessionConfigProjectReportV1"
+  discriminator:
+    propertyName: type
+    mapping:
+      CODING_SESSION_V1: "#/AgentSessionConfigV1"
+      CODING_SESSION: "#/AgentSessionConfigV2"
+      ENTITY_CONVERSATION: "#/AgentSessionConfigEntityConversationV1"
+      PROJECT_REPORT: "./project-reports.yaml#/AgentSessionConfigProjectReportV1"
+  description: |
+    Discriminated union of all `AgentSessionConfig` variants. The server selects the
+    agent-specific config model via the required `type` discriminator and uses `version`
+    only to evolve the schema within that config variant. Callers emit the latest
+    variant for their AgentSession type.
+
+ValidationLaunchContext:
+  type: object
+  required:
+    - scope
+    - entityId
+  properties:
+    scope:
+      type: string
+      enum:
+        - task
+        - parent_task
+        - plan_stage
+      description: |
+        Scope of what the validation session is exercising. `task` validates a
+        single task, `parent_task` validates a parent task and its children
+        collectively, and `plan_stage` validates an entire plan stage.
+    entityId:
+      type: string
+      format: uuid
+      description: Identifier of the in-scope entity matching the chosen scope.
+  description: |
+    Launch payload that identifies what a VALIDATION agent session is validating.
+    `parent_task` is intentionally not a member of the canonical EntityType enum,
+    so VALIDATION sessions carry this sibling context object instead of overloading
+    the universal entityType/entityId about-target.
+
+AgentSessionDto:
+  type: object
+  required:
+    - id
+    - organizationId
+    - projectId
+    - userId
+    - status
+    - conversationId
+    - sessionDate
+    - title
+    - hasUnsyncedChanges
+    - monitoringEnabled
+    - autoDecide
+    - type
+    - currentState
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Agent session identifier
+    organizationId:
+      type: string
+      format: uuid
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+    userId:
+      type: string
+      description: User who owns the session. May be a UUID or a sentinel like "system".
+    status:
+      $ref: "#/AgentSessionStatus"
+    currentState:
+      $ref: "#/AgentSessionCurrentState"
+      description: >-
+        Product-facing latest state for the Agent Session. This read-model field
+        is derived from the current-state projection and remains separate from
+        lifecycle `status`.
+    contextSize:
+      allOf:
+        - $ref: "#/AgentSessionContextSize"
+      nullable: true
+      description: >-
+        Last context-window size the CLI reported for this Agent Session at
+        turn end. Null until the first turn completes, or when the provider
+        cannot report context usage.
+    conversationId:
+      type: string
+      format: uuid
+      nullable: true
+      description: The conversation linked to this session. Null until populated by POST .../conversation.
+    machineId:
+      type: string
+      format: uuid
+      nullable: true
+      description: >-
+        The paired CLI machine that acknowledged this Agent Session's start-run
+        dispatch. Null until launch succeeds, and null on historical sessions
+        created before durable machine binding was introduced.
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+      description: Type of the entity this session is about (the universal about-target).
+    entityId:
+      type: string
+      format: uuid
+      description: Identifier of the entity this session is about (the universal about-target).
+    serviceIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: Set of services this session targets.
+    launchServiceId:
+      type: string
+      format: uuid
+      description: The service the CLI launches the session against. Must be a member of serviceIds when serviceIds is non-empty.
+    service:
+      allOf:
+        - $ref: "#/AgentSessionServiceSummary"
+      description: Linked service summary. Present when includeService=true and the session is linked to a service.
+    user:
+      allOf:
+        - $ref: "./auth.yaml#/UserResponseDto"
+      description: Linked user details. Present when includeUser=true.
+    provider:
+      type: string
+      enum:
+        - claude
+        - codex
+        - opencode
+    agentSessionId:
+      type: string
+    sessionDate:
+      type: string
+      format: date-time
+    title:
+      type: string
+    lastSyncedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Timestamp of the most recent successful sync, or null if never synced.
+    hasUnsyncedChanges:
+      type: boolean
+      description: Whether file-diff changes have arrived since the last sync.
+    monitoringEnabled:
+      type: boolean
+      default: false
+      description: Whether this session emits report-ready notifications when reports are persisted.
+    autoDecide:
+      type: boolean
+      default: false
+      description: Whether this session should auto-decide pending proposals without waiting on human review.
+    type:
+      $ref: "#/AgentSessionType"
+    config:
+      allOf:
+        - $ref: "#/AgentSessionConfig"
+      nullable: true
+      description: |
+        Typed, versioned launch-context blob. Null on rows that pre-date the field
+        (read-time semantics: treat null as `{ version: "v1", method: null }`).
+        V1 rows are upgraded to V2 at read time. The UI always emits the latest
+        version.
+    validationLaunchContext:
+      $ref: "#/ValidationLaunchContext"
+      description: |
+        Present when type=VALIDATION. Identifies the in-scope entity the
+        validation session is exercising so the CLI handler can read it back
+        from the persisted session.
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+AgentSessionCurrentState:
+  type: string
+  enum:
+    - IDLE
+    - STARTING
+    - GATHERING_CONTEXT
+    - THINKING
+    - WRITING
+    - AWAITING_APPROVAL
+    - PLAN_READY
+    - IMPLEMENTATION_READY
+  description: >-
+    Closed product-facing current-state vocabulary for an Agent Session. The
+    lifecycle `status` remains a separate internal routing field.
+
+AgentSessionContextSize:
+  type: object
+  additionalProperties: false
+  required:
+    - totalTokens
+    - runId
+    - providerSessionId
+    - observedAt
+  properties:
+    totalTokens:
+      type: integer
+      format: int64
+      minimum: 0
+      description: >-
+        Full context-window total (system prompt, tool and MCP definitions,
+        and conversation history) for the provider session, computed with the
+        same calculation as the Context modal. Not a per-response
+        input-token counter.
+    runId:
+      type: string
+      format: uuid
+      description: Run whose turn completion produced the reading.
+    providerSessionId:
+      type: string
+      description: >-
+        Provider session the reading describes. Always the latest provider
+        session of the Run when the reading was taken.
+    observedAt:
+      type: string
+      format: date-time
+      description: Time at which the CLI took the reading.
+    maxTokens:
+      type: integer
+      format: int64
+      minimum: 1
+      nullable: true
+      description: >-
+        Model context window for the provider session, when the provider
+        reports one. Null or absent when unreported.
+  description: >-
+    Latest-value context-window size for an Agent Session, published by the
+    CLI at turn end (after any automatic compaction) and persisted by the
+    platform so cold loads and other devices are seeded.
+
+AgentSessionCurrentStateBatchRequestDto:
+  type: object
+  additionalProperties: false
+  required:
+    - agentSessionIds
+  properties:
+    agentSessionIds:
+      type: array
+      minItems: 1
+      maxItems: 100
+      uniqueItems: true
+      items:
+        type: string
+        format: uuid
+      description: >-
+        Agent Session identities to resolve in the requested project scope.
+        Missing or unauthorized identities are omitted from the response.
+
+AgentSessionCurrentStateBatchItemDto:
+  type: object
+  additionalProperties: false
+  required:
+    - agentSessionId
+    - currentState
+    - revision
+    - transitionedAt
+  properties:
+    agentSessionId:
+      type: string
+      format: uuid
+      description: Agent Session identity.
+    currentState:
+      $ref: "#/AgentSessionCurrentState"
+    revision:
+      type: integer
+      format: int64
+      minimum: 0
+      description: >-
+        Monotonic platform-assigned revision ordering complete latest-value
+        entries for this Agent Session.
+    transitionedAt:
+      type: string
+      format: date-time
+      description: Time at which the current state became effective.
+
+AgentSessionCurrentStateBatchResponseDto:
+  type: object
+  additionalProperties: false
+  required:
+    - items
+  properties:
+    items:
+      type: array
+      items:
+        $ref: "#/AgentSessionCurrentStateBatchItemDto"
+      description: >-
+        Complete latest-value entries for authorized existing Agent Sessions
+        in the requested project. Missing or out-of-scope identities are not
+        disclosed.
+
+AgentSessionOutputAttentionState:
+  type: string
+  enum:
+    - NONE
+    - MESSAGE_READY
+  description: >-
+    User-scoped output-attention value for an Agent Session. This is separate
+    from the seven-value lifecycle current-state vocabulary.
+
+AgentSessionOutputAttentionSetReadyRequestDto:
+  type: object
+  additionalProperties: false
+  required:
+    - state
+  properties:
+    state:
+      type: string
+      enum:
+        - MESSAGE_READY
+      description: >-
+        Explicit readiness transition authored by the CLI only after its
+        user-visible terminal assistant output has committed successfully.
+
+AgentSessionOutputAttentionBatchRequestDto:
+  type: object
+  additionalProperties: false
+  required:
+    - agentSessionIds
+  properties:
+    agentSessionIds:
+      type: array
+      minItems: 1
+      maxItems: 100
+      uniqueItems: true
+      items:
+        type: string
+        format: uuid
+      description: >-
+        Agent Session identities to resolve in the requested project scope.
+        Missing or unauthorized identities are omitted from the response.
+
+AgentSessionOutputAttentionBatchItemDto:
+  type: object
+  additionalProperties: false
+  required:
+    - agentSessionId
+    - state
+    - revision
+    - changedAt
+  properties:
+    agentSessionId:
+      type: string
+      format: uuid
+      description: Agent Session identity.
+    state:
+      $ref: "#/AgentSessionOutputAttentionState"
+    revision:
+      type: integer
+      format: int64
+      minimum: 0
+      description: >-
+        Monotonic platform-assigned revision ordering complete latest-value
+        entries for this Agent Session and user.
+    changedAt:
+      type: string
+      format: date-time
+      description: Time at which the attention value became effective.
+
+AgentSessionOutputAttentionBatchResponseDto:
+  type: object
+  additionalProperties: false
+  required:
+    - items
+  properties:
+    items:
+      type: array
+      items:
+        $ref: "#/AgentSessionOutputAttentionBatchItemDto"
+      description: >-
+        Complete latest-value entries for authorized existing Agent Sessions
+        in the requested project. Missing or out-of-scope identities are not
+        disclosed.
+
+AgentSessionServiceSummary:
+  type: object
+  required:
+    - id
+    - name
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Linked service identifier.
+    name:
+      type: string
+      description: Linked service name.
+
+AgentSessionListSort:
+  type: string
+  enum:
+    - LAST_MESSAGE
+  description: Stable ordering supported by the paginated agent-session collection.
+
+AgentSessionLastMessageSummary:
+  type: object
+  required:
+    - id
+    - conversationId
+    - type
+    - status
+    - data
+    - createdAt
+  properties:
+    id:
+      $ref: "./common.yaml#/MessageId"
+    conversationId:
+      $ref: "./common.yaml#/ConversationId"
+    type:
+      $ref: "./conversations.yaml#/MessageType"
+    status:
+      $ref: "./conversations.yaml#/MessageStatus"
+    data:
+      type: object
+      description: Message payload used to render the compact card preview.
+    createdAt:
+      type: string
+      format: date-time
+
+AgentSessionParentEntitySummary:
+  type: object
+  required:
+    - id
+    - type
+    - name
+  properties:
+    id:
+      type: string
+      format: uuid
+    type:
+      $ref: "./common.yaml#/EntityType"
+    name:
+      type: string
+      description: Human-readable entity title from the entity registry.
+
+PaginatedAgentSessionItemDto:
+  type: object
+  required:
+    - agentSession
+    - lastMessage
+    - parentEntity
+    - services
+    - reports
+  properties:
+    agentSession:
+      $ref: "#/AgentSessionDto"
+    lastMessage:
+      allOf:
+        - $ref: "#/AgentSessionLastMessageSummary"
+      nullable: true
+      description: Latest message in the linked conversation, or null when the conversation has no messages.
+    parentEntity:
+      allOf:
+        - $ref: "#/AgentSessionParentEntitySummary"
+      nullable: true
+      description: Compact summary of the entity this session is about.
+    services:
+      type: array
+      items:
+        $ref: "#/AgentSessionServiceSummary"
+      description: Selected services for the session, in stable link-creation order.
+    reports:
+      type: array
+      items:
+        $ref: "./reports.yaml#/ReportDto"
+      description: Reports attached to the latest message, ordered by creation time.
+
+PaginatedAgentSessionResponseDto:
+  type: object
+  required:
+    - items
+    - nextCursor
+  properties:
+    items:
+      type: array
+      items:
+        $ref: "#/PaginatedAgentSessionItemDto"
+    nextCursor:
+      type: string
+      nullable: true
+      description: Opaque cursor for the next page, or null when no further page exists.
+
+CreateAgentSessionDto:
+  type: object
+  required:
+    - projectId
+    - sessionDate
+    - type
+  properties:
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+    sessionDate:
+      type: string
+      format: date-time
+      description: Date of the agent session
+    title:
+      type: string
+      description: Title/summary for the session (if omitted, server may generate)
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+      description: Type of the entity this session is about (the universal about-target).
+    entityId:
+      type: string
+      format: uuid
+      description: Identifier of the entity this session is about (the universal about-target).
+    serviceIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: Set of services this session targets.
+    launchServiceId:
+      type: string
+      format: uuid
+      description: The service the CLI launches the session against. Required when serviceIds is non-empty; must be a member of serviceIds.
+    provider:
+      type: string
+      enum:
+        - claude
+        - codex
+        - opencode
+    agentSessionId:
+      type: string
+    status:
+      $ref: "#/AgentSessionStatus"
+    userId:
+      type: string
+      format: uuid
+      description: Optional user override; defaults to the authenticated user if omitted
+    validationLaunchContext:
+      $ref: "#/ValidationLaunchContext"
+      description: |
+        Required when type=VALIDATION. Identifies the in-scope entity (task,
+        parent_task, or plan_stage) that the validation session will exercise.
+    autoDecide:
+      type: boolean
+      default: false
+      description: Whether this session should auto-decide pending proposals without waiting on human review.
+    type:
+      $ref: "#/AgentSessionType"
+    config:
+      allOf:
+        - $ref: "#/AgentSessionConfig"
+      nullable: true
+      description: |
+        Optional typed, versioned launch-context blob captured by the wizard at
+        session creation. Omit or pass null when no launch context is known yet.
+        The UI always emits the latest version.
+    existingWorkflowBinding:
+      $ref: "#/AgentSessionExistingWorkflowBinding"
+      description: >-
+        Existing workflow conversation to bind atomically during Agent Session
+        creation. This is used when an explicit launch action joins an already
+        running workflow instead of creating a replacement conversation.
+
+AgentSessionExistingWorkflowBinding:
+  type: object
+  additionalProperties: false
+  required:
+    - conversationId
+    - workflowId
+  properties:
+    conversationId:
+      $ref: "./common.yaml#/ConversationId"
+    workflowId:
+      $ref: "./common.yaml#/WorkflowId"
+
+ResolveWorkItemCoordinatorAgentSessionDto:
+  type: object
+  additionalProperties: false
+  required:
+    - type
+    - workItemType
+    - workItemId
+    - sessionDate
+  properties:
+    type:
+      $ref: "#/AgentSessionType"
+      description: Coordinator Agent Session type. Task Monitor callers use TASK_MONITOR.
+    workItemType:
+      type: string
+      minLength: 1
+      description: Exact owning work-item type. Task Monitor callers use TASK_MONITOR.
+    workItemId:
+      type: string
+      format: uuid
+      description: Canonical owning work-item identifier.
+    sessionDate:
+      type: string
+      format: date-time
+    title:
+      type: string
+      minLength: 1
+
+ResolveWorkItemCoordinatorAgentSessionResponseDto:
+  type: object
+  additionalProperties: false
+  required:
+    - agentSession
+    - created
+  properties:
+    agentSession:
+      $ref: "#/AgentSessionDto"
+    created:
+      type: boolean
+      description: True when this request created the canonical coordinator.
+
+UpdateAgentSessionDto:
+  type: object
+  required:
+    - machineId
+  properties:
+    machineId:
+      type: string
+      format: uuid
+      description: >-
+        The paired CLI machine selected for this session. The caller must send
+        the exact machine binding on every session update so controller-authorized
+        work can validate the Agent Session target before admission.
+    sessionDate:
+      type: string
+      format: date-time
+    title:
+      type: string
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+      description: Type of the entity this session is about (the universal about-target).
+    entityId:
+      type: string
+      format: uuid
+      description: Identifier of the entity this session is about (the universal about-target).
+    serviceIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: Set of services this session targets.
+    launchServiceId:
+      type: string
+      format: uuid
+      description: The service the CLI launches the session against. Must be a member of serviceIds when serviceIds is non-empty.
+    provider:
+      type: string
+      enum:
+        - claude
+        - codex
+        - opencode
+    agentSessionId:
+      type: string
+    status:
+      $ref: "#/AgentSessionStatus"
+    userId:
+      type: string
+      format: uuid
+    lastSyncedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Set to current time when a sync completes. Null clears the value.
+    hasUnsyncedChanges:
+      type: boolean
+      description: Set to false after a sync completes; set to true when new diffs arrive.
+    monitoringEnabled:
+      type: boolean
+      description: Whether this session emits report-ready notifications when reports are persisted.
+    autoDecide:
+      type: boolean
+      description: Whether this session should auto-decide pending proposals without waiting on human review.
+    type:
+      $ref: "#/AgentSessionType"
+    config:
+      allOf:
+        - $ref: "#/AgentSessionConfig"
+      nullable: true
+      description: |
+        Replaces the persisted launch-context blob in full. The service validates the
+        `version` literal and merges the value as the canonical UI emission. The UI
+        emits V2; V1 remains accepted for read compatibility.
+
+GrantAgentSessionServicesDto:
+  type: object
+  additionalProperties: false
+  required:
+    - machineId
+    - launchServiceId
+    - serviceIds
+  properties:
+    machineId:
+      type: string
+      format: uuid
+      description: Authenticated CLI machine already bound to the Agent Session.
+    launchServiceId:
+      type: string
+      format: uuid
+      description: Existing immutable launch Service for the Agent Session.
+    serviceIds:
+      type: array
+      minItems: 1
+      items:
+        type: string
+        format: uuid
+      description: Project Services to add to the durable Agent Session scope.
+
+CreateAgentSessionConversationDto:
+  type: object
+  required:
+    - workflowType
+  properties:
+    workflowType:
+      $ref: "./conversations.yaml#/WorkflowName"
+      description: The workflow to use for this conversation. Must be a known workflow name.
+    workflowAboutType:
+      type: string
+      description: Entity type the workflow is about (defaults to "agent-session" if omitted).
+    workflowAboutId:
+      type: string
+      description: Entity ID the workflow is about (defaults to the agentSessionId if omitted).
+    title:
+      type: string
+      description: Optional conversation title.
+    entityType:
+      type: string
+      description: Type of the entity this conversation is about (the universal about-target).
+    entityId:
+      type: string
+      description: Identifier of the entity this conversation is about (the universal about-target).
+
+PermissionDecisionRequestDto:
+  type: object
+  description: >-
+    A user's decision on a pending agent permission request, submitted by the
+    platform UI. The platform signs and emits this as a `permission_decision`
+    control envelope to the CLI that owns the conversation; the CLI matches the
+    frame to the awaiting runner via `requestId`/`sessionId`/`agentType` and
+    unblocks the gate with `decision`. Carries the decision payload only — no
+    free-form prompt fragment. Mirrors the fields of
+    ConversationControlPermissionDecision minus the `kind` discriminator.
+  required:
+    - decision
+    - requestId
+    - sessionId
+    - agentType
+    - idempotencyToken
+    - authorization
+  properties:
+    decision:
+      type: string
+      enum:
+        - approve
+        - always_approve
+        - deny
+        - whitelist
+      description: The user's approval decision for the pending permission request.
+    requestId:
+      type: string
+      minLength: 1
+      description: >-
+        Stable identifier for the permission request this decision responds to.
+        The CLI dispatcher uses this to locate the awaiting runner.
+    sessionId:
+      type: string
+      minLength: 1
+      description: >-
+        Provider session identifier. Together with `agentType`, uniquely
+        identifies the agent session holding the permission gate.
+    agentType:
+      type: string
+      enum:
+        - claude
+        - codex
+        - opencode
+      description: Agent provider that issued the permission request.
+    reason:
+      type: string
+      nullable: true
+      description: >-
+        User-supplied explanation for the decision, rendered alongside the
+        Approved/Denied message in CLI output.
+    idempotencyToken:
+      type: string
+      minLength: 1
+      description: >-
+        Stable token for deduplicating delivery of this decision. The CLI
+        discards duplicate frames that arrive from re-sends.
+    authorization:
+      $ref: "./controller-authorization.yaml#/AdmissionEnvelopeAuthorization"
+
+QuestionAnswerRequestDto:
+  type: object
+  additionalProperties: false
+  description: >-
+    A user's answers to a pending agent question, submitted by the platform
+    UI. The platform signs and emits this as a `question_answer` control
+    envelope to the CLI that owns the conversation. Mirrors the fields of
+    ConversationControlQuestionAnswer minus `kind` and `agentSessionId`.
+  required:
+    - requestId
+    - sessionId
+    - agentType
+    - answers
+    - idempotencyToken
+    - authorization
+  properties:
+    requestId:
+      type: string
+      minLength: 1
+    sessionId:
+      type: string
+      minLength: 1
+    agentType:
+      type: string
+      enum:
+        - claude
+        - codex
+        - opencode
+    answers:
+      type: object
+      additionalProperties:
+        type: string
+    idempotencyToken:
+      type: string
+      minLength: 1
+    authorization:
+      $ref: "./controller-authorization.yaml#/AdmissionEnvelopeAuthorization"
+
+CompactRunRequestDto:
+  type: object
+  additionalProperties: false
+  required: [authorization]
+  properties:
+    authorization:
+      $ref: "./controller-authorization.yaml#/AdmissionEnvelopeAuthorization"
+
+CreateAgentSessionConversationResponseDto:
+  type: object
+  required:
+    - agentSession
+    - conversation
+  properties:
+    agentSession:
+      $ref: "#/AgentSessionDto"
+      description: The updated agent session with non-null conversationId.
+    conversation:
+      $ref: "./conversations.yaml#/ConversationResponseDto"
+      description: The newly created conversation.
+
+RestartPlanGenerationResponseDto:
+  type: object
+  description: >-
+    Result of a plan-generation restart. Tears down the prior run and relaunches
+    a fresh PlanFromDesignDoc run from the preserved design doc, returning the new
+    conversation id. Idempotent — an already-terminated run with nothing to tear
+    down returns restarted=false and no conversationId.
+  required:
+    - restarted
+  properties:
+    restarted:
+      type: boolean
+      description: >-
+        True when the prior run was torn down and a fresh run relaunched;
+        false on an idempotent no-op (no bound conversation, or the
+        plan/conversation was already gone).
+    conversationId:
+      type: string
+      format: uuid
+      description: >-
+        The conversation created for the relaunched PlanFromDesignDoc run.
+        Present only when restarted is true.
+
+AgentSessionStatus:
+  type: string
+  enum:
+    - NOT_STARTED
+    - IN_PROGRESS
+    - COMPLETED
+    - ERRORED

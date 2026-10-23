@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 220" role="img" aria-labelledby="title description">
+  <title id="title">Agent Bridge connection overview</title>
+  <desc id="description">A browser connects to the Hey Hey API, which connects to an approved local Agent Bridge.</desc>
+  <rect width="720" height="220" rx="24" fill="#f4f7fb"/>
+  <rect x="36" y="64" width="180" height="92" rx="14" fill="#ffffff" stroke="#5b6b82" stroke-width="3"/>
+  <rect x="270" y="64" width="180" height="92" rx="14" fill="#ffffff" stroke="#5b6b82" stroke-width="3"/>
+  <rect x="504" y="64" width="180" height="92" rx="14" fill="#ffffff" stroke="#5b6b82" stroke-width="3"/>
+  <path d="M216 110h54m180 0h54" stroke="#2f6fed" stroke-width="6" stroke-linecap="round"/>
+  <path d="m255 94 16 16-16 16m180-32 16 16-16 16" fill="none" stroke="#2f6fed" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="126" y="101" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#162235">Browser</text>
+  <text x="126" y="130" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" fill="#5b6b82">Passkey controller</text>
+  <text x="360" y="101" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#162235">Hey Hey API</text>
+  <text x="360" y="130" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" fill="#5b6b82">Project coordination</text>
+  <text x="594" y="101" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#162235">Agent Bridge</text>
+  <text x="594" y="130" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" fill="#5b6b82">Approved machine</text>
+</svg>

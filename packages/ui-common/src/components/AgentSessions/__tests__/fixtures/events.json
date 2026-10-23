@@ -1,0 +1,351 @@
+[
+  {
+    "seq": 1,
+    "ts": "2026-02-26T07:47:32.670Z",
+    "app_session_id": "fc614dd4-56b4-49ff-a18e-9dc232c412c8",
+    "run_id": "mcp_53f61039-9d30-41f6-98f7-e1667c18d9a8",
+    "actor": "app",
+    "event_type": "run_started",
+    "state_version": 1,
+    "payload": {
+      "mode": "prompt",
+      "prompt": "You are starting a coding agent session from structured task context and evidence.\n\nScope model:\n- The \"active task\" is Inputs.task (the single task object included below).\n- Only plan and execute work required to complete the active task.\n- All other provided entities (designDoc, plan, initiative, adjacentScopeTasks, evidenceItems) are context and scope constraints only.\n- Any additional tasks present in evidenceItems are provided for context and scoping only, never as implementation targets.\n- Implementing functionality whose primary outcome belongs to any non-active task is a hard failure and will be rejected.\n\nYour primary goals:\n1. Build a concrete multi-step execution plan.\n2. Surface discrepancies between provided inputs and this session's in-repo delivery reality.\n3. Ask clarification questions only when they block safe execution.\n4. Keep the execution plan scoped to the current task and treat adjacentScopeTasks as out-of-scope boundaries.\n\nInputs:\n{\n  \"task\": {\n    \"id\": \"72274bf3-51df-4707-9830-294e497601c7\",\n    \"title\": \"Create plan-document refinement and approval UI\",\n    \"description\": \"Build a UI workflow that enables users to view the generated plan document, make inline refinements, request changes through conversational interaction, and ultimately approve the document before it's persisted and featured on the plan page. The workflow supports iterative refinement where users can edit content directly or ask the system to revise sections, with clear approval gates before the document becomes the official plan.\",\n    \"details\": \"Create a multi-step UI workflow with the following components:\\n\\n1. **Plan Document Viewer**: Display the generated plan document with:\\n\\n- Readable narrative sections (user journey, technical implementation)\\n- Mermaid charts\\n- Clear visual hierarchy showing connections between user journey and technical implementation\\n- Responsive layout suitable for both desktop and tablet viewing\\n\\n2. **Inline Editing**: Enable users to:\\n\\n- Click and edit text sections directly (narrative, descriptions, ownership)\\n- Add or remove sections\\n- Preserve formatting and chart positioning during edits\\n- Show edit history or change indicators\\n\\n3. **Conversational Refinement**: User standard Hey Hey conversation side-panel:\\n\\n- Request changes to specific sections (\\\"regenerate the sequence diagram\\\", \\\"expand the technical implementation narrative\\\")\\n- Ask clarifying questions about the plan\\n- Provide feedback that the LLM uses to refine the document\\n- Maintain conversation context across multiple refinement round\\n\\n5. **Approval Gate**: Implement clear approval workflow:\\n\\n- \\\"Request Changes\\\" button that opens conversational refinement panel\\n- \\\"Approve\\\" button that locks the document and persists it\\n- Optional approval checklist (e.g., \\\"All stages assigned?\\\", \\\"Timing realistic?\\\")\\n- Confirmation dialog before final approval\\n\\n6. **Integration with Plan Page**: Upon approval:\\n\\n- Persist the plan document to the system\\n- Feature it prominently on the plan page\\n- Link plan document to the associated initiative and plan\\n- Make document accessible for future reference and updates\",\n    \"acceptanceCriteria\": \"- Users can view the generated plan document with all sections (user journey, technical implementation) and embedded charts (sequence diagrams, system diagrams) rendered correctly\\n- Users can click and edit text content inline (narrative, descriptions, ownership) without losing formatting or chart positioning\\n- Users can request changes through conversational side-panel and see the document update based on refinement requests within 30 seconds\\n- At least two rounds of refinement can be completed before approval without losing previous edits\\n- Change tracking or version history shows what was modified and allows reverting to previous versions\\n- Approval workflow includes clear \\\"Request Changes\\\" and \\\"Approve\\\" buttons with optional approval checklist validating key plan properties\\n- Upon approval, the plan document is persisted and appears on the plan page within 5 seconds\\n- UI provides clear visual feedback when document is locked (approved) and cannot be further edited\\n- Error handling gracefully manages failed refinement requests, chart re-rendering, or persistence failures\\n- Responsive design works on desktop (1920px+) and tablet (768px+) viewports\"\n  },\n  \"plan\": {\n    \"id\": \"task-72274bf3-51df-4707-9830-294e497601c7\",\n    \"title\": \"Create plan-document refinement and approval UI\"\n  },\n  \"initiative\": {\n    \"id\": \"3d682cda-f278-4956-bf16-ca5a0e71e358\",\n    \"title\": \"Implementation Plans\"\n  },\n  \"adjacentScopeTasks\": [],\n  \"evidenceItems\": [\n    {\n      \"id\": \"67f0db2b-82d9-4856-94d9-1ad6068269f9\",\n      \"type\": \"task\",\n      \"title\": \"Create conversational planning workflow (nodes & transitions)\",\n      \"content\": \"TASK 67f0db2b-82d9-4856-94d9-1ad6068269f9\\nName: Create conversational planning workflow (nodes & transitions)\\nStatus: COMPLETED\\nPriority: MEDIUM\\nSections:\\n- description: Define and implement the conversational plan-intake flow that guides users through the Implementation Plans planning phase. This workflow will surface gaps in work (tasks, design documents, services) through iterative dialogue, align with the plan-document schema and sequencing template, and establish the foundation for structured plan generation. The workflow should follow the Planning intake conversation requirements and mirror the architectural patterns established in the onboarding flow.\\n- details: Implement a conversational workflow using the same flow architecture as the onboarding workflow, with eight core nodes that guide users through iterative planning. The workflow begins with a welcome and outcome clarification, then systematically discovers scope, constraints, and dependencies through targeted questions. The DISCOVER_GAPS node cycles through three distinct categories—tasks scattered across initiatives, design documents, and services—surfacing missing work that would otherwise remain fragmented.\\n\\nAs gaps emerge, the workflow transitions to PROPOSE_STAGES, which presents high-level execution phases aligned with the plan data model (stages represent major milestones or phases). For each proposed stage, the PROPOSE_STEPS node surfaces specific work items (tasks, design documents, services) that belong to that stage, allowing users to refine sequencing, ownership, and timing. This two-level proposal pattern mirrors the plan schema structure and enables users to think about work both strategically (stages) and tactically (steps within each stage). Users can cycle through gap discovery and proposal multiple times, returning to DISCOVER_SCOPE for additional context or revisiting PROPOSE_STAGES and PROPOSE_STEPS for refinements.\\n\\nThe workflow leverages context transforms to accumulate discovered gaps and proposed entities across conversation turns, progressively building the plan-document schema as dialogue evolves. Conditional routing adapts based on plan complexity and user confidence, ensuring the conversation remains focused and efficient. The workflow maintains references to related initiatives, existing tasks, and services throughout, grounding recommendations in organizational context. Upon completion, the onComplete behavior triggers plan-document generation with all identified work sequenced by stage and step, ownership assigned, and dependencies established. The generated plan artifact becomes the single source of truth—navigable and immediately usable by the execution guidance system.\\n- acceptanceCriteria: - Workflow includes minimum 8 nodes covering welcome, outcome clarification, scope discovery, gap discovery (3+ types), stage proposal, step proposal per stage, refinement, plan generation, and completion\\n- Transitions enable looping for iterative discovery and refinement without requiring user to restart\\n- Context transforms accumulate and structure gap discoveries and proposed entities in alignment with plan-document schema\\n- Workflow successfully surfaces at least 3 distinct types of gaps (tasks, design docs, services) in a single planning session\\n- PROPOSE_STAGES node presents high-level execution phases aligned with plan data model; PROPOSE_STEPS node surfaces specific work items per stage as stubs (name and short description only)\\n- Two-level proposal pattern (stages then steps) enables strategic and tactical refinement with sequencing, ownership, and timing adjustments; step stubs defer detailed refinement to post-planning phase\\n- onComplete behavior generates a plan document with all identified work sequenced by stage and step, ownership assigned, and dependencies established\\n- Plan document is created in a format that aligns with the plan-document schema and sequencing template\\n- Workflow code follows the same architectural patterns as the onboarding flow (node definitions, transitions object, contextTransforms, onComplete)\\n- Workflow is integrated with the plan-document generation system so users receive a complete, navigable plan artifact upon completion\"\n    },\n    {\n      \"id\": \"23084bda-a05a-46b6-8b2f-a098dee3ed97\",\n      \"type\": \"message\"\n    },\n    {\n      \"id\": \"a1a0c2a3-a441-4741-9eec-578301314678\",\n      \"type\": \"task\",\n      \"title\": \"Add UI for Gap discovery\",\n      \"content\": \"TASK a1a0c2a3-a441-4741-9eec-578301314678\\nName: Add UI for Gap discovery\\nStatus: COMPLETED\\nPriority: MEDIUM\\nSections:\\n- description: Build a UI component that guides users through gap discovery in a structured, progressive sequence. After the conversational planning phase (where scope and constraints are established), the system presents identified gaps in three stages: services first (highest-level, easiest to validate), then design documents (mid-level implementation patterns), then tasks (detailed work items). Each stage is presented one at a time, allowing users to confirm or refine selections before moving to the next category. This progressive disclosure prevents cognitive overload, gives users a chance to contribute their own knowledge of existing work, and provides the system with richer context for subsequent stages—especially for task discovery, where knowing the selected services and design docs enables more precise recommendations.\\n- details: The UI implements a three-stage gap discovery flow that runs after the conversational planning phase concludes, with analysis performed once and results cached for efficient retrieval. Stage 1 presents identified services with a simple validation interface: the system shows services it inferred from the scope discussion, the user confirms which are in scope, and optionally adds missing ones. Once services are locked in, Stage 2 presents design documents relevant to those services—again with confirmation and optional additions. Stage 3 then presents tasks, now informed by both service and design doc selections, allowing the system to surface more precise and contextual work items.\\n\\nEach stage uses a card-based or list interface showing the entity name, brief description, and relevance reasoning (why the system thinks it belongs in this plan). The user can toggle items on/off, add new ones via a search or creation flow, and must confirm the current stage before advancing to the next—no skipping or backtracking allowed. A progress indicator shows which stage is active and how many stages remain. This progressive disclosure prevents cognitive overload, gives users a chance to contribute their own knowledge of existing work, and provides the system with richer context for subsequent stages. By the time the user reaches task discovery, the system has explicit confirmation of services and design docs, enabling it to filter and prioritize task recommendations more effectively.\\n\\nThe system distinguishes visually between system-identified and user-added entities, ensuring transparency about the source of each recommendation. Once all three stages are confirmed, the UI triggers generation of the structured plan document with sequencing, ownership, and timing. This approach balances speed (analysis happens once) with UX clarity (results presented one category at a time) and information richness (each stage informs the next).\\n- acceptanceCriteria: - UI presents gap discovery in three sequential stages (services → design docs → tasks) with clear visual progress indicator\\n- Each stage shows system-identified entities with relevance reasoning and allows user to confirm, reject, or add items before advancing\\n- User cannot proceed to next stage until current stage is confirmed (no skipping or backtracking)\\n- Gap analysis is performed once after planning phase concludes; results are cached and retrieved by each stage rather than re-analyzing\\n- Task discovery stage receives service and design doc selections as context and surfaces only tasks relevant to confirmed selections\\n- User can add new entities (services, design docs, tasks) within each stage via search or creation flow\\n- UI clearly distinguishes system-identified entities from user-added entities through visual indicators\\n- Confirmation of all three stages triggers generation of the structured plan document with sequencing, ownership, and timing\"\n    },\n    {\n      \"id\": \"ccf0631b-002c-4eda-9a7f-30d73798766b\",\n      \"type\": \"task\",\n      \"title\": \"Build stage drill-down UI for step details\",\n      \"content\": \"TASK ccf0631b-002c-4eda-9a7f-30d73798766b\\nName: Build stage drill-down UI for step details\\nStatus: COMPLETED\\nPriority: MEDIUM\\nSections:\\n- description: Implement the drill-down interface that allows users to expand a stage and view all steps within it, including ownership, timing, and dependencies. This enables tactical refinement at the step level and provides detailed visibility into the work contained within each stage.\\n- details: Create a drill-down interface component that displays detailed step information for a selected stage. When a user selects or expands a stage from the stages visualization, this component should render a list or table of all steps within that stage. For each step, display: step name, description, assigned owner(s), estimated timing/duration, actual timing (if in progress or completed), dependencies (both internal to the plan and external), status (not started/in progress/completed), and any relevant metadata from the plan-document schema. The component should support inline editing or interaction for refinement of ownership, timing, and sequencing. Include visual indicators showing step status and dependency relationships. Support sorting and filtering of steps by status, owner, or timing. Provide navigation back to the stages view. Consider how this component integrates with the next steps quick-view component to avoid duplication. The drill-down should maintain context about which stage is being viewed and enable comparison with other stages if needed.\\n- acceptanceCriteria: - Drill-down component displays all steps for selected stage from plan-document schema\\n- Each step displays name, description, owner, estimated timing, status, and dependencies\\n- Step status indicators clearly show not started/in progress/completed states\\n- Dependencies are visualized and indicate both internal and external relationships\\n- Component supports sorting by status, owner, and timing\\n- Component supports filtering to show only specific step statuses\\n- Users can navigate back to stages view while maintaining plan context\\n- Component integrates with plan-document schema and renders data correctly\\n- Inline editing or interaction for ownership and timing refinement is functional\\n- Visual design is consistent with stages visualization component and overall application design\\n- Accessibility requirements met: semantic HTML, ARIA labels, keyboard navigation, screen reader compatibility\\n- Component handles edge cases: stages with no steps, steps with multiple owners, circular dependencies\"\n    },\n    {\n      \"id\": \"a5a03b19-95ec-4e38-b5f5-920a9963f548\",\n      \"type\": \"task\",\n      \"title\": \"Integrate plan UI with plan-document schema\",\n      \"content\": \"TASK a5a03b19-95ec-4e38-b5f5-920a9963f548\\nName: Integrate plan UI with plan-document schema\\nStatus: COMPLETED\\nPriority: MEDIUM\\nSections:\\n- description: Connect the UI components (stages, steps, next steps) to the plan-document data model so they render correctly from the structured plan artifact. Ensure all data flows properly from the conversational workflow output to the UI layer, establishing the plan document as the single source of truth for visualization.\\n- details: Implement data integration layer that connects the three plan UI components (stages visualization, step drill-down, next steps quick-view) to the plan-document schema. This involves: (1) Creating data mappers that transform plan-document schema output from the conversational workflow into the format expected by each UI component; (2) Establishing reactive data bindings so UI components update when plan-document data changes; (3) Implementing plan-document loading and caching logic; (4) Creating dependency resolution logic that the next steps component can use to determine which steps are unblocked; (5) Ensuring all three components reference the same underlying plan-document instance to maintain consistency; (6) Adding error handling for malformed or incomplete plan documents; (7) Implementing serialization/deserialization logic if plan documents are persisted. Assume the plan-document schema is defined in the 'Design plan-document schema and sequencing template' task. The integration should follow existing application architecture patterns for data management. Include comprehensive logging for debugging data flow issues.\\n- acceptanceCriteria: - All three UI components (stages, steps, next steps) correctly render data from plan-document schema\\n- Data mappers transform plan-document output into format required by each UI component\\n- Reactive bindings ensure UI updates when plan-document changes\\n- Plan documents load correctly and are cached appropriately for performance\\n- Dependency resolution logic correctly identifies unblocked steps\\n- All three components reference same plan-document instance (no data inconsistency)\\n- Error handling gracefully manages malformed or incomplete plan documents\\n- All data flows from conversational workflow output through integration layer to UI\\n- Plan document serves as single source of truth for all UI rendering\\n- Integration follows established application architecture patterns\\n- Comprehensive logging enables debugging of data flow issues\\n- Performance: UI components render within 500ms of plan-document data availability\\n- Integration tested with plan documents of varying complexity (5 stages, 50+ steps; single stage, 1-2 steps)\\n- No data loss or corruption during serialization/deserialization cycles\"\n    },\n    {\n      \"id\": \"6abdcb06-260e-4197-8191-9b33012bb46f\",\n      \"type\": \"task\",\n      \"title\": \"Build plan-document generation agent (LLM + chart rendering)\"\n    },\n    {\n      \"id\": \"47e25de1-8e5e-4cc3-afb7-7f735da4af16\",\n      \"type\": \"task\",\n      \"title\": \"Enable CDRT edit mode for description, details, and acceptance criteria\"\n    },\n    {\n      \"id\": \"7844688f-3c95-4353-b82d-0e5d31e1216b\",\n      \"type\": \"task\",\n      \"title\": \"Implement scope and constraints discovery node\"\n    },\n    {\n      \"id\": \"5c54f6a0-4585-4b64-bac1-eaf6d1f9126a\",\n      \"type\": \"task\",\n      \"title\": \"Design plan UI for stages visualization\"\n    },\n    {\n      \"id\": \"49889d53-e5bb-46fa-b248-a8d1938c84c2\",\n      \"type\": \"task\",\n      \"title\": \"Implement Hey Hey API client library for CLI\"\n    },\n    {\n      \"id\": \"f6ccb25f-75bf-428e-90b6-d1cb8162ee40\",\n      \"type\": \"task\",\n      \"title\": \"Create gap discovery workflow in agent service\"\n    },\n    {\n      \"id\": \"93319dc1-ffa1-4fcc-85e5-01ead1caf577\",\n      \"type\": \"message\"\n    }\n  ]\n}\n\nReturn a strict JSON object with this exact structure and lowerCamel keys:\n{\n  \"responseType\": \"startup_plan_v1\",\n  \"sessionTitle\": \"short, task-focused session title\",\n  \"executionPlan\": [\n    {\n      \"stepId\": \"step-1\",\n      \"title\": \"short title\",\n      \"description\": \"what to do\",\n      \"references\": [\n        {\n          \"sourceType\": \"evidenceItem|task|designDoc|plan|initiative\",\n          \"sourceId\": \"entity or evidence id\",\n          \"rationale\": \"why this source supports this step\"\n        }\n      ],\n      \"validationFocus\": \"what the user should verify before implementation\"\n    }\n  ],\n  \"discrepancies\": [\n    {\n      \"sourceRef\": {\n        \"sourceType\": \"evidenceItem|task|designDoc|plan|initiative\",\n        \"sourceId\": \"entity or evidence id\"\n      },\n      \"sourceField\": \"title|content|topologySummary|description|details|acceptanceCriteria|sections.<sectionKey>|outcome|adjacentScopeTasks.<index>.description|adjacentScopeTasks.<index>.acceptanceCriteria\",\n      \"sourceExcerpt\": \"one or two full sentences from input\",\n      \"reasoning\": \"one or two sentences explaining the mismatch\",\n      \"discrepancyText\": \"one or two sentence concise discrepancy statement\",\n      \"severity\": \"low|medium|high\"\n    }\n  ],\n  \"clarificationQuestions\": [\n    {\n      \"question\": \"blocking question text that is not already captured in discrepancies\",\n      \"reason\": \"why this blocks safe execution and is not already covered by a discrepancy\",\n      \"relatedSourceRefs\": [\n        {\n          \"sourceType\": \"evidenceItem|task|designDoc|plan|initiative\",\n          \"sourceId\": \"entity or evidence id\"\n        }\n      ]\n    }\n  ]\n}\n\nRules:\n- sessionTitle must be specific to the active task and concise (prefer 3-8 words).\n- sessionTitle must not be generic (for example avoid \"Startup Plan\" or \"Task Work\").\n- Every discrepancy must include a precise sourceRef and sourceField.\n- In startup-plan format, discrepancy means a mismatch between provided inputs and what is required to deliver Inputs.task in this codebase/session.\n- Do not emit fragmentary excerpts; sourceExcerpt must be one or two full sentences.\n- Every executionPlan step should include at least one reference when possible.\n- Treat Inputs.task as the only implementation target for this session.\n- Treat designDoc/plan/initiative/evidenceItems as contextual guidance and scope evidence, not separate implementation targets.\n- Treat additional tasks included in evidence as strict out-of-scope boundaries for implementation in this session.\n- Treat adjacentScopeTasks as boundary constraints, not additional work for this session.\n- Do not include executionPlan steps whose primary outcome belongs to an adjacentScopeTask.\n- Do not include executionPlan steps whose primary outcome belongs to any task other than Inputs.task.\n- If Inputs.task includes work that is intentionally split across services/repositories, treat this as an allowable scope split and plan only the subset deliverable in this codebase/session.\n- Do not treat allowable scope splits (for example, task details that mention backend storage or API behavior during a ui-common-scoped session) as contradictions that block planning.\n- Work that is intentionally implemented in another repository/service is not, by itself, a discrepancy for this startup plan.\n- Record a discrepancy for cross-repository state only when it directly conflicts with or blocks this session's acceptance criteria.\n- If you record an allowable scope split as a discrepancy, keep severity low unless it directly blocks Inputs.task acceptance criteria for this session.\n- If progress is blocked by adjacent-scope dependencies, capture that as a discrepancy or clarificationQuestion instead of planning adjacent-scope implementation.\n- If an issue is already listed in discrepancies, do not repeat it in clarificationQuestions.\n- Use clarificationQuestions only for unresolved blockers that are not already represented as discrepancies.\n- Prefer a reasonable assumption plus a low-severity discrepancy over a clarification question when safe execution remains possible.\n- Do not offer follow-up implementation on any non-active task (including adjacentScopeTasks or additional tasks found in evidence).\n- Prefer the smallest viable plan that satisfies current-task acceptance criteria without preemptive neighboring-task work.\n- If there are no discrepancies, return an empty discrepancies array.\n- If there are no blocking questions, return an empty clarificationQuestions array.\n\n\nReturn JSON only. Do not include markdown fences.\nDo not include additional commentary outside JSON.\n\n## Additional Context from User\nOkay, so we need to do a few things here. So we have the data coming back from the agent. And what we're going to get is a entityID. This will be a designDocID. It will be of a BRAINSTORM type. And what we want to do for this first pass is create a new UI element type with a UI extended field type. That will be in ../openapi. We will for this first pass just be doing a read only view. So I know the tasks mentioned being able to edit it and having a side by side conversation panel. For the first pass, we can skip that.\n\n## Completion Signaling\nWhen implementation is complete, include the exact marker \"[[HEY_HEY_IMPLEMENTATION_DONE]]\" in your assistant response.",
+      "adapterId": "codex-mcp",
+      "repositoryPath": "/Users/zac/Desktop/code/hey-hey/ui-common"
+    }
+  },
+  {
+    "seq": 2,
+    "ts": "2026-02-26T07:47:45.374Z",
+    "app_session_id": "fc614dd4-56b4-49ff-a18e-9dc232c412c8",
+    "run_id": "mcp_53f61039-9d30-41f6-98f7-e1667c18d9a8",
+    "actor": "agent",
+    "event_type": "agent_output",
+    "state_version": 1,
+    "payload": {
+      "messageType": "assistant",
+      "summary": "I’m scoping the active task to a first-pass, read-only plan-document UI and checking the current `ui-common` code for existing plan/design-doc viewer patterns plus any generated types this depends on. I’ll use that to produce a concrete execution plan and call out any blockers or mismatches."
+    }
+  },
+  {
+    "seq": 3,
+    "ts": "2026-02-26T07:47:50.794Z",
+    "app_session_id": "fc614dd4-56b4-49ff-a18e-9dc232c412c8",
+    "run_id": "mcp_53f61039-9d30-41f6-98f7-e1667c18d9a8",
+    "actor": "agent",
+    "event_type": "agent_output",
+    "state_version": 1,
+    "payload": {
+      "messageType": "assistant",
+      "summary": "I found existing plan/design-doc components and a `StartupPlanStructuredField`, so next I’m checking how structured UI element types are wired and whether a brainstorm design-doc read view can plug in without backend changes in this repo."
+    }
+  },
+  {
+    "seq": 4,
+    "ts": "2026-02-26T07:47:55.415Z",
+    "app_session_id": "fc614dd4-56b4-49ff-a18e-9dc232c412c8",
+    "run_id": "mcp_53f61039-9d30-41f6-98f7-e1667c18d9a8",
+    "actor": "agent",
+    "event_type": "agent_output",
+    "state_version": 1,
+    "payload": {
+      "messageType": "assistant",
+      "summary": "I found a likely anchor in `StartupPlanStructuredField`; now I’m reading the registry and API type definitions to pinpoint exactly what new UI element type would be required for the brainstorm design-doc read view."
+    }
+  },
+  {
+    "seq": 5,
+    "ts": "2026-02-26T07:48:26.999Z",
+    "app_session_id": "fc614dd4-56b4-49ff-a18e-9dc232c412c8",
+    "run_id": "mcp_53f61039-9d30-41f6-98f7-e1667c18d9a8",
+    "actor": "agent",
+    "event_type": "agent_output",
+    "state_version": 1,
+    "payload": {
+      "messageType": "assistant",
+      "summary": "I’ve confirmed the dynamic form registry is already set up for structured read-only fields; I’m now validating whether we can reliably fetch/render a `BRAINSTORM` design doc by `entityId` in this repo, since that determines if any blocker-level questions are necessary."
+    }
+  },
+  {
+    "seq": 6,
+    "ts": "2026-02-26T07:48:37.877Z",
+    "app_session_id": "fc614dd4-56b4-49ff-a18e-9dc232c412c8",
+    "run_id": "mcp_53f61039-9d30-41f6-98f7-e1667c18d9a8",
+    "actor": "agent",
+    "event_type": "agent_output",
+    "state_version": 1,
+    "payload": {
+      "messageType": "assistant",
+      "summary": "I confirmed `ExtendedUIFieldType` currently has no dedicated plan-doc/brainstorm viewer type. I’m checking how structured values are initialized from system message data so the new read-only viewer can consume the returned `entityId` cleanly without risky casting."
+    }
+  },
+  {
+    "seq": 7,
+    "ts": "2026-02-26T07:48:52.359Z",
+    "app_session_id": "fc614dd4-56b4-49ff-a18e-9dc232c412c8",
+    "run_id": "mcp_53f61039-9d30-41f6-98f7-e1667c18d9a8",
+    "actor": "agent",
+    "event_type": "agent_output",
+    "state_version": 1,
+    "payload": {
+      "messageType": "assistant",
+      "summary": "I’ve confirmed the form layer can tolerate a new custom field shape (`z.any` fallback), so the main dependency is where the new `ExtendedUIFieldType` is defined. I’m quickly checking whether `../openapi` is present from this workspace to assess whether that step is blocked or just cross-repo."
+    }
+  },
+  {
+    "seq": 8,
+    "ts": "2026-02-26T07:51:01.111Z",
+    "app_session_id": "fc614dd4-56b4-49ff-a18e-9dc232c412c8",
+    "run_id": "mcp_53f61039-9d30-41f6-98f7-e1667c18d9a8",
+    "actor": "agent",
+    "event_type": "agent_output",
+    "state_version": 1,
+    "payload": {
+      "messageType": "assistant",
+      "summary": "{\n  \"responseType\": \"startup_plan_v1\",\n  \"sessionTitle\": \"Read-Only Plan Doc Viewer\",\n  \"executionPlan\": [\n    {\n      \"stepId\": \"step-1\",\n      \"title\": \"Lock First-Pass Contract\",\n      \"description\": \"Define the first-pass structured response contract for the new read-only plan-document marker (designDoc entityId + template guard for BRAINSTORM), and map it to a dedicated UI element type expected from OpenAPI-generated types.\",\n      \"references\": [\n        {\n          \"sourceType\": \"task\",\n          \"sourceId\": \"72274bf3-51df-4707-9830-294e497601c7\",\n          \"rationale\": \"The task requires a plan-document workflow and this pass is scoped to read-only rendering from generated output.\"\n        },\n        {\n          \"sourceType\": \"plan\",\n          \"sourceId\": \"task-72274bf3-51df-4707-9830-294e497601c7\",\n          \"rationale\": \"Keeps implementation aligned to the active delivery plan scope.\"\n        }\n      ],\n      \"validationFocus\": \"Confirm the exact response payload shape and the OpenAPI enum/name for the new UI element type before coding.\"\n    },\n    {\n      \"stepId\": \"step-2\",\n      \"title\": \"Wire Structured Message Mapping\",\n      \"description\": \"Extend coding-prompt structured-response detection/mapping so the agent’s plan-document response creates the new UI element marker (instead of generic handling), preserving existing startup/final-assessment behavior.\",\n      \"references\": [\n        {\n          \"sourceType\": \"task\",\n          \"sourceId\": \"72274bf3-51df-4707-9830-294e497601c7\",\n          \"rationale\": \"Required to show generated plan documents through the conversation/UI workflow.\"\n        },\n        {\n          \"sourceType\": \"evidenceItem\",\n          \"sourceId\": \"67f0db2b-82d9-4856-94d9-1ad6068269f9\",\n          \"rationale\": \"Completed conversational planning flow already produces generated artifacts that this UI layer should render.\"\n        }\n      ],\n      \"validationFocus\": \"Verify incoming structured responses produce deterministic uiElements with the new type and no regressions in existing structured responses.\"\n    },\n    {\n      \"stepId\": \"step-3\",\n      \"title\": \"Build Read-Only Viewer Field\",\n      \"description\": \"Implement a new LlmForms registry field component that reads designDocId/entityId from structured payload, fetches the design doc, validates BRAINSTORM template, and renders markdown + Mermaid in a responsive read-only layout with loading/error states.\",\n      \"references\": [\n        {\n          \"sourceType\": \"task\",\n          \"sourceId\": \"72274bf3-51df-4707-9830-294e497601c7\",\n          \"rationale\": \"Directly delivers plan document viewing with narrative and chart rendering.\"\n        },\n        {\n          \"sourceType\": \"evidenceItem\",\n          \"sourceId\": \"a5a03b19-95ec-4e38-b5f5-920a9963f548\",\n          \"rationale\": \"Prior plan-schema UI integration provides existing data and rendering patterns to reuse.\"\n        }\n      ],\n      \"validationFocus\": \"Validate desktop/tablet rendering, Mermaid fallback behavior, and clear empty/error states for missing or wrong-template docs.\"\n    },\n    {\n      \"stepId\": \"step-4\",\n      \"title\": \"Register and Gate UI Behavior\",\n      \"description\": \"Add registry/type mapping for the new field so DynamicForm renders it consistently as a read-only field and does not expose edit/approval interactions in this pass.\",\n      \"references\": [\n        {\n          \"sourceType\": \"task\",\n          \"sourceId\": \"72274bf3-51df-4707-9830-294e497601c7\",\n          \"rationale\": \"Keeps scope focused on first-pass viewer while preparing the workflow for later refinement stages.\"\n        }\n      ],\n      \"validationFocus\": \"Confirm the field appears only when expected payload is present and remains non-editable after render.\"\n    },\n    {\n      \"stepId\": \"step-5\",\n      \"title\": \"Test and Typecheck\",\n      \"description\": \"Add focused tests for parser/mapping, registry resolution, and field rendering states (success/loading/error/wrong template), then run full TypeScript typecheck.\",\n      \"references\": [\n        {\n          \"sourceType\": \"task\",\n          \"sourceId\": \"72274bf3-51df-4707-9830-294e497601c7\",\n          \"rationale\": \"Acceptance requires reliable rendering/error handling and stable integration.\"\n        }\n      ],\n      \"validationFocus\": \"Ensure `pnpm tsc --noEmit` passes and test coverage proves read-only behavior plus structured-response wiring.\"\n    }\n  ],\n  \"discrepancies\": [\n    {\n      \"sourceRef\": {\n        \"sourceType\": \"task\",\n        \"sourceId\": \"72274bf3-51df-4707-9830-294e497601c7\"\n      },\n      \"sourceField\": \"description\",\n      \"sourceExcerpt\": \"Build a UI workflow that enables users to view the generated plan document, make inline refinements, request changes through conversational interaction, and ultimately approve the document before it's persisted and featured on the plan page. The workflow supports iterative refinement where users can edit content directly or ask the system to revise sections, with clear approval gates before the document becomes the official plan.\",\n      \"reasoning\": \"Session delivery has been explicitly narrowed to a first-pass read-only implementation. That intentionally excludes inline refinement, conversational revision orchestration, and approval/persist actions in this iteration.\",\n      \"discrepancyText\": \"Active task scope is full refinement/approval workflow, but current in-session target is read-only plan-document viewing.\",\n      \"severity\": \"medium\"\n    },\n    {\n      \"sourceRef\": {\n        \"sourceType\": \"task\",\n        \"sourceId\": \"72274bf3-51df-4707-9830-294e497601c7\"\n      },\n      \"sourceField\": \"acceptanceCriteria\",\n      \"sourceExcerpt\": \"- Users can click and edit text content inline (narrative, descriptions, ownership) without losing formatting or chart positioning\\n- Users can request changes through conversational side-panel and see the document update based on refinement requests within 30 seconds\",\n      \"reasoning\": \"These criteria depend on edit flows, revision orchestration, and multi-round state handling that are outside the approved first-pass scope. A read-only viewer cannot satisfy these acceptance checks yet.\",\n      \"discrepancyText\": \"Inline editing and conversational refinement acceptance criteria remain unmet under the first-pass read-only approach.\",\n      \"severity\": \"high\"\n    },\n    {\n      \"sourceRef\": {\n        \"sourceType\": \"task\",\n        \"sourceId\": \"72274bf3-51df-4707-9830-294e497601c7\"\n      },\n      \"sourceField\": \"acceptanceCriteria\",\n      \"sourceExcerpt\": \"- Upon approval, the plan document is persisted and appears on the plan page within 5 seconds\",\n      \"reasoning\": \"This requires end-to-end backend persistence and latency guarantees beyond a UI-only first pass. The requested new `ExtendedUIFieldType` also originates in `../openapi`, which is outside this session’s writable root, so contract changes must be coordinated externally.\",\n      \"discrepancyText\": \"Approval-to-persistence SLA and full end-to-end publish behavior cannot be fully delivered/validated from this repo-only first pass.\",\n      \"severity\": \"medium\"\n    }\n  ],\n  \"clarificationQuestions\": []\n}"
+    }
+  },
+  {
+    "seq": 9,
+    "ts": "2026-02-26T07:51:01.197Z",
+    "app_session_id": "fc614dd4-56b4-49ff-a18e-9dc232c412c8",
+    "run_id": "mcp_53f61039-9d30-41f6-98f7-e1667c18d9a8",
+    "actor": "system",
+    "event_type": "run_completed",
+    "state_version": 1,
+    "payload": {
+      "mode": "prompt",
+      "provider_session_id": "019c98ea-db72-7a90-a78e-8ef7bd1bfd05",
+      "provider_conversation_id": null,
+      "errorCount": 0
+    }
+  },
+  {
+    "seq": 10,
+    "ts": "2026-02-26T07:54:23.034Z",
+    "app_session_id": "fc614dd4-56b4-49ff-a18e-9dc232c412c8",
+    "run_id": "mcp_551d16f7-73a3-4e5a-a31b-2474fa390f91",
+    "actor": "app",
+    "event_type": "run_started",
+    "state_version": 1,
+    "payload": {
+      "mode": "resume",
+      "prompt": "## Startup Plan Review (startup_plan_review_v1)\n\n### Decision\nAPPROVE_PLAN\n\n### Discrepancy Dispositions\n\n- **[ACKNOWLEDGED]** Active task scope is full refinement/approval workflow, but current in-session target is read-only plan-document viewing.\n\n- **[ACKNOWLEDGED]** Inline editing and conversational refinement acceptance criteria remain unmet under the first-pass read-only approach.\n\n- **[ACKNOWLEDGED]** Approval-to-persistence SLA and full end-to-end publish behavior cannot be fully delivered/validated from this repo-only first pass.\n\n### Action Required\nPlan approved. Proceed with implementation using this reviewed plan and provided answers.\n\n### Review Payload (JSON)\n```json\n{\n  \"decision\": \"approve\",\n  \"feedback\": null,\n  \"review\": {\n    \"responseType\": \"startup_plan_review_v1\",\n    \"originalPlan\": {\n      \"responseType\": \"startup_plan_v1\",\n      \"sessionTitle\": \"Read-Only Plan Doc Viewer\",\n      \"executionPlan\": [\n        {\n          \"stepId\": \"step-1\",\n          \"title\": \"Lock First-Pass Contract\",\n          \"description\": \"Define the first-pass structured response contract for the new read-only plan-document marker (designDoc entityId + template guard for BRAINSTORM), and map it to a dedicated UI element type expected from OpenAPI-generated types.\",\n          \"references\": [\n            {\n              \"sourceType\": \"task\",\n              \"sourceId\": \"72274bf3-51df-4707-9830-294e497601c7\",\n              \"rationale\": \"The task requires a plan-document workflow and this pass is scoped to read-only rendering from generated output.\"\n            },\n            {\n              \"sourceType\": \"plan\",\n              \"sourceId\": \"task-72274bf3-51df-4707-9830-294e497601c7\",\n              \"rationale\": \"Keeps implementation aligned to the active delivery plan scope.\"\n            }\n          ],\n          \"validationFocus\": \"Confirm the exact response payload shape and the OpenAPI enum/name for the new UI element type before coding.\"\n        },\n        {\n          \"stepId\": \"step-2\",\n          \"title\": \"Wire Structured Message Mapping\",\n          \"description\": \"Extend coding-prompt structured-response detection/mapping so the agent’s plan-document response creates the new UI element marker (instead of generic handling), preserving existing startup/final-assessment behavior.\",\n          \"references\": [\n            {\n              \"sourceType\": \"task\",\n              \"sourceId\": \"72274bf3-51df-4707-9830-294e497601c7\",\n              \"rationale\": \"Required to show generated plan documents through the conversation/UI workflow.\"\n            },\n            {\n              \"sourceType\": \"evidenceItem\",\n              \"sourceId\": \"67f0db2b-82d9-4856-94d9-1ad6068269f9\",\n              \"rationale\": \"Completed conversational planning flow already produces generated artifacts that this UI layer should render.\"\n            }\n          ],\n          \"validationFocus\": \"Verify incoming structured responses produce deterministic uiElements with the new type and no regressions in existing structured responses.\"\n        },\n        {\n          \"stepId\": \"step-3\",\n          \"title\": \"Build Read-Only Viewer Field\",\n          \"description\": \"Implement a new LlmForms registry field component that reads designDocId/entityId from structured payload, fetches the design doc, validates BRAINSTORM template, and renders markdown + Mermaid in a responsive read-only layout with loading/error states.\",\n          \"references\": [\n            {\n              \"sourceType\": \"task\",\n              \"sourceId\": \"72274bf3-51df-4707-9830-294e497601c7\",\n              \"rationale\": \"Directly delivers plan document viewing with narrative and chart rendering.\"\n            },\n            {\n              \"sourceType\": \"evidenceItem\",\n              \"sourceId\": \"a5a03b19-95ec-4e38-b5f5-920a9963f548\",\n              \"rationale\": \"Prior plan-schema UI integration provides existing data and rendering patterns to reuse.\"\n            }\n          ],\n          \"validationFocus\": \"Validate desktop/tablet rendering, Mermaid fallback behavior, and clear empty/error states for missing or wrong-template docs.\"\n        },\n        {\n          \"stepId\": \"step-4\",\n          \"title\": \"Register and Gate UI Behavior\",\n          \"description\": \"Add registry/type mapping for the new field so DynamicForm renders it consistently as a read-only field and does not expose edit/approval interactions in this pass.\",\n          \"references\": [\n            {\n              \"sourceType\": \"task\",\n              \"sourceId\": \"72274bf3-51df-4707-9830-294e497601c7\",\n              \"rationale\": \"Keeps scope focused on first-pass viewer while preparing the workflow for later refinement stages.\"\n            }\n          ],\n          \"validationFocus\": \"Confirm the field appears only when expected payload is present and remains non-editable after render.\"\n        },\n        {\n          \"stepId\": \"step-5\",\n          \"title\": \"Test and Typecheck\",\n          \"description\": \"Add focused tests for parser/mapping, registry resolution, and field rendering states (success/loading/error/wrong template), then run full TypeScript typecheck.\",\n          \"references\": [\n            {\n              \"sourceType\": \"task\",\n              \"sourceId\": \"72274bf3-51df-4707-9830-294e497601c7\",\n              \"rationale\": \"Acceptance requires reliable rendering/error handling and stable integration.\"\n            }\n          ],\n          \"validationFocus\": \"Ensure `pnpm tsc --noEmit` passes and test coverage proves read-only behavior plus structured-response wiring.\"\n        }\n      ],\n      \"discrepancies\": [\n        {\n          \"sourceRef\": {\n            \"sourceType\": \"task\",\n            \"sourceId\": \"72274bf3-51df-4707-9830-294e497601c7\"\n          },\n          \"sourceField\": \"description\",\n          \"sourceExcerpt\": \"Build a UI workflow that enables users to view the generated plan document, make inline refinements, request changes through conversational interaction, and ultimately approve the document before it's persisted and featured on the plan page. The workflow supports iterative refinement where users can edit content directly or ask the system to revise sections, with clear approval gates before the document becomes the official plan.\",\n          \"reasoning\": \"Session delivery has been explicitly narrowed to a first-pass read-only implementation. That intentionally excludes inline refinement, conversational revision orchestration, and approval/persist actions in this iteration.\",\n          \"discrepancyText\": \"Active task scope is full refinement/approval workflow, but current in-session target is read-only plan-document viewing.\",\n          \"severity\": \"medium\"\n        },\n        {\n          \"sourceRef\": {\n            \"sourceType\": \"task\",\n            \"sourceId\": \"72274bf3-51df-4707-9830-294e497601c7\"\n          },\n          \"sourceField\": \"acceptanceCriteria\",\n          \"sourceExcerpt\": \"- Users can click and edit text content inline (narrative, descriptions, ownership) without losing formatting or chart positioning\\n- Users can request changes through conversational side-panel and see the document update based on refinement requests within 30 seconds\",\n          \"reasoning\": \"These criteria depend on edit flows, revision orchestration, and multi-round state handling that are outside the approved first-pass scope. A read-only viewer cannot satisfy these acceptance checks yet.\",\n          \"discrepancyText\": \"Inline editing and conversational refinement acceptance criteria remain unmet under the first-pass read-only approach.\",\n          \"severity\": \"high\"\n        },\n        {\n          \"sourceRef\": {\n            \"sourceType\": \"task\",\n            \"sourceId\": \"72274bf3-51df-4707-9830-294e497601c7\"\n          },\n          \"sourceField\": \"acceptanceCriteria\",\n          \"sourceExcerpt\": \"- Upon approval, the plan document is persisted and appears on the plan page within 5 seconds\",\n          \"reasoning\": \"This requires end-to-end backend persistence and latency guarantees beyond a UI-only first pass. The requested new `ExtendedUIFieldType` also originates in `../openapi`, which is outside this session’s writable root, so contract changes must be coordinated externally.\",\n          \"discrepancyText\": \"Approval-to-persistence SLA and full end-to-end publish behavior cannot be fully delivered/validated from this repo-only first pass.\",\n          \"severity\": \"medium\"\n        }\n      ],\n      \"clarificationQuestions\": []\n    },\n    \"questionAnswers\": [],\n    \"discrepancyDispositions\": [\n      {\n        \"discrepancyIndex\": 0,\n        \"disposition\": \"acknowledged\"\n      },\n      {\n        \"discrepancyIndex\": 1,\n        \"disposition\": \"acknowledged\"\n      },\n      {\n        \"discrepancyIndex\": 2,\n        \"disposition\": \"acknowledged\"\n      }\n    ]\n  }\n}\n```\n\n## Completion Signaling\nWhen implementation is complete, include the exact marker \"[[HEY_HEY_IMPLEMENTATION_DONE]]\" in your assistant response.",
+      "adapterId": "codex-mcp",
+      "repositoryPath": "/Users/zac/Desktop/code/hey-hey/ui-common",
+      "provider_session_id": "019c98ea-db72-7a90-a78e-8ef7bd1bfd05"
+    }
+  },
+  {
+    "seq": 11,
+    "ts": "2026-02-26T07:55:40.268Z",
+    "app_session_id": "fc614dd4-56b4-49ff-a18e-9dc232c412c8",
+    "run_id": "mcp_551d16f7-73a3-4e5a-a31b-2474fa390f91",
+    "actor": "agent",
+    "event_type": "agent_output",
+    "state_version": 1,
+    "payload": {
+      "messageType": "assistant",
+      "summary": "Implementation plan is: 1) add a new structured-response marker for read-only plan documents, 2) map that marker to a dedicated registry type, 3) add a new read-only field component that fetches/render BRAINSTORM docs by `entityId`, and 4) add/update tests plus run `pnpm tsc --noEmit`. I’m starting with the structured-response mapping and registry wiring, then I’ll add the field component and tests."
+    }
+  },
+  {
+    "seq": 12,
+    "ts": "2026-02-26T07:56:27.710Z",
+    "app_session_id": "fc614dd4-56b4-49ff-a18e-9dc232c412c8",
+    "run_id": "mcp_551d16f7-73a3-4e5a-a31b-2474fa390f91",
+    "actor": "agent",
+    "event_type": "agent_output",
+    "state_version": 1,
+    "payload": {
+      "messageType": "assistant",
+      "summary": "I’m now editing the structured-response mapping files to add a dedicated plan-document marker and registry route, while keeping compatibility with the current `agent_response` OpenAPI enum in this repo."
+    }
+  },
+  {
+    "seq": 13,
+    "ts": "2026-02-26T07:56:57.190Z",
+    "app_session_id": "fc614dd4-56b4-49ff-a18e-9dc232c412c8",
+    "run_id": "mcp_551d16f7-73a3-4e5a-a31b-2474fa390f91",
+    "actor": "agent",
+    "event_type": "agent_output",
+    "state_version": 1,
+    "payload": {
+      "messageType": "assistant",
+      "summary": "Next I’m adding the new read-only registry field component that resolves the `entityId`, fetches the design doc, enforces `BRAINSTORM`, and renders through the existing markdown/Mermaid read view."
+    }
+  },
+  {
+    "seq": 14,
+    "ts": "2026-02-26T07:57:45.134Z",
+    "app_session_id": "fc614dd4-56b4-49ff-a18e-9dc232c412c8",
+    "run_id": "mcp_551d16f7-73a3-4e5a-a31b-2474fa390f91",
+    "actor": "agent",
+    "event_type": "agent_output",
+    "state_version": 1,
+    "payload": {
+      "messageType": "assistant",
+      "summary": "I hit a patch mismatch in the coding-prompt test file; I’m reading the exact helper/test block now and then applying a targeted patch for the new plan-document structured response case."
+    }
+  },
+  {
+    "seq": 15,
+    "ts": "2026-02-26T07:58:57.855Z",
+    "app_session_id": "fc614dd4-56b4-49ff-a18e-9dc232c412c8",
+    "run_id": "mcp_551d16f7-73a3-4e5a-a31b-2474fa390f91",
+    "actor": "agent",
+    "event_type": "agent_output",
+    "state_version": 1,
+    "payload": {
+      "messageType": "assistant",
+      "summary": "I’ve finished the main code edits and I’m now validating diffs for type/runtime issues before running targeted tests and full `pnpm tsc --noEmit`."
+    }
+  },
+  {
+    "seq": 16,
+    "ts": "2026-02-26T07:59:32.918Z",
+    "app_session_id": "fc614dd4-56b4-49ff-a18e-9dc232c412c8",
+    "run_id": "mcp_551d16f7-73a3-4e5a-a31b-2474fa390f91",
+    "actor": "agent",
+    "event_type": "agent_output",
+    "state_version": 1,
+    "payload": {
+      "messageType": "assistant",
+      "summary": "I’ve completed wiring and added the new field plus tests. I’m now running targeted Vitest cases for the touched structured-response/registry files, then full `pnpm tsc --noEmit` as required."
+    }
+  },
+  {
+    "seq": 17,
+    "ts": "2026-02-26T08:00:22.221Z",
+    "app_session_id": "fc614dd4-56b4-49ff-a18e-9dc232c412c8",
+    "run_id": "mcp_551d16f7-73a3-4e5a-a31b-2474fa390f91",
+    "actor": "agent",
+    "event_type": "agent_output",
+    "state_version": 1,
+    "payload": {
+      "messageType": "assistant",
+      "summary": "Implemented the first-pass read-only plan-document viewer flow in `ui-common`, keyed off structured agent output with `responseType: \"plan_document_view_v1\"` and `entityId` (designDocId).\n\n**What changed**\n- Added a new structured response marker + registry mapping for plan document view:\n  - [codingPromptStructuredUiElements.ts](/Users/zac/Desktop/code/hey-hey/ui-common/src/components/CodingPrompt/codingPromptStructuredUiElements.ts:4)\n- Added parser support for `plan_document_view_v1` in structured response detection:\n  - [codingPromptExecutionMessages.ts](/Users/zac/Desktop/code/hey-hey/ui-common/src/components/CodingPrompt/codingPromptExecutionMessages.ts:613)\n- Added a new read-only registry field that:\n  - extracts `entityId`/`designDocId` from structured payload\n  - fetches design doc via `useDesignDoc`\n  - enforces `BRAINSTORM` template\n  - renders via `DesignDocReadView` (markdown + mermaid support)\n  - includes loading/error/missing/template-mismatch states\n  - [PlanDocumentStructuredField.tsx](/Users/zac/Desktop/code/hey-hey/ui-common/src/components/LlmForms/Registry/PlanDocumentStructuredField.tsx:95)\n- Registered the new field in form registry:\n  - [Registry.tsx](/Users/zac/Desktop/code/hey-hey/ui-common/src/components/LlmForms/Registry/Registry.tsx:613)\n  - [index.ts](/Users/zac/Desktop/code/hey-hey/ui-common/src/components/LlmForms/Registry/index.ts:28)\n\n**Tests/validation**\n- Added/updated tests for structured mapping + registry + field behavior:\n  - [codingPromptExecutionMessages.test.ts](/Users/zac/Desktop/code/hey-hey/ui-common/src/components/CodingPrompt/__tests__/codingPromptExecutionMessages.test.ts:73)\n  - [Registry.getRegistryType.test.ts](/Users/zac/Desktop/code/hey-hey/ui-common/src/components/LlmForms/Registry/__tests__/Registry.getRegistryType.test.ts:45)\n  - [PlanDocumentStructuredField.test.tsx](/Users/zac/Desktop/code/hey-hey/ui-common/src/components/LlmForms/Registry/__tests__/PlanDocumentStructuredField.test.tsx:1)\n- Ran:\n  - `pnpm test:run src/components/CodingPrompt/__tests__/codingPromptExecutionMessages.test.ts src/components/LlmForms/Registry/__tests__/Registry.getRegistryType.test.ts src/components/LlmForms/Registry/__tests__/PlanDocumentStructuredField.test.tsx` (pass)\n  - `pnpm tsc --noEmit` (pass)\n\nNote: I did not modify `../openapi` (outside writable root in this session), so this implementation keeps compatibility by using the structured UI marker path with existing `agent_response` transport.\n\n[[HEY_HEY_IMPLEMENTATION_DONE]]"
+    }
+  },
+  {
+    "seq": 18,
+    "ts": "2026-02-26T08:00:22.293Z",
+    "app_session_id": "fc614dd4-56b4-49ff-a18e-9dc232c412c8",
+    "run_id": "mcp_551d16f7-73a3-4e5a-a31b-2474fa390f91",
+    "actor": "system",
+    "event_type": "run_completed",
+    "state_version": 1,
+    "payload": {
+      "mode": "resume",
+      "provider_session_id": "019c98ea-db72-7a90-a78e-8ef7bd1bfd05",
+      "provider_conversation_id": "019c98ea-db72-7a90-a78e-8ef7bd1bfd05",
+      "errorCount": 0
+    }
+  },
+  {
+    "seq": 19,
+    "ts": "2026-02-26T08:00:22.693Z",
+    "app_session_id": "fc614dd4-56b4-49ff-a18e-9dc232c412c8",
+    "run_id": "post_process_9791b7f3-631d-4005-8ceb-667cd09bd7b1",
+    "actor": "system",
+    "event_type": "post_processed",
+    "state_version": 1,
+    "payload": {
+      "summary": "Startup plan review submitted (approve).",
+      "action": {
+        "schemaVersion": 1,
+        "actionId": "a5fd91e4-e663-4970-a416-88a424dea6f8",
+        "sourceEventSeq": 8,
+        "actionType": "startup_plan_review_submitted",
+        "payload": {
+          "decision": "approve",
+          "feedback": null,
+          "review": {
+            "responseType": "startup_plan_review_v1",
+            "questionAnswers": [],
+            "discrepancyDispositions": [
+              {
+                "discrepancyIndex": 0,
+                "disposition": "acknowledged"
+              },
+              {
+                "discrepancyIndex": 1,
+                "disposition": "acknowledged"
+              },
+              {
+                "discrepancyIndex": 2,
+                "disposition": "acknowledged"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "seq": 20,
+    "ts": "2026-02-26T08:00:23.085Z",
+    "app_session_id": "fc614dd4-56b4-49ff-a18e-9dc232c412c8",
+    "run_id": "post_process_b81746ea-6a87-4c86-a14f-87ce9b43f47f",
+    "actor": "system",
+    "event_type": "post_processed",
+    "state_version": 1,
+    "payload": {
+      "summary": "Response actions executed (1 plugins).",
+      "action": {
+        "schemaVersion": 1,
+        "actionId": "f1277bf8-271d-46dd-a2f7-43ff9c448aba",
+        "sourceEventSeq": 8,
+        "actionType": "startup_plan_response_actions_executed",
+        "payload": {
+          "eventType": "startup_plan_v1.onReplied",
+          "totalPlugins": 1,
+          "successful": [
+            {
+              "pluginId": "startup-plan-discrepancy-hint-write-back",
+              "metrics": {
+                "extractedCandidates": 3,
+                "createdHints": 3,
+                "appendedVersions": 3,
+                "deduplicatedVersions": 0,
+                "createdFileReferences": 0,
+                "deduplicatedFileReferences": 0
+              }
+            }
+          ],
+          "failed": []
+        }
+      }
+    }
+  },
+  {
+    "seq": 21,
+    "ts": "2026-02-26T08:05:44.482Z",
+    "app_session_id": "fc614dd4-56b4-49ff-a18e-9dc232c412c8",
+    "run_id": "mcp_93f677d0-9e9f-4c32-b34f-7f3000040271",
+    "actor": "app",
+    "event_type": "run_started",
+    "state_version": 1,
+    "payload": {
+      "mode": "resume",
+      "prompt": "None of this should have been implemented in coding sessions or coding prompts, it has nothing to do with that. These are UIElements. We also need to have updated the ../openapi with ExtendedUIFieldType and added a payload (see /Users/zac/Desktop/code/hey-hey/openapi/specs/schemas/conversations.yaml and /Users/zac/Desktop/code/hey-hey/openapi/specs/schemas/flows.yaml)\n\n## Completion Signaling\nWhen implementation is complete, include the exact marker \"[[HEY_HEY_IMPLEMENTATION_DONE]]\" in your assistant response.",
+      "adapterId": "codex-mcp",
+      "repositoryPath": "/Users/zac/Desktop/code/hey-hey/ui-common",
+      "provider_session_id": "019c98ea-db72-7a90-a78e-8ef7bd1bfd05",
+      "provider_conversation_id": "019c98ea-db72-7a90-a78e-8ef7bd1bfd05"
+    }
+  },
+  {
+    "seq": 22,
+    "ts": "2026-02-26T08:06:48.715Z",
+    "app_session_id": "fc614dd4-56b4-49ff-a18e-9dc232c412c8",
+    "run_id": "mcp_93f677d0-9e9f-4c32-b34f-7f3000040271",
+    "actor": "agent",
+    "event_type": "agent_output",
+    "state_version": 1,
+    "payload": {
+      "messageType": "assistant",
+      "summary": "You’re right. I’ll move this out of agent-session/coding-prompt paths and rewire it as a normal `UIElement` field, then I’ll patch `../openapi` schemas for `ExtendedUIFieldType` + payload if the sandbox allows writes there. I’m first checking write access to `../openapi` and then I’ll apply the corrective edits."
+    }
+  }
+]

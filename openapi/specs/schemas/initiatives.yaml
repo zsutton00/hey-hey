@@ -1,0 +1,437 @@
+# =============================================
+# Initiative Schema Definitions
+# =============================================
+# Note: InitiativeStatus is now unified with TaskStatus as WorkStatus in common.yaml
+
+InitiativeCreatorType:
+  type: string
+  enum:
+    - SYSTEM
+    - USER
+  description: Who created the initiative
+
+InitiativeSourceType:
+  type: string
+  enum:
+    - PLAN
+  description: Origin source for initiatives created by the system
+
+InitiativeResponseDto:
+  type: object
+  required:
+    - id
+    - name
+    - status
+    - priority
+    - organizationId
+    - originatingProjectId
+    - creatorType
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      $ref: "./common.yaml#/InitiativeId"
+    name:
+      type: string
+      description: Name of the initiative
+    sections:
+      type: array
+      items:
+        $ref: "./work-items.yaml#/MaterializedWorkItemSection"
+    assigneeId:
+      $ref: "./common.yaml#/UserId"
+      description: ID of the user assigned to this initiative
+    reasoning:
+      type: string
+      description: Reasoning for why this initiative was suggested
+    status:
+      $ref: "common.yaml#/WorkStatus"
+    priority:
+      $ref: "./common.yaml#/Priority"
+    creatorType:
+      $ref: "#/InitiativeCreatorType"
+      default: SYSTEM
+    dueDate:
+      type: string
+      format: date-time
+      description: Due date for the initiative
+    tags:
+      type: array
+      items:
+        type: string
+      description: Array of tags for categorization
+    originatingProjectId:
+      $ref: "./common.yaml#/ProjectId"
+      description: Canonical project the initiative was originally created for. Set automatically on creation.
+    linkedProjectIds:
+      type: array
+      items:
+        $ref: "./common.yaml#/ProjectId"
+      description: All projects currently linked to the initiative.
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+    sourceConversationId:
+      type: string
+      format: uuid
+      description: ID of the onboarding conversation that created this initiative
+    sourceType:
+      $ref: "#/InitiativeSourceType"
+      description: System origin marker for initiative visibility and bookkeeping
+    sourceId:
+      type: string
+      format: uuid
+      description: Identifier for the source entity when sourceType is set
+    childCounts:
+      $ref: "#/InitiativeChildCounts"
+      description: Aggregated child task counts grouped by status for this initiative.
+    createdAt:
+      type: string
+      format: date-time
+      description: Creation timestamp
+    updatedAt:
+      type: string
+      format: date-time
+      description: Last update timestamp
+
+CreateInitiativeDto:
+  type: object
+  required:
+    - name
+    - projectId
+  properties:
+    name:
+      type: string
+      description: Name of the initiative
+    sections:
+      type: array
+      items:
+        $ref: "./work-items.yaml#/WorkItemSectionInput"
+    assigneeId:
+      $ref: "./common.yaml#/UserId"
+      description: ID of the user assigned to this initiative
+    reasoning:
+      type: string
+      description: Reasoning for why this initiative was suggested
+    status:
+      $ref: "common.yaml#/WorkStatus"
+      default: REFINING_DESCRIPTION
+    priority:
+      $ref: "./common.yaml#/Priority"
+      default: MEDIUM
+    creatorType:
+      $ref: "#/InitiativeCreatorType"
+      default: SYSTEM
+    dueDate:
+      type: string
+      format: date-time
+      description: Due date for the initiative
+    tags:
+      type: array
+      items:
+        type: string
+      default: []
+      description: Array of tags for categorization
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+      description: Project to link the initiative to on creation (required)
+    sourceConversationId:
+      type: string
+      format: uuid
+      description: ID of the conversation that created this initiative (must belong to same organization)
+    sourceType:
+      $ref: "#/InitiativeSourceType"
+      description: System origin marker for initiative visibility and bookkeeping
+    sourceId:
+      type: string
+      format: uuid
+      description: Identifier for the source entity when sourceType is set
+
+UpdateInitiativeDto:
+  type: object
+  properties:
+    name:
+      type: string
+      description: Optional new name for the initiative
+    sections:
+      type: array
+      items:
+        $ref: "./work-items.yaml#/WorkItemSectionInput"
+      description: Optional updated sections for the initiative
+    assigneeId:
+      $ref: "./common.yaml#/UserId"
+      description: Optional new assignee for this initiative
+    reasoning:
+      type: string
+      description: Optional new reasoning for the initiative
+    status:
+      $ref: "common.yaml#/WorkStatus"
+      description: Optional new status for the initiative
+    priority:
+      $ref: "./common.yaml#/Priority"
+      description: Optional new priority for the initiative
+    creatorType:
+      $ref: "#/InitiativeCreatorType"
+      description: Optional new creator type for the initiative
+    dueDate:
+      type: string
+      format: date-time
+      description: Optional new due date for the initiative
+    tags:
+      type: array
+      items:
+        type: string
+      description: Optional new tags for the initiative
+    sectionUpdateSource:
+      $ref: "#/InitiativeSectionUpdateSource"
+      description: Indicates whether provided section updates are user-authored or agent-suggested content.
+
+InitiativeSectionUpdateSource:
+  type: string
+  description: Source of initiative section updates in PATCH requests.
+  enum:
+    - USER
+    - AGENT_SUGGESTED
+  example: "USER"
+
+InitiativeChildCounts:
+  type: object
+  description: Aggregated child task counts grouped by status for this initiative.
+  properties:
+    total:
+      type: integer
+      format: int32
+      description: Total number of direct child tasks.
+      example: 3
+    done:
+      type: integer
+      format: int32
+      description: Number of direct child tasks marked as done.
+      example: 1
+    inProgress:
+      type: integer
+      format: int32
+      description: Number of direct child tasks currently in progress.
+      example: 1
+    backlog:
+      type: integer
+      format: int32
+      description: Number of direct child tasks that are still in the backlog.
+      example: 1
+
+# =============================================
+# Initiative Edit History Schema Definitions
+# =============================================
+
+EditedBy:
+  type: string
+  enum:
+    - USER
+    - SYSTEM
+  description: Who made the edit (user or system)
+
+FieldChangeDto:
+  type: object
+  required:
+    - field
+    - oldValue
+    - newValue
+    - dataType
+  properties:
+    field:
+      type: string
+      description: Name of the field that was changed
+      example: description
+    oldValue:
+      description: Previous value of the field
+      nullable: true
+    newValue:
+      description: New value of the field
+      nullable: true
+    dataType:
+      type: string
+      description: Type of the field data
+      example: string
+
+ChangedByDto:
+  type: object
+  required:
+    - userId
+    - email
+    - name
+  properties:
+    userId:
+      $ref: "./common.yaml#/UserId"
+    email:
+      type: string
+      format: email
+      description: Email of the user who made the change
+    name:
+      type: string
+      description: Name of the user who made the change
+
+EditHistoryEntryDto:
+  type: object
+  required:
+    - id
+    - timestamp
+    - editedBy
+    - changes
+  properties:
+    id:
+      type: string
+      description: Unique identifier for this edit entry
+    timestamp:
+      type: string
+      format: date-time
+      description: When the edit was made
+    editedBy:
+      $ref: "#/EditedBy"
+    changedBy:
+      $ref: "#/ChangedByDto"
+      description: User who made the change (null for system changes)
+    changes:
+      type: array
+      items:
+        $ref: "#/FieldChangeDto"
+      description: Array of field changes in this edit
+    correlationId:
+      type: string
+      description: Correlation ID for tracking related events
+
+PaginationDto:
+  type: object
+  required:
+    - page
+    - limit
+    - total
+    - totalPages
+    - hasNext
+    - hasPrevious
+  properties:
+    page:
+      type: integer
+      minimum: 1
+      description: Current page number
+    limit:
+      type: integer
+      minimum: 1
+      maximum: 100
+      description: Number of items per page
+    total:
+      type: integer
+      minimum: 0
+      description: Total number of items
+    totalPages:
+      type: integer
+      minimum: 0
+      description: Total number of pages
+    hasNext:
+      type: boolean
+      description: Whether there is a next page
+    hasPrevious:
+      type: boolean
+      description: Whether there is a previous page
+
+EditHistoryResponseDto:
+  type: object
+  required:
+    - entries
+    - pagination
+  properties:
+    entries:
+      type: array
+      items:
+        $ref: "#/EditHistoryEntryDto"
+      description: Array of edit history entries
+    pagination:
+      $ref: "#/PaginationDto"
+
+# =============================================
+# Initiative Refiner Agent Schemas
+# =============================================
+
+InitiativeActiveSection:
+  type: string
+  enum:
+    - description
+    - details
+    - acceptanceCriteria
+  description: Active section being refined in the initiative
+
+InitiativeOperation:
+  type: object
+  required:
+    - type
+    - target
+    - text
+  properties:
+    type:
+      type: string
+      enum: [replace, insert, delete]
+      description: Type of operation to perform
+    target:
+      type: string
+      enum: [description, details, acceptanceCriteria]
+      description: Target field for the operation
+    text:
+      type: string
+      description: Text content for the operation
+
+InitiativeRefinerRequest:
+  type: object
+  required:
+    - initiative
+    - lastUserMessage
+    - activeSection
+  properties:
+    initiative:
+      type: object
+      required:
+        - title
+        - description
+        - details
+        - acceptanceCriteria
+      properties:
+        title:
+          type: string
+          description: Initiative title
+        description:
+          type: string
+          description: Initiative description
+        details:
+          type: string
+          description: Technical implementation details
+        acceptanceCriteria:
+          type: string
+          description: Success criteria
+    lastUserMessage:
+      type: string
+      description: Most recent user message
+    activeSection:
+      $ref: "#/InitiativeActiveSection"
+  description: Structured input for initiative refiner agent
+
+InitiativeRefinerResponse:
+  type: object
+  required:
+    - sectionCompleteConfidence
+  properties:
+    ops:
+      type: array
+      items:
+        $ref: "#/InitiativeOperation"
+      description: Operations to apply to initiative fields
+    response:
+      type: string
+      description: Optional explanatory message from the agent
+    sectionCompleteConfidence:
+      type: number
+      minimum: 0
+      maximum: 1
+      description: "Confidence score (0-1) for section completeness: 0 = empty/placeholder, 0.5 = partial, 1.0 = comprehensive"
+    influences:
+      type: array
+      items:
+        $ref: "./artifacts.yaml#/Influence"
+      description: Entities that influenced this refinement
+  description: Response from initiative refiner agent

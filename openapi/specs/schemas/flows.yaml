@@ -1,0 +1,531 @@
+BasicUIFieldType:
+  type: string
+  enum: [text_input, textarea, select, checkbox]
+  description: Basic UI field types available for questions
+
+ExtendedUIFieldType:
+  type: string
+  enum:
+    [
+      text,
+      text_input,
+      textarea,
+      select,
+      multiple-choice,
+      checkbox,
+      datepicker,
+      integration_selector,
+      service_selector,
+      initiative_list,
+      team_members,
+      initiative_intro,
+      complete_onboarding,
+      task_generation,
+      task_list,
+      adr_context_starter,
+      agent_response,
+      agent_hidden,
+      agent-request-permission,
+      agent-request-service-scope,
+      agent-request-review-file-scope,
+      agent_question,
+      agent-reply-textarea,
+      task_stub,
+      task_priority,
+      coding_prompt,
+      plan_approval,
+      plan_stage_proposal,
+      plan_gaps_services,
+      plan_gaps_design_docs,
+      plan_gaps_tasks,
+      plan_document_view,
+      coding_prompt_startup_plan,
+      coding_prompt_final_assessment,
+      verify_feature,
+      coding_prompt_merged_final_assessment,
+      question_group,
+      file_diff,
+      agent_complete,
+      sync_recommendation,
+      feature_list,
+      agent_search,
+      agent_search_results,
+      goal_pm_action,
+      open_items_triage,
+      plan_generation_stage_review,
+      plan_generation_step_review,
+      plan_generation_finalize,
+      plan_generation_journey_review,
+      plan_generation_visual_preview,
+      refine_stage_validation_choice,
+      plan_shaping_feature_sync_review,
+      interstitial,
+      repository_grounding,
+      repository_placement_strategy,
+      repository_placement_review,
+      implementation_readiness,
+    ]
+  description: Extended UI field types including special components
+
+ImplementationReadinessState:
+  type: string
+  enum: [CLEAR, REVIEW_REQUIRED, DISMISSED]
+  description: >-
+    One-time implementation-readiness admission result. CLEAR and DISMISSED
+    permanently admit the owning Run; REVIEW_REQUIRED remains pending until
+    the user clarifies through the ordinary composer or confirms dismissal.
+
+ReadinessFocalEntityType:
+  type: string
+  enum: [TASK, FEATURE, DESIGN_DOC, PLAN]
+  description: Entity context whose implementation readiness was checked.
+
+ImplementationReadinessEvidenceCategory:
+  type: string
+  enum:
+    - behavior
+    - ownership
+    - data_lifecycle
+    - authority
+    - security
+    - isolation
+    - integration
+  description: High-impact boundary category that makes a readiness finding consequential.
+
+ImplementationReadinessEvidence:
+  type: object
+  additionalProperties: false
+  required: [category, statement]
+  properties:
+    category:
+      $ref: "#/ImplementationReadinessEvidenceCategory"
+      description: Machine-readable evidence classification; presentation does not prefix the statement with it.
+    statement:
+      type: string
+      minLength: 1
+    sourceRef:
+      type: string
+      minLength: 1
+      description: Bounded reference to the project evidence supporting the statement.
+
+ImplementationReadinessSourceSnapshot:
+  type: object
+  additionalProperties: false
+  required: [runId, focalEntityId, focalEntityType, sourceRevision, capturedAt]
+  properties:
+    runId:
+      type: string
+      minLength: 1
+    focalEntityId:
+      type: string
+      minLength: 1
+    focalEntityType:
+      $ref: "#/ReadinessFocalEntityType"
+    sourceRevision:
+      type: string
+      minLength: 1
+    capturedAt:
+      type: string
+      format: date-time
+
+ImplementationReadinessFinding:
+  type: object
+  additionalProperties: false
+  required:
+    - affectedSourceContext
+    - unresolvedDecision
+    - consequentialInventionRisk
+    - boundedEvidence
+    - answerKind
+  properties:
+    affectedSourceContext:
+      type: string
+      minLength: 1
+      description: Source-bound context presented in the Issue section.
+    unresolvedDecision:
+      type: string
+      minLength: 1
+      description: Unresolved choice included in the How to resolve section.
+    consequentialInventionRisk:
+      type: string
+      minLength: 1
+      description: Consequence presented in the What could go wrong section.
+    boundedEvidence:
+      type: array
+      minItems: 1
+      maxItems: 8
+      items:
+        $ref: "#/ImplementationReadinessEvidence"
+    answerKind:
+      type: string
+      minLength: 1
+      description: Requested clarification included with unresolvedDecision in the How to resolve section.
+
+ImplementationReadinessNoResolution:
+  type: object
+  additionalProperties: false
+  required: [kind]
+  properties:
+    kind:
+      type: string
+      enum: [NONE]
+
+ImplementationReadinessRunResolution:
+  type: object
+  additionalProperties: false
+  required: [kind, runId, sourceRevision, resolvedAt]
+  properties:
+    kind:
+      type: string
+      enum: [DISMISSED]
+    runId:
+      type: string
+      minLength: 1
+    sourceRevision:
+      type: string
+      minLength: 1
+    resolvedAt:
+      type: string
+      format: date-time
+
+ImplementationReadinessResolution:
+  oneOf:
+    - $ref: "#/ImplementationReadinessNoResolution"
+    - $ref: "#/ImplementationReadinessRunResolution"
+  discriminator:
+    propertyName: kind
+    mapping:
+      NONE: "#/ImplementationReadinessNoResolution"
+      DISMISSED: "#/ImplementationReadinessRunResolution"
+
+ImplementationReadinessDisposition:
+  type: object
+  additionalProperties: false
+  required: [state, sourceSnapshot, finding, resolution]
+  properties:
+    state:
+      $ref: "#/ImplementationReadinessState"
+    sourceSnapshot:
+      $ref: "#/ImplementationReadinessSourceSnapshot"
+    finding:
+      nullable: true
+      allOf:
+        - $ref: "#/ImplementationReadinessFinding"
+    resolution:
+      $ref: "#/ImplementationReadinessResolution"
+  description: >-
+    Source-bound readiness result produced by Feature Sync. Fresh analysis may
+    produce CLEAR or REVIEW_REQUIRED; DISMISSED is reserved for the confirmed,
+    user-authored acceptance of a displayed REVIEW_REQUIRED finding.
+
+ImplementationReadinessOutcomeWorkflowAnswer:
+  type: object
+  additionalProperties: false
+  required: [disposition]
+  properties:
+    disposition:
+      $ref: "#/ImplementationReadinessDisposition"
+  description: Structured Feature Sync answer carrying the readiness outcome.
+
+# LLM Response Types
+BaseLLMResponse:
+  type: object
+  required:
+    - responseType
+    - feedback
+  properties:
+    responseType:
+      type: string
+      enum: [welcome, analysis, initiatives, base]
+      description: Discriminator indicating which LLM response payload is returned
+    feedback:
+      type: string
+      description: The LLM's feedback message
+    interactionComplete:
+      type: boolean
+      default: false
+      description: Whether the interaction is complete
+    # Intent detection hints that LLM can optionally provide
+    detectedIntent:
+      type: string
+      description: Intent detected by the LLM
+    intentConfidence:
+      type: number
+      minimum: 0
+      maximum: 1
+      description: Confidence score for the detected intent
+    reasoning:
+      type: string
+      description: LLM's reasoning for the intent detection
+
+Question:
+  type: object
+  required:
+    - id
+    - question
+    - rationale
+    - fieldType
+  properties:
+    id:
+      type: string
+      description: Unique identifier for the question
+    question:
+      type: string
+      description: The question text
+    rationale:
+      type: string
+      description: Explanation of why this question is important
+    fieldType:
+      $ref: "#/BasicUIFieldType"
+
+WelcomeLLMResponse:
+  allOf:
+    - $ref: "#/BaseLLMResponse"
+    - type: object
+      required:
+        - questions
+      properties:
+        responseType:
+          type: string
+          enum: [welcome]
+        questions:
+          type: array
+          items:
+            $ref: "#/Question"
+          description: Questions to ask the user
+
+Challenge:
+  type: object
+  required:
+    - area
+    - description
+    - mitigation
+  properties:
+    area:
+      type: string
+      description: The area of the challenge
+    description:
+      type: string
+      description: Description of the challenge
+    mitigation:
+      type: string
+      description: Suggested mitigation strategy
+
+TechnicalAnalysis:
+  type: object
+  required:
+    - identifiedTechnologies
+    - integrationComplexity
+    - potentialChallenges
+    - recommendations
+  properties:
+    identifiedTechnologies:
+      type: array
+      items:
+        type: string
+      description: Technologies identified for the project
+    integrationComplexity:
+      type: string
+      enum: [low, medium, high]
+      description: Assessment of integration complexity
+    potentialChallenges:
+      type: array
+      items:
+        $ref: "#/Challenge"
+      description: Potential challenges identified
+    recommendations:
+      type: array
+      items:
+        type: string
+      description: Recommendations for the project
+
+AnalysisLLMResponse:
+  allOf:
+    - $ref: "#/BaseLLMResponse"
+    - type: object
+      required:
+        - analysis
+        - followUpNeeded
+      properties:
+        responseType:
+          type: string
+          enum: [analysis]
+        analysis:
+          $ref: "#/TechnicalAnalysis"
+        followUpNeeded:
+          type: boolean
+          description: Indicates if more clarification from the user is required
+
+LlmInitiative:
+  type: object
+  required:
+    - id
+    - title
+    - description
+    - status
+    - priority
+    - tags
+    - estimatedEffort
+    - dependencies
+  properties:
+    id:
+      type: string
+      description: Unique identifier for the initiative
+    title:
+      type: string
+      description: Initiative title
+    description:
+      type: string
+      description: Detailed description of the initiative
+    status:
+      type: string
+      enum: [pending, in_progress, completed]
+      description: Current status of the initiative
+    priority:
+      type: string
+      enum: [low, medium, high, critical]
+      description: Priority level of the initiative
+    tags:
+      type: array
+      items:
+        type: string
+      description: Tags associated with the initiative
+    estimatedEffort:
+      type: string
+      enum: [small, medium, large]
+      description: Estimated effort required
+    dependencies:
+      type: array
+      items:
+        type: string
+      description: Dependencies on other initiatives
+
+ProjectSummary:
+  type: object
+  required:
+    - totalInitiatives
+    - estimatedTimeline
+    - criticalPath
+  properties:
+    totalInitiatives:
+      type: integer
+      minimum: 0
+      description: Total number of initiatives
+    estimatedTimeline:
+      type: string
+      description: Estimated timeline for completion
+    criticalPath:
+      type: array
+      items:
+        type: string
+      description: Critical path of initiative dependencies
+
+InitiativesLLMResponse:
+  allOf:
+    - $ref: "#/BaseLLMResponse"
+    - type: object
+      required:
+        - initiatives
+        - summary
+      properties:
+        responseType:
+          type: string
+          enum: [initiatives]
+        initiatives:
+          type: array
+          items:
+            $ref: "#/LlmInitiative"
+          description: List of generated initiatives
+        summary:
+          $ref: "#/ProjectSummary"
+
+LLMResponse:
+  oneOf:
+    - $ref: "#/WelcomeLLMResponse"
+    - $ref: "#/AnalysisLLMResponse"
+    - $ref: "#/InitiativesLLMResponse"
+    - $ref: "#/BaseLLMResponse"
+  discriminator:
+    propertyName: responseType
+    mapping:
+      welcome: "#/WelcomeLLMResponse"
+      analysis: "#/AnalysisLLMResponse"
+      initiatives: "#/InitiativesLLMResponse"
+      base: "#/BaseLLMResponse"
+
+# Base Action Types
+FlowAction:
+  type: object
+  required:
+    - type
+  properties:
+    type:
+      type: string
+      description: The type of action to perform
+    payload:
+      type: object
+      additionalProperties: true
+      description: Action-specific payload data
+    metadata:
+      type: object
+      additionalProperties: true
+      description: Additional action metadata
+
+SkipAction:
+  allOf:
+    - $ref: "#/FlowAction"
+    - type: object
+      properties:
+        type:
+          type: string
+          enum: [skip]
+          description: Action type for skipping a node
+        payload:
+          type: object
+          properties:
+            nodeId:
+              type: string
+              description: Optional node ID - backend can infer current node if not provided
+            reason:
+              type: string
+              description: Optional reason for skipping
+              enum: [user_skipped, not_applicable, optional]
+            skipToNode:
+              type: string
+              description: Optional specific node to skip to
+
+# Messages & Communication
+FlowUserMessage:
+  type: object
+  properties:
+    text:
+      type: string
+      description: The message text
+    data:
+      type: object
+      additionalProperties: true
+      description: Structured data from the user
+    type:
+      type: string
+      description: Message type
+    timestamp:
+      type: string
+      format: date-time
+      description: When the message was created
+    metadata:
+      type: object
+      additionalProperties: true
+      description: Additional message metadata
+
+# Repository-grounding flow values
+RepositoryGroundingIntentAnswer:
+  $ref: "./repository-grounding.yaml#/RepositoryGroundingIntentAnswer"
+
+RepositoryGroundingAnalysisConfiguration:
+  $ref: "./repository-grounding.yaml#/RepositoryGroundingAnalysisConfiguration"
+
+RepositoryGroundingPrerequisites:
+  $ref: "./repository-grounding.yaml#/RepositoryGroundingPrerequisites"
+
+RepositoryGroundingWorkflowContext:
+  $ref: "./workflows.yaml#/RepositoryGroundingWorkflowContext"

@@ -1,0 +1,1 @@
+export { getRegistryType } from "./Registry";

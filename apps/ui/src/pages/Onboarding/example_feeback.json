@@ -1,0 +1,65 @@
+{
+    "feedback": "Your unified interface concept sounds interesting - bringing together code, project tracking, and documentation could solve real workflow fragmentation issues. To help you define this product properly, I need to understand the specific problem you're solving, who will use it, and what success looks like.",
+    "questions": [
+      {
+        "field": "problem_statement",
+        "description": "What specific problem does this unified interface solve? What pain points do users currently experience with fragmented tools?",
+        "type": "textarea",
+        "required": true,
+        "placeholder": "Describe the core problem your product addresses"
+      },
+      {
+        "field": "target_audience",
+        "description": "Who is your primary target audience? (e.g., individual developers, small teams, enterprise teams, specific roles)",
+        "type": "textarea",
+        "required": true,
+        "placeholder": "Describe your target users and their characteristics"
+      },
+      {
+        "field": "input_sources",
+        "description": "What specific input sources and tools do you plan to integrate? (e.g., GitHub, Jira, Confluence, Slack, etc.)",
+        "type": "textarea",
+        "required": true,
+        "placeholder": "List the tools and data sources you want to unify"
+      },
+      {
+        "field": "core_functionality",
+        "description": "What will users be able to do in this unified interface? What are the key features and workflows?",
+        "type": "textarea",
+        "required": true,
+        "placeholder": "Describe the main features and user workflows"
+      },
+      {
+        "field": "success_metrics",
+        "description": "How will you measure success? What outcomes should this product achieve for users?",
+        "type": "textarea",
+        "required": true,
+        "placeholder": "Define what success looks like for your users"
+      },
+      {
+        "field": "mvp_scope",
+        "description": "What would be the minimum viable version of this product? What's the smallest version that would provide value?",
+        "type": "textarea",
+        "required": true,
+        "placeholder": "Describe your MVP - the simplest version that solves the core problem"
+      },
+      {
+        "field": "timeline_constraint",
+        "description": "Do you have any timeline constraints or target launch dates?",
+        "type": "text",
+        "placeholder": "e.g., '6 months to MVP', 'Need to launch by Q3', or 'No specific deadline'"
+      },
+      {
+        "field": "technical_requirements",
+        "description": "Are there any specific technical requirements, integrations, or constraints we should know about?",
+        "type": "textarea",
+        "placeholder": "Describe any technical considerations, API requirements, security needs, etc."
+      },
+      {
+        "field": "competitive_awareness",
+        "description": "Are you aware of existing solutions in this space? What would make your approach different?",
+        "type": "textarea",
+        "placeholder": "Describe the competitive landscape and your differentiation"
+      }
+    ]
+   }

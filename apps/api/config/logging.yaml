@@ -1,0 +1,50 @@
+logging:
+  development:
+    level: debug
+    console: true
+    logstash:
+      enabled: true
+      host: localhost
+      port: 5000
+    file:
+      enabled: true
+      path: ./logs/app.log
+      maxFiles: 5
+      maxSize: 50MB
+  
+  production:
+    level: info
+    console: false
+    logstash:
+      enabled: true
+      host: logstash
+      port: 5000
+    file:
+      enabled: true
+      path: ./logs/app.log
+      maxFiles: 10
+      maxSize: 100MB
+  
+  test:
+    level: error
+    console: true
+    logstash:
+      enabled: false
+    file:
+      enabled: false
+
+formats:
+  structured:
+    timestamp: true
+    level: true
+    service: hey-hey-api
+    correlation_id: true
+    user_context: true
+  
+business_events:
+  - conversation_created
+  - message_sent
+  - artifact_created
+  - llm_interaction
+  - user_authenticated
+  - organization_created

@@ -1,0 +1,59 @@
+{
+  "type": "QUESTIONS",
+  "title": "Entity Conversation",
+  "nodeId": "entity-conversation-agent",
+  "response": "You're describing a pragmatic three-tier testing approach that trades off precision for speed and cost. You're right that you need a structured search evaluation framework eventually—but for now, the manual validation loop is the right starting point.\n\nHere's how I'd think about sequencing this:\n\n**Immediate (Manual Validation Loop)**\nUse approach #2 (unified search with variations) as your primary feedback mechanism. It's fast, cheap, and gives you direct signal on the search algorithm without the noise of agent prompt quality. For each plan you validate:\n- Document the expected relevant tasks upfront (your ground truth)\n- Run the unified search with different query formulations and weights\n- Mark which results were actually relevant\n- Capture why irrelevant results surfaced (wrong subfacet? distant relationship? weak semantic signal?)\n\nThis gives you 5-10 labeled examples quickly. You'll see patterns: \"queries about event-system keep pulling observability tasks\" or \"tasks in the same subfacet aren't ranking high enough.\"\n\n**Short-term (Instrumentation)**\nOnce you have patterns, instrument the unified search endpoint to log:\n- Query intent and subfacet filters applied\n- Ranking signals for top-N results (relationship distance, subfacet alignment, semantic score)\n- Whether results matched ground truth\n\nThis turns your manual reviews into structured data without building a full eval framework.\n\n**Medium-term (Search Eval Framework)**\nOnce you have 20-30 labeled examples and clear patterns, you can build a lightweight eval harness that:\n- Runs a query against your labeled dataset\n- Measures precision/recall against ground truth\n- Breaks down which ranking signals helped vs. hurt\n- Flags regressions when you tune weights\n\nThis is where you'd catch whether subfacet weighting actually improves results, or if relationship distance is the real bottleneck.\n\n**The key insight**: Your three approaches aren't mutually exclusive—they're a progression. Start with #2 to build ground truth, then layer in #1 (full workflow) only when you need to validate that agent search generation quality is the bottleneck (not the search algorithm itself). You'll likely find the search algorithm is the constraint first.\n\nDoes this sequencing match how you were thinking about it?",
+  "reasoning": "entity conversation loop",
+  "uiElements": [
+    {
+      "id": "e095d049-4394-4189-8d65-0d458ea0b763",
+      "type": "textarea",
+      "label": "Add more context or ask a follow-up",
+      "required": false,
+      "multiline": true,
+      "influences": [
+        {
+          "entityId": "0bb445f0-5586-43b2-883b-529aee03729f",
+          "reasoning": "The unified query interface is the core tool for testing search variations and collecting ground truth data on result relevance",
+          "confidence": 0.95,
+          "reasonType": "explicit_mention"
+        },
+        {
+          "entityId": "c26ed54b-8aee-44e0-b22f-594f42f9c19b",
+          "reasoning": "The three-layer feedback loop framework (agent quality, search algorithm, result validation) directly informs the sequencing of testing approaches",
+          "confidence": 0.9,
+          "reasonType": "explicit_mention"
+        },
+        {
+          "entityId": "48587821-a99b-465b-843f-113fa7730d53",
+          "reasoning": "The graph-embedding combined search flow design provides the ranking signals (subfacet alignment, relationship distance, semantic scores) that need to be instrumented and evaluated",
+          "confidence": 0.85,
+          "reasonType": "explicit_mention"
+        },
+        {
+          "entityId": "3d682cda-f278-4956-bf16-ca5a0e71e358",
+          "reasoning": "The Implementation Plans initiative is the validation context where this search evaluation will be tested and refined",
+          "confidence": 0.8,
+          "reasonType": "explicit_mention"
+        }
+      ],
+      "placeholder": ""
+    }
+  ],
+  "detectedIntent": "entity_conversation",
+  "intentConfidence": 1,
+  "secondaryActions": [
+    {
+      "id": "42592982-a63e-450d-a36c-786e6191cf06",
+      "type": "form_action",
+      "label": "generate_task",
+      "fieldId": "e095d049-4394-4189-8d65-0d458ea0b763",
+      "handler": "suggested_action",
+      "payload": {
+        "handlerType": "suggested_action",
+        "suggestedAction": "generate_task"
+      },
+      "presentation": "INLINE"
+    }
+  ]
+}

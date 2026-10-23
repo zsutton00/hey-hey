@@ -1,0 +1,2646 @@
+{
+  "sessions": {
+    "00000000-0000-4000-8000-000000000001": {
+      "schemaVersion": 2,
+      "records": [
+        {
+          "key": "00000000-0000-4000-8000-000000000002",
+          "fingerprint": "1bbcad29320f20847a515cc854063cda0ddaea20cdcff45eb6b5e0e9ee15fbd4",
+          "runId": "00000000-0000-4000-8000-000000000001",
+          "agentSessionId": "00000000-0000-4000-8000-000000000001",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000004",
+          "machineId": "00000000-0000-4000-8000-000000000005",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": "00000000-0000-4000-8000-000000000007",
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000008",
+            "signedEvent": {
+              "sourceUserMessageId": "00000000-0000-4000-8000-000000000007",
+              "operationId": "00000000-0000-4000-8000-000000000002",
+              "operationFingerprint": "1bbcad29320f20847a515cc854063cda0ddaea20cdcff45eb6b5e0e9ee15fbd4",
+              "promptType": "start_run",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000011",
+              "payload": {
+                "model": "gpt-5.6-luna",
+                "config": {
+                  "type": "ENTITY_CONVERSATION",
+                  "model": "gpt-5.6-luna",
+                  "effort": "xhigh",
+                  "version": "v1",
+                  "disableCodexSystemPrompt": false
+                },
+                "payload": {
+                  "entity": {
+                    "entityId": "00000000-0000-4000-8000-000000000012",
+                    "taskType": "STANDARD",
+                    "entityType": "TASK"
+                  },
+                  "promptType": "entity_conversation",
+                  "userMessage": "Scrubbed userMessage 1"
+                },
+                "fastMode": false,
+                "provider": "codex",
+                "agentSessionId": "00000000-0000-4000-8000-000000000001",
+                "contextMetadata": {
+                  "projectId": "00000000-0000-4000-8000-000000000004",
+                  "capturedAt": "2026-10-08T09:30:08.564Z",
+                  "userComments": [],
+                  "agentSessionId": "00000000-0000-4000-8000-000000000001",
+                  "fileReferences": {
+                    "resolved": [],
+                    "unresolved": []
+                  },
+                  "organizationId": "00000000-0000-4000-8000-000000000003"
+                },
+                "reasoningEffort": "xhigh",
+                "handlerPromptType": "entity_conversation"
+              }
+            },
+            "event": {
+              "sourceUserMessageId": "00000000-0000-4000-8000-000000000007",
+              "operationId": "00000000-0000-4000-8000-000000000002",
+              "operationFingerprint": "1bbcad29320f20847a515cc854063cda0ddaea20cdcff45eb6b5e0e9ee15fbd4",
+              "promptType": "start_run",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000011",
+              "payload": {
+                "model": "gpt-5.6-luna",
+                "config": {
+                  "type": "ENTITY_CONVERSATION",
+                  "model": "gpt-5.6-luna",
+                  "effort": "xhigh",
+                  "version": "v1",
+                  "disableCodexSystemPrompt": false
+                },
+                "payload": {
+                  "entity": {
+                    "entityId": "00000000-0000-4000-8000-000000000012",
+                    "taskType": "STANDARD",
+                    "entityType": "TASK"
+                  },
+                  "promptType": "entity_conversation",
+                  "userMessage": "Scrubbed userMessage 1"
+                },
+                "fastMode": false,
+                "provider": "codex",
+                "agentSessionId": "00000000-0000-4000-8000-000000000001",
+                "contextMetadata": {
+                  "projectId": "00000000-0000-4000-8000-000000000004",
+                  "capturedAt": "2026-10-08T09:30:08.564Z",
+                  "userComments": [],
+                  "agentSessionId": "00000000-0000-4000-8000-000000000001",
+                  "fileReferences": {
+                    "resolved": [],
+                    "unresolved": []
+                  },
+                  "organizationId": "00000000-0000-4000-8000-000000000003"
+                },
+                "reasoningEffort": "xhigh",
+                "handlerPromptType": "entity_conversation"
+              }
+            }
+          },
+          "admissionId": "00000000-0000-4000-8000-000000000013",
+          "sequence": 0,
+          "state": "settled",
+          "turnId": "00000000-0000-4000-8000-000000000014",
+          "revision": 4,
+          "admissionDisposition": "immediate",
+          "projectedRevision": 4,
+          "settlement": {
+            "turnId": "00000000-0000-4000-8000-000000000014",
+            "terminalOutcome": "COMPLETED",
+            "completedAssistantMessageId": "00000000-0000-4000-8000-000000000015",
+            "reports": [],
+            "settledAt": "2026-10-08T09:35:38.477Z"
+          },
+          "settlementDelivered": true,
+          "projectionRetry": {
+            "attempts": 0,
+            "nextAttemptAt": 0
+          },
+          "kind": "trigger_frame",
+          "keyKind": "operation"
+        }
+      ],
+      "quarantined": []
+    },
+    "00000000-0000-4000-8000-000000000016": {
+      "schemaVersion": 2,
+      "records": [
+        {
+          "key": "00000000-0000-4000-8000-000000000017",
+          "fingerprint": "042896dc1966b8a6214e5383aba5b8b931cfa049d17aafa37eb8a77c859b95da",
+          "agentSessionId": "00000000-0000-4000-8000-000000000016",
+          "runId": "00000000-0000-4000-8000-000000000016",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000004",
+          "machineId": "00000000-0000-4000-8000-000000000005",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": "00000000-0000-4000-8000-000000000018",
+          "admissionId": "00000000-0000-4000-8000-000000000019",
+          "sequence": 1,
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000020",
+            "signedEvent": {
+              "operationId": "00000000-0000-4000-8000-000000000017",
+              "operationFingerprint": "042896dc1966b8a6214e5383aba5b8b931cfa049d17aafa37eb8a77c859b95da",
+              "promptType": "user_message",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000023",
+              "sourceUserMessageId": "00000000-0000-4000-8000-000000000018",
+              "payload": {
+                "userMessage": "",
+                "handlerPromptType": "commit"
+              }
+            },
+            "event": {
+              "operationId": "00000000-0000-4000-8000-000000000017",
+              "operationFingerprint": "042896dc1966b8a6214e5383aba5b8b931cfa049d17aafa37eb8a77c859b95da",
+              "promptType": "user_message",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000023",
+              "sourceUserMessageId": "00000000-0000-4000-8000-000000000018",
+              "payload": {
+                "userMessage": "",
+                "handlerPromptType": "commit",
+                "attachments": []
+              }
+            }
+          },
+          "state": "settled",
+          "turnId": "00000000-0000-4000-8000-000000000024",
+          "revision": 4,
+          "projectedRevision": 4,
+          "projectionRetry": {
+            "attempts": 0,
+            "nextAttemptAt": 0
+          },
+          "settlement": {
+            "turnId": "00000000-0000-4000-8000-000000000024",
+            "terminalOutcome": "COMPLETED",
+            "completedAssistantMessageId": "00000000-0000-4000-8000-000000000025",
+            "reports": [
+              "00000000-0000-4000-8000-000000000026"
+            ],
+            "settledAt": "2026-09-30T06:01:48.099Z"
+          },
+          "settlementDelivered": true,
+          "admissionDisposition": "queued",
+          "kind": "trigger_frame",
+          "keyKind": "operation"
+        }
+      ],
+      "quarantined": []
+    },
+    "00000000-0000-4000-8000-000000000027": {
+      "schemaVersion": 2,
+      "records": [
+        {
+          "key": "00000000-0000-4000-8000-000000000028",
+          "fingerprint": "dba0082ec68e72d47fa926dcc91fb9b00961ceb4342554a0c2aa567144a5a6d3",
+          "agentSessionId": "00000000-0000-4000-8000-000000000027",
+          "runId": "00000000-0000-4000-8000-000000000027",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000004",
+          "machineId": "00000000-0000-4000-8000-000000000005",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": null,
+          "admissionId": "00000000-0000-4000-8000-000000000029",
+          "sequence": 0,
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000030",
+            "signedEvent": {
+              "promptType": "feature_sync_analyze",
+              "nodeId": "feature-sync-analyze",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000028",
+              "payload": {
+                "taskId": "00000000-0000-4000-8000-000000000032"
+              }
+            },
+            "event": {
+              "promptType": "feature_sync_analyze",
+              "nodeId": "feature-sync-analyze",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000028",
+              "payload": {
+                "taskId": "00000000-0000-4000-8000-000000000032"
+              }
+            }
+          },
+          "state": "settled",
+          "admissionDisposition": "immediate",
+          "turnId": "00000000-0000-4000-8000-000000000033",
+          "revision": 4,
+          "projectedRevision": 0,
+          "settlement": {
+            "turnId": "00000000-0000-4000-8000-000000000033",
+            "terminalOutcome": "COMPLETED",
+            "completedAssistantMessageId": "00000000-0000-4000-8000-000000000034",
+            "reports": [
+              "00000000-0000-4000-8000-000000000035"
+            ],
+            "settledAt": "2026-10-05T23:57:05.806Z"
+          },
+          "settlementDelivered": true,
+          "kind": "trigger_frame",
+          "keyKind": "trigger_message"
+        },
+        {
+          "key": "00000000-0000-4000-8000-000000000036",
+          "fingerprint": "dfd5922f5aa9441e95d21ed58bb9f2209a004912a1232e89f75f725bd37f3d4a",
+          "agentSessionId": "00000000-0000-4000-8000-000000000027",
+          "runId": "00000000-0000-4000-8000-000000000027",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000004",
+          "machineId": "00000000-0000-4000-8000-000000000005",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": null,
+          "admissionId": "00000000-0000-4000-8000-000000000037",
+          "sequence": 3,
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000030",
+            "signedEvent": {
+              "promptType": "startup_session",
+              "nodeId": "feature-sync-coding-plan",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000036",
+              "payload": {
+                "startupInput": {
+                  "task": {
+                    "id": "00000000-0000-4000-8000-000000000032",
+                    "title": "Scrubbed title 2",
+                    "taskType": "STANDARD",
+                    "description": "Scrubbed description 3",
+                    "acceptanceCriteria": "Scrubbed acceptanceCriteria 4"
+                  },
+                  "evidenceItems": [],
+                  "adjacentScopeTasks": []
+                },
+                "implementationReadiness": {
+                  "state": "CLEAR",
+                  "finding": null,
+                  "resolution": {
+                    "kind": "NONE"
+                  },
+                  "sourceSnapshot": {
+                    "runId": "00000000-0000-4000-8000-000000000027",
+                    "capturedAt": "2026-10-06T00:00:53.634Z",
+                    "focalEntityId": "00000000-0000-4000-8000-000000000032",
+                    "sourceRevision": "sha256:583b7582af1c7ea47dafeb16edaa8906588591fed25503915d635cc1ec8e8e85",
+                    "focalEntityType": "TASK"
+                  }
+                }
+              }
+            },
+            "event": {
+              "promptType": "startup_session",
+              "nodeId": "feature-sync-coding-plan",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000036",
+              "payload": {
+                "startupInput": {
+                  "task": {
+                    "id": "00000000-0000-4000-8000-000000000032",
+                    "title": "Scrubbed title 2",
+                    "taskType": "STANDARD",
+                    "description": "Scrubbed description 3",
+                    "acceptanceCriteria": "Scrubbed acceptanceCriteria 4"
+                  },
+                  "evidenceItems": [],
+                  "adjacentScopeTasks": []
+                },
+                "implementationReadiness": {
+                  "state": "CLEAR",
+                  "finding": null,
+                  "resolution": {
+                    "kind": "NONE"
+                  },
+                  "sourceSnapshot": {
+                    "runId": "00000000-0000-4000-8000-000000000027",
+                    "capturedAt": "2026-10-06T00:00:53.634Z",
+                    "focalEntityId": "00000000-0000-4000-8000-000000000032",
+                    "sourceRevision": "sha256:583b7582af1c7ea47dafeb16edaa8906588591fed25503915d635cc1ec8e8e85",
+                    "focalEntityType": "TASK"
+                  }
+                }
+              }
+            }
+          },
+          "state": "settled",
+          "admissionDisposition": "immediate",
+          "turnId": "00000000-0000-4000-8000-000000000039",
+          "revision": 4,
+          "projectedRevision": 0,
+          "settlement": {
+            "turnId": "00000000-0000-4000-8000-000000000039",
+            "terminalOutcome": "COMPLETED",
+            "completedAssistantMessageId": "00000000-0000-4000-8000-000000000040",
+            "reports": [
+              "00000000-0000-4000-8000-000000000041"
+            ],
+            "settledAt": "2026-10-06T00:04:17.076Z"
+          },
+          "settlementDelivered": true,
+          "kind": "trigger_frame",
+          "keyKind": "trigger_message"
+        },
+        {
+          "key": "00000000-0000-4000-8000-000000000042",
+          "fingerprint": "8c09b37123eb0d9dcec63788149e576b1614ed481ad002512d0a47a09cbf59fc",
+          "agentSessionId": "00000000-0000-4000-8000-000000000027",
+          "runId": "00000000-0000-4000-8000-000000000027",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000004",
+          "machineId": "00000000-0000-4000-8000-000000000005",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": "00000000-0000-4000-8000-000000000043",
+          "admissionId": "00000000-0000-4000-8000-000000000044",
+          "sequence": 4,
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000030",
+            "signedEvent": {
+              "promptType": "implement",
+              "inputExecution": {
+                "operationId": "00000000-0000-4000-8000-000000000042",
+                "operationFingerprint": "8c09b37123eb0d9dcec63788149e576b1614ed481ad002512d0a47a09cbf59fc",
+                "messageId": "00000000-0000-4000-8000-000000000043"
+              },
+              "nodeId": "feature-sync-implement",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000043",
+              "payload": {
+                "runtime": {
+                  "model": "gpt-6-luna",
+                  "fastMode": false,
+                  "provider": "codex",
+                  "reasoningEffort": "xhigh"
+                }
+              }
+            },
+            "event": {
+              "promptType": "implement",
+              "inputExecution": {
+                "operationId": "00000000-0000-4000-8000-000000000042",
+                "operationFingerprint": "8c09b37123eb0d9dcec63788149e576b1614ed481ad002512d0a47a09cbf59fc",
+                "messageId": "00000000-0000-4000-8000-000000000043"
+              },
+              "nodeId": "feature-sync-implement",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000043",
+              "payload": {
+                "runtime": {
+                  "model": "gpt-6-luna",
+                  "fastMode": false,
+                  "provider": "codex",
+                  "reasoningEffort": "xhigh"
+                }
+              }
+            }
+          },
+          "state": "settled",
+          "admissionDisposition": "immediate",
+          "turnId": "00000000-0000-4000-8000-000000000046",
+          "revision": 4,
+          "projectedRevision": 4,
+          "projectionRetry": {
+            "attempts": 0,
+            "nextAttemptAt": 0
+          },
+          "settlement": {
+            "turnId": "00000000-0000-4000-8000-000000000046",
+            "terminalOutcome": "COMPLETED",
+            "completedAssistantMessageId": "00000000-0000-4000-8000-000000000047",
+            "reports": [
+              "00000000-0000-4000-8000-000000000048"
+            ],
+            "settledAt": "2026-10-06T00:08:27.745Z"
+          },
+          "settlementDelivered": true,
+          "kind": "trigger_frame",
+          "keyKind": "operation"
+        }
+      ],
+      "quarantined": []
+    },
+    "00000000-0000-4000-8000-000000000049": {
+      "schemaVersion": 2,
+      "records": [
+        {
+          "key": "00000000-0000-4000-8000-000000000050",
+          "fingerprint": "c1db13ab836db24060490c83b83c089adb1ce9e6e1899d81e02d398cec22e6b1",
+          "agentSessionId": "00000000-0000-4000-8000-000000000049",
+          "runId": "00000000-0000-4000-8000-000000000049",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000051",
+          "machineId": "00000000-0000-4000-8000-000000000052",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": "00000000-0000-4000-8000-000000000053",
+          "admissionId": "00000000-0000-4000-8000-000000000054",
+          "sequence": 0,
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000055",
+            "signedEvent": {
+              "promptType": "repository_grounding",
+              "inputExecution": {
+                "operationId": "00000000-0000-4000-8000-000000000050",
+                "operationFingerprint": "c1db13ab836db24060490c83b83c089adb1ce9e6e1899d81e02d398cec22e6b1",
+                "messageId": "00000000-0000-4000-8000-000000000053"
+              },
+              "nodeId": "onboarding-repository-grounding-analysis",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000053",
+              "payload": {
+                "scope": {
+                  "scope": "comprehensive"
+                },
+                "bounds": {
+                  "maxDepth": 12,
+                  "maxFiles": 5000,
+                  "maxFileBytes": 1000000,
+                  "maxTotalBytes": 25000000,
+                  "maxBinaryFiles": 1000,
+                  "maxIgnoredFiles": 1000,
+                  "maxGeneratedFiles": 1000,
+                  "maxUnsupportedFiles": 1000
+                },
+                "fastMode": false,
+                "provider": "codex",
+                "entryMode": "existing_project",
+                "machineId": "00000000-0000-4000-8000-000000000052",
+                "projectId": "00000000-0000-4000-8000-000000000051",
+                "serviceId": "00000000-0000-4000-8000-000000000058",
+                "promptType": "repository_grounding",
+                "workflowId": "00000000-0000-4000-8000-000000000059",
+                "conversationId": "00000000-0000-4000-8000-000000000055",
+                "workflowNodeId": "onboarding-repository-grounding-analysis",
+                "reasoningEffort": "xhigh",
+                "confirmedServiceBrief": "Scrubbed confirmedServiceBrief 5",
+                "resolvedFrontierModel": "gpt-5.6-luna"
+              }
+            },
+            "event": {
+              "promptType": "repository_grounding",
+              "inputExecution": {
+                "operationId": "00000000-0000-4000-8000-000000000050",
+                "operationFingerprint": "c1db13ab836db24060490c83b83c089adb1ce9e6e1899d81e02d398cec22e6b1",
+                "messageId": "00000000-0000-4000-8000-000000000053"
+              },
+              "nodeId": "onboarding-repository-grounding-analysis",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000053",
+              "payload": {
+                "scope": {
+                  "scope": "comprehensive"
+                },
+                "bounds": {
+                  "maxDepth": 12,
+                  "maxFiles": 5000,
+                  "maxFileBytes": 1000000,
+                  "maxTotalBytes": 25000000,
+                  "maxBinaryFiles": 1000,
+                  "maxIgnoredFiles": 1000,
+                  "maxGeneratedFiles": 1000,
+                  "maxUnsupportedFiles": 1000
+                },
+                "fastMode": false,
+                "provider": "codex",
+                "entryMode": "existing_project",
+                "machineId": "00000000-0000-4000-8000-000000000052",
+                "projectId": "00000000-0000-4000-8000-000000000051",
+                "serviceId": "00000000-0000-4000-8000-000000000058",
+                "promptType": "repository_grounding",
+                "workflowId": "00000000-0000-4000-8000-000000000059",
+                "conversationId": "00000000-0000-4000-8000-000000000055",
+                "workflowNodeId": "onboarding-repository-grounding-analysis",
+                "reasoningEffort": "xhigh",
+                "confirmedServiceBrief": "Scrubbed confirmedServiceBrief 5",
+                "resolvedFrontierModel": "gpt-5.6-luna"
+              }
+            }
+          },
+          "state": "failed",
+          "turnId": "00000000-0000-4000-8000-000000000060",
+          "revision": 3,
+          "projectedRevision": 0,
+          "projectionRetry": {
+            "attempts": 3,
+            "nextAttemptAt": 1790756262164
+          },
+          "settlement": null,
+          "settlementDelivered": false,
+          "admissionDisposition": "queued",
+          "kind": "trigger_frame",
+          "keyKind": "operation"
+        }
+      ],
+      "quarantined": []
+    },
+    "00000000-0000-4000-8000-000000000061": {
+      "schemaVersion": 2,
+      "records": [
+        {
+          "key": "00000000-0000-4000-8000-000000000062",
+          "fingerprint": "01dc6054f16adcd6557fd9261016d679b2b3ad2b4b1da6d19449e8ebe02697bf",
+          "agentSessionId": "00000000-0000-4000-8000-000000000061",
+          "runId": "00000000-0000-4000-8000-000000000061",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000004",
+          "machineId": "00000000-0000-4000-8000-000000000005",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": null,
+          "admissionId": "00000000-0000-4000-8000-000000000063",
+          "sequence": 0,
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000064",
+            "signedEvent": {
+              "promptType": "plan_shaping_feature_sync_analyze",
+              "nodeId": "plan-shaping-feature-sync-analyze",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000062",
+              "payload": {
+                "planId": "00000000-0000-4000-8000-000000000067",
+                "designDocId": "00000000-0000-4000-8000-000000000068"
+              }
+            },
+            "event": {
+              "promptType": "plan_shaping_feature_sync_analyze",
+              "nodeId": "plan-shaping-feature-sync-analyze",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000062",
+              "payload": {
+                "planId": "00000000-0000-4000-8000-000000000067",
+                "designDocId": "00000000-0000-4000-8000-000000000068"
+              }
+            }
+          },
+          "state": "settled",
+          "admissionDisposition": "immediate",
+          "turnId": "00000000-0000-4000-8000-000000000069",
+          "revision": 4,
+          "projectedRevision": 0,
+          "settlement": {
+            "turnId": "00000000-0000-4000-8000-000000000069",
+            "terminalOutcome": "COMPLETED",
+            "completedAssistantMessageId": "00000000-0000-4000-8000-000000000070",
+            "reports": [
+              "00000000-0000-4000-8000-000000000071"
+            ],
+            "settledAt": "2026-10-11T22:43:33.057Z"
+          },
+          "settlementDelivered": true,
+          "kind": "trigger_frame",
+          "keyKind": "trigger_message"
+        },
+        {
+          "key": "00000000-0000-4000-8000-000000000072",
+          "fingerprint": "bf7be128c7d4dc05da04c62f93c864bf00620d58d53613b228ba8085440cf858",
+          "agentSessionId": "00000000-0000-4000-8000-000000000061",
+          "runId": "00000000-0000-4000-8000-000000000061",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000004",
+          "machineId": "00000000-0000-4000-8000-000000000005",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": "00000000-0000-4000-8000-000000000073",
+          "admissionId": "00000000-0000-4000-8000-000000000074",
+          "sequence": 1,
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000064",
+            "signedEvent": {
+              "promptType": "plan_shaping_feature_sync_iterate",
+              "inputExecution": {
+                "operationId": "00000000-0000-4000-8000-000000000072",
+                "operationFingerprint": "bf7be128c7d4dc05da04c62f93c864bf00620d58d53613b228ba8085440cf858",
+                "messageId": "00000000-0000-4000-8000-000000000073"
+              },
+              "nodeId": "plan-shaping-feature-sync-iterate",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000073",
+              "payload": {
+                "decisions": [],
+                "userMessage": "Scrubbed userMessage 6",
+                "discrepancies": [
+                  {
+                    "id": "fs-1",
+                    "summary": "Scrubbed summary 7",
+                    "entityId": "00000000-0000-4000-8000-000000000076",
+                    "proposal": "Scrubbed proposal 8",
+                    "rationale": "Scrubbed rationale 9",
+                    "entityType": "FEATURE"
+                  },
+                  {
+                    "id": "fs-2",
+                    "summary": "Scrubbed summary 10",
+                    "entityId": "00000000-0000-4000-8000-000000000076",
+                    "proposal": "Scrubbed proposal 11",
+                    "rationale": "Scrubbed rationale 12",
+                    "entityType": "FEATURE"
+                  }
+                ]
+              }
+            },
+            "event": {
+              "promptType": "plan_shaping_feature_sync_iterate",
+              "inputExecution": {
+                "operationId": "00000000-0000-4000-8000-000000000072",
+                "operationFingerprint": "bf7be128c7d4dc05da04c62f93c864bf00620d58d53613b228ba8085440cf858",
+                "messageId": "00000000-0000-4000-8000-000000000073"
+              },
+              "nodeId": "plan-shaping-feature-sync-iterate",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000073",
+              "payload": {
+                "decisions": [],
+                "userMessage": "Scrubbed userMessage 6",
+                "discrepancies": [
+                  {
+                    "id": "fs-1",
+                    "summary": "Scrubbed summary 7",
+                    "entityId": "00000000-0000-4000-8000-000000000076",
+                    "proposal": "Scrubbed proposal 8",
+                    "rationale": "Scrubbed rationale 9",
+                    "entityType": "FEATURE"
+                  },
+                  {
+                    "id": "fs-2",
+                    "summary": "Scrubbed summary 10",
+                    "entityId": "00000000-0000-4000-8000-000000000076",
+                    "proposal": "Scrubbed proposal 11",
+                    "rationale": "Scrubbed rationale 12",
+                    "entityType": "FEATURE"
+                  }
+                ]
+              }
+            }
+          },
+          "state": "settled",
+          "admissionDisposition": "immediate",
+          "turnId": "00000000-0000-4000-8000-000000000077",
+          "revision": 4,
+          "projectedRevision": 4,
+          "projectionRetry": {
+            "attempts": 0,
+            "nextAttemptAt": 0
+          },
+          "settlement": {
+            "turnId": "00000000-0000-4000-8000-000000000077",
+            "terminalOutcome": "COMPLETED",
+            "completedAssistantMessageId": "00000000-0000-4000-8000-000000000078",
+            "reports": [],
+            "settledAt": "2026-10-11T23:01:32.889Z"
+          },
+          "settlementDelivered": true,
+          "kind": "trigger_frame",
+          "keyKind": "operation"
+        },
+        {
+          "key": "00000000-0000-4000-8000-000000000079",
+          "fingerprint": "f3bc822097333cae6697b15854e917ef62e98a4a6a6be0ca0cc616912f3dea9a",
+          "agentSessionId": "00000000-0000-4000-8000-000000000061",
+          "runId": "00000000-0000-4000-8000-000000000061",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000004",
+          "machineId": "00000000-0000-4000-8000-000000000005",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": "00000000-0000-4000-8000-000000000080",
+          "admissionId": "00000000-0000-4000-8000-000000000081",
+          "sequence": 2,
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000064",
+            "signedEvent": {
+              "promptType": "plan_shaping_proposed_stages",
+              "inputExecution": {
+                "operationId": "00000000-0000-4000-8000-000000000079",
+                "operationFingerprint": "f3bc822097333cae6697b15854e917ef62e98a4a6a6be0ca0cc616912f3dea9a",
+                "messageId": "00000000-0000-4000-8000-000000000080"
+              },
+              "nodeId": "plan-shaping-proposed-stages",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000080",
+              "payload": {
+                "planId": "00000000-0000-4000-8000-000000000067",
+                "designDocId": "00000000-0000-4000-8000-000000000068"
+              }
+            },
+            "event": {
+              "promptType": "plan_shaping_proposed_stages",
+              "inputExecution": {
+                "operationId": "00000000-0000-4000-8000-000000000079",
+                "operationFingerprint": "f3bc822097333cae6697b15854e917ef62e98a4a6a6be0ca0cc616912f3dea9a",
+                "messageId": "00000000-0000-4000-8000-000000000080"
+              },
+              "nodeId": "plan-shaping-proposed-stages",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000080",
+              "payload": {
+                "planId": "00000000-0000-4000-8000-000000000067",
+                "designDocId": "00000000-0000-4000-8000-000000000068"
+              }
+            }
+          },
+          "state": "settled",
+          "admissionDisposition": "immediate",
+          "turnId": "00000000-0000-4000-8000-000000000083",
+          "revision": 4,
+          "projectedRevision": 4,
+          "projectionRetry": {
+            "attempts": 0,
+            "nextAttemptAt": 0
+          },
+          "settlement": {
+            "turnId": "00000000-0000-4000-8000-000000000083",
+            "terminalOutcome": "COMPLETED",
+            "completedAssistantMessageId": "00000000-0000-4000-8000-000000000084",
+            "reports": [],
+            "settledAt": "2026-10-11T23:12:18.255Z"
+          },
+          "settlementDelivered": true,
+          "kind": "trigger_frame",
+          "keyKind": "operation"
+        },
+        {
+          "key": "00000000-0000-4000-8000-000000000085",
+          "fingerprint": "4dc776a81b9ac9c85a9364a5050815faf826211393fae0b7fbce9b93f45a4cdf",
+          "agentSessionId": "00000000-0000-4000-8000-000000000061",
+          "runId": "00000000-0000-4000-8000-000000000061",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000004",
+          "machineId": "00000000-0000-4000-8000-000000000005",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": "00000000-0000-4000-8000-000000000086",
+          "admissionId": "00000000-0000-4000-8000-000000000087",
+          "sequence": 3,
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000064",
+            "signedEvent": {
+              "promptType": "plan_shaping_visual_preview",
+              "inputExecution": {
+                "operationId": "00000000-0000-4000-8000-000000000085",
+                "operationFingerprint": "4dc776a81b9ac9c85a9364a5050815faf826211393fae0b7fbce9b93f45a4cdf",
+                "messageId": "00000000-0000-4000-8000-000000000086"
+              },
+              "nodeId": "plan-shaping-visual-preview",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000086",
+              "payload": {
+                "planId": "00000000-0000-4000-8000-000000000067",
+                "entries": [],
+                "featureId": "00000000-0000-4000-8000-000000000076",
+                "designDocId": "00000000-0000-4000-8000-000000000068",
+                "refinementRound": 0,
+                "acceptedProposalIds": []
+              }
+            },
+            "event": {
+              "promptType": "plan_shaping_visual_preview",
+              "inputExecution": {
+                "operationId": "00000000-0000-4000-8000-000000000085",
+                "operationFingerprint": "4dc776a81b9ac9c85a9364a5050815faf826211393fae0b7fbce9b93f45a4cdf",
+                "messageId": "00000000-0000-4000-8000-000000000086"
+              },
+              "nodeId": "plan-shaping-visual-preview",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000086",
+              "payload": {
+                "planId": "00000000-0000-4000-8000-000000000067",
+                "entries": [],
+                "featureId": "00000000-0000-4000-8000-000000000076",
+                "designDocId": "00000000-0000-4000-8000-000000000068",
+                "refinementRound": 0,
+                "acceptedProposalIds": []
+              }
+            }
+          },
+          "state": "settled",
+          "admissionDisposition": "immediate",
+          "turnId": "00000000-0000-4000-8000-000000000089",
+          "revision": 4,
+          "projectedRevision": 4,
+          "projectionRetry": {
+            "attempts": 0,
+            "nextAttemptAt": 0
+          },
+          "settlement": {
+            "turnId": "00000000-0000-4000-8000-000000000089",
+            "terminalOutcome": "COMPLETED",
+            "completedAssistantMessageId": "00000000-0000-4000-8000-000000000090",
+            "reports": [],
+            "settledAt": "2026-10-12T02:38:52.897Z"
+          },
+          "settlementDelivered": true,
+          "kind": "trigger_frame",
+          "keyKind": "operation"
+        },
+        {
+          "key": "00000000-0000-4000-8000-000000000091",
+          "fingerprint": "4e90553f9801bdb5a4ffd95a5bb57ae6da23a144e8849221bbde00d9dba4fad3",
+          "agentSessionId": "00000000-0000-4000-8000-000000000061",
+          "runId": "00000000-0000-4000-8000-000000000061",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000004",
+          "machineId": "00000000-0000-4000-8000-000000000005",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": "00000000-0000-4000-8000-000000000092",
+          "admissionId": "00000000-0000-4000-8000-000000000093",
+          "sequence": 5,
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000064",
+            "signedEvent": {
+              "promptType": "plan_shaping_phase_breakdown",
+              "inputExecution": {
+                "operationId": "00000000-0000-4000-8000-000000000091",
+                "operationFingerprint": "4e90553f9801bdb5a4ffd95a5bb57ae6da23a144e8849221bbde00d9dba4fad3",
+                "messageId": "00000000-0000-4000-8000-000000000092"
+              },
+              "nodeId": "plan-shaping-phase-breakdown",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000092",
+              "payload": {
+                "planId": "00000000-0000-4000-8000-000000000067",
+                "phaseIdx": 0,
+                "stageIdx": 0,
+                "designDocId": "00000000-0000-4000-8000-000000000068",
+                "journeyStep": {
+                  "id": "visual-preview-stage-00000000-0000-4000-8000-000000000095",
+                  "title": "Scrubbed title 13",
+                  "stageId": "00000000-0000-4000-8000-000000000095",
+                  "description": "Scrubbed description 14",
+                  "isUserInteractive": false,
+                  "implementationNotes": []
+                },
+                "priorPhases": [],
+                "totalPhases": 1,
+                "phasesInStage": 1,
+                "acceptedProposalIds": [
+                  "00000000-0000-4000-8000-000000000096",
+                  "00000000-0000-4000-8000-000000000097",
+                  "00000000-0000-4000-8000-000000000098"
+                ],
+                "visualPreviewEntries": [
+                  {
+                    "status": "APPROVED",
+                    "proposalId": "00000000-0000-4000-8000-000000000096",
+                    "artifactFamily": "mockup",
+                    "presentationOrder": 1
+                  },
+                  {
+                    "status": "APPROVED",
+                    "proposalId": "00000000-0000-4000-8000-000000000097",
+                    "relationship": {
+                      "kind": "depends_on",
+                      "proposalId": "00000000-0000-4000-8000-000000000096"
+                    },
+                    "artifactFamily": "mockup",
+                    "presentationOrder": 2
+                  },
+                  {
+                    "status": "APPROVED",
+                    "proposalId": "00000000-0000-4000-8000-000000000098",
+                    "relationship": {
+                      "kind": "depends_on",
+                      "proposalId": "00000000-0000-4000-8000-000000000097"
+                    },
+                    "artifactFamily": "mockup",
+                    "presentationOrder": 3
+                  }
+                ]
+              }
+            },
+            "event": {
+              "promptType": "plan_shaping_phase_breakdown",
+              "inputExecution": {
+                "operationId": "00000000-0000-4000-8000-000000000091",
+                "operationFingerprint": "4e90553f9801bdb5a4ffd95a5bb57ae6da23a144e8849221bbde00d9dba4fad3",
+                "messageId": "00000000-0000-4000-8000-000000000092"
+              },
+              "nodeId": "plan-shaping-phase-breakdown",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000092",
+              "payload": {
+                "planId": "00000000-0000-4000-8000-000000000067",
+                "phaseIdx": 0,
+                "stageIdx": 0,
+                "designDocId": "00000000-0000-4000-8000-000000000068",
+                "journeyStep": {
+                  "id": "visual-preview-stage-00000000-0000-4000-8000-000000000095",
+                  "title": "Scrubbed title 13",
+                  "stageId": "00000000-0000-4000-8000-000000000095",
+                  "description": "Scrubbed description 14",
+                  "isUserInteractive": false,
+                  "implementationNotes": []
+                },
+                "priorPhases": [],
+                "totalPhases": 1,
+                "phasesInStage": 1,
+                "acceptedProposalIds": [
+                  "00000000-0000-4000-8000-000000000096",
+                  "00000000-0000-4000-8000-000000000097",
+                  "00000000-0000-4000-8000-000000000098"
+                ],
+                "visualPreviewEntries": [
+                  {
+                    "status": "APPROVED",
+                    "proposalId": "00000000-0000-4000-8000-000000000096",
+                    "artifactFamily": "mockup",
+                    "presentationOrder": 1
+                  },
+                  {
+                    "status": "APPROVED",
+                    "proposalId": "00000000-0000-4000-8000-000000000097",
+                    "relationship": {
+                      "kind": "depends_on",
+                      "proposalId": "00000000-0000-4000-8000-000000000096"
+                    },
+                    "artifactFamily": "mockup",
+                    "presentationOrder": 2
+                  },
+                  {
+                    "status": "APPROVED",
+                    "proposalId": "00000000-0000-4000-8000-000000000098",
+                    "relationship": {
+                      "kind": "depends_on",
+                      "proposalId": "00000000-0000-4000-8000-000000000097"
+                    },
+                    "artifactFamily": "mockup",
+                    "presentationOrder": 3
+                  }
+                ]
+              }
+            }
+          },
+          "state": "settled",
+          "admissionDisposition": "immediate",
+          "turnId": "00000000-0000-4000-8000-000000000099",
+          "revision": 4,
+          "projectedRevision": 4,
+          "projectionRetry": {
+            "attempts": 0,
+            "nextAttemptAt": 0
+          },
+          "settlement": {
+            "turnId": "00000000-0000-4000-8000-000000000099",
+            "terminalOutcome": "FAILED",
+            "completedAssistantMessageId": null,
+            "reports": [],
+            "settledAt": "2026-10-12T08:01:20.339Z"
+          },
+          "settlementDelivered": true,
+          "kind": "trigger_frame",
+          "keyKind": "operation"
+        },
+        {
+          "key": "00000000-0000-4000-8000-000000000100",
+          "fingerprint": "8d26d2f8b050c0dab9a4626ab6353de65d4993860566f846fde81edf0e7250a0",
+          "runId": "00000000-0000-4000-8000-000000000061",
+          "agentSessionId": "00000000-0000-4000-8000-000000000061",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000004",
+          "machineId": "00000000-0000-4000-8000-000000000005",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": null,
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000064",
+            "signedEvent": {
+              "promptType": "plan_shaping_step_review",
+              "nodeId": "plan-shaping-step-review",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000100",
+              "payload": {
+                "steps": [
+                  {
+                    "id": "00000000-0000-4000-8000-000000000102",
+                    "type": "TASK",
+                    "title": "Scrubbed title 15",
+                    "stageId": "00000000-0000-4000-8000-000000000095",
+                    "serviceIds": [
+                      "00000000-0000-4000-8000-000000000103",
+                      "00000000-0000-4000-8000-000000000104",
+                      "00000000-0000-4000-8000-000000000105"
+                    ],
+                    "description": "Scrubbed description 16",
+                    "sequenceOrder": 0,
+                    "implementation": "Scrubbed implementation 17",
+                    "acceptanceCriteria": "Scrubbed acceptanceCriteria 18",
+                    "designDocMotivation": "Scrubbed designDocMotivation 19"
+                  },
+                  {
+                    "id": "00000000-0000-4000-8000-000000000106",
+                    "type": "TASK",
+                    "title": "Scrubbed title 20",
+                    "stageId": "00000000-0000-4000-8000-000000000095",
+                    "serviceIds": [
+                      "00000000-0000-4000-8000-000000000103",
+                      "00000000-0000-4000-8000-000000000105",
+                      "00000000-0000-4000-8000-000000000107",
+                      "00000000-0000-4000-8000-000000000108",
+                      "00000000-0000-4000-8000-000000000109"
+                    ],
+                    "description": "Scrubbed description 21",
+                    "sequenceOrder": 1,
+                    "implementation": "Scrubbed implementation 22",
+                    "acceptanceCriteria": "Scrubbed acceptanceCriteria 23",
+                    "designDocMotivation": "Scrubbed designDocMotivation 24"
+                  },
+                  {
+                    "id": "00000000-0000-4000-8000-000000000110",
+                    "type": "TASK",
+                    "title": "Scrubbed title 25",
+                    "stageId": "00000000-0000-4000-8000-000000000095",
+                    "serviceIds": [
+                      "00000000-0000-4000-8000-000000000103",
+                      "00000000-0000-4000-8000-000000000105",
+                      "00000000-0000-4000-8000-000000000104",
+                      "00000000-0000-4000-8000-000000000107",
+                      "00000000-0000-4000-8000-000000000109"
+                    ],
+                    "description": "Scrubbed description 26",
+                    "sequenceOrder": 2,
+                    "implementation": "Scrubbed implementation 27",
+                    "dependsOnStepIds": [
+                      "00000000-0000-4000-8000-000000000102",
+                      "00000000-0000-4000-8000-000000000106"
+                    ],
+                    "acceptanceCriteria": "Scrubbed acceptanceCriteria 28",
+                    "designDocMotivation": "Scrubbed designDocMotivation 29"
+                  },
+                  {
+                    "id": "00000000-0000-4000-8000-000000000111",
+                    "type": "TASK",
+                    "title": "Scrubbed title 30",
+                    "stageId": "00000000-0000-4000-8000-000000000095",
+                    "serviceIds": [
+                      "00000000-0000-4000-8000-000000000108",
+                      "00000000-0000-4000-8000-000000000107",
+                      "00000000-0000-4000-8000-000000000105"
+                    ],
+                    "description": "Scrubbed description 31",
+                    "sequenceOrder": 3,
+                    "implementation": "Scrubbed implementation 32",
+                    "dependsOnStepIds": [
+                      "00000000-0000-4000-8000-000000000110"
+                    ],
+                    "acceptanceCriteria": "Scrubbed acceptanceCriteria 33",
+                    "designDocMotivation": "Scrubbed designDocMotivation 34"
+                  },
+                  {
+                    "id": "00000000-0000-4000-8000-000000000112",
+                    "type": "TASK",
+                    "title": "Scrubbed title 35",
+                    "stageId": "00000000-0000-4000-8000-000000000095",
+                    "serviceIds": [
+                      "00000000-0000-4000-8000-000000000103",
+                      "00000000-0000-4000-8000-000000000105",
+                      "00000000-0000-4000-8000-000000000107",
+                      "00000000-0000-4000-8000-000000000109"
+                    ],
+                    "description": "Scrubbed description 36",
+                    "sequenceOrder": 4,
+                    "implementation": "Scrubbed implementation 37",
+                    "acceptanceCriteria": "Scrubbed acceptanceCriteria 38",
+                    "designDocMotivation": "Scrubbed designDocMotivation 39"
+                  },
+                  {
+                    "id": "00000000-0000-4000-8000-000000000113",
+                    "type": "TASK",
+                    "title": "Scrubbed title 40",
+                    "stageId": "00000000-0000-4000-8000-000000000095",
+                    "serviceIds": [
+                      "00000000-0000-4000-8000-000000000109",
+                      "00000000-0000-4000-8000-000000000105",
+                      "00000000-0000-4000-8000-000000000107"
+                    ],
+                    "description": "Scrubbed description 41",
+                    "sequenceOrder": 5,
+                    "implementation": "Scrubbed implementation 42",
+                    "dependsOnStepIds": [
+                      "00000000-0000-4000-8000-000000000112"
+                    ],
+                    "acceptanceCriteria": "Scrubbed acceptanceCriteria 43",
+                    "designDocMotivation": "Scrubbed designDocMotivation 44"
+                  },
+                  {
+                    "id": "00000000-0000-4000-8000-000000000114",
+                    "type": "TASK",
+                    "title": "Scrubbed title 45",
+                    "stageId": "00000000-0000-4000-8000-000000000095",
+                    "serviceIds": [
+                      "00000000-0000-4000-8000-000000000108",
+                      "00000000-0000-4000-8000-000000000107",
+                      "00000000-0000-4000-8000-000000000103",
+                      "00000000-0000-4000-8000-000000000105"
+                    ],
+                    "description": "Scrubbed description 46",
+                    "sequenceOrder": 6,
+                    "implementation": "Scrubbed implementation 47",
+                    "dependsOnStepIds": [
+                      "00000000-0000-4000-8000-000000000102",
+                      "00000000-0000-4000-8000-000000000111",
+                      "00000000-0000-4000-8000-000000000112",
+                      "00000000-0000-4000-8000-000000000113"
+                    ],
+                    "acceptanceCriteria": "Scrubbed acceptanceCriteria 48",
+                    "designDocMotivation": "Scrubbed designDocMotivation 49"
+                  }
+                ],
+                "planId": "00000000-0000-4000-8000-000000000067",
+                "stageIdx": 0,
+                "designDocId": "00000000-0000-4000-8000-000000000068",
+                "totalStages": 1
+              }
+            },
+            "event": {
+              "promptType": "plan_shaping_step_review",
+              "nodeId": "plan-shaping-step-review",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000100",
+              "payload": {
+                "steps": [
+                  {
+                    "id": "00000000-0000-4000-8000-000000000102",
+                    "type": "TASK",
+                    "title": "Scrubbed title 15",
+                    "stageId": "00000000-0000-4000-8000-000000000095",
+                    "serviceIds": [
+                      "00000000-0000-4000-8000-000000000103",
+                      "00000000-0000-4000-8000-000000000104",
+                      "00000000-0000-4000-8000-000000000105"
+                    ],
+                    "description": "Scrubbed description 16",
+                    "sequenceOrder": 0,
+                    "implementation": "Scrubbed implementation 17",
+                    "acceptanceCriteria": "Scrubbed acceptanceCriteria 18",
+                    "designDocMotivation": "Scrubbed designDocMotivation 19"
+                  },
+                  {
+                    "id": "00000000-0000-4000-8000-000000000106",
+                    "type": "TASK",
+                    "title": "Scrubbed title 20",
+                    "stageId": "00000000-0000-4000-8000-000000000095",
+                    "serviceIds": [
+                      "00000000-0000-4000-8000-000000000103",
+                      "00000000-0000-4000-8000-000000000105",
+                      "00000000-0000-4000-8000-000000000107",
+                      "00000000-0000-4000-8000-000000000108",
+                      "00000000-0000-4000-8000-000000000109"
+                    ],
+                    "description": "Scrubbed description 21",
+                    "sequenceOrder": 1,
+                    "implementation": "Scrubbed implementation 22",
+                    "acceptanceCriteria": "Scrubbed acceptanceCriteria 23",
+                    "designDocMotivation": "Scrubbed designDocMotivation 24"
+                  },
+                  {
+                    "id": "00000000-0000-4000-8000-000000000110",
+                    "type": "TASK",
+                    "title": "Scrubbed title 25",
+                    "stageId": "00000000-0000-4000-8000-000000000095",
+                    "serviceIds": [
+                      "00000000-0000-4000-8000-000000000103",
+                      "00000000-0000-4000-8000-000000000105",
+                      "00000000-0000-4000-8000-000000000104",
+                      "00000000-0000-4000-8000-000000000107",
+                      "00000000-0000-4000-8000-000000000109"
+                    ],
+                    "description": "Scrubbed description 26",
+                    "sequenceOrder": 2,
+                    "implementation": "Scrubbed implementation 27",
+                    "dependsOnStepIds": [
+                      "00000000-0000-4000-8000-000000000102",
+                      "00000000-0000-4000-8000-000000000106"
+                    ],
+                    "acceptanceCriteria": "Scrubbed acceptanceCriteria 28",
+                    "designDocMotivation": "Scrubbed designDocMotivation 29"
+                  },
+                  {
+                    "id": "00000000-0000-4000-8000-000000000111",
+                    "type": "TASK",
+                    "title": "Scrubbed title 30",
+                    "stageId": "00000000-0000-4000-8000-000000000095",
+                    "serviceIds": [
+                      "00000000-0000-4000-8000-000000000108",
+                      "00000000-0000-4000-8000-000000000107",
+                      "00000000-0000-4000-8000-000000000105"
+                    ],
+                    "description": "Scrubbed description 31",
+                    "sequenceOrder": 3,
+                    "implementation": "Scrubbed implementation 32",
+                    "dependsOnStepIds": [
+                      "00000000-0000-4000-8000-000000000110"
+                    ],
+                    "acceptanceCriteria": "Scrubbed acceptanceCriteria 33",
+                    "designDocMotivation": "Scrubbed designDocMotivation 34"
+                  },
+                  {
+                    "id": "00000000-0000-4000-8000-000000000112",
+                    "type": "TASK",
+                    "title": "Scrubbed title 35",
+                    "stageId": "00000000-0000-4000-8000-000000000095",
+                    "serviceIds": [
+                      "00000000-0000-4000-8000-000000000103",
+                      "00000000-0000-4000-8000-000000000105",
+                      "00000000-0000-4000-8000-000000000107",
+                      "00000000-0000-4000-8000-000000000109"
+                    ],
+                    "description": "Scrubbed description 36",
+                    "sequenceOrder": 4,
+                    "implementation": "Scrubbed implementation 37",
+                    "acceptanceCriteria": "Scrubbed acceptanceCriteria 38",
+                    "designDocMotivation": "Scrubbed designDocMotivation 39"
+                  },
+                  {
+                    "id": "00000000-0000-4000-8000-000000000113",
+                    "type": "TASK",
+                    "title": "Scrubbed title 40",
+                    "stageId": "00000000-0000-4000-8000-000000000095",
+                    "serviceIds": [
+                      "00000000-0000-4000-8000-000000000109",
+                      "00000000-0000-4000-8000-000000000105",
+                      "00000000-0000-4000-8000-000000000107"
+                    ],
+                    "description": "Scrubbed description 41",
+                    "sequenceOrder": 5,
+                    "implementation": "Scrubbed implementation 42",
+                    "dependsOnStepIds": [
+                      "00000000-0000-4000-8000-000000000112"
+                    ],
+                    "acceptanceCriteria": "Scrubbed acceptanceCriteria 43",
+                    "designDocMotivation": "Scrubbed designDocMotivation 44"
+                  },
+                  {
+                    "id": "00000000-0000-4000-8000-000000000114",
+                    "type": "TASK",
+                    "title": "Scrubbed title 45",
+                    "stageId": "00000000-0000-4000-8000-000000000095",
+                    "serviceIds": [
+                      "00000000-0000-4000-8000-000000000108",
+                      "00000000-0000-4000-8000-000000000107",
+                      "00000000-0000-4000-8000-000000000103",
+                      "00000000-0000-4000-8000-000000000105"
+                    ],
+                    "description": "Scrubbed description 46",
+                    "sequenceOrder": 6,
+                    "implementation": "Scrubbed implementation 47",
+                    "dependsOnStepIds": [
+                      "00000000-0000-4000-8000-000000000102",
+                      "00000000-0000-4000-8000-000000000111",
+                      "00000000-0000-4000-8000-000000000112",
+                      "00000000-0000-4000-8000-000000000113"
+                    ],
+                    "acceptanceCriteria": "Scrubbed acceptanceCriteria 48",
+                    "designDocMotivation": "Scrubbed designDocMotivation 49"
+                  }
+                ],
+                "planId": "00000000-0000-4000-8000-000000000067",
+                "stageIdx": 0,
+                "designDocId": "00000000-0000-4000-8000-000000000068",
+                "totalStages": 1
+              }
+            }
+          },
+          "admissionId": "00000000-0000-4000-8000-000000000115",
+          "sequence": 7,
+          "state": "settled",
+          "turnId": "00000000-0000-4000-8000-000000000116",
+          "revision": 4,
+          "admissionDisposition": "immediate",
+          "projectedRevision": 0,
+          "settlement": {
+            "turnId": "00000000-0000-4000-8000-000000000116",
+            "terminalOutcome": "COMPLETED",
+            "completedAssistantMessageId": "00000000-0000-4000-8000-000000000117",
+            "reports": [],
+            "settledAt": "2026-10-12T19:17:11.142Z"
+          },
+          "settlementDelivered": true,
+          "kind": "trigger_frame",
+          "keyKind": "trigger_message"
+        }
+      ],
+      "quarantined": []
+    },
+    "00000000-0000-4000-8000-000000000118": {
+      "schemaVersion": 2,
+      "records": [
+        {
+          "key": "00000000-0000-4000-8000-000000000119",
+          "fingerprint": "b6b3be77081f89dc5aee6cb88a482a41ccd0afc3f73c4c3e69ee67dc996753b7",
+          "runId": "00000000-0000-4000-8000-000000000118",
+          "agentSessionId": "00000000-0000-4000-8000-000000000118",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000004",
+          "machineId": "00000000-0000-4000-8000-000000000005",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": "00000000-0000-4000-8000-000000000120",
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000121",
+            "signedEvent": {
+              "operationId": "00000000-0000-4000-8000-000000000119",
+              "operationFingerprint": "b6b3be77081f89dc5aee6cb88a482a41ccd0afc3f73c4c3e69ee67dc996753b7",
+              "promptType": "user_message",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000123",
+              "sourceUserMessageId": "00000000-0000-4000-8000-000000000120",
+              "payload": {
+                "userMessage": "Scrubbed userMessage 50",
+                "handlerPromptType": "coding_freeform"
+              }
+            },
+            "event": {
+              "operationId": "00000000-0000-4000-8000-000000000119",
+              "operationFingerprint": "b6b3be77081f89dc5aee6cb88a482a41ccd0afc3f73c4c3e69ee67dc996753b7",
+              "promptType": "user_message",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000123",
+              "sourceUserMessageId": "00000000-0000-4000-8000-000000000120",
+              "payload": {
+                "userMessage": "Scrubbed userMessage 50",
+                "handlerPromptType": "coding_freeform",
+                "attachments": []
+              }
+            }
+          },
+          "admissionId": "00000000-0000-4000-8000-000000000124",
+          "sequence": 2,
+          "state": "cancelled",
+          "turnId": null,
+          "revision": 2,
+          "admissionDisposition": "queued",
+          "projectedRevision": 2,
+          "settlement": null,
+          "settlementDelivered": false,
+          "projectionRetry": {
+            "attempts": 0,
+            "nextAttemptAt": 0
+          },
+          "kind": "trigger_frame",
+          "keyKind": "operation"
+        }
+      ],
+      "quarantined": []
+    },
+    "00000000-0000-4000-8000-000000000125": {
+      "schemaVersion": 2,
+      "records": [
+        {
+          "key": "00000000-0000-4000-8000-000000000126",
+          "fingerprint": "959b91529855d314ebd7551ab08b54e3f5947e0abc7a6161edcd53cf7f074c94",
+          "runId": "00000000-0000-4000-8000-000000000125",
+          "agentSessionId": "00000000-0000-4000-8000-000000000125",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000004",
+          "machineId": "00000000-0000-4000-8000-000000000005",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": "00000000-0000-4000-8000-000000000127",
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000128",
+            "signedEvent": {
+              "sourceUserMessageId": "00000000-0000-4000-8000-000000000127",
+              "operationId": "00000000-0000-4000-8000-000000000126",
+              "operationFingerprint": "959b91529855d314ebd7551ab08b54e3f5947e0abc7a6161edcd53cf7f074c94",
+              "promptType": "start_run",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000130",
+              "payload": {
+                "model": "gpt-6-luna",
+                "config": {
+                  "type": "ENTITY_CONVERSATION",
+                  "model": "gpt-6-luna",
+                  "effort": "max",
+                  "version": "v1",
+                  "disableCodexSystemPrompt": false
+                },
+                "payload": {
+                  "entity": {
+                    "entityId": "00000000-0000-4000-8000-000000000131",
+                    "entityType": "TASK"
+                  },
+                  "promptType": "entity_conversation",
+                  "userMessage": "Scrubbed userMessage 51"
+                },
+                "fastMode": false,
+                "provider": "codex",
+                "agentSessionId": "00000000-0000-4000-8000-000000000125",
+                "contextMetadata": {
+                  "projectId": "00000000-0000-4000-8000-000000000004",
+                  "capturedAt": "2026-09-30T10:35:14.325Z",
+                  "userComments": [],
+                  "agentSessionId": "00000000-0000-4000-8000-000000000125",
+                  "fileReferences": {
+                    "resolved": [],
+                    "unresolved": []
+                  },
+                  "organizationId": "00000000-0000-4000-8000-000000000003"
+                },
+                "reasoningEffort": "max",
+                "handlerPromptType": "entity_conversation"
+              }
+            },
+            "event": {
+              "sourceUserMessageId": "00000000-0000-4000-8000-000000000127",
+              "operationId": "00000000-0000-4000-8000-000000000126",
+              "operationFingerprint": "959b91529855d314ebd7551ab08b54e3f5947e0abc7a6161edcd53cf7f074c94",
+              "promptType": "start_run",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000130",
+              "payload": {
+                "model": "gpt-6-luna",
+                "config": {
+                  "type": "ENTITY_CONVERSATION",
+                  "model": "gpt-6-luna",
+                  "effort": "max",
+                  "version": "v1",
+                  "disableCodexSystemPrompt": false
+                },
+                "payload": {
+                  "entity": {
+                    "entityId": "00000000-0000-4000-8000-000000000131",
+                    "entityType": "TASK"
+                  },
+                  "promptType": "entity_conversation",
+                  "userMessage": "Scrubbed userMessage 51"
+                },
+                "fastMode": false,
+                "provider": "codex",
+                "agentSessionId": "00000000-0000-4000-8000-000000000125",
+                "contextMetadata": {
+                  "projectId": "00000000-0000-4000-8000-000000000004",
+                  "capturedAt": "2026-09-30T10:35:14.325Z",
+                  "userComments": [],
+                  "agentSessionId": "00000000-0000-4000-8000-000000000125",
+                  "fileReferences": {
+                    "resolved": [],
+                    "unresolved": []
+                  },
+                  "organizationId": "00000000-0000-4000-8000-000000000003"
+                },
+                "reasoningEffort": "max",
+                "handlerPromptType": "entity_conversation"
+              }
+            }
+          },
+          "admissionId": "00000000-0000-4000-8000-000000000132",
+          "sequence": 0,
+          "state": "picked",
+          "revision": 2,
+          "projectedRevision": 0,
+          "turnId": "00000000-0000-4000-8000-000000000133",
+          "settlement": null,
+          "settlementDelivered": false,
+          "admissionDisposition": "queued",
+          "kind": "trigger_frame",
+          "keyKind": "operation"
+        }
+      ],
+      "quarantined": []
+    },
+    "00000000-0000-4000-8000-000000000134": {
+      "schemaVersion": 2,
+      "records": [
+        {
+          "key": "00000000-0000-4000-8000-000000000135",
+          "fingerprint": "877b597a012475756e14027c83ba9ade7ecc1c7d125a6569d99901cb33ffeff8",
+          "runId": "00000000-0000-4000-8000-000000000134",
+          "agentSessionId": "00000000-0000-4000-8000-000000000134",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000004",
+          "machineId": "00000000-0000-4000-8000-000000000005",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": null,
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000136",
+            "signedEvent": {
+              "promptType": "feature_sync_iterate",
+              "nodeId": "feature-sync-iterate",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000135",
+              "payload": {
+                "discrepancies": [
+                  {
+                    "summary": "Scrubbed summary 52",
+                    "entityId": "00000000-0000-4000-8000-000000000138",
+                    "proposal": "Scrubbed proposal 53",
+                    "rationale": "Scrubbed rationale 54",
+                    "entityType": "FEATURE"
+                  }
+                ]
+              }
+            },
+            "event": {
+              "promptType": "feature_sync_iterate",
+              "nodeId": "feature-sync-iterate",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000135",
+              "payload": {
+                "discrepancies": [
+                  {
+                    "summary": "Scrubbed summary 52",
+                    "entityId": "00000000-0000-4000-8000-000000000138",
+                    "proposal": "Scrubbed proposal 53",
+                    "rationale": "Scrubbed rationale 54",
+                    "entityType": "FEATURE"
+                  }
+                ]
+              }
+            }
+          },
+          "admissionId": "00000000-0000-4000-8000-000000000139",
+          "sequence": 1,
+          "state": "settled",
+          "turnId": "00000000-0000-4000-8000-000000000140",
+          "revision": 4,
+          "admissionDisposition": "immediate",
+          "projectedRevision": 0,
+          "settlement": {
+            "turnId": "00000000-0000-4000-8000-000000000140",
+            "terminalOutcome": "COMPLETED",
+            "completedAssistantMessageId": "00000000-0000-4000-8000-000000000141",
+            "reports": [],
+            "settledAt": "2026-10-13T07:27:52.185Z"
+          },
+          "settlementDelivered": true,
+          "kind": "trigger_frame",
+          "keyKind": "trigger_message"
+        }
+      ],
+      "quarantined": []
+    },
+    "00000000-0000-4000-8000-000000000142": {
+      "schemaVersion": 2,
+      "records": [
+        {
+          "key": "00000000-0000-4000-8000-000000000143",
+          "fingerprint": "083bc8089ae2d7c506faef53b53fe99665890f65bba67cc6990c16df3d51a6b8",
+          "runId": "00000000-0000-4000-8000-000000000142",
+          "agentSessionId": "00000000-0000-4000-8000-000000000142",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000144",
+          "machineId": "00000000-0000-4000-8000-000000000005",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": "00000000-0000-4000-8000-000000000145",
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000146",
+            "signedEvent": {
+              "promptType": "repository_grounding",
+              "inputExecution": {
+                "operationId": "00000000-0000-4000-8000-000000000143",
+                "operationFingerprint": "083bc8089ae2d7c506faef53b53fe99665890f65bba67cc6990c16df3d51a6b8",
+                "messageId": "00000000-0000-4000-8000-000000000145"
+              },
+              "nodeId": "onboarding-repository-grounding-analysis",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000145",
+              "payload": {
+                "scope": {
+                  "scope": "comprehensive"
+                },
+                "bounds": {
+                  "maxDepth": 12,
+                  "maxFiles": 5000,
+                  "maxFileBytes": 1000000,
+                  "maxTotalBytes": 25000000,
+                  "maxBinaryFiles": 1000,
+                  "maxIgnoredFiles": 1000,
+                  "maxGeneratedFiles": 1000,
+                  "maxUnsupportedFiles": 1000
+                },
+                "provider": "claude",
+                "entryMode": "existing_project",
+                "machineId": "00000000-0000-4000-8000-000000000005",
+                "projectId": "00000000-0000-4000-8000-000000000144",
+                "serviceId": "00000000-0000-4000-8000-000000000148",
+                "promptType": "repository_grounding",
+                "workflowId": "00000000-0000-4000-8000-000000000149",
+                "conversationId": "00000000-0000-4000-8000-000000000146",
+                "workflowNodeId": "onboarding-repository-grounding-analysis",
+                "reasoningEffort": "high",
+                "confirmedServiceBrief": "Scrubbed confirmedServiceBrief 55",
+                "resolvedFrontierModel": "claude-sonnet-5-5"
+              }
+            },
+            "event": {
+              "promptType": "repository_grounding",
+              "inputExecution": {
+                "operationId": "00000000-0000-4000-8000-000000000143",
+                "operationFingerprint": "083bc8089ae2d7c506faef53b53fe99665890f65bba67cc6990c16df3d51a6b8",
+                "messageId": "00000000-0000-4000-8000-000000000145"
+              },
+              "nodeId": "onboarding-repository-grounding-analysis",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000145",
+              "payload": {
+                "scope": {
+                  "scope": "comprehensive"
+                },
+                "bounds": {
+                  "maxDepth": 12,
+                  "maxFiles": 5000,
+                  "maxFileBytes": 1000000,
+                  "maxTotalBytes": 25000000,
+                  "maxBinaryFiles": 1000,
+                  "maxIgnoredFiles": 1000,
+                  "maxGeneratedFiles": 1000,
+                  "maxUnsupportedFiles": 1000
+                },
+                "provider": "claude",
+                "entryMode": "existing_project",
+                "machineId": "00000000-0000-4000-8000-000000000005",
+                "projectId": "00000000-0000-4000-8000-000000000144",
+                "serviceId": "00000000-0000-4000-8000-000000000148",
+                "promptType": "repository_grounding",
+                "workflowId": "00000000-0000-4000-8000-000000000149",
+                "conversationId": "00000000-0000-4000-8000-000000000146",
+                "workflowNodeId": "onboarding-repository-grounding-analysis",
+                "reasoningEffort": "high",
+                "confirmedServiceBrief": "Scrubbed confirmedServiceBrief 55",
+                "resolvedFrontierModel": "claude-sonnet-5-5"
+              }
+            }
+          },
+          "admissionId": "00000000-0000-4000-8000-000000000150",
+          "sequence": 0,
+          "state": "settled",
+          "turnId": "00000000-0000-4000-8000-000000000151",
+          "revision": 4,
+          "admissionDisposition": "immediate",
+          "projectedRevision": 4,
+          "settlement": {
+            "turnId": "00000000-0000-4000-8000-000000000151",
+            "terminalOutcome": "COMPLETED",
+            "completedAssistantMessageId": null,
+            "reports": [],
+            "settledAt": "2026-10-13T04:17:20.321Z"
+          },
+          "settlementDelivered": true,
+          "projectionRetry": {
+            "attempts": 0,
+            "nextAttemptAt": 0
+          },
+          "kind": "trigger_frame",
+          "keyKind": "operation"
+        }
+      ],
+      "quarantined": []
+    },
+    "00000000-0000-4000-8000-000000000152": {
+      "schemaVersion": 2,
+      "records": [
+        {
+          "key": "00000000-0000-4000-8000-000000000153",
+          "fingerprint": "cb51c275c76049a1148449c960c8394ad6ac78489ea76e23aa9cff53e3d0c035",
+          "agentSessionId": "00000000-0000-4000-8000-000000000152",
+          "runId": "00000000-0000-4000-8000-000000000152",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000004",
+          "machineId": "00000000-0000-4000-8000-000000000005",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": "00000000-0000-4000-8000-000000000154",
+          "admissionId": "00000000-0000-4000-8000-000000000155",
+          "sequence": 4,
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000156",
+            "signedEvent": {
+              "promptType": "implement",
+              "inputExecution": {
+                "operationId": "00000000-0000-4000-8000-000000000153",
+                "operationFingerprint": "cb51c275c76049a1148449c960c8394ad6ac78489ea76e23aa9cff53e3d0c035",
+                "messageId": "00000000-0000-4000-8000-000000000154"
+              },
+              "nodeId": "feature-sync-implement",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000154"
+            },
+            "event": {
+              "promptType": "implement",
+              "inputExecution": {
+                "operationId": "00000000-0000-4000-8000-000000000153",
+                "operationFingerprint": "cb51c275c76049a1148449c960c8394ad6ac78489ea76e23aa9cff53e3d0c035",
+                "messageId": "00000000-0000-4000-8000-000000000154"
+              },
+              "nodeId": "feature-sync-implement",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000154"
+            }
+          },
+          "state": "started",
+          "admissionDisposition": "immediate",
+          "turnId": "00000000-0000-4000-8000-000000000158",
+          "revision": 3,
+          "projectedRevision": 3,
+          "projectionRetry": {
+            "attempts": 0,
+            "nextAttemptAt": 0
+          },
+          "settlement": null,
+          "settlementDelivered": false,
+          "kind": "trigger_frame",
+          "keyKind": "operation"
+        }
+      ],
+      "quarantined": []
+    },
+    "00000000-0000-4000-8000-000000000159": {
+      "schemaVersion": 2,
+      "records": [
+        {
+          "key": "00000000-0000-4000-8000-000000000160",
+          "fingerprint": "569c0a2338d8af933afe1cb8211160dcc1e94dd837d0ef2679c69d70ae480151",
+          "runId": "00000000-0000-4000-8000-000000000159",
+          "agentSessionId": "00000000-0000-4000-8000-000000000159",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000004",
+          "machineId": "00000000-0000-4000-8000-000000000005",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": "00000000-0000-4000-8000-000000000161",
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000162",
+            "signedEvent": {
+              "promptType": "implement",
+              "inputExecution": {
+                "operationId": "00000000-0000-4000-8000-000000000160",
+                "operationFingerprint": "569c0a2338d8af933afe1cb8211160dcc1e94dd837d0ef2679c69d70ae480151",
+                "messageId": "00000000-0000-4000-8000-000000000161"
+              },
+              "nodeId": "feature-sync-implement",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000161"
+            },
+            "event": {
+              "promptType": "implement",
+              "inputExecution": {
+                "operationId": "00000000-0000-4000-8000-000000000160",
+                "operationFingerprint": "569c0a2338d8af933afe1cb8211160dcc1e94dd837d0ef2679c69d70ae480151",
+                "messageId": "00000000-0000-4000-8000-000000000161"
+              },
+              "nodeId": "feature-sync-implement",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000161"
+            }
+          },
+          "admissionId": "00000000-0000-4000-8000-000000000164",
+          "sequence": 2,
+          "state": "failed",
+          "revision": 3,
+          "projectedRevision": 3,
+          "turnId": "00000000-0000-4000-8000-000000000165",
+          "settlement": null,
+          "settlementDelivered": false,
+          "projectionRetry": {
+            "attempts": 0,
+            "nextAttemptAt": 0
+          },
+          "admissionDisposition": "queued",
+          "kind": "trigger_frame",
+          "keyKind": "operation"
+        }
+      ],
+      "quarantined": []
+    },
+    "00000000-0000-4000-8000-000000000166": {
+      "schemaVersion": 2,
+      "records": [
+        {
+          "key": "00000000-0000-4000-8000-000000000167",
+          "fingerprint": "0ebb0a61cd525e69865e591b0b6003fdab54913e833d1f0d892ed4cc3cb133fd",
+          "runId": "00000000-0000-4000-8000-000000000166",
+          "agentSessionId": "00000000-0000-4000-8000-000000000166",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000051",
+          "machineId": "00000000-0000-4000-8000-000000000052",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": "00000000-0000-4000-8000-000000000168",
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000169",
+            "signedEvent": {
+              "promptType": "plan_shaping_feature_sync_iterate",
+              "inputExecution": {
+                "operationId": "00000000-0000-4000-8000-000000000167",
+                "operationFingerprint": "0ebb0a61cd525e69865e591b0b6003fdab54913e833d1f0d892ed4cc3cb133fd",
+                "messageId": "00000000-0000-4000-8000-000000000168"
+              },
+              "nodeId": "plan-shaping-feature-sync-iterate",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000168",
+              "payload": {
+                "userMessage": "Scrubbed userMessage 56"
+              }
+            },
+            "event": {
+              "promptType": "plan_shaping_feature_sync_iterate",
+              "inputExecution": {
+                "operationId": "00000000-0000-4000-8000-000000000167",
+                "operationFingerprint": "0ebb0a61cd525e69865e591b0b6003fdab54913e833d1f0d892ed4cc3cb133fd",
+                "messageId": "00000000-0000-4000-8000-000000000168"
+              },
+              "nodeId": "plan-shaping-feature-sync-iterate",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000168",
+              "payload": {
+                "userMessage": "Scrubbed userMessage 56"
+              }
+            }
+          },
+          "admissionId": "00000000-0000-4000-8000-000000000171",
+          "sequence": 1,
+          "state": "settled",
+          "revision": 4,
+          "projectedRevision": 4,
+          "turnId": "00000000-0000-4000-8000-000000000172",
+          "settlement": {
+            "turnId": "00000000-0000-4000-8000-000000000172",
+            "terminalOutcome": "COMPLETED",
+            "completedAssistantMessageId": "00000000-0000-4000-8000-000000000173",
+            "reports": [],
+            "settledAt": "2026-10-01T20:24:58.221Z"
+          },
+          "settlementDelivered": true,
+          "projectionRetry": {
+            "attempts": 0,
+            "nextAttemptAt": 0
+          },
+          "admissionDisposition": "queued",
+          "kind": "trigger_frame",
+          "keyKind": "operation"
+        }
+      ],
+      "quarantined": []
+    },
+    "00000000-0000-4000-8000-000000000174": {
+      "schemaVersion": 2,
+      "records": [
+        {
+          "key": "00000000-0000-4000-8000-000000000175",
+          "fingerprint": "9daf2fae4376521f1ecbdcf27dcc4e7f5214b25f519fc09a0f1688349d3117ff",
+          "agentSessionId": "00000000-0000-4000-8000-000000000174",
+          "runId": "00000000-0000-4000-8000-000000000174",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000004",
+          "machineId": "00000000-0000-4000-8000-000000000005",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": "00000000-0000-4000-8000-000000000176",
+          "admissionId": "00000000-0000-4000-8000-000000000177",
+          "sequence": 1,
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000178",
+            "signedEvent": {
+              "operationId": "00000000-0000-4000-8000-000000000175",
+              "operationFingerprint": "9daf2fae4376521f1ecbdcf27dcc4e7f5214b25f519fc09a0f1688349d3117ff",
+              "promptType": "user_message",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000180",
+              "sourceUserMessageId": "00000000-0000-4000-8000-000000000176",
+              "payload": {
+                "userMessage": "Scrubbed userMessage 57",
+                "handlerPromptType": "entity_conversation"
+              }
+            },
+            "event": {
+              "operationId": "00000000-0000-4000-8000-000000000175",
+              "operationFingerprint": "9daf2fae4376521f1ecbdcf27dcc4e7f5214b25f519fc09a0f1688349d3117ff",
+              "promptType": "user_message",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000180",
+              "sourceUserMessageId": "00000000-0000-4000-8000-000000000176",
+              "payload": {
+                "userMessage": "Scrubbed userMessage 57",
+                "handlerPromptType": "entity_conversation",
+                "attachments": []
+              }
+            }
+          },
+          "state": "failed",
+          "admissionDisposition": "immediate",
+          "turnId": "00000000-0000-4000-8000-000000000181",
+          "revision": 3,
+          "projectedRevision": 3,
+          "projectionRetry": {
+            "attempts": 0,
+            "nextAttemptAt": 0
+          },
+          "settlement": null,
+          "settlementDelivered": false,
+          "kind": "trigger_frame",
+          "keyKind": "operation"
+        }
+      ],
+      "quarantined": []
+    },
+    "00000000-0000-4000-8000-000000000182": {
+      "schemaVersion": 2,
+      "records": [
+        {
+          "key": "00000000-0000-4000-8000-000000000183",
+          "fingerprint": "bc86cf44dfac20b7d5c0e97692e637864adf83e0f2be4de4f3bfb44f846cdcdf",
+          "agentSessionId": "00000000-0000-4000-8000-000000000182",
+          "runId": "00000000-0000-4000-8000-000000000182",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000004",
+          "machineId": "00000000-0000-4000-8000-000000000005",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": "00000000-0000-4000-8000-000000000184",
+          "admissionId": "00000000-0000-4000-8000-000000000185",
+          "sequence": 0,
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000186",
+            "signedEvent": {
+              "sourceUserMessageId": "00000000-0000-4000-8000-000000000184",
+              "operationId": "00000000-0000-4000-8000-000000000183",
+              "operationFingerprint": "bc86cf44dfac20b7d5c0e97692e637864adf83e0f2be4de4f3bfb44f846cdcdf",
+              "promptType": "start_run",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000188",
+              "payload": {
+                "model": "claude-opus-5-5",
+                "config": {
+                  "type": "ENTITY_CONVERSATION",
+                  "model": "claude-opus-5-5",
+                  "effort": "low",
+                  "version": "v1"
+                },
+                "payload": {
+                  "entity": {
+                    "entityId": "00000000-0000-4000-8000-000000000189",
+                    "entityType": "TASK"
+                  },
+                  "promptType": "entity_conversation",
+                  "userMessage": "Scrubbed userMessage 58"
+                },
+                "provider": "claude",
+                "serviceIds": [
+                  "00000000-0000-4000-8000-000000000103"
+                ],
+                "agentSessionId": "00000000-0000-4000-8000-000000000182",
+                "contextMetadata": {
+                  "projectId": "00000000-0000-4000-8000-000000000004",
+                  "capturedAt": "2026-10-07T21:53:28.626Z",
+                  "userComments": [],
+                  "agentSessionId": "00000000-0000-4000-8000-000000000182",
+                  "fileReferences": {
+                    "resolved": [],
+                    "unresolved": []
+                  },
+                  "organizationId": "00000000-0000-4000-8000-000000000003"
+                },
+                "launchServiceId": "00000000-0000-4000-8000-000000000103",
+                "reasoningEffort": "low",
+                "handlerPromptType": "entity_conversation"
+              }
+            },
+            "event": {
+              "sourceUserMessageId": "00000000-0000-4000-8000-000000000184",
+              "operationId": "00000000-0000-4000-8000-000000000183",
+              "operationFingerprint": "bc86cf44dfac20b7d5c0e97692e637864adf83e0f2be4de4f3bfb44f846cdcdf",
+              "promptType": "start_run",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000188",
+              "payload": {
+                "model": "claude-opus-5-5",
+                "config": {
+                  "type": "ENTITY_CONVERSATION",
+                  "model": "claude-opus-5-5",
+                  "effort": "low",
+                  "version": "v1"
+                },
+                "payload": {
+                  "entity": {
+                    "entityId": "00000000-0000-4000-8000-000000000189",
+                    "entityType": "TASK"
+                  },
+                  "promptType": "entity_conversation",
+                  "userMessage": "Scrubbed userMessage 58"
+                },
+                "provider": "claude",
+                "serviceIds": [
+                  "00000000-0000-4000-8000-000000000103"
+                ],
+                "agentSessionId": "00000000-0000-4000-8000-000000000182",
+                "contextMetadata": {
+                  "projectId": "00000000-0000-4000-8000-000000000004",
+                  "capturedAt": "2026-10-07T21:53:28.626Z",
+                  "userComments": [],
+                  "agentSessionId": "00000000-0000-4000-8000-000000000182",
+                  "fileReferences": {
+                    "resolved": [],
+                    "unresolved": []
+                  },
+                  "organizationId": "00000000-0000-4000-8000-000000000003"
+                },
+                "launchServiceId": "00000000-0000-4000-8000-000000000103",
+                "reasoningEffort": "low",
+                "handlerPromptType": "entity_conversation"
+              }
+            }
+          },
+          "state": "started",
+          "admissionDisposition": "immediate",
+          "turnId": "00000000-0000-4000-8000-000000000190",
+          "revision": 3,
+          "projectedRevision": 3,
+          "projectionRetry": {
+            "attempts": 0,
+            "nextAttemptAt": 0
+          },
+          "settlement": null,
+          "settlementDelivered": false,
+          "kind": "trigger_frame",
+          "keyKind": "operation"
+        },
+        {
+          "key": "00000000-0000-4000-8000-000000000191",
+          "fingerprint": "c2eeed7607b6ccd4832a735d042126e0ca0317453483109a290e9b28fe6bc5d5",
+          "runId": "00000000-0000-4000-8000-000000000182",
+          "agentSessionId": "00000000-0000-4000-8000-000000000182",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000004",
+          "machineId": "00000000-0000-4000-8000-000000000005",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": "00000000-0000-4000-8000-000000000192",
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000186",
+            "signedEvent": {
+              "operationId": "00000000-0000-4000-8000-000000000191",
+              "operationFingerprint": "c2eeed7607b6ccd4832a735d042126e0ca0317453483109a290e9b28fe6bc5d5",
+              "promptType": "user_message",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000194",
+              "sourceUserMessageId": "00000000-0000-4000-8000-000000000192",
+              "payload": {
+                "userMessage": "Scrubbed userMessage 59",
+                "handlerPromptType": "entity_conversation"
+              }
+            },
+            "event": {
+              "operationId": "00000000-0000-4000-8000-000000000191",
+              "operationFingerprint": "c2eeed7607b6ccd4832a735d042126e0ca0317453483109a290e9b28fe6bc5d5",
+              "promptType": "user_message",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000194",
+              "sourceUserMessageId": "00000000-0000-4000-8000-000000000192",
+              "payload": {
+                "userMessage": "Scrubbed userMessage 59",
+                "handlerPromptType": "entity_conversation",
+                "attachments": []
+              }
+            }
+          },
+          "admissionId": "00000000-0000-4000-8000-000000000195",
+          "sequence": 1,
+          "state": "queued",
+          "turnId": null,
+          "revision": 1,
+          "admissionDisposition": "queued",
+          "projectedRevision": 1,
+          "settlement": null,
+          "settlementDelivered": false,
+          "projectionRetry": {
+            "attempts": 0,
+            "nextAttemptAt": 0
+          },
+          "kind": "trigger_frame",
+          "keyKind": "operation"
+        }
+      ],
+      "quarantined": []
+    },
+    "00000000-0000-4000-8000-000000000196": {
+      "schemaVersion": 2,
+      "records": [],
+      "quarantined": []
+    },
+    "00000000-0000-4000-8000-000000000203": {
+      "schemaVersion": 2,
+      "records": [
+        {
+          "key": "00000000-0000-4000-8000-000000000204",
+          "fingerprint": "d907aa9543e264544a1fbed0eed6fb914660055d5f876a9416872f7a1cdbd73f",
+          "runId": "00000000-0000-4000-8000-000000000203",
+          "agentSessionId": "00000000-0000-4000-8000-000000000203",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000004",
+          "machineId": "00000000-0000-4000-8000-000000000005",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": "00000000-0000-4000-8000-000000000205",
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000206",
+            "signedEvent": {
+              "operationId": "00000000-0000-4000-8000-000000000204",
+              "operationFingerprint": "d907aa9543e264544a1fbed0eed6fb914660055d5f876a9416872f7a1cdbd73f",
+              "promptType": "user_message",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000208",
+              "sourceUserMessageId": "00000000-0000-4000-8000-000000000205",
+              "payload": {
+                "userMessage": "Scrubbed userMessage 61",
+                "handlerPromptType": "coding_freeform"
+              }
+            },
+            "event": {
+              "operationId": "00000000-0000-4000-8000-000000000204",
+              "operationFingerprint": "d907aa9543e264544a1fbed0eed6fb914660055d5f876a9416872f7a1cdbd73f",
+              "promptType": "user_message",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000208",
+              "sourceUserMessageId": "00000000-0000-4000-8000-000000000205",
+              "payload": {
+                "userMessage": "Scrubbed userMessage 61",
+                "handlerPromptType": "coding_freeform",
+                "attachments": []
+              }
+            }
+          },
+          "admissionId": "00000000-0000-4000-8000-000000000209",
+          "sequence": 2,
+          "state": "started",
+          "turnId": "00000000-0000-4000-8000-000000000210",
+          "revision": 3,
+          "admissionDisposition": "immediate",
+          "projectedRevision": 3,
+          "settlement": null,
+          "settlementDelivered": false,
+          "projectionRetry": {
+            "attempts": 0,
+            "nextAttemptAt": 0
+          },
+          "kind": "trigger_frame",
+          "keyKind": "operation"
+        }
+      ],
+      "quarantined": []
+    },
+    "00000000-0000-4000-8000-000000000211": {
+      "schemaVersion": 2,
+      "records": [
+        {
+          "key": "00000000-0000-4000-8000-000000000212",
+          "fingerprint": "8ed08f04b1907f9853bb698b65ef7d8d5e71a5622f369d3928c080a0ba60290c",
+          "runId": "00000000-0000-4000-8000-000000000211",
+          "agentSessionId": "00000000-0000-4000-8000-000000000211",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000213",
+          "machineId": "00000000-0000-4000-8000-000000000214",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": "00000000-0000-4000-8000-000000000215",
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000216",
+            "signedEvent": {
+              "operationId": "00000000-0000-4000-8000-000000000212",
+              "operationFingerprint": "8ed08f04b1907f9853bb698b65ef7d8d5e71a5622f369d3928c080a0ba60290c",
+              "promptType": "user_message",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000219",
+              "sourceUserMessageId": "00000000-0000-4000-8000-000000000215",
+              "payload": {
+                "attachments": [],
+                "userMessage": "Scrubbed userMessage 62",
+                "handlerPromptType": "entity_conversation"
+              }
+            },
+            "event": {
+              "operationId": "00000000-0000-4000-8000-000000000212",
+              "operationFingerprint": "8ed08f04b1907f9853bb698b65ef7d8d5e71a5622f369d3928c080a0ba60290c",
+              "promptType": "user_message",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000219",
+              "sourceUserMessageId": "00000000-0000-4000-8000-000000000215",
+              "payload": {
+                "attachments": [],
+                "userMessage": "Scrubbed userMessage 62",
+                "handlerPromptType": "entity_conversation"
+              }
+            }
+          },
+          "admissionId": "00000000-0000-4000-8000-000000000220",
+          "sequence": 2,
+          "state": "settled",
+          "turnId": "00000000-0000-4000-8000-000000000221",
+          "revision": 4,
+          "admissionDisposition": "immediate",
+          "projectedRevision": 4,
+          "settlement": {
+            "turnId": "00000000-0000-4000-8000-000000000221",
+            "terminalOutcome": "COMPLETED",
+            "completedAssistantMessageId": "00000000-0000-4000-8000-000000000222",
+            "reports": [],
+            "settledAt": "2026-10-14T08:20:35.594Z"
+          },
+          "settlementDelivered": true,
+          "projectionRetry": {
+            "attempts": 0,
+            "nextAttemptAt": 0
+          },
+          "kind": "trigger_frame",
+          "keyKind": "operation"
+        }
+      ],
+      "quarantined": []
+    },
+    "00000000-0000-4000-8000-000000000223": {
+      "schemaVersion": 2,
+      "records": [
+        {
+          "key": "00000000-0000-4000-8000-000000000224",
+          "fingerprint": "0154f8667231d6c1763b62957ad532e950e783338f821b2eaf484a770bd9c4da",
+          "agentSessionId": "00000000-0000-4000-8000-000000000223",
+          "runId": "00000000-0000-4000-8000-000000000223",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000004",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "machineId": "00000000-0000-4000-8000-000000000005",
+          "messageId": null,
+          "payload": {
+            "kind": "run_follow_up",
+            "origin": "permission_recovery",
+            "requestId": "claude_permission_00000000-0000-4000-8000-000000000225",
+            "agentInput": {
+              "promptType": "coding_freeform",
+              "userMessage": "Scrubbed userMessage 63"
+            }
+          },
+          "admissionId": "00000000-0000-4000-8000-000000000226",
+          "sequence": 5,
+          "state": "settled",
+          "turnId": "00000000-0000-4000-8000-000000000227",
+          "revision": 4,
+          "admissionDisposition": "immediate",
+          "projectedRevision": 0,
+          "settlement": {
+            "turnId": "00000000-0000-4000-8000-000000000227",
+            "terminalOutcome": "COMPLETED",
+            "completedAssistantMessageId": "00000000-0000-4000-8000-000000000228",
+            "reports": [
+              "00000000-0000-4000-8000-000000000229"
+            ],
+            "settledAt": "2026-10-05T05:20:35.939Z"
+          },
+          "settlementDelivered": true,
+          "kind": "run_follow_up",
+          "keyKind": "operation"
+        }
+      ],
+      "quarantined": []
+    },
+    "00000000-0000-4000-8000-000000000230": {
+      "schemaVersion": 2,
+      "records": [
+        {
+          "key": "00000000-0000-4000-8000-000000000231",
+          "fingerprint": "c29bd26c2a8f56fadbb2249de6dfff7b8da171b887239cf55bb91c94bb7b0266",
+          "runId": "00000000-0000-4000-8000-000000000230",
+          "agentSessionId": "00000000-0000-4000-8000-000000000230",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000004",
+          "machineId": "00000000-0000-4000-8000-000000000232",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": null,
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000233",
+            "signedEvent": {
+              "promptType": "feature_sync_analyze",
+              "nodeId": "feature-sync-analyze",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000231",
+              "payload": {
+                "taskId": "00000000-0000-4000-8000-000000000236"
+              }
+            },
+            "event": {
+              "promptType": "feature_sync_analyze",
+              "nodeId": "feature-sync-analyze",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000231",
+              "payload": {
+                "taskId": "00000000-0000-4000-8000-000000000236"
+              }
+            }
+          },
+          "admissionId": "00000000-0000-4000-8000-000000000237",
+          "sequence": 0,
+          "state": "started",
+          "turnId": "00000000-0000-4000-8000-000000000238",
+          "revision": 3,
+          "admissionDisposition": "immediate",
+          "projectedRevision": 0,
+          "settlement": null,
+          "settlementDelivered": false,
+          "kind": "trigger_frame",
+          "keyKind": "trigger_message"
+        }
+      ],
+      "quarantined": []
+    },
+    "00000000-0000-4000-8000-000000000239": {
+      "schemaVersion": 2,
+      "records": [
+        {
+          "key": "00000000-0000-4000-8000-000000000240",
+          "fingerprint": "f0c8aac3b9c77ebd20a4014416074cf52170cc02020f0650545154548660b63c",
+          "runId": "00000000-0000-4000-8000-000000000239",
+          "agentSessionId": "00000000-0000-4000-8000-000000000239",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000051",
+          "machineId": "00000000-0000-4000-8000-000000000052",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": "00000000-0000-4000-8000-000000000241",
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000242",
+            "signedEvent": {
+              "promptType": "plan_shaping_feature_sync_iterate",
+              "inputExecution": {
+                "operationId": "00000000-0000-4000-8000-000000000240",
+                "operationFingerprint": "f0c8aac3b9c77ebd20a4014416074cf52170cc02020f0650545154548660b63c",
+                "messageId": "00000000-0000-4000-8000-000000000241"
+              },
+              "nodeId": "plan-shaping-feature-sync-iterate",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000241",
+              "payload": {
+                "userMessage": "Scrubbed userMessage 64"
+              }
+            },
+            "event": {
+              "promptType": "plan_shaping_feature_sync_iterate",
+              "inputExecution": {
+                "operationId": "00000000-0000-4000-8000-000000000240",
+                "operationFingerprint": "f0c8aac3b9c77ebd20a4014416074cf52170cc02020f0650545154548660b63c",
+                "messageId": "00000000-0000-4000-8000-000000000241"
+              },
+              "nodeId": "plan-shaping-feature-sync-iterate",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000241",
+              "payload": {
+                "userMessage": "Scrubbed userMessage 64"
+              }
+            }
+          },
+          "admissionId": "00000000-0000-4000-8000-000000000244",
+          "sequence": 1,
+          "state": "settled",
+          "turnId": "00000000-0000-4000-8000-000000000245",
+          "revision": 4,
+          "admissionDisposition": "immediate",
+          "projectedRevision": 4,
+          "settlement": {
+            "turnId": "00000000-0000-4000-8000-000000000245",
+            "terminalOutcome": "COMPLETED",
+            "completedAssistantMessageId": "00000000-0000-4000-8000-000000000246",
+            "reports": [],
+            "settledAt": "2026-10-03T06:23:38.266Z"
+          },
+          "settlementDelivered": true,
+          "projectionRetry": {
+            "attempts": 0,
+            "nextAttemptAt": 0
+          },
+          "kind": "trigger_frame",
+          "keyKind": "operation"
+        }
+      ],
+      "quarantined": []
+    },
+    "00000000-0000-4000-8000-000000000247": {
+      "schemaVersion": 2,
+      "records": [
+        {
+          "key": "00000000-0000-4000-8000-000000000248",
+          "fingerprint": "ab65f313809b01b10c1fc07b20d689db666634f43fe35acd8f4195be2cbcfbff",
+          "agentSessionId": "00000000-0000-4000-8000-000000000247",
+          "runId": "00000000-0000-4000-8000-000000000249",
+          "organizationId": "00000000-0000-4000-8000-000000000250",
+          "projectId": "00000000-0000-4000-8000-000000000251",
+          "machineId": "00000000-0000-4000-8000-000000000252",
+          "userId": "00000000-0000-4000-8000-000000000253",
+          "messageId": "00000000-0000-4000-8000-000000000254",
+          "admissionId": "00000000-0000-4000-8000-000000000255",
+          "sequence": 0,
+          "payload": {
+            "kind": "session_message",
+            "generation": 1,
+            "platformAdmissionId": "00000000-0000-4000-8000-000000000248",
+            "input": {
+              "sourceSessionId": "00000000-0000-4000-8000-000000000247",
+              "interactionId": "00000000-0000-4000-8000-000000000256",
+              "attemptId": "00000000-0000-4000-8000-000000000257",
+              "authorKind": "AGENT",
+              "objective": "Scrubbed objective 65",
+              "authority": {
+                "kind": "MACHINE_SESSION",
+                "machineId": "00000000-0000-4000-8000-000000000252",
+                "sourceSessionId": "00000000-0000-4000-8000-000000000247",
+                "targetSessionId": "00000000-0000-4000-8000-000000000247",
+                "subagentCapability": "RESEARCH"
+              }
+            }
+          },
+          "state": "settled",
+          "turnId": "00000000-0000-4000-8000-000000000258",
+          "revision": 4,
+          "projectedRevision": 4,
+          "settlement": {
+            "turnId": "00000000-0000-4000-8000-000000000258",
+            "reports": []
+          },
+          "settlementDelivered": true,
+          "projectionRetry": {
+            "attempts": 0,
+            "nextAttemptAt": 0
+          },
+          "admissionDisposition": "queued",
+          "kind": "session_message",
+          "keyKind": "operation"
+        },
+        {
+          "key": "00000000-0000-4000-8000-000000000259",
+          "fingerprint": "ab65f313809b01b10c1fc07b20d689db666634f43fe35acd8f4195be2cbcfbff",
+          "agentSessionId": "00000000-0000-4000-8000-000000000247",
+          "runId": "00000000-0000-4000-8000-000000000260",
+          "organizationId": "00000000-0000-4000-8000-000000000250",
+          "projectId": "00000000-0000-4000-8000-000000000251",
+          "machineId": "00000000-0000-4000-8000-000000000252",
+          "userId": "00000000-0000-4000-8000-000000000253",
+          "messageId": "00000000-0000-4000-8000-000000000261",
+          "admissionId": "00000000-0000-4000-8000-000000000262",
+          "sequence": 1,
+          "payload": {
+            "kind": "session_message",
+            "generation": 1,
+            "platformAdmissionId": "00000000-0000-4000-8000-000000000259",
+            "input": {
+              "sourceSessionId": "00000000-0000-4000-8000-000000000247",
+              "interactionId": "00000000-0000-4000-8000-000000000263",
+              "attemptId": "00000000-0000-4000-8000-000000000264",
+              "authorKind": "AGENT",
+              "objective": "Scrubbed objective 65",
+              "authority": {
+                "kind": "MACHINE_SESSION",
+                "machineId": "00000000-0000-4000-8000-000000000252",
+                "sourceSessionId": "00000000-0000-4000-8000-000000000247",
+                "targetSessionId": "00000000-0000-4000-8000-000000000247",
+                "subagentCapability": "RESEARCH"
+              }
+            }
+          },
+          "state": "queued",
+          "turnId": null,
+          "revision": 1,
+          "projectedRevision": 0,
+          "settlement": null,
+          "settlementDelivered": false,
+          "admissionDisposition": "queued",
+          "kind": "session_message",
+          "keyKind": "operation"
+        },
+        {
+          "key": "00000000-0000-4000-8000-000000000265",
+          "fingerprint": "ab65f313809b01b10c1fc07b20d689db666634f43fe35acd8f4195be2cbcfbff",
+          "agentSessionId": "00000000-0000-4000-8000-000000000247",
+          "runId": "00000000-0000-4000-8000-000000000249",
+          "organizationId": "00000000-0000-4000-8000-000000000250",
+          "projectId": "00000000-0000-4000-8000-000000000251",
+          "machineId": "00000000-0000-4000-8000-000000000252",
+          "userId": "00000000-0000-4000-8000-000000000253",
+          "messageId": "00000000-0000-4000-8000-000000000254",
+          "admissionId": "00000000-0000-4000-8000-000000000266",
+          "sequence": 2,
+          "payload": {
+            "kind": "session_message",
+            "generation": 1,
+            "platformAdmissionId": "00000000-0000-4000-8000-000000000248",
+            "input": {
+              "sourceSessionId": "00000000-0000-4000-8000-000000000247",
+              "interactionId": "00000000-0000-4000-8000-000000000256",
+              "attemptId": "00000000-0000-4000-8000-000000000257",
+              "authorKind": "AGENT",
+              "objective": "Scrubbed objective 65",
+              "authority": {
+                "kind": "MACHINE_SESSION",
+                "machineId": "00000000-0000-4000-8000-000000000252",
+                "sourceSessionId": "00000000-0000-4000-8000-000000000247",
+                "targetSessionId": "00000000-0000-4000-8000-000000000247",
+                "subagentCapability": "RESEARCH"
+              }
+            }
+          },
+          "state": "settled",
+          "turnId": "00000000-0000-4000-8000-000000000267",
+          "revision": 4,
+          "projectedRevision": 4,
+          "settlement": {
+            "turnId": "00000000-0000-4000-8000-000000000258",
+            "reports": []
+          },
+          "settlementDelivered": false,
+          "projectionRetry": {
+            "attempts": 0,
+            "nextAttemptAt": 0
+          },
+          "settlementRetry": {
+            "attempts": 1,
+            "nextAttemptAt": 1791410528313
+          },
+          "admissionDisposition": "queued",
+          "kind": "session_message",
+          "keyKind": "operation"
+        }
+      ],
+      "quarantined": []
+    },
+    "00000000-0000-4000-8000-000000000268": {
+      "schemaVersion": 2,
+      "records": [
+        {
+          "key": "00000000-0000-4000-8000-000000000269",
+          "fingerprint": "ab65f313809b01b10c1fc07b20d689db666634f43fe35acd8f4195be2cbcfbff",
+          "agentSessionId": "00000000-0000-4000-8000-000000000268",
+          "runId": "00000000-0000-4000-8000-000000000270",
+          "organizationId": "00000000-0000-4000-8000-000000000250",
+          "projectId": "00000000-0000-4000-8000-000000000251",
+          "machineId": "00000000-0000-4000-8000-000000000252",
+          "userId": "00000000-0000-4000-8000-000000000253",
+          "messageId": "00000000-0000-4000-8000-000000000271",
+          "admissionId": "00000000-0000-4000-8000-000000000272",
+          "sequence": 0,
+          "payload": {
+            "kind": "session_message",
+            "generation": 1,
+            "platformAdmissionId": "00000000-0000-4000-8000-000000000269",
+            "input": {
+              "sourceSessionId": "00000000-0000-4000-8000-000000000268",
+              "interactionId": "00000000-0000-4000-8000-000000000273",
+              "attemptId": "00000000-0000-4000-8000-000000000274",
+              "authorKind": "AGENT",
+              "objective": "Scrubbed objective 65",
+              "authority": {
+                "kind": "MACHINE_SESSION",
+                "machineId": "00000000-0000-4000-8000-000000000252",
+                "sourceSessionId": "00000000-0000-4000-8000-000000000268",
+                "targetSessionId": "00000000-0000-4000-8000-000000000268",
+                "subagentCapability": "RESEARCH"
+              }
+            }
+          },
+          "state": "started",
+          "turnId": "00000000-0000-4000-8000-000000000275",
+          "revision": 3,
+          "projectedRevision": 0,
+          "settlement": null,
+          "settlementDelivered": false,
+          "admissionDisposition": "queued",
+          "kind": "session_message",
+          "keyKind": "operation"
+        },
+        {
+          "key": "00000000-0000-4000-8000-000000000276",
+          "fingerprint": "d5c7471a95ca795a09d68d6d494742f68db4fc1f8d270a182f0e2fd4f741c784",
+          "agentSessionId": "00000000-0000-4000-8000-000000000268",
+          "runId": "00000000-0000-4000-8000-000000000270",
+          "organizationId": "00000000-0000-4000-8000-000000000250",
+          "projectId": "00000000-0000-4000-8000-000000000251",
+          "machineId": "00000000-0000-4000-8000-000000000252",
+          "userId": "00000000-0000-4000-8000-000000000253",
+          "messageId": null,
+          "admissionId": "00000000-0000-4000-8000-000000000277",
+          "sequence": 1,
+          "payload": {
+            "kind": "run_follow_up",
+            "origin": "review_service_recovery",
+            "replacesTurnId": "00000000-0000-4000-8000-000000000275",
+            "requestId": "review-service-recovery-1",
+            "agentInput": {
+              "promptType": "code_review"
+            }
+          },
+          "state": "queued",
+          "turnId": null,
+          "revision": 1,
+          "projectedRevision": 0,
+          "settlement": null,
+          "settlementDelivered": false,
+          "admissionDisposition": "queued",
+          "kind": "run_follow_up",
+          "keyKind": "operation"
+        },
+        {
+          "key": "00000000-0000-4000-8000-000000000278",
+          "fingerprint": "ab65f313809b01b10c1fc07b20d689db666634f43fe35acd8f4195be2cbcfbff",
+          "agentSessionId": "00000000-0000-4000-8000-000000000268",
+          "runId": "00000000-0000-4000-8000-000000000270",
+          "organizationId": "00000000-0000-4000-8000-000000000250",
+          "projectId": "00000000-0000-4000-8000-000000000251",
+          "machineId": "00000000-0000-4000-8000-000000000252",
+          "userId": "00000000-0000-4000-8000-000000000253",
+          "messageId": "00000000-0000-4000-8000-000000000271",
+          "admissionId": "00000000-0000-4000-8000-000000000279",
+          "sequence": 2,
+          "payload": null,
+          "state": "cancelled",
+          "turnId": null,
+          "revision": 1,
+          "projectedRevision": 0,
+          "settlement": null,
+          "settlementDelivered": false,
+          "admissionDisposition": "queued",
+          "kind": null,
+          "keyKind": "operation"
+        }
+      ],
+      "quarantined": []
+    },
+    "00000000-0000-4000-8000-000000000280": {
+      "schemaVersion": 2,
+      "records": [
+        {
+          "key": "00000000-0000-4000-8000-000000000281",
+          "fingerprint": "ab65f313809b01b10c1fc07b20d689db666634f43fe35acd8f4195be2cbcfbff",
+          "agentSessionId": "00000000-0000-4000-8000-000000000280",
+          "runId": "00000000-0000-4000-8000-000000000260",
+          "organizationId": "00000000-0000-4000-8000-000000000250",
+          "projectId": "00000000-0000-4000-8000-000000000251",
+          "machineId": "00000000-0000-4000-8000-000000000252",
+          "userId": "00000000-0000-4000-8000-000000000253",
+          "messageId": "00000000-0000-4000-8000-000000000261",
+          "admissionId": "00000000-0000-4000-8000-000000000282",
+          "sequence": 0,
+          "payload": {
+            "kind": "session_message",
+            "generation": 1,
+            "platformAdmissionId": "00000000-0000-4000-8000-000000000283",
+            "input": {
+              "sourceSessionId": "00000000-0000-4000-8000-000000000247",
+              "interactionId": "00000000-0000-4000-8000-000000000263",
+              "attemptId": "00000000-0000-4000-8000-000000000264",
+              "authorKind": "AGENT",
+              "objective": "Scrubbed objective 65",
+              "authority": {
+                "kind": "MACHINE_SESSION",
+                "machineId": "00000000-0000-4000-8000-000000000252",
+                "sourceSessionId": "00000000-0000-4000-8000-000000000247",
+                "targetSessionId": "00000000-0000-4000-8000-000000000280",
+                "subagentCapability": "RESEARCH"
+              }
+            }
+          },
+          "state": "picked",
+          "turnId": "00000000-0000-4000-8000-000000000284",
+          "revision": 2,
+          "projectedRevision": 0,
+          "settlement": null,
+          "settlementDelivered": false,
+          "admissionDisposition": "queued",
+          "kind": "session_message",
+          "keyKind": "operation"
+        }
+      ],
+      "quarantined": []
+    }
+  }
+}

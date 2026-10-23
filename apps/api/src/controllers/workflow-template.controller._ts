@@ -1,0 +1,385 @@
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Logger,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ListWorkflowTemplates200ResponseAllOfData,
+  WorkflowAnalyticsDto,
+  WorkflowExecutionListDto,
+  WorkflowStructureDto,
+  WorkflowTemplateDto,
+  WorkflowTemplateMetricsDto,
+  WorkflowValidationResultDto,
+} from '../generated';
+import { WorkflowExecutionService } from '../services/workflows/workflow-execution.service';
+// import { WorkflowStructureService } from '../services/workflows/workflow-structure.service._ts';
+// import { WorkflowTemplateService } from '../services/workflows/workflow-template.service._ts';
+import { FlowContext } from 'src/types/flow-internal.types';
+
+@Controller('api/v1/workflows/templates')
+@ApiTags('Workflow Templates')
+export class WorkflowTemplateController {
+  private readonly logger = new Logger(WorkflowTemplateController.name);
+
+  constructor(
+    private readonly workflowTemplateService: WorkflowTemplateService,
+    private readonly workflowExecutionService: WorkflowExecutionService,
+    private readonly workflowStructureService: WorkflowStructureService,
+  ) {}
+
+  @Get()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'List workflow templates',
+    description: 'Get all available workflow templates with basic metadata',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Workflow templates retrieved successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid request parameters',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async listWorkflowTemplates(
+    @Query('organizationId') organizationId?: string,
+    @Query('status') status?: 'active' | 'inactive' | 'draft',
+    @Query('limit') limit = 50,
+    @Query('offset') offset = 0,
+  ): Promise<ListWorkflowTemplates200ResponseAllOfData> {
+    this.logger.log(
+      `Listing workflow templates: orgId=${organizationId}, status=${status}, limit=${limit}, offset=${offset}`,
+    );
+
+    const result = await this.workflowTemplateService.listTemplates({
+      organizationId,
+      status,
+      limit: Math.min(limit, 100),
+      offset: Math.max(offset, 0),
+    });
+
+    return result;
+  }
+
+  @Get(':templateId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get workflow template details',
+    description: 'Get complete details of a specific workflow template',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Workflow template retrieved successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Workflow template not found',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async getWorkflowTemplate(
+    @Param('templateId') templateId: string,
+  ): Promise<WorkflowTemplateDto> {
+    this.logger.log(`Getting workflow template: ${templateId}`);
+
+    const template = await this.workflowTemplateService.getTemplate(templateId);
+
+    return template;
+  }
+
+  @Post(':templateId/validate')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Validate workflow template',
+    description:
+      'Validate the structure and configuration of a workflow template',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Workflow template validation completed',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Workflow template not found',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async validateWorkflowTemplate(
+    @Param('templateId') templateId: string,
+    @Body() flowContext: FlowContext,
+  ): Promise<WorkflowValidationResultDto> {
+    this.logger.log(`Validating workflow template: ${templateId}`);
+
+    const validationResult =
+      await this.workflowTemplateService.validateTemplate(
+        templateId,
+        flowContext,
+      );
+
+    return validationResult;
+  }
+
+  @Get(':templateId/metrics')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get workflow template metrics',
+    description:
+      'Get usage statistics and performance metrics for a specific workflow template',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Workflow template metrics retrieved successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Workflow template not found',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async getWorkflowTemplateMetrics(
+    @Param('templateId') templateId: string,
+    @Query('organizationId') organizationId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ): Promise<WorkflowTemplateMetricsDto> {
+    this.logger.log(`Getting metrics for workflow template: ${templateId}`);
+
+    const metrics = await this.workflowExecutionService.getTemplateMetrics(
+      templateId,
+      {
+        organizationId,
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : undefined,
+      },
+    );
+
+    return metrics;
+  }
+
+  @Get(':templateId/structure')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get workflow template structure',
+    description:
+      'Get normalized structure data for workflow visualization and diagram generation',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Workflow template structure retrieved successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Workflow template not found',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async getWorkflowTemplateStructure(
+    @Param('templateId') templateId: string,
+    @Query('includeMetadata') includeMetadata = false,
+  ): Promise<WorkflowStructureDto> {
+    this.logger.log(`Getting structure for workflow template: ${templateId}`);
+
+    // Get the raw flow definition directly from the service
+    const structure = await this.workflowStructureService.getWorkflowStructure(
+      templateId,
+      {
+        includeMetadata,
+      },
+    );
+
+    return structure;
+  }
+
+  @Get(':templateId/nodes/:nodeId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get workflow node details',
+    description:
+      'Get complete details of a specific workflow node including prompt config and examples',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Workflow node details retrieved successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Workflow template or node not found',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async getWorkflowNodeDetail(
+    @Param('templateId') templateId: string,
+    @Param('nodeId') nodeId: string,
+  ) {
+    this.logger.log(`Getting node details: ${templateId}/${nodeId}`);
+
+    const nodeDetail = await this.workflowTemplateService.getNodeDetail(
+      templateId,
+      nodeId,
+    );
+
+    return nodeDetail;
+  }
+
+  @Post(':templateId/nodes/:nodeId/test')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Test workflow node',
+    description: 'Test a specific workflow node with custom context and input',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Node test completed successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Workflow template or node not found',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async testWorkflowNode(
+    @Param('templateId') templateId: string,
+    @Param('nodeId') nodeId: string,
+    @Body()
+    testRequest: { context: FlowContext; userInput: Record<string, unknown> },
+  ) {
+    this.logger.log(`Testing node: ${templateId}/${nodeId}`, testRequest);
+
+    const testResult = await this.workflowTemplateService.testNode(
+      templateId,
+      nodeId,
+      testRequest,
+    );
+
+    return testResult;
+  }
+}
+
+@Controller('workflows')
+@ApiTags('Workflow Analytics')
+export class WorkflowAnalyticsController {
+  private readonly logger = new Logger(WorkflowAnalyticsController.name);
+
+  constructor(
+    private readonly workflowExecutionService: WorkflowExecutionService,
+  ) {}
+
+  @Get('analytics')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get workflow analytics',
+    description:
+      'Get aggregate analytics and insights across all workflow templates',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Workflow analytics retrieved successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid request parameters',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async getWorkflowAnalytics(
+    @Query('organizationId') organizationId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('templateIds') templateIds?: string,
+  ): Promise<WorkflowAnalyticsDto> {
+    this.logger.log(`Getting workflow analytics: orgId=${organizationId}`);
+
+    const templateIdArray = templateIds ? templateIds.split(',') : undefined;
+
+    const analytics = await this.workflowExecutionService.getWorkflowAnalytics({
+      organizationId,
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined,
+      templateIds: templateIdArray,
+    });
+
+    return analytics;
+  }
+
+  @Get('executions')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get workflow executions',
+    description:
+      'Get a list of workflow executions with filtering and pagination',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Workflow executions retrieved successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid request parameters',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async getWorkflowExecutions(
+    @Query('organizationId') organizationId?: string,
+    @Query('templateId') templateId?: string,
+    @Query('projectId') projectId?: string,
+    @Query('userId') userId?: string,
+    @Query('status')
+    status?: 'STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'CANCELLED',
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('limit') limit = 50,
+    @Query('offset') offset = 0,
+    @Query('sortBy')
+    sortBy: 'startedAt' | 'completedAt' | 'executionTimeMs' = 'startedAt',
+    @Query('sortOrder') sortOrder: 'asc' | 'desc' = 'desc',
+  ): Promise<WorkflowExecutionListDto> {
+    this.logger.log(
+      `Getting workflow executions: orgId=${organizationId}, templateId=${templateId}`,
+    );
+
+    const executions =
+      await this.workflowExecutionService.getWorkflowExecutions({
+        organizationId,
+        templateId,
+        projectId,
+        userId,
+        status,
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : undefined,
+        limit: Math.min(limit, 200),
+        offset: Math.max(offset, 0),
+        sortBy,
+        sortOrder,
+      });
+
+    return executions;
+  }
+}

@@ -1,0 +1,17 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`AdrRefinementAgentNextLevelNode agent input snapshot captures structured agent request snapshot 1`] = `
+{
+  "activeSection": "decision",
+  "adr": {
+    "consequences": "",
+    "context": "Existing payment flow context.",
+    "decision": "",
+    "title": "Payments ADR",
+  },
+  "initiative": undefined,
+  "lastUserMessage": "We need a first draft of Decision, fenerate initial content based on the existing ADR sections. Focus exclusively on writing the draft of Decision section and produce polished markdown.",
+  "requiredOps": 1,
+  "task": undefined,
+}
+`;

@@ -1,0 +1,12 @@
+PaymentProviderWebhookAcceptedResponseDto:
+  type: object
+  additionalProperties: false
+  required:
+    - accepted
+  properties:
+    accepted:
+      type: boolean
+      enum: [true]
+      description: >-
+        True means the verified event was accepted for generic processing; it
+        does not disclose binding, entitlement, signature, or processing state.

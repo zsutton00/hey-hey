@@ -1,0 +1,109 @@
+{
+  "notStarted": {
+    "executionPlan": [
+      {
+        "taskId": "66666666-6666-4666-8666-666666666666",
+        "dependsOnTaskIds": [],
+        "launchConfiguration": {
+          "method": "quick",
+          "provider": "codex",
+          "model": "gpt-5.5",
+          "reasoningEffort": "high",
+          "fastMode": true
+        },
+        "agentSessionId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      },
+      {
+        "taskId": "88888888-8888-4888-8888-888888888888",
+        "dependsOnTaskIds": [
+          "66666666-6666-4666-8666-666666666666"
+        ],
+        "launchConfiguration": {
+          "method": "plan",
+          "provider": "codex",
+          "model": "gpt-5.5",
+          "reasoningEffort": "high",
+          "fastMode": false
+        },
+        "agentSessionId": null
+      }
+    ],
+    "launchPolicy": {
+      "worktree": {
+        "enabled": true,
+        "branch": "heyhey/task-monitor-worktree"
+      },
+      "terminalSupervision": {
+        "mode": "AGENT_DECIDES"
+      }
+    },
+    "cursor": 0
+  },
+  "running": {
+    "executionPlan": [
+      {
+        "taskId": "66666666-6666-4666-8666-666666666666",
+        "dependsOnTaskIds": [],
+        "launchConfiguration": {
+          "method": "open",
+          "provider": "claude",
+          "model": "claude-sonnet-4-6",
+          "reasoningEffort": "medium"
+        },
+        "agentSessionId": null
+      }
+    ],
+    "launchPolicy": {
+      "terminalSupervision": {
+        "mode": "REQUIRE_REVIEW"
+      }
+    },
+    "cursor": 0
+  },
+  "paused": {
+    "executionPlan": [
+      {
+        "taskId": "66666666-6666-4666-8666-666666666666",
+        "dependsOnTaskIds": [],
+        "launchConfiguration": {
+          "method": "quick",
+          "provider": "opencode",
+          "model": "glm-5.2",
+          "reasoningEffort": "low"
+        },
+        "agentSessionId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      }
+    ],
+    "launchPolicy": {
+      "terminalSupervision": {
+        "mode": "AGENT_DECIDES"
+      }
+    },
+    "cursor": 0
+  },
+  "launchConfigs": {
+    "supportedEnabled": {
+      "taskId": "66666666-6666-4666-8666-666666666666",
+      "method": "quick",
+      "provider": "codex",
+      "model": "gpt-5.5",
+      "reasoningEffort": "high",
+      "fastMode": true
+    },
+    "supportedDisabled": {
+      "taskId": "88888888-8888-4888-8888-888888888888",
+      "method": "plan",
+      "provider": "codex",
+      "model": "gpt-5.5",
+      "reasoningEffort": "high",
+      "fastMode": false
+    },
+    "unsupportedOmitted": {
+      "taskId": "66666666-6666-4666-8666-666666666666",
+      "method": "open",
+      "provider": "claude",
+      "model": "claude-sonnet-4-6",
+      "reasoningEffort": "medium"
+    }
+  }
+}

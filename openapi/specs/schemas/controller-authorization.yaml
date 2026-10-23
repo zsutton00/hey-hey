@@ -1,0 +1,971 @@
+# =============================================
+# Controller-authorized local execution protocol
+# =============================================
+
+AuthorizationProtocolVersion:
+  type: integer
+  enum: [1, 2]
+  description: >-
+    Closed wire version. Version 1 remains visible during upgrade but is never
+    accepted as executable version-2 authority.
+
+ControllerCredentialId:
+  type: string
+  minLength: 1
+  maxLength: 1024
+  pattern: '^[A-Za-z0-9_-]+$'
+  description: >-
+    Base64url WebAuthn controller credential identifier. This is never the
+    internal MachineControllerCredential relational row ID.
+
+ControllerCredentialPublicKey:
+  type: object
+  additionalProperties: false
+  required: [kty, crv, x, y]
+  properties:
+    kty:
+      type: string
+      enum: [EC]
+    crv:
+      type: string
+      enum: [P-256]
+    x:
+      type: string
+      minLength: 43
+      maxLength: 43
+      pattern: '^[A-Za-z0-9_-]{43}$'
+      description: Base64url-encoded 32-byte P-256 public-key x coordinate.
+    y:
+      type: string
+      minLength: 43
+      maxLength: 43
+      pattern: '^[A-Za-z0-9_-]{43}$'
+      description: Base64url-encoded 32-byte P-256 public-key y coordinate.
+
+ControllerInstallationId:
+  type: string
+  format: uuid
+  description: >-
+    Server-owned stable identity for the passkey-prompting browser installation.
+    It remains inside canonical and executable authorization evidence but is
+    never supplied, returned, or persisted by browser JavaScript.
+
+MachineExecutionReadinessState:
+  type: string
+  enum:
+    - NO_MACHINE_SELECTED
+    - LEGACY_PROTOCOL
+    - CONTROLLER_ENROLLMENT_REQUIRED
+    - CONTROLLER_REVOKED
+    - MACHINE_REVOKED
+    - DISCONNECTED
+    - READY
+  description: >-
+    Closed server-derived readiness. Only READY identifies a connected
+    protocol-2 machine with an active controller; every other state remains
+    visible for selection guidance, enrollment, recovery, or revocation.
+
+CurrentControllerMachineEligibilityState:
+  type: string
+  enum:
+    - ELIGIBLE
+    - NOT_ENROLLED
+    - REVOKED
+  description: >-
+    Server-derived relationship between the requesting browser controller
+    installation and one paired machine. ELIGIBLE requires a retained opaque
+    browser identity and an active
+    locally-confirmed controller credential binding for that installation and
+    machine. Expiry of a prior reusable authorization window does not erase the
+    browser identity needed for fresh exact-action proof. Missing legacy
+    bindings are NOT_ENROLLED; a binding with no active credential is REVOKED.
+    This state is independent of machine connectivity and global execution
+    readiness and never substitutes for exact-action controller proof.
+
+HostActionCategory:
+  type: string
+  enum:
+    - CONVERSATION
+    - PLATFORM_EVENT
+    - AUTHORITY_INCREASING_CONTROL
+    - TASK_MONITOR
+    - CLI_READ
+    - APPLICATION_EFFECT
+    - EXACT_ACTION
+
+HostAffectingActionType:
+  type: string
+  enum:
+    - CONVERSATION_TRIGGER
+    - PLATFORM_EVENT_TRIGGER
+    - CONVERSATION_CONTROL_COMPACT_RUN
+    - CONVERSATION_CONTROL_PERMISSION_DECISION
+    - TASK_MONITOR_START
+    - TASK_MONITOR_RESUME
+    - TASK_MONITOR_JUDGMENT_RESOLVED
+    - TASK_MONITOR_CONTINUE
+    - TASK_MONITOR_COMPLETE
+    - CLI_READ
+    - APPLICATION_EFFECT_LAUNCH
+    - EXACT_ACTION_DELIVERY
+  description: >-
+    Exhaustive authority-increasing or host-observing vocabulary. Reductions
+    are deliberately excluded and classified separately.
+
+CurrentAgentOperation:
+  type: string
+  enum:
+    - CONVERSATION_TRIGGER
+    - PLATFORM_EVENT_TRIGGER
+    - CONVERSATION_CONTROL_COMPACT_RUN
+    - CONVERSATION_CONTROL_PERMISSION_DECISION
+    - TASK_MONITOR_START
+    - TASK_MONITOR_RESUME
+    - TASK_MONITOR_JUDGMENT_RESOLVED
+    - TASK_MONITOR_CONTINUE
+    - TASK_MONITOR_COMPLETE
+    - CLI_READ
+    - APPLICATION_EFFECT_LAUNCH
+    - EXACT_ACTION_DELIVERY
+  description: >-
+    Closed bundle of host-affecting operations supported by the current
+    controller-authorization protocol. Adding a HostAffectingActionType does
+    not add it to an existing grant; this bundle must be revised deliberately.
+
+CurrentAgentOperations:
+  type: array
+  minItems: 12
+  maxItems: 12
+  uniqueItems: true
+  items:
+    $ref: "#/CurrentAgentOperation"
+  description: >-
+    Exact generated current-operation bundle carried by controller-device
+    grants. All twelve values are required exactly once.
+
+AuthorityReductionActionType:
+  type: string
+  enum:
+    - CONVERSATION_STOP
+    - AGENT_SESSION_CANCEL
+    - TASK_MONITOR_PAUSE
+    - TASK_MONITOR_STOP
+    - TASK_MONITOR_HALT
+    - MACHINE_REVOKE
+    - CONTROLLER_REVOKE
+  description: >-
+    Actions that only reduce authority. They retain ordinary authentication,
+    ownership, signature, and routing checks but never require or create
+    controller execution authority.
+
+HostActionTargetKind:
+  type: string
+  enum:
+    - CLI_READ
+    - CONVERSATION
+    - AGENT_SESSION
+    - TASK_MONITOR
+    - PLATFORM_EVENT
+    - APPLICATION_EFFECT
+    - EXACT_ACTION
+
+HostActionTarget:
+  type: object
+  additionalProperties: false
+  required: [kind, id, revision]
+  properties:
+    kind:
+      $ref: "#/HostActionTargetKind"
+    id:
+      type: string
+      format: uuid
+    revision:
+      type: integer
+      format: int64
+      minimum: 0
+      nullable: true
+      description: Server-resolved revision, or null for targets without one.
+
+ControllerAuthorizationCadence:
+  type: string
+  enum:
+    - FIVE_MINUTES
+    - EIGHT_HOURS
+    - ONE_DAY
+    - ONE_WEEK
+    - ONE_MONTH
+  description: >-
+    Closed browser-requested reusable controller-device cadence. Each value
+    derives one server-owned controller-device window with an effective expiry
+    fixed by the selected cadence; assertion challenges remain independently
+    single-use and valid for two minutes.
+
+CanonicalControllerAuthorizationIntent:
+  type: object
+  additionalProperties: false
+  required:
+    - version
+    - authorizationId
+    - controllerCredentialId
+    - controllerInstallationId
+    - machineId
+    - userId
+    - organizationId
+    - projectId
+    - cadence
+    - policyRevision
+    - effectiveGrantExpiresAtMs
+    - grantDescriptorHash
+    - actionCategory
+    - actionType
+    - actionPayloadHash
+    - allowedActionTypes
+    - allowedActionCategories
+    - target
+    - agentSessionId
+    - taskMonitorId
+    - nonce
+    - issuedAtMs
+    - expiresAtMs
+  properties:
+    version:
+      type: integer
+      enum: [2]
+    authorizationId:
+      type: string
+      format: uuid
+    controllerCredentialId:
+      $ref: "#/ControllerCredentialId"
+    controllerInstallationId:
+      $ref: "#/ControllerInstallationId"
+      description: Stable identity for the prompting browser installation.
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    userId:
+      $ref: "./common.yaml#/UserId"
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+    cadence:
+      $ref: "#/ControllerAuthorizationCadence"
+    policyRevision:
+      type: integer
+      format: int32
+      minimum: 1
+      description: Server-owned policy revision used to derive the grant scope.
+    effectiveGrantExpiresAtMs:
+      type: integer
+      format: int64
+      description: >-
+        Server-computed controller-device grant expiry. This lifetime is
+        independent from the two-minute, single-use WebAuthn challenge.
+    grantDescriptorHash:
+      type: string
+      pattern: '^[a-f0-9]{64}$'
+      description: >-
+        Lowercase SHA-256 of the complete immutable controller-device grant
+        descriptor, including installation, machine, action set, policy,
+        issue time, and effective expiry.
+    actionCategory:
+      $ref: "#/HostActionCategory"
+    actionType:
+      $ref: "#/HostAffectingActionType"
+    actionPayloadHash:
+      type: string
+      pattern: '^[a-f0-9]{64}$'
+      description: >-
+        Lowercase SHA-256 of the RFC 8785 canonical action payload, computed by
+        the server from the resolved action and never supplied by the browser.
+    allowedActionTypes:
+      $ref: "#/CurrentAgentOperations"
+    allowedActionCategories:
+      type: array
+      minItems: 1
+      maxItems: 7
+      uniqueItems: true
+      items:
+        $ref: "#/HostActionCategory"
+      description: >-
+        Server-computed closed host-action class set carried in the canonical
+        intent and repeated in the immutable grant descriptor.
+    target:
+      $ref: "#/HostActionTarget"
+    agentSessionId:
+      type: string
+      format: uuid
+      nullable: true
+    taskMonitorId:
+      type: string
+      format: uuid
+      nullable: true
+    nonce:
+      type: string
+      minLength: 43
+      maxLength: 43
+      pattern: '^[A-Za-z0-9_-]{43}$'
+      description: Base64url encoding of a server-generated 256-bit nonce.
+    issuedAtMs:
+      type: integer
+      format: int64
+    expiresAtMs:
+      type: integer
+      format: int64
+      description: Unix epoch milliseconds exactly two minutes after issuance.
+  description: >-
+    Complete RFC 8785-canonical intent. The WebAuthn challenge is base64url
+    SHA-256 over UTF-8 `heyhey-controller-authorization-v1`, one zero byte, and
+    the RFC 8785 serialization of this object. Every field is server-authored or
+    server-resolved and participates in the controller proof.
+
+ControllerAssertionEvidence:
+  type: object
+  additionalProperties: false
+  required:
+    - kind
+    - intent
+    - credentialId
+    - clientDataJSON
+    - authenticatorData
+    - signature
+    - userHandle
+    - grantDescriptor
+  properties:
+    kind:
+      type: string
+      enum: [controller_assertion]
+    intent:
+      $ref: "#/CanonicalControllerAuthorizationIntent"
+    credentialId:
+      $ref: "#/ControllerCredentialId"
+    clientDataJSON:
+      type: string
+      minLength: 1
+      pattern: '^[A-Za-z0-9_-]+$'
+    authenticatorData:
+      type: string
+      minLength: 1
+      pattern: '^[A-Za-z0-9_-]+$'
+    signature:
+      type: string
+      minLength: 1
+      pattern: '^[A-Za-z0-9_-]+$'
+    userHandle:
+      type: string
+      pattern: '^[A-Za-z0-9_-]+$'
+      nullable: true
+    grantDescriptor:
+      $ref: "#/ControllerDeviceGrantDescriptor"
+  description: >-
+    Fresh browser-submitted controller proof. It carries no server grant
+    identifier. The API verifies and consumes this evidence before deriving or
+    resolving any reusable grant and constructing executable activation
+    evidence.
+
+ExecutableControllerAssertionEvidence:
+  type: object
+  additionalProperties: false
+  required:
+    - kind
+    - intent
+    - credentialId
+    - clientDataJSON
+    - authenticatorData
+    - signature
+    - userHandle
+    - grantDescriptor
+    - grantId
+  properties:
+    kind:
+      type: string
+      enum: [controller_assertion]
+    intent:
+      $ref: "#/CanonicalControllerAuthorizationIntent"
+    credentialId:
+      $ref: "#/ControllerCredentialId"
+    clientDataJSON:
+      type: string
+      minLength: 1
+      pattern: '^[A-Za-z0-9_-]+$'
+    authenticatorData:
+      type: string
+      minLength: 1
+      pattern: '^[A-Za-z0-9_-]+$'
+    signature:
+      type: string
+      minLength: 1
+      pattern: '^[A-Za-z0-9_-]+$'
+    userHandle:
+      type: string
+      pattern: '^[A-Za-z0-9_-]+$'
+      nullable: true
+    grantDescriptor:
+      $ref: "#/ControllerDeviceGrantDescriptor"
+    grantId:
+      type: string
+      format: uuid
+      description: >-
+        Authoritative server-issued controller-device-window grant identifier.
+  description: >-
+    Post-admission activation evidence constructed by the API and carried
+    inside a platform-signed executable envelope. The CLI independently
+    verifies the assertion and immutable descriptor before installing reusable
+    authority.
+
+ControllerDeviceGrantScope:
+  type: string
+  enum:
+    - controller_device_window
+  description: Closed scope name for a reusable controller-device grant.
+
+ControllerDeviceGrantDescriptor:
+  type: object
+  additionalProperties: false
+  required:
+    - scope
+    - controllerCredentialId
+    - controllerInstallationId
+    - machineId
+    - userId
+    - organizationId
+    - cadence
+    - policyRevision
+    - allowedActionTypes
+    - allowedActionCategories
+    - issuedAtMs
+    - effectiveExpiresAtMs
+  properties:
+    scope:
+      $ref: "#/ControllerDeviceGrantScope"
+    controllerCredentialId:
+      $ref: "#/ControllerCredentialId"
+    controllerInstallationId:
+      $ref: "#/ControllerInstallationId"
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    userId:
+      $ref: "./common.yaml#/UserId"
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+    cadence:
+      $ref: "#/ControllerAuthorizationCadence"
+    policyRevision:
+      type: integer
+      format: int32
+      minimum: 1
+    allowedActionTypes:
+      $ref: "#/CurrentAgentOperations"
+    allowedActionCategories:
+      type: array
+      minItems: 1
+      maxItems: 7
+      uniqueItems: true
+      items:
+        $ref: "#/HostActionCategory"
+    issuedAtMs:
+      type: integer
+      format: int64
+    effectiveExpiresAtMs:
+      type: integer
+      format: int64
+  description: >-
+    Immutable descriptor hashed by
+    CanonicalControllerAuthorizationIntent.grantDescriptorHash. Every cadence
+    creates one reusable controller-device window with this effective expiry.
+
+BoundedGrantReference:
+  type: object
+  additionalProperties: false
+  required:
+    - kind
+    - grantId
+  properties:
+    kind:
+      type: string
+      enum: [bounded_grant]
+    grantId:
+      type: string
+      format: uuid
+  description: >-
+    Reference-only reuse of an active server-admitted controller-device grant.
+    All scope is resolved from persisted grant state; callers cannot widen it
+    by supplying a target, action, machine, user, or expiry alongside the ID.
+
+AdmissionEnvelopeAuthorization:
+  oneOf:
+    - $ref: "#/ControllerAssertionEvidence"
+    - $ref: "#/BoundedGrantReference"
+  discriminator:
+    propertyName: kind
+    mapping:
+      controller_assertion: "#/ControllerAssertionEvidence"
+      bounded_grant: "#/BoundedGrantReference"
+  description: >-
+    Closed API-admission union. A browser submits fresh assertion evidence
+    without a grant identifier, or references an already active bounded grant.
+    The API constructs the distinct executable activation arm after admission.
+
+ExecutableEnvelopeAuthorization:
+  oneOf:
+    - $ref: "#/ExecutableControllerAssertionEvidence"
+    - $ref: "#/BoundedGrantReference"
+  discriminator:
+    propertyName: kind
+    mapping:
+      controller_assertion: "#/ExecutableControllerAssertionEvidence"
+      bounded_grant: "#/BoundedGrantReference"
+  description: >-
+    Closed two-arm union. Activation carries fresh assertion evidence plus the
+    complete immutable descriptor; reuse carries only the active grant
+    reference. Exactly one arm is required by every protocol-2 executable
+    envelope.
+
+ConversationHostActionPreparation:
+  type: object
+  additionalProperties: false
+  required:
+    - requestId
+    - actionCategory
+    - actionType
+    - targetKind
+    - targetId
+  properties:
+    requestId:
+      type: string
+      format: uuid
+      description: Retry identity only; it conveys no execution authority.
+    actionCategory:
+      $ref: "#/HostActionCategory"
+    actionType:
+      $ref: "#/HostAffectingActionType"
+    targetKind:
+      type: string
+      enum: [CONVERSATION]
+    targetId:
+      type: string
+      format: uuid
+      description: >-
+        Selection hint only. The server resolves and authorizes the canonical
+        target instead of copying browser scope into the intent.
+  description: >-
+    Closed selector for a non-revisioned conversation action. Conversation
+    authorization is bound to target identity and the immutable operation
+    fingerprint instead of a mutable conversation counter.
+
+AgentSessionHostActionPreparation:
+  type: object
+  additionalProperties: false
+  required:
+    - requestId
+    - actionCategory
+    - actionType
+    - targetKind
+    - targetId
+  properties:
+    requestId:
+      type: string
+      format: uuid
+      description: Retry identity only; it conveys no execution authority.
+    actionCategory:
+      $ref: "#/HostActionCategory"
+    actionType:
+      $ref: "#/HostAffectingActionType"
+    targetKind:
+      type: string
+      enum: [AGENT_SESSION]
+    targetId:
+      type: string
+      format: uuid
+      description: >-
+        Selection hint only. The server resolves and authorizes the canonical
+        target instead of copying browser scope into the intent.
+  description: >-
+    Closed selector for a non-revisioned Agent Session action. Agent Session
+    authorization is bound to target identity and the immutable operation
+    fingerprint instead of a mutable conversation counter.
+
+TaskMonitorHostActionPreparation:
+  type: object
+  additionalProperties: false
+  required:
+    - requestId
+    - actionCategory
+    - actionType
+    - targetKind
+    - targetId
+  properties:
+    requestId:
+      type: string
+      format: uuid
+      description: Retry identity only; it conveys no execution authority.
+    actionCategory:
+      $ref: "#/HostActionCategory"
+    actionType:
+      $ref: "#/HostAffectingActionType"
+    targetKind:
+      type: string
+      enum: [TASK_MONITOR]
+    targetId:
+      type: string
+      format: uuid
+      description: >-
+        Selection hint only. The server resolves and authorizes the canonical
+        target instead of copying browser scope into the intent.
+  description: >-
+    Closed selector for a Task Monitor machine action. Authorization binds the
+    exact action and Task Monitor identity; the CLI machine evaluates the
+    command against its own durable snapshot and internal revision.
+
+HostActionPreparation:
+  oneOf:
+    - $ref: "#/ConversationHostActionPreparation"
+    - $ref: "#/AgentSessionHostActionPreparation"
+    - $ref: "#/TaskMonitorHostActionPreparation"
+    - $ref: "#/CliReadHostActionPreparation"
+  discriminator:
+    propertyName: targetKind
+    mapping:
+      CONVERSATION: "#/ConversationHostActionPreparation"
+      AGENT_SESSION: "#/AgentSessionHostActionPreparation"
+      TASK_MONITOR: "#/TaskMonitorHostActionPreparation"
+      CLI_READ: "#/CliReadHostActionPreparation"
+  description: >-
+    Closed selector for a persisted domain action. It contains no account,
+    organization, project, payload, hash, authorization ID, nonce, or lifetime.
+  x-heyhey-target-kind-by-action:
+    CONVERSATION_TRIGGER: AGENT_SESSION
+    PLATFORM_EVENT_TRIGGER: PLATFORM_EVENT
+    CONVERSATION_CONTROL_COMPACT_RUN: AGENT_SESSION
+    CONVERSATION_CONTROL_PERMISSION_DECISION: AGENT_SESSION
+    TASK_MONITOR_START: TASK_MONITOR
+    TASK_MONITOR_RESUME: TASK_MONITOR
+    TASK_MONITOR_JUDGMENT_RESOLVED: TASK_MONITOR
+    TASK_MONITOR_CONTINUE: TASK_MONITOR
+    TASK_MONITOR_COMPLETE: TASK_MONITOR
+    CLI_READ: [AGENT_SESSION, CLI_READ]
+    APPLICATION_EFFECT_LAUNCH: APPLICATION_EFFECT
+    EXACT_ACTION_DELIVERY: EXACT_ACTION
+
+ResolveControllerAuthorizationRequestDto:
+  type: object
+  additionalProperties: false
+  required: [machineId, action]
+  properties:
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    action:
+      $ref: "#/HostActionPreparation"
+  description: >-
+    Browser-owned lookup input. The server derives installation identity from
+    the opaque HttpOnly controller binding, resolves reusable authority only
+    from persisted state, and returns no assertion material or widened scope.
+
+ControllerAuthorizationRequiredDto:
+  type: object
+  additionalProperties: false
+  required: [outcome]
+  properties:
+    outcome:
+      type: string
+      enum: [AUTHORIZATION_REQUIRED]
+
+ActiveControllerAuthorizationGrantDto:
+  type: object
+  additionalProperties: false
+  required: [outcome, authorization, effectiveExpiresAtMs]
+  properties:
+    outcome:
+      type: string
+      enum: [ACTIVE_GRANT]
+    authorization:
+      $ref: "#/BoundedGrantReference"
+    effectiveExpiresAtMs:
+      type: integer
+      format: int64
+      description: Authoritative server-side expiry of the matching grant.
+
+ResolveControllerAuthorizationResponseDto:
+  oneOf:
+    - $ref: "#/ControllerAuthorizationRequiredDto"
+    - $ref: "#/ActiveControllerAuthorizationGrantDto"
+  discriminator:
+    propertyName: outcome
+    mapping:
+      AUTHORIZATION_REQUIRED: "#/ControllerAuthorizationRequiredDto"
+      ACTIVE_GRANT: "#/ActiveControllerAuthorizationGrantDto"
+  description: >-
+    Server-owned decision for one browser installation, machine, and action.
+    Local preference and installation storage never produce this result.
+
+PrepareControllerAuthorizationRequestDto:
+  type: object
+  additionalProperties: false
+  required: [machineId, controllerCredentialId, cadence, action]
+  properties:
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    controllerCredentialId:
+      $ref: "#/ControllerCredentialId"
+      description: >-
+        Exact active controller credential selected for the WebAuthn prompt.
+        The API never falls back to a newest credential.
+    cadence:
+      $ref: "#/ControllerAuthorizationCadence"
+    action:
+      $ref: "#/HostActionPreparation"
+  description: >-
+    Browser-owned preparation input selecting one machine, one controller
+    credential, and one closed action. The server resolves exactly that active
+    non-revoked credential against authenticated account, organization, and any
+    existing opaque binding before returning credential-restricted WebAuthn
+    request options.
+
+ControllerAuthorizationAllowedCredential:
+  type: object
+  additionalProperties: false
+  required: [type, id, transports]
+  properties:
+    type:
+      type: string
+      enum: [public-key]
+    id:
+      $ref: "#/ControllerCredentialId"
+    transports:
+      type: array
+      uniqueItems: true
+      items:
+        type: string
+        enum: [usb, nfc, ble, internal, hybrid]
+
+ControllerAuthorizationRequestOptions:
+  type: object
+  additionalProperties: false
+  required: [challenge, rpId, timeout, userVerification, allowCredentials]
+  properties:
+    challenge:
+      type: string
+      minLength: 43
+      maxLength: 43
+      pattern: '^[A-Za-z0-9_-]{43}$'
+    rpId:
+      type: string
+      minLength: 1
+      maxLength: 253
+      description: Fixed configured WebAuthn relying-party identifier.
+    timeout:
+      type: integer
+      enum: [120000]
+    userVerification:
+      type: string
+      enum: [required]
+    allowCredentials:
+      type: array
+      minItems: 1
+      maxItems: 1
+      items:
+        $ref: "#/ControllerAuthorizationAllowedCredential"
+      description: >-
+        The active, non-revoked controller credential resolved by the server
+        for the selected machine and returned only as a WebAuthn allow-list.
+
+PrepareControllerAuthorizationResponseDto:
+  type: object
+  additionalProperties: false
+  required: [intent, publicKey, grantDescriptor]
+  properties:
+    intent:
+      $ref: "#/CanonicalControllerAuthorizationIntent"
+    publicKey:
+      $ref: "#/ControllerAuthorizationRequestOptions"
+    grantDescriptor:
+      $ref: "#/ControllerDeviceGrantDescriptor"
+      description: >-
+        Complete server-derived immutable descriptor submitted with fresh
+        browser assertion evidence and verified against the intent hash.
+
+SubmitControllerAuthorizedActionRequestDto:
+  type: object
+  additionalProperties: false
+  required: [authorizationId, assertion]
+  properties:
+    authorizationId:
+      type: string
+      format: uuid
+    assertion:
+      $ref: "#/ControllerAssertionEvidence"
+  description: >-
+    Submission for one persisted prepared action. The server rebuilds the action
+    and intent; no caller field can replace or widen prepared scope.
+
+ControllerAuthorizationDenialReason:
+  type: string
+  enum:
+    - MACHINE_NOT_READY
+    - MACHINE_REVOKED
+    - CONTROLLER_NOT_ACTIVE
+    - AUTHORIZATION_NOT_FOUND
+    - AUTHORIZATION_EXPIRED
+    - AUTHORIZATION_ALREADY_CONSUMED
+    - CREDENTIAL_MISMATCH
+    - CHALLENGE_MISMATCH
+    - ORIGIN_MISMATCH
+    - RP_ID_MISMATCH
+    - USER_PRESENCE_REQUIRED
+    - USER_VERIFICATION_REQUIRED
+    - SIGNATURE_INVALID
+    - ACTION_MISMATCH
+    - PAYLOAD_HASH_MISMATCH
+    - TARGET_MISMATCH
+    - GRANT_NOT_ACTIVE
+    - GRANT_SCOPE_MISMATCH
+    - REPLAY_DETECTED
+  description: >-
+    Stable safe denial. Responses reveal no canonical payload, assertion bytes,
+    signature, credential existence, or secret material.
+
+ControllerAuthorizationAdmittedDto:
+  type: object
+  additionalProperties: false
+  required: [outcome, authorizationId, consumedAt, grantId]
+  properties:
+    outcome:
+      type: string
+      enum: [ADMITTED]
+    authorizationId:
+      type: string
+      format: uuid
+    consumedAt:
+      type: string
+      format: date-time
+    grantId:
+      type: string
+      format: uuid
+      nullable: true
+      description: >-
+        Server-issued reusable controller-device grant identifier when already
+        derived, or null until execution admission creates the bounded window.
+
+ControllerAuthorizationDeniedDto:
+  type: object
+  additionalProperties: false
+  required: [outcome, reason, retryable]
+  properties:
+    outcome:
+      type: string
+      enum: [DENIED]
+    reason:
+      $ref: "#/ControllerAuthorizationDenialReason"
+    retryable:
+      type: boolean
+
+SubmitControllerAuthorizedActionResponseDto:
+  oneOf:
+    - $ref: "#/ControllerAuthorizationAdmittedDto"
+    - $ref: "#/ControllerAuthorizationDeniedDto"
+  discriminator:
+    propertyName: outcome
+    mapping:
+      ADMITTED: "#/ControllerAuthorizationAdmittedDto"
+      DENIED: "#/ControllerAuthorizationDeniedDto"
+
+ApplicationEffectLaunchBody:
+  type: object
+  additionalProperties: false
+  required: [version, kind, effectId, agentSessionId, actionPayloadHash]
+  properties:
+    version:
+      type: integer
+      enum: [2]
+    kind:
+      type: string
+      enum: [application_effect]
+    effectId:
+      type: string
+      format: uuid
+    agentSessionId:
+      type: string
+      format: uuid
+    actionPayloadHash:
+      type: string
+      pattern: '^[a-f0-9]{64}$'
+
+ExactActionDeliveryBody:
+  type: object
+  additionalProperties: false
+  required: [version, kind, exactActionId, requestRevision, actionFingerprint]
+  properties:
+    version:
+      type: integer
+      enum: [2]
+    kind:
+      type: string
+      enum: [exact_action]
+    exactActionId:
+      type: string
+      format: uuid
+    requestRevision:
+      type: integer
+      format: int64
+      minimum: 0
+    actionFingerprint:
+      type: string
+      pattern: '^[a-f0-9]{64}$'
+  description: >-
+    Existing exact-action fingerprint and revision remain application-level
+    constraints; they never substitute for controller or grant admission.
+
+CliReadHostActionPreparation:
+  oneOf:
+    - $ref: "#/WorkspaceSkillsHostActionPreparation"
+    - $ref: "#/RuntimeModelCatalogHostActionPreparation"
+  description: Closed selector for a machine-addressed CLI read under existing CLI_READ authority.
+
+RuntimeModelCatalogHostActionPreparation:
+  type: object
+  additionalProperties: false
+  required: [requestId, actionCategory, actionType, targetKind, targetId]
+  properties:
+    requestId:
+      type: string
+      format: uuid
+    actionCategory:
+      type: string
+      enum: [CLI_READ]
+    actionType:
+      type: string
+      enum: [CLI_READ]
+    targetKind:
+      type: string
+      enum: [CLI_READ]
+    targetId:
+      type: string
+      format: uuid
+      description: Durable selected machine identity, never a request correlation identity.
+  description: Exact machine-addressed model catalog read under existing CLI_READ authority.
+
+WorkspaceSkillsHostActionPreparation:
+  type: object
+  additionalProperties: false
+  required: [requestId, actionCategory, actionType, targetKind, targetId, provider, catalogContext]
+  properties:
+    requestId:
+      type: string
+      format: uuid
+    actionCategory:
+      type: string
+      enum: [CLI_READ]
+    actionType:
+      type: string
+      enum: [CLI_READ]
+    targetKind:
+      type: string
+      enum: [CLI_READ]
+    targetId:
+      type: string
+      format: uuid
+      description: Durable selected machine identity, never a request correlation identity.
+    provider:
+      $ref: "../agent-bridge/openapi.yaml#/components/schemas/AgentSkillProvider"
+    catalogContext:
+      $ref: "../agent-bridge/openapi.yaml#/components/schemas/AgentSkillCatalogContext"
+  description: Exact machine-addressed workspace Skill catalog read under existing CLI_READ authority.

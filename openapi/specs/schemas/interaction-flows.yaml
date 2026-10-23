@@ -1,0 +1,356 @@
+# =============================================
+# Interaction Flow Schemas
+# =============================================
+
+InteractionType:
+  type: object
+  required:
+    - id
+    - name
+    - category
+    - systemPrompt
+    - userPromptSchema
+    - outputSchema
+    - isActive
+    - createdAt
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique identifier for the interaction type
+    name:
+      type: string
+      description: Machine-friendly key, unique
+    type:
+      $ref: "#/SystemMessageResponseType"
+      description: Type of system message
+    description:
+      type: string
+      description: Description of the interaction type
+    category:
+      type: string
+      description: Category of the interaction type
+    systemPrompt:
+      type: string
+      description: Base context prompt for this interaction type
+    userPromptSchema:
+      $ref: "#/DynamicUserPromptSchema"
+      description: Enhanced schema for handling dynamic multi-round conversations with state management
+    outputSchema:
+      $ref: "#/DynamicOutputSchema"
+      description: Schema defining dynamic responses with conversation state and hybrid tagging
+    canBeTriggered:
+      type: boolean
+      description: Whether the system can initiate this interaction
+    canBeRequested:
+      type: boolean
+      description: Whether users can initiate this interaction
+    triggerEvents:
+      type: array
+      items:
+        type: string
+      nullable: true
+      description: Events that can trigger this interaction
+    createdAt:
+      type: string
+      format: date-time
+
+StepDto:
+  type: object
+  description: "Single UI step of an InteractionFlow."
+  required: [id, flowId, order, title, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+      example: "step_123e4567-e89b-12d3-a456-426614174000"
+    flowId:
+      type: string
+      format: uuid
+      description: "FK → InteractionFlow.id"
+    order:
+      type: integer
+      minimum: 1
+      example: 3
+      description: "1-based ordinal position inside the flow"
+    title:
+      type: string
+      maxLength: 120
+      example: "Define success metrics"
+    description:
+      type: string
+      maxLength: 1000
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+# =============================================
+# Dynamic Conversation Schemas
+# =============================================
+DynamicUserPromptSchema:
+  type: object
+  description: Hybrid schema with predefined ui:prompt fields for SYSTEM_DRIVEN round 1, dynamic questions for later rounds
+  properties:
+    feedback:
+      type: string
+      default: "I'd like to help you define and scope your new project. Let me ask you some questions to understand what you're building and how we can best support you."
+      description: Initial feedback message for the conversation opener
+    user_responses:
+      type: object
+      additionalProperties: true
+      description: Simple key-value pairs of user responses to questions with round-prefixed field names (e.g., round1_project_concept, round2_technical_scope)
+      example:
+        round1_project_concept: "AI-powered analytics dashboard"
+        round2_data_sources: "Salesforce, HubSpot, Google Analytics"
+        round3_chart_interactivity: "Click to drill down, filter by date ranges, hover tooltips"
+
+DynamicOutputSchema:
+  type: object
+  description: Simplified schema where backend generates all conversation intelligence and progress tracking
+  required:
+    - feedback
+    - questions
+    - conversation_progress
+    - interaction_complete
+  properties:
+    feedback:
+      type: string
+      description: Contextual feedback that references previous answers and explains follow-up reasoning
+      example: "Perfect! Your mention of 'interactive charts' strongly aligns with our graph generation initiative. I need to understand the technical implementation details."
+    questions:
+      type: array
+      description: Dynamically generated questions with structured naming
+      items:
+        allOf:
+          - $ref: "#/Question"
+          - type: object
+            properties:
+              field:
+                type: string
+                description: Round-prefixed field name (e.g., round2_technical_scope, round3_timeline_urgency)
+                example: "round3_chart_interactivity"
+              rationale:
+                type: string
+                description: Why this question follows from previous answers
+                example: "You mentioned interactive charts - this directly relates to our graph generation initiative capabilities"
+    conversation_progress:
+      type: object
+      description: Backend-generated conversation progress and understanding
+      required:
+        - rounds_completed
+        - confidence_level
+        - understanding_summary
+        - key_tags
+      properties:
+        rounds_completed:
+          type: integer
+          description: Number of question-answer rounds completed
+          example: 2
+        confidence_level:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Confidence in the accumulated understanding (0.0 to 1.0)
+          example: 0.8
+        understanding_summary:
+          type: string
+          description: Brief summary of current project understanding
+          example: "AI analytics dashboard with interactive charts for medium sales teams, integrating multiple data sources"
+        key_tags:
+          type: array
+          items:
+            type: string
+          description: Key tags for workstream correlation and organizational alignment
+          example:
+            [
+              "graph_generation_initiative",
+              "sales_analytics",
+              "multi_source_integration",
+            ]
+    interaction_complete:
+      type: boolean
+      description: Whether sufficient information has been gathered for project onboarding
+      example: false
+    project_summary:
+      type: object
+      description: Detailed project summary when conversation is complete (optional)
+      properties:
+        concept:
+          type: string
+          description: Main project concept
+          example: "AI-powered analytics dashboard with interactive charts"
+        audience:
+          type: string
+          description: Target audience
+          example: "Medium sales teams (11-50 people)"
+        technical_scope:
+          type: array
+          items:
+            type: string
+          description: Technical components and requirements
+          example:
+            [
+              "Interactive charts with drill-down",
+              "Multi-source data integration",
+              "15-minute refresh cycles",
+            ]
+        business_drivers:
+          type: array
+          items:
+            type: string
+          description: Business motivations and goals
+          example:
+            [
+              "Sales pipeline visibility",
+              "Revenue forecasting",
+              "Board presentation readiness",
+            ]
+        timeline:
+          type: string
+          description: Timeline requirements or constraints
+          example: "Q1 board presentation deadline"
+
+Question:
+  type: object
+  required:
+    - field
+    - description
+    - type
+    - required
+  properties:
+    field:
+      type: string
+      description: Unique field identifier
+      example: "project_description"
+    description:
+      type: string
+      description: Human-readable question or prompt for the user
+      example: "Tell us more about your project? What does it accomplish?"
+    type:
+      type: string
+      enum:
+        - textarea
+        - text
+        - number
+        - select
+        - currency
+        - priority
+      description: UI component type for rendering this question
+      example: "textarea"
+    required:
+      type: boolean
+      description: Whether this field is required
+      example: true
+    placeholder:
+      type: string
+      nullable: true
+      description: Optional placeholder text for the input
+      example: "Describe your project idea, goals, and what you want to build..."
+    rationale:
+      type: string
+      nullable: true
+      description: Optional rationale for the question
+      example: "We need to know more about your project to help you properly."
+    options:
+      type: array
+      items:
+        type: string
+      nullable: true
+      description: Array of options for select/dropdown types
+      example: ["Low", "Medium", "High", "Critical"]
+    min:
+      type: number
+      nullable: true
+      description: Minimum value for number/currency types
+      example: 0
+    max:
+      type: number
+      nullable: true
+      description: Maximum value for number/currency types
+      example: 1000000
+    validation:
+      type: object
+      nullable: true
+      description: Optional validation rules
+      properties:
+        min:
+          type: number
+          description: Minimum value validation
+        max:
+          type: number
+          description: Maximum value validation
+        pattern:
+          type: string
+          description: Regex pattern for validation
+        message:
+          type: string
+          description: Custom validation error message
+
+ArtifactInsight:
+  type: object
+  required:
+    - category
+    - title
+    - confidence
+    - reasoning
+    - content
+  properties:
+    category:
+      type: string
+      description: Category identifier (e.g., 'userGoals', 'technicalAnalysis', 'integrations', 'businessContext')
+      example: "userGoals"
+    title:
+      type: string
+      description: Human readable title for the insight
+      example: "Project Goals and Objectives"
+    confidence:
+      type: number
+      format: float
+      minimum: 0
+      maximum: 1
+      description: Confidence score 0-1 for how explicit this information was
+      example: 0.85
+    reasoning:
+      type: string
+      description: Why this insight was extracted from the conversation
+      example: "User explicitly mentioned wanting to improve team productivity and reduce manual work"
+    content:
+      type: string
+      description: The actual insight content as clear, structured text
+      example: "The user wants to build a project management tool that reduces manual status reporting and improves team visibility into project progress."
+    tags:
+      type: array
+      items:
+        type: string
+      nullable: true
+      description: Optional tags for further categorization
+      example: ["productivity", "automation", "team-collaboration"]
+  description: Structured insight extracted from conversation analysis
+
+SystemMessageResponseType:
+  type: string
+  description: |
+    Type of system message response that determines frontend rendering:
+    - QUESTIONS: UI questions (both static and AI-generated)
+    - ANALYSIS: Analysis results from processing
+    - INITIATIVES: Generated initiatives/work items
+    - NOOP: No operation/silent transition
+    - INTEGRATIONS: Integration setup and configuration
+    - ERROR: Error state requiring user attention
+    - ARTIFACTS_GENERATION: Generated artifacts/documents
+    - AGENT: Agent-based processing results
+    - ROUTING: Classification/routing decisions
+  enum:
+    - QUESTIONS
+    - ANALYSIS
+    - INITIATIVES
+    - NOOP
+    - INTEGRATIONS
+    - ERROR
+    - ARTIFACTS_GENERATION
+    - AGENT
+    - ROUTING

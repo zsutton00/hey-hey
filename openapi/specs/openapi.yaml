@@ -1,0 +1,394 @@
+openapi: 3.0.0
+info:
+  title: Hey Hey API
+  version: 1.0.0
+  description: API for managing projects, interactions, and conversations in organizations
+
+servers:
+  - url: /api/v1
+    description: Version 1 API
+
+security:
+  - BearerAuth: []
+
+paths:
+  /organizations/{organizationId}/projects/{projectId}/entities/{entityType}/{entityId}/context:
+    $ref: "./api/openapi.yaml#/~1organizations~1{organizationId}~1projects~1{projectId}~1entities~1{entityType}~1{entityId}~1context"
+  /organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/guidance:
+    $ref: "./api/openapi.yaml#/~1organizations~1{organizationId}~1projects~1{projectId}~1work-item-types~1{typeKey}~1guidance"
+  # Authentication Routes
+  /auth/login:
+    $ref: "./paths/auth.yaml#/~1auth~1login"
+  /auth/register:
+    $ref: "./paths/auth.yaml#/~1auth~1register"
+  /auth/refresh:
+    $ref: "./paths/auth.yaml#/~1auth~1refresh"
+  /auth/logout:
+    $ref: "./paths/auth.yaml#/~1auth~1logout"
+  /auth/validate:
+    $ref: "./paths/auth.yaml#/~1auth~1validate"
+  /auth/jwks:
+    $ref: "./paths/auth.yaml#/~1auth~1jwks"
+
+  # Organization Routes
+  /organizations:
+    $ref: "./paths/organizations.yaml#/~1organizations"
+  /organizations/{organizationId}:
+    $ref: "./paths/organizations.yaml#/~1organizations~1{organizationId}"
+  /organizations/{organizationId}/members:
+    $ref: "./paths/organizations.yaml#/~1organizations~1{organizationId}~1members"
+  /organizations/{organizationId}/initiatives:
+    $ref: "./paths/organizations.yaml#/~1organizations~1{organizationId}~1initiatives"
+  /organizations/{organizationId}/initiatives/{initiativeId}:
+    $ref: "./paths/organizations.yaml#/~1organizations~1{organizationId}~1initiatives~1{initiativeId}"
+  /organizations/{organizationId}/initiatives/{initiativeId}/projects/{projectId}:
+    $ref: "./paths/organizations.yaml#/~1organizations~1{organizationId}~1initiatives~1{initiativeId}~1projects~1{projectId}"
+  /organizations/{organizationId}/initiatives/{initiativeId}/tasks:
+    $ref: "./paths/organizations.yaml#/~1organizations~1{organizationId}~1initiatives~1{initiativeId}~1tasks"
+  /organizations/{organizationId}/initiatives/{initiativeId}/tasks/{taskId}:
+    $ref: "./paths/organizations.yaml#/~1organizations~1{organizationId}~1initiatives~1{initiativeId}~1tasks~1{taskId}"
+
+  # Project Routes
+  /organizations/{organizationId}/projects:
+    $ref: "./paths/projects.yaml#/~1organizations~1{organizationId}~1projects"
+  /organizations/{organizationId}/projects/{projectId}:
+    $ref: "./paths/projects.yaml#/~1organizations~1{organizationId}~1projects~1{projectId}"
+
+  # Conversation Routes
+  /organizations/{organizationId}/projects/{projectId}/conversations:
+    $ref: "./paths/conversations.yaml#/~1organizations~1{organizationId}~1projects~1{projectId}~1conversations"
+  /organizations/{organizationId}/projects/{projectId}/conversations/active:
+    $ref: "./paths/conversations.yaml#/~1organizations~1{organizationId}~1projects~1{projectId}~1conversations~1active"
+  /organizations/{organizationId}/projects/{projectId}/conversations/{conversationId}:
+    $ref: "./paths/conversations.yaml#/~1organizations~1{organizationId}~1projects~1{projectId}~1conversations~1{conversationId}"
+
+  # Message Routes
+  /organizations/{organizationId}/projects/{projectId}/messages:
+    $ref: "./paths/messages.yaml#/~1organizations~1{organizationId}~1projects~1{projectId}~1messages"
+  /organizations/{organizationId}/projects/{projectId}/messages/{id}:
+    $ref: "./paths/messages.yaml#/~1organizations~1{organizationId}~1projects~1{projectId}~1messages~1{id}"
+
+  # Interaction Type Routes
+  /interaction-types:
+    $ref: "./paths/interaction-types.yaml#/~1interaction-types"
+  /interaction-types/{id}:
+    $ref: "./paths/interaction-types.yaml#/~1interaction-types~1{id}"
+
+  # Interaction Flow Routes
+  /interaction-flows/{flowId}/steps:
+    $ref: "./paths/interaction-flows.yaml#/~1interaction-flows~1{flowId}~1steps"
+  /interaction-flows/{flowId}/steps/{stepId}:
+    $ref: "./paths/interaction-flows.yaml#/~1interaction-flows~1{flowId}~1steps~1{stepId}"
+
+  # Artifact Routes
+  /artifacts:
+    $ref: "./paths/artifacts.yaml#/~1artifacts"
+  /artifacts/{id}:
+    $ref: "./paths/artifacts.yaml#/~1artifacts~1{id}"
+  /artifacts/search:
+    $ref: "./paths/artifacts.yaml#/~1artifacts~1search"
+  /artifacts/search/simple:
+    $ref: "./paths/artifacts.yaml#/~1artifacts~1search~1simple"
+  /artifacts/project/{projectId}/summary:
+    $ref: "./paths/artifacts.yaml#/~1artifacts~1project~1{projectId}~1summary"
+  /artifacts/{id}/hierarchy:
+    $ref: "./paths/artifacts.yaml#/~1artifacts~1{id}~1hierarchy"
+  /artifacts/{id}/similar:
+    $ref: "./paths/artifacts.yaml#/~1artifacts~1{id}~1similar"
+
+  # Tag Routes
+  /tags:
+    $ref: "./paths/tags.yaml#/~1tags"
+  /tags/{tagId}:
+    $ref: "./paths/tags.yaml#/~1tags~1{tagId}"
+  /artifacts/{artifactId}/tags:
+    $ref: "./paths/tags.yaml#/~1artifacts~1{artifactId}~1tags"
+  /artifacts/{artifactId}/tags/{tagId}:
+    $ref: "./paths/tags.yaml#/~1artifacts~1{artifactId}~1tags~1{tagId}"
+  /projects/{projectId}/tags:
+    $ref: "./paths/tags.yaml#/~1projects~1{projectId}~1tags"
+  /projects/{projectId}/tags/{tagId}:
+    $ref: "./paths/tags.yaml#/~1projects~1{projectId}~1tags~1{tagId}"
+
+  # Event Routes
+  /events/stats:
+    $ref: "./paths/events.yaml#/~1events~1stats"
+  /events/health:
+    $ref: "./paths/events.yaml#/~1events~1health"
+  /events/notify/project/{projectId}:
+    $ref: "./paths/events.yaml#/~1events~1notify~1project~1{projectId}"
+  /events/notify/conversation/{conversationId}:
+    $ref: "./paths/events.yaml#/~1events~1notify~1conversation~1{conversationId}"
+  /events/notify/user/{userId}:
+    $ref: "./paths/events.yaml#/~1events~1notify~1user~1{userId}"
+  /events/notify/global:
+    $ref: "./paths/events.yaml#/~1events~1notify~1global"
+
+  # Development Routes
+  /dev/llm/trigger-request:
+    $ref: "./paths/dev.yaml#/~1dev~1llm~1trigger-request"
+  /dev/llm/trigger-progress:
+    $ref: "./paths/dev.yaml#/~1dev~1llm~1trigger-progress"
+  /dev/llm/trigger-complete:
+    $ref: "./paths/dev.yaml#/~1dev~1llm~1trigger-complete"
+  /dev/llm/active-requests:
+    $ref: "./paths/dev.yaml#/~1dev~1llm~1active-requests"
+  /dev/llm/request/{requestId}/status:
+    $ref: "./paths/dev.yaml#/~1dev~1llm~1request~1{requestId}~1status"
+  /dev/llm/simulate-flow:
+    $ref: "./paths/dev.yaml#/~1dev~1llm~1simulate-flow"
+
+  # Entity Routes
+  /organizations/{organizationId}/entities/names:
+    $ref: "./paths/entities.yaml#/~1organizations~1{organizationId}~1entities~1names"
+
+  # Debug Routes
+  /debug/projects/view:
+    $ref: "./paths/debug.yaml#/~1debug~1projects~1view"
+  /debug/projects/conversations:
+    $ref: "./paths/debug.yaml#/~1debug~1projects~1conversations"
+  /debug/projects/artifacts:
+    $ref: "./paths/debug.yaml#/~1debug~1projects~1artifacts"
+  /debug/projects/messages:
+    $ref: "./paths/debug.yaml#/~1debug~1projects~1messages"
+  /debug/projects/workflows/{workflowId}/status:
+    $ref: "./paths/debug.yaml#/~1debug~1projects~1workflows~1{workflowId}~1status"
+  /debug/embeddings/entity:
+    $ref: "./paths/debug.yaml#/~1debug~1embeddings~1entity"
+  /debug/outbox-events/{entityType}/{entityId}:
+    $ref: "./paths/debug.yaml#/~1debug~1outbox-events~1{entityType}~1{entityId}"
+  /debug/events/replay:
+    $ref: "./paths/debug.yaml#/~1debug~1events~1replay"
+  /debug/events/{eventId}/retrigger:
+    $ref: "./paths/debug.yaml#/~1debug~1events~1{eventId}~1retrigger"
+
+  # Help Routes
+  /help/tree:
+    $ref: "./paths/help.yaml#/~1help~1tree"
+  /help/search:
+    $ref: "./paths/help.yaml#/~1help~1search"
+  /help/nodes/{idOrSlugPath}:
+    $ref: "./paths/help.yaml#/~1help~1nodes~1{idOrSlugPath}"
+  /help/assets/{assetPath}:
+    $ref: "./paths/help.yaml#/~1help~1assets~1{assetPath}"
+
+  # Report-a-problem Routes
+  /report-bug:
+    $ref: "./paths/report-bugs.yaml#/~1report-bug"
+
+  # LLM Tracking Routes
+  /llm-tracking:
+    $ref: "./paths/debug.yaml#/~1llm-tracking"
+  /llm-tracking/stats:
+    $ref: "./paths/debug.yaml#/~1llm-tracking~1stats"
+  /llm-tracking/{id}:
+    $ref: "./paths/debug.yaml#/~1llm-tracking~1{id}"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      $ref: "./schemas/common.yaml#/BearerAuth"
+
+  schemas:
+    ProposalDetail:
+      $ref: "./schemas/entity-context.yaml#/ProposalDetail"
+    ContextProposalSummaryDto:
+      $ref: "./schemas/entity-context.yaml#/ContextProposalSummaryDto"
+    ContextProposalFieldChangeDto:
+      $ref: "./schemas/entity-context.yaml#/ContextProposalFieldChangeDto"
+    # Common types
+    ProjectId:
+      $ref: "./schemas/common.yaml#/ProjectId"
+    UserId:
+      $ref: "./schemas/common.yaml#/UserId"
+    OrganizationId:
+      $ref: "./schemas/common.yaml#/OrganizationId"
+    ConversationId:
+      $ref: "./schemas/common.yaml#/ConversationId"
+    WorkflowId:
+      $ref: "./schemas/common.yaml#/WorkflowId"
+    MessageId:
+      $ref: "./schemas/common.yaml#/MessageId"
+    ArtifactId:
+      $ref: "./schemas/common.yaml#/ArtifactId"
+    InitiativeId:
+      $ref: "./schemas/common.yaml#/InitiativeId"
+    ApiResponse:
+      $ref: "./schemas/common.yaml#/ApiResponse"
+    ApiErrorResponse:
+      $ref: "./schemas/common.yaml#/ApiErrorResponse"
+    Priority:
+      $ref: "./schemas/common.yaml#/Priority"
+
+    # Auth schemas
+    LoginDto:
+      $ref: "./schemas/auth.yaml#/LoginDto"
+    RegisterDto:
+      $ref: "./schemas/auth.yaml#/RegisterDto"
+    BrowserAuthResponseDto:
+      $ref: "./schemas/auth.yaml#/BrowserAuthResponseDto"
+    RefreshBrowserSessionDto:
+      $ref: "./schemas/auth.yaml#/RefreshBrowserSessionDto"
+    AuthResponseDto:
+      $ref: "./schemas/auth.yaml#/AuthResponseDto"
+    UserResponseDto:
+      $ref: "./schemas/auth.yaml#/UserResponseDto"
+
+    # Organization schemas
+    OrganizationResponseDto:
+      $ref: "./schemas/organizations.yaml#/OrganizationResponseDto"
+    CreateOrganizationDto:
+      $ref: "./schemas/organizations.yaml#/CreateOrganizationDto"
+    UpdateOrganizationDto:
+      $ref: "./schemas/organizations.yaml#/UpdateOrganizationDto"
+    OrganizationMemberResponseDto:
+      $ref: "./schemas/organizations.yaml#/OrganizationMemberResponseDto"
+    InviteToOrganizationDto:
+      $ref: "./schemas/organizations.yaml#/InviteToOrganizationDto"
+    InviteProjectAssignmentDto:
+      $ref: "./schemas/organizations.yaml#/InviteProjectAssignmentDto"
+    OrganizationRole:
+      $ref: "./schemas/organizations.yaml#/OrganizationRole"
+
+    # Project schemas
+    ProjectResponseDto:
+      $ref: "./schemas/projects.yaml#/ProjectResponseDto"
+    CreateProjectDto:
+      $ref: "./schemas/projects.yaml#/CreateProjectDto"
+    UpdateProjectDto:
+      $ref: "./schemas/projects.yaml#/UpdateProjectDto"
+
+    # Conversation schemas
+    ConversationResponseDto:
+      $ref: "./schemas/conversations.yaml#/ConversationResponseDto"
+    CreateConversationDto:
+      $ref: "./schemas/conversations.yaml#/CreateConversationDto"
+    UpdateConversationDto:
+      $ref: "./schemas/conversations.yaml#/UpdateConversationDto"
+
+    # Interaction Flow schemas
+    InteractionFlow:
+      $ref: "./schemas/interaction-flows.yaml#/InteractionFlow"
+    StepDto:
+      $ref: "./schemas/interaction-flows.yaml#/StepDto"
+    CreateStepDto:
+      $ref: "./schemas/interaction-flows.yaml#/CreateStepDto"
+    UpdateStepDto:
+      $ref: "./schemas/interaction-flows.yaml#/UpdateStepDto"
+
+    # Dev/Debug schemas
+    ProjectDebugViewDto:
+      $ref: "./schemas/dev.yaml#/ProjectDebugViewDto"
+    WorkflowStatusDebugDto:
+      $ref: "./schemas/dev.yaml#/WorkflowStatusDebugDto"
+    DebugOutboxEventDto:
+      $ref: "./schemas/debug.yaml#/DebugOutboxEventDto"
+    DebugOutboxEventsResponseDto:
+      $ref: "./schemas/debug.yaml#/DebugOutboxEventsResponseDto"
+    DebugEventReplayMode:
+      $ref: "./schemas/debug.yaml#/DebugEventReplayMode"
+    DebugEventReplayRequestDto:
+      $ref: "./schemas/debug.yaml#/DebugEventReplayRequestDto"
+    DebugEventReplayResultDto:
+      $ref: "./schemas/debug.yaml#/DebugEventReplayResultDto"
+    DebugEventReplayResponseDto:
+      $ref: "./schemas/debug.yaml#/DebugEventReplayResponseDto"
+    DebugEmbeddingsEntityResponseDto:
+      $ref: "./schemas/debug.yaml#/DebugEmbeddingsEntityResponseDto"
+    DebugEmbeddingsDocumentDto:
+      $ref: "./schemas/debug.yaml#/DebugEmbeddingsDocumentDto"
+    HelpNode:
+      $ref: "./schemas/help.yaml#/HelpNode"
+    HelpNodeWithBody:
+      $ref: "./schemas/help.yaml#/HelpNodeWithBody"
+    HelpTreeResponse:
+      $ref: "./schemas/help.yaml#/HelpTreeResponse"
+    HelpSearchResult:
+      $ref: "./schemas/help.yaml#/HelpSearchResult"
+    HelpSearchResponse:
+      $ref: "./schemas/help.yaml#/HelpSearchResponse"
+    HelpDemo:
+      $ref: "./schemas/help.yaml#/HelpDemo"
+    HelpDemoPreset:
+      $ref: "./schemas/help.yaml#/HelpDemoPreset"
+    HelpDemoDsl:
+      $ref: "./schemas/help.yaml#/HelpDemoDsl"
+    ReportBugRequestDto:
+      $ref: "./schemas/report-bugs.yaml#/ReportBugRequestDto"
+    ReportBugResponseDto:
+      $ref: "./schemas/report-bugs.yaml#/ReportBugResponseDto"
+    TriggerLLMRequestDto:
+      $ref: "./schemas/dev.yaml#/TriggerLLMRequestDto"
+    TriggerLLMProgressDto:
+      $ref: "./schemas/dev.yaml#/TriggerLLMProgressDto"
+    TriggerLLMCompleteDto:
+      $ref: "./schemas/dev.yaml#/TriggerLLMCompleteDto"
+    LLMUsageDto:
+      $ref: "./schemas/dev.yaml#/LLMUsageDto"
+
+    # Validation Session schemas
+    ValidationSessionDto:
+      $ref: "./schemas/validation-sessions.yaml#/ValidationSessionDto"
+    CreateValidationSessionDto:
+      $ref: "./schemas/validation-sessions.yaml#/CreateValidationSessionDto"
+    UpdateValidationSessionDto:
+      $ref: "./schemas/validation-sessions.yaml#/UpdateValidationSessionDto"
+    ValidationSessionStatus:
+      $ref: "./schemas/validation-sessions.yaml#/ValidationSessionStatus"
+
+    # Entity name lookup schemas
+    EntityLookupItem:
+      $ref: "./schemas/entity-names.yaml#/EntityLookupItem"
+    GetEntityNamesDto:
+      $ref: "./schemas/entity-names.yaml#/GetEntityNamesDto"
+    EntityNameDto:
+      $ref: "./schemas/entity-names.yaml#/EntityNameDto"
+
+    TaskMonitorJudgmentResponse:
+      $ref: "./schemas/work-items.yaml#/TaskMonitorJudgmentResponse"
+    ImageSectionContent:
+      $ref: "./schemas/work-items.yaml#/ImageSectionContent"
+    TaskMonitorExecutionDefinition:
+      $ref: "./schemas/work-items.yaml#/TaskMonitorExecutionDefinition"
+    TaskMonitorExecutionNodeLaunchConfiguration:
+      $ref: "./schemas/work-items.yaml#/TaskMonitorExecutionNodeLaunchConfiguration"
+    TaskMonitorExecutionPlanNode:
+      $ref: "./schemas/work-items.yaml#/TaskMonitorExecutionPlanNode"
+    TaskMonitorLaunchPolicy:
+      $ref: "./schemas/work-items.yaml#/TaskMonitorLaunchPolicy"
+    TaskMonitorLaunchMethod:
+      $ref: "./schemas/work-items.yaml#/TaskMonitorLaunchMethod"
+    WorkItemGraphLayoutValue:
+      $ref: "./schemas/work-items.yaml#/WorkItemGraphLayoutValue"
+    WorkItemGraphLayoutPreferenceValue:
+      $ref: "./schemas/work-items.yaml#/WorkItemGraphLayoutPreferenceValue"
+    WorkItemGraphNodePresentationValue:
+      $ref: "./schemas/work-items.yaml#/WorkItemGraphNodePresentationValue"
+    WorkItemGraphLayoutNodePosition:
+      $ref: "./schemas/work-items.yaml#/WorkItemGraphLayoutNodePosition"
+    WorkItemGraphLayoutNodeRef:
+      $ref: "./schemas/work-items.yaml#/WorkItemGraphLayoutNodeRef"
+    PersistedWorkItemGraphLayoutNodeRef:
+      $ref: "./schemas/work-items.yaml#/PersistedWorkItemGraphLayoutNodeRef"
+    TemporaryWorkItemGraphLayoutNodeRef:
+      $ref: "./schemas/work-items.yaml#/TemporaryWorkItemGraphLayoutNodeRef"
+    WorkItemGraphLogicalPosition:
+      $ref: "./schemas/work-items.yaml#/WorkItemGraphLogicalPosition"
+    WorkItemGraphLogicalCoordinate:
+      $ref: "./schemas/work-items.yaml#/WorkItemGraphLogicalCoordinate"
+    WorkItemTypeGraphLayoutPreferenceDeclaration:
+      $ref: "./schemas/work-item-type-definition.yaml#/WorkItemTypeGraphLayoutPreferenceDeclaration"
+    WorkItemTypeGraphGroupsDeclaration:
+      $ref: "./schemas/work-item-type-definition.yaml#/WorkItemTypeGraphGroupsDeclaration"
+    DiagramGroupMeaning:
+      $ref: "./schemas/work-items.yaml#/DiagramGroupMeaning"
+    DiagramGroupId:
+      $ref: "./schemas/work-items.yaml#/DiagramGroupId"
+    DiagramGroup:
+      $ref: "./schemas/work-items.yaml#/DiagramGroup"
+    DiagramGroupsValue:
+      $ref: "./schemas/work-items.yaml#/DiagramGroupsValue"
+
+    # Report payload schemas
+    RollupProposalReportPayload:
+      $ref: "./schemas/proposals.yaml#/RollupProposalReportPayload"

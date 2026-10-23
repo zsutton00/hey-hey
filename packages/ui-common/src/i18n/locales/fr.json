@@ -1,0 +1,362 @@
+{
+  "common": {
+    "thinking": "Réflexion...",
+    "processing": "Traitement de votre réponse...",
+    "loading": "Chargement...",
+    "analyzing": "Analyse de votre demande...",
+    "error": "Erreur",
+    "success": "Succès",
+    "cancel": "Annuler",
+    "save": "Sauvegarder",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "create": "Créer",
+    "back": "Retour",
+    "next": "Suivant",
+    "submit": "Soumettre",
+    "refresh": "Actualiser",
+    "search": "Rechercher",
+    "yes": "Oui",
+    "no": "Non"
+  },
+  "navigation": {
+    "home": "Accueil",
+    "contact": "Contact",
+    "projects": "Projets",
+    "initiatives": "Initiatives",
+    "artifacts": "Artefacts",
+    "integrations": "Intégrations",
+    "myProjects": "Mes Projets",
+    "welcome": "Bienvenue, {{name}}",
+    "settings": "Paramètres"
+  },
+  "projects": {
+    "title": "Projets",
+    "create": "Nouveau Projet",
+    "edit": "Modifier le Projet",
+    "delete": "Supprimer le Projet",
+    "noProjects": "Aucun projet trouvé",
+    "createFirst": "Créez votre premier projet pour commencer"
+  },
+  "initiatives": {
+    "title": "Initiatives",
+    "subtitle": "Gérez les initiatives de votre organisation et suivez leur progression",
+    "create": "Nouvelle Initiative",
+    "edit": "Modifier l'Initiative",
+    "viewTasks": "Voir les Tâches",
+    "noInitiatives": "Aucune initiative trouvée",
+    "createFirst": "Créez votre première initiative pour commencer",
+    "form": {
+      "title": "Titre",
+      "description": "Description",
+      "status": "Statut",
+      "priority": "Priorité",
+      "tags": "Étiquettes"
+    },
+    "status": {
+      "planning": "Planification",
+      "active": "Actif",
+      "onHold": "En Attente",
+      "completed": "Terminé",
+      "cancelled": "Annulé"
+    },
+    "priority": {
+      "low": "Faible",
+      "medium": "Moyenne",
+      "high": "Élevée"
+    }
+  },
+  "tasks": {
+    "title": "Tâches",
+    "subtitle": "Gestion des tâches pour : {{initiativeTitle}}",
+    "create": "Nouvelle Tâche",
+    "edit": "Modifier la Tâche",
+    "delete": "Supprimer la Tâche",
+    "deleteConfirm": "Êtes-vous sûr de vouloir supprimer la tâche \"{{title}}\" ? Cette action ne peut pas être annulée.",
+    "noTasks": "Aucune tâche trouvée",
+    "createFirst": "Créez votre première tâche pour commencer",
+    "form": {
+      "title": "Titre",
+      "description": "Description",
+      "status": "Statut",
+      "type": "Type",
+      "priority": "Priorité"
+    },
+    "status": {
+      "todo": "À Faire",
+      "inProgress": "En Cours",
+      "done": "Terminé",
+      "blocked": "Bloqué"
+    },
+    "type": {
+      "task": "Tâche",
+      "bug": "Bug",
+      "feature": "Fonctionnalité",
+      "improvement": "Amélioration"
+    }
+  },
+  "artifacts": {
+    "title": "Artefacts",
+    "subtitle": "Parcourez et recherchez parmi les artefacts stockés ({{count}} au total)",
+    "search": "Rechercher des artefacts",
+    "noArtifacts": "Aucun artefact trouvé",
+    "adjustSearch": "Essayez d'ajuster vos termes de recherche",
+    "noArtifactsYet": "Aucun artefact n'a encore été créé",
+    "filters": {
+      "type": "Type",
+      "status": "Statut",
+      "category": "Catégorie",
+      "allTypes": "Tous les Types",
+      "allStatuses": "Tous les Statuts"
+    },
+    "types": {
+      "qaPair": "Paire Q&R",
+      "document": "Document",
+      "codeSnippet": "Extrait de Code",
+      "conversationSummary": "Résumé de Conversation",
+      "projectInsight": "Aperçu du Projet"
+    },
+    "status": {
+      "active": "Actif",
+      "archived": "Archivé",
+      "draft": "Brouillon"
+    },
+    "metadata": {
+      "source": "Source : {{sourceType}}",
+      "public": "Public : {{isPublic}}"
+    }
+  },
+  "integrations": {
+    "title": "Intégrations",
+    "loadingIntegrations": "Chargement des intégrations...",
+    "allConfigured": "Toutes les intégrations disponibles ont été configurées.",
+    "noIntegrations": "Aucune intégration disponible pour le moment.",
+    "addNew": "Ajouter une Nouvelle Intégration",
+    "dialog": {
+      "add": "Ajouter",
+      "edit": "Modifier",
+      "createIntegration": "Créer une Intégration",
+      "updateIntegration": "Mettre à jour l'Intégration",
+      "selectType": "Sélectionner le Type d'Intégration",
+      "integrationType": "Type d'Intégration",
+      "chooseService": "Choisissez le service à intégrer",
+      "cannotBeChanged": "(ne peut pas être modifié)",
+      "integrationTypes": {
+        "github": "GitHub",
+        "jira": "Jira"
+      },
+      "placeholders": {
+        "githubRepo": "Mon Dépôt GitHub",
+        "jiraProject": "Mon Projet Jira"
+      }
+    },
+    "github": {
+      "configuration": "Configuration GitHub",
+      "personalAccessToken": "Token d'Accès Personnel GitHub",
+      "tokenHelp": "Votre PAT a besoin de ces portées : repo (pour les dépôts privés) et admin:org_hook (pour les webhooks d'organisation).",
+      "createToken": "Créer un nouveau token",
+      "targetType": "Type de Cible",
+      "singleRepository": "Dépôt Unique",
+      "entireOrganization": "Toute l'Organisation",
+      "repositoryUrl": "URL du Dépôt",
+      "repositoryUrlPlaceholder": "https://github.com/propriétaire/dépôt",
+      "repositoryUrlHelp": "URL complète du dépôt GitHub. Si vide, l'intégration sera créée pour tous les dépôts utilisateur.",
+      "organizationName": "Nom de l'Organisation",
+      "organizationNamePlaceholder": "mon-org",
+      "organizationNameHelp": "Nom de l'organisation GitHub (pas l'URL complète)"
+    },
+    "jira": {
+      "configuration": "Configuration Jira",
+      "instanceType": "Type d'Instance",
+      "jiraCloud": "Jira Cloud",
+      "jiraServerDataCenter": "Jira Server/Data Center",
+      "jiraCloudUrl": "URL Jira Cloud",
+      "jiraServerUrl": "URL Jira Server",
+      "jiraCloudUrlPlaceholder": "https://votre-domaine.atlassian.net",
+      "jiraServerUrlPlaceholder": "https://votre-serveur-jira.com",
+      "jiraCloudUrlHelp": "URL de votre instance Atlassian Cloud",
+      "jiraServerUrlHelp": "URL de votre serveur Jira sur site",
+      "emailAddress": "Adresse Email",
+      "emailPlaceholder": "votre-email@entreprise.com",
+      "emailHelp": "L'adresse email associée à votre compte Jira",
+      "apiToken": "Token API",
+      "passwordApiToken": "Mot de passe/Token API",
+      "apiTokenHelp": "Créez un token API dans vos Paramètres de Compte Atlassian",
+      "serverPasswordHelp": "Votre mot de passe Jira ou token API (recommandé)",
+      "projectKey": "Clé du Projet (Optionnel)",
+      "projectKeyPlaceholder": "PROJ",
+      "projectKeyHelp": "Spécifiez une clé de projet pour limiter l'intégration à un projet spécifique, ou laissez vide pour tous les projets",
+      "serverAlert": "Pour les instances Jira Server/Data Center, assurez-vous que votre serveur est accessible depuis notre service et que vous avez les permissions nécessaires pour créer et gérer les issues."
+    },
+    "forms": {
+      "name": "Nom",
+      "description": "Description",
+      "testConnection": "Tester la Connexion",
+      "testingConnection": "Test de Connexion...",
+      "fillRequiredFields": "Veuillez remplir tous les champs requis d'abord.",
+      "orgIdNotAvailable": "ID d'organisation non disponible. Veuillez actualiser et réessayer.",
+      "connectionTestSuccess": "Test de connexion réussi !",
+      "connectionTestFailed": "Test de connexion échoué",
+      "connectionNotImplemented": "Le test de connexion n'est pas encore implémenté pour {{type}}.",
+      "noHelpAvailable": "Aucune aide disponible pour ce type d'intégration."
+    }
+  },
+  "onboarding": {
+    "title": "Intégration",
+    "subtitle": "Notre IA vous aidera à décomposer votre projet en étapes réalisables",
+    "loadingInitiative": "Chargement de l'initiative..."
+  },
+  "auth": {
+    "login": "Connexion",
+    "logout": "Déconnexion",
+    "welcome": "Bon retour !",
+    "signIn": "S'inscrire"
+  },
+  "forms": {
+    "required": "Ce champ est requis",
+    "invalidEmail": "Veuillez saisir un email valide",
+    "passwordTooShort": "Le mot de passe doit contenir au moins 8 caractères",
+    "passwordMismatch": "Les mots de passe ne correspondent pas"
+  },
+  "alerts": {
+    "deleteSuccess": "Supprimé avec succès",
+    "createSuccess": "Créé avec succès",
+    "updateSuccess": "Mis à jour avec succès",
+    "saveSuccess": "Sauvegardé avec succès",
+    "errorOccurred": "Une erreur s'est produite",
+    "tryAgain": "Veuillez réessayer"
+  },
+  "workflow": {
+    "templates": {
+      "title": "Modèles de workflow",
+      "searchPlaceholder": "Rechercher des modèles...",
+      "sortBy": "Trier par",
+      "order": "Ordre",
+      "filters": "Filtres",
+      "activeFilters": "Filtres actifs",
+      "filterByStatus": "Filtrer par statut",
+      "noResults": "Aucun workflow trouvé",
+      "tryAdjustingFilters": "Essayez d'ajuster vos filtres"
+    },
+    "fields": {
+      "name": "Nom",
+      "created": "Créé",
+      "updated": "Mis à jour",
+      "executions": "Exécutions",
+      "search": "Rechercher",
+      "nodes": "Nœuds",
+      "lastExecuted": "Dernière exécution"
+    },
+    "sort": {
+      "ascending": "Croissant",
+      "descending": "Décroissant"
+    },
+    "diagram": {
+      "noNodes": "Aucun nœud de workflow trouvé",
+      "simulationMode": "Mode simulation",
+      "loadingStructure": "Chargement de la structure du workflow..."
+    },
+    "status": {
+      "current": "Actuel"
+    },
+    "node": {
+      "hasConfiguration": "A une configuration"
+    },
+    "errors": {
+      "loadTemplate": "Échec du chargement du modèle de workflow : {{error}}",
+      "loadTemplates": "Échec du chargement des modèles de workflow : {{error}}"
+    },
+    "actions": {
+      "back": "Retour",
+      "refresh": "Actualiser",
+      "execute": "Exécuter",
+      "simulate": "Simuler",
+      "edit": "Modifier",
+      "share": "Partager",
+      "export": "Exporter",
+      "clearFilters": "Effacer les filtres",
+      "view": "Voir",
+      "details": "Détails"
+    },
+    "tabs": {
+      "overview": "Aperçu",
+      "diagram": "Diagramme",
+      "simulation": "Simulation",
+      "executions": "Exécutions",
+      "analytics": "Analytiques",
+      "raw": "Brut"
+    },
+    "simulation": {
+      "loadingStructure": "Chargement de la structure du workflow..."
+    },
+    "never": "Jamais"
+  },
+  "conversation": {
+    "suggestedAction": {
+      "generated": "Généré",
+      "rejected": "Rejeté"
+    }
+  },
+  "triage": {
+    "open": "Trier les éléments ouverts",
+    "title": "Tri des éléments ouverts",
+    "runAgain": "Relancer",
+    "apply": "Appliquer",
+    "applyAll": "Appliquer la sélection",
+    "retry": "Réessayer le travail restant",
+    "select": "Sélectionner la suggestion",
+    "unavailable": "Les suggestions sont indisponibles.",
+    "sessionError": "Impossible d’ouvrir la session.",
+    "conversationError": "La conversation est indisponible.",
+    "sessionCouldNotOpen": "La session n’a pas pu être ouverte",
+    "opening": "Ouverture du tri…",
+    "close": "Fermer le tri",
+    "applyWithConfirmation": "Appliquer…",
+    "applyNote": "Chaque suggestion est appliquée indépendamment. La transformation vous demande de confirmer son nom et sa date facultative.",
+    "kind": {
+      "removeOpenItems": "Retirer des éléments ouverts",
+      "reopenItems": "Rouvrir dans les éléments ouverts",
+      "groupOpenItems": "Regrouper les éléments ouverts",
+      "trackOnGoal": "Associer à un objectif",
+      "promoteGroupToGoal": "Transformer le groupe en objectif"
+    },
+    "state": {
+      "pending": "Application…",
+      "success": "Appliqué",
+      "failure": "Une partie du travail n’a pas pu être appliquée",
+      "cancelled": "Transformation annulée"
+    },
+    "evidence": {
+      "attention": "Attention",
+      "edge": "Relation",
+      "sourceConversation": "Conversation source",
+      "coAttention": "Consultés ensemble",
+      "title": "Titre"
+    },
+    "createdGoal": "Objectif créé",
+    "createdGroup": "Groupe créé",
+    "recoverPromotion": "Récupérer la transformation",
+    "recoverMissingGroup": "Ce groupe n’est plus disponible. Confirmez pour récupérer la tentative précédente.",
+    "waitingCollection": "Les éléments ouverts doivent être chargés avant d’appliquer les suggestions.",
+    "help": {
+      "lead": "Lancez un agent pour ranger vos éléments ouverts.",
+      "removes": "Retire les éléments dont vous n’avez plus besoin",
+      "groups": "Regroupe les éléments liés",
+      "tracks": "Suit le travail en cours dans un objectif"
+    },
+    "run": "Lancer",
+    "discard": {
+      "message": "Fermer le tri supprimera ces résultats. Vous ne pourrez pas y revenir. Les modifications déjà appliquées seront conservées.",
+      "keep": "Continuer l’examen",
+      "confirm": "Supprimer et fermer"
+    },
+    "cancel": {
+      "message": "Le tri est toujours en cours. Fermer annulera cette exécution et vous ne pourrez pas y revenir. Les modifications déjà appliquées seront conservées.",
+      "keep": "Continuer l’exécution",
+      "confirm": "Annuler et fermer",
+      "stopping": "Annulation de l’exécution…",
+      "failed": "L’exécution n’a pas pu être annulée",
+      "retry": "Réessayer"
+    }
+  }
+}

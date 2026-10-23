@@ -1,0 +1,44 @@
+{
+  "$schema": "./node_modules/@openapitools/openapi-generator-cli/config.schema.json",
+  "spaces": 2,
+  "generator-cli": {
+    "version": "7.13.0",
+    "generators": {
+      "api-models": {
+        "generatorName": "typescript-nestjs",
+        "inputSpec": "../openapi/specs/api/openapi.yaml",
+        "output": "src/generated",
+        "globalProperty": "models",
+        "additionalProperties": {
+          "npmName": "@hey-hey/api",
+          "npmVersion": "1.0.0",
+          "supportsES6": true,
+          "interfaceOnly": true,
+          "useObjectParameters": true
+        }
+      },
+      "agents-models": {
+        "generatorName": "typescript",
+        "inputSpec": "../openapi/specs/agents/openapi.yaml",
+        "output": "src/generated/agents",
+        "globalProperty": "models",
+        "additionalProperties": {
+          "supportsES6": true,
+          "modelPropertyNaming": "original",
+          "enumPropertyNaming": "original"
+        }
+      },
+      "local-models": {
+        "generatorName": "typescript",
+        "inputSpec": "../openapi/specs/agent-bridge/openapi.yaml",
+        "output": "src/generated/local",
+        "globalProperty": "models",
+        "additionalProperties": {
+          "supportsES6": true,
+          "modelPropertyNaming": "original",
+          "enumPropertyNaming": "original"
+        }
+      }
+    }
+  }
+}

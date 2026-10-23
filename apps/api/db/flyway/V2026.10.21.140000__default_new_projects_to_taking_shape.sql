@@ -1,0 +1,2 @@
+ALTER TABLE "projects"
+  ALTER COLUMN "maturity" SET DEFAULT 'TAKING_SHAPE';

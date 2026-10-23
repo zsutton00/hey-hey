@@ -1,0 +1,103 @@
+{
+  "id": "dd23dc6d-fcae-4808-a5c7-b30429fb429c",
+  "planId": "c1a106c1-32e2-4f8c-8281-1f32d742dd48",
+  "stageId": "e2bbcdcb-8b24-46dd-bc5d-e0e0ae586b1f",
+  "version": 1,
+  "status": "READY",
+  "payload": {
+    "version": 1,
+    "next_step_hint": "With \"Implement edit_tasks batch proposal generation tool\" complete, multi-task proposal generation (batched payloads and atomic outcomes) is available; the immediate option is to implement the centralized proposal payload validation engine (\"Implement proposal payload validation engine\") to standardize schema, permission, and metadata checks across single- and multi-task proposals.",
+    "next_step_options": [
+      {
+        "stepId": "fbba9142-02bc-4cf1-9aa9-779933cf2e71",
+        "stepType": "TASK",
+        "stepTitle": "Implement proposal payload validation engine",
+        "tradeoffs": "Centralizing validation with \"Implement proposal payload validation engine\" delivers consistent rules, reduces duplicated validation logic across \"Implement edit_task proposal generation tool\" and \"Implement edit_tasks batch proposal generation tool\", and lowers downstream bugs, but requires upfront design, may force refactors of existing generators to call the engine, and introduces additional runtime/latency considerations and a need for well-defined error-reporting contracts (including batch atomicity semantics).",
+        "stepStatus": "REFINING",
+        "description": "Implement the proposal payload validation engine (\"Implement proposal payload validation engine\"): build a centralized validator that enforces the proposal schemas, verifies referenced entities exist, checks change permissions, ensures required metadata and requestor-context presence/format, and produces structured per-proposal and batch-level validation results usable by both single-task (\"Implement edit_task proposal generation tool\") and multi-task (\"Implement edit_tasks batch proposal generation tool\") generators."
+      }
+    ],
+    "step_priority_hints": [
+      {
+        "effort": "tiny",
+        "stepId": "28d6c00b-8ffe-4315-8ba8-2e80ead6bb57",
+        "urgency": "low",
+        "importance": "high",
+        "blocking_state": "blocking",
+        "stepBlockerIds": null,
+        "executionInsight": "Lock field names and entity reference formats in \"Proposal Payload Schema and Validation Design\" now to avoid incompatible schema changes during implementation."
+      },
+      {
+        "effort": "tiny",
+        "stepId": "e3f315dd-1a7e-4a4c-a99f-6e8a5eefc494",
+        "urgency": "high",
+        "importance": "high",
+        "blocking_state": "blocking",
+        "stepBlockerIds": ["28d6c00b-8ffe-4315-8ba8-2e80ead6bb57"],
+        "executionInsight": "Ensure \"Implement Proposal entity, model, and endpoints\" exposes permission checks and stable reference APIs to prevent rework in \"Implement edit_task proposal generation tool\", \"Implement edit_tasks batch proposal generation tool\", \"Implement proposal payload validation engine\" and \"Implement API service proposal validation endpoints\"."
+      },
+      {
+        "effort": "tiny",
+        "stepId": "2a5f0b26-dff1-400e-9ce7-6d4bc81acd87",
+        "urgency": "high",
+        "importance": "high",
+        "blocking_state": "independent",
+        "stepBlockerIds": [
+          "28d6c00b-8ffe-4315-8ba8-2e80ead6bb57",
+          "e3f315dd-1a7e-4a4c-a99f-6e8a5eefc494"
+        ],
+        "executionInsight": "Delay finalizing \"Implement edit_task proposal generation tool\" until \"Implement Proposal entity, model, and endpoints\"'s model shape is stable so payload construction aligns with the canonical entities."
+      },
+      {
+        "effort": "tiny",
+        "stepId": "3584cd11-b130-48b3-ae0e-be3b8a0b76a1",
+        "urgency": "high",
+        "importance": "high",
+        "blocking_state": "independent",
+        "stepBlockerIds": [
+          "28d6c00b-8ffe-4315-8ba8-2e80ead6bb57",
+          "e3f315dd-1a7e-4a4c-a99f-6e8a5eefc494"
+        ],
+        "executionInsight": "Define batch atomicity and error semantics now so \"Implement edit_tasks batch proposal generation tool\" can integrate cleanly with \"Implement Proposal entity, model, and endpoints\" and \"Implement proposal payload validation engine\" once available."
+      },
+      {
+        "effort": "tiny",
+        "stepId": "fbba9142-02bc-4cf1-9aa9-779933cf2e71",
+        "urgency": "high",
+        "importance": "high",
+        "blocking_state": "blocking",
+        "stepBlockerIds": [
+          "28d6c00b-8ffe-4315-8ba8-2e80ead6bb57",
+          "e3f315dd-1a7e-4a4c-a99f-6e8a5eefc494"
+        ],
+        "executionInsight": "Implement schema-versioning and clear error codes in \"Implement proposal payload validation engine\" to make validation consumable by \"Implement edit_task proposal generation tool\"/\"Implement edit_tasks batch proposal generation tool\" and \"Implement API service proposal validation endpoints\"."
+      },
+      {
+        "effort": "tiny",
+        "stepId": "4e813f57-7af4-410f-9c07-58d548db76d9",
+        "urgency": "medium",
+        "importance": "medium",
+        "blocking_state": "independent",
+        "stepBlockerIds": ["28d6c00b-8ffe-4315-8ba8-2e80ead6bb57"],
+        "executionInsight": "Build \"Implement requestor context extraction and embedding\" to capture requestor metadata now; it can be integrated into payloads with minimal changes once \"Implement Proposal entity, model, and endpoints\" finalizes payload fields."
+      },
+      {
+        "effort": "tiny",
+        "stepId": "dd795e68-3412-41b4-9c4a-c97eae5950b7",
+        "urgency": "high",
+        "importance": "high",
+        "blocking_state": "blocked",
+        "stepBlockerIds": [
+          "28d6c00b-8ffe-4315-8ba8-2e80ead6bb57",
+          "e3f315dd-1a7e-4a4c-a99f-6e8a5eefc494",
+          "fbba9142-02bc-4cf1-9aa9-779933cf2e71"
+        ],
+        "executionInsight": "Design \"Implement API service proposal validation endpoints\" to surface \"Implement proposal payload validation engine\" validation results with stable error schemas so callers can handle retries and conflicts consistently."
+      }
+    ],
+    "step_recommendations": [],
+    "verification_guidance": "From \"Implement edit_tasks batch proposal generation tool\" you can verify that the system can produce multi-task proposal payloads that reference multiple entities, include embedded requestor context and change metadata, and expose batch-level outcomes (success or atomic failure) with per-item error details."
+  },
+  "createdAt": "2026-03-11T05:56:01.552Z",
+  "updatedAt": "2026-03-12T14:54:31.707Z"
+}

@@ -1,0 +1,1535 @@
+# Diagram metadata, canonical references and groups use schema-backed sections
+# (diagramMetadata / diagramElementMetadata / diagramGroups) in generic CREATE
+# and UPDATE shapes.
+# Note: TaskStatus is now unified with InitiativeStatus as WorkStatus in common.yaml
+
+TaskPriority:
+  type: string
+  enum:
+    - LOW
+    - MEDIUM
+    - HIGH
+    - CRITICAL
+  description: The priority level of an item.
+  example: "HIGH"
+
+TaskSource:
+  type: string
+  enum:
+    - system
+    - user
+    - agent
+  description: Origin source for task creation.
+  example: "system"
+
+TaskType:
+  type: string
+  description: >
+    Work-item type key. Values are registry-backed and may include system
+    keys such as `STANDARD`, `BUG`, `FEATURE`, `GOAL`, `PLAN`, `PLAN_STAGE`,
+    `CONTRACT`, `DIAGRAM`, `DIAGRAM_ELEMENT`, and `TASK_MONITOR`, or project-defined
+    keys created at runtime.
+  example: "STANDARD"
+
+FeatureTag:
+  type: string
+  enum:
+    - product
+    - frontend
+    - backend
+    - infra
+    - design
+    - AI
+  description: |
+    Coarse-grained classification of what kind of work a FEATURE task
+    represents. Single source of truth — every Feature-shaped DTO that
+    surfaces the tag references this enum.
+
+    Values:
+      * `product` — user-facing product capabilities and outcomes.
+      * `frontend` — client/UI-shaped delivery (web, mobile, surfaces).
+      * `backend` — server/API/data-shaped delivery.
+      * `infra` — platform, deployment, observability, build, runtime.
+      * `design` — design-system, visual, or UX research deliverables.
+      * `AI` — AI/agent-shaped delivery: prompts, agent orchestration, runners.
+
+    Set on every FEATURE task at creation time. Other task types
+    (STANDARD, BUG, GOAL) do not carry a tag.
+  example: "backend"
+
+TaskSortBy:
+  type: string
+  enum:
+    - createdAt
+    - updatedAt
+    - title
+    - status
+    - priority
+  description: Field to sort tasks by.
+  example: "createdAt"
+
+TaskSortDir:
+  type: string
+  enum:
+    - asc
+    - desc
+  description: Sort direction for task listing.
+  example: "desc"
+
+TaskSectionKey:
+  type: string
+  enum:
+    - description
+    - acceptanceCriteria
+    - requirements
+    - graphPresentation
+  description: Allowed section keys for task content. `requirements` is a feature-scoped section key.
+
+TaskSection:
+  type: object
+  required:
+    - key
+    - order
+  properties:
+    id:
+      type: string
+      description: The section's unique id
+    key:
+      $ref: "#/TaskSectionKey"
+    order:
+      type: integer
+      description: Ordering index for rendering sections.
+
+TaskSectionInput:
+  type: object
+  required:
+    - key
+    - content
+  properties:
+    key:
+      type: string
+      description: Section key from the work-item type definition.
+    content:
+      description: >
+        Section content to initialize or update. Markdown sections use strings;
+        JSON sections use schema-backed values, html/css sections use the
+        strict WorkItemHtmlCssSectionContent object, and structured-mockup
+        sections use WorkItemStructuredMockupSectionContent.
+      nullable: true
+    order:
+      type: integer
+      description: Optional ordering index for rendering sections.
+
+# ------------------------------------------------
+# FEATURE structured requirements
+# ------------------------------------------------
+FeatureRequirementCitation:
+  type: object
+  additionalProperties: false
+  required:
+    - entityType
+    - entityId
+  properties:
+    entityType:
+      type: string
+      description: Discriminator identifying the citation's API-level entity kind.
+    entityId:
+      type: string
+      format: uuid
+      description: UUID of the cited entity.
+
+FeatureRequirementDesignDocCitation:
+  allOf:
+    - $ref: "#/FeatureRequirementCitation"
+    - type: object
+      required:
+        - entityType
+      properties:
+        entityType:
+          type: string
+          enum:
+            - DESIGN_DOC
+  x-discriminator-value: DESIGN_DOC
+
+FeatureRequirementMockupCitation:
+  allOf:
+    - $ref: "#/FeatureRequirementCitation"
+    - type: object
+      required:
+        - entityType
+      properties:
+        entityType:
+          type: string
+          enum:
+            - MOCKUP
+  description: Citation to a mockup work item that shows the requirement's intended interface.
+  x-discriminator-value: MOCKUP
+
+FeatureRequirementDiagramCitation:
+  allOf:
+    - $ref: "#/FeatureRequirementCitation"
+    - type: object
+      required:
+        - entityType
+      properties:
+        entityType:
+          type: string
+          enum:
+            - DIAGRAM
+  description: Citation to a diagram work item that shows the requirement's intended design.
+  x-discriminator-value: DIAGRAM
+
+FeatureRequirementDesignCitation:
+  oneOf:
+    - $ref: "#/FeatureRequirementDesignDocCitation"
+    - $ref: "#/FeatureRequirementMockupCitation"
+    - $ref: "#/FeatureRequirementDiagramCitation"
+  discriminator:
+    propertyName: entityType
+    mapping:
+      DESIGN_DOC: "#/FeatureRequirementDesignDocCitation"
+      MOCKUP: "#/FeatureRequirementMockupCitation"
+      DIAGRAM: "#/FeatureRequirementDiagramCitation"
+
+FeatureRequirementTaskCitation:
+  allOf:
+    - $ref: "#/FeatureRequirementCitation"
+    - type: object
+      required:
+        - entityType
+      properties:
+        entityType:
+          type: string
+          enum:
+            - TASK
+  description: Citation to a non-PLAN work item; its subtype and project membership are validated semantically.
+  x-discriminator-value: TASK
+
+FeatureRequirementPlanCitation:
+  allOf:
+    - $ref: "#/FeatureRequirementCitation"
+    - type: object
+      required:
+        - entityType
+      properties:
+        entityType:
+          type: string
+          enum:
+            - PLAN
+  description: Citation to a PLAN work item, represented distinctly from an ordinary TASK citation.
+  x-discriminator-value: PLAN
+
+FeatureRequirementContractCitation:
+  allOf:
+    - $ref: "#/FeatureRequirementCitation"
+    - type: object
+      required:
+        - entityType
+      properties:
+        entityType:
+          type: string
+          enum:
+            - CONTRACT
+  description: Citation to a CONTRACT work item; its subtype and project membership are validated semantically.
+  x-discriminator-value: CONTRACT
+
+FeatureRequirementFulfillmentCitation:
+  oneOf:
+    - $ref: "#/FeatureRequirementTaskCitation"
+    - $ref: "#/FeatureRequirementPlanCitation"
+  discriminator:
+    propertyName: entityType
+    mapping:
+      TASK: "#/FeatureRequirementTaskCitation"
+      PLAN: "#/FeatureRequirementPlanCitation"
+
+FeatureRequirementDesignCitationPatch:
+  type: object
+  additionalProperties: false
+  properties:
+    add:
+      type: array
+      items:
+        $ref: "#/FeatureRequirementDesignCitation"
+      description: Cites to add to the slot.
+    remove:
+      type: array
+      items:
+        $ref: "#/FeatureRequirementDesignCitation"
+      description: Cites to remove from the slot.
+
+FeatureRequirementFulfillmentCitationPatch:
+  type: object
+  additionalProperties: false
+  properties:
+    add:
+      type: array
+      items:
+        $ref: "#/FeatureRequirementFulfillmentCitation"
+      description: Cites to add to the slot.
+    remove:
+      type: array
+      items:
+        $ref: "#/FeatureRequirementFulfillmentCitation"
+      description: Cites to remove from the slot.
+
+FeatureRequirementContractCitationPatch:
+  type: object
+  additionalProperties: false
+  properties:
+    add:
+      type: array
+      items:
+        $ref: "#/FeatureRequirementContractCitation"
+      description: Cites to add to the slot.
+    remove:
+      type: array
+      items:
+        $ref: "#/FeatureRequirementContractCitation"
+      description: Cites to remove from the slot.
+
+FeatureRequirementStoredCitation:
+  type: object
+  additionalProperties: false
+  required:
+    - entityType
+    - entityId
+    - entityTitle
+  properties:
+    entityType:
+      type: string
+      description: Discriminator identifying the citation's API-level entity kind.
+    entityId:
+      type: string
+      format: uuid
+      description: UUID of the cited entity.
+    entityTitle:
+      type: string
+      description: Title of the cited entity, captured by the server when the requirements were written.
+
+FeatureRequirementStoredDesignDocCitation:
+  allOf:
+    - $ref: "#/FeatureRequirementStoredCitation"
+    - type: object
+      required:
+        - entityType
+      properties:
+        entityType:
+          type: string
+          enum:
+            - DESIGN_DOC
+  x-discriminator-value: DESIGN_DOC
+
+FeatureRequirementStoredMockupCitation:
+  allOf:
+    - $ref: "#/FeatureRequirementStoredCitation"
+    - type: object
+      required:
+        - entityType
+      properties:
+        entityType:
+          type: string
+          enum:
+            - MOCKUP
+  x-discriminator-value: MOCKUP
+
+FeatureRequirementStoredDiagramCitation:
+  allOf:
+    - $ref: "#/FeatureRequirementStoredCitation"
+    - type: object
+      required:
+        - entityType
+      properties:
+        entityType:
+          type: string
+          enum:
+            - DIAGRAM
+  x-discriminator-value: DIAGRAM
+
+FeatureRequirementStoredDesignCitation:
+  oneOf:
+    - $ref: "#/FeatureRequirementStoredDesignDocCitation"
+    - $ref: "#/FeatureRequirementStoredMockupCitation"
+    - $ref: "#/FeatureRequirementStoredDiagramCitation"
+  discriminator:
+    propertyName: entityType
+    mapping:
+      DESIGN_DOC: "#/FeatureRequirementStoredDesignDocCitation"
+      MOCKUP: "#/FeatureRequirementStoredMockupCitation"
+      DIAGRAM: "#/FeatureRequirementStoredDiagramCitation"
+
+FeatureRequirementStoredTaskCitation:
+  allOf:
+    - $ref: "#/FeatureRequirementStoredCitation"
+    - type: object
+      required:
+        - entityType
+      properties:
+        entityType:
+          type: string
+          enum:
+            - TASK
+  x-discriminator-value: TASK
+
+FeatureRequirementStoredPlanCitation:
+  allOf:
+    - $ref: "#/FeatureRequirementStoredCitation"
+    - type: object
+      required:
+        - entityType
+      properties:
+        entityType:
+          type: string
+          enum:
+            - PLAN
+  x-discriminator-value: PLAN
+
+FeatureRequirementStoredContractCitation:
+  allOf:
+    - $ref: "#/FeatureRequirementStoredCitation"
+    - type: object
+      required:
+        - entityType
+      properties:
+        entityType:
+          type: string
+          enum:
+            - CONTRACT
+  x-discriminator-value: CONTRACT
+
+FeatureRequirementStoredFulfillmentCitation:
+  oneOf:
+    - $ref: "#/FeatureRequirementStoredTaskCitation"
+    - $ref: "#/FeatureRequirementStoredPlanCitation"
+  discriminator:
+    propertyName: entityType
+    mapping:
+      TASK: "#/FeatureRequirementStoredTaskCitation"
+      PLAN: "#/FeatureRequirementStoredPlanCitation"
+
+FeatureRequirementRecord:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - statement
+    - designedBy
+    - fulfilledBy
+    - contracts
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Durable requirement identity, independent of statement content and normalization.
+    statement:
+      type: string
+      description: Canonical requirement statement.
+    group:
+      type: string
+      pattern: '^[A-Za-z0-9](?:[A-Za-z0-9 -]*[A-Za-z0-9])?$'
+      description: Explicit feature-local grouping label using alphanumeric characters, spaces, and hyphens; omitted when absent.
+    designedBy:
+      type: array
+      items:
+        $ref: "#/FeatureRequirementStoredDesignCitation"
+      description: Design documents, mockups, and diagrams cited for this requirement.
+    fulfilledBy:
+      type: array
+      items:
+        $ref: "#/FeatureRequirementStoredFulfillmentCitation"
+      description: Work items or plans cited as fulfilling this requirement.
+    contracts:
+      type: array
+      items:
+        $ref: "#/FeatureRequirementStoredContractCitation"
+      description: Contracts cited for this requirement.
+
+FeatureRequirementInput:
+  type: object
+  additionalProperties: false
+  required:
+    - statement
+  properties:
+    statement:
+      type: string
+      minLength: 1
+      description: Requirement statement text.
+    group:
+      type: string
+      pattern: '^[A-Za-z0-9](?:[A-Za-z0-9 -]*[A-Za-z0-9])?$'
+      description: Explicit feature-local grouping label using alphanumeric characters, spaces, and hyphens; omit when absent.
+    designedBy:
+      type: array
+      items:
+        $ref: "#/FeatureRequirementDesignCitation"
+    fulfilledBy:
+      type: array
+      items:
+        $ref: "#/FeatureRequirementFulfillmentCitation"
+    contracts:
+      type: array
+      items:
+        $ref: "#/FeatureRequirementContractCitation"
+
+FeatureRequirementAddOperation:
+  type: object
+  additionalProperties: false
+  required:
+    - op
+    - value
+  properties:
+    op:
+      type: string
+      enum:
+        - add
+    value:
+      $ref: "#/FeatureRequirementInput"
+    before:
+      type: string
+      format: uuid
+      description: Durable requirement ID to insert before; appends when absent or not found.
+
+FeatureRequirementUpdateOperation:
+  type: object
+  additionalProperties: false
+  required:
+    - op
+    - targetId
+  properties:
+    op:
+      type: string
+      enum:
+        - update
+    targetId:
+      type: string
+      format: uuid
+      description: Durable ID of the requirement to update.
+    statement:
+      type: string
+      minLength: 1
+      description: Replacement statement; changing it preserves the durable ID.
+    group:
+      type: string
+      pattern: '^[A-Za-z0-9](?:[A-Za-z0-9 -]*[A-Za-z0-9])?$'
+      nullable: true
+      description: Omit to preserve the group, provide an alphanumeric label using spaces or hyphens to set or rename it, or provide null to clear it.
+    designedBy:
+      $ref: "#/FeatureRequirementDesignCitationPatch"
+    fulfilledBy:
+      $ref: "#/FeatureRequirementFulfillmentCitationPatch"
+    contracts:
+      $ref: "#/FeatureRequirementContractCitationPatch"
+
+FeatureRequirementDeleteOperation:
+  type: object
+  additionalProperties: false
+  required:
+    - op
+    - targetId
+  properties:
+    op:
+      type: string
+      enum:
+        - delete
+    targetId:
+      type: string
+      format: uuid
+      description: Durable ID of the requirement to delete.
+
+FeatureRequirementOperation:
+  oneOf:
+    - $ref: "#/FeatureRequirementAddOperation"
+    - $ref: "#/FeatureRequirementUpdateOperation"
+    - $ref: "#/FeatureRequirementDeleteOperation"
+  description: Ordered add, update, or delete operation for a FEATURE requirement.
+
+FeatureRequirementsSection:
+  type: object
+  additionalProperties: false
+  required:
+    - records
+  properties:
+    records:
+      type: array
+      items:
+        $ref: "#/FeatureRequirementRecord"
+      description: Ordered persisted requirements. Array and citation order are authoritative.
+
+TaskSectionUpdateSource:
+  type: string
+  description: Source of section updates in task PATCH requests.
+  enum:
+    - USER
+    - AGENT_SUGGESTED
+  example: "USER"
+
+# ------------------------------------------------
+# Tracked Entity Snapshot
+# ------------------------------------------------
+TrackedEntitySnapshot:
+  type: object
+  description: |
+    Inlined snapshot of an entity referenced by a `TRACKS` edge. Carries the
+    fields needed to render the goal's tracked items in a list view without a
+    second hop. `targetEntityId`, `targetEntityType`, and `title` are always
+    present. `status` and `dueDate` are optional and may be null for target
+    types that do not carry them (for example PLAN). Wider than EntityNameDto,
+    which only carries an entity name.
+  required:
+    - targetEntityId
+    - targetEntityType
+    - title
+  properties:
+    targetEntityId:
+      type: string
+      format: uuid
+      description: ID of the tracked entity.
+    targetEntityType:
+      $ref: "common.yaml#/EntityType"
+    title:
+      type: string
+      description: Display title for the tracked entity.
+    status:
+      $ref: "common.yaml#/WorkStatus"
+      nullable: true
+      description: Current work status, when the target type carries one.
+    dueDate:
+      type: string
+      format: date-time
+      nullable: true
+      description: Target completion date, when the target type carries one.
+
+# ------------------------------------------------
+# Goal Tracked Work Summary
+# ------------------------------------------------
+GoalTrackedWorkSummary:
+  type: object
+  description: |
+    Compact per-Goal aggregate of the work reached by outgoing `TRACKS`
+    edges, sufficient to derive goal progress (done / at-risk / on-track)
+    without embedding tracked-entity snapshots. Counts cover tracked targets
+    that resolve to non-archived work items; unresolved or archived targets
+    are excluded. Past-due and undated counts consider only open targets
+    (not completed and not cancelled). Undated open targets inherit the
+    Goal's own `dueDate` when callers derive progress.
+  required:
+    - totalCount
+    - completedCount
+    - cancelledCount
+    - pastDueCount
+    - openUndatedCount
+  properties:
+    totalCount:
+      type: integer
+      minimum: 0
+      description: Number of resolved tracked targets.
+    completedCount:
+      type: integer
+      minimum: 0
+      description: Number of tracked targets in COMPLETED status.
+    cancelledCount:
+      type: integer
+      minimum: 0
+      description: Number of tracked targets in CANCELLED status.
+    pastDueCount:
+      type: integer
+      minimum: 0
+      description: Number of open tracked targets whose own due date is before the server's current time.
+    openUndatedCount:
+      type: integer
+      minimum: 0
+      description: Number of open tracked targets without their own due date. Callers apply the Goal's dueDate to these when deriving progress.
+
+# ------------------------------------------------
+# Core Object
+# ------------------------------------------------
+TaskResponseDto:
+  type: object
+  required:
+    - name
+    - id
+    - type
+    - status
+    - source
+    - organizationId
+    - projectId
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: The unique identifier for the task.
+    name:
+      type: string
+      description: The name or title of the task.
+    type:
+      $ref: "#/TaskType"
+    config:
+      allOf:
+        - $ref: "./work-item-type-definition.yaml#/WorkItemConfig"
+      nullable: true
+      description: |
+        Typed launch defaults retained with the work item. Null or omission
+        means no stored launch default; checkout materialization happens only
+        when a coding session is started.
+    sections:
+      type: array
+      items:
+        $ref: "work-items.yaml#/MaterializedWorkItemSection"
+    organizationId:
+      type: string
+      format: uuid
+      description: The ID of the organization this task belongs to.
+    projectId:
+      type: string
+      format: uuid
+      description: The ID of the project this task belongs to.
+    initiativeId:
+      type: string
+      format: uuid
+      description: The ID of the initiative this task is part of.
+    status:
+      $ref: "common.yaml#/WorkStatus"
+    source:
+      $ref: "#/TaskSource"
+    priority:
+      $ref: "#/TaskPriority"
+    dueDate:
+      type: string
+      format: date-time
+      nullable: true
+      description: The target completion date, or null for an undated task.
+    tag:
+      $ref: "#/FeatureTag"
+      description: |
+        Feature classification. Set on FEATURE tasks; absent on STANDARD,
+        BUG, and GOAL tasks.
+    assigneeId:
+      type: string
+      format: uuid
+      nullable: true
+      description: The ID of the user assigned to this task.
+    reporterId:
+      type: string
+      format: uuid
+      description: The ID of the user who reported or created this task.
+    parentTaskId:
+      type: string
+      format: uuid
+      description: The ID of the parent task, if this is a sub-task.
+    childCounts:
+      type: object
+      description: Aggregated sub-task counts grouped by status for direct children.
+      properties:
+        total:
+          type: integer
+          format: int32
+          description: Total number of direct child tasks.
+          example: 3
+        done:
+          type: integer
+          format: int32
+          description: Number of direct child tasks marked as done.
+          example: 1
+        inProgress:
+          type: integer
+          format: int32
+          description: Number of direct child tasks currently in progress.
+          example: 1
+        backlog:
+          type: integer
+          format: int32
+          description: Number of direct child tasks that are still in the backlog.
+          example: 1
+    designDocCount:
+      type: integer
+      format: int32
+      description: Number of design docs linked to this task. Present when includeDesignDocCounts=true; otherwise null.
+    codingSessionCount:
+      type: integer
+      format: int32
+      description: Number of coding sessions (type=CODING) linked to this task. Present when includeAgentSessionCounts=true; otherwise null.
+    agentSessionCount:
+      type: integer
+      format: int32
+      description: Number of non-coding agent sessions (e.g. DAILY_SESSION, TASK_REFINING) linked to this task. Present when includeAgentSessionCounts=true; otherwise null.
+    serviceRelations:
+      type: array
+      description: Service-to-task relation records linked to this task. Present when includeServiceRelations=true.
+      items:
+        $ref: "./services.yaml#/ServiceTaskRelation"
+    edges:
+      type: array
+      description: |
+        Agent-authored graph edges that touch this task (inbound + outbound,
+        deduplicated by edge id). Present when includeEdges=true on the
+        request; otherwise omitted. When `edgeTypes` is omitted, the response
+        uses the default generic edge label set; when `edgeTypes` is provided,
+        the requested AgentEdgeType labels define the returned edge domain.
+        Edges can include workflow labels (`STANDARD`, `CONDITIONAL`, `LOOP`,
+        `FULFILLED_BY`) and preserve graph relationship metadata such as
+        category, direction, and predicate.
+      items:
+        $ref: "./agent-edges.yaml#/AgentEdgeResponseDto"
+    createdAt:
+      type: string
+      format: date-time
+      readOnly: true
+      description: The timestamp when the task was created.
+    updatedAt:
+      type: string
+      format: date-time
+      readOnly: true
+      description: The timestamp when the task was last updated.
+    hasProposalSupport:
+      type: boolean
+      default: true
+      description: Whether this entity type supports MCP proposal tools (e.g. edit_task). Always true for tasks.
+    archivedAt:
+      type: string
+      format: date-time
+      readOnly: true
+      description: The timestamp when the task was archived (soft delete).
+    trackedEntities:
+      type: array
+      description: |
+        Outgoing `TRACKS` edges from this task, inlined as snapshots so list
+        views render tracked items without a second hop. Populated only for
+        GOAL-typed tasks (other task types omit the field or return an empty
+        array). Order is unspecified; callers should not rely on it.
+      items:
+        $ref: "#/TrackedEntitySnapshot"
+    trackedWorkSummary:
+      $ref: "#/GoalTrackedWorkSummary"
+      description: |
+        Compact tracked-work aggregate for GOAL tasks. Populated only when the
+        list read requests `includeTrackedWorkSummary=true`, independently of
+        `includeTrackedEntities`. Absent on non-GOAL tasks.
+  description: |
+    A task within an organization. Polymorphic over TaskType; the same shape
+    represents STANDARD, BUG, FEATURE, GOAL, DIAGRAM, DIAGRAM_ELEMENT, and TASK_MONITOR work
+    items. GOAL tasks are top-level by definition (parentTaskId is always null)
+    and may have no target date.
+    GOAL tasks additionally carry `trackedEntities` — outgoing TRACKS-edge
+    snapshots for the work the goal is tracking. Non-GOAL tasks omit the
+    field or return an empty array.
+    When requested, GOAL tasks also carry `trackedWorkSummary`, a compact
+    count aggregate that is independent of the `trackedEntities` projection. FEATURE tasks carry `tag`
+    (FeatureTag) classifying the feature; the field is absent on all
+    non-FEATURE work-item types.
+
+TaskHierarchyResponseDto:
+  type: object
+  description: Represents a task with its parent and direct children.
+  required:
+    - task
+    - children
+  properties:
+    parent:
+      allOf:
+        - $ref: "#/TaskResponseDto"
+      description: Parent task if it exists; null when task is top-level or parent is archived.
+    task:
+      $ref: "#/TaskResponseDto"
+    children:
+      type: array
+      description: Direct children belonging to the task.
+      items:
+        $ref: "#/TaskResponseDto"
+
+
+WorkflowProposalStepInput:
+  type: object
+  description: >
+    Proposed workflow_step child embedded in a workflow CREATE proposal. The
+    tempId is scoped to this proposal only; approval replaces it with the
+    materialized workflow_step task ID before creating workflow links.
+  required:
+    - tempId
+    - name
+  properties:
+    tempId:
+      type: string
+      description: Proposal-local handle used by workflowLinks to reference this step before approval.
+      example: "draft-step-1"
+    name:
+      type: string
+      description: The name or title of the workflow_step child.
+    sections:
+      type: array
+      items:
+        $ref: "#/TaskSectionInput"
+    status:
+      $ref: "common.yaml#/WorkStatus"
+      default: "BACKLOG"
+    source:
+      $ref: "#/TaskSource"
+      default: "system"
+    priority:
+      $ref: "#/TaskPriority"
+      default: "MEDIUM"
+    dueDate:
+      type: string
+      format: date-time
+    assigneeId:
+      type: string
+      format: uuid
+    serviceId:
+      type: string
+      format: uuid
+      description: Optional service ID to associate with the workflow_step child.
+
+WorkflowProposalStandardLinkInput:
+  type: object
+  additionalProperties: false
+  required:
+    - sourceStepTempId
+    - type
+    - targetStepTempId
+    - direction
+  properties:
+    sourceStepTempId:
+      type: string
+      description: tempId of the proposed workflow_step that originates this link.
+    type:
+      type: string
+      enum: [STANDARD]
+    targetStepTempId:
+      type: string
+      description: tempId of the proposed workflow_step target.
+    direction:
+      $ref: "./agent-edges.yaml#/AgentEdgeDirection"
+    description:
+      type: string
+      description: Optional human-readable explanation for the link.
+
+WorkflowProposalConditionalLinkInput:
+  type: object
+  additionalProperties: false
+  required:
+    - sourceStepTempId
+    - type
+    - targetStepTempId
+    - direction
+    - predicate
+  properties:
+    sourceStepTempId:
+      type: string
+      description: tempId of the proposed workflow_step that originates this link.
+    type:
+      type: string
+      enum: [CONDITIONAL]
+    targetStepTempId:
+      type: string
+      description: tempId of the proposed workflow_step branch target.
+    direction:
+      $ref: "./agent-edges.yaml#/AgentEdgeDirection"
+    predicate:
+      $ref: "./agent-edges.yaml#/WorkflowEdgePredicate"
+    description:
+      type: string
+      description: Optional human-readable explanation for the link.
+
+WorkflowProposalLoopLinkInput:
+  type: object
+  additionalProperties: false
+  required:
+    - sourceStepTempId
+    - type
+  properties:
+    sourceStepTempId:
+      type: string
+      description: tempId of the proposed workflow_step that originates this link.
+    type:
+      type: string
+      enum: [LOOP]
+    targetStepTempId:
+      type: string
+      description: >
+        Optional tempId of a return target. When omitted the loop resolves
+        back to its source workflow_step.
+    predicate:
+      $ref: "./agent-edges.yaml#/WorkflowEdgePredicate"
+    description:
+      type: string
+      description: Optional human-readable explanation for the link.
+
+WorkflowProposalFulfilledByLinkInput:
+  type: object
+  additionalProperties: false
+  required:
+    - sourceStepTempId
+    - type
+    - targetTaskId
+  properties:
+    sourceStepTempId:
+      type: string
+      description: tempId of the proposed workflow_step that originates this link.
+    type:
+      type: string
+      enum: [FULFILLED_BY]
+    targetTaskId:
+      type: string
+      format: uuid
+      description: Existing work-item task that fulfills this workflow step.
+    description:
+      type: string
+      description: Optional human-readable explanation for the link.
+
+WorkflowProposalLinkInput:
+  oneOf:
+    - $ref: "#/WorkflowProposalStandardLinkInput"
+    - $ref: "#/WorkflowProposalConditionalLinkInput"
+    - $ref: "#/WorkflowProposalLoopLinkInput"
+    - $ref: "#/WorkflowProposalFulfilledByLinkInput"
+  discriminator:
+    propertyName: type
+    mapping:
+      STANDARD: "#/WorkflowProposalStandardLinkInput"
+      CONDITIONAL: "#/WorkflowProposalConditionalLinkInput"
+      LOOP: "#/WorkflowProposalLoopLinkInput"
+      FULFILLED_BY: "#/WorkflowProposalFulfilledByLinkInput"
+  description: >
+    Proposed workflow link embedded in a workflow CREATE proposal. The link
+    type discriminates the exact required and forbidden fields.
+
+# ------------------------------------------------
+# Request Bodies
+# ------------------------------------------------
+CreateTaskDto:
+  type: object
+  description: |
+    Create-task payload. The endpoint is polymorphic over `type`; constraints
+    differ per type:
+      * STANDARD: must include `parentTaskId` (validated by the controller).
+      * BUG: top-level allowed; no extra constraints.
+      * FEATURE: top-level allowed; `tag` is required (the service rejects
+        a FEATURE create with no `tag` with HTTP 400).
+      * GOAL: `dueDate` is optional and `parentTaskId` must be null/omitted.
+        The service rejects either violation with HTTP 400. Type-specific
+        helpers `CreateFeatureDto` and `CreateGoalDto` describe these
+        constraints in isolation for SDK callers.
+  required:
+    - name
+  properties:
+    name:
+      type: string
+      description: The name or title of the task.
+      example: "Design new dashboard layout"
+    sections:
+      type: array
+      items:
+        $ref: "#/TaskSectionInput"
+    initiativeId:
+      type: string
+      format: uuid
+      description: The ID of the initiative this task belongs to.
+    status:
+      $ref: "common.yaml#/WorkStatus"
+      default: "BACKLOG"
+    source:
+      $ref: "#/TaskSource"
+      default: "system"
+    priority:
+      $ref: "#/TaskPriority"
+      default: "MEDIUM"
+    dueDate:
+      type: string
+      format: date-time
+      description: Optional target completion date; omission creates an undated Goal unless project-effective rules require a date.
+    assigneeId:
+      type: string
+      format: uuid
+      nullable: true
+    parentTaskId:
+      type: string
+      format: uuid
+      description: |
+        Parent task ID. Must be null/omitted for `type=GOAL`. Required for
+        `type=STANDARD`.
+    serviceId:
+      type: string
+      format: uuid
+      description: Optional service ID to associate this task with.
+    type:
+      type: string
+      default: "STANDARD"
+      description: |
+        Work-item type key. Accepts a system key (`STANDARD`, `BUG`,
+        `FEATURE`, `GOAL`, `workflow`, `workflow_step`, `TASK_MONITOR`) or a
+        project-defined custom type key. Validated server-side against the work-item-type
+        registry.
+    config:
+      allOf:
+        - $ref: "./work-item-type-definition.yaml#/WorkItemConfig"
+      nullable: true
+      description: |
+        Optional typed launch defaults. The effective work-item type
+        definition must explicitly accept the config kind; creation stores the
+        envelope but never materializes a checkout.
+    tag:
+      $ref: "#/FeatureTag"
+      description: |
+        Feature classification. Required when `type=FEATURE`; ignored for
+        other task types.
+    initialRequirements:
+      type: array
+      items:
+        $ref: "#/FeatureRequirementInput"
+      description: |
+        Initial structured requirements for a FEATURE task. The authoring
+        surface renders these records into the canonical requirements section;
+        omit the field when no initial requirement records are being supplied.
+    workflowSteps:
+      type: array
+      description: >
+        Initial workflow_step children for a workflow CREATE proposal. Valid
+        only when `type=workflow`; each child is materialized under the newly
+        created workflow during approval.
+      items:
+        $ref: "#/WorkflowProposalStepInput"
+    workflowLinks:
+      type: array
+      description: >
+        Workflow-aware links owned by a workflow CREATE proposal. Valid only
+        when `type=workflow`; proposed step tempId references are resolved to
+        materialized workflow_step IDs before graph edges are created.
+      items:
+        $ref: "#/WorkflowProposalLinkInput"
+
+CreateFeatureDto:
+  type: object
+  description: |
+    Type-specific helper for creating a `FEATURE` task. Submit via the
+    polymorphic `POST /tasks` endpoint with `type: FEATURE`. Features support
+    `description` and `requirements` sections, and require a `tag` to
+    classify the feature.
+  required:
+    - name
+    - tag
+  properties:
+    name:
+      type: string
+      description: The name or title of the feature.
+      example: "Public web interface"
+    tag:
+      $ref: "#/FeatureTag"
+      description: |
+        Feature classification. Required on every FEATURE create.
+    sections:
+      type: array
+      items:
+        $ref: "#/TaskSectionInput"
+    initiativeId:
+      type: string
+      format: uuid
+      description: The ID of the initiative this feature belongs to.
+    status:
+      $ref: "common.yaml#/WorkStatus"
+      default: "BACKLOG"
+    source:
+      $ref: "#/TaskSource"
+      default: "system"
+    priority:
+      $ref: "#/TaskPriority"
+      default: "MEDIUM"
+    dueDate:
+      type: string
+      format: date-time
+    assigneeId:
+      type: string
+      format: uuid
+    parentTaskId:
+      type: string
+      format: uuid
+    initialRequirements:
+      type: array
+      items:
+        $ref: "#/FeatureRequirementInput"
+      description: Initial structured requirements for the FEATURE task.
+
+CreateGoalDto:
+  type: object
+  description: |
+    Type-specific helper for creating a `GOAL` task. Submit via the polymorphic
+    `POST /tasks` endpoint with `type: GOAL`. Goals are top-level by
+    definition: `parentTaskId` is intentionally omitted from this shape and
+    the service rejects creating a GOAL with a non-null `parentTaskId`. A
+    `dueDate` is optional; omission creates an undated Goal unless project-effective rules require a date. Goals carry a single `description` section.
+  required:
+    - name
+  properties:
+    name:
+      type: string
+      description: The name or title of the goal.
+      example: "Ship public beta to 1k users"
+    sections:
+      type: array
+      description: |
+        Optional initial sections for the goal. Only the `description` key is
+        accepted for GOAL tasks.
+      items:
+        $ref: "#/TaskSectionInput"
+    initiativeId:
+      type: string
+      format: uuid
+      description: The ID of the initiative this goal belongs to.
+    status:
+      $ref: "common.yaml#/WorkStatus"
+      default: "BACKLOG"
+    source:
+      $ref: "#/TaskSource"
+      default: "system"
+    priority:
+      $ref: "#/TaskPriority"
+      default: "MEDIUM"
+    dueDate:
+      type: string
+      format: date-time
+      description: Optional target completion date for the goal; omission leaves it undated.
+    assigneeId:
+      type: string
+      format: uuid
+
+UpdateTaskDto:
+  type: object
+  description: |
+    Fields to update for a task. All fields are optional. Type-specific
+    constraints apply for GOAL tasks:
+      * `type` cannot be changed once a task has been created.
+      * For `type=GOAL`, `parentTaskId` cannot be set to a non-null value
+        while date requirements follow project-effective type rules.
+    The service rejects each violation with HTTP 400.
+  properties:
+    name:
+      type: string
+      description: The new name or title of the task.
+    sections:
+      type: array
+      items:
+        $ref: "#/TaskSectionInput"
+      description: Optional updated sections for the task.
+    initiativeId:
+      type: string
+      format: uuid
+      description: The new initiative ID for the task.
+    status:
+      $ref: "common.yaml#/WorkStatus"
+    priority:
+      $ref: "#/TaskPriority"
+    dueDate:
+      type: string
+      format: date-time
+      nullable: true
+      description: |
+        Updated target completion date. Omission preserves the date; explicit null clears it unless project-effective rules require a date.
+    assigneeId:
+      type: string
+      format: uuid
+      nullable: true
+    parentTaskId:
+      type: string
+      format: uuid
+      nullable: true
+      description: |
+        Updated parent task ID. Pass null to promote the task to top-level
+        (clear the parent). Cannot be set to a non-null value on a GOAL
+        task.
+    type:
+      $ref: "#/TaskType"
+      description: |
+        Echoed task type. The server rejects any value that differs from
+        the persisted task type — type cannot be changed after creation.
+    tag:
+      $ref: "#/FeatureTag"
+      description: |
+        Updated feature classification. Only meaningful on FEATURE tasks;
+        omitting the field means no change. Sending `tag` on a non-FEATURE
+        task is ignored by the service.
+    requirementOps:
+      type: array
+      items:
+        $ref: "#/FeatureRequirementOperation"
+      description: |
+        Ordered partial operations for a FEATURE task's structured
+        requirements. Group omission preserves the current value, a string
+        sets or renames it, and null clears it.
+    sectionUpdateSource:
+      $ref: "#/TaskSectionUpdateSource"
+      description: Indicates whether provided section updates are user-authored or agent-suggested content.
+    reason:
+      type: string
+      nullable: true
+      description: |
+        Optional free-text reason describing why this edit is being made.
+        Consumed at the controller boundary: trimmed, then attached to the
+        resulting proposal as a USER-typed influence (entityType=USER,
+        entityId=<requestor's userId>, reasonType=user_reason). Never
+        included in the proposal's `updates` payload. Empty / whitespace-only
+        values still produce the USER influence (with empty reasoning) so
+        every PATCH carries an attribution row.
+
+UpdateTaskResultStatus:
+  type: string
+  enum:
+    - APPLIED
+    - PENDING
+  description: |
+    Whether the PATCH was applied immediately (no approval gate) or staged
+    behind a pending proposal.
+
+UpdateTaskResponseDto:
+  type: object
+  required:
+    - status
+    - task
+  description: |
+    Result of `PATCH /tasks/{taskId}`. Every PATCH is funneled through a
+    user-authored proposal: when the proposal auto-applies the response
+    carries `status: APPLIED` and the updated `task`; otherwise it carries
+    `status: PENDING`, the unchanged `task`, and the `proposal` that needs
+    review.
+  properties:
+    status:
+      $ref: "#/UpdateTaskResultStatus"
+    task:
+      $ref: "#/TaskResponseDto"
+    proposal:
+      $ref: "./proposals.yaml#/ProposalResponseDto"
+      description: |
+        Present only when `status: PENDING`. Describes the pending proposal
+        that the PATCH produced.
+
+# ------------------------------------------------
+# Task Dependencies
+# ------------------------------------------------
+TaskDependencyRelationType:
+  type: string
+  enum:
+    - DEPENDS_ON
+    - BLOCKS
+  description: Directional relationship between two tasks (dependent -> dependency).
+  example: "DEPENDS_ON"
+
+TaskDependencySourceType:
+  type: string
+  enum:
+    - USER
+    - SYSTEM
+  description: Origin of the dependency relationship.
+  example: "USER"
+
+TaskDependencyResponseDto:
+  type: object
+  required:
+    - id
+    - dependentTaskId
+    - dependencyTaskId
+    - relationType
+    - sourceType
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: The unique identifier for the task dependency.
+    dependentTaskId:
+      type: string
+      format: uuid
+      description: The task that depends on another task.
+    dependencyTaskId:
+      type: string
+      format: uuid
+      description: The task that must be completed first.
+    relationType:
+      $ref: "#/TaskDependencyRelationType"
+    sourceType:
+      $ref: "#/TaskDependencySourceType"
+    createdById:
+      type: string
+      format: uuid
+      description: The user who created or last updated the dependency (null for system-generated).
+    reason:
+      type: string
+      description: Optional explanation for the dependency.
+    createdAt:
+      type: string
+      format: date-time
+      readOnly: true
+      description: The timestamp when the dependency was created.
+    updatedAt:
+      type: string
+      format: date-time
+      readOnly: true
+      description: The timestamp when the dependency was last updated.
+
+CreateTaskDependencyDto:
+  type: object
+  required:
+    - dependencyTaskId
+  properties:
+    dependencyTaskId:
+      type: string
+      format: uuid
+      description: The task that must be completed first.
+    relationType:
+      $ref: "#/TaskDependencyRelationType"
+    sourceType:
+      $ref: "#/TaskDependencySourceType"
+    reason:
+      type: string
+      description: Optional explanation for the dependency.
+
+UpdateTaskDependencyDto:
+  type: object
+  description: "Fields to update for a task dependency."
+  properties:
+    dependencyTaskId:
+      type: string
+      format: uuid
+      description: The task that must be completed first.
+    relationType:
+      $ref: "#/TaskDependencyRelationType"
+    reason:
+      type: string
+      description: Optional explanation for the dependency.
+
+# ------------------------------------------------
+# Goal Tracking (TRACKS edges)
+# ------------------------------------------------
+AttachToGoalDto:
+  type: object
+  description: |
+    Request body for attaching an entity to a GOAL task. Creates a `TRACKS`
+    edge from the goal (path parameter) to the target entity. Idempotent:
+    re-attaching the same target is a no-op and returns the existing edge
+    in the same shape as a first-time attach. The boundary handler validates
+    that the source task is a GOAL and that `targetEntityType` is one of the
+    permitted target kinds — FEATURE / STANDARD / BUG tasks or PLAN; targets
+    of type DESIGN_DOC or another GOAL are rejected with a 400.
+  required:
+    - targetEntityId
+    - targetEntityType
+  properties:
+    targetEntityId:
+      type: string
+      format: uuid
+      description: ID of the entity being tracked by the goal.
+    targetEntityType:
+      $ref: "common.yaml#/EntityType"
+
+DetachFromGoalDto:
+  type: object
+  description: |
+    Request body for detaching a previously tracked entity from a GOAL task.
+    Deletes the matching `TRACKS` edge from the goal (path parameter) to the
+    target entity. Idempotent: detaching an entity that is not currently
+    tracked returns success silently with the same response shape as a real
+    detach. The boundary handler still validates that the source task is a
+    GOAL.
+  required:
+    - targetEntityId
+    - targetEntityType
+  properties:
+    targetEntityId:
+      type: string
+      format: uuid
+      description: ID of the entity being detached from the goal.
+    targetEntityType:
+      $ref: "common.yaml#/EntityType"
+
+AttachToGoalResponseDto:
+  type: object
+  description: |
+    Result of attaching an entity to a goal. Returns the TRACKS edge that now
+    represents the relationship along with the target's snapshot fields.
+    `created` distinguishes a newly-created edge from an idempotent re-attach
+    (`created: false` means the edge already existed and the call was a
+    no-op).
+  required:
+    - edge
+    - target
+    - created
+  properties:
+    edge:
+      $ref: "agent-edges.yaml#/AgentEdgeResponseDto"
+    target:
+      $ref: "#/TrackedEntitySnapshot"
+    created:
+      type: boolean
+      description: |
+        True when this call created a new edge; false when the edge already
+        existed and the call was a no-op.
+
+DetachFromGoalResponseDto:
+  type: object
+  description: |
+    Result of detaching an entity from a goal. `deleted` distinguishes a real
+    detach (the edge existed and was removed) from an idempotent call against
+    an entity that was not tracked.
+  required:
+    - deleted
+    - targetEntityId
+    - targetEntityType
+  properties:
+    deleted:
+      type: boolean
+      description: |
+        True when this call removed an existing edge; false when no matching
+        edge existed and the call was an idempotent no-op.
+    targetEntityId:
+      type: string
+      format: uuid
+      description: ID of the entity that was (or would have been) detached.
+    targetEntityType:
+      $ref: "common.yaml#/EntityType"
+
+SupersedeTaskDto:
+  type: object
+  description: |
+    Request body for the supersede transition. Names the successor task that
+    replaces the task being superseded (the path parameter). The transition
+    authors a single proposal that sets the superseded task's status to
+    `SUPERSEDED` and declares a `SUPERSEDES` edge to the successor — the
+    status change and the edge travel together on one reviewable proposal. A
+    successor id is required — a task is superseded *by* a replacement, never
+    into a void; work that is dead with no replacement stays `CANCELLED`.
+  required:
+    - successorTaskId
+  properties:
+    successorTaskId:
+      type: string
+      format: uuid
+      description: |
+        ID of the task that supersedes (replaces) the task being superseded.
+        Must differ from the path `taskId`.
+
+TaskAllowedStatusEntry:
+  type: object
+  description: |
+    The complete set of work statuses a single task type permits.
+  required:
+    - taskType
+    - allowedStatuses
+  properties:
+    taskType:
+      $ref: "#/TaskType"
+    allowedStatuses:
+      type: array
+      description: Every WorkStatus value valid for this task type.
+      items:
+        $ref: "common.yaml#/WorkStatus"
+
+TaskAllowedStatusesResponseDto:
+  type: object
+  description: |
+    Per-type allowed work status sets — the single backed source for the
+    frontend status picker. One entry per task type.
+  required:
+    - entries
+  properties:
+    entries:
+      type: array
+      description: One allowed-status set per task type.
+      items:
+        $ref: "#/TaskAllowedStatusEntry"

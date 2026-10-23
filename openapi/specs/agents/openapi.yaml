@@ -1,0 +1,904 @@
+openapi: 3.0.3
+info:
+  title: Hey Hey Agents API
+  version: 1.0.0
+  description: Endpoints for interacting with ADR-focused agent workflows.
+
+servers:
+  - url: /api/agents
+    description: Agent orchestration endpoints
+
+tags:
+  - name: Adr
+    description: Architectural Decision Record agent endpoints
+  - name: BrainstormRefiner
+    description: Brainstorm document refiner agent endpoints
+  - name: DecisionRefiner
+    description: Decision document refiner agent endpoints
+  - name: InitiativeRefiner
+    description: Initiative refiner agent endpoints
+  - name: TaskRefiner
+    description: Task refiner agent endpoints
+  - name: CodingPrompts
+    description: Retrieve planning and evidence context for coding prompts
+  - name: Plans
+    description: Plan workflows for capturing scope and constraints
+  - name: EntityConversation
+    description: Entity-focused conversational agent endpoints
+  - name: ProjectConversation
+    description: Project-level conversational agent endpoints
+  - name: DailySession
+    description: Daily session conversational agent endpoints
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+
+    InitiativeSummary:
+      $ref: "../schemas/agent-coordination.yaml#/InitiativeSummary"
+
+    TaskSummary:
+      $ref: "../schemas/agent-coordination.yaml#/TaskSummary"
+
+    ConversationMessage:
+      $ref: "../schemas/agent-coordination.yaml#/ConversationMessage"
+
+    CodingPromptsRequest:
+      $ref: "../schemas/agent-coordination.yaml#/CodingPromptRequest"
+
+    CodingPromptPlanningResponse:
+      $ref: "../schemas/agent-coordination.yaml#/CodingPromptPlanningResponse"
+
+    CodingPromptsPlanningResponseWrapper:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          description: Indicates whether the workflow completed successfully.
+        data:
+          $ref: "#/components/schemas/CodingPromptPlanningResponse"
+
+    PlanScopeRequest:
+      $ref: "../schemas/agent-coordination.yaml#/PlanScopeRequest"
+
+    PlanScopeResponse:
+      $ref: "../schemas/agent-coordination.yaml#/PlanScopeResponse"
+
+    PlanScopeResponseWrapper:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          description: Indicates whether the workflow completed successfully.
+        data:
+          $ref: "#/components/schemas/PlanScopeResponse"
+
+    PlanApprovalRequest:
+      $ref: "../schemas/agent-coordination.yaml#/PlanApprovalRequest"
+
+    PlanProposalResponse:
+      $ref: "../schemas/agent-coordination.yaml#/PlanProposalResponse"
+
+    PlanProposalResponseWrapper:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          description: Indicates whether the workflow completed successfully.
+        data:
+          $ref: "#/components/schemas/PlanProposalResponse"
+
+    PlanGapCategory:
+      type: string
+      enum:
+        - tasks
+        - design_docs
+        - services
+
+    PlanGapItem:
+      $ref: "../schemas/agent-coordination.yaml#/PlanGapItem"
+
+    PlanGapDiscoveryUserFeedback:
+      $ref: "../schemas/agent-coordination.yaml#/PlanGapDiscoveryUserFeedback"
+
+    PlanGapDiscoveryResponseWrapper:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          description: Indicates whether the workflow completed successfully.
+        data:
+          $ref: "../schemas/agent-coordination.yaml#/PlanGapDiscoveryResponse"
+
+    AdrRefinerResponse:
+      $ref: "../schemas/agent-coordination.yaml#/AdrRefinerResponse"
+
+    AdrRefinerResponseWrapper:
+      type: object
+      description: Response wrapper returned by the ADR refiner route.
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          description: Indicates whether the agent call succeeded.
+        data:
+          $ref: "#/components/schemas/AdrRefinerResponse"
+
+    AdrRefinerRequest:
+      $ref: "../schemas/agent-coordination.yaml#/AdrRefinerRequest"
+
+    BrainstormRefinerRequest:
+      $ref: "../schemas/agent-coordination.yaml#/BrainstormRefinerRequest"
+
+    BrainstormRefinerResponse:
+      $ref: "../schemas/agent-coordination.yaml#/BrainstormRefinerResponse"
+
+    BrainstormRefinerResponseWrapper:
+      type: object
+      description: Response wrapper returned by the brainstorm refiner route.
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          description: Indicates whether the agent call succeeded.
+        data:
+          $ref: "#/components/schemas/BrainstormRefinerResponse"
+
+    DecisionRefinerRequest:
+      $ref: "../schemas/agent-coordination.yaml#/DecisionRefinerRequest"
+
+    DecisionRefinerResponse:
+      $ref: "../schemas/agent-coordination.yaml#/DecisionRefinerResponse"
+
+    DecisionRefinerResponseWrapper:
+      type: object
+      description: Response wrapper returned by the decision refiner route.
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          description: Indicates whether the agent call succeeded.
+        data:
+          $ref: "#/components/schemas/DecisionRefinerResponse"
+
+    InitiativeRefinerRequest:
+      $ref: "../schemas/agent-coordination.yaml#/InitiativeRefinerRequest"
+
+    InitiativeRefinerResponse:
+      $ref: "../schemas/agent-coordination.yaml#/InitiativeRefinerResponse"
+
+    InitiativeRefinerResponseWrapper:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          description: Indicates whether the workflow completed successfully.
+        data:
+          $ref: "#/components/schemas/InitiativeRefinerResponse"
+
+    TaskRefinerRequest:
+      $ref: "../schemas/agent-coordination.yaml#/TaskRefinerRequest"
+
+    TaskRefinerResponse:
+      $ref: "../schemas/agent-coordination.yaml#/TaskRefinerResponse"
+
+    TaskRefinerResponseWrapper:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          description: Indicates whether the workflow completed successfully.
+        data:
+          $ref: "#/components/schemas/TaskRefinerResponse"
+
+    EntityConversationRequest:
+      $ref: "../schemas/agent-coordination.yaml#/EntityConversationRequest"
+
+    EntityConversationResponse:
+      $ref: "../schemas/agent-coordination.yaml#/EntityConversationResponse"
+
+    EntityConversationResponseWrapper:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          description: Indicates whether the workflow completed successfully.
+        data:
+          $ref: "#/components/schemas/EntityConversationResponse"
+
+    RelatedEntityDto:
+      $ref: "../schemas/agent-coordination.yaml#/RelatedEntityDto"
+
+    UsageSummary:
+      $ref: "../schemas/agent-coordination.yaml#/UsageSummary"
+
+    DailySessionRequest:
+      $ref: "../schemas/agent-coordination.yaml#/DailySessionRequest"
+
+    DailySessionResponse:
+      $ref: "../schemas/agent-coordination.yaml#/DailySessionResponse"
+
+    DailySessionResponseWrapper:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          description: Indicates whether the workflow completed successfully.
+        data:
+          $ref: "#/components/schemas/DailySessionResponse"
+
+    ProjectConversationRequest:
+      $ref: "../schemas/agent-coordination.yaml#/ProjectConversationRequest"
+
+    ProjectConversationResponseData:
+      $ref: "../schemas/agent-coordination.yaml#/ProjectConversationResponse"
+
+    ProjectConversationResponseWrapper:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          description: Indicates whether the workflow completed successfully.
+        data:
+          $ref: "#/components/schemas/ProjectConversationResponseData"
+
+security:
+  - BearerAuth: []
+
+paths:
+  /coding-prompts-planning:
+    post:
+      tags:
+        - CodingPrompts
+      operationId: runCodingPromptsPlanning
+      summary: Retrieve planning and evidence context for coding prompts
+      description: >
+        Runs the coding-prompts planning workflow and returns planning/search artifacts
+        (messages, retrieval plan summary, evidence, and project state summary) without
+        generating a final coding prompt.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CodingPromptsRequest"
+      responses:
+        "200":
+          description: Coding prompt planning context generated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CodingPromptsPlanningResponseWrapper"
+        "400":
+          description: Invalid payload supplied in the request.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        "500":
+          description: Unexpected error while invoking the workflow.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: string
+
+  /initiative-refiner:
+    post:
+      tags:
+        - InitiativeRefiner
+      operationId: runInitiativeRefiner
+      summary: Run the initiative refiner workflow
+      description: >
+        Runs the initiative refiner workflow for structured updates to initiative sections.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InitiativeRefinerRequest"
+      responses:
+        "200":
+          description: Initiative refiner completed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InitiativeRefinerResponseWrapper"
+        "400":
+          description: Invalid payload supplied in the request.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        "500":
+          description: Unexpected error while invoking the workflow.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: string
+
+  /plans-scope:
+    post:
+      tags:
+        - Plans
+      operationId: runPlanScope
+      summary: Run the plan scope workflow
+      description: >
+        Runs the plan scope workflow to capture scope, timeline, dependency, and stakeholder constraints.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlanScopeRequest"
+      responses:
+        "200":
+          description: Plan scope workflow completed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlanScopeResponseWrapper"
+        "400":
+          description: Invalid payload supplied in the request.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        "500":
+          description: Unexpected error while invoking the workflow.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: string
+
+  /plans-approval:
+    post:
+      tags:
+        - Plans
+      operationId: runPlanApproval
+      summary: Run the plan approval workflow
+      description: >
+        Runs the plan approval workflow to draft a plan proposal for user feedback.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlanApprovalRequest"
+      responses:
+        "200":
+          description: Plan approval workflow completed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlanProposalResponseWrapper"
+        "400":
+          description: Invalid payload supplied in the request.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        "500":
+          description: Unexpected error while invoking the workflow.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: string
+
+  /plans-gap-discovery:
+    post:
+      tags:
+        - Plans
+      operationId: runPlanGapDiscovery
+      summary: Run the plan gap discovery workflow
+      description: >
+        Runs the plan gap discovery workflow to identify missing work by category.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/agent-coordination.yaml#/PlanGapDiscoveryRequest"
+      responses:
+        "200":
+          description: Plan gap discovery completed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlanGapDiscoveryResponseWrapper"
+        "400":
+          description: Invalid payload supplied in the request.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        "500":
+          description: Unexpected error while invoking the workflow.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: string
+
+  /task-refiner:
+    post:
+      tags:
+        - TaskRefiner
+      operationId: runTaskRefiner
+      summary: Run the task refiner workflow
+      description: >
+        Runs the task refiner workflow for structured updates to task sections.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskRefinerRequest"
+      responses:
+        "200":
+          description: Task refiner completed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskRefinerResponseWrapper"
+        "400":
+          description: Invalid payload supplied in the request.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        "500":
+          description: Unexpected error while invoking the workflow.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: string
+
+  /adr-refiner:
+    post:
+      tags:
+        - Adr
+      operationId: runAdrRefiner
+      summary: Run the ADR refiner agent
+      description: >
+        Calls the planner-enabled ADR refiner agent using the structured ADR payload.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdrRefinerRequest"
+      responses:
+        "200":
+          description: Agent completed the request successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdrRefinerResponseWrapper"
+        "400":
+          description: Invalid payload supplied in the request.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        "500":
+          description: Unexpected error while invoking the agent.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: string
+
+  /brainstorm-refiner:
+    post:
+      tags:
+        - BrainstormRefiner
+      operationId: runBrainstormRefiner
+      summary: Run the brainstorm refiner agent
+      description: >
+        Calls the brainstorm refiner agent using the document payload.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrainstormRefinerRequest"
+      responses:
+        "200":
+          description: Agent completed the request successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrainstormRefinerResponseWrapper"
+        "400":
+          description: Invalid payload supplied in the request.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        "500":
+          description: Unexpected error while invoking the agent.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: string
+
+  /decision-refiner:
+    post:
+      tags:
+        - DecisionRefiner
+      operationId: runDecisionRefiner
+      summary: Run the decision refiner agent
+      description: >
+        Calls the decision refiner agent using the document payload.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DecisionRefinerRequest"
+      responses:
+        "200":
+          description: Agent completed the request successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DecisionRefinerResponseWrapper"
+        "400":
+          description: Invalid payload supplied in the request.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        "500":
+          description: Unexpected error while invoking the agent.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: string
+
+  /entity-conversation:
+    post:
+      tags:
+        - EntityConversation
+      operationId: runEntityConversation
+      summary: Run the entity conversation workflow
+      description: >
+        Runs the entity-focused conversation workflow. Returns a response plus related entities
+        that were used as supporting context during retrieval.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EntityConversationRequest"
+      responses:
+        "200":
+          description: Entity conversation completed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EntityConversationResponseWrapper"
+        "400":
+          description: Invalid payload supplied in the request.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        "500":
+          description: Unexpected error while invoking the workflow.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: string
+
+  /daily-session:
+    post:
+      tags:
+        - DailySession
+      operationId: runDailySession
+      summary: Run the daily session workflow
+      description: >
+        Runs the daily session multi-agent workflow. Receives an activity delta payload
+        with the user's current activity snapshot, computed changes since last session,
+        and a user message. Routes through a search planner agent before composing a
+        response via a writer agent. Returns a response plus related entities.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DailySessionRequest"
+      responses:
+        "200":
+          description: Daily session workflow completed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailySessionResponseWrapper"
+        "400":
+          description: Invalid payload supplied in the request.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        "500":
+          description: Unexpected error while invoking the workflow.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: string
+
+  /project-conversation:
+    post:
+      tags:
+        - ProjectConversation
+      operationId: runProjectConversation
+      summary: Run the project conversation workflow
+      description: >
+        Runs the project-level conversation workflow. Returns a response plus related entities
+        that were used as supporting context during retrieval.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectConversationRequest"
+      responses:
+        "200":
+          description: Project conversation completed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectConversationResponseWrapper"
+        "400":
+          description: Invalid payload supplied in the request.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        "500":
+          description: Unexpected error while invoking the workflow.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: string

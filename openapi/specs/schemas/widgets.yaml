@@ -1,0 +1,8 @@
+# =============================================
+# Widget Event Routing Registry
+# =============================================
+# Maps each widget type to the WebSocket event types it can
+# self-update from. This is the contract between the event
+# routing coordinator (CLI-side) and widget components (UI-side).
+# Adding a new widget requires only a new enum value and a new
+# entry in WidgetEventRoutingRegistry.

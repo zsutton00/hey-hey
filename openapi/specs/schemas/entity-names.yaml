@@ -1,0 +1,38 @@
+EntityLookupItem:
+  type: object
+  properties:
+    entityId:
+      type: string
+      format: uuid
+    entityType:
+      $ref: './common.yaml#/EntityType'
+  required:
+    - entityId
+    - entityType
+
+GetEntityNamesDto:
+  type: object
+  properties:
+    entities:
+      type: array
+      items:
+        $ref: '#/EntityLookupItem'
+      minItems: 1
+  required:
+    - entities
+
+EntityNameDto:
+  type: object
+  properties:
+    entityId:
+      type: string
+      format: uuid
+    entityType:
+      $ref: './common.yaml#/EntityType'
+    entityName:
+      type: string
+      nullable: true
+  required:
+    - entityId
+    - entityType
+    - entityName

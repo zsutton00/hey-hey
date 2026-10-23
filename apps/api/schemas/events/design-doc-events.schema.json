@@ -1,0 +1,2147 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/DesignDocEvents",
+  "definitions": {
+    "DesignDocEvents": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/DesignDocCreatedEvent"
+        },
+        {
+          "$ref": "#/definitions/DesignDocUpdatedEvent"
+        },
+        {
+          "$ref": "#/definitions/DesignDocContentChangedEvent"
+        },
+        {
+          "$ref": "#/definitions/DesignDocStatusChangedEvent"
+        },
+        {
+          "$ref": "#/definitions/DesignDocArchivedEvent"
+        },
+        {
+          "$ref": "#/definitions/DesignDocRestoredEvent"
+        }
+      ]
+    },
+    "DesignDocCreatedEvent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for this event."
+        },
+        "type": {
+          "$ref": "#/definitions/DesignDocCreatedEvent.TypeEnum"
+        },
+        "aggregateId": {
+          "type": "string",
+          "description": "Unique identifier for a design doc (branded type)"
+        },
+        "payload": {
+          "$ref": "#/definitions/DesignDocCreatedEventPayload"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "aggregateId",
+        "payload"
+      ]
+    },
+    "DesignDocCreatedEvent.TypeEnum": {
+      "type": "string",
+      "const": "design_doc.created"
+    },
+    "DesignDocCreatedEventPayload": {
+      "type": "object",
+      "properties": {
+        "payloadType": {
+          "$ref": "#/definitions/PayloadType"
+        },
+        "organizationId": {
+          "$ref": "#/definitions/OrganizationId",
+          "description": "Unique identifier for an organization (branded type)"
+        },
+        "projectId": {
+          "$ref": "#/definitions/ProjectId",
+          "description": "Unique identifier for a project (branded type)"
+        },
+        "requestId": {
+          "type": "string",
+          "description": "Unique identifier used to correlate requests (branded type)"
+        },
+        "workflowId": {
+          "$ref": "#/definitions/WorkflowId",
+          "description": "Unique identifier for a workflow (branded type)"
+        },
+        "nodeId": {
+          "type": "string",
+          "description": "Identifier for the workflow node that produced the event."
+        },
+        "conversationId": {
+          "$ref": "#/definitions/ConversationId",
+          "description": "Unique identifier for a conversation (branded type)"
+        },
+        "userId": {
+          "$ref": "#/definitions/UserId",
+          "description": "Unique identifier for a user (branded type)"
+        },
+        "messageId": {
+          "$ref": "#/definitions/MessageId",
+          "description": "Unique identifier for a message (branded type)"
+        },
+        "userMessage": {
+          "$ref": "#/definitions/FlowUserMessage"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "causationId": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "designDoc": {
+          "$ref": "#/definitions/DesignDocResponseDto"
+        }
+      },
+      "required": [
+        "designDoc",
+        "organizationId",
+        "payloadType",
+        "projectId"
+      ]
+    },
+    "PayloadType": {
+      "type": "string",
+      "enum": [
+        "agent.complete",
+        "agent.error",
+        "agent.progress",
+        "agent.request",
+        "artifact.archived",
+        "artifact.created",
+        "artifact.deleted",
+        "artifact.embedding_generated",
+        "artifact.generation_requested",
+        "artifact.restored",
+        "artifact.updated",
+        "service.created",
+        "service.updated",
+        "service.archived",
+        "conversation.created",
+        "conversation.deleted",
+        "conversation.status_changed",
+        "conversation.updated",
+        "design_doc.archived",
+        "design_doc.created",
+        "design_doc.restored",
+        "design_doc.updated",
+        "design_doc.status_changed",
+        "design_doc.content_changed",
+        "flow_node.complete",
+        "flow_node.start",
+        "initiative.archived",
+        "initiative.created",
+        "initiative.project_linked",
+        "initiative.project_unlinked",
+        "initiative.status_changed",
+        "initiative.updated",
+        "initiative.content_changed",
+        "llm.complete",
+        "llm.progress",
+        "llm.request",
+        "message.created",
+        "message.deleted",
+        "message.updated",
+        "message.realtime",
+        "mention.created",
+        "message_processor.error",
+        "non_interactive_flow_node.complete",
+        "non_interactive_flow_node.error",
+        "non_interactive_flow_node.start",
+        "project.created",
+        "project.status_changed",
+        "project.updated",
+        "queue.job",
+        "queue.llm_analysis",
+        "queue.llm_initiative_creation",
+        "summary.created",
+        "summary.deleted",
+        "summary.updated",
+        "subfacet.created",
+        "subfacet.deprecated",
+        "system",
+        "task.archived",
+        "task.assigned",
+        "task.created",
+        "task.status_changed",
+        "task.unassigned",
+        "task.updated",
+        "task.content_changed",
+        "plan.created",
+        "plan.updated",
+        "plan.status_changed",
+        "plan.deleted",
+        "plan_stage.created",
+        "plan_stage.status_changed",
+        "plan_step.created",
+        "plan_relationship.created",
+        "plan_stage_relationship.created",
+        "plan_step_relationship.created"
+      ],
+      "description": "Discriminator for event payload types"
+    },
+    "OrganizationId": {
+      "type": "string"
+    },
+    "ProjectId": {
+      "type": "string"
+    },
+    "WorkflowId": {
+      "type": "string"
+    },
+    "ConversationId": {
+      "type": "string"
+    },
+    "UserId": {
+      "type": "string"
+    },
+    "MessageId": {
+      "type": "string"
+    },
+    "FlowUserMessage": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/MessageId",
+          "description": "Unique identifier for a message (branded type)"
+        },
+        "workflowId": {
+          "$ref": "#/definitions/WorkflowId",
+          "description": "Unique identifier for a workflow (branded type)"
+        },
+        "projectId": {
+          "$ref": "#/definitions/ProjectId",
+          "description": "Unique identifier for a project (branded type)"
+        },
+        "type": {
+          "$ref": "#/definitions/FlowUserMessage.TypeEnum",
+          "description": "Message type - always USER for this schema"
+        },
+        "userId": {
+          "type": "string",
+          "description": "ID of the user who created the message"
+        },
+        "status": {
+          "$ref": "#/definitions/MessageStatus"
+        },
+        "data": {
+          "$ref": "#/definitions/UserMessageData"
+        },
+        "handler": {
+          "$ref": "#/definitions/SecondaryActionHandler"
+        },
+        "conversationId": {
+          "$ref": "#/definitions/ConversationId",
+          "description": "Unique identifier for a conversation (branded type)"
+        },
+        "parentMessageId": {
+          "$ref": "#/definitions/MessageId",
+          "description": "Unique identifier for a message (branded type)"
+        },
+        "responses": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MessageResponseDto"
+          },
+          "description": "Messages that respond to this message"
+        },
+        "parentMessage": {
+          "$ref": "#/definitions/MessageResponseDto"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        },
+        "nodeId": {
+          "type": "string",
+          "description": "Workflow node that captured this message."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Timestamp associated with the message inside the workflow engine."
+        },
+        "classification": {
+          "$ref": "#/definitions/MessageClassificationResult"
+        }
+      },
+      "required": [
+        "id",
+        "workflowId",
+        "projectId",
+        "type",
+        "status",
+        "data",
+        "conversationId",
+        "createdAt",
+        "timestamp"
+      ]
+    },
+    "FlowUserMessage.TypeEnum": {
+      "type": "string",
+      "const": "USER"
+    },
+    "MessageStatus": {
+      "type": "string",
+      "enum": [
+        "system_processing",
+        "streaming_ready",
+        "open",
+        "completed",
+        "failed"
+      ],
+      "description": "Status of a Message interaction: - open: Message is open and awaiting processing or user response - completed: Message processing is finished, no further action needed - failed: Message processing failed"
+    },
+    "UserMessageData": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/UserMessageDataType"
+        },
+        "comment": {
+          "type": "string",
+          "description": "Optional general comment from the user"
+        }
+      },
+      "additionalProperties": {},
+      "description": "User responses to system-generated questions in a conversational flow. Keys follow the pattern: round{N}_{fieldName} where N is the round number. Values represent user inputs: text responses, selections, or boolean choices."
+    },
+    "UserMessageDataType": {
+      "type": "string",
+      "const": "CONTROL",
+      "description": "Type of user message data: - CONTROL: Control messages sent by the system to control workflows"
+    },
+    "SecondaryActionHandler": {
+      "type": "string",
+      "enum": [
+        "task_generation_generate",
+        "continue_conversation",
+        "task_stub_generation_generate",
+        "adr_content_apply",
+        "initiative_content_apply",
+        "task_content_apply",
+        "next_step",
+        "complete_onboarding",
+        "coding_prompt_accept",
+        "suggested_action",
+        "related_entities",
+        "plan_gap_continue_revising",
+        "plan_approval_continue_revising",
+        "plan_stage_continue_revising",
+        "plan_step_continue_revising",
+        "plan_service_analyze"
+      ],
+      "description": "Predefined secondary action handlers: - task_generation_generate: Task generation field actions - continue_conversation: Continue conversation without triggering generation - adr_content_apply: Apply suggested ADR context section - initiative_content_apply: Apply suggested initiative field edits - task_content_apply: Apply suggested task field edits - next_step: Perform the next step - complete_onboarding: Mark the onboarding experience as complete - coding_prompt_accept: Accept the system\\'s prompt code - suggested_action: Surface a suggested action from an agent response - related_entities: Surface related entities from an agent response - plan_gap_continue_revising: Continue revising plan gap discovery - plan_approval_continue_revising: Continue revising plan approval - plan_stage_continue_revising: Continue revising plan stage proposal - plan_step_continue_revising: Continue revising plan step proposal - plan_service_analyze: Have system analyze plan for services"
+    },
+    "MessageResponseDto": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/SystemMessage"
+        },
+        {
+          "$ref": "#/definitions/UserMessage"
+        }
+      ]
+    },
+    "SystemMessage": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/MessageId",
+          "description": "Unique identifier for a message (branded type)"
+        },
+        "workflowId": {
+          "$ref": "#/definitions/WorkflowId",
+          "description": "Unique identifier for a workflow (branded type)"
+        },
+        "projectId": {
+          "$ref": "#/definitions/ProjectId",
+          "description": "Unique identifier for a project (branded type)"
+        },
+        "type": {
+          "$ref": "#/definitions/SystemMessage.TypeEnum",
+          "description": "Message type - always SYSTEM for this schema"
+        },
+        "userId": {
+          "type": "string",
+          "description": "ID of the user who created the message, or \\'system\\' for system-generated messages"
+        },
+        "status": {
+          "$ref": "#/definitions/MessageStatus"
+        },
+        "data": {
+          "$ref": "#/definitions/SystemMessageData"
+        },
+        "conversationId": {
+          "type": "string",
+          "description": "ID of the associated conversation"
+        },
+        "parentMessageId": {
+          "$ref": "#/definitions/MessageId",
+          "description": "Unique identifier for a message (branded type)"
+        },
+        "responses": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MessageResponseDto"
+          },
+          "description": "Messages that respond to this message"
+        },
+        "parentMessage": {
+          "$ref": "#/definitions/MessageResponseDto"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        },
+        "awaitingResponse": {
+          "type": "boolean",
+          "description": "Whether the message is awaiting a response from the user"
+        }
+      },
+      "required": [
+        "id",
+        "workflowId",
+        "projectId",
+        "type",
+        "status",
+        "data",
+        "conversationId",
+        "createdAt",
+        "awaitingResponse"
+      ]
+    },
+    "SystemMessage.TypeEnum": {
+      "type": "string",
+      "const": "SYSTEM"
+    },
+    "SystemMessageData": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/SystemMessageData.TypeEnum",
+          "description": "Type identifier for system message data"
+        },
+        "flowId": {
+          "type": "string",
+          "description": "ID of the conversational flow this message belongs to"
+        },
+        "nodeId": {
+          "type": "string",
+          "description": "ID of the specific node/step within the flow"
+        },
+        "response": {
+          "type": "string",
+          "description": "Human-readable response message from the system"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title or header for this conversation step"
+        },
+        "detectedIntent": {
+          "type": "string",
+          "description": "Intent detected by the LLM"
+        },
+        "intentConfidence": {
+          "type": "number",
+          "description": "Confidence score for the detected intent"
+        },
+        "ragEnabled": {
+          "type": "boolean",
+          "description": "Whether this message should be included in RAG retrieval"
+        },
+        "reasoning": {
+          "type": "string",
+          "description": "LLM\\'s reasoning for the intent detection"
+        },
+        "skippable": {
+          "type": "boolean",
+          "description": "Whether this step can be skipped by the user"
+        },
+        "uiHints": {
+          "$ref": "#/definitions/UIHints"
+        },
+        "uiElements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/UIElement"
+          },
+          "description": "UI elements for rendering the response"
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Action"
+          },
+          "description": "Actions to perform"
+        }
+      },
+      "required": [
+        "type"
+      ]
+    },
+    "SystemMessageData.TypeEnum": {
+      "type": "string",
+      "enum": [
+        "QUESTIONS",
+        "ANALYSIS",
+        "NOOP",
+        "INITIATIVES",
+        "ARTIFACTS_GENERATION",
+        "TASKS",
+        "TASK_STUBS",
+        "TASK_PRIORITY",
+        "ERROR",
+        "INTEGRATIONS",
+        "CODING_PROMPTS",
+        "AGENT",
+        "ROUTING"
+      ]
+    },
+    "UIHints": {
+      "type": "object",
+      "properties": {
+        "expectedElements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/UIHint"
+          },
+          "description": "Array of expected UI elements for loading skeleton"
+        },
+        "estimatedCount": {
+          "type": "number",
+          "description": "Total estimated count of UI elements"
+        },
+        "estimatedDelayMs": {
+          "type": "number",
+          "description": "Estimated time until a response is generated"
+        },
+        "layoutHint": {
+          "$ref": "#/definitions/UIHints.LayoutHintEnum",
+          "description": "Optional hint about expected layout"
+        }
+      },
+      "required": [
+        "expectedElements",
+        "estimatedCount"
+      ],
+      "description": "Collection of UI hints for rendering loading skeletons"
+    },
+    "UIHint": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/ExtendedUIFieldType"
+        },
+        "count": {
+          "type": "number",
+          "description": "Expected count of this element type"
+        },
+        "label": {
+          "type": "string",
+          "description": "Optional preview label for the UI element"
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether these elements will be required"
+        }
+      },
+      "required": [
+        "type",
+        "count"
+      ],
+      "description": "Hint about expected UI elements for loading skeleton"
+    },
+    "ExtendedUIFieldType": {
+      "type": "string",
+      "enum": [
+        "text",
+        "text_input",
+        "textarea",
+        "select",
+        "multiple-choice",
+        "checkbox",
+        "datepicker",
+        "integration_selector",
+        "service_selector",
+        "initiative_list",
+        "team_members",
+        "initiative_intro",
+        "complete_onboarding",
+        "task_generation",
+        "task_list",
+        "adr_context_starter",
+        "agent_response",
+        "agent_hidden",
+        "task_stub",
+        "task_priority",
+        "coding_prompt",
+        "plan_approval",
+        "plan_stage_proposal",
+        "plan_step_proposal",
+        "plan_gaps_services",
+        "plan_gaps_design_docs",
+        "plan_gaps_tasks",
+        "plan_document_view",
+        "question_group"
+      ],
+      "description": "Extended UI field types including special components"
+    },
+    "UIHints.LayoutHintEnum": {
+      "type": "string",
+      "enum": [
+        "form",
+        "grid",
+        "list",
+        "inline"
+      ]
+    },
+    "UIElement": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UI element"
+        },
+        "type": {
+          "$ref": "#/definitions/ExtendedUIFieldType"
+        },
+        "label": {
+          "type": "string",
+          "description": "Display label for the UI element"
+        },
+        "placeholder": {
+          "type": "string",
+          "description": "Placeholder text for input elements"
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether this field is required"
+        },
+        "multiline": {
+          "type": "boolean",
+          "description": "Whether text input should be multiline"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SelectOption"
+          },
+          "description": "Options for select elements"
+        },
+        "availableIntegrations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Available integrations for integration_selector elements"
+        },
+        "submitText": {
+          "type": "string",
+          "description": "The text the UI should show on the submit button for this element. Note this implicitly requires there to be only one uiElement"
+        },
+        "secondaryAction": {
+          "$ref": "#/definitions/SecondaryActionConfig"
+        },
+        "influences": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Influence"
+          },
+          "description": "Array of entities that influenced the generation of this UI element/question. Empty array for green field questions."
+        },
+        "payload": {
+          "$ref": "#/definitions/UIElementPayload"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "label"
+      ],
+      "description": "UI element specification for rendering interactive components"
+    },
+    "SelectOption": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string",
+          "description": "Option value"
+        },
+        "label": {
+          "type": "string",
+          "description": "Display label for the option"
+        }
+      },
+      "required": [
+        "value",
+        "label"
+      ],
+      "description": "Hey Hey API API for managing projects, interactions, and conversations in organizations\n\nThe version of the OpenAPI document: 1.0.0\n\n\nNOTE: This class is auto generated by OpenAPI Generator (https://openapi-generator.tech). https://openapi-generator.tech Do not edit the class manually."
+    },
+    "SecondaryActionConfig": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for this secondary action"
+        },
+        "type": {
+          "$ref": "#/definitions/SecondaryActionConfig.TypeEnum",
+          "description": "Type of secondary action"
+        },
+        "presentation": {
+          "$ref": "#/definitions/SecondaryActionConfig.PresentationEnum"
+        },
+        "label": {
+          "type": "string",
+          "description": "Display label for the action button"
+        },
+        "fieldId": {
+          "type": "string",
+          "description": "The UI Element ID"
+        },
+        "icon": {
+          "type": "string",
+          "description": "Optional icon name or identifier"
+        },
+        "handler": {
+          "$ref": "#/definitions/SecondaryActionHandler"
+        },
+        "disabled": {
+          "type": "boolean",
+          "description": "Whether the action is disabled"
+        },
+        "payload": {
+          "$ref": "#/definitions/SecondaryActionPayload",
+          "description": "Structured data payload for the action handler"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "label",
+        "fieldId",
+        "handler"
+      ],
+      "description": "Configuration for a secondary action button"
+    },
+    "SecondaryActionConfig.TypeEnum": {
+      "type": "string",
+      "enum": [
+        "field_action",
+        "form_action",
+        "workflow_action"
+      ]
+    },
+    "SecondaryActionConfig.PresentationEnum": {
+      "type": "string",
+      "enum": [
+        "BUTTON",
+        "INLINE"
+      ]
+    },
+    "SecondaryActionPayload": {
+      "type": "object",
+      "properties": {
+        "handlerType": {
+          "$ref": "#/definitions/SecondaryActionPayload.HandlerTypeEnum",
+          "description": "Discriminator field identifying the payload type"
+        }
+      },
+      "required": [
+        "handlerType"
+      ],
+      "description": "Base schema for secondary action payload types"
+    },
+    "SecondaryActionPayload.HandlerTypeEnum": {
+      "type": "string",
+      "enum": [
+        "adr_content_apply",
+        "initiative_content_apply",
+        "task_content_apply",
+        "content_apply",
+        "next_step",
+        "complete_onboarding",
+        "task_generation_generate",
+        "coding_prompt_accept",
+        "suggested_action",
+        "related_entities",
+        "plan_gap_continue_revising",
+        "plan_approval_continue_revising",
+        "plan_stage_continue_revising",
+        "plan_step_continue_revising",
+        "plan_service_analyze"
+      ]
+    },
+    "Influence": {
+      "type": "object",
+      "properties": {
+        "entityId": {
+          "type": "string",
+          "description": "ID of the influencing entity"
+        },
+        "reasoning": {
+          "type": "string",
+          "description": "LLM explanation of how this entity influenced the decision"
+        },
+        "reasonType": {
+          "type": "string",
+          "description": "Specific type of influence relationship"
+        },
+        "confidence": {
+          "type": "number",
+          "description": "Confidence score for this influence relationship"
+        }
+      },
+      "required": [
+        "entityId",
+        "reasoning",
+        "reasonType"
+      ],
+      "description": "Hey Hey API API for managing projects, interactions, and conversations in organizations\n\nThe version of the OpenAPI document: 1.0.0\n\n\nNOTE: This class is auto generated by OpenAPI Generator (https://openapi-generator.tech). https://openapi-generator.tech Do not edit the class manually."
+    },
+    "UIElementPayload": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/MultipleChoicePayload"
+        },
+        {
+          "$ref": "#/definitions/PlanApprovalPayload"
+        },
+        {
+          "$ref": "#/definitions/PlanDocumentViewPayload"
+        },
+        {
+          "$ref": "#/definitions/PlanGapDiscoveryPayload"
+        },
+        {
+          "$ref": "#/definitions/PlanStageProposalPayload"
+        },
+        {
+          "$ref": "#/definitions/PlanStepProposalPayload"
+        },
+        {
+          "$ref": "#/definitions/QuestionsGroupPayload"
+        }
+      ]
+    },
+    "MultipleChoicePayload": {
+      "type": "object",
+      "properties": {
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MultipleChoiceOption"
+          },
+          "description": "Branching options for the onboarding question"
+        }
+      },
+      "required": [
+        "options"
+      ],
+      "description": "Payload containing branching options for the onboarding question"
+    },
+    "MultipleChoiceOption": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Option title shown to the user"
+        },
+        "description": {
+          "type": "string",
+          "description": "Explains when to choose this onboarding option"
+        },
+        "action": {
+          "$ref": "#/definitions/MultipleChoiceAction"
+        }
+      },
+      "required": [
+        "title",
+        "description",
+        "action"
+      ]
+    },
+    "MultipleChoiceAction": {
+      "type": "string",
+      "enum": [
+        "create-plan",
+        "create-initiative"
+      ],
+      "description": "Onboarding branch action selected for the chosen option"
+    },
+    "PlanApprovalPayload": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "$ref": "#/definitions/PlanApprovalPayloadDescription"
+        },
+        "workstreams": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PlanApprovalPayloadWorkstreamsInner"
+          }
+        }
+      },
+      "required": [
+        "description",
+        "workstreams"
+      ],
+      "description": "Plan approval payload for UI rendering"
+    },
+    "PlanApprovalPayloadDescription": {
+      "type": "object",
+      "properties": {
+        "approach": {
+          "type": "string",
+          "description": "2-3 sentence summary of the approach"
+        },
+        "outcome": {
+          "type": "string",
+          "description": "2-4 sentences on what the finished product will do"
+        },
+        "verification": {
+          "type": "string",
+          "description": "How we\\'ll know this meets the goals"
+        }
+      },
+      "required": [
+        "approach",
+        "outcome",
+        "verification"
+      ],
+      "description": "Hey Hey API API for managing projects, interactions, and conversations in organizations\n\nThe version of the OpenAPI document: 1.0.0\n\n\nNOTE: This class is auto generated by OpenAPI Generator (https://openapi-generator.tech). https://openapi-generator.tech Do not edit the class manually."
+    },
+    "PlanApprovalPayloadWorkstreamsInner": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Clear name for this workstream"
+        },
+        "focus": {
+          "type": "string",
+          "description": "What this workstream accomplishes"
+        }
+      },
+      "required": [
+        "name",
+        "focus"
+      ],
+      "description": "Hey Hey API API for managing projects, interactions, and conversations in organizations\n\nThe version of the OpenAPI document: 1.0.0\n\n\nNOTE: This class is auto generated by OpenAPI Generator (https://openapi-generator.tech). https://openapi-generator.tech Do not edit the class manually."
+    },
+    "PlanDocumentViewPayload": {
+      "type": "object",
+      "properties": {
+        "entityId": {
+          "type": "string",
+          "description": "Design doc ID to render in read-only mode"
+        },
+        "template": {
+          "$ref": "#/definitions/PlanDocumentViewPayload.TemplateEnum",
+          "description": "Expected design doc template for rendering"
+        }
+      },
+      "required": [
+        "entityId"
+      ],
+      "description": "Payload for read-only plan document viewer UI element"
+    },
+    "PlanDocumentViewPayload.TemplateEnum": {
+      "type": "string",
+      "const": "PLAN_DOCUMENT"
+    },
+    "PlanGapDiscoveryPayload": {
+      "type": "object",
+      "properties": {
+        "response": {
+          "type": "string",
+          "description": "User-facing summary and next-step guidance"
+        },
+        "category": {
+          "$ref": "#/definitions/PlanGapDiscoveryPayload.CategoryEnum",
+          "description": "Category analyzed in this response"
+        },
+        "gaps": {
+          "$ref": "#/definitions/PlanGapDiscoveryPayloadGaps"
+        },
+        "clarificationQuestions": {
+          "$ref": "#/definitions/PlanGapDiscoveryPayloadClarificationQuestions"
+        }
+      },
+      "required": [
+        "response",
+        "category",
+        "gaps",
+        "clarificationQuestions"
+      ],
+      "description": "Plan gap discovery payload for UI rendering"
+    },
+    "PlanGapDiscoveryPayload.CategoryEnum": {
+      "type": "string",
+      "enum": [
+        "tasks",
+        "design_docs",
+        "services"
+      ]
+    },
+    "PlanGapDiscoveryPayloadGaps": {
+      "type": "object",
+      "properties": {
+        "tasks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PlanGapItemPayload"
+          }
+        },
+        "design_docs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PlanGapItemPayload"
+          }
+        },
+        "services": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PlanGapItemPayload"
+          }
+        }
+      },
+      "required": [
+        "tasks",
+        "design_docs",
+        "services"
+      ],
+      "description": "Gap items grouped by category"
+    },
+    "PlanGapItemPayload": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "sourceCategory": {
+          "$ref": "#/definitions/PlanGapItemPayload.SourceCategoryEnum"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "overlapDetected": {
+          "type": "boolean"
+        },
+        "overlapNotes": {
+          "type": "string"
+        },
+        "potentialCoverage": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/RelatedEntityDto"
+          },
+          "description": "Related entities that might cover this gap"
+        }
+      },
+      "required": [
+        "title",
+        "sourceCategory"
+      ],
+      "description": "Plan gap item payload"
+    },
+    "PlanGapItemPayload.SourceCategoryEnum": {
+      "type": "string",
+      "enum": [
+        "tasks",
+        "design_docs",
+        "services"
+      ]
+    },
+    "RelatedEntityDto": {
+      "type": "object",
+      "properties": {
+        "entityId": {
+          "type": "string",
+          "description": "Related entity identifier"
+        },
+        "entityType": {
+          "type": "string",
+          "description": "Related entity type"
+        },
+        "entityName": {
+          "type": "string",
+          "description": "Display name for the related entity"
+        },
+        "writerPayloadMode": {
+          "$ref": "#/definitions/RelatedEntityDto.WriterPayloadModeEnum",
+          "description": "How this entity\\'s evidence would be included in writer context"
+        },
+        "selectedForHydration": {
+          "type": "boolean",
+          "description": "Whether this entity was selected for full-document hydration"
+        },
+        "hydrated": {
+          "type": "boolean",
+          "description": "Whether full-document hydration succeeded for this entity"
+        }
+      },
+      "required": [
+        "entityId",
+        "entityType",
+        "entityName"
+      ],
+      "description": "Hey Hey API API for managing projects, interactions, and conversations in organizations\n\nThe version of the OpenAPI document: 1.0.0\n\n\nNOTE: This class is auto generated by OpenAPI Generator (https://openapi-generator.tech). https://openapi-generator.tech Do not edit the class manually."
+    },
+    "RelatedEntityDto.WriterPayloadModeEnum": {
+      "type": "string",
+      "enum": [
+        "full_document",
+        "summary_only",
+        "excluded"
+      ]
+    },
+    "PlanGapDiscoveryPayloadClarificationQuestions": {
+      "type": "object",
+      "properties": {
+        "tasks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "design_docs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "services": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "tasks",
+        "design_docs",
+        "services"
+      ],
+      "description": "Clarifying questions grouped by category"
+    },
+    "PlanStageProposalPayload": {
+      "type": "object",
+      "properties": {
+        "response": {
+          "type": "string",
+          "description": "User-facing summary and stage guidance"
+        },
+        "stages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PlanStageProposalPayloadStage"
+          },
+          "description": "Proposed execution stages"
+        }
+      },
+      "required": [
+        "response",
+        "stages"
+      ],
+      "description": "Plan stage proposal payload for UI rendering"
+    },
+    "PlanStageProposalPayloadStage": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Stage title"
+        },
+        "description": {
+          "type": "string",
+          "description": "High-level stage description"
+        },
+        "purpose": {
+          "type": "string",
+          "description": "Outcome or purpose for the stage"
+        },
+        "timing": {
+          "type": "string",
+          "description": "Relative timing or sequencing notes"
+        },
+        "sequenceOrder": {
+          "type": "number",
+          "description": "Order of the stage in the sequence"
+        },
+        "itemCounts": {
+          "$ref": "#/definitions/PlanStageProposalPayloadStageItemCounts"
+        }
+      },
+      "required": [
+        "title",
+        "description",
+        "purpose",
+        "timing",
+        "sequenceOrder",
+        "itemCounts"
+      ],
+      "description": "Proposed plan stage details"
+    },
+    "PlanStageProposalPayloadStageItemCounts": {
+      "type": "object",
+      "properties": {
+        "tasks": {
+          "type": "number",
+          "description": "Task count for the stage"
+        },
+        "designDocs": {
+          "type": "number",
+          "description": "Design doc count for the stage"
+        },
+        "services": {
+          "type": "number",
+          "description": "Service count for the stage"
+        }
+      },
+      "required": [
+        "tasks",
+        "designDocs",
+        "services"
+      ],
+      "description": "Coverage counts for plan stage items"
+    },
+    "PlanStepProposalPayload": {
+      "type": "object",
+      "properties": {
+        "response": {
+          "type": "string",
+          "description": "User-facing rationale for the proposed steps"
+        },
+        "stages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PlanStepProposalPayloadStage"
+          },
+          "description": "Proposed steps grouped by stage"
+        }
+      },
+      "required": [
+        "response",
+        "stages"
+      ],
+      "description": "Plan step proposal payload for UI rendering"
+    },
+    "PlanStepProposalPayloadStage": {
+      "type": "object",
+      "properties": {
+        "sequenceOrder": {
+          "type": "number",
+          "description": "Stage order in the overall plan"
+        },
+        "title": {
+          "type": "string",
+          "description": "Stage title"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PlanStepProposalPayloadStep"
+          },
+          "description": "Proposed steps within this stage"
+        }
+      },
+      "required": [
+        "sequenceOrder",
+        "title",
+        "steps"
+      ],
+      "description": "Proposed steps for a specific plan stage"
+    },
+    "PlanStepProposalPayloadStep": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Step title"
+        },
+        "description": {
+          "type": "string",
+          "description": "Step description"
+        },
+        "type": {
+          "$ref": "#/definitions/PlanStepType"
+        },
+        "sequenceOrder": {
+          "type": "number",
+          "description": "Step order within the stage"
+        },
+        "existing": {
+          "type": "boolean",
+          "description": "True when this proposed step maps to an existing approved step"
+        },
+        "coverageEntityId": {
+          "type": "string",
+          "description": "Existing entity id to reuse for this step, when applicable"
+        }
+      },
+      "required": [
+        "title",
+        "description",
+        "type",
+        "sequenceOrder"
+      ],
+      "description": "Plan step details"
+    },
+    "PlanStepType": {
+      "type": "string",
+      "enum": [
+        "TASK",
+        "DESIGN_DOC",
+        "SERVICE"
+      ],
+      "description": "The type of work represented by a plan step."
+    },
+    "QuestionsGroupPayload": {
+      "type": "object",
+      "properties": {
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Clarifying questions for scope and constraints"
+        }
+      },
+      "required": [
+        "questions"
+      ],
+      "description": "Plan scope constraints payload for UI rendering"
+    },
+    "Action": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Type of action to perform"
+        },
+        "payload": {
+          "$ref": "#/definitions/ActionPayload"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "description": "Action specification for UI operations and workflow orchestration"
+    },
+    "ActionPayload": {
+      "type": "object",
+      "properties": {
+        "entityId": {
+          "type": "string"
+        }
+      },
+      "description": "Action-specific data payload"
+    },
+    "UserMessage": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/MessageId",
+          "description": "Unique identifier for a message (branded type)"
+        },
+        "workflowId": {
+          "$ref": "#/definitions/WorkflowId",
+          "description": "Unique identifier for a workflow (branded type)"
+        },
+        "projectId": {
+          "$ref": "#/definitions/ProjectId",
+          "description": "Unique identifier for a project (branded type)"
+        },
+        "type": {
+          "$ref": "#/definitions/UserMessage.TypeEnum",
+          "description": "Message type - always USER for this schema"
+        },
+        "userId": {
+          "type": "string",
+          "description": "ID of the user who created the message"
+        },
+        "status": {
+          "$ref": "#/definitions/MessageStatus"
+        },
+        "data": {
+          "$ref": "#/definitions/UserMessageData"
+        },
+        "handler": {
+          "$ref": "#/definitions/SecondaryActionHandler"
+        },
+        "conversationId": {
+          "$ref": "#/definitions/ConversationId",
+          "description": "Unique identifier for a conversation (branded type)"
+        },
+        "parentMessageId": {
+          "$ref": "#/definitions/MessageId",
+          "description": "Unique identifier for a message (branded type)"
+        },
+        "responses": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MessageResponseDto"
+          },
+          "description": "Messages that respond to this message"
+        },
+        "parentMessage": {
+          "$ref": "#/definitions/MessageResponseDto"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": [
+        "id",
+        "workflowId",
+        "projectId",
+        "type",
+        "status",
+        "data",
+        "conversationId",
+        "createdAt"
+      ]
+    },
+    "UserMessage.TypeEnum": {
+      "type": "string",
+      "const": "USER"
+    },
+    "MessageClassificationResult": {
+      "type": "object",
+      "properties": {
+        "intent": {
+          "$ref": "#/definitions/MessageIntent"
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "targetInitiativeId": {
+          "type": "string",
+          "description": "Identifier of the initiative referenced by the message."
+        },
+        "targetLevel": {
+          "$ref": "#/definitions/InitiativeLevel"
+        },
+        "suggestedAction": {
+          "$ref": "#/definitions/InitiativeAction1"
+        },
+        "reasoning": {
+          "type": "string"
+        },
+        "metadata": {
+          "$ref": "#/definitions/MessageClassificationResultMetadata"
+        }
+      },
+      "required": [
+        "intent",
+        "confidence",
+        "reasoning"
+      ]
+    },
+    "MessageIntent": {
+      "type": "string",
+      "enum": [
+        "initiative_feedback",
+        "content_update",
+        "review_request",
+        "approval",
+        "rejection",
+        "general"
+      ],
+      "description": "Hey Hey API API for managing projects, interactions, and conversations in organizations\n\nThe version of the OpenAPI document: 1.0.0\n\n\nNOTE: This class is auto generated by OpenAPI Generator (https://openapi-generator.tech). https://openapi-generator.tech Do not edit the class manually."
+    },
+    "InitiativeLevel": {
+      "type": "string",
+      "enum": [
+        "description",
+        "details",
+        "acceptanceCriteria"
+      ],
+      "description": "Hey Hey API API for managing projects, interactions, and conversations in organizations\n\nThe version of the OpenAPI document: 1.0.0\n\n\nNOTE: This class is auto generated by OpenAPI Generator (https://openapi-generator.tech). https://openapi-generator.tech Do not edit the class manually."
+    },
+    "InitiativeAction1": {
+      "type": "string",
+      "enum": [
+        "refine",
+        "update",
+        "review",
+        "approve",
+        "reject"
+      ],
+      "description": "Hey Hey API API for managing projects, interactions, and conversations in organizations\n\nThe version of the OpenAPI document: 1.0.0\n\n\nNOTE: This class is auto generated by OpenAPI Generator (https://openapi-generator.tech). https://openapi-generator.tech Do not edit the class manually."
+    },
+    "MessageClassificationResultMetadata": {
+      "type": "object",
+      "properties": {
+        "autoClassified": {
+          "type": "boolean"
+        },
+        "alternatives": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MessageClassificationResultMetadataAlternativesInner"
+          }
+        },
+        "model": {
+          "type": "string"
+        },
+        "levelAware": {
+          "type": "boolean"
+        },
+        "currentLevel": {
+          "$ref": "#/definitions/InitiativeLevel"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "MessageClassificationResultMetadataAlternativesInner": {
+      "type": "object",
+      "properties": {
+        "intent": {
+          "$ref": "#/definitions/MessageIntent"
+        },
+        "confidence": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "intent",
+        "confidence"
+      ]
+    },
+    "DesignDocResponseDto": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the design document."
+        },
+        "name": {
+          "type": "string",
+          "description": "Human readable title for the design document."
+        },
+        "template": {
+          "$ref": "#/definitions/DesignDocTemplate"
+        },
+        "status": {
+          "type": "string",
+          "description": "Current workflow status (template-specific)."
+        },
+        "organizationId": {
+          "type": "string"
+        },
+        "projectId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MaterializedDesignDocSection"
+          }
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "template",
+        "status",
+        "organizationId",
+        "tags",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "DesignDocTemplate": {
+      "type": "string",
+      "enum": [
+        "CLASSIC",
+        "ADR",
+        "RFC",
+        "BRAINSTORM",
+        "DECISION",
+        "PLAN_DOCUMENT"
+      ],
+      "description": "Template used to structure the design document."
+    },
+    "MaterializedDesignDocSection": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The section\\'s unique id"
+        },
+        "key": {
+          "type": "string",
+          "description": "Unique identifier for the section (e.g., context, decision)."
+        },
+        "order": {
+          "type": "number",
+          "description": "Ordering index for rendering sections."
+        },
+        "materializedMarkdown": {
+          "type": "string",
+          "description": "Persisted markdown snapshot for the section."
+        },
+        "crdtSnapshotSeq": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Sequence number associated with the persisted CRDT snapshot."
+        }
+      },
+      "required": [
+        "id",
+        "key",
+        "order",
+        "materializedMarkdown"
+      ],
+      "description": "Hey Hey API API for managing projects, interactions, and conversations in organizations\n\nThe version of the OpenAPI document: 1.0.0\n\n\nNOTE: This class is auto generated by OpenAPI Generator (https://openapi-generator.tech). https://openapi-generator.tech Do not edit the class manually."
+    },
+    "DesignDocUpdatedEvent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for this event."
+        },
+        "type": {
+          "$ref": "#/definitions/DesignDocUpdatedEvent.TypeEnum"
+        },
+        "aggregateId": {
+          "type": "string",
+          "description": "Unique identifier for a design doc (branded type)"
+        },
+        "payload": {
+          "$ref": "#/definitions/DesignDocUpdatedEventPayload"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "aggregateId",
+        "payload"
+      ]
+    },
+    "DesignDocUpdatedEvent.TypeEnum": {
+      "type": "string",
+      "const": "design_doc.updated"
+    },
+    "DesignDocUpdatedEventPayload": {
+      "type": "object",
+      "properties": {
+        "payloadType": {
+          "$ref": "#/definitions/PayloadType"
+        },
+        "organizationId": {
+          "$ref": "#/definitions/OrganizationId",
+          "description": "Unique identifier for an organization (branded type)"
+        },
+        "projectId": {
+          "$ref": "#/definitions/ProjectId",
+          "description": "Unique identifier for a project (branded type)"
+        },
+        "requestId": {
+          "type": "string",
+          "description": "Unique identifier used to correlate requests (branded type)"
+        },
+        "workflowId": {
+          "$ref": "#/definitions/WorkflowId",
+          "description": "Unique identifier for a workflow (branded type)"
+        },
+        "nodeId": {
+          "type": "string",
+          "description": "Identifier for the workflow node that produced the event."
+        },
+        "conversationId": {
+          "$ref": "#/definitions/ConversationId",
+          "description": "Unique identifier for a conversation (branded type)"
+        },
+        "userId": {
+          "$ref": "#/definitions/UserId",
+          "description": "Unique identifier for a user (branded type)"
+        },
+        "messageId": {
+          "$ref": "#/definitions/MessageId",
+          "description": "Unique identifier for a message (branded type)"
+        },
+        "userMessage": {
+          "$ref": "#/definitions/FlowUserMessage"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "causationId": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "designDoc": {
+          "$ref": "#/definitions/DesignDocEventMetadataSnapshot"
+        }
+      },
+      "required": [
+        "designDoc",
+        "organizationId",
+        "payloadType",
+        "projectId"
+      ]
+    },
+    "DesignDocEventMetadataSnapshot": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for a design doc (branded type)"
+        },
+        "name": {
+          "type": "string"
+        },
+        "template": {
+          "$ref": "#/definitions/DesignDocTemplate"
+        },
+        "status": {
+          "type": "string"
+        },
+        "organizationId": {
+          "$ref": "#/definitions/OrganizationId",
+          "description": "Unique identifier for an organization (branded type)"
+        },
+        "projectId": {
+          "$ref": "#/definitions/ProjectId",
+          "description": "Unique identifier for a project (branded type)"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "template",
+        "status",
+        "organizationId",
+        "tags",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "DesignDocContentChangedEvent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for this event."
+        },
+        "type": {
+          "$ref": "#/definitions/DesignDocContentChangedEvent.TypeEnum"
+        },
+        "aggregateId": {
+          "type": "string",
+          "description": "Unique identifier for a design doc (branded type)"
+        },
+        "payload": {
+          "$ref": "#/definitions/DesignDocContentChangedEventPayload"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "aggregateId",
+        "payload"
+      ]
+    },
+    "DesignDocContentChangedEvent.TypeEnum": {
+      "type": "string",
+      "const": "design_doc.content_changed"
+    },
+    "DesignDocContentChangedEventPayload": {
+      "type": "object",
+      "properties": {
+        "payloadType": {
+          "$ref": "#/definitions/PayloadType"
+        },
+        "organizationId": {
+          "$ref": "#/definitions/OrganizationId",
+          "description": "Unique identifier for an organization (branded type)"
+        },
+        "projectId": {
+          "$ref": "#/definitions/ProjectId",
+          "description": "Unique identifier for a project (branded type)"
+        },
+        "requestId": {
+          "type": "string",
+          "description": "Unique identifier used to correlate requests (branded type)"
+        },
+        "workflowId": {
+          "$ref": "#/definitions/WorkflowId",
+          "description": "Unique identifier for a workflow (branded type)"
+        },
+        "nodeId": {
+          "type": "string",
+          "description": "Identifier for the workflow node that produced the event."
+        },
+        "conversationId": {
+          "$ref": "#/definitions/ConversationId",
+          "description": "Unique identifier for a conversation (branded type)"
+        },
+        "userId": {
+          "$ref": "#/definitions/UserId",
+          "description": "Unique identifier for a user (branded type)"
+        },
+        "messageId": {
+          "$ref": "#/definitions/MessageId",
+          "description": "Unique identifier for a message (branded type)"
+        },
+        "userMessage": {
+          "$ref": "#/definitions/FlowUserMessage"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "causationId": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "designDoc": {
+          "$ref": "#/definitions/DesignDocResponseDto"
+        }
+      },
+      "required": [
+        "designDoc",
+        "organizationId",
+        "payloadType",
+        "projectId"
+      ]
+    },
+    "DesignDocStatusChangedEvent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for this event."
+        },
+        "type": {
+          "$ref": "#/definitions/DesignDocStatusChangedEvent.TypeEnum"
+        },
+        "aggregateId": {
+          "type": "string",
+          "description": "Unique identifier for a design doc (branded type)"
+        },
+        "payload": {
+          "$ref": "#/definitions/DesignDocStatusChangedEventPayload"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "aggregateId",
+        "payload"
+      ]
+    },
+    "DesignDocStatusChangedEvent.TypeEnum": {
+      "type": "string",
+      "const": "design_doc.status_changed"
+    },
+    "DesignDocStatusChangedEventPayload": {
+      "type": "object",
+      "properties": {
+        "payloadType": {
+          "$ref": "#/definitions/PayloadType"
+        },
+        "organizationId": {
+          "$ref": "#/definitions/OrganizationId",
+          "description": "Unique identifier for an organization (branded type)"
+        },
+        "projectId": {
+          "$ref": "#/definitions/ProjectId",
+          "description": "Unique identifier for a project (branded type)"
+        },
+        "requestId": {
+          "type": "string",
+          "description": "Unique identifier used to correlate requests (branded type)"
+        },
+        "workflowId": {
+          "$ref": "#/definitions/WorkflowId",
+          "description": "Unique identifier for a workflow (branded type)"
+        },
+        "nodeId": {
+          "type": "string",
+          "description": "Identifier for the workflow node that produced the event."
+        },
+        "conversationId": {
+          "$ref": "#/definitions/ConversationId",
+          "description": "Unique identifier for a conversation (branded type)"
+        },
+        "userId": {
+          "$ref": "#/definitions/UserId",
+          "description": "Unique identifier for a user (branded type)"
+        },
+        "messageId": {
+          "$ref": "#/definitions/MessageId",
+          "description": "Unique identifier for a message (branded type)"
+        },
+        "userMessage": {
+          "$ref": "#/definitions/FlowUserMessage"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "causationId": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "previousStatus": {
+          "type": "string",
+          "description": "Previous workflow status of the design document."
+        },
+        "newStatus": {
+          "type": "string",
+          "description": "New workflow status of the design document."
+        }
+      },
+      "required": [
+        "newStatus",
+        "organizationId",
+        "payloadType",
+        "previousStatus",
+        "projectId"
+      ]
+    },
+    "DesignDocArchivedEvent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for this event."
+        },
+        "type": {
+          "$ref": "#/definitions/DesignDocArchivedEvent.TypeEnum"
+        },
+        "aggregateId": {
+          "type": "string",
+          "description": "Unique identifier for a design doc (branded type)"
+        },
+        "payload": {
+          "$ref": "#/definitions/DesignDocArchivedEventPayload"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "aggregateId",
+        "payload"
+      ]
+    },
+    "DesignDocArchivedEvent.TypeEnum": {
+      "type": "string",
+      "const": "design_doc.archived"
+    },
+    "DesignDocArchivedEventPayload": {
+      "type": "object",
+      "properties": {
+        "payloadType": {
+          "$ref": "#/definitions/PayloadType"
+        },
+        "organizationId": {
+          "$ref": "#/definitions/OrganizationId",
+          "description": "Unique identifier for an organization (branded type)"
+        },
+        "projectId": {
+          "$ref": "#/definitions/ProjectId",
+          "description": "Unique identifier for a project (branded type)"
+        },
+        "requestId": {
+          "type": "string",
+          "description": "Unique identifier used to correlate requests (branded type)"
+        },
+        "workflowId": {
+          "$ref": "#/definitions/WorkflowId",
+          "description": "Unique identifier for a workflow (branded type)"
+        },
+        "nodeId": {
+          "type": "string",
+          "description": "Identifier for the workflow node that produced the event."
+        },
+        "conversationId": {
+          "$ref": "#/definitions/ConversationId",
+          "description": "Unique identifier for a conversation (branded type)"
+        },
+        "userId": {
+          "$ref": "#/definitions/UserId",
+          "description": "Unique identifier for a user (branded type)"
+        },
+        "messageId": {
+          "$ref": "#/definitions/MessageId",
+          "description": "Unique identifier for a message (branded type)"
+        },
+        "userMessage": {
+          "$ref": "#/definitions/FlowUserMessage"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "causationId": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "designDoc": {
+          "$ref": "#/definitions/DesignDocResponseDto"
+        }
+      },
+      "required": [
+        "designDoc",
+        "organizationId",
+        "payloadType",
+        "projectId"
+      ]
+    },
+    "DesignDocRestoredEvent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for this event."
+        },
+        "type": {
+          "$ref": "#/definitions/DesignDocRestoredEvent.TypeEnum"
+        },
+        "aggregateId": {
+          "type": "string",
+          "description": "Unique identifier for a design doc (branded type)"
+        },
+        "payload": {
+          "$ref": "#/definitions/DesignDocRestoredEventPayload"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "aggregateId",
+        "payload"
+      ]
+    },
+    "DesignDocRestoredEvent.TypeEnum": {
+      "type": "string",
+      "const": "design_doc.restored"
+    },
+    "DesignDocRestoredEventPayload": {
+      "type": "object",
+      "properties": {
+        "payloadType": {
+          "$ref": "#/definitions/PayloadType"
+        },
+        "organizationId": {
+          "$ref": "#/definitions/OrganizationId",
+          "description": "Unique identifier for an organization (branded type)"
+        },
+        "projectId": {
+          "$ref": "#/definitions/ProjectId",
+          "description": "Unique identifier for a project (branded type)"
+        },
+        "requestId": {
+          "type": "string",
+          "description": "Unique identifier used to correlate requests (branded type)"
+        },
+        "workflowId": {
+          "$ref": "#/definitions/WorkflowId",
+          "description": "Unique identifier for a workflow (branded type)"
+        },
+        "nodeId": {
+          "type": "string",
+          "description": "Identifier for the workflow node that produced the event."
+        },
+        "conversationId": {
+          "$ref": "#/definitions/ConversationId",
+          "description": "Unique identifier for a conversation (branded type)"
+        },
+        "userId": {
+          "$ref": "#/definitions/UserId",
+          "description": "Unique identifier for a user (branded type)"
+        },
+        "messageId": {
+          "$ref": "#/definitions/MessageId",
+          "description": "Unique identifier for a message (branded type)"
+        },
+        "userMessage": {
+          "$ref": "#/definitions/FlowUserMessage"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "causationId": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "designDoc": {
+          "$ref": "#/definitions/DesignDocResponseDto"
+        }
+      },
+      "required": [
+        "designDoc",
+        "organizationId",
+        "payloadType",
+        "projectId"
+      ]
+    }
+  }
+}

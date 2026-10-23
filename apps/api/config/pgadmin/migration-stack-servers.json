@@ -1,0 +1,16 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Hey Hey Migration Stack",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "migration_test",
+      "Username": "migration",
+      "SSLMode": "prefer",
+      "ConnectionParameters": {
+        "passfile": "/auth/pgpass"
+      }
+    }
+  }
+}

@@ -1,0 +1,662 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import {
+  AgentCostTrackingService,
+  AgentCostData,
+  AgentCostSummary,
+} from '../agent-cost-tracking.service';
+import { PrismaService } from '../../../prisma/prisma.service';
+import { ArtifactType } from '../../../generated';
+import * as TestUtils from '../../../utils/testUtils';
+
+describe('AgentCostTrackingService', () => {
+  let service: AgentCostTrackingService;
+  let prismaService: jest.Mocked<PrismaService>;
+  const { testIds } = TestUtils;
+
+  beforeEach(async () => {
+    const mockPrismaService = {
+      db: {
+        artifact: {
+          create: jest.fn(),
+          findMany: jest.fn(),
+        },
+      },
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AgentCostTrackingService,
+        {
+          provide: PrismaService,
+          useValue: mockPrismaService,
+        },
+      ],
+    }).compile();
+
+    service = module.get<AgentCostTrackingService>(AgentCostTrackingService);
+    prismaService = module.get(PrismaService) as jest.Mocked<PrismaService>;
+  });
+
+  describe('trackAgentExecution', () => {
+    it('should track agent execution cost successfully', async () => {
+      // Arrange
+      const mockCostData = TestUtils.createMockAgentCostData();
+      const mockArtifact = {
+        id: 'artifact-123',
+      };
+
+      prismaService.db.artifact.create.mockResolvedValue(mockArtifact as any);
+
+      // Act
+      await service.trackAgentExecution(mockCostData);
+
+      // Assert
+      expect(prismaService.db.artifact.create).toHaveBeenCalledWith({
+        data: {
+          organizationId: mockCostData.organizationId,
+          projectId: mockCostData.projectId,
+          type: ArtifactType.SYSTEM_ANALYSIS,
+          category: 'agent_cost_tracking',
+          title: `Agent Execution Cost: ${mockCostData.agentId}`,
+          content: expect.stringContaining(mockCostData.agentId),
+          metadata: {
+            agentId: mockCostData.agentId,
+            executionId: mockCostData.executionId,
+            cost: mockCostData.cost,
+            executionTime: mockCostData.executionTime,
+            trackingType: 'agent_execution_cost',
+          },
+          tags: [
+            'agent_execution',
+            `agent:${mockCostData.agentId}`,
+            'cost_tracking',
+            `cost:${mockCostData.cost.toFixed(4)}`,
+          ],
+          generateEmbedding: false,
+        },
+      });
+    });
+
+    it('should validate required fields and throw error for missing agentId', async () => {
+      // Arrange
+      const invalidCostData = TestUtils.createMockAgentCostData({
+        agentId: '',
+      });
+
+      // Act & Assert
+      await expect(
+        service.trackAgentExecution(invalidCostData),
+      ).rejects.toThrow(
+        'Agent ID, execution ID, and organization ID are required for cost tracking',
+      );
+      expect(prismaService.db.artifact.create).not.toHaveBeenCalled();
+    });
+
+    it('should validate cost is non-negative number', async () => {
+      // Arrange
+      const invalidCostData = TestUtils.createMockAgentCostData({
+        cost: -10,
+      });
+
+      // Act & Assert
+      await expect(
+        service.trackAgentExecution(invalidCostData),
+      ).rejects.toThrow('Cost must be a non-negative number');
+    });
+
+    it('should validate execution time is non-negative number', async () => {
+      // Arrange
+      const invalidCostData = TestUtils.createMockAgentCostData({
+        executionTime: -1000,
+      });
+
+      // Act & Assert
+      await expect(
+        service.trackAgentExecution(invalidCostData),
+      ).rejects.toThrow('Execution time must be a non-negative number');
+    });
+
+    it('should handle database errors gracefully without throwing', async () => {
+      // Arrange
+      const mockCostData = TestUtils.createMockAgentCostData();
+      prismaService.db.artifact.create.mockRejectedValue(
+        new Error('Database connection failed'),
+      );
+
+      const loggerSpy = jest.spyOn((service as any).logger, 'error');
+
+      // Act - should not throw
+      await expect(
+        service.trackAgentExecution(mockCostData),
+      ).resolves.not.toThrow();
+
+      // Assert
+      expect(loggerSpy).toHaveBeenCalledWith(
+        'Failed to track agent execution cost:',
+        expect.any(Error),
+      );
+    });
+
+    it('should store complete cost record with all metadata', async () => {
+      // Arrange
+      const mockCostData = TestUtils.createMockAgentCostData({
+        tokenUsage: {
+          inputTokens: 1000,
+          outputTokens: 500,
+        },
+        metadata: {
+          confidence: 0.95,
+          toolCalls: 2,
+          changesApplied: 3,
+          initiativeId: testIds.initiative,
+        },
+      });
+
+      prismaService.db.artifact.create.mockResolvedValue({
+        id: 'artifact-123',
+      } as any);
+
+      // Act
+      await service.trackAgentExecution(mockCostData);
+
+      // Assert
+      const createCall = prismaService.db.artifact.create.mock.calls[0][0];
+      const storedContent = JSON.parse(createCall.data.content);
+
+      expect(storedContent).toMatchObject({
+        agentId: mockCostData.agentId,
+        executionId: mockCostData.executionId,
+        cost: mockCostData.cost,
+        executionTime: mockCostData.executionTime,
+        organizationId: mockCostData.organizationId,
+        projectId: mockCostData.projectId,
+        tokenUsage: mockCostData.tokenUsage,
+        metadata: mockCostData.metadata,
+        trackingVersion: '1.0',
+      });
+      expect(storedContent.timestamp).toBeDefined();
+    });
+  });
+
+  describe('getOrganizationAgentCosts', () => {
+    it('should retrieve agent costs for organization successfully', async () => {
+      // Arrange
+      const mockCostData = TestUtils.createMockAgentCostData();
+      const mockArtifacts = [
+        {
+          id: 'artifact-1',
+          content: JSON.stringify(mockCostData),
+          createdAt: new Date(),
+        },
+      ];
+
+      prismaService.db.artifact.findMany.mockResolvedValue(
+        mockArtifacts as any,
+      );
+
+      // Act
+      const result = await service.getOrganizationAgentCosts(
+        testIds.organization,
+      );
+
+      // Assert
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject(mockCostData);
+      expect(prismaService.db.artifact.findMany).toHaveBeenCalledWith({
+        where: {
+          organizationId: testIds.organization,
+          type: ArtifactType.SYSTEM_ANALYSIS,
+          category: 'agent_cost_tracking',
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 1000,
+      });
+    });
+
+    it('should filter by agent ID when provided', async () => {
+      // Arrange
+      const options = { agentId: testIds.agentId };
+
+      prismaService.db.artifact.findMany.mockResolvedValue([]);
+
+      // Act
+      await service.getOrganizationAgentCosts(testIds.organization, options);
+
+      // Assert
+      expect(prismaService.db.artifact.findMany).toHaveBeenCalledWith({
+        where: {
+          organizationId: testIds.organization,
+          type: ArtifactType.SYSTEM_ANALYSIS,
+          category: 'agent_cost_tracking',
+          metadata: {
+            path: ['agentId'],
+            equals: testIds.agentId,
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 1000,
+      });
+    });
+
+    it('should filter by date range when provided', async () => {
+      // Arrange
+      const startDate = new Date('2024-01-01');
+      const endDate = new Date('2024-01-31');
+      const options = { startDate, endDate };
+
+      prismaService.db.artifact.findMany.mockResolvedValue([]);
+
+      // Act
+      await service.getOrganizationAgentCosts(testIds.organization, options);
+
+      // Assert
+      expect(prismaService.db.artifact.findMany).toHaveBeenCalledWith({
+        where: {
+          organizationId: testIds.organization,
+          type: ArtifactType.SYSTEM_ANALYSIS,
+          category: 'agent_cost_tracking',
+          createdAt: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 1000,
+      });
+    });
+
+    it('should handle invalid JSON content gracefully', async () => {
+      // Arrange
+      const mockArtifacts = [
+        {
+          id: 'artifact-1',
+          content: 'invalid json content',
+          createdAt: new Date(),
+        },
+        {
+          id: 'artifact-2',
+          content: JSON.stringify(TestUtils.createMockAgentCostData()),
+          createdAt: new Date(),
+        },
+      ];
+
+      prismaService.db.artifact.findMany.mockResolvedValue(
+        mockArtifacts as any,
+      );
+      const loggerSpy = jest.spyOn((service as any).logger, 'warn');
+
+      // Act
+      const result = await service.getOrganizationAgentCosts(
+        testIds.organization,
+      );
+
+      // Assert
+      expect(result).toHaveLength(1); // Only valid record returned
+      expect(loggerSpy).toHaveBeenCalledWith(
+        'Failed to parse cost data from artifact artifact-1:',
+        expect.any(Error),
+      );
+    });
+
+    it('should validate parsed data structure', async () => {
+      // Arrange
+      const invalidCostData = { agentId: 'test' /* missing required fields */ };
+      const mockArtifacts = [
+        {
+          id: 'artifact-1',
+          content: JSON.stringify(invalidCostData),
+          createdAt: new Date(),
+        },
+      ];
+
+      prismaService.db.artifact.findMany.mockResolvedValue(
+        mockArtifacts as any,
+      );
+      const loggerSpy = jest.spyOn((service as any).logger, 'warn');
+
+      // Act
+      const result = await service.getOrganizationAgentCosts(
+        testIds.organization,
+      );
+
+      // Assert
+      expect(result).toHaveLength(0);
+      expect(loggerSpy).toHaveBeenCalledWith(
+        'Invalid cost data structure in artifact artifact-1',
+      );
+    });
+
+    it('should throw error for database failures', async () => {
+      // Arrange
+      prismaService.db.artifact.findMany.mockRejectedValue(
+        new Error('Database error'),
+      );
+
+      // Act & Assert
+      await expect(
+        service.getOrganizationAgentCosts(testIds.organization),
+      ).rejects.toThrow('Failed to retrieve agent cost data');
+    });
+  });
+
+  describe('getAgentCostSummary', () => {
+    it('should generate cost summary successfully', async () => {
+      // Arrange
+      const mockCostData = [
+        TestUtils.createMockAgentCostData({ cost: 0.1, executionTime: 1000 }),
+        TestUtils.createMockAgentCostData({ cost: 0.2, executionTime: 2000 }),
+        TestUtils.createMockAgentCostData({ cost: 0.15, executionTime: 1500 }),
+      ];
+
+      jest
+        .spyOn(service, 'getOrganizationAgentCosts')
+        .mockResolvedValue(mockCostData);
+
+      // Act
+      const result = await service.getAgentCostSummary(testIds.organization);
+
+      // Assert
+      expect(result).toMatchObject({
+        totalExecutions: 3,
+        totalCost: 0.45,
+        averageCost: 0.15,
+        averageExecutionTime: 1500,
+        successRate: 1.0,
+      });
+      expect(result.timeRange.start).toBeInstanceOf(Date);
+      expect(result.timeRange.end).toBeInstanceOf(Date);
+    });
+
+    it('should return zero summary for no data', async () => {
+      // Arrange
+      jest.spyOn(service, 'getOrganizationAgentCosts').mockResolvedValue([]);
+
+      // Act
+      const result = await service.getAgentCostSummary(testIds.organization);
+
+      // Assert
+      expect(result).toMatchObject({
+        totalExecutions: 0,
+        totalCost: 0,
+        averageCost: 0,
+        averageExecutionTime: 0,
+        totalTokens: 0,
+        successRate: 0,
+      });
+    });
+
+    it('should calculate token usage when available', async () => {
+      // Arrange
+      const mockCostData = [
+        TestUtils.createMockAgentCostData({
+          tokenUsage: { inputTokens: 100, outputTokens: 50 },
+        }),
+        TestUtils.createMockAgentCostData({
+          tokenUsage: { inputTokens: 200, outputTokens: 75 },
+        }),
+      ];
+
+      jest
+        .spyOn(service, 'getOrganizationAgentCosts')
+        .mockResolvedValue(mockCostData);
+
+      // Act
+      const result = await service.getAgentCostSummary(testIds.organization);
+
+      // Assert
+      expect(result.totalTokens).toBe(425); // 100+50+200+75
+    });
+
+    it('should pass through options to getOrganizationAgentCosts', async () => {
+      // Arrange
+      const options = {
+        agentId: testIds.agentId,
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31'),
+      };
+
+      const getOrgCostsSpy = jest
+        .spyOn(service, 'getOrganizationAgentCosts')
+        .mockResolvedValue([]);
+
+      // Act
+      await service.getAgentCostSummary(testIds.organization, options);
+
+      // Assert
+      expect(getOrgCostsSpy).toHaveBeenCalledWith(
+        testIds.organization,
+        options,
+      );
+    });
+  });
+
+  describe('getAgentCostTrends', () => {
+    it('should generate daily cost trends', async () => {
+      // Arrange
+      const baseDate = new Date('2024-01-15T10:00:00Z');
+      const mockCostData = [
+        TestUtils.createMockAgentCostData({
+          cost: 0.1,
+          executionTime: 1000,
+          metadata: { timestamp: baseDate.toISOString() },
+        }),
+        TestUtils.createMockAgentCostData({
+          cost: 0.2,
+          executionTime: 2000,
+          metadata: { timestamp: baseDate.toISOString() },
+        }),
+        TestUtils.createMockAgentCostData({
+          cost: 0.15,
+          executionTime: 1500,
+          metadata: {
+            timestamp: new Date('2024-01-16T14:00:00Z').toISOString(),
+          },
+        }),
+      ];
+
+      jest
+        .spyOn(service, 'getOrganizationAgentCosts')
+        .mockResolvedValue(mockCostData);
+
+      // Act
+      const result = await service.getAgentCostTrends(testIds.organization, 30);
+
+      // Assert
+      expect(result).toHaveLength(2);
+      expect(result[0]).toMatchObject({
+        date: '2024-01-15',
+        executions: 2,
+        cost: 0.3,
+        averageTime: 1500,
+      });
+      expect(result[1]).toMatchObject({
+        date: '2024-01-16',
+        executions: 1,
+        cost: 0.15,
+        averageTime: 1500,
+      });
+    });
+
+    it('should filter by agent ID when provided', async () => {
+      // Arrange
+      const getOrgCostsSpy = jest
+        .spyOn(service, 'getOrganizationAgentCosts')
+        .mockResolvedValue([]);
+
+      // Act
+      await service.getAgentCostTrends(
+        testIds.organization,
+        30,
+        testIds.agentId,
+      );
+
+      // Assert
+      expect(getOrgCostsSpy).toHaveBeenCalledWith(
+        testIds.organization,
+        expect.objectContaining({
+          agentId: testIds.agentId,
+          startDate: expect.any(Date),
+          endDate: expect.any(Date),
+        }),
+      );
+    });
+
+    it('should handle missing timestamps gracefully', async () => {
+      // Arrange
+      const mockCostData = [
+        TestUtils.createMockAgentCostData({
+          metadata: {}, // No timestamp
+        }),
+      ];
+
+      jest
+        .spyOn(service, 'getOrganizationAgentCosts')
+        .mockResolvedValue(mockCostData);
+
+      // Act
+      const result = await service.getAgentCostTrends(testIds.organization);
+
+      // Assert
+      expect(result).toHaveLength(1);
+      expect(result[0].date).toMatch(/^\d{4}-\d{2}-\d{2}$/); // Should have valid date format
+    });
+  });
+
+  describe('checkCostAlerts', () => {
+    it('should generate daily cost alert when approaching limit', async () => {
+      // Arrange
+      const mockTodayCosts = [
+        TestUtils.createMockAgentCostData({ cost: 8.0 }),
+        TestUtils.createMockAgentCostData({ cost: 2.0 }),
+      ];
+
+      jest
+        .spyOn(service, 'getOrganizationAgentCosts')
+        .mockResolvedValue(mockTodayCosts);
+
+      const limits = { dailyCostLimit: 12.0 }; // 10.0 / 12.0 = 83.3% > 80%
+
+      // Act
+      const result = await service.checkCostAlerts(
+        testIds.organization,
+        limits,
+      );
+
+      // Assert
+      expect(result.alerts).toHaveLength(1);
+      expect(result.alerts[0]).toMatchObject({
+        type: 'daily_cost',
+        current: 10.0,
+        limit: 12.0,
+        percentage: expect.closeTo(83.33, 1),
+        message: expect.stringContaining(
+          'Daily agent cost is at 83.3% of limit',
+        ),
+      });
+    });
+
+    it('should generate monthly cost alert when approaching limit', async () => {
+      // Arrange
+      const mockMonthlyCosts = Array.from({ length: 20 }, () =>
+        TestUtils.createMockAgentCostData({ cost: 2.0 }),
+      );
+
+      jest
+        .spyOn(service, 'getOrganizationAgentCosts')
+        .mockResolvedValue(mockMonthlyCosts);
+
+      const limits = { monthlyCostLimit: 50.0 }; // 40.0 / 50.0 = 80%
+
+      // Act
+      const result = await service.checkCostAlerts(
+        testIds.organization,
+        limits,
+      );
+
+      // Assert
+      expect(result.alerts).toHaveLength(1);
+      expect(result.alerts[0].type).toBe('monthly_cost');
+      expect(result.alerts[0].percentage).toBe(80);
+    });
+
+    it('should generate execution count alert when approaching limit', async () => {
+      // Arrange
+      const mockExecutions = Array.from({ length: 85 }, () =>
+        TestUtils.createMockAgentCostData({ cost: 0.1 }),
+      );
+
+      jest
+        .spyOn(service, 'getOrganizationAgentCosts')
+        .mockResolvedValue(mockExecutions);
+
+      const limits = { executionCountLimit: 100 }; // 85 / 100 = 85% > 80%
+
+      // Act
+      const result = await service.checkCostAlerts(
+        testIds.organization,
+        limits,
+      );
+
+      // Assert
+      expect(result.alerts).toHaveLength(1);
+      expect(result.alerts[0]).toMatchObject({
+        type: 'execution_count',
+        current: 85,
+        limit: 100,
+        percentage: 85,
+      });
+    });
+
+    it('should return no alerts when below thresholds', async () => {
+      // Arrange
+      const mockCosts = [TestUtils.createMockAgentCostData({ cost: 1.0 })];
+
+      jest
+        .spyOn(service, 'getOrganizationAgentCosts')
+        .mockResolvedValue(mockCosts);
+
+      const limits = {
+        dailyCostLimit: 10.0, // 1.0 / 10.0 = 10% < 80%
+        monthlyCostLimit: 100.0,
+        executionCountLimit: 100,
+      };
+
+      // Act
+      const result = await service.checkCostAlerts(
+        testIds.organization,
+        limits,
+      );
+
+      // Assert
+      expect(result.alerts).toHaveLength(0);
+    });
+
+    it('should handle multiple alert types simultaneously', async () => {
+      // Arrange
+      const mockCosts = Array.from({ length: 90 }, () =>
+        TestUtils.createMockAgentCostData({ cost: 1.0 }),
+      );
+
+      jest
+        .spyOn(service, 'getOrganizationAgentCosts')
+        .mockResolvedValue(mockCosts);
+
+      const limits = {
+        dailyCostLimit: 100.0, // 90 / 100 = 90% > 80%
+        executionCountLimit: 100, // 90 / 100 = 90% > 80%
+      };
+
+      // Act
+      const result = await service.checkCostAlerts(
+        testIds.organization,
+        limits,
+      );
+
+      // Assert
+      expect(result.alerts).toHaveLength(2);
+      expect(result.alerts.map((a) => a.type)).toEqual(
+        expect.arrayContaining(['daily_cost', 'execution_count']),
+      );
+    });
+  });
+});

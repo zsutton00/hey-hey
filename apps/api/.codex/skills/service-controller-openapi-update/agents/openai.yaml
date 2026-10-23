@@ -1,0 +1,4 @@
+interface:
+  display_name: "API Contract Update Flow"
+  short_description: "Update service/controller/OpenAPI in lockstep"
+  default_prompt: "Use $service-controller-openapi-update to implement an API contract change end-to-end."

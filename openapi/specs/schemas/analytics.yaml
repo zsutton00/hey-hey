@@ -1,0 +1,943 @@
+# =============================================
+# User Analytics and Event Tracking Schemas
+# =============================================
+# Comprehensive schema definitions for user action tracking,
+# event batching, and analytics collection.
+
+# =============================================
+# Branded ID Types
+# =============================================
+TrackingEventId:
+  type: string
+  format: branded-TrackingEventId
+  pattern: "^evt_[0-9]+_[a-z0-9]{9}$"
+  description: "Unique identifier for a tracking event (branded type)"
+  example: "evt_1701432000000_abc123def"
+  x-typescript-type: "TrackingEventId"
+  x-brand: "TrackingEventId"
+  x-semantic-type: "resource-identifier"
+
+SessionId:
+  type: string
+  format: branded-SessionId
+  pattern: "^sess_[0-9]+_[a-z0-9]{9}$"
+  description: "Unique session identifier (branded type)"
+  example: "sess_1701432000000_xyz789ghi"
+  x-typescript-type: "SessionId"
+  x-brand: "SessionId"
+  x-semantic-type: "resource-identifier"
+
+# =============================================
+# Event Category Enum
+# =============================================
+EventCategory:
+  type: string
+  enum:
+    - navigation
+    - initiative
+    - workflow
+    - project
+    - authentication
+    - form
+    - ui_interaction
+    - integration
+    - error
+    - performance
+  description: "Category of tracking event"
+
+# =============================================
+# Action Type Enums
+# =============================================
+InitiativeAction:
+  type: string
+  enum:
+    - create
+    - update
+    - delete
+    - view
+    - refine
+    - review
+    - approve
+    - reject
+    - link_project
+    - unlink_project
+    - add_requirement
+    - update_requirement
+    - remove_requirement
+    - change_status
+    - change_priority
+    - add_tag
+    - remove_tag
+    - set_due_date
+    - start_conversation
+    - export
+  description: "Initiative-specific action types"
+
+WorkflowAction:
+  type: string
+  enum:
+    - create
+    - update
+    - delete
+    - execute
+    - pause
+    - resume
+    - cancel
+    - view
+    - simulate
+    - validate
+    - export
+    - duplicate
+    - share
+  description: "Workflow-specific action types"
+
+NavigationAction:
+  type: string
+  enum:
+    - page_view
+    - page_leave
+    - link_click
+    - back_button
+    - forward_button
+    - breadcrumb_click
+    - tab_switch
+    - menu_navigate
+  description: "Navigation event action types"
+
+FormAction:
+  type: string
+  enum:
+    - start_fill
+    - field_focus
+    - field_blur
+    - field_change
+    - validation_error
+    - submit_attempt
+    - submit_success
+    - submit_error
+    - reset
+    - auto_save
+  description: "Form interaction action types"
+
+UIAction:
+  type: string
+  enum:
+    - button_click
+    - modal_open
+    - modal_close
+    - dropdown_open
+    - dropdown_close
+    - tooltip_show
+    - tooltip_hide
+    - search
+    - filter
+    - sort
+    - pagination
+    - drag_start
+    - drag_end
+    - file_upload
+    - file_download
+    - component_mount
+    - component_unmount
+    - component_visible
+    - component_hidden
+    - component_props_changed
+    - error_recovery
+  description: "UI interaction action types"
+
+AuthenticationAction:
+  type: string
+  enum:
+    - login
+    - logout
+    - register
+    - password_reset
+    - profile_update
+  description: "Authentication event action types"
+
+IntegrationAction:
+  type: string
+  enum:
+    - connect
+    - disconnect
+    - sync
+    - import
+    - export
+    - webhook
+  description: "Integration action types"
+
+ErrorAction:
+  type: string
+  enum:
+    - javascript_error
+    - api_error
+    - validation_error
+    - network_error
+    - component_error
+  description: "Error event action types"
+
+PerformanceAction:
+  type: string
+  enum:
+    - page_load
+    - api_call
+    - component_render
+    - user_timing
+  description: "Performance event action types"
+
+# =============================================
+# Context Structure
+# =============================================
+TrackingContext:
+  type: object
+  required:
+    - page
+  properties:
+    organization:
+      type: object
+      description: "Organization context if available"
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+    project:
+      type: object
+      description: "Project context if available"
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+    initiative:
+      type: object
+      description: "Initiative context if available"
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+        priority:
+          type: string
+    workflow:
+      type: object
+      description: "Workflow context if available"
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        currentStep:
+          type: string
+    agentSession:
+      type: object
+      description: "Agent session context if available"
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        projectId:
+          type: string
+    page:
+      type: object
+      required:
+        - name
+        - path
+      description: "Current page information"
+      properties:
+        name:
+          type: string
+          description: "Human-readable page name"
+        path:
+          type: string
+          description: "URL path of current page"
+        section:
+          type: string
+          description: "Page section or view"
+    component:
+      type: object
+      description: "Component context if available"
+      properties:
+        name:
+          type: string
+          description: "Component name"
+        props:
+          type: object
+          additionalProperties: true
+          description: "Component props (flexible structure)"
+
+# =============================================
+# Base Event Metadata
+# =============================================
+TrackingEventMetadata:
+  type: object
+  required:
+    - eventId
+    - sessionId
+    - timestamp
+    - url
+    - userAgent
+    - viewport
+    - context
+  properties:
+    eventId:
+      $ref: "#/TrackingEventId"
+    sessionId:
+      $ref: "#/SessionId"
+    userId:
+      $ref: "./common.yaml#/UserId"
+    timestamp:
+      type: integer
+      format: int64
+      description: "Event timestamp in Unix milliseconds"
+      example: 1701432000000
+    url:
+      type: string
+      format: uri
+      description: "URL where event occurred"
+    userAgent:
+      type: string
+      description: "Browser user agent string"
+    viewport:
+      type: object
+      required:
+        - width
+        - height
+      description: "Viewport dimensions at time of event"
+      properties:
+        width:
+          type: integer
+          minimum: 0
+          description: "Viewport width in pixels"
+        height:
+          type: integer
+          minimum: 0
+          description: "Viewport height in pixels"
+    context:
+      $ref: "#/TrackingContext"
+
+# =============================================
+# Discriminated Union of Event Types
+# =============================================
+UserTrackingEvent:
+  oneOf:
+    - $ref: "#/InitiativeEvent"
+    - $ref: "#/WorkflowEvent"
+    - $ref: "#/NavigationEvent"
+    - $ref: "#/FormEvent"
+    - $ref: "#/UIInteractionEvent"
+    - $ref: "#/AuthenticationEvent"
+    - $ref: "#/IntegrationEvent"
+    - $ref: "#/ErrorEvent"
+    - $ref: "#/PerformanceEvent"
+  discriminator:
+    propertyName: category
+    mapping:
+      initiative: "#/InitiativeEvent"
+      workflow: "#/WorkflowEvent"
+      navigation: "#/NavigationEvent"
+      form: "#/FormEvent"
+      ui_interaction: "#/UIInteractionEvent"
+      authentication: "#/AuthenticationEvent"
+      integration: "#/IntegrationEvent"
+      error: "#/ErrorEvent"
+      performance: "#/PerformanceEvent"
+
+# =============================================
+# Concrete Event Type Definitions
+# =============================================
+
+# Initiative Event
+InitiativeEvent:
+  allOf:
+    - $ref: "#/TrackingEventMetadata"
+    - type: object
+      required:
+        - category
+        - action
+        - data
+      properties:
+        category:
+          type: string
+          enum:
+            - initiative
+          description: "Event category identifier"
+        action:
+          $ref: "#/InitiativeAction"
+        data:
+          type: object
+          required:
+            - initiativeId
+            - initiativeName
+          properties:
+            initiativeId:
+              type: string
+            initiativeName:
+              type: string
+            previousValue: {}
+            newValue: {}
+            field:
+              type: string
+            requirement:
+              type: object
+              properties:
+                id:
+                  type: string
+                text:
+                  type: string
+            project:
+              type: object
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+            conversation:
+              type: object
+              properties:
+                id:
+                  type: string
+                messageCount:
+                  type: integer
+
+# Workflow Event
+WorkflowEvent:
+  allOf:
+    - $ref: "#/TrackingEventMetadata"
+    - type: object
+      required:
+        - category
+        - action
+        - data
+      properties:
+        category:
+          type: string
+          enum:
+            - workflow
+          description: "Event category identifier"
+        action:
+          $ref: "#/WorkflowAction"
+        data:
+          type: object
+          required:
+            - workflowId
+            - workflowName
+          properties:
+            workflowId:
+              type: string
+            workflowName:
+              type: string
+            nodeId:
+              type: string
+            nodeName:
+              type: string
+            executionId:
+              type: string
+            simulationStep:
+              type: integer
+            validationResults:
+              type: object
+              properties:
+                errors:
+                  type: integer
+                warnings:
+                  type: integer
+
+# Navigation Event
+NavigationEvent:
+  allOf:
+    - $ref: "#/TrackingEventMetadata"
+    - type: object
+      required:
+        - category
+        - action
+        - data
+      properties:
+        category:
+          type: string
+          enum:
+            - navigation
+          description: "Event category identifier"
+        action:
+          $ref: "#/NavigationAction"
+        data:
+          type: object
+          required:
+            - toPage
+          properties:
+            fromPage:
+              type: string
+            toPage:
+              type: string
+            referrer:
+              type: string
+            timeOnPage:
+              type: integer
+              description: "Time spent on previous page (milliseconds)"
+            scrollDepth:
+              type: integer
+              description: "Scroll depth percentage"
+            exitIntent:
+              type: boolean
+            linkText:
+              type: string
+            linkHref:
+              type: string
+
+# Form Event
+FormEvent:
+  allOf:
+    - $ref: "#/TrackingEventMetadata"
+    - type: object
+      required:
+        - category
+        - action
+        - data
+      properties:
+        category:
+          type: string
+          enum:
+            - form
+          description: "Event category identifier"
+        action:
+          $ref: "#/FormAction"
+        data:
+          type: object
+          required:
+            - formName
+          properties:
+            formName:
+              type: string
+            fieldName:
+              type: string
+            fieldType:
+              type: string
+            fieldValue:
+              type: string
+            validationErrors:
+              type: array
+              items:
+                type: string
+            completionRate:
+              type: number
+              minimum: 0
+              maximum: 100
+            timeToComplete:
+              type: integer
+              description: "Time to complete form (milliseconds)"
+            submitAttempts:
+              type: integer
+            componentName:
+              type: string
+
+# UI Interaction Event
+UIInteractionEvent:
+  allOf:
+    - $ref: "#/TrackingEventMetadata"
+    - type: object
+      required:
+        - category
+        - action
+        - data
+      properties:
+        category:
+          type: string
+          enum:
+            - ui_interaction
+          description: "Event category identifier"
+        action:
+          $ref: "#/UIAction"
+        data:
+          type: object
+          required:
+            - elementType
+          additionalProperties: true
+          properties:
+            elementType:
+              type: string
+            elementText:
+              type: string
+            elementId:
+              type: string
+            elementClass:
+              type: string
+            componentName:
+              type: string
+            searchQuery:
+              type: string
+            filterCriteria:
+              type: object
+              additionalProperties: true
+            sortField:
+              type: string
+            sortDirection:
+              type: string
+              enum:
+                - asc
+                - desc
+            pageNumber:
+              type: integer
+            fileType:
+              type: string
+            fileName:
+              type: string
+            fileSize:
+              type: integer
+            resultCount:
+              type: integer
+            searchTime:
+              type: integer
+            timeVisible:
+              type: integer
+            viewDuration:
+              type: integer
+            intersectionRatio:
+              type: number
+            changes:
+              type: array
+              items:
+                type: object
+                properties:
+                  prop:
+                    type: string
+                  from: {}
+                  to: {}
+            reason:
+              type: string
+            recoveryAction:
+              type: string
+            successful:
+              type: boolean
+
+# Authentication Event
+AuthenticationEvent:
+  allOf:
+    - $ref: "#/TrackingEventMetadata"
+    - type: object
+      required:
+        - category
+        - action
+        - data
+      properties:
+        category:
+          type: string
+          enum:
+            - authentication
+          description: "Event category identifier"
+        action:
+          $ref: "#/AuthenticationAction"
+        data:
+          type: object
+          required:
+            - success
+          properties:
+            method:
+              type: string
+              enum:
+                - email
+                - oauth
+                - sso
+            success:
+              type: boolean
+            errorCode:
+              type: string
+            provider:
+              type: string
+
+# Integration Event
+IntegrationEvent:
+  allOf:
+    - $ref: "#/TrackingEventMetadata"
+    - type: object
+      required:
+        - category
+        - action
+        - data
+      properties:
+        category:
+          type: string
+          enum:
+            - integration
+          description: "Event category identifier"
+        action:
+          $ref: "#/IntegrationAction"
+        data:
+          type: object
+          required:
+            - integrationName
+            - integrationType
+            - success
+          properties:
+            integrationName:
+              type: string
+            integrationType:
+              type: string
+              enum:
+                - github
+                - jira
+                - slack
+                - api
+            success:
+              type: boolean
+            errorCode:
+              type: string
+            dataCount:
+              type: integer
+
+# Error Event
+ErrorEvent:
+  allOf:
+    - $ref: "#/TrackingEventMetadata"
+    - type: object
+      required:
+        - category
+        - action
+        - data
+      properties:
+        category:
+          type: string
+          enum:
+            - error
+          description: "Event category identifier"
+        action:
+          $ref: "#/ErrorAction"
+        data:
+          type: object
+          required:
+            - errorMessage
+          properties:
+            errorMessage:
+              type: string
+            errorCode:
+              type: string
+            stack:
+              type: string
+            endpoint:
+              type: string
+            statusCode:
+              type: integer
+            retryCount:
+              type: integer
+            componentName:
+              type: string
+            context:
+              type: object
+              additionalProperties: true
+
+# Performance Event
+PerformanceEvent:
+  allOf:
+    - $ref: "#/TrackingEventMetadata"
+    - type: object
+      required:
+        - category
+        - action
+        - data
+      properties:
+        category:
+          type: string
+          enum:
+            - performance
+          description: "Event category identifier"
+        action:
+          $ref: "#/PerformanceAction"
+        data:
+          type: object
+          required:
+            - duration
+          properties:
+            duration:
+              type: integer
+              description: "Duration in milliseconds"
+            endpoint:
+              type: string
+            componentName:
+              type: string
+            timingName:
+              type: string
+            memoryUsage:
+              type: integer
+            networkType:
+              type: string
+
+# =============================================
+# Attention Events (Separate Event Stream)
+# =============================================
+AttentionEvent:
+  type: object
+  required:
+    - eventType
+    - entity
+    - timestamp
+  description: |
+    Attention event tracking user focus on entities without granular interaction tracking.
+    Part of a separate event stream from UserTrackingEvent for engagement metrics.
+  properties:
+    eventType:
+      type: string
+      enum:
+        - attention
+      description: "Event type identifier for attention events"
+    entity:
+      type: object
+      required:
+        - type
+        - id
+      description: "Entity being focused on"
+      properties:
+        type:
+          type: string
+          enum:
+            - initiative
+            - task
+            - project
+            - conversation
+            - design_doc
+            - agent_session
+            - plan
+            - proposal
+          description: "Type of entity"
+        id:
+          type: string
+          description: "Unique identifier of the entity"
+          example: "task-123"
+    tab:
+      type: string
+      description: "Optional sub-view identifier (e.g., 'editor', 'comments', 'details')"
+      example: "editor"
+    timestamp:
+      type: integer
+      format: int64
+      description: "Event timestamp (Unix milliseconds)"
+      example: 1701432000000
+
+AttentionEventResponse:
+  type: object
+  required:
+    - id
+    - entityType
+    - entityId
+    - entityName
+    - focusStart
+    - focusEnd
+    - durationMs
+  description: "Attention event with entity name resolved"
+  properties:
+    id:
+      type: string
+      description: "Unique attention event identifier"
+      example: "attnevent-123"
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    entityId:
+      type: string
+      description: "Unique identifier of the entity"
+      example: "initiative-123"
+    entityName:
+      type: string
+      description: "Name of the entity (from EntityRegistry)"
+      example: "Q4 Roadmap Planning"
+    tab:
+      type: string
+      nullable: true
+      description: "Optional sub-view identifier"
+      example: "editor"
+    focusStart:
+      type: string
+      format: date-time
+      description: "When focus session started (ISO 8601)"
+      example: "2025-12-08T10:15:00.000Z"
+    focusEnd:
+      type: string
+      format: date-time
+      description: "When focus session ended (ISO 8601)"
+      example: "2025-12-08T10:25:30.000Z"
+    durationMs:
+      type: integer
+      minimum: 0
+      description: "Total focus duration in milliseconds"
+      example: 630000
+    entity:
+      allOf:
+        - $ref: "#/AttentionEventEntity"
+      nullable: true
+      description: "Full entity payload when includeEntity=true"
+
+AttentionEventEntity:
+  type: object
+  description: "Full entity payload for the attention event. Shape varies by entityType."
+  additionalProperties: true
+
+# =============================================
+# Event Batch
+# =============================================
+EventBatch:
+  type: object
+  required:
+    - batchId
+    - events
+    - timestamp
+    - deviceInfo
+  description: "Batch of user tracking events with device context"
+  properties:
+    batchId:
+      type: string
+      description: "Unique batch identifier for deduplication and tracking"
+      example: "batch_1701432000000_abc123"
+    events:
+      type: array
+      items:
+        $ref: "#/UserTrackingEvent"
+      minItems: 1
+      maxItems: 100
+      description: "Array of user tracking events in this batch"
+    timestamp:
+      type: integer
+      format: int64
+      description: "Batch creation timestamp (Unix milliseconds)"
+      example: 1701432000000
+    deviceInfo:
+      type: object
+      required:
+        - userAgent
+        - platform
+        - language
+        - timezone
+      description: "Device and browser information"
+      properties:
+        userAgent:
+          type: string
+          description: "Browser user agent string"
+        platform:
+          type: string
+          description: "Platform identifier (MacIntel, Linux, Win32, etc.)"
+          example: "MacIntel"
+        language:
+          type: string
+          description: "Browser language preference"
+          example: "en-US"
+        timezone:
+          type: string
+          description: "User timezone identifier"
+          example: "America/New_York"
+
+# =============================================
+# Response Types
+# =============================================
+TrackEventBatchResponse:
+  type: object
+  required:
+    - batchId
+    - eventsReceived
+  description: "Response after successfully recording an event batch"
+  properties:
+    batchId:
+      type: string
+      description: "Echo of the batch ID that was processed"
+    eventsReceived:
+      type: integer
+      minimum: 0
+      description: "Number of events successfully received and queued for processing"

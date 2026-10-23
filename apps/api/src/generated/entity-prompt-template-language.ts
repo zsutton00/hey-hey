@@ -1,0 +1,180 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+// Generated from specs/fixtures/entity-prompt-template-language-v1.json. Do not edit.
+import { EntityPromptTemplateSyntaxVersion } from './model/entityPromptTemplateSyntaxVersion';
+
+export interface EntityPromptTemplatePathFamily {
+  readonly template: string;
+  readonly pattern: string;
+}
+
+import type { EntityPromptTemplateAuthoringMetadataDto } from './model/entityPromptTemplateAuthoringMetadataDto';
+export interface EntityPromptTemplateLanguage {
+  readonly authoring: EntityPromptTemplateAuthoringMetadataDto;
+  readonly syntaxVersion: EntityPromptTemplateSyntaxVersion;
+  readonly supportedPaths: readonly string[];
+  readonly pathFamilies: readonly EntityPromptTemplatePathFamily[];
+  readonly missingPathBehavior: 'ERROR';
+  readonly malformedSubstitutionBehavior: 'ERROR';
+  readonly malformedSubstitutions: readonly string[];
+}
+
+export const ENTITY_PROMPT_TEMPLATE_LANGUAGES = {
+  [EntityPromptTemplateSyntaxVersion.V1]: {
+    syntaxVersion: 'V1',
+    supportedPaths: [
+      'entity.id',
+      'entity.name',
+      'entity.title',
+      'entity.type',
+      'entity.status',
+      'entity.description',
+      'entity.outcome',
+      'entity.summary',
+      'entity.acceptanceCriteria',
+      'entity.sections',
+      'context.entityId',
+      'context.entityType',
+      'context.taskType',
+      'context.displayName',
+      'context.createdAt',
+      'context.content.status',
+      'context.content.priority',
+      'context.content.dueDate',
+      'context.relatedEntities',
+      'context.featureHierarchy',
+      'context.proposals',
+      'context.agentSessions',
+    ],
+    pathFamilies: [
+      {
+        template: 'entity.sections.<key>',
+        pattern: '^entity\\.sections\\.[a-z][A-Za-z0-9_]*$',
+      },
+      {
+        template: 'context.content.sections.<key>',
+        pattern: '^context\\.content\\.sections\\.[a-z][A-Za-z0-9_]*$',
+      },
+    ],
+    missingPathBehavior: 'ERROR',
+    malformedSubstitutionBehavior: 'ERROR',
+    malformedSubstitutions: [
+      '{{entity.name',
+      'entity.name}}',
+      '{{}}',
+      '{{entity.{name}}}',
+    ],
+    authoring: {
+      openingDelimiter: '{{',
+      closingDelimiter: '}}',
+      inputPathPattern: '^[A-Za-z][A-Za-z0-9_.-]*$',
+      paths: [
+        {
+          path: 'entity.id',
+          description: 'Focal entity identifier.',
+        },
+        {
+          path: 'entity.name',
+          description: 'Focal entity name.',
+        },
+        {
+          path: 'entity.title',
+          description: 'Focal entity title.',
+        },
+        {
+          path: 'entity.type',
+          description: 'Focal entity type.',
+        },
+        {
+          path: 'entity.status',
+          description: 'Focal entity status.',
+        },
+        {
+          path: 'entity.description',
+          description: 'Focal entity description.',
+        },
+        {
+          path: 'entity.outcome',
+          description: 'Focal entity outcome.',
+        },
+        {
+          path: 'entity.summary',
+          description: 'Focal entity summary.',
+        },
+        {
+          path: 'entity.acceptanceCriteria',
+          description: 'Focal entity acceptance criteria.',
+        },
+        {
+          path: 'entity.sections',
+          description: 'All focal entity sections as structured content.',
+        },
+        {
+          path: 'context.entityId',
+          description: 'Context entity identifier.',
+        },
+        {
+          path: 'context.entityType',
+          description: 'Context entity type.',
+        },
+        {
+          path: 'context.taskType',
+          description: 'Context work-item type.',
+        },
+        {
+          path: 'context.displayName',
+          description: 'Context display name.',
+        },
+        {
+          path: 'context.createdAt',
+          description: 'Context creation timestamp.',
+        },
+        {
+          path: 'context.content.status',
+          description: 'Context content status.',
+        },
+        {
+          path: 'context.content.priority',
+          description: 'Context content priority.',
+        },
+        {
+          path: 'context.content.dueDate',
+          description: 'Context content due date.',
+        },
+        {
+          path: 'context.relatedEntities',
+          description:
+            'Related entities with their relationships as structured content.',
+        },
+        {
+          path: 'context.featureHierarchy',
+          description:
+            'Ancestor, sibling, and descendant features as structured content.',
+        },
+        {
+          path: 'context.proposals',
+          description: 'Proposal history as structured content.',
+        },
+        {
+          path: 'context.agentSessions',
+          description: 'Attached sessions as structured content.',
+        },
+      ],
+      pathFamilies: [
+        {
+          template: 'entity.sections.<key>',
+          pattern: '^entity\\.sections\\.[a-z][A-Za-z0-9_]*$',
+          description:
+            'A named section on the focal entity. Replace <key> with a concrete section key; the family itself is not insertable.',
+        },
+        {
+          template: 'context.content.sections.<key>',
+          pattern: '^context\\.content\\.sections\\.[a-z][A-Za-z0-9_]*$',
+          description:
+            'A named section in the context content. Replace <key> with a concrete section key; the family itself is not insertable.',
+        },
+      ],
+    },
+  },
+} satisfies Readonly<
+  Record<EntityPromptTemplateSyntaxVersion, EntityPromptTemplateLanguage>
+>;

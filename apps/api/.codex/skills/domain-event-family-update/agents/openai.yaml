@@ -1,0 +1,4 @@
+interface:
+  display_name: "Domain Event Family Update"
+  short_description: "Add domain events across contract and runtime"
+  default_prompt: "Use $domain-event-family-update to add a new domain event family end-to-end."

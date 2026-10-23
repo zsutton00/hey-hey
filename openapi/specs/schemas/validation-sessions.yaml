@@ -1,0 +1,100 @@
+ValidationSessionDto:
+  type: object
+  required:
+    - id
+    - organizationId
+    - userId
+    - taskId
+    - conversationId
+    - status
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      allOf:
+        - $ref: "./common.yaml#/ValidationSessionId"
+    organizationId:
+      allOf:
+        - $ref: "./common.yaml#/OrganizationId"
+    userId:
+      type: string
+      description: User who initiated the session. May be a UUID or a sentinel like "system".
+    taskId:
+      allOf:
+        - $ref: "./common.yaml#/TaskId"
+    conversationId:
+      allOf:
+        - $ref: "./common.yaml#/ConversationId"
+    title:
+      type: string
+      description: Optional human-readable title for the validation session
+    status:
+      $ref: "#/ValidationSessionStatus"
+    serviceIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: IDs of services participating in this validation session
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+CreateValidationSessionDto:
+  type: object
+  required:
+    - projectId
+    - taskId
+  properties:
+    projectId:
+      allOf:
+        - $ref: "./common.yaml#/ProjectId"
+    taskId:
+      allOf:
+        - $ref: "./common.yaml#/TaskId"
+    title:
+      type: string
+      description: Optional human-readable title for the validation session
+    conversationId:
+      allOf:
+        - $ref: "./common.yaml#/ConversationId"
+      description: If omitted, the server creates a new conversation automatically.
+    serviceIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: IDs of services to include in the validation session
+    status:
+      $ref: "#/ValidationSessionStatus"
+
+UpdateValidationSessionDto:
+  type: object
+  minProperties: 1
+  properties:
+    title:
+      type: string
+      description: Human-readable title for the validation session
+    status:
+      $ref: "#/ValidationSessionStatus"
+    serviceIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: IDs of services to include in the validation session
+
+ValidationSessionStatus:
+  type: string
+  description: >
+    Validation sessions use CREATED/RUNNING/COMPLETED/FAILED to reflect
+    automated test-execution semantics, distinct from AgentSessionStatus
+    which tracks interactive authoring (NOT_STARTED/IN_PROGRESS/COMPLETED/ERRORED).
+  enum:
+    - CREATED
+    - RUNNING
+    - COMPLETED
+    - FAILED

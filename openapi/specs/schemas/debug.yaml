@@ -1,0 +1,413 @@
+WebSocketConnectionDetailDto:
+  type: object
+  required:
+    - connectionId
+    - channelName
+    - status
+    - connectTime
+    - lastActivity
+    - subscriptions
+  properties:
+    connectionId:
+      type: string
+    channelName:
+      type: string
+    status:
+      type: string
+    connectTime:
+      type: string
+      format: date-time
+    lastActivity:
+      type: string
+      format: date-time
+    subscriptions:
+      type: array
+      items:
+        type: string
+
+WebSocketChannelStatsDto:
+  type: object
+  required:
+    - channelName
+    - connectionCount
+    - totalConnections
+    - totalMessages
+    - lastActivity
+  properties:
+    channelName:
+      type: string
+    connectionCount:
+      type: integer
+    totalConnections:
+      type: integer
+    totalMessages:
+      type: integer
+    lastActivity:
+      type: string
+      format: date-time
+
+WebSocketSubscriptionsDebugDto:
+  type: object
+  required:
+    - subscription
+    - connectionCount
+    - connections
+  properties:
+    subscription:
+      type: string
+    connectionCount:
+      type: integer
+    connections:
+      type: array
+      items:
+        type: string
+
+ProjectDebugViewDto:
+  type: object
+  required:
+    - projectId
+    - organizationId
+    - name
+    - description
+    - workflows
+    - conversations
+    - initiatives
+    - artifacts
+    - messages
+    - createdAt
+    - updatedAt
+  properties:
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+    name:
+      type: string
+    description:
+      type: string
+    workflows:
+      type: array
+      items:
+        $ref: "./common.yaml#/WorkflowId"
+    conversations:
+      type: array
+      items:
+        $ref: "./common.yaml#/ConversationId"
+    initiatives:
+      type: array
+      items:
+        $ref: "./common.yaml#/InitiativeId"
+    artifacts:
+      type: array
+      items:
+        type: string
+    messages:
+      type: array
+      items:
+        type: string
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+WorkflowStatusDebugDto:
+  type: object
+  required:
+    - workflowId
+    - status
+    - nodeId
+    - organizationId
+    - projectId
+    - conversationId
+    - totalTasks
+    - completedTasks
+    - failedTasks
+    - createdAt
+    - updatedAt
+  properties:
+    workflowId:
+      $ref: "./common.yaml#/WorkflowId"
+    status:
+      type: string
+    nodeId:
+      type: string
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+    conversationId:
+      $ref: "./common.yaml#/ConversationId"
+    totalTasks:
+      type: integer
+    completedTasks:
+      type: integer
+    failedTasks:
+      type: integer
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+DebugEmbeddingsEntityResponseDto:
+  type: object
+  required:
+    - found
+    - type
+    - id
+  properties:
+    found:
+      type: boolean
+      description: Whether embeddings were found for this entity
+    type:
+      type: string
+      description: Entity content type
+    id:
+      type: string
+      description: Entity source ID
+    count:
+      type: integer
+      description: Number of embedding documents found
+    documents:
+      type: array
+      items:
+        $ref: "#/DebugEmbeddingsDocumentDto"
+    timestamp:
+      type: string
+      format: date-time
+
+DebugEmbeddingsDocumentDto:
+  type: object
+  properties:
+    id:
+      type: string
+    text:
+      type: string
+    metadata:
+      type: object
+      additionalProperties: true
+    created_at:
+      type: string
+      format: date-time
+
+DebugOutboxEventDto:
+  type: object
+  required:
+    - id
+    - correlationId
+    - eventType
+    - aggregateType
+    - aggregateId
+    - eventVersion
+    - payload
+    - headers
+    - status
+    - retryCount
+    - maxRetries
+    - createdAt
+    - errorCount
+    - partitionKey
+    - sequenceNumber
+    - sourceService
+    - sourceMethod
+  properties:
+    id:
+      type: string
+      format: uuid
+    correlationId:
+      type: string
+    causationId:
+      type: string
+      nullable: true
+    sagaId:
+      type: string
+      nullable: true
+    eventType:
+      type: string
+    aggregateType:
+      type: string
+    aggregateId:
+      type: string
+    eventVersion:
+      type: integer
+    payload:
+      description: Event payload JSON value
+    headers:
+      type: object
+      additionalProperties: true
+    status:
+      type: string
+      enum:
+        - PENDING
+        - PROCESSING
+        - PUBLISHED
+        - FAILED
+        - SCHEDULED
+        - CANCELLED
+    retryCount:
+      type: integer
+    maxRetries:
+      type: integer
+    createdAt:
+      type: string
+      format: date-time
+    processedAt:
+      type: string
+      format: date-time
+      nullable: true
+    nextRetryAt:
+      type: string
+      format: date-time
+      nullable: true
+    scheduledFor:
+      type: string
+      format: date-time
+      nullable: true
+    lastError:
+      type: string
+      nullable: true
+    errorCount:
+      type: integer
+    partitionKey:
+      type: string
+    sequenceNumber:
+      type: string
+      format: int64
+      description: Serialized bigint sequence number from outbox_events.sequence_number
+    sourceService:
+      type: string
+    sourceMethod:
+      type: string
+    sourceVersion:
+      type: string
+      nullable: true
+    userId:
+      type: string
+      nullable: true
+    organizationId:
+      type: string
+      nullable: true
+    projectId:
+      type: string
+      nullable: true
+    conversationId:
+      type: string
+      nullable: true
+    workflowId:
+      type: string
+      nullable: true
+
+DebugOutboxEventsResponseDto:
+  type: object
+  required:
+    - entityType
+    - entityId
+    - count
+    - events
+  properties:
+    entityType:
+      type: string
+    entityId:
+      type: string
+    count:
+      type: integer
+    events:
+      type: array
+      items:
+        $ref: '#/DebugOutboxEventDto'
+
+DebugEventReplayMode:
+  type: string
+  enum:
+    - VALIDATE_ONLY
+    - REEMIT_ORIGINAL
+    - ATTEMPT_FIX_AND_REEMIT
+
+DebugEventReplayRequestDto:
+  type: object
+  required:
+    - mode
+  properties:
+    mode:
+      $ref: '#/DebugEventReplayMode'
+    eventId:
+      type: string
+      format: uuid
+    projectId:
+      type: string
+      format: uuid
+    aggregateId:
+      type: string
+    eventTypes:
+      type: array
+      items:
+        type: string
+    limit:
+      type: integer
+      minimum: 1
+      maximum: 1000
+      default: 25
+    page:
+      type: integer
+      minimum: 1
+      default: 1
+
+DebugEventReplayResultDto:
+  type: object
+  required:
+    - originalEventId
+    - eventType
+    - validationStatus
+    - fixStatus
+    - queueStatus
+  properties:
+    originalEventId:
+      type: string
+      format: uuid
+    replayEventId:
+      type: string
+      format: uuid
+      nullable: true
+    eventType:
+      type: string
+    validationStatus:
+      type: string
+      enum:
+        - VALID
+        - INVALID
+    fixStatus:
+      type: string
+      enum:
+        - NOT_REQUESTED
+        - NOT_NEEDED
+        - ATTEMPTED
+        - APPLIED
+        - FAILED
+    queueStatus:
+      type: string
+      enum:
+        - NOT_REQUESTED
+        - QUEUED
+        - FAILED
+    error:
+      type: string
+      nullable: true
+
+DebugEventReplayResponseDto:
+  type: object
+  required:
+    - total
+    - truncated
+    - results
+  properties:
+    total:
+      type: integer
+    truncated:
+      type: boolean
+    results:
+      type: array
+      items:
+        $ref: '#/DebugEventReplayResultDto'

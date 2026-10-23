@@ -1,0 +1,87 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`TaskGenerationGenerateStubsNode builds a stub system message snapshot 1`] = `
+{
+  "detectedIntent": "task_stub_iteration",
+  "intentConfidence": 1,
+  "response": "Here are some fresh stubs based on the feedback.",
+  "round": 3,
+  "stubs": [
+    {
+      "id": "existing-stub-1",
+      "influences": [],
+      "round": 1,
+      "shortDescription": "Stub from first round",
+      "sourceType": "initiative",
+      "status": "approved",
+      "title": "Existing approved stub",
+    },
+    {
+      "id": "existing-stub-2",
+      "influences": [],
+      "round": 1,
+      "shortDescription": "Stub to reconsider",
+      "sourceType": "initiative",
+      "status": "rejected",
+      "title": "Maybe remove stub",
+    },
+    {
+      "id": "manual-stub-id",
+      "influences": [],
+      "round": 2,
+      "shortDescription": "Quick spike on auth approach",
+      "sourceType": "user",
+      "status": "user_added",
+      "title": "Draft auth spike",
+    },
+    {
+      "id": "llm-stub-id-1",
+      "influences": [
+        {
+          "confidence": 0.72,
+          "entityId": "conversation-1",
+          "reasonType": "previous_conversation",
+          "reasoning": "Pulled from earlier chat about launch readiness",
+        },
+      ],
+      "reasoning": "Need visibility into early flows",
+      "round": 3,
+      "shortDescription": "Sketch instrumentation plan",
+      "sourceType": "parent_task",
+      "status": "suggested",
+      "title": "Add monitoring baseline",
+    },
+    {
+      "id": "llm-stub-id-2",
+      "influences": [],
+      "reasoning": undefined,
+      "round": 3,
+      "shortDescription": "Sequence early contributor flow",
+      "sourceType": "initiative",
+      "status": "suggested",
+      "title": "Create onboarding tasks",
+    },
+  ],
+  "type": "TASK_STUBS",
+  "uiElements": [
+    {
+      "id": "ui-element-id",
+      "influences": [],
+      "label": "Let us know what you think...",
+      "placeholder": "Can you add a task for ...",
+      "required": false,
+      "secondaryAction": {
+        "disabled": false,
+        "fieldId": "ui-element-id",
+        "handler": "task_stub_generation_generate",
+        "id": "continue-conversation-action",
+        "label": "✨ Regnerate",
+        "presentation": "BUTTON",
+        "type": "field_action",
+      },
+      "submitText": "✨ Generate Tasks",
+      "type": "task_stub",
+    },
+  ],
+}
+`;

@@ -1,0 +1,386 @@
+ActivityHistoryFilterDto:
+  type: object
+  additionalProperties: false
+  required:
+    - metric
+    - projectIds
+    - windowStart
+    - windowEnd
+  description: |
+    Editable metric history uses accepted-evidence classification and deduplication.
+    Projects are explicit authorized scope; an empty array returns no records and inaccessible projects are rejected.
+    Occurrence bounds are inclusive start and exclusive end, with start before end.
+    userId selects the persisted event actor before deduplication and pagination, never current assignment.
+    Omitted userId includes all actors. PERSONAL continuation and Home aggregate semantics are unchanged.
+  properties:
+    metric:
+      $ref: "./projects.yaml#/ProjectMetricIdentity"
+    projectIds:
+      type: array
+      items:
+        $ref: "./common.yaml#/ProjectId"
+    windowStart:
+      type: string
+      format: date-time
+    windowEnd:
+      type: string
+      format: date-time
+    userId:
+      $ref: "./common.yaml#/UserId"
+
+ActivityCorrelationActivityType:
+  type: string
+  enum:
+    - VIEWED
+    - UNBLOCKED
+    - NOTIFICATION
+    - AGENT_SESSION_COMPLETED
+  description: |
+    Correlated activity category.
+    - VIEWED: User focused or viewed an entity.
+    - UNBLOCKED: Work progressed because a dependency or blocking condition was resolved.
+    - NOTIFICATION: User-visible system or workflow notification tied to entity activity.
+    - AGENT_SESSION_COMPLETED: A linked agent session reached COMPLETED status.
+
+ActivityCorrelationSource:
+  type: string
+  enum:
+    - ATTENTION_EVENT
+    - AGENT_SESSION
+    - TASK_RELATIONSHIP
+    - REPORT
+    - SYSTEM
+  description: Source stream that produced the correlated activity item.
+
+ActivityCorrelationMode:
+  type: string
+  enum:
+    - ALL
+    - WITHOUT_ATTENTION
+  description: |
+    Preset for which activity streams are assembled before applying explicit activity type or source filters.
+    - ALL: Include attention, agent session, report, and relationship-backed activity streams.
+    - WITHOUT_ATTENTION: Exclude attention-derived activity from the assembled result set.
+
+RecentActivityCorrelationMode:
+  type: string
+  enum:
+    - ACTIVITY
+    - TASK
+    - AGENT_SESSION
+    - CODING_SESSION
+  description: |
+    Seed-selection mode for the recent correlated activity feed.
+    - ACTIVITY: Use the current user's ranked activity history to select top-level seeds.
+    - TASK: Use the current user's task-relevant seeds as top-level tasks.
+    - AGENT_SESSION: Use the current user's non-coding agent sessions as top-level seeds.
+    - CODING_SESSION: Use the current user's coding agent sessions as top-level seeds.
+
+RecentActivityCorrelationSort:
+  type: string
+  enum:
+    - MOST_RECENT
+    - MOST_ACTIVE
+    - MIXED
+    - LAST_UPDATED
+    - LAST_MESSAGE
+  description: |
+    Sort mode for recent correlated activity seed selection.
+    - ACTIVITY supports MOST_RECENT, MOST_ACTIVE, MIXED.
+    - TASK supports LAST_UPDATED, LAST_MESSAGE.
+    - AGENT_SESSION supports LAST_UPDATED, LAST_MESSAGE.
+    - CODING_SESSION supports LAST_UPDATED, LAST_MESSAGE.
+
+ActivitySleepDuration:
+  type: string
+  enum:
+    - ONE_HOUR
+    - TWENTY_FOUR_HOURS
+    - ONE_WEEK
+  description: |
+    Preset duration for temporarily suppressing an activity card from the recent activity list.
+    - ONE_HOUR: Hide the entity for 1 hour.
+    - TWENTY_FOUR_HOURS: Hide the entity for 24 hours.
+    - ONE_WEEK: Hide the entity for 1 week.
+
+ActivityCorrelationLinkType:
+  type: string
+  enum:
+    - SELF
+    - PARENT
+    - CHILD
+    - SIBLING
+    - DEPENDS_ON
+    - BLOCKS
+    - RELATED
+  description: Relationship between the originating entity and a linked entity.
+
+ActivityCorrelationLinkedEntityDto:
+  type: object
+  required:
+    - entityId
+    - entityType
+    - linkType
+    - title
+  properties:
+    entityId:
+      type: string
+      format: uuid
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    linkType:
+      $ref: "#/ActivityCorrelationLinkType"
+    title:
+      type: string
+      description: Human-readable title/name for the linked entity.
+    updatedAt:
+      type: string
+      format: date-time
+      description: The entity's most recent graph-backed update timestamp, when available.
+    status:
+      type: string
+      description: Current task or agent session status when upstream data is available for this entity.
+    conversationId:
+      type: string
+      format: uuid
+      nullable: true
+      description: The most recent conversation associated with this entity, if any.
+    lastMessage:
+      allOf:
+        - $ref: "./conversations.yaml#/MessageResponseDto"
+      nullable: true
+      description: The latest message in the agent session conversation when this linked entity is an agent session.
+
+CreateActivitySleepDto:
+  type: object
+  required:
+    - entityId
+    - entityType
+    - duration
+  properties:
+    entityId:
+      type: string
+      format: uuid
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    duration:
+      $ref: "#/ActivitySleepDuration"
+
+ActivitySleepDto:
+  type: object
+  required:
+    - entityId
+    - entityType
+    - duration
+    - expiresAt
+  properties:
+    entityId:
+      type: string
+      format: uuid
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    duration:
+      $ref: "#/ActivitySleepDuration"
+    expiresAt:
+      type: string
+      format: date-time
+      description: Timestamp when the suppression window expires and the entity becomes visible again.
+
+RecentActivityCorrelationRecordDto:
+  type: object
+  required:
+    - entityId
+    - entityType
+    - title
+    - timestamp
+    - linkedEntities
+    - reports
+  properties:
+    responsibleUser:
+      allOf:
+        - $ref: "./auth.yaml#/UserResponseDto"
+      nullable: true
+      description: Current task assignee or session owner, distinct from event actor. Null when unassigned or unavailable.
+    projectName:
+      type: string
+      nullable: true
+      description: Source project display name; null when unavailable.
+    entityCreatedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Source entity creation time, distinct from occurrence time; null when unavailable.
+    entityId:
+      type: string
+      format: uuid
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    title:
+      type: string
+      description: Human-readable title for the recent feed record. This title always reflects the top-level seed entity.
+    updatedAt:
+      type: string
+      format: date-time
+      description: The record entity's most recent graph-backed update timestamp, when available.
+    status:
+      type: string
+      description: Current task or agent session status when upstream data is available for this record entity.
+    timestamp:
+      type: string
+      format: date-time
+      description: Ranking timestamp used to order this recent feed record.
+    linkedEntities:
+      type: array
+      items:
+        $ref: "#/ActivityCorrelationLinkedEntityDto"
+    reports:
+      type: array
+      items:
+        $ref: "./reports.yaml#/ReportDto"
+    conversationId:
+      type: string
+      format: uuid
+      nullable: true
+      description: The most recent conversation associated with this record's entity, if any.
+    lastMessage:
+      allOf:
+        - $ref: "./conversations.yaml#/MessageResponseDto"
+      nullable: true
+      description: The latest message in the agent session conversation when this record represents an agent session.
+    sessionType:
+      allOf:
+        - $ref: "./coding-sessions.yaml#/AgentSessionType"
+      description: The agent session type when this record represents an agent session. Allows the UI to distinguish coding sessions from non-coding agent interactions.
+
+ActivityCorrelationRecordDto:
+  type: object
+  required:
+    - entityId
+    - entityType
+    - projectId
+    - title
+    - type
+    - timestamp
+    - source
+    - linkedEntities
+    - reports
+  properties:
+    responsibleUser:
+      allOf:
+        - $ref: "./auth.yaml#/UserResponseDto"
+      nullable: true
+      description: Current task assignee or session owner, distinct from event actor. Null when unassigned or unavailable.
+    projectName:
+      type: string
+      nullable: true
+      description: Source project display name; null when unavailable.
+    entityCreatedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Source entity creation time, distinct from occurrence time; null when unavailable.
+    entityId:
+      type: string
+      format: uuid
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+      description: Project that owns the activity record and its canonical entity path.
+    title:
+      type: string
+      description: Human-readable title for the activity record. This title always reflects the originating entity (for example task or agent session). Report display titles remain on each item in `reports`.
+    updatedAt:
+      type: string
+      format: date-time
+      description: The record entity's most recent graph-backed update timestamp, when available.
+    status:
+      type: string
+      description: Current task or agent session status when upstream data is available for this record entity.
+    type:
+      $ref: "#/ActivityCorrelationActivityType"
+    timestamp:
+      type: string
+      format: date-time
+    source:
+      $ref: "#/ActivityCorrelationSource"
+    linkedEntities:
+      type: array
+      items:
+        $ref: "#/ActivityCorrelationLinkedEntityDto"
+    reports:
+      type: array
+      items:
+        $ref: "./reports.yaml#/ReportDto"
+    conversationId:
+      type: string
+      format: uuid
+      nullable: true
+      description: The most recent conversation associated with this record's entity, if any.
+    lastMessage:
+      allOf:
+        - $ref: "./conversations.yaml#/MessageResponseDto"
+      nullable: true
+      description: The latest message in the agent session conversation when this record represents an agent session.
+    sessionType:
+      allOf:
+        - $ref: "./coding-sessions.yaml#/AgentSessionType"
+      description: The agent session type when this record represents an agent session. Allows the UI to distinguish coding sessions from non-coding agent interactions.
+
+ActivityMetricContinuationDto:
+  type: object
+  additionalProperties: false
+  required:
+    - metric
+    - projectIds
+    - windowStart
+    - windowEnd
+    - actorScope
+  properties:
+    metric:
+      $ref: "./projects.yaml#/ProjectMetricIdentity"
+      description: Metric identity whose accepted evidence is requested.
+    projectIds:
+      type: array
+      items:
+        $ref: "./common.yaml#/ProjectId"
+      description: Exact deduplicated effective authorized project scope used to produce the metric value, in deterministic order.
+    windowStart:
+      type: string
+      format: date-time
+      description: Exact inclusive start bound used to produce the metric value.
+    windowEnd:
+      type: string
+      format: date-time
+      description: Exact exclusive end bound used to produce the metric value.
+    actorScope:
+      $ref: "./projects.yaml#/ActivityActorScopeDto"
+      description: Exact actor population used to produce the metric value; Activity must preserve it unchanged.
+
+ActivityMetricContinuationQueryDto:
+  type: object
+  additionalProperties: false
+  required:
+    - metric
+    - projectIds
+    - windowStart
+    - windowEnd
+    - actorScope
+  properties:
+    metric:
+      $ref: "./projects.yaml#/ProjectMetricIdentity"
+    projectIds:
+      type: array
+      items:
+        $ref: "./common.yaml#/ProjectId"
+    windowStart:
+      type: string
+      format: date-time
+    windowEnd:
+      type: string
+      format: date-time
+    actorScope:
+      $ref: "./projects.yaml#/ActivityActorScopeMode"
+    actorUserId:
+      $ref: "./common.yaml#/UserId"
+      description: Required for PERSONAL and forbidden for ORGANIZATION.

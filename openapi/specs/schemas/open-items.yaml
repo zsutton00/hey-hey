@@ -1,0 +1,653 @@
+# Server-authoritative Open Items collection contract.
+#
+# The collection is scoped to the authenticated user and the authorized
+# project; no schema below accepts a user identity. Persisted payloads carry
+# only stable working-set state. Active-route identity, Recently Viewed
+# activity, Agent Session current state, and output readiness are transient
+# overlays and are intentionally absent from every schema (all objects are
+# closed with additionalProperties: false).
+
+OpenItemRevision:
+  type: integer
+  format: int64
+  minimum: 1
+  description: Monotonic revision. Collection, item, and group revisions advance independently; every successful mutation advances the collection revision.
+
+OpenItemIdempotencyKey:
+  type: string
+  minLength: 8
+  maxLength: 128
+  pattern: "^[A-Za-z0-9._:-]+$"
+  description: Client-generated key. Retrying the same key with the same request returns the originally recorded result; reusing it with a different request is a conflict.
+
+OpenItemPositionKey:
+  type: string
+  minLength: 1
+  maxLength: 64
+  pattern: "^[0-9A-Za-z]+$"
+  description: Server-assigned sortable key. Ascending lexicographic order is presentation order; moves rewrite only the moved row.
+
+OpenItemGroupId:
+  type: string
+  format: uuid
+  description: Stable server-assigned virtual-group identity. Groups reference no project topology.
+
+OpenItemGroupName:
+  type: string
+  minLength: 1
+  maxLength: 80
+  description: Display name of a virtual group (trimmed, non-blank).
+
+OpenItemNote:
+  type: string
+  nullable: true
+  maxLength: 2000
+  description: Why-open note. Null or empty clears the note.
+
+OpenItemRef:
+  type: object
+  additionalProperties: false
+  required: [entityType, entityId]
+  description: Canonical entity identity of an Open Item, unique within a collection.
+  properties:
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    entityId:
+      type: string
+      format: uuid
+
+OpenItemPremise:
+  type: object
+  additionalProperties: false
+  required: [entityType, entityId]
+  description: Canonical identity; intent applies to current server state.
+  properties:
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    entityId:
+      type: string
+      format: uuid
+
+OpenItemLineageEntry:
+  type: object
+  additionalProperties: false
+  required: [entityType, entityId]
+  description: One route-owned ancestor of an Open Item, nearest-root first.
+  properties:
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    entityId:
+      type: string
+      format: uuid
+
+OpenItemLineage:
+  type: array
+  maxItems: 16
+  description: Bounded route-owned lineage snapshot ordered root to immediate parent. Used by the server to derive open nested descendants.
+  items:
+    $ref: "#/OpenItemLineageEntry"
+
+OpenItemPresentation:
+  type: object
+  additionalProperties: false
+  required: [label]
+  description: Bounded stable page-owned presentation snapshot sufficient to render a base row without entity hydration. Contains no live or transient state.
+  properties:
+    label:
+      type: string
+      minLength: 1
+      maxLength: 300
+    workItemTypeKey:
+      type: string
+      maxLength: 64
+      nullable: true
+      description: Registry work-item type key for registry-backed icons (work items only).
+    agentSessionType:
+      type: string
+      maxLength: 64
+      nullable: true
+      description: Agent Session type discriminator (agent sessions only).
+    routeParams:
+      type: object
+      nullable: true
+      maxProperties: 4
+      additionalProperties:
+        type: string
+        maxLength: 128
+      description: Specialized canonical-destination route fields beyond entity identity.
+
+OpenItem:
+  type: object
+  additionalProperties: false
+  required:
+    - entityType
+    - entityId
+    - note
+    - pinned
+    - position
+    - groupId
+    - memberPosition
+    - revision
+    - lineage
+    - presentation
+    - removedAt
+    - updatedAt
+    - goalTrackedWorkFilter
+    - goalCollapsed
+  properties:
+    goalTrackedWorkFilter:
+      $ref: "#/OpenItemGoalTrackedWorkFilter"
+    goalCollapsed:
+      type: boolean
+      description: Persisted Goal row disclosure; true means collapsed.
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    entityId:
+      type: string
+      format: uuid
+    note:
+      $ref: "#/OpenItemNote"
+    pinned:
+      type: boolean
+    position:
+      $ref: "#/OpenItemPositionKey"
+    groupId:
+      allOf:
+        - $ref: "#/OpenItemGroupId"
+      nullable: true
+      description: Virtual group membership; null when ungrouped.
+    memberPosition:
+      allOf:
+        - $ref: "#/OpenItemPositionKey"
+      nullable: true
+      description: Order within the group; null exactly when groupId is null.
+    revision:
+      $ref: "#/OpenItemRevision"
+    lineage:
+      $ref: "#/OpenItemLineage"
+    presentation:
+      $ref: "#/OpenItemPresentation"
+    removedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Removal metadata. Non-null only in mutation results that removed the item; reads return open items only.
+    updatedAt:
+      type: string
+      format: date-time
+
+OpenItemGroup:
+  type: object
+  additionalProperties: false
+  required: [groupId, name, position, collapsed, revision, updatedAt]
+  properties:
+    groupId:
+      $ref: "#/OpenItemGroupId"
+    name:
+      $ref: "#/OpenItemGroupName"
+    position:
+      $ref: "#/OpenItemPositionKey"
+    collapsed:
+      type: boolean
+    revision:
+      $ref: "#/OpenItemRevision"
+    updatedAt:
+      type: string
+      format: date-time
+
+OpenItemsAbsentCollection:
+  type: object
+  additionalProperties: false
+  required: [state]
+  description: No collection exists for this user and project; migration is permitted.
+  properties:
+    state:
+      type: string
+      enum: [ABSENT]
+
+OpenItemsPresentCollection:
+  type: object
+  additionalProperties: false
+  required: [state, revision, items, groups]
+  description: Canonical collection. Empty arrays mean an intentionally empty collection (for example after reset).
+  properties:
+    state:
+      type: string
+      enum: [PRESENT]
+    revision:
+      $ref: "#/OpenItemRevision"
+    items:
+      type: array
+      maxItems: 1000
+      items:
+        $ref: "#/OpenItem"
+    groups:
+      type: array
+      maxItems: 200
+      items:
+        $ref: "#/OpenItemGroup"
+
+OpenItemsCollection:
+  oneOf:
+    - $ref: "#/OpenItemsAbsentCollection"
+    - $ref: "#/OpenItemsPresentCollection"
+  discriminator:
+    propertyName: state
+    mapping:
+      ABSENT: "#/OpenItemsAbsentCollection"
+      PRESENT: "#/OpenItemsPresentCollection"
+
+OpenItemsMutationResult:
+  type: object
+  additionalProperties: false
+  required: [collectionRevision, items, groups, deletedGroupIds, replayed]
+  description: Canonical post-mutation state. Lists every affected item and group, including server-derived descendant and membership effects, not an echo of the request.
+  properties:
+    collectionRevision:
+      $ref: "#/OpenItemRevision"
+    items:
+      type: array
+      maxItems: 1000
+      items:
+        $ref: "#/OpenItem"
+    groups:
+      type: array
+      maxItems: 200
+      items:
+        $ref: "#/OpenItemGroup"
+    deletedGroupIds:
+      type: array
+      maxItems: 1
+      items:
+        $ref: "#/OpenItemGroupId"
+    replayed:
+      type: boolean
+      description: True when this result was returned from the idempotency record of an earlier identical request.
+
+# ---------- Requests ----------
+
+ActivateOpenItemRequest:
+  type: object
+  additionalProperties: false
+  required: [idempotencyKey, item, lineage, presentation]
+  description: New or reopened entries inherit the nearest already-open ancestor's canonical group from root-to-parent lineage, with a server-assigned member position. A nearer ungrouped ancestor stops inheritance. Already-live entries preserve explicit membership, including explicit ungrouping.
+  properties:
+    idempotencyKey:
+      $ref: "#/OpenItemIdempotencyKey"
+    item:
+      $ref: "#/OpenItemPremise"
+    lineage:
+      $ref: "#/OpenItemLineage"
+    presentation:
+      $ref: "#/OpenItemPresentation"
+
+SetOpenItemNoteRequest:
+  type: object
+  additionalProperties: false
+  required: [idempotencyKey, note]
+  properties:
+    idempotencyKey:
+      $ref: "#/OpenItemIdempotencyKey"
+    note:
+      $ref: "#/OpenItemNote"
+
+SetOpenItemPinRequest:
+  type: object
+  additionalProperties: false
+  required: [idempotencyKey, pinned]
+  properties:
+    idempotencyKey:
+      $ref: "#/OpenItemIdempotencyKey"
+    pinned:
+      type: boolean
+
+MoveOpenItemRequest:
+  type: object
+  additionalProperties: false
+  required: [idempotencyKey, after]
+  properties:
+    idempotencyKey:
+      $ref: "#/OpenItemIdempotencyKey"
+    after:
+      allOf:
+        - $ref: "#/OpenItemRef"
+      nullable: true
+      description: Item to place the moved item after; null places it first.
+
+RemoveOpenItemRequest:
+  type: object
+  additionalProperties: false
+  required: [idempotencyKey, includeDescendants]
+  description: Removes the item. When includeDescendants is true the server also removes unpinned open nested descendants derived from stored lineage whose group is null or matches the selected item's non-null group. Pinned descendants and descendants in a different group are retained. Direct removal removes the selected item regardless of pin or membership. Every affected canonical row is returned.
+  properties:
+    idempotencyKey:
+      $ref: "#/OpenItemIdempotencyKey"
+    includeDescendants:
+      type: boolean
+
+RemoveOpenItemsRequest:
+  type: object
+  additionalProperties: false
+  required: [idempotencyKey, includeDescendants, items]
+  description: Removes each targeted item using the same stored-lineage, pin, and virtual-group descendant rules as single-item removal. Every affected canonical row is returned.
+  properties:
+    idempotencyKey:
+      $ref: "#/OpenItemIdempotencyKey"
+    includeDescendants:
+      type: boolean
+    items:
+      type: array
+      minItems: 1
+      maxItems: 1000
+      items:
+        $ref: "#/OpenItemPremise"
+
+CreateOpenItemGroupRequest:
+  type: object
+  additionalProperties: false
+  required: [idempotencyKey, name]
+  properties:
+    idempotencyKey:
+      $ref: "#/OpenItemIdempotencyKey"
+    name:
+      $ref: "#/OpenItemGroupName"
+    collapsed:
+      type: boolean
+      default: false
+    assign:
+      type: array
+      minItems: 1
+      maxItems: 1000
+      description: Optional items to assign to the new group in the same transaction (open nested descendants follow).
+      items:
+        $ref: "#/OpenItemPremise"
+
+RenameOpenItemGroupRequest:
+  type: object
+  additionalProperties: false
+  required: [idempotencyKey, name]
+  properties:
+    idempotencyKey:
+      $ref: "#/OpenItemIdempotencyKey"
+    name:
+      $ref: "#/OpenItemGroupName"
+
+DeleteOpenItemGroupRequest:
+  type: object
+  additionalProperties: false
+  required: [idempotencyKey]
+  description: Deletes the group and ungroups every member without removing it from Open Items.
+  properties:
+    idempotencyKey:
+      $ref: "#/OpenItemIdempotencyKey"
+
+SetOpenItemGroupDisclosureRequest:
+  type: object
+  additionalProperties: false
+  required: [idempotencyKey, collapsed]
+  properties:
+    idempotencyKey:
+      $ref: "#/OpenItemIdempotencyKey"
+    collapsed:
+      type: boolean
+
+MoveOpenItemGroupRequest:
+  type: object
+  additionalProperties: false
+  required: [idempotencyKey, afterGroupId]
+  properties:
+    idempotencyKey:
+      $ref: "#/OpenItemIdempotencyKey"
+    afterGroupId:
+      allOf:
+        - $ref: "#/OpenItemGroupId"
+      nullable: true
+      description: Group to place the moved group after; null places it first.
+
+AssignOpenItemsToGroupRequest:
+  type: object
+  additionalProperties: false
+  required: [idempotencyKey, items]
+  description: Assigns one row or an Open Items-owned selection to the group, replacing prior membership. The server also assigns every currently open nested descendant.
+  properties:
+    idempotencyKey:
+      $ref: "#/OpenItemIdempotencyKey"
+    items:
+      type: array
+      minItems: 1
+      maxItems: 1000
+      items:
+        $ref: "#/OpenItemPremise"
+
+UngroupOpenItemsRequest:
+  type: object
+  additionalProperties: false
+  required: [idempotencyKey, items]
+  properties:
+    idempotencyKey:
+      $ref: "#/OpenItemIdempotencyKey"
+    items:
+      type: array
+      minItems: 1
+      maxItems: 1000
+      items:
+        $ref: "#/OpenItemPremise"
+
+MoveOpenItemGroupMemberRequest:
+  type: object
+  additionalProperties: false
+  required: [idempotencyKey, after]
+  properties:
+    idempotencyKey:
+      $ref: "#/OpenItemIdempotencyKey"
+    after:
+      allOf:
+        - $ref: "#/OpenItemRef"
+      nullable: true
+      description: Member of the same group to place the item after; null places it first in the group.
+
+MigrateOpenItemsGroup:
+  type: object
+  additionalProperties: false
+  required: [localGroupId, name, collapsed]
+  description: Browser-local group definition. Array order is group order.
+  properties:
+    localGroupId:
+      type: string
+      minLength: 1
+      maxLength: 128
+      description: Browser-local group identity, used only to resolve item membership within this request.
+    name:
+      $ref: "#/OpenItemGroupName"
+    collapsed:
+      type: boolean
+
+MigrateOpenItemsItem:
+  type: object
+  additionalProperties: false
+  required: [entityType, entityId, note, pinned, localGroupId, lineage, presentation]
+  description: Browser-local item. Array order is collection order; within a group, relative array order is member order.
+  properties:
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    entityId:
+      type: string
+      format: uuid
+    note:
+      $ref: "#/OpenItemNote"
+    pinned:
+      type: boolean
+    localGroupId:
+      type: string
+      nullable: true
+      minLength: 1
+      maxLength: 128
+    lineage:
+      $ref: "#/OpenItemLineage"
+    presentation:
+      $ref: "#/OpenItemPresentation"
+
+MigrateOpenItemsRequest:
+  type: object
+  additionalProperties: false
+  required: [idempotencyKey, sourceSchemaVersion, items, groups]
+  description: One-time import of the validated versioned browser-local record. Accepted only when the collection is ABSENT; items and group state are imported atomically.
+  properties:
+    idempotencyKey:
+      $ref: "#/OpenItemIdempotencyKey"
+    sourceSchemaVersion:
+      type: integer
+      minimum: 1
+      description: Version of the browser-local Open Items record the payload was read from.
+    items:
+      type: array
+      maxItems: 1000
+      items:
+        $ref: "#/MigrateOpenItemsItem"
+    groups:
+      type: array
+      maxItems: 200
+      items:
+        $ref: "#/MigrateOpenItemsGroup"
+
+ResetOpenItemsRequest:
+  type: object
+  additionalProperties: false
+  required: [idempotencyKey]
+  description: Clears all items and virtual-group state, leaving an intentionally empty PRESENT collection. Does not affect Recently Viewed or User Settings.
+  properties:
+    idempotencyKey:
+      $ref: "#/OpenItemIdempotencyKey"
+
+# ---------- Errors ----------
+
+OpenItemsValidationError:
+  type: object
+  additionalProperties: false
+  required: [success, code, message, violations]
+  properties:
+    success:
+      type: boolean
+      enum: [false]
+    code:
+      type: string
+      enum: [INVALID_REQUEST, ITEM_NOT_OPEN, GROUP_NOT_FOUND, INVALID_PLACEMENT, INVALID_MIGRATION_MEMBERSHIP, COLLECTION_LIMIT_EXCEEDED]
+    message:
+      type: string
+    violations:
+      type: array
+      maxItems: 100
+      items:
+        type: object
+        additionalProperties: false
+        required: [path, message]
+        properties:
+          path:
+            type: string
+            maxLength: 256
+            description: JSON pointer into the request body.
+          message:
+            type: string
+            maxLength: 500
+
+OpenItemsConflictError:
+  type: object
+  additionalProperties: false
+  required: [success, code, message, currentCollectionRevision]
+  properties:
+    success:
+      type: boolean
+      enum: [false]
+    code:
+      type: string
+      enum:
+        - COLLECTION_ALREADY_EXISTS
+        - COLLECTION_ABSENT
+        - IDEMPOTENCY_KEY_REUSED
+    message:
+      type: string
+    currentCollectionRevision:
+      allOf:
+        - $ref: "#/OpenItemRevision"
+      nullable: true
+      description: Current canonical collection revision; null when the collection is absent. Clients re-read before retrying.
+
+OpenItemsTriageSession:
+  type: object
+  additionalProperties: false
+  required: [agentSessionId, conversationId, created]
+  description: The authenticated user's single Open Items triage Agent Session in the project and its Conversation.
+  properties:
+    agentSessionId:
+      type: string
+      format: uuid
+      description: AGENT_SESSION identity.
+    conversationId:
+      type: string
+      format: uuid
+      description: CONVERSATION identity bound to the Agent Session.
+    created:
+      type: boolean
+      description: True only for the request that created the Agent Session.
+
+OpenItemGoalTrackedWorkFilter:
+  type: string
+  enum: [ACTIVE_AND_BACKLOG, ACTIVE, ALL, NONE]
+  default: ACTIVE_AND_BACKLOG
+  description: Goal row tracked-work display filter. ACTIVE includes ACTIVE work or a canonical non-IDLE running Agent Session. Tracked work is loaded only when expanded.
+
+SetOpenItemGoalFilterRequest:
+  type: object
+  additionalProperties: false
+  required: [idempotencyKey, filter]
+  properties:
+    idempotencyKey:
+      $ref: "#/OpenItemIdempotencyKey"
+    filter:
+      $ref: "#/OpenItemGoalTrackedWorkFilter"
+
+SetOpenItemGoalDisclosureRequest:
+  type: object
+  additionalProperties: false
+  required: [idempotencyKey, collapsed]
+  properties:
+    idempotencyKey:
+      $ref: "#/OpenItemIdempotencyKey"
+    collapsed:
+      type: boolean
+
+PromoteGroupToGoalRequest:
+  type: object
+  additionalProperties: false
+  required: [idempotencyKey, groupId, goalName]
+  description: Ordered promotion against current state; no expected-revision input. A missing group is rejected before Goal creation. Earlier Goal/TRACKS writes remain after later failure while the collection stays unchanged. Same-intent retries reuse the Goal and existing TRACKS writes.
+  properties:
+    idempotencyKey:
+      $ref: "#/OpenItemIdempotencyKey"
+    groupId:
+      $ref: "#/OpenItemGroupId"
+    goalName:
+      type: string
+      minLength: 1
+      maxLength: 300
+      pattern: "\\S"
+    targetDate:
+      type: string
+      format: date-time
+
+PromoteGroupToGoalResult:
+  type: object
+  additionalProperties: false
+  required: [collection, goal, untrackedMembers, replayed]
+  properties:
+    collection:
+      $ref: "#/OpenItemsPresentCollection"
+    goal:
+      $ref: "#/OpenItemRef"
+    untrackedMembers:
+      type: array
+      maxItems: 1000
+      items:
+        $ref: "#/OpenItemRef"
+    replayed:
+      type: boolean

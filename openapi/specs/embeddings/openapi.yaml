@@ -1,0 +1,1816 @@
+openapi: 3.0.3
+info:
+  title: Python Embedding Service API
+  description:
+    "# High-Performance Embedding Generation and Search Service\n\nThis\
+    \ API provides powerful text embedding capabilities with multiple backend support:\n\
+    \n- **OpenAI Embeddings**: High-quality embeddings using OpenAI's models\n- **Local\
+    \ Embeddings**: Sentence transformers for local processing  \n- **TF-IDF Fallback**:\
+    \ Basic embeddings without external dependencies\n\n## Key Features\n\n- **Automatic\
+    \ Text Chunking**: Handles large documents intelligently\n- **Hybrid Search**:\
+    \ Combines semantic and keyword matching\n- **Metadata Filtering**: Filter results\
+    \ by custom metadata\n- **Real-time Statistics**: Monitor service performance\n\
+    - **Health Monitoring**: Built-in health checks\n\n## Authentication\n\nFor OpenAI\
+    \ backend, set your API key in the `OPENAI_API_KEY` environment variable.\n\n\
+    ## Rate Limits\n\n- Text input: Maximum 50,000 characters per request\n- Search\
+    \ queries: Maximum 1,000 characters\n- Results: Maximum 100 results per search\n"
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+servers:
+  - url: http://localhost:5005
+    description: Development server
+  - url: https://api.example.com
+    description: Production server
+tags:
+  - name: Embeddings
+    description: Create and manage text embeddings
+  - name: Search
+    description: Search through stored embeddings
+  - name: Monitoring
+    description: Service monitoring and statistics
+  - name: Development
+    description: Development and debugging endpoints
+  - name: OrganizationLifecycle
+    description: Organization projection lifecycle operations
+paths:
+  /orgs/{organizationId}/projection-deletion:
+    post:
+      tags:
+        - OrganizationLifecycle
+      summary: Delete all content for an irreversibly closed organization
+      operationId: deleteOrganizationProjection
+      description: >-
+        Authenticated, idempotent search-projection deletion. The command records
+        or loads the immutable local tombstone before deleting and verifying all
+        organization-owned searchable content. Identical commands return the
+        retained identity and verified completion; conflicting identity cannot
+        overwrite the tombstone.
+      security:
+        - BearerAuth: []
+      x-required-jwt-claims:
+        scopes:
+          - organization:projection:delete
+        audience: embeddings-service
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          description: Organization identifier
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectionDeletionCommand"
+      responses:
+        "200":
+          description: Projection deletion completed or was an identical retry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionDeletionResult"
+        "400":
+          description: Command validation failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionDeletionValidationErrorResponse"
+        "401":
+          description: Authentication required.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Immutable deletion identity conflicts with retained evidence.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionDeletionIdentityConflictResponse"
+        "503":
+          description: Projection deletion failed transiently; retry the same command.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionDeletionRetryableFailureResponse"
+
+  /embeddings:
+    post:
+      tags:
+        - Embeddings
+      summary: Create Text Embeddings
+      description:
+        Generate and store embeddings for the provided text content. Supports
+        automatic chunking for large documents.
+      operationId: createEmbedding
+      requestBody:
+        required: true
+        description: Text content and metadata for embedding creation
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmbeddingRequest"
+            example:
+              text:
+                Machine learning is a subset of artificial intelligence that focuses
+                on algorithms that can learn from data.
+              metadata:
+                id: ml_intro_001
+                category: education
+                title: Introduction to Machine Learning
+              level: chunk
+      responses:
+        "201":
+          description: Embeddings created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmbeddingResponse"
+              example:
+                success: true
+                data:
+                  success: true
+                  embedding_id: ml_intro_001
+                  chunks_created: 3
+                  chunk_ids:
+                    - ml_intro_001_chunk_0
+                    - ml_intro_001_chunk_1
+                    - ml_intro_001_chunk_2
+                  total_word_count: 25
+        "400":
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /embeddings/search:
+    get:
+      tags:
+        - Search
+      summary: Search Embeddings (GET)
+      description: Perform a search using query parameters scoped to the caller's organisation.
+      operationId: searchEmbeddingsGet
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query text
+          schema:
+            type: string
+        - name: organizationId
+          in: query
+          required: true
+          description: Organisation identifier used to scope the results
+          schema:
+            type: string
+            format: uuid
+        - name: projectId
+          in: query
+          required: false
+          description: Project identifier to further scope results
+          schema:
+            type: string
+            format: uuid
+        - name: max_results
+          in: query
+          required: false
+          description: Maximum number of results to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: threshold
+          in: query
+          required: false
+          description: Minimum normalized similarity (0-1, relative to the top hit) required for a match
+          schema:
+            type: number
+            format: float
+            minimum: 0.0
+            maximum: 1.0
+            default: 0.15
+        - name: search_type
+          in: query
+          required: false
+          description: Search strategy to use
+          schema:
+            type: string
+            enum:
+              - semantic
+              - keyword
+              - hybrid
+            default: hybrid
+        - name: query_mode
+          in: query
+          required: false
+          description: Query behavior mode (default performs normal search, title_fuzzy performs fuzzy title/name matching without ANN)
+          schema:
+            type: string
+            enum:
+              - default
+              - title_fuzzy
+            default: default
+        - name: boost_recent
+          in: query
+          required: false
+          description: Whether to boost more recently created artifacts
+          schema:
+            type: boolean
+            default: false
+        - name: entityType
+          in: query
+          required: false
+          description: Hard entity type filter. Accepts a comma-separated string or repeated query params and maps to filters.types.
+          schema:
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+      responses:
+        "200":
+          description: Search completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+        "400":
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - organizationId mismatch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+        - Search
+      summary: Search Embeddings (POST)
+      description: Search through stored embeddings using semantic similarity, keyword matching, or hybrid approach.
+      operationId: searchEmbeddingsPost
+      requestBody:
+        required: true
+        description: Search query and filtering parameters
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearchRequest"
+      responses:
+        "200":
+          description: Search completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+              example:
+                success: true
+                query: What is machine learning?
+                results: 2
+                data:
+                  - id: ml_intro_001_chunk_0
+                    text: Machine learning is a subset of artificial intelligence...
+                    similarity: 0.89
+                    metadata:
+                      category: education
+                      chunkIndex: 0
+                    chunkIndex: 0
+                    matchType: semantic
+        "400":
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - organizationId mismatch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /orgs/{organizationId}/projects/{projectId}/embeddings/search/structured:
+    post:
+      tags:
+        - Search
+      summary: Structured Search (POST)
+      description: Execute a Vespa structured query using must/should clauses, phrase boosts, and an optional embedding query.
+      operationId: structuredSearchEmbeddings
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          description: Organisation identifier
+          schema:
+            type: string
+            format: uuid
+        - name: projectId
+          in: path
+          required: true
+          description: Project identifier
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        description: Structured search directives and filters
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StructuredSearchRequest"
+            example:
+              must:
+                - vscode
+                - plugin
+              should:
+                - guidelines
+                - workflows
+              phrases:
+                - implementation strategy
+              emb_query: VSCode plugin implementation strategy for our internal workflows
+              filters:
+                organizationId: org-123
+                projectId: proj-456
+      responses:
+        "200":
+          description: Search completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+        "400":
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - organizationId mismatch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Structured search failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /orgs/{organizationId}/projects/{projectId}/embeddings/search:
+    get:
+      tags:
+        - Search
+      summary: Organisation Search Embeddings (GET)
+      description: Search within a specific organisation using query parameters.
+      operationId: searchEmbeddingsOrgGet
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          description: Organisation identifier
+          schema:
+            type: string
+            format: uuid
+        - name: projectId
+          in: path
+          required: true
+          description: Project identifier
+          schema:
+            type: string
+            format: uuid
+        - name: q
+          in: query
+          required: true
+          description: Search query text
+          schema:
+            type: string
+        - name: max_results
+          in: query
+          required: false
+          description: Maximum number of results to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: threshold
+          in: query
+          required: false
+          description: Minimum normalized similarity (0-1, relative to the top hit) required for a match
+          schema:
+            type: number
+            format: float
+            minimum: 0.0
+            maximum: 1.0
+            default: 0.15
+        - name: search_type
+          in: query
+          required: false
+          description: Search strategy to use
+          schema:
+            type: string
+            enum:
+              - semantic
+              - keyword
+              - hybrid
+            default: hybrid
+        - name: query_mode
+          in: query
+          required: false
+          description: Query behavior mode (default performs normal search, title_fuzzy performs fuzzy title/name matching without ANN)
+          schema:
+            type: string
+            enum:
+              - default
+              - title_fuzzy
+            default: default
+        - name: boost_recent
+          in: query
+          required: false
+          description: Whether to boost more recently created artifacts
+          schema:
+            type: boolean
+            default: false
+        - name: entityType
+          in: query
+          required: false
+          description: Hard entity type filter. Accepts a comma-separated string or repeated query params and maps to filters.types.
+          schema:
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+      responses:
+        "200":
+          description: Search completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+        "400":
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - organizationId mismatch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+        - Search
+      summary: Organisation Search Embeddings (POST)
+      description: Search within a specific organisation using a JSON request body.
+      operationId: searchEmbeddingsOrgPost
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          description: Organisation identifier
+          schema:
+            type: string
+            format: uuid
+        - name: projectId
+          in: path
+          required: true
+          description: Project identifier
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        description: Search query and filtering parameters
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearchRequest"
+      responses:
+        "200":
+          description: Search completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+        "400":
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - organizationId mismatch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /orgs/{organizationId}/projects/{projectId}/embeddings/search/batch:
+    post:
+      tags:
+        - Search
+      summary: Batch Search Embeddings (POST)
+      description: Submit multiple search queries within a single organisation and receive ordered results in one response.
+      operationId: searchEmbeddingsOrgBatch
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          description: Organisation identifier
+          schema:
+            type: string
+            format: uuid
+        - name: projectId
+          in: path
+          required: true
+          description: Project identifier
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        description: Collection of search queries to evaluate
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchSearchRequest"
+            example:
+              queries:
+                - query_id: intro
+                  query: Introduction to embeddings
+                  max_results: 3
+                  filters:
+                    projectId: 79f15aeb-1c2e-4f5c-bdf3-11e1ecfd9a78
+                - query_id: faq
+                  query: Frequently asked questions
+                  similarity_threshold: 0.2
+                  boost_recent: true
+      responses:
+        "200":
+          description: Batch search completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchSearchResponse"
+              example:
+                success: true
+                results:
+                  - query: Introduction to embeddings
+                    query_id: intro
+                    results: 2
+                    data:
+                      - id: doc-1
+                        text: Introduction to embeddings...
+                        similarity: 0.91
+                        metadata:
+                          projectId: 79f15aeb-1c2e-4f5c-bdf3-11e1ecfd9a78
+                          category: docs
+                        chunkIndex: 0
+                        matchType: semantic
+                  - query: Frequently asked questions
+                    query_id: faq
+                    results: 1
+                    data:
+                      - id: doc-2
+                        text: Common embedding questions...
+                        similarity: 0.83
+                        metadata:
+                          projectId: 79f15aeb-1c2e-4f5c-bdf3-11e1ecfd9a78
+                        chunkIndex: 0
+                        matchType: semantic
+        "400":
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - organizationId mismatch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /stats:
+    get:
+      tags:
+        - Monitoring
+      summary: Service Statistics
+      description:
+        Get comprehensive statistics about the embedding service including
+        counts, performance metrics, and configuration.
+      operationId: getStats
+      responses:
+        "200":
+          description: Statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatsResponse"
+              example:
+                success: true
+                data:
+                  total_embeddings: 150
+                  total_vocabulary_size: 1247
+                  avg_document_length: 125.5
+                  embedding_method: openai
+  /health:
+    get:
+      tags:
+        - Monitoring
+      summary: Health Check
+      description: Check the health and status of the embedding service and its dependencies.
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: healthy
+                service: python-embedding-service
+                timestamp: "2024-01-15T10:30:00Z"
+                total_embeddings: 150
+        "503":
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /debug:
+    get:
+      tags:
+        - Development
+      summary: Debug Information
+      description:
+        Get detailed debug information including all stored embeddings,
+        configuration, and internal state. Use with caution in production.
+      operationId: getDebugInfo
+      responses:
+        "200":
+          description: Debug information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DebugResponse"
+              example:
+                success: true
+                data:
+                  timestamp: "2024-01-15T10:30:00Z"
+                  service_config:
+                    embedding_method: openai
+                    chunk_size: 512
+                    chunk_overlap: 50
+                  vocabulary:
+                    size: 1247
+                  embeddings: []
+                  statistics:
+                    total_embeddings: 150
+  /debug/entity:
+    get:
+      tags:
+        - Development
+      summary: Fetch entity by type and ID
+      description: Return embeddings stored for a given entity type and source ID.
+      operationId: getDebugEntity
+      parameters:
+        - name: type
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Entity content type (e.g. task, initiative, message)
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Entity source ID
+      responses:
+        "200":
+          description: Lookup completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  found:
+                    type: boolean
+                  type:
+                    type: string
+                  id:
+                    type: string
+                  count:
+                    type: integer
+                  documents:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        text:
+                          type: string
+                        metadata:
+                          $ref: "#/components/schemas/EmbeddingMetadata"
+                        created_at:
+                          type: string
+                          format: date-time
+                  timestamp:
+                    type: string
+                    format: date-time
+        "500":
+          description: Internal server error
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ProjectionDeletionIdentity:
+      $ref: "../schemas/projection-deletion.yaml#/ProjectionDeletionIdentity"
+    ProjectionDeletionCommand:
+      $ref: "../schemas/projection-deletion.yaml#/ProjectionDeletionCommand"
+    ProjectionDeletionResult:
+      $ref: "../schemas/projection-deletion.yaml#/ProjectionDeletionResult"
+    ProjectionDeletionValidationErrorResponse:
+      $ref: "../schemas/projection-deletion.yaml#/ProjectionDeletionValidationErrorResponse"
+    ProjectionDeletionIdentityConflictResponse:
+      $ref: "../schemas/projection-deletion.yaml#/ProjectionDeletionIdentityConflictResponse"
+    ProjectionDeletionRetryableFailureResponse:
+      $ref: "../schemas/projection-deletion.yaml#/ProjectionDeletionRetryableFailureResponse"
+    EmbeddingMetadata:
+      description: |
+        Canonical metadata record attached to an embedding. The service stores a
+        strongly typed metadata model per canonical entity (messages, initiatives,
+        tasks, design docs) plus a dedicated artifact metadata shape for
+        enrichment signals. All metadata uses camelCase keys and forbids unknown
+        properties.
+      oneOf:
+        - $ref: "#/components/schemas/CanonicalMessageMetadata"
+        - $ref: "#/components/schemas/CanonicalInitiativeMetadata"
+        - $ref: "#/components/schemas/CanonicalTaskMetadata"
+        - $ref: "#/components/schemas/CanonicalDesignDocMetadata"
+        - $ref: "#/components/schemas/ArtifactMetadata"
+
+    CanonicalMetadataBase:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - organizationId
+        - type
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the canonical record.
+        organizationId:
+          type: string
+          description: Organization that owns the record.
+        projectId:
+          type: string
+          description: Project that scopes the record.
+        type:
+          type: string
+          description: Canonical entity type discriminator.
+          enum:
+            - message
+            - initiative
+            - task
+            - design_doc
+        sourceType:
+          type: string
+          description: Source system that produced the record.
+        sourceId:
+          type: string
+          description: Identifier in the source system.
+        category:
+          type: string
+          description: Content category used for downstream filtering.
+        title:
+          type: string
+          description: Human-readable title or headline.
+        status:
+          type: string
+          description: Status of the canonical entity.
+        priority:
+          type: string
+          description: Priority label of the canonical entity.
+        tags:
+          type: array
+          items:
+            type: string
+          description: Tags preserved for filtering.
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp.
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp.
+        topologySummary:
+          type: string
+          description: Summary text used for topology matching.
+        topologyCategory:
+          type: string
+          description: Topology category assigned to the entity.
+        topologySubfacets:
+          type: array
+          items:
+            type: string
+          description: Topology subfacet identifiers assigned to the entity.
+        topologySummaryUpdatedAt:
+          type: integer
+          format: int64
+          description: Epoch milliseconds for the last topology summary update.
+
+    CanonicalMessageMetadata:
+      allOf:
+        - $ref: "#/components/schemas/CanonicalMetadataBase"
+        - type: object
+          additionalProperties: false
+          required:
+            - type
+            - conversationId
+          properties:
+            type:
+              type: string
+              enum:
+                - message
+            messageType:
+              type: string
+              description: Message classification supplied by the workflow.
+            dataType:
+              type: string
+              description: Payload type stored inside the message data field.
+            workflowId:
+              type: string
+              description: Workflow that produced the message.
+            conversationId:
+              type: string
+              description: Conversation the message belongs to.
+            interactionTypeId:
+              type: string
+              description: Interaction type identifier from the workflow engine.
+            intent:
+              type: string
+              description: Intent inferred from the classification stage.
+            targetInitiativeId:
+              type: string
+              description: Initiative referenced by the message intent.
+            intentConfidence:
+              type: number
+              format: float
+              description: Confidence score for the detected intent.
+            intentReasoning:
+              type: string
+              description: Rationale returned by the intent detector.
+
+    CanonicalInitiativeMetadata:
+      allOf:
+        - $ref: "#/components/schemas/CanonicalMetadataBase"
+        - type: object
+          additionalProperties: false
+          required:
+            - type
+            - name
+          properties:
+            type:
+              type: string
+              enum:
+                - initiative
+            name:
+              type: string
+              description: Initiative title.
+            description:
+              type: string
+              description: High-level description of the initiative.
+            details:
+              type: string
+              description: Technical or implementation details.
+            acceptanceCriteria:
+              type: string
+              description: Definition of done or success criteria.
+            reasoning:
+              type: string
+              description: Why the initiative exists or was suggested.
+            dueDate:
+              type: string
+              format: date-time
+              description: Target due date.
+            sourceConversationId:
+              type: string
+              description: Conversation that originated the initiative.
+
+    CanonicalTaskMetadata:
+      allOf:
+        - $ref: "#/components/schemas/CanonicalMetadataBase"
+        - type: object
+          additionalProperties: false
+          required:
+            - type
+            - taskType
+            - name
+          properties:
+            type:
+              type: string
+              enum:
+                - task
+            taskType:
+              type: string
+              minLength: 1
+              description: >-
+                Task discriminator / work-item type key. The value is an opaque,
+                registry-backed stable string preserved exactly; built-in and
+                project-defined keys are accepted without aliases or case
+                normalization.
+            initiativeId:
+              type: string
+              description: Owning initiative identifier.
+            name:
+              type: string
+              description: Task title.
+            description:
+              type: string
+              description: Task description.
+            acceptanceCriteria:
+              type: string
+              description: Success criteria for STANDARD tasks.
+            requirements:
+              type: string
+              description: |
+                Requirements section content for FEATURE tasks, stored as the materialized
+                markdown of the `requirements` section. Only meaningful when `type` is
+                `FEATURE`; absent for non-FEATURE work-item types.
+            dueDate:
+              type: string
+              format: date-time
+              description: Optional target due date.
+            sourceConversationId:
+              type: string
+              description: Conversation reference for provenance.
+
+    CanonicalDesignDocMetadata:
+      allOf:
+        - $ref: "#/components/schemas/CanonicalMetadataBase"
+        - type: object
+          additionalProperties: false
+          required:
+            - type
+            - name
+          properties:
+            type:
+              type: string
+              enum:
+                - design_doc
+            name:
+              type: string
+              description: Design document title.
+            summary:
+              type: string
+              description: Design document summary.
+            status:
+              type: string
+              description: Workflow status for the design document.
+            template:
+              type: string
+              description: Template used to structure the design document.
+            sourceConversationId:
+              type: string
+              description: Conversation reference for provenance.
+    ArtifactMetadata:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - organizationId
+        - type
+        - artifactType
+      properties:
+        id:
+          type: string
+          description: Artifact identifier.
+        organizationId:
+          type: string
+          description: Owning organization identifier.
+        projectId:
+          type: string
+          description: Project that scopes the artifact.
+        type:
+          type: string
+          enum:
+            - artifact
+        artifactType:
+          type: string
+          description: Artifact family (QA_PAIR, INITIATIVE_ORIGINAL, INSIGHT, etc.).
+        parentId:
+          type: string
+          description: Parent artifact identifier for hierarchical relationships.
+        sourceType:
+          type: string
+          description: Source system for the artifact.
+        sourceId:
+          type: string
+          description: Identifier in the source system.
+        title:
+          type: string
+          description: Human readable title.
+        tags:
+          type: array
+          items:
+            type: string
+          description: Optional tags for filtering.
+        status:
+          type: string
+          description: Artifact status.
+        priority:
+          type: string
+          description: Artifact priority.
+        category:
+          type: string
+          description: Classification category.
+        dataQuestion:
+          type: string
+          description: Question text for QA style artifacts.
+        dataAnswer:
+          type: string
+          description: Answer text for QA style artifacts.
+        dataSummary:
+          type: string
+          description: Summary text for summarization artifacts.
+        dataType:
+          type: string
+          description: Structured payload discriminator.
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp.
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp.
+
+    EmbeddingRequest:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 50000
+          description: Text content to embed
+          example: Machine learning is a subset of artificial intelligence...
+        metadata:
+          $ref: "#/components/schemas/EmbeddingMetadata"
+        level:
+          type: string
+          enum:
+            - chunk
+            - document
+          default: chunk
+          description:
+            "Processing level: 'chunk' for automatic chunking or 'document'
+            for whole document"
+          example: chunk
+    EmbeddingResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Whether the operation succeeded
+          example: true
+        data:
+          type: object
+          properties:
+            success:
+              type: boolean
+              description: Whether the embedding creation succeeded
+              example: true
+            embedding_id:
+              type: string
+              description: ID of the created embedding
+              example: ml_intro_001
+            chunks_created:
+              type: integer
+              description: Number of chunks created
+              example: 3
+            chunk_ids:
+              type: array
+              items:
+                type: string
+              description: IDs of the created chunks
+              example:
+                - ml_intro_001_chunk_0
+                - ml_intro_001_chunk_1
+            total_word_count:
+              type: integer
+              description: Total word count of the processed text
+              example: 25
+    SearchRequest:
+      type: object
+      properties:
+        query:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: Search query text
+          example: What is machine learning?
+        max_results:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 10
+          description: Maximum number of results to return
+        offset:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Number of results to skip for pagination
+        similarity_threshold:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          default: 0.15
+          description: Minimum normalized similarity (0-1, relative to the top hit)
+        query_mode:
+          type: string
+          enum:
+            - default
+            - title_fuzzy
+          default: default
+          description: Query behavior mode (default performs normal search, title_fuzzy performs fuzzy title/name matching without ANN)
+        filters:
+          allOf:
+            - $ref: "#/components/schemas/SearchFilters"
+          description: Metadata filters to apply
+        boosts:
+          $ref: "#/components/schemas/SearchBoosts"
+
+    SearchBoosts:
+      type: object
+      properties:
+        entityTypes:
+          type: array
+          description: Per-entity-type additive boosts, expressed as deltas (e.g., 0.05 means +0.05). This does not filter results.
+          items:
+            type: object
+            required:
+              - type
+              - weight
+            properties:
+              type:
+                type: string
+                example: task
+              weight:
+                type: number
+                format: float
+                example: 0.05
+
+    SearchFilters:
+      type: object
+      additionalProperties: false
+      description: Metadata filters to apply
+      properties:
+        organizationId:
+          type: string
+          description: Organisation identifier used to scope the results
+          example: 4abf92a8-4095-4d2b-9d6f-9d2a4e660001
+        projectId:
+          type: string
+          description: Project identifier used to scope the results
+          example: 79f15aeb-1c2e-4f5c-bdf3-11e1ecfd9a78
+        category:
+          type: string
+          description: Category constraint applied to the search results
+          example: education
+        topologyCategory:
+          type: string
+          description: Topology category constraint applied to the search results
+        topologySubfacets:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+          description: Topology subfacet constraints applied to the search results
+        id:
+          type: string
+          description: Canonical document identifier
+        conversationId:
+          type: string
+          description: Conversation identifier to scope results
+        parentId:
+          type: string
+          description: Parent entity identifier to scope results
+        initiativeId:
+          type: string
+          description: Initiative identifier to scope results
+        serviceId:
+          type: string
+          description: Service identifier to scope results to a specific service
+        serviceIds:
+          type: array
+          items:
+            type: string
+          description: Service identifiers to scope results to an authorized set of Services
+        targetInitiativeId:
+          type: string
+          description: Target initiative identifier to scope results
+        sourceId:
+          type: string
+          description: Source system identifier to scope results
+        sourceType:
+          type: string
+          description: Source system type to scope results
+        messageType:
+          type: string
+          description: Message type to scope results
+        type:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+          description: Canonical hard entity type filter (preferred)
+        types:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+          description: Backward-compatible alias for type
+        docTypes:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+          description: Backward-compatible alias for type used by older clients
+        contentType:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+          description: Backward-compatible alias for type
+        contentTypes:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+          description: Backward-compatible alias for type
+        workflowId:
+          type: string
+          description: Workflow identifier to scope results
+        status:
+          type: string
+          description: Deprecated single-status filter; use statuses instead
+        statuses:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+          description: Canonical statuses to filter results
+        priority:
+          type: string
+          description: Priority value to filter results
+        tags:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+          description: Tag filters applied to the results
+        taskTypes:
+          type: array
+          items:
+            type: string
+          description: >-
+            Task type filter. When provided, only task documents whose taskType
+            metadata matches are returned.
+        created_after:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: number
+          description: Return results created on or after this timestamp (ISO-8601 or epoch ms)
+        created_before:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: number
+          description: Return results created on or before this timestamp (ISO-8601 or epoch ms)
+        updated_after:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: number
+          description: Return results updated on or after this timestamp (ISO-8601 or epoch ms)
+        updated_before:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: number
+          description: Return results updated on or before this timestamp (ISO-8601 or epoch ms)
+    StructuredSearchRequest:
+      type: object
+      description: Structured query payload combining lexical operators and an optional embedding query. At least one of must, should, phrases, or emb_query is required.
+      properties:
+        must:
+          type: array
+          items:
+            type: string
+          maxItems: 25
+          description: Terms that must appear in the document
+        should:
+          type: array
+          items:
+            type: string
+          maxItems: 25
+          description: Terms that should appear (WEAKAND)
+        phrases:
+          type: array
+          items:
+            type: string
+          maxItems: 10
+          description: Exact phrases to boost
+        emb_query:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: Embedding-friendly natural language description
+        max_results:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 10
+          description: Maximum number of matches to return
+        similarity_threshold:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          default: 0.15
+          description: Minimum normalized similarity (0-1, relative to the top hit)
+        filters:
+          allOf:
+            - $ref: "#/components/schemas/SearchFilters"
+          description: Metadata filters to apply (organizationId is required via auth)
+        search_type:
+          type: string
+          enum:
+            - semantic
+            - keyword
+            - hybrid
+          default: hybrid
+          description: Search strategy to use
+        boost_recent:
+          type: boolean
+          default: false
+          description: Whether to boost recent artifacts
+        exclude_source_ids:
+          type: array
+          items:
+            type: string
+          description: List of source IDs to exclude from the results
+      example:
+        must:
+          - workflow orchestration
+          - agent reliability
+        should:
+          - temporal triggers
+          - mastra integration
+        phrases:
+          - technical implementation
+        emb_query: refine agent workflows with better job queue backpressure and graph integration
+        max_results: 10
+        similarity_threshold: 0.3
+        filters:
+          organizationId: org-123
+          projectId: proj-456
+        exclude_source_ids:
+          - ab189e6b-4c78-4b9d-b4a6-2e86e770de5f
+        search_type: hybrid
+        boost_recent: false
+    BatchSearchQuery:
+      allOf:
+        - $ref: "#/components/schemas/SearchRequest"
+        - type: object
+          properties:
+            query_id:
+              type: string
+              description: Optional client-supplied identifier to correlate results
+              example: intro
+    BatchSearchRequest:
+      type: object
+      required:
+        - queries
+      properties:
+        queries:
+          type: array
+          minItems: 1
+          maxItems: 25
+          description: Ordered list of queries to evaluate in a single call
+          items:
+            $ref: "#/components/schemas/BatchSearchQuery"
+    SearchResult:
+      type: object
+      required:
+        - id
+        - text
+        - similarity
+        - metadata
+      properties:
+        id:
+          type: string
+          description: Unique identifier of the result
+          example: ml_intro_001_chunk_0
+        text:
+          type: string
+          description: The text content that matched
+          example: Machine learning is a subset of artificial intelligence...
+        similarity:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          description: Similarity score (0-1)
+          example: 0.89
+        metadata:
+          $ref: "#/components/schemas/EmbeddingMetadata"
+        chunkIndex:
+          type: integer
+          description: Index of the chunk within the document
+          example: 0
+        matchType:
+          type: string
+          enum:
+            - semantic
+            - keyword
+            - hybrid
+          description: Type of match
+          example: semantic
+    SearchResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Whether the search succeeded
+          example: true
+        query:
+          type: string
+          description: The original search query
+          example: What is machine learning?
+        results:
+          type: integer
+          description: Number of results returned
+          example: 5
+        data:
+          type: array
+          description: List of search results
+          items:
+            $ref: "#/components/schemas/SearchResult"
+    BatchSearchResult:
+      type: object
+      required:
+        - query
+        - results
+        - data
+      properties:
+        query:
+          type: string
+          description: Original query text for this result set
+          example: Introduction to embeddings
+        query_id:
+          type: string
+          nullable: true
+          description: Client-provided identifier used to correlate responses
+          example: intro
+        results:
+          type: integer
+          description: Number of matches returned for the query
+          example: 3
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchResult"
+          description: Matches associated with the query
+    BatchSearchResponse:
+      type: object
+      required:
+        - success
+        - results
+      properties:
+        success:
+          type: boolean
+          description: Indicates whether the batch operation succeeded
+          example: true
+        results:
+          type: array
+          description: Ordered list of per-query search results
+          items:
+            $ref: "#/components/schemas/BatchSearchResult"
+    StatsResponse:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          description: Whether the request succeeded
+          example: true
+        data:
+          type: object
+          description: Service statistics
+          properties:
+            total_embeddings:
+              type: integer
+              description: Total number of embeddings stored
+              example: 150
+            total_vocabulary_size:
+              type: integer
+              description: Size of the vocabulary
+              example: 1247
+            avg_document_length:
+              type: number
+              format: float
+              description: Average document length
+              example: 125.5
+            embedding_method:
+              type: string
+              description: Current embedding method
+              example: openai
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          description: Overall service status
+          example: healthy
+        service:
+          type: string
+          description: Service name
+          example: python-embedding-service
+        timestamp:
+          type: string
+          format: date-time
+          description: Health check timestamp
+          example: "2024-01-15T10:30:00Z"
+        total_embeddings:
+          type: integer
+          description: Total number of embeddings currently stored
+          example: 150
+    DebugResponse:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          description: Whether the request succeeded
+          example: true
+        data:
+          type: object
+          description: Comprehensive debug information
+          properties:
+            timestamp:
+              type: string
+              format: date-time
+              description: Debug data timestamp
+            service_config:
+              type: array
+              description: Current service configuration entries
+              items:
+                $ref: "#/components/schemas/DebugServiceConfigEntry"
+            vocabulary:
+              type: object
+              description: Vocabulary information
+              properties:
+                words:
+                  type: array
+                  items:
+                    type: string
+                  description: List of vocabulary words
+                size:
+                  type: integer
+                  description: Size of the vocabulary
+            embeddings:
+              type: array
+              items:
+                $ref: "#/components/schemas/DebugEmbedding"
+              description: Detailed embedding information
+            statistics:
+              $ref: "#/components/schemas/DebugStatistics"
+              description: Service statistics
+    DebugServiceConfigEntry:
+      type: object
+      description: Key-value entry describing a service configuration setting
+      required:
+        - key
+        - value
+      properties:
+        key:
+          type: string
+          description: Configuration key name
+          example: embedding_backend
+        value:
+          type: string
+          description: Configuration value as a string representation
+          example: openai
+    DebugEmbedding:
+      type: object
+      description: Debug representation of an embedding record
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the embedding
+          example: ml_intro_001_chunk_0
+        text:
+          type: string
+          description: Excerpt of the embedded text
+          example: Machine learning is a subset of artificial intelligence...
+        metadata:
+          $ref: "#/components/schemas/EmbeddingMetadata"
+        chunkIndex:
+          type: integer
+          description: Chunk index within the source document
+          example: 0
+        vectorDimensions:
+          type: integer
+          description: Dimensionality of the embedding vector
+          example: 1536
+    DebugStatistics:
+      type: object
+      description: Diagnostic statistics for the embedding service
+      properties:
+        total_embeddings:
+          type: integer
+          description: Total number of embeddings stored
+          example: 150
+        total_vocabulary_size:
+          type: integer
+          description: Size of the vocabulary known to the service
+          example: 1247
+        avg_similarity:
+          type: number
+          format: float
+          description: Average similarity across recent queries
+          example: 0.73
+        last_ingest_at:
+          type: string
+          format: date-time
+          description: Timestamp of the last ingestion event
+          example: "2024-01-15T10:30:00Z"
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error type or code
+          example: validation_error
+        message:
+          type: string
+          description: Human-readable error message
+          example: The provided text is too long
+        details:
+          type: object
+          description: Additional error details
+          properties:
+            field:
+              type: string
+              description: Name of the field related to the error
+              example: text
+            max_length:
+              type: integer
+              description: Maximum allowed value relevant to the validation error
+              example: 50000
+            provided_length:
+              type: integer
+              description: Provided value that triggered the validation error
+              example: 75000
+            info:
+              type: string
+              description: Supplementary error context
+              example: Text length exceeds allowed limit
+
+    ProjectionDeletionRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - organizationId
+        - markerId
+        - irreversibleClosureAt
+        - deletionDeadline
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        markerId:
+          type: string
+          format: uuid
+        irreversibleClosureAt:
+          type: string
+          format: date-time
+        deletionDeadline:
+          type: string
+          format: date-time

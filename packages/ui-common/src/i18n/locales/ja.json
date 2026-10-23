@@ -1,0 +1,300 @@
+{
+  "common": {
+    "thinking": "考え中...",
+    "processing": "レスポンスを処理中...",
+    "loading": "読み込み中...",
+    "analyzing": "リクエストを分析中...",
+    "error": "エラー",
+    "success": "成功",
+    "cancel": "キャンセル",
+    "save": "保存",
+    "delete": "削除",
+    "edit": "編集",
+    "create": "作成",
+    "back": "戻る",
+    "next": "次へ",
+    "submit": "送信",
+    "refresh": "更新",
+    "search": "検索",
+    "yes": "はい",
+    "no": "いいえ"
+  },
+  "navigation": {
+    "home": "ホーム",
+    "contact": "お問い合わせ",
+    "projects": "プロジェクト",
+    "initiatives": "イニシアチブ",
+    "artifacts": "アーティファクト",
+    "integrations": "統合",
+    "myProjects": "マイプロジェクト",
+    "welcome": "ようこそ、{{name}}さん",
+    "settings": "設定"
+  },
+  "projects": {
+    "title": "プロジェクト",
+    "create": "新しいプロジェクト",
+    "edit": "プロジェクトを編集",
+    "delete": "プロジェクトを削除",
+    "noProjects": "プロジェクトが見つかりません",
+    "createFirst": "最初のプロジェクトを作成して開始しましょう"
+  },
+  "initiatives": {
+    "title": "イニシアチブ",
+    "subtitle": "組織のイニシアチブを管理し、進捗を追跡します",
+    "create": "新しいイニシアチブ",
+    "edit": "イニシアチブを編集",
+    "viewTasks": "タスクを表示",
+    "noInitiatives": "イニシアチブが見つかりません",
+    "createFirst": "最初のイニシアチブを作成して開始しましょう",
+    "form": {
+      "title": "タイトル",
+      "description": "説明",
+      "status": "ステータス",
+      "priority": "優先度",
+      "tags": "タグ"
+    },
+    "status": {
+      "planning": "計画中",
+      "active": "アクティブ",
+      "onHold": "保留中",
+      "completed": "完了",
+      "cancelled": "キャンセル済み"
+    },
+    "priority": {
+      "low": "低",
+      "medium": "中",
+      "high": "高"
+    }
+  },
+  "tasks": {
+    "title": "タスク",
+    "subtitle": "{{initiativeTitle}}のタスクを管理中",
+    "create": "新しいタスク",
+    "edit": "タスクを編集",
+    "delete": "タスクを削除",
+    "deleteConfirm": "タスク「{{title}}」を削除してもよろしいですか？この操作は元に戻せません。",
+    "noTasks": "タスクが見つかりません",
+    "createFirst": "最初のタスクを作成して開始しましょう",
+    "form": {
+      "title": "タイトル",
+      "description": "説明",
+      "status": "ステータス",
+      "type": "種類",
+      "priority": "優先度"
+    },
+    "status": {
+      "todo": "未着手",
+      "inProgress": "進行中",
+      "done": "完了",
+      "blocked": "ブロック中"
+    },
+    "type": {
+      "task": "タスク",
+      "bug": "バグ",
+      "feature": "機能",
+      "improvement": "改善"
+    }
+  },
+  "artifacts": {
+    "title": "アーティファクト",
+    "subtitle": "保存されたアーティファクトを閲覧・検索（{{count}}件）",
+    "search": "アーティファクトを検索",
+    "noArtifacts": "アーティファクトが見つかりません",
+    "adjustSearch": "検索条件を調整してみてください",
+    "noArtifactsYet": "まだアーティファクトが作成されていません",
+    "filters": {
+      "type": "種類",
+      "status": "ステータス",
+      "category": "カテゴリ",
+      "allTypes": "すべての種類",
+      "allStatuses": "すべてのステータス"
+    },
+    "types": {
+      "qaPair": "Q&Aペア",
+      "document": "ドキュメント",
+      "codeSnippet": "コードスニペット",
+      "conversationSummary": "会話の要約",
+      "projectInsight": "プロジェクトの洞察"
+    },
+    "status": {
+      "active": "アクティブ",
+      "archived": "アーカイブ済み",
+      "draft": "下書き"
+    },
+    "metadata": {
+      "source": "ソース: {{sourceType}}",
+      "public": "公開: {{isPublic}}"
+    }
+  },
+  "integrations": {
+    "title": "統合",
+    "loadingIntegrations": "統合を読み込み中...",
+    "allConfigured": "利用可能なすべての統合が設定されています。",
+    "noIntegrations": "現在利用可能な統合はありません。",
+    "addNew": "新しい統合を追加",
+    "dialog": {
+      "add": "追加",
+      "edit": "編集",
+      "createIntegration": "統合を作成",
+      "updateIntegration": "統合を更新",
+      "selectType": "統合タイプを選択",
+      "integrationType": "統合タイプ",
+      "chooseService": "統合するサービスを選択してください",
+      "cannotBeChanged": "（変更不可）",
+      "integrationTypes": {
+        "github": "GitHub",
+        "jira": "Jira"
+      },
+      "placeholders": {
+        "githubRepo": "私のGitHubリポジトリ",
+        "jiraProject": "私のJiraプロジェクト"
+      }
+    },
+    "github": {
+      "configuration": "GitHub設定",
+      "personalAccessToken": "GitHubパーソナルアクセストークン",
+      "tokenHelp": "PATには以下のスコープが必要です: repo（プライベートリポジトリ用）とadmin:org_hook（組織のWebhook用）。",
+      "createToken": "新しいトークンを作成",
+      "targetType": "対象タイプ",
+      "singleRepository": "単一リポジトリ",
+      "entireOrganization": "組織全体",
+      "repositoryUrl": "リポジトリURL",
+      "repositoryUrlPlaceholder": "https://github.com/owner/repository",
+      "repositoryUrlHelp": "GitHubリポジトリの完全なURL。空白の場合、すべてのユーザーリポジトリに対して統合が作成されます。",
+      "organizationName": "組織名",
+      "organizationNamePlaceholder": "my-org",
+      "organizationNameHelp": "GitHub組織名（完全なURLではありません）"
+    },
+    "jira": {
+      "configuration": "Jira設定",
+      "instanceType": "インスタンスタイプ",
+      "jiraCloud": "Jira Cloud",
+      "jiraServerDataCenter": "Jira Server/Data Center",
+      "jiraCloudUrl": "Jira Cloud URL",
+      "jiraServerUrl": "Jira Server URL",
+      "jiraCloudUrlPlaceholder": "https://your-domain.atlassian.net",
+      "jiraServerUrlPlaceholder": "https://your-jira-server.com",
+      "jiraCloudUrlHelp": "AtlassianクラウドインスタンスのURL",
+      "jiraServerUrlHelp": "オンプレミスJiraサーバーのURL",
+      "emailAddress": "メールアドレス",
+      "emailPlaceholder": "your-email@company.com",
+      "emailHelp": "Jiraアカウントに関連付けられたメールアドレス",
+      "apiToken": "APIトークン",
+      "passwordApiToken": "パスワード/APIトークン",
+      "apiTokenHelp": "Atlassianアカウント設定でAPIトークンを作成してください",
+      "serverPasswordHelp": "JiraパスワードまたはAPIトークン（推奨）",
+      "projectKey": "プロジェクトキー（オプション）",
+      "projectKeyPlaceholder": "PROJ",
+      "projectKeyHelp": "特定のプロジェクトに統合を制限するにはプロジェクトキーを指定し、すべてのプロジェクトの場合は空白のままにしてください",
+      "serverAlert": "Jira Server/Data Centerインスタンスの場合、サーバーが当サービスからアクセス可能で、課題の作成と管理に必要な権限があることを確認してください。"
+    },
+    "forms": {
+      "name": "名前",
+      "description": "説明",
+      "testConnection": "接続をテスト",
+      "testingConnection": "接続をテスト中...",
+      "fillRequiredFields": "まず必須フィールドをすべて入力してください。",
+      "orgIdNotAvailable": "組織IDが利用できません。ページを更新して再試行してください。",
+      "connectionTestSuccess": "接続テストが成功しました！",
+      "connectionTestFailed": "接続テストが失敗しました",
+      "connectionNotImplemented": "{{type}}の接続テストはまだ実装されていません。",
+      "noHelpAvailable": "この統合タイプのヘルプは利用できません。"
+    }
+  },
+  "onboarding": {
+    "title": "オンボーディング",
+    "subtitle": "AIがプロジェクトを実行可能なステップに分割するお手伝いをします",
+    "loadingInitiative": "イニシアチブを読み込み中..."
+  },
+  "auth": {
+    "login": "ログイン",
+    "logout": "ログアウト",
+    "welcome": "おかえりなさい！",
+    "signIn": "サインイン"
+  },
+  "forms": {
+    "required": "このフィールドは必須です",
+    "invalidEmail": "有効なメールアドレスを入力してください",
+    "passwordTooShort": "パスワードは8文字以上である必要があります",
+    "passwordMismatch": "パスワードが一致しません"
+  },
+  "alerts": {
+    "deleteSuccess": "正常に削除されました",
+    "createSuccess": "正常に作成されました",
+    "updateSuccess": "正常に更新されました",
+    "saveSuccess": "正常に保存されました",
+    "errorOccurred": "エラーが発生しました",
+    "tryAgain": "もう一度お試しください"
+  },
+  "workflow": {
+    "templates": {
+      "title": "ワークフローテンプレート",
+      "searchPlaceholder": "テンプレートを検索...",
+      "sortBy": "並び替え",
+      "order": "順序",
+      "filters": "フィルター",
+      "activeFilters": "アクティブなフィルター",
+      "filterByStatus": "ステータスでフィルター",
+      "noResults": "ワークフローが見つかりません",
+      "tryAdjustingFilters": "フィルターを調整してください"
+    },
+    "fields": {
+      "name": "名前",
+      "created": "作成日",
+      "updated": "更新日",
+      "executions": "実行回数",
+      "search": "検索",
+      "nodes": "ノード",
+      "lastExecuted": "最終実行"
+    },
+    "sort": {
+      "ascending": "昇順",
+      "descending": "降順"
+    },
+    "diagram": {
+      "noNodes": "ワークフローノードが見つかりません",
+      "simulationMode": "シミュレーションモード",
+      "loadingStructure": "ワークフロー構造を読み込み中..."
+    },
+    "status": {
+      "current": "現在"
+    },
+    "node": {
+      "hasConfiguration": "設定あり"
+    },
+    "errors": {
+      "loadTemplate": "ワークフローテンプレートの読み込みに失敗しました: {{error}}",
+      "loadTemplates": "ワークフローテンプレートの読み込みに失敗しました: {{error}}"
+    },
+    "actions": {
+      "back": "戻る",
+      "refresh": "更新",
+      "execute": "実行",
+      "simulate": "シミュレート",
+      "edit": "編集",
+      "share": "共有",
+      "export": "エクスポート",
+      "clearFilters": "フィルターをクリア",
+      "view": "表示",
+      "details": "詳細"
+    },
+    "tabs": {
+      "overview": "概要",
+      "diagram": "図表",
+      "simulation": "シミュレーション",
+      "executions": "実行履歴",
+      "analytics": "分析",
+      "raw": "生データ"
+    },
+    "simulation": {
+      "loadingStructure": "ワークフロー構造を読み込み中..."
+    },
+    "never": "なし"
+  },
+  "conversation": {
+    "suggestedAction": {
+      "generated": "生成済み",
+      "rejected": "却下"
+    }
+  }
+}

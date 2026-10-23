@@ -1,0 +1,323 @@
+# Durable identity and lifecycle for explicit user-launched Agent Session work.
+
+AgentOperationId:
+  type: string
+  format: uuid
+  description: >-
+    Fresh identity for one explicit user gesture. It is distinct from
+    authorization, Message, Run, trigger-message, and delivery identities.
+
+AgentOperationFingerprint:
+  type: string
+  minLength: 64
+  maxLength: 64
+  pattern: '^[a-f0-9]{64}$'
+  description: >-
+    Lowercase SHA-256 of the RFC 8785 canonical semantic request. The
+    authorization envelope and operation metadata are excluded.
+
+AgentOperationKind:
+  type: string
+  enum: [START_RUN, DIRECT_TRIGGER, WORKFLOW_ANSWER, SESSION_MONITOR_DECISION]
+
+AgentOperationState:
+  type: string
+  enum:
+    - CREATED
+    - RESOLVING_AUTHORIZATION
+    - AWAITING_APPROVAL
+    - SUBMITTING
+    - ROUTING_PENDING
+    - AWAITING_WORKFLOW_RESOLUTION
+    - DISPATCH_PENDING
+    - RECONCILING
+    - SUCCEEDED
+    - CANCELLED
+    - DENIED
+    - FAILED
+
+AgentOperationSnapshot:
+  type: object
+  additionalProperties: false
+  required: [operationId, kind, fingerprint, state]
+  properties:
+    operationId:
+      $ref: '#/AgentOperationId'
+    kind:
+      $ref: '#/AgentOperationKind'
+    fingerprint:
+      $ref: '#/AgentOperationFingerprint'
+    state:
+      $ref: '#/AgentOperationState'
+    messageId:
+      $ref: './common.yaml#/MessageId'
+    triggerMessageId:
+      $ref: './common.yaml#/MessageId'
+    code:
+      type: string
+    message:
+      type: string
+  description: >-
+    Read-only durable projection of one interactive operation. DISPATCH_PENDING
+    means the atomic submission committed and the durable CLI delivery
+    obligation is retryable but not yet acknowledged. Terminal rows never
+    return to a non-terminal state.
+
+WorkflowAnswerInput:
+  type: object
+  additionalProperties: false
+  required: [kind, workflowName, nodeId, parentMessageId, action, payload]
+  properties:
+    kind:
+      type: string
+      enum: [WORKFLOW_ANSWER]
+    workflowName:
+      $ref: './conversations.yaml#/WorkflowName'
+    nodeId:
+      type: string
+      minLength: 1
+    parentMessageId:
+      $ref: './common.yaml#/MessageId'
+      description: >-
+        The interactive SYSTEM message answered by this operation. The API
+        validates that it belongs to the bound conversation and persists the
+        accepted USER evidence message as its direct response.
+    action:
+      type: string
+      minLength: 1
+      description: >-
+        Explicit action discriminator supplied by the selected workflow
+        control. Generic UI decisions are not workflow actions.
+    payload:
+      type: object
+      additionalProperties: true
+      description: >-
+        The selected action's inner object payload. Field-keyed form maps,
+        action wrappers, and legacy UI decision envelopes are not accepted as
+        substitutes for this payload.
+    evidence:
+      type: object
+      additionalProperties: false
+      properties:
+        comment:
+          type: string
+        fields:
+          type: object
+          additionalProperties: true
+
+SubmitWorkflowAnswerRequestDto:
+  type: object
+  additionalProperties: false
+  required:
+    - operationId
+    - operationFingerprint
+    - agentSessionId
+    - conversationId
+    - authorization
+    - input
+  properties:
+    operationId:
+      $ref: '#/AgentOperationId'
+    operationFingerprint:
+      $ref: '#/AgentOperationFingerprint'
+    agentSessionId:
+      $ref: './common.yaml#/AgentSessionId'
+    conversationId:
+      $ref: './common.yaml#/ConversationId'
+    authorization:
+      $ref: './controller-authorization.yaml#/AdmissionEnvelopeAuthorization'
+    input:
+      $ref: '#/WorkflowAnswerInput'
+
+SubmitWorkflowAnswerResponseDto:
+  type: object
+  additionalProperties: false
+  required: [operationId, operationFingerprint, operationState]
+  properties:
+    operationId:
+      $ref: '#/AgentOperationId'
+    operationFingerprint:
+      $ref: '#/AgentOperationFingerprint'
+    operationState:
+      type: string
+      enum:
+        - ROUTING_PENDING
+        - AWAITING_WORKFLOW_RESOLUTION
+        - DISPATCH_PENDING
+        - SUCCEEDED
+        - DENIED
+        - FAILED
+        - CANCELLED
+
+AgentOperationResult:
+  allOf:
+    - $ref: '#/AgentOperationSnapshot'
+    - type: object
+      required: [state]
+      properties:
+        state:
+          type: string
+          enum: [SUCCEEDED, CANCELLED, DENIED, FAILED]
+
+AgentInputDisposition:
+  type: string
+  enum: [IMMEDIATE, QUEUED, NONE]
+  description: >-
+    Recorded with the CLI's durable admission and replayed unchanged for
+    duplicate deliveries. IMMEDIATE: admission and the Run's single execution
+    reservation committed together; no earlier input, active work, or
+    execution hold blocks it. QUEUED: the admitted input waits behind active
+    work, earlier inputs, or an execution hold. NONE: the operation admitted no
+    executable input (a materialize-only start or a Task Monitor command).
+    Neither IMMEDIATE nor QUEUED means execution has started.
+
+AgentOperationDispatchAcceptedAcknowledgement:
+  type: object
+  additionalProperties: false
+  required: [status, operationId, operationFingerprint, replayed, inputDisposition]
+  properties:
+    status:
+      type: string
+      enum: [ACCEPTED]
+    operationId:
+      $ref: '#/AgentOperationId'
+    operationFingerprint:
+      $ref: '#/AgentOperationFingerprint'
+    replayed:
+      type: boolean
+    inputDisposition:
+      $ref: '#/AgentInputDisposition'
+  description: >-
+    The CLI durably claimed this operation and accepted its Run or Turn for
+    execution. Provider completion is explicitly outside this acknowledgement.
+
+AgentOperationDispatchRejectedAcknowledgement:
+  type: object
+  additionalProperties: false
+  required: [status, stage, reason]
+  properties:
+    status:
+      type: string
+      enum: [REJECTED]
+    stage:
+      type: string
+      enum: [VERIFICATION, ADMISSION, EXECUTION]
+    reason:
+      type: string
+      enum:
+        - SCHEMA_INVALID
+        - AUTHORIZATION_REJECTED
+        - OPERATION_FINGERPRINT_MISMATCH
+        - EXECUTION_FAILED
+        - SERVICE_FOLDER_NOT_BOUND
+        - INTERNAL_ERROR
+    unboundServiceIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: Required when reason is SERVICE_FOLDER_NOT_BOUND; the session's Services with no folder on this machine.
+  description: >-
+    The CLI explicitly rejected the operation before accepting semantic work.
+    Missing transport acknowledgement is not represented by this shape and
+    cannot be interpreted as rejection.
+
+AgentOperationDispatchAcknowledgement:
+  oneOf:
+    - $ref: '#/AgentOperationDispatchAcceptedAcknowledgement'
+    - $ref: '#/AgentOperationDispatchRejectedAcknowledgement'
+  discriminator:
+    propertyName: status
+    mapping:
+      ACCEPTED: '#/AgentOperationDispatchAcceptedAcknowledgement'
+      REJECTED: '#/AgentOperationDispatchRejectedAcknowledgement'
+
+
+InputCancellationRequest:
+  type: object
+  additionalProperties: false
+  required: [agentSessionId, messageId]
+  properties:
+    agentSessionId:
+      $ref: './common.yaml#/AgentSessionId'
+    messageId:
+      $ref: './common.yaml#/MessageId'
+
+ServiceFolderNotBoundFailure:
+  type: object
+  additionalProperties: false
+  required: [reason, serviceIds]
+  properties:
+    reason:
+      type: string
+      enum: [service_folder_not_bound]
+    serviceIds:
+      type: array
+      minItems: 1
+      items:
+        type: string
+        format: uuid
+      description: The session's Services with no folder bound on this machine.
+  description: >-
+    Why an input ended failed: the run it needs cannot be created because these
+    Services have no folder on the machine. Definitive until the user binds a
+    folder, so it is never retried.
+
+InputExecutionProjection:
+  type: object
+  additionalProperties: false
+  required: [operationId, operationFingerprint, messageId, admissionId, revision, executionStatus]
+  properties:
+    operationId:
+      $ref: '#/AgentOperationId'
+    operationFingerprint:
+      $ref: '#/AgentOperationFingerprint'
+    messageId:
+      $ref: './common.yaml#/MessageId'
+    admissionId:
+      type: string
+      format: uuid
+    revision:
+      type: integer
+      minimum: 1
+    executionStatus:
+      $ref: './conversations.yaml#/MessageExecutionStatus'
+    turnId:
+      type: string
+      format: uuid
+      description: Required for started; the exact execution selected by the durable owner.
+    failure:
+      $ref: '#/ServiceFolderNotBoundFailure'
+
+InputCancellationResponse:
+  type: object
+  additionalProperties: false
+  required: [executionStatus, cancellationRequested]
+  properties:
+    executionStatus:
+      $ref: './conversations.yaml#/MessageExecutionStatus'
+    cancellationRequested:
+      type: boolean
+
+InputExecutionProjectionResponse:
+  type: object
+  additionalProperties: false
+  required: [accepted]
+  properties:
+    accepted:
+      type: boolean
+
+InputExecutionIdentity:
+  type: object
+  additionalProperties: false
+  required: [operationId, operationFingerprint, messageId]
+  properties:
+    operationId:
+      type: string
+      format: uuid
+    operationFingerprint:
+      type: string
+      pattern: '^[a-f0-9]{64}$'
+    messageId:
+      type: string
+      format: uuid

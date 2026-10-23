@@ -1,0 +1,69 @@
+# Logs
+logs
+*.log
+*.logs
+*.text
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# temporally disable ignoring these
+# /src/api
+# /src/api/docs
+# /src/local-agent-api/generated/docs
+# /src/local-agent-api/generated/.openapi-generator
+# /src/local-agent-api/generated/package.json
+# /src/local-agent-api/generated/README.md
+# /src/local-agent-api/generated/tsconfig*.json
+# /src/local-agent-api/generated/.gitignore
+# /src/local-agent-api/generated/.npmignore
+# /src/local-agent-api/generated/.openapi-generator-ignore
+# /src/local-agent-api/generated/git_push.sh
+# /src/api/package.json
+# /src/api/README.md
+# /src/api/tsconfig*.json
+# /src/api/.gitignore
+# /src/api/.npmignore
+# /src/api/git_push.sh
+
+
+node_modules
+.pnpm-store/
+dist
+dist-ssr
+storybook-static/
+*.local
+screens/
+.tmp/
+diagrams/
+
+# TS project-references build cache
+.tsbuild/
+*.tsbuildinfo
+
+# Git worktrees
+.worktrees/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Merge/patch leftovers
+*.orig
+*.rej
+
+# Agent run output written at the repository root
+/proposals.json
+/partial_task_generation.json
+/*-handoff.json
+/*-report.json

@@ -1,0 +1,579 @@
+NotificationStatus:
+  type: string
+  enum:
+    - unread
+    - read
+    - acknowledged
+    - dismissed
+  description: Read-state lifecycle for a notification record.
+
+NotificationChannel:
+  type: string
+  enum:
+    - in-app
+    - session_mention
+  description: Supported delivery channels for user-facing notifications.
+
+NotificationEventType:
+  type: string
+  enum:
+    - report.created
+    - task.completed
+    - child_unblocked
+    - system_message
+    - session_report_ready
+    - session_auto_decided
+    - session_review_needed
+    - pull_request.merged
+  description: Canonical notification event types used by the event system. child_unblocked is retained for backward compatibility and is no longer emitted for new notifications. system_message is emitted when a system message has triggerNotification set. session_report_ready is emitted when an agent session has produced a report ready for user review. session_auto_decided is emitted when the session-monitor has auto-decided a response to a report on the user's behalf. session_review_needed is emitted when the session-monitor has decided the report requires human review. pull_request.merged is emitted when an accepted project-scoped GitHub webhook records a merged pull request. Both session-monitor variants are display-only notification frames per CLI Channel Security — notification frames never cause execution and are NOT modeled as trigger frames anywhere.
+
+NotificationAffectedEntityRef:
+  type: object
+  required:
+    - id
+    - type
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Canonical entity identifier returned by the affected entity service.
+    type:
+      $ref: "./common.yaml#/EntityType"
+    role:
+      type: string
+      description: Optional role of the entity in the event context (origin, impacted, recipient).
+  description: Entity reference resolved dynamically from affected-entity calculations.
+
+ReportCreatedPayload:
+  type: object
+  additionalProperties: false
+  required:
+    - nextSteps
+    - verificationTasks
+    - recommendedUpdates
+  properties:
+    nextSteps:
+      $ref: "./reports.yaml#/ReportNextSteps"
+    verificationTasks:
+      $ref: "./reports.yaml#/ReportVerificationTasks"
+    recommendedUpdates:
+      $ref: "./reports.yaml#/ReportRecommendedUpdates"
+  description: Payload for report.created notifications carrying report recommendation arrays.
+
+TaskCompletedPayload:
+  type: object
+  additionalProperties: false
+  required:
+    - taskId
+    - taskName
+    - previousStatus
+    - newStatus
+  properties:
+    taskId:
+      type: string
+      format: uuid
+      description: ID of the completed task.
+    taskName:
+      type: string
+      description: Human-readable name of the completed task.
+    previousStatus:
+      $ref: "./common.yaml#/WorkStatus"
+    newStatus:
+      $ref: "./common.yaml#/WorkStatus"
+  description: Payload for task.completed notifications carrying task status transition data.
+
+SystemMessagePayload:
+  type: object
+  additionalProperties: false
+  required:
+    - messageId
+    - conversationId
+    - title
+    - snippet
+  properties:
+    messageId:
+      type: string
+      format: uuid
+      description: ID of the triggering system message.
+    conversationId:
+      type: string
+      format: uuid
+      description: Conversation the message belongs to.
+    title:
+      type: string
+      description: Title or header of the system message.
+    snippet:
+      type: string
+      description: Truncated preview of the message content.
+    aboutType:
+      type: string
+      description: >-
+        The workflow entity type the conversation is about
+        (e.g. task, initiative, design-doc, plan).
+        Mirrors the conversation's workflowAboutType.
+    aboutId:
+      type: string
+      format: uuid
+      description: >-
+        ID of the entity the conversation is about.
+        Mirrors the conversation's workflowAboutId.
+    planId:
+      type: string
+      format: uuid
+      description: >-
+        Plan ID when the conversation's about-entity
+        is linked to a plan (e.g. a task that is a plan step).
+    initiativeId:
+      type: string
+      format: uuid
+      description: >-
+        Initiative ID when the about-entity is a task
+        belonging to an initiative.
+  description: Payload for system_message notifications carrying message context and navigation hints.
+
+SessionReportReadyPayload:
+  type: object
+  additionalProperties: false
+  required:
+    - sessionId
+    - reportId
+    - sessionTitle
+    - reportTitle
+    - reportType
+  properties:
+    sessionId:
+      type: string
+      format: uuid
+      description: ID of the agent session that produced the report.
+    reportId:
+      type: string
+      format: uuid
+      description: ID of the report that is ready for user review.
+    sessionTitle:
+      type: string
+      description: Human-readable title of the agent session.
+    reportTitle:
+      type: string
+      description: Human-readable title of the report (mirrors ReportDto.title).
+    reportType:
+      $ref: "./reports.yaml#/ReportType"
+  description: Payload for session_report_ready notifications carrying agent-session and report identifiers, display titles, and the report type used to derive notification copy.
+
+SessionAutoDecidedPayload:
+  type: object
+  additionalProperties: false
+  required:
+    - sessionId
+    - reportId
+  properties:
+    sessionId:
+      type: string
+      format: uuid
+      description: ID of the agent session whose report was auto-decided on.
+    reportId:
+      type: string
+      format: uuid
+      description: ID of the report the session-monitor auto-decided a response to.
+  description: >
+    Payload for session_auto_decided notifications. Display-only frame
+    surfacing that the session-monitor responded to a report on the
+    user's behalf — carries only the session and report identifiers
+    needed for the client to navigate; it is NOT a trigger frame and
+    never causes execution.
+
+SessionReviewNeededPayload:
+  type: object
+  additionalProperties: false
+  required:
+    - sessionId
+    - reportId
+  properties:
+    sessionId:
+      type: string
+      format: uuid
+      description: ID of the agent session whose report needs human review.
+    reportId:
+      type: string
+      format: uuid
+      description: ID of the report the session-monitor flagged for user review.
+  description: >
+    Payload for session_review_needed notifications. Display-only frame
+    surfacing that the session-monitor decided the report requires
+    human review — carries only the session and report identifiers
+    needed for the client to navigate; it is NOT a trigger frame and
+    never causes execution.
+
+PullRequestMergedPayload:
+  type: object
+  additionalProperties: false
+  required:
+    - repositoryName
+    - pullRequestNumber
+    - pullRequestTitle
+    - pullRequestUrl
+    - mergedAt
+    - actorLogin
+  properties:
+    repositoryName:
+      type: string
+      description: Full GitHub repository name in owner/repository form.
+    pullRequestNumber:
+      type: integer
+      minimum: 1
+      description: GitHub pull-request number.
+    pullRequestTitle:
+      type: string
+      description: Title of the merged pull request at acceptance time.
+    pullRequestUrl:
+      type: string
+      format: uri
+      description: Canonical GitHub URL for the merged pull request.
+    mergedAt:
+      type: string
+      format: date-time
+      description: GitHub merge timestamp.
+    actorLogin:
+      type: string
+      description: GitHub login of the actor who merged the pull request.
+    taskId:
+      type: string
+      format: uuid
+      description: Optional Hey Hey task linked to the pull-request artifact.
+  description: Payload for pull_request.merged notifications carrying the accepted GitHub merge facts and optional task navigation context.
+
+ChildUnblockedPayload:
+  type: object
+  additionalProperties: false
+  required:
+    - parentEntityId
+    - parentEntityType
+    - unblockedChildIds
+  properties:
+    parentEntityId:
+      type: string
+      format: uuid
+      description: ID of the parent entity whose completion unblocked children.
+    parentEntityType:
+      $ref: "./common.yaml#/EntityType"
+    unblockedChildIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: IDs of entities that were unblocked.
+  description: Payload for child_unblocked notifications. Retained for backward compatibility.
+
+NotificationDtoBase:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - entityId
+    - entityType
+    - entityTitle
+    - affectedEntities
+    - payload
+    - createdAt
+    - status
+  properties:
+    id:
+      type: string
+      format: uuid
+    entityId:
+      type: string
+      format: uuid
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    entityTitle:
+      type: string
+      description: Human-readable title for the primary entity represented by this notification.
+    affectedEntities:
+      type: array
+      minItems: 1
+      items:
+        $ref: "#/NotificationAffectedEntityRef"
+    payload:
+      type: object
+      description: Event-specific payload. Concrete shape depends on eventType.
+    createdAt:
+      type: string
+      format: date-time
+    status:
+      $ref: "#/NotificationStatus"
+    readAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Set when user marks the notification as read.
+    acknowledgedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Set when user acknowledges the notification.
+    dismissedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Set when user dismisses a notification.
+  description: Base shape shared by all notification variants.
+
+ReportCreatedNotificationDto:
+  allOf:
+    - $ref: "#/NotificationDtoBase"
+    - type: object
+      required:
+        - eventType
+        - payload
+      properties:
+        eventType:
+          type: string
+          enum:
+            - report.created
+        payload:
+          $ref: "#/ReportCreatedPayload"
+
+TaskCompletedNotificationDto:
+  allOf:
+    - $ref: "#/NotificationDtoBase"
+    - type: object
+      required:
+        - eventType
+        - payload
+      properties:
+        eventType:
+          type: string
+          enum:
+            - task.completed
+        payload:
+          $ref: "#/TaskCompletedPayload"
+
+ChildUnblockedNotificationDto:
+  allOf:
+    - $ref: "#/NotificationDtoBase"
+    - type: object
+      required:
+        - eventType
+        - payload
+      properties:
+        eventType:
+          type: string
+          enum:
+            - child_unblocked
+        payload:
+          $ref: "#/ChildUnblockedPayload"
+
+SystemMessageNotificationDto:
+  allOf:
+    - $ref: "#/NotificationDtoBase"
+    - type: object
+      required:
+        - eventType
+        - payload
+      properties:
+        eventType:
+          type: string
+          enum:
+            - system_message
+        payload:
+          $ref: "#/SystemMessagePayload"
+
+SessionReportReadyNotificationDto:
+  allOf:
+    - $ref: "#/NotificationDtoBase"
+    - type: object
+      required:
+        - eventType
+        - payload
+      properties:
+        eventType:
+          type: string
+          enum:
+            - session_report_ready
+        payload:
+          $ref: "#/SessionReportReadyPayload"
+
+SessionAutoDecidedNotificationDto:
+  allOf:
+    - $ref: "#/NotificationDtoBase"
+    - type: object
+      required:
+        - eventType
+        - payload
+      properties:
+        eventType:
+          type: string
+          enum:
+            - session_auto_decided
+        payload:
+          $ref: "#/SessionAutoDecidedPayload"
+
+SessionReviewNeededNotificationDto:
+  allOf:
+    - $ref: "#/NotificationDtoBase"
+    - type: object
+      required:
+        - eventType
+        - payload
+      properties:
+        eventType:
+          type: string
+          enum:
+            - session_review_needed
+        payload:
+          $ref: "#/SessionReviewNeededPayload"
+
+PullRequestMergedNotificationDto:
+  allOf:
+    - $ref: "#/NotificationDtoBase"
+    - type: object
+      required:
+        - eventType
+        - payload
+      properties:
+        eventType:
+          type: string
+          enum:
+            - pull_request.merged
+        payload:
+          $ref: "#/PullRequestMergedPayload"
+
+NotificationDto:
+  oneOf:
+    - $ref: "#/ReportCreatedNotificationDto"
+    - $ref: "#/TaskCompletedNotificationDto"
+    - $ref: "#/ChildUnblockedNotificationDto"
+    - $ref: "#/SystemMessageNotificationDto"
+    - $ref: "#/SessionReportReadyNotificationDto"
+    - $ref: "#/SessionAutoDecidedNotificationDto"
+    - $ref: "#/SessionReviewNeededNotificationDto"
+    - $ref: "#/PullRequestMergedNotificationDto"
+  discriminator:
+    propertyName: eventType
+    mapping:
+      report.created: "#/ReportCreatedNotificationDto"
+      task.completed: "#/TaskCompletedNotificationDto"
+      child_unblocked: "#/ChildUnblockedNotificationDto"
+      system_message: "#/SystemMessageNotificationDto"
+      session_report_ready: "#/SessionReportReadyNotificationDto"
+      session_auto_decided: "#/SessionAutoDecidedNotificationDto"
+      session_review_needed: "#/SessionReviewNeededNotificationDto"
+      pull_request.merged: "#/PullRequestMergedNotificationDto"
+  description: Discriminated notification union keyed by event type.
+
+NotificationDeliveryMetadata:
+  type: object
+  required:
+    - channel
+    - transport
+  properties:
+    channel:
+      $ref: "#/NotificationChannel"
+    transport:
+      type: string
+      enum:
+        - websocket
+        - polling
+      description: Transport used for this delivery event.
+    deliveredAt:
+      type: string
+      format: date-time
+      description: Delivery timestamp for this channel.
+    attempt:
+      type: integer
+      minimum: 1
+      description: Delivery attempt sequence number.
+
+NotificationClientHandlingHints:
+  type: object
+  additionalProperties: false
+  properties:
+    shouldToast:
+      type: boolean
+      default: true
+      description: Whether the client should surface toast-style UI.
+    shouldBadge:
+      type: boolean
+      default: true
+      description: Whether the client should increment unread badge counters.
+    dismissible:
+      type: boolean
+      default: true
+      description: Whether the notification can be dismissed from the client.
+    priority:
+      type: string
+      enum:
+        - normal
+        - high
+      default: normal
+      description: Hint for client rendering priority.
+    deepLink:
+      type: string
+      description: Optional in-product navigation target.
+
+NotificationPushEventPayload:
+  type: object
+  required:
+    - notification
+    - delivery
+    - clientHints
+  properties:
+    notification:
+      $ref: "#/NotificationDto"
+    delivery:
+      $ref: "#/NotificationDeliveryMetadata"
+    clientHints:
+      $ref: "#/NotificationClientHandlingHints"
+  description: Payload delivered over websocket for newly available notifications.
+
+NotificationChannelSubscription:
+  type: object
+  required:
+    - channel
+    - enabled
+  properties:
+    channel:
+      $ref: "#/NotificationChannel"
+    enabled:
+      type: boolean
+      description: Whether notifications are delivered for this channel.
+    deliveryMode:
+      type: string
+      enum:
+        - immediate
+        - muted
+      default: immediate
+      description: User preference for handling this channel.
+
+NotificationPreferencesDto:
+  type: object
+  required:
+    - userId
+    - organizationId
+    - subscriptions
+    - updatedAt
+  properties:
+    userId:
+      type: string
+      format: uuid
+    organizationId:
+      type: string
+      format: uuid
+    subscriptions:
+      type: array
+      minItems: 1
+      items:
+        $ref: "#/NotificationChannelSubscription"
+    updatedAt:
+      type: string
+      format: date-time
+
+UpdateNotificationPreferencesDto:
+  type: object
+  required:
+    - subscriptions
+  properties:
+    subscriptions:
+      type: array
+      minItems: 1
+      items:
+        $ref: "#/NotificationChannelSubscription"

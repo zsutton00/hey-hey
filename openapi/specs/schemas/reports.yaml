@@ -1,0 +1,2723 @@
+ReportType:
+  type: string
+  enum:
+    - PROJECT_REPORT
+    - CODING_RESEARCH
+    - EVIDENCE_PIPELINE
+    - SNAPSHOT
+    - ROLLUP_PROPOSAL
+    - DAILY_SESSION
+    - GOAL_PROGRESS
+    - RISK_ALERT
+    - SESSION_SUMMARY
+    - COMMIT
+    - PLAN
+    - IMPLEMENT
+    - REVIEW
+    - CHANGE_WALKTHROUGH
+    - FEATURE_SYNC
+    - FEATURE_SYNC_HANDOFF
+    - FEATURE_SYNC_DECISION
+    - DECISION_NEEDED
+    - PHASE_GROUNDING
+    - VALIDATION_WALKTHROUGH
+    - FEATURE_TREE_ANALYSIS
+    - COMPETITIVE_ANALYSIS
+    - SESSION_MONITOR_DEFERRAL
+    - EVAL_RUN
+    - EVAL_ATTEMPT
+    - EVAL_HUMAN_REVIEW
+
+ReportAudience:
+  type: string
+  enum:
+    - WORKFLOW_ONLY
+    - PROJECT_VISIBLE
+    - ORGANIZATION_VISIBLE
+
+ReportEntityRelation:
+  type: string
+  enum:
+    - PRIMARY
+    - CONTEXT
+
+ReportRelatedEntityType:
+  type: string
+  enum:
+    - ARTIFACT
+    - INITIATIVE
+    - PROJECT
+    - TASK
+    - MESSAGE
+    - CONVERSATION
+    - DESIGN_DOC
+    - AGENT_SESSION
+    - SERVICE
+    - GOAL
+
+ReportSortBy:
+  type: string
+  description: Field to sort listed reports by.
+  enum:
+    - createdAt
+
+ReportSortOrder:
+  type: string
+  description: Sort order for listed reports.
+  enum:
+    - ASC
+    - DESC
+
+FileTouchIndexEntryDto:
+  type: object
+  required:
+    - id
+    - projectId
+    - serviceId
+    - featureId
+    - attachedEntityType
+    - attachedEntityId
+    - reportId
+    - agentSessionId
+    - normalizedPath
+    - createdAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    projectId:
+      type: string
+      format: uuid
+    serviceId:
+      type: string
+      format: uuid
+    featureId:
+      type: string
+      format: uuid
+      nullable: true
+    attachedEntityType:
+      $ref: "#/ReportRelatedEntityType"
+    attachedEntityId:
+      type: string
+      format: uuid
+    reportId:
+      type: string
+      format: uuid
+    agentSessionId:
+      type: string
+      format: uuid
+    normalizedPath:
+      type: string
+      description: Normalized repo-relative path from an IMPLEMENT report.
+    createdAt:
+      type: string
+      format: date-time
+
+FileTouchIndexEntriesDto:
+  type: object
+  required:
+    - entries
+  properties:
+    entries:
+      type: array
+      items:
+        $ref: "#/FileTouchIndexEntryDto"
+
+FileTouchReferenceCandidateDto:
+  type: object
+  description: >
+    A unique historical file-reference candidate observed in persisted
+    IMPLEMENT report evidence.
+  required:
+    - serviceId
+    - serviceName
+    - normalizedPath
+  properties:
+    serviceId:
+      type: string
+      format: uuid
+      description: Stable identity of the service that owns the path.
+    serviceName:
+      type: string
+      description: Display name of the service that owns the path.
+    normalizedPath:
+      type: string
+      description: Normalized repo-relative path observed in historical evidence.
+
+FileTouchReferenceCandidatesDto:
+  type: object
+  description: >
+    The complete, unpaginated set of unique historical file-reference
+    candidates for the requested work scope. Candidates are deduplicated by
+    service identity plus normalized path and do not represent a live
+    repository inventory.
+  required:
+    - candidates
+  properties:
+    candidates:
+      type: array
+      items:
+        $ref: "#/FileTouchReferenceCandidateDto"
+
+FileTouchHistoryFileDto:
+  type: object
+  description: >
+    A unique historical file observed in persisted IMPLEMENT report evidence.
+  required:
+    - serviceId
+    - serviceName
+    - normalizedPath
+  properties:
+    serviceId:
+      type: string
+      format: uuid
+      description: Stable identity of the service that owns the path.
+    serviceName:
+      type: string
+      description: Display name of the service that owns the path.
+    normalizedPath:
+      type: string
+      description: Normalized repo-relative path observed in historical evidence.
+
+FileTouchTaskFilesDto:
+  type: object
+  description: Historical files for one focal STANDARD or BUG work item.
+  required:
+    - kind
+    - files
+  properties:
+    kind:
+      type: string
+      enum:
+        - task
+    files:
+      type: array
+      items:
+        $ref: "#/FileTouchHistoryFileDto"
+
+FileTouchFeatureSectionDto:
+  type: object
+  description: >
+    Files attributed directly to one feature in the requested active feature
+    subtree.
+  required:
+    - featureId
+    - featureName
+    - featurePath
+    - files
+  properties:
+    featureId:
+      type: string
+      format: uuid
+    featureName:
+      type: string
+    featurePath:
+      type: string
+      description: Slash-delimited active feature hierarchy path.
+    files:
+      type: array
+      items:
+        $ref: "#/FileTouchHistoryFileDto"
+
+FileTouchFeatureFilesDto:
+  type: object
+  description: >
+    Historical files sectioned by persisted direct feature ownership across
+    the requested active feature subtree.
+  required:
+    - kind
+    - sections
+  properties:
+    kind:
+      type: string
+      enum:
+        - feature
+    sections:
+      type: array
+      items:
+        $ref: "#/FileTouchFeatureSectionDto"
+
+FileTouchWorkHistoryDto:
+  oneOf:
+    - $ref: "#/FileTouchTaskFilesDto"
+    - $ref: "#/FileTouchFeatureFilesDto"
+  discriminator:
+    propertyName: kind
+    mapping:
+      task: "#/FileTouchTaskFilesDto"
+      feature: "#/FileTouchFeatureFilesDto"
+
+FileTouchTaskHistoryEvidenceDto:
+  type: object
+  description: One persisted IMPLEMENT report observation for a file touch.
+  required:
+    - reportId
+    - agentSessionId
+    - agentSessionTitle
+    - createdAt
+  properties:
+    reportId:
+      type: string
+      format: uuid
+    agentSessionId:
+      type: string
+      format: uuid
+    agentSessionTitle:
+      type: string
+      description: Display title of the agent session that produced the evidence.
+    createdAt:
+      type: string
+      format: date-time
+
+FileTouchTaskHistoryEntryDto:
+  type: object
+  description: >
+    One task that touched the requested file, enriched with persisted direct
+    feature attribution and ordered report evidence.
+  required:
+    - taskId
+    - taskName
+    - taskType
+    - directFeatureId
+    - directFeatureName
+    - touchCount
+    - firstTouchedAt
+    - lastTouchedAt
+    - evidence
+  properties:
+    taskId:
+      type: string
+      format: uuid
+    taskName:
+      type: string
+    taskType:
+      type: string
+    directFeatureId:
+      type: string
+      format: uuid
+      nullable: true
+    directFeatureName:
+      type: string
+      nullable: true
+    touchCount:
+      type: integer
+      minimum: 1
+    firstTouchedAt:
+      type: string
+      format: date-time
+    lastTouchedAt:
+      type: string
+      format: date-time
+    evidence:
+      type: array
+      minItems: 1
+      items:
+        $ref: "#/FileTouchTaskHistoryEvidenceDto"
+
+FileTouchTaskHistoryDto:
+  type: object
+  description: Tasks with persisted IMPLEMENT evidence for the requested file.
+  required:
+    - tasks
+  properties:
+    tasks:
+      type: array
+      items:
+        $ref: "#/FileTouchTaskHistoryEntryDto"
+
+FileTouchServiceHistorySortBy:
+  type: string
+  description: Field used to sort the service-scoped historical file collection.
+  enum:
+    - normalizedPath
+    - lastTouchedAt
+    - touchCount
+
+FileTouchServiceHistorySortOrder:
+  type: string
+  description: Sort direction for the service-scoped historical file collection.
+  enum:
+    - ASC
+    - DESC
+
+FileTouchServiceHistoryEntryDto:
+  type: object
+  description: >
+    One normalized repo-relative path observed for a Service in persisted
+    IMPLEMENT report evidence, enriched with its latest active task and agent
+    session evidence.
+  required:
+    - serviceId
+    - serviceName
+    - normalizedPath
+    - touchCount
+    - firstTouchedAt
+    - lastTouchedAt
+    - latestTaskId
+    - latestTaskName
+    - latestTaskType
+    - latestAgentSessionId
+    - latestAgentSessionTitle
+    - latestReportId
+  properties:
+    serviceId:
+      type: string
+      format: uuid
+    serviceName:
+      type: string
+    normalizedPath:
+      type: string
+    touchCount:
+      type: integer
+      minimum: 1
+    firstTouchedAt:
+      type: string
+      format: date-time
+    lastTouchedAt:
+      type: string
+      format: date-time
+    latestTaskId:
+      type: string
+      format: uuid
+    latestTaskName:
+      type: string
+    latestTaskType:
+      type: string
+    latestAgentSessionId:
+      type: string
+      format: uuid
+    latestAgentSessionTitle:
+      type: string
+    latestReportId:
+      type: string
+      format: uuid
+
+FileTouchServiceHistoryDto:
+  type: object
+  description: >
+    A bounded page of unique historical files for one Service. Filtering and
+    sorting are applied before opaque cursor pagination.
+  required:
+    - files
+    - nextCursor
+  properties:
+    files:
+      type: array
+      items:
+        $ref: "#/FileTouchServiceHistoryEntryDto"
+    nextCursor:
+      type: string
+      nullable: true
+      description: Opaque cursor for the next page, or null when no page remains.
+
+BaseReportPayload:
+  type: object
+  description: >
+    Common base shape every ReportPayload variant inherits via `allOf`. Defines
+    the `summary` field that every report carries: a 50-100 word phase handoff
+    capturing what the next agent needs to know to pick up — not a transcript
+    of what happened this turn. Variants compose this base with their own
+    type-specific shape and contribute their own discriminator + required
+    fields; the `summary` requirement flows in from this base.
+  required:
+    - summary
+  properties:
+    summary:
+      type: string
+      minLength: 1
+      description: >
+        50-100 word phase handoff. Captures what the next agent needs to
+        know to pick up — outcomes, decisions, and live constraints — not
+        a turn-by-turn transcript of what happened this run.
+
+ReportNextStepItem:
+  type: object
+  required:
+    - title
+  properties:
+    id:
+      type: string
+      format: uuid
+      nullable: true
+    title:
+      type: string
+    description:
+      type: string
+    ownerId:
+      type: string
+      format: uuid
+      nullable: true
+    dueAt:
+      type: string
+      format: date-time
+      nullable: true
+
+ReportNextSteps:
+  type: array
+  items:
+    $ref: "#/ReportNextStepItem"
+
+ReportVerificationTaskItem:
+  type: object
+  required:
+    - title
+  properties:
+    id:
+      type: string
+      format: uuid
+      nullable: true
+    title:
+      type: string
+    instructions:
+      type: string
+    completed:
+      type: boolean
+      default: false
+
+ReportVerificationTasks:
+  type: array
+  items:
+    $ref: "#/ReportVerificationTaskItem"
+
+ReportRecommendedUpdateItem:
+  type: object
+  required:
+    - summary
+  properties:
+    id:
+      type: string
+      format: uuid
+      nullable: true
+    summary:
+      type: string
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    entityId:
+      type: string
+      format: uuid
+      nullable: true
+
+ReportRecommendedUpdates:
+  type: array
+  items:
+    $ref: "#/ReportRecommendedUpdateItem"
+
+EvidencePipelineReportEvidenceItemSummary:
+  type: object
+  required:
+    - entityId
+    - entityType
+  properties:
+    entityId:
+      type: string
+    entityType:
+      type: string
+    score:
+      type: number
+    source:
+      type: string
+      enum:
+        - semantic_search
+        - unified_search
+
+EvidencePipelineReportSearchStep:
+  type: object
+  required:
+    - query
+    - why
+    - queryPerspective
+    - tool
+  properties:
+    query:
+      description: Search query string or structured query object
+    why:
+      type: string
+    queryPerspective:
+      type: string
+    tool:
+      type: string
+
+EvidencePipelineReportSearchResult:
+  type: object
+  required:
+    - query
+    - why
+    - queryPerspective
+    - fromCache
+    - evidenceItems
+  properties:
+    query:
+      description: Search query string or structured query object
+    why:
+      type: string
+    queryPerspective:
+      type: string
+    fromCache:
+      type: boolean
+    evidenceItems:
+      type: array
+      items:
+        $ref: "#/EvidencePipelineReportEvidenceItemSummary"
+
+EvidencePipelineReportPlannerInput:
+  type: object
+  required:
+    - messageCount
+    - optionKeys
+    - maxRounds
+    - scaffoldedQaAnswerFocus
+  properties:
+    messageCount:
+      type: integer
+    optionKeys:
+      type: array
+      items:
+        type: string
+    maxRounds:
+      type: integer
+    scaffoldedQaAnswerFocus:
+      type: boolean
+
+EvidencePipelineReportExecution:
+  type: object
+  required:
+    - startedAt
+    - completedAt
+    - durationMs
+    - totalSearchSteps
+    - cachedStepCount
+    - uncachedStepCount
+    - errorCount
+  properties:
+    startedAt:
+      type: string
+      format: date-time
+    completedAt:
+      type: string
+      format: date-time
+    durationMs:
+      type: number
+    totalSearchSteps:
+      type: integer
+    cachedStepCount:
+      type: integer
+    uncachedStepCount:
+      type: integer
+    errorCount:
+      type: integer
+
+EvidencePipelineReportPayload:
+  description: Payload for EVIDENCE_PIPELINE reports capturing the full evidence retrieval lifecycle.
+  allOf:
+    - $ref: "#/BaseReportPayload"
+    - type: object
+      required:
+        - reportType
+        - plannerInput
+        - searchSteps
+        - searchResults
+        - selectedEvidenceKeys
+        - excludedEvidenceKeys
+        - hydratedEvidenceKeys
+        - implementationHints
+        - finalEvidence
+        - execution
+      properties:
+        reportType:
+          type: string
+          enum:
+            - EVIDENCE_PIPELINE
+        plannerInput:
+          $ref: "#/EvidencePipelineReportPlannerInput"
+        searchSteps:
+          type: array
+          items:
+            $ref: "#/EvidencePipelineReportSearchStep"
+        searchResults:
+          type: array
+          items:
+            $ref: "#/EvidencePipelineReportSearchResult"
+        selectedEvidenceKeys:
+          type: array
+          items:
+            type: string
+        excludedEvidenceKeys:
+          type: array
+          items:
+            type: string
+        hydratedEvidenceKeys:
+          type: array
+          items:
+            type: string
+        implementationHints:
+          type: array
+          items:
+            $ref: "#/EvidencePipelineReportEvidenceItemSummary"
+        finalEvidence:
+          type: array
+          items:
+            $ref: "#/EvidencePipelineReportEvidenceItemSummary"
+        execution:
+          $ref: "#/EvidencePipelineReportExecution"
+
+DailySessionReportPayload:
+  description: Payload for DAILY_SESSION reports. Empty parent container for child reports.
+  allOf:
+    - $ref: "#/BaseReportPayload"
+    - type: object
+      required:
+        - reportType
+      additionalProperties: true
+      properties:
+        reportType:
+          type: string
+          enum:
+            - DAILY_SESSION
+
+GoalProgressReportPayload:
+  description: Payload for GOAL_PROGRESS reports.
+  allOf:
+    - $ref: "#/BaseReportPayload"
+    - type: object
+      required:
+        - reportType
+        - text
+      additionalProperties: false
+      properties:
+        reportType:
+          type: string
+          enum:
+            - GOAL_PROGRESS
+        summary: {}
+        title:
+          type: string
+          description: Short title summarizing the report finding.
+        text:
+          type: string
+        goalAnchor:
+          type: object
+          description: >
+            Optional reference to the Goal task this progress report is about.
+            The referenced goal must belong to the same project as the report;
+            cross-project anchors are rejected by the service layer. Only valid
+            on GOAL_PROGRESS payloads — siblings reject this field outright.
+          required:
+            - entityType
+            - entityId
+          additionalProperties: false
+          properties:
+            entityType:
+              type: string
+              enum:
+                - GOAL
+            entityId:
+              type: string
+              format: uuid
+
+RiskAlertReportPayload:
+  description: Payload for RISK_ALERT reports.
+  allOf:
+    - $ref: "#/BaseReportPayload"
+    - type: object
+      required:
+        - reportType
+        - text
+      additionalProperties: false
+      properties:
+        reportType:
+          type: string
+          enum:
+            - RISK_ALERT
+        summary: {}
+        title:
+          type: string
+          description: Short title summarizing the risk finding.
+        text:
+          type: string
+
+SessionSummaryReportPayload:
+  description: Payload for SESSION_SUMMARY reports.
+  allOf:
+    - $ref: "#/BaseReportPayload"
+    - type: object
+      required:
+        - reportType
+        - text
+      additionalProperties: false
+      properties:
+        reportType:
+          type: string
+          enum:
+            - SESSION_SUMMARY
+        summary: {}
+        text:
+          type: string
+
+CodingResearchDiscoveryCall:
+  type: object
+  description: One tool invocation made during the Project Assistant phase.
+  required:
+    - tool
+    - query
+    - intent
+  additionalProperties: false
+  properties:
+    tool:
+      type: string
+      minLength: 1
+      description: Name of the tool that was called.
+    query:
+      type: string
+      minLength: 1
+      description: The query or input passed to the tool.
+    intent:
+      type: string
+      minLength: 1
+      description: Why this call was made — what the agent was trying to discover.
+
+CodingResearchEdgeTraversal:
+  type: object
+  description: One graph edge traversed during the Project Assistant phase.
+  required:
+    - fromId
+    - toId
+    - reasoning
+  additionalProperties: false
+  properties:
+    fromId:
+      type: string
+      minLength: 1
+    toId:
+      type: string
+      minLength: 1
+    reasoning:
+      type: string
+      minLength: 1
+      description: Why this edge was followed.
+
+CodingResearchProvenance:
+  type: object
+  description: Audit trail of every discovery call and graph edge traversed during research.
+  required:
+    - discoveryCalls
+    - edgesTraversed
+  additionalProperties: false
+  properties:
+    discoveryCalls:
+      type: array
+      items:
+        $ref: "#/CodingResearchDiscoveryCall"
+    edgesTraversed:
+      type: array
+      items:
+        $ref: "#/CodingResearchEdgeTraversal"
+
+CodingResearchUpdateTarget:
+  type: object
+  additionalProperties: false
+  required:
+    - entityType
+    - entityId
+    - title
+  properties:
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    entityId:
+      type: string
+      minLength: 1
+      description: Existing entity visited during research.
+    title:
+      type: string
+      minLength: 1
+      description: Human-readable title captured for the visited entity.
+
+CodingResearchUpdate:
+  type: object
+  additionalProperties: false
+  required:
+    - type
+    - targets
+    - description
+    - reason
+  properties:
+    type:
+      type: string
+      enum:
+        - add
+        - remove
+        - update
+      description: Advisory reconciliation operation proposed by Project Assistant research.
+    targets:
+      type: array
+      items:
+        $ref: "#/CodingResearchUpdateTarget"
+      description: Existing visited entities affected by this uniform recommendation.
+    description:
+      type: string
+      minLength: 1
+      description: Concrete reconciliation candidate to consider.
+    reason:
+      type: string
+      minLength: 1
+      description: Evidence-based reason the candidate is actionable.
+
+CodingResearchReadinessEvidence:
+  type: object
+  description: Bounded evidence used to identify a consequential implementation-readiness decision.
+  additionalProperties: false
+  required:
+    - category
+    - statement
+  properties:
+    category:
+      type: string
+      enum:
+        - behavior
+        - ownership
+        - data_lifecycle
+        - authority
+        - security
+        - isolation
+        - integration
+    statement:
+      type: string
+      minLength: 1
+    sourceRef:
+      type: string
+      minLength: 1
+
+CodingResearchReportPayload:
+  description: >
+    Payload for CODING_RESEARCH reports emitted by the Project Assistant subagent.
+    `summary` (from BaseReportPayload) is the 50–100 word handoff for the coding agent.
+    `analysis` is the user-facing markdown synthesis of what the graph implies for the task.
+    `frame` is the ResearchOutput adjacency-list object.
+    `provenance` records every discovery call and edge traversal made during the investigation.
+  allOf:
+    - $ref: "#/BaseReportPayload"
+    - type: object
+      required:
+        - reportType
+        - analysis
+        - frame
+        - provenance
+        - updates
+      additionalProperties: false
+      properties:
+        reportType:
+          type: string
+          enum:
+            - CODING_RESEARCH
+        summary: {}
+        analysis:
+          type: string
+          minLength: 1
+          description: User-facing markdown synthesis of what the graph implies for the focal task.
+        frame:
+          type: object
+          description: ResearchOutput adjacency-list produced by the research subagent.
+          additionalProperties: true
+        provenance:
+          $ref: "#/CodingResearchProvenance"
+        updates:
+          type: array
+          description: Advisory reconciliation candidates; required, and [] means none found.
+          items:
+            $ref: "#/CodingResearchUpdate"
+        readinessEvidence:
+          type: array
+          maxItems: 8
+          description: Bounded evidence for consequential implementation-readiness decisions.
+          items:
+            $ref: "#/CodingResearchReadinessEvidence"
+
+SnapshotReportPayload:
+  description: Placeholder payload for SNAPSHOT reports.
+  allOf:
+    - $ref: "#/BaseReportPayload"
+    - type: object
+      required:
+        - reportType
+      additionalProperties: true
+      properties:
+        reportType:
+          type: string
+          enum:
+            - SNAPSHOT
+
+CommitReportPayload:
+  description: Payload for COMMIT reports capturing the files included in a commit. The diff is not embedded; consumers resolve it from git via the per-service commit hashes.
+  allOf:
+    - $ref: "#/BaseReportPayload"
+    - type: object
+      required:
+        - reportType
+        - files
+        - hashes
+      properties:
+        reportType:
+          type: string
+          enum:
+            - COMMIT
+        files:
+          type: array
+          description: Paths of files included in the commit.
+          items:
+            type: string
+        hashes:
+          type: array
+          description: Short commit SHAs produced in each repository, paired with their session service id.
+          items:
+            type: object
+            required:
+              - service
+              - hash
+              - branch
+            additionalProperties: false
+            properties:
+              service:
+                type: string
+                description: Session service id of the repository this commit landed in.
+              hash:
+                type: string
+                description: Short SHA printed by git commit.
+              branch:
+                type: string
+                description: Branch checked out in the repository where the commit landed. Reports emitted before this field existed omit it.
+
+PlanReportSourceType:
+  type: string
+  description: Kind of entity referenced from a PLAN report execution step or discrepancy.
+  enum:
+    - evidenceItem
+    - task
+    - designDoc
+    - plan
+    - initiative
+
+PlanReportSourceRef:
+  type: object
+  required:
+    - sourceType
+    - sourceId
+  properties:
+    sourceType:
+      $ref: "#/PlanReportSourceType"
+    sourceId:
+      type: string
+      minLength: 1
+
+PlanReportSeverity:
+  type: string
+  enum:
+    - low
+    - medium
+    - high
+
+PlanReportExecutionStepReference:
+  type: object
+  additionalProperties: false
+  required:
+    - sourceType
+    - sourceId
+    - rationale
+  properties:
+    sourceType:
+      $ref: "#/PlanReportSourceType"
+    sourceId:
+      type: string
+      minLength: 1
+    rationale:
+      type: string
+      minLength: 1
+
+PlanReportPrimaryImplementationConnection:
+  type: object
+  additionalProperties: false
+  description: >
+    Evidence-backed connection between a primary implementation and a resolved,
+    non-archived workflow step or Contract. This records plan evidence only and
+    does not create graph topology.
+  required:
+    - entityType
+    - entityId
+    - entityTitle
+    - relationship
+    - sourceField
+    - sourceExcerpt
+    - rationale
+  properties:
+    entityType:
+      type: string
+      enum:
+        - workflowStep
+        - contract
+    entityId:
+      type: string
+      format: uuid
+    entityTitle:
+      type: string
+      minLength: 1
+    relationship:
+      type: string
+      enum:
+        - fulfills
+        - authors
+        - enforces
+        - consumes
+    sourceField:
+      type: string
+      minLength: 1
+      description: Field path or graph edge that establishes the connection.
+    sourceExcerpt:
+      type: string
+      minLength: 1
+      description: Complete source excerpt supporting the connection.
+    rationale:
+      type: string
+      minLength: 1
+
+PlanReportPrimaryImplementation:
+  type: object
+  additionalProperties: false
+  required:
+    - title
+    - content
+    - rationale
+  properties:
+    title:
+      type: string
+      minLength: 1
+    content:
+      type: string
+      minLength: 1
+      description: The proposed centerpiece, such as a DTO, table definition, or prose block.
+    rationale:
+      type: string
+      minLength: 1
+    location:
+      type: string
+      minLength: 1
+    language:
+      type: string
+      minLength: 1
+    connections:
+      type: array
+      minItems: 1
+      description: >
+        Optional evidence-bearing connections. Omit this property when no
+        applicable connection is established.
+      items:
+        $ref: "#/PlanReportPrimaryImplementationConnection"
+
+PlanReportExecutionStep:
+  type: object
+  additionalProperties: false
+  required:
+    - stepId
+    - title
+    - description
+    - phase
+    - references
+  properties:
+    stepId:
+      type: string
+      minLength: 1
+    title:
+      type: string
+      minLength: 1
+    description:
+      type: string
+      minLength: 1
+    phase:
+      type: integer
+      minimum: 1
+      description: >
+        1-based phase this step belongs to. Steps sharing a phase number are
+        grouped together in the execution sequence.
+    targetFiles:
+      type: array
+      description: Repo-relative paths of files this step modifies. Omitted for purely investigative or read-only steps.
+      items:
+        type: string
+        minLength: 1
+    references:
+      type: array
+      items:
+        $ref: "#/PlanReportExecutionStepReference"
+
+PlanReportDiscrepancy:
+  type: object
+  required:
+    - sourceRef
+    - sourceExcerpt
+    - discrepancyText
+    - reasoning
+    - severity
+  properties:
+    sourceRef:
+      $ref: "#/PlanReportSourceRef"
+    sourceField:
+      type: string
+      minLength: 1
+    sourceExcerpt:
+      type: string
+      minLength: 1
+    discrepancyText:
+      type: string
+      minLength: 1
+    reasoning:
+      type: string
+      minLength: 1
+    severity:
+      $ref: "#/PlanReportSeverity"
+
+PlanReportClarificationQuestion:
+  type: object
+  required:
+    - question
+  properties:
+    question:
+      type: string
+      minLength: 1
+    reason:
+      type: string
+      minLength: 1
+    relatedSourceRefs:
+      type: array
+      items:
+        $ref: "#/PlanReportSourceRef"
+
+PlanReportPayload:
+  description: >
+    Payload for PLAN reports. Mirrors the `startup_plan_v1` body emitted by the
+    coding-CLI startup-session prompt — see `cli/src/agents/prompts/startup-session.ts`,
+    which is the source of truth for this shape. Keep this schema in sync with that
+    prompt so future drift is obvious.
+  allOf:
+    - $ref: "#/BaseReportPayload"
+    - type: object
+      required:
+        - reportType
+        - sessionTitle
+        - requiredServiceIds
+        - primaryImplementations
+        - executionPlan
+        - discrepancies
+        - clarificationQuestions
+      properties:
+        reportType:
+          type: string
+          enum:
+            - PLAN
+        sessionTitle:
+          type: string
+          minLength: 1
+          description: Short, task-focused session title (3-8 words).
+        requiredServiceIds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+          description: Complete deduplicated set of project Service IDs the proposed implementation may modify.
+        primaryImplementations:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/PlanReportPrimaryImplementation"
+        executionPlan:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/PlanReportExecutionStep"
+        discrepancies:
+          type: array
+          items:
+            $ref: "#/PlanReportDiscrepancy"
+        clarificationQuestions:
+          type: array
+          items:
+            $ref: "#/PlanReportClarificationQuestion"
+ImplementReportPayload:
+  description: >
+    Payload for IMPLEMENT reports — the output of the implement phase.
+    Captures what the implementer did and the decisions made along the way
+    so the next phase has a faithful summary to consume.
+  allOf:
+    - $ref: "#/BaseReportPayload"
+    - type: object
+      required:
+        - reportType
+        - filesChanged
+      properties:
+        reportType:
+          type: string
+          enum:
+            - IMPLEMENT
+        filesChanged:
+          type: array
+          description: Repo-relative paths of files modified during the run.
+          items:
+            type: string
+            minLength: 1
+        decisions:
+          type: array
+          description: Notable decisions made during implementation.
+          items:
+            type: object
+            required:
+              - topic
+              - choice
+            properties:
+              topic:
+                type: string
+                minLength: 1
+              choice:
+                type: string
+                minLength: 1
+              reasoning:
+                type: string
+              location:
+                type: object
+                description: >
+                  Anchor pointing at the specific code location that embodies this
+                  decision. Populate only for decisions realized in a concrete,
+                  nameable place in the code; omit it for decisions with no single
+                  location.
+                required:
+                  - file
+                properties:
+                  file:
+                    type: string
+                    minLength: 1
+                    description: Repo-relative path of the file the decision lives in.
+                  startLine:
+                    type: integer
+                    description: Post-edit start line (new-file side of the diff).
+                  endLine:
+                    type: integer
+                    description: Post-edit end line (new-file side of the diff).
+
+ReviewReportDisposition:
+  type: string
+  description: >
+    Optional durable outcome recorded by Review. CLEAN means the reviewed scope
+    has no remaining findings. FIX_REQUIRED means Review could not safely finish
+    or verify a required high-severity fix. USER_JUDGMENT means only
+    non-blocking suggestions or explicit scope decisions remain for a person to
+    evaluate.
+  enum:
+    - CLEAN
+    - FIX_REQUIRED
+    - USER_JUDGMENT
+
+ReviewReportPayload:
+  description: >
+    Optional durable findings outcome from Review. Review scope and prior
+    evidence are resolved from the target Agent Session rather than copied into
+    this payload.
+  allOf:
+    - $ref: "#/BaseReportPayload"
+    - type: object
+      required:
+        - reportType
+        - disposition
+      properties:
+        reportType:
+          type: string
+          enum:
+            - REVIEW
+        disposition:
+          $ref: "#/ReviewReportDisposition"
+
+FeatureSyncReportSourceType:
+  type: string
+  description: Kind of entity a FEATURE_SYNC discrepancy row points at.
+  enum:
+    - feature
+    - task
+
+FeatureSyncReportSourceRef:
+  type: object
+  description: >
+    Reference to the entity a FEATURE_SYNC discrepancy row points at. Mirrors the
+    `Source` column of the user-facing reconciliation table — the agent renders
+    this as `@[<entityType>:<entityId>|<title>]`.
+  required:
+    - entityType
+    - entityId
+    - title
+  properties:
+    entityType:
+      $ref: "#/FeatureSyncReportSourceType"
+    entityId:
+      type: string
+      minLength: 1
+    title:
+      type: string
+      minLength: 1
+      description: Human-readable title of the referenced entity (the `|title` half of the mention).
+
+FeatureSyncReportDiscrepancy:
+  type: object
+  description: >
+    One row of the FEATURE_SYNC reconciliation table the agent rendered to the user.
+    Each entry pairs the entity that looks off with a one-sentence product-language
+    description of what was flagged.
+  required:
+    - sourceType
+    - source
+    - description
+  properties:
+    sourceType:
+      $ref: "#/FeatureSyncReportSourceType"
+    source:
+      $ref: "#/FeatureSyncReportSourceRef"
+    description:
+      type: string
+      minLength: 1
+      description: One short sentence describing what looks off, in product language.
+
+FeatureSyncReportReconciliationOption:
+  type: object
+  description: >
+    One numbered reconciliation option offered to the user under the discrepancy
+    table. `description` is the product-language phrasing the agent showed; each
+    `discrepancyIndex` is a 0-based index into the `discrepancies` array on this
+    same payload, indicating which row(s) the option would resolve.
+  required:
+    - description
+    - discrepancyIndices
+  properties:
+    description:
+      type: string
+      minLength: 1
+    discrepancyIndices:
+      type: array
+      items:
+        type: integer
+        minimum: 0
+
+FeatureSyncReportPayload:
+  description: >
+    Payload for FEATURE_SYNC reports — the output of the feature-sync analyze
+    pre-check. Mirrors the markdown table + numbered reconciliation options the
+    agent rendered to the user when something was flagged. Both arrays are empty
+    when nothing was flagged.
+  allOf:
+    - $ref: "#/BaseReportPayload"
+    - type: object
+      required:
+        - reportType
+        - discrepancies
+        - reconciliationOptions
+      properties:
+        reportType:
+          type: string
+          enum:
+            - FEATURE_SYNC
+        discrepancies:
+          type: array
+          description: One entry per row of the user-facing reconciliation table. Empty when nothing was flagged.
+          items:
+            $ref: "#/FeatureSyncReportDiscrepancy"
+        reconciliationOptions:
+          type: array
+          description: >
+            One entry per numbered option the agent offered the user under the table.
+            Empty when nothing was flagged.
+          items:
+            $ref: "#/FeatureSyncReportReconciliationOption"
+
+FeatureSyncDecisionReportPayloadV1:
+  description: >
+    Payload for FEATURE_SYNC_DECISION reports — the structured twin of the
+    discrepancy table + numbered reconciliation options the feature-sync
+    analyze agent rendered on the *ask* turn. Emitted alongside the chat
+    prose so the session monitor and the inline Reports rendering have a
+    typed record of the same content the user reads. Distinct from the
+    terminal `FEATURE_SYNC` report (which fires on the resolution turn after
+    the user picks); both come out of the same analyze phase but at
+    different turn boundaries. Reuses the existing FEATURE_SYNC sub-schemas
+    so the payload's per-row and per-option shapes are byte-identical with
+    the terminal report. Both arrays must mirror the rendered chat exactly:
+    same row count, same option count and order, and `discrepancyIndices`
+    pointing at the same rows the user sees beneath each numbered option.
+    The report is emitted only on ask turns that surfaced at least one
+    in-scope row, so both arrays carry at least one entry.
+  allOf:
+    - $ref: "#/BaseReportPayload"
+    - type: object
+      required:
+        - reportType
+        - discrepancies
+        - reconciliationOptions
+      not:
+        type: object
+        properties:
+          decisionGroups:
+            type: array
+          schemaVersion:
+            type: integer
+        anyOf:
+          - required: [decisionGroups]
+          - required: [schemaVersion]
+      properties:
+        reportType:
+          type: string
+          enum:
+            - FEATURE_SYNC_DECISION
+        discrepancies:
+          type: array
+          minItems: 1
+          description: >
+            One entry per row of the user-facing reconciliation table the
+            agent rendered on this ask turn. Must mirror the rendered rows
+            exactly — same order, same per-row fields.
+          items:
+            $ref: "#/FeatureSyncReportDiscrepancy"
+        reconciliationOptions:
+          type: array
+          minItems: 1
+          description: >
+            One entry per numbered reconciliation option the agent offered
+            beneath the table on this ask turn. Must mirror the rendered
+            list exactly — same order, same `discrepancyIndices` mapping
+            each option back to the rows it would resolve.
+          items:
+            $ref: "#/FeatureSyncReportReconciliationOption"
+
+FeatureSyncDecisionChoice:
+  type: object
+  required: [id, label, isNoChange]
+  properties:
+    id:
+      type: string
+      minLength: 1
+      description: Stable identity unique within this group.
+    label:
+      type: string
+      minLength: 1
+      pattern: '^(?!\s*(?:[0-9]+[.):]|[A-Za-z][.)]|\([0-9A-Za-z]+\)|[IVXLCDMivxlcdm]+[.)])\s).*'
+      description: Concise choice label without ordinal prefixes.
+    description:
+      type: string
+      minLength: 1
+    isNoChange:
+      type: boolean
+      description: Exactly one choice in each group must be true; validated before creation.
+
+FeatureSyncDecisionGroup:
+  type: object
+  description: >
+    One independent decision, not an entity-set bucket. Group ids are unique
+    within the report; choice ids and typed targets are unique within a group.
+    Independent groups may share targets. Producers validate these identities
+    and exactly one no-change choice before persistence.
+  required: [id, affectedEntities, title, summary, choices]
+  properties:
+    id:
+      type: string
+      minLength: 1
+    affectedEntities:
+      type: array
+      minItems: 1
+      items:
+        $ref: "#/FeatureSyncReportSourceRef"
+    title:
+      type: string
+      minLength: 1
+    summary:
+      type: string
+      minLength: 1
+    choices:
+      type: array
+      minItems: 2
+      items:
+        $ref: "#/FeatureSyncDecisionChoice"
+
+FeatureSyncDecisionReportPayloadV2:
+  description: >
+    Independent ordered decisions for new asks. The report is the sole structured
+    presentation; chat references it without repeating choices. Set schemaVersion
+    to 2 on the envelope, never inside the payload. A selection is an ordinary
+    response, not proposal approval or a workflow action.
+  allOf:
+    - $ref: "#/BaseReportPayload"
+    - type: object
+      required: [reportType, decisionGroups]
+      not:
+        type: object
+        properties:
+          discrepancies:
+            type: array
+          reconciliationOptions:
+            type: array
+          schemaVersion:
+            type: integer
+        anyOf:
+          - required: [discrepancies]
+          - required: [reconciliationOptions]
+          - required: [schemaVersion]
+      properties:
+        reportType:
+          type: string
+          enum: [FEATURE_SYNC_DECISION]
+        decisionGroups:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/FeatureSyncDecisionGroup"
+
+FeatureSyncDecisionReportPayload:
+  x-schema-union: true
+  x-schema-candidates:
+    - model: FeatureSyncDecisionReportPayloadV1
+      schema: openapi:/event-schemas/reports.yaml#/FeatureSyncDecisionReportPayloadV1
+    - model: FeatureSyncDecisionReportPayloadV2
+      schema: openapi:/event-schemas/reports.yaml#/FeatureSyncDecisionReportPayloadV2
+  description: >
+    Exclusive versioned ask payloads. Persisted V1 remains readable; new free and
+    planned Feature Sync asks use V2 with schemaVersion 2 on the envelope.
+  oneOf:
+    - $ref: "#/FeatureSyncDecisionReportPayloadV1"
+    - $ref: "#/FeatureSyncDecisionReportPayloadV2"
+
+DecisionNeededReportOption:
+  type: object
+  description: >
+    One option the agent offered the user as part of a DECISION_NEEDED
+    report. The list is ordered (the agent decides the ordering); the
+    monitor's option-pick decision references an option by its 0-based
+    index into the parent `options` array.
+  required:
+    - description
+  properties:
+    description:
+      type: string
+      minLength: 1
+      description: >
+        Short, product-language phrasing of the option the user can pick.
+        Must be self-contained enough that a reader can decide between
+        options without re-reading the question.
+
+DecisionNeededReportPayload:
+  description: >
+    Payload for DECISION_NEEDED reports — the generic, agent-authored
+    decision ask. Any agent that hits a genuine human judgment-call
+    moment (one not already covered by a purpose-built decision report
+    such as FEATURE_SYNC_DECISION) emits this report with a single
+    question and the ordered options it wants the user (or, when
+    `autoDecide` is on, the session monitor) to pick from. The monitor
+    treats `options` as the action vocabulary: it picks one option by
+    index, the picked option's description is threaded back into the
+    originating session on resume, and the monitor's action-bearing
+    completion carries the picked-option's index alongside the existing
+    `action` discriminator. `options` is non-empty — a decision with
+    zero options is degenerate.
+  allOf:
+    - $ref: "#/BaseReportPayload"
+    - type: object
+      required:
+        - reportType
+        - question
+        - options
+      properties:
+        reportType:
+          type: string
+          enum:
+            - DECISION_NEEDED
+        question:
+          type: string
+          minLength: 1
+          description: >
+            The question the agent is asking the user. Phrased in
+            product-language; carries enough context that the user can
+            decide between the options without re-reading the originating
+            report.
+        options:
+          type: array
+          minItems: 1
+          description: >
+            Ordered options the user (or monitor) picks from. The order
+            is agent-chosen and load-bearing — the monitor's option-pick
+            decision references an option by its 0-based index into this
+            array.
+          items:
+            $ref: "#/DecisionNeededReportOption"
+
+SessionMonitorDeferralReportPayload:
+  description: >
+    Payload for SESSION_MONITOR_DEFERRAL reports — the durable explanation
+    emitted when the session monitor cannot safely choose a continuation for a
+    settled Turn. The monitor's visible message stays short and user-facing; the
+    substantive reasoning lives here for query and inline review.
+  allOf:
+    - $ref: "#/BaseReportPayload"
+    - type: object
+      required:
+        - reportType
+        - assessedSessionId
+        - assessedTurnId
+        - assessedReportIds
+        - reasoning
+      additionalProperties: false
+      properties:
+        reportType:
+          type: string
+          enum:
+            - SESSION_MONITOR_DEFERRAL
+        assessedSessionId:
+          type: string
+          format: uuid
+          description: Agent session the monitor evaluated.
+        assessedTurnId:
+          type: string
+          minLength: 1
+          description: Settled Turn the monitor evaluated and could not safely continue from.
+        assessedReportIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Zero or more canonical Reports included in the settled-Turn evidence.
+        reasoning:
+          type: string
+          minLength: 1
+          description: >
+            The monitor's substantive reasoning for why the user needs to
+            review instead of the session continuing automatically.
+
+FeatureSyncHandoffReportNote:
+  type: object
+  description: >
+    One categorized note the analyze agent recorded for the next phase. The
+    note text is free prose; the category groups related notes (e.g. all
+    constraints together) so a planner / implementer can scan by kind.
+  required:
+    - category
+    - text
+  properties:
+    category:
+      type: string
+      minLength: 1
+      description: >
+        Free-form grouping label for the note. Suggested values include
+        `hidden_requirements`, `constraints`, and `dependencies_discovered`,
+        but the agent may use other categories when they fit better.
+    text:
+      type: string
+      minLength: 1
+      description: One discovery, written as a short prose note.
+
+ValidationAction:
+  type: object
+  description: >
+    One executable action inside a VALIDATION_WALKTHROUGH step. Discriminated
+    union on `type`. Only the `command_line` variant is defined today; future
+    variants (e.g. file edits, browser steps) slot in as additional `type`
+    values without breaking changes for clients pinned to known types.
+  required:
+    - type
+  discriminator:
+    propertyName: type
+    mapping:
+      command_line: "#/ValidationAction"
+  properties:
+    type:
+      type: string
+      description: Discriminator selecting the action variant.
+      enum:
+        - command_line
+    command:
+      type: string
+      minLength: 1
+      description: Shell command to execute. Required when `type` is `command_line`.
+    workingDirectory:
+      type: string
+      description: >
+        Optional repo-relative working directory the command should run from.
+        Omitted means the service root.
+
+ValidationStep:
+  type: object
+  description: >
+    One step in a validation walkthrough — a human-readable title and
+    description plus the ordered list of actions that carry the step out.
+  required:
+    - title
+    - description
+    - actions
+  properties:
+    title:
+      type: string
+      minLength: 1
+    description:
+      type: string
+      minLength: 1
+    actions:
+      type: array
+      items:
+        $ref: "#/ValidationAction"
+
+ValidationWalkthroughReportPayload:
+  description: >
+    Payload for VALIDATION_WALKTHROUGH reports — an ordered sequence of
+    validation steps a human or agent can replay to confirm a piece of work
+    behaves as intended.
+  allOf:
+    - $ref: "#/BaseReportPayload"
+    - type: object
+      required:
+        - reportType
+        - validationSteps
+      properties:
+        reportType:
+          type: string
+          enum:
+            - VALIDATION_WALKTHROUGH
+        validationSteps:
+          type: array
+          items:
+            $ref: "#/ValidationStep"
+
+FeatureSyncHandoffReportPayload:
+  description: >
+    Payload for FEATURE_SYNC_HANDOFF reports — the *internal* handoff from
+    feature-sync analyze to the next phase. Captures discoveries the analyze
+    agent made (e.g. hard requirements the active task's text didn't fully
+    capture, constraints, dependencies) that should land in the next phase's
+    context but should NOT surface to the user. Always emitted with
+    `audience: WORKFLOW_ONLY` and never rendered in the conversation UI. Sibling
+    to `FEATURE_SYNC` (external); both are produced by the same analyze
+    phase. `notes` may be empty when the walk surfaced nothing internal.
+  allOf:
+    - $ref: "#/BaseReportPayload"
+    - type: object
+      required:
+        - reportType
+        - notes
+      properties:
+        reportType:
+          type: string
+          enum:
+            - FEATURE_SYNC_HANDOFF
+        notes:
+          type: array
+          description: >
+            Categorized free-form notes captured during analyze. Empty when the
+            walk surfaced no internal context worth handing off.
+          items:
+            $ref: "#/FeatureSyncHandoffReportNote"
+
+PhaseGroundingReportTouchPoint:
+  type: object
+  description: >
+    One touch point an upcoming phase intends to land in: a specific file the
+    agent will read or modify, paired with the outcome it expects there.
+    `divergenceFromInitialPlan` is set only when this touch point differs from
+    what the prior approved plan described — the absence of the field means
+    the touch point matches the plan.
+  required:
+    - file
+    - expectedOutcome
+  properties:
+    file:
+      type: string
+      minLength: 1
+      description: Repo-relative path of the file the phase expects to touch.
+    expectedOutcome:
+      type: string
+      minLength: 1
+      description: >
+        Short prose describing what the agent expects to happen at this file —
+        the contract it expects to find, the change it intends to make, or
+        the behavior it expects to confirm.
+    divergenceFromInitialPlan:
+      type: string
+      minLength: 1
+      description: >
+        When this touch point diverges from the prior approved plan, the short
+        prose explanation of how and why. Omitted when the touch point matches
+        the plan.
+
+PhaseGroundingReportPayload:
+  description: >
+    Payload for PHASE_GROUNDING reports — the forcing-function pre-flight a
+    phase emits before it starts executing. Each entry in `touchPoints` names
+    a file the phase intends to touch and the outcome it expects there;
+    populating the array forces the agent to commit, in writing, to the
+    concrete surface area of the upcoming work before it begins. The optional
+    `planAdjustment` field captures a one-shot description of any change to
+    the approved plan this grounding round implies — e.g. an added or dropped
+    touch point that the plan did not anticipate.
+  allOf:
+    - $ref: "#/BaseReportPayload"
+    - type: object
+      required:
+        - reportType
+        - touchPoints
+      properties:
+        reportType:
+          type: string
+          enum:
+            - PHASE_GROUNDING
+        touchPoints:
+          type: array
+          minItems: 1
+          description: >
+            One entry per file the phase intends to touch. Must contain at
+            least one item — the forcing-function contract requires the
+            agent to name a concrete surface before the phase runs.
+          items:
+            $ref: "#/PhaseGroundingReportTouchPoint"
+        planAdjustment:
+          type: string
+          minLength: 1
+          description: >
+            Optional prose describing how this grounding round adjusts the
+            prior approved plan (e.g. added/dropped touch points, scope
+            shifts). Omitted when the grounding round matches the plan.
+
+FeatureTreeAnalysisReportPayload:
+  description: >
+    Payload for FEATURE_TREE_ANALYSIS reports — the output of a Feature
+    Tree Conversation structural-rebalancing or project-insights turn.
+    Captures the agent's prose findings about the project's feature
+    hierarchy (smells, misparented nodes, work concentration, etc.).
+    Linked features referenced inline in `text` are mirrored onto
+    `linkedEntities` on the parent Report so the UI can render them as
+    clickable @-mentions.
+  allOf:
+    - $ref: "#/BaseReportPayload"
+    - type: object
+      required:
+        - reportType
+        - text
+      additionalProperties: false
+      properties:
+        reportType:
+          type: string
+          enum:
+            - FEATURE_TREE_ANALYSIS
+        summary: {}
+        title:
+          type: string
+          description: Short title summarizing the analysis.
+        text:
+          type: string
+          minLength: 1
+          description: >
+            Free-prose body of the analysis, written in product language.
+            Inline @-mention references to features are mirrored onto the
+            parent Report's `linkedEntities`.
+
+CompetitiveAnalysisReportPayload:
+  description: >
+    Payload for COMPETITIVE_ANALYSIS reports — the output of a Feature
+    Tree Conversation competitive-analysis turn. Captures the agent's
+    prose comparison of the project's feature coverage against named
+    competitors (gathered via WebSearch / WebFetch). Features referenced
+    inline in `text` are mirrored onto `linkedEntities` on the parent
+    Report so the UI can render them as clickable @-mentions.
+  allOf:
+    - $ref: "#/BaseReportPayload"
+    - type: object
+      required:
+        - reportType
+        - text
+      additionalProperties: false
+      properties:
+        reportType:
+          type: string
+          enum:
+            - COMPETITIVE_ANALYSIS
+        summary: {}
+        title:
+          type: string
+          description: Short title summarizing the competitive comparison.
+        text:
+          type: string
+          minLength: 1
+          description: >
+            Free-prose body of the competitive comparison, written in
+            product language. Inline @-mention references to features
+            are mirrored onto the parent Report's `linkedEntities`.
+        competitors:
+          type: array
+          description: >
+            Names of the competitor products this analysis compares
+            against. Optional — the agent populates it when it has a
+            crisp list to attach; the prose body is the authoritative
+            content either way.
+          items:
+            type: string
+            minLength: 1
+
+ReportPayload:
+  oneOf:
+    - $ref: "#/EvidencePipelineReportPayload"
+    - $ref: "./proposals.yaml#/RollupProposalReportPayload"
+    - $ref: "#/DailySessionReportPayload"
+    - $ref: "#/GoalProgressReportPayload"
+    - $ref: "#/RiskAlertReportPayload"
+    - $ref: "#/SessionSummaryReportPayload"
+    - $ref: "#/CodingResearchReportPayload"
+    - $ref: "#/SnapshotReportPayload"
+    - $ref: "#/CommitReportPayload"
+    - $ref: "#/PlanReportPayload"
+    - $ref: "#/ImplementReportPayload"
+    - $ref: "#/ReviewReportPayload"
+    - $ref: "#/ChangeWalkthroughReportPayload"
+    - $ref: "#/FeatureSyncReportPayload"
+    - $ref: "#/FeatureSyncHandoffReportPayload"
+    - $ref: "#/FeatureSyncDecisionReportPayload"
+    - $ref: "#/DecisionNeededReportPayload"
+    - $ref: "#/SessionMonitorDeferralReportPayload"
+    - $ref: "#/PhaseGroundingReportPayload"
+    - $ref: "#/ValidationWalkthroughReportPayload"
+    - $ref: "#/FeatureTreeAnalysisReportPayload"
+    - $ref: "#/CompetitiveAnalysisReportPayload"
+    - $ref: "./project-reports.yaml#/ProjectReportPayload"
+    - $ref: "./eval-runs.yaml#/EvalRunReportPayload"
+    - $ref: "./eval-runs.yaml#/EvalAttemptReportPayload"
+    - $ref: "./eval-runs.yaml#/EvalHumanReviewReportPayload"
+  discriminator:
+    propertyName: reportType
+    mapping:
+      EVIDENCE_PIPELINE: "#/EvidencePipelineReportPayload"
+      ROLLUP_PROPOSAL: "./proposals.yaml#/RollupProposalReportPayload"
+      DAILY_SESSION: "#/DailySessionReportPayload"
+      GOAL_PROGRESS: "#/GoalProgressReportPayload"
+      RISK_ALERT: "#/RiskAlertReportPayload"
+      SESSION_SUMMARY: "#/SessionSummaryReportPayload"
+      CODING_RESEARCH: "#/CodingResearchReportPayload"
+      SNAPSHOT: "#/SnapshotReportPayload"
+      COMMIT: "#/CommitReportPayload"
+      PLAN: "#/PlanReportPayload"
+      IMPLEMENT: "#/ImplementReportPayload"
+      REVIEW: "#/ReviewReportPayload"
+      CHANGE_WALKTHROUGH: "#/ChangeWalkthroughReportPayload"
+      FEATURE_SYNC: "#/FeatureSyncReportPayload"
+      FEATURE_SYNC_HANDOFF: "#/FeatureSyncHandoffReportPayload"
+      FEATURE_SYNC_DECISION: "#/FeatureSyncDecisionReportPayload"
+      DECISION_NEEDED: "#/DecisionNeededReportPayload"
+      SESSION_MONITOR_DEFERRAL: "#/SessionMonitorDeferralReportPayload"
+      PHASE_GROUNDING: "#/PhaseGroundingReportPayload"
+      VALIDATION_WALKTHROUGH: "#/ValidationWalkthroughReportPayload"
+      FEATURE_TREE_ANALYSIS: "#/FeatureTreeAnalysisReportPayload"
+      COMPETITIVE_ANALYSIS: "#/CompetitiveAnalysisReportPayload"
+      PROJECT_REPORT: "./project-reports.yaml#/ProjectReportPayload"
+      EVAL_RUN: "./eval-runs.yaml#/EvalRunReportPayload"
+      EVAL_ATTEMPT: "./eval-runs.yaml#/EvalAttemptReportPayload"
+      EVAL_HUMAN_REVIEW: "./eval-runs.yaml#/EvalHumanReviewReportPayload"
+
+OtherReportPayload:
+  oneOf:
+    - $ref: "#/EvidencePipelineReportPayload"
+    - $ref: "./proposals.yaml#/RollupProposalReportPayload"
+    - $ref: "#/DailySessionReportPayload"
+    - $ref: "#/GoalProgressReportPayload"
+    - $ref: "#/RiskAlertReportPayload"
+    - $ref: "#/SessionSummaryReportPayload"
+    - $ref: "#/CodingResearchReportPayload"
+    - $ref: "#/SnapshotReportPayload"
+    - $ref: "#/CommitReportPayload"
+    - $ref: "#/PlanReportPayload"
+    - $ref: "#/ImplementReportPayload"
+    - $ref: "#/ReviewReportPayload"
+    - $ref: "#/ChangeWalkthroughReportPayload"
+    - $ref: "#/FeatureSyncReportPayload"
+    - $ref: "#/FeatureSyncHandoffReportPayload"
+    - $ref: "#/DecisionNeededReportPayload"
+    - $ref: "#/SessionMonitorDeferralReportPayload"
+    - $ref: "#/PhaseGroundingReportPayload"
+    - $ref: "#/ValidationWalkthroughReportPayload"
+    - $ref: "#/FeatureTreeAnalysisReportPayload"
+    - $ref: "#/CompetitiveAnalysisReportPayload"
+    - $ref: "./project-reports.yaml#/ProjectReportPayload"
+    - $ref: "./eval-runs.yaml#/EvalRunReportPayload"
+    - $ref: "./eval-runs.yaml#/EvalAttemptReportPayload"
+    - $ref: "./eval-runs.yaml#/EvalHumanReviewReportPayload"
+
+CreateReportEntityDto:
+  type: object
+  required:
+    - entityType
+    - entityId
+    - relation
+  properties:
+    entityType:
+      $ref: "#/ReportRelatedEntityType"
+    entityId:
+      type: string
+      format: uuid
+    relation:
+      $ref: "#/ReportEntityRelation"
+
+LinkedReportEntityRef:
+  type: object
+  description: >
+    Typed `{ entityType, entityId }` pair referenced inline in a report's
+    body (e.g. an @-mention inside a `COMPETITIVE_ANALYSIS` or
+    `FEATURE_TREE_ANALYSIS` payload's `text` field). Distinct from
+    `CreateReportEntityDto` — these have no relation; the service always
+    persists them as `CONTEXT` rows on the report.
+  required:
+    - entityType
+    - entityId
+  properties:
+    entityType:
+      $ref: "#/ReportRelatedEntityType"
+    entityId:
+      type: string
+      format: uuid
+
+ReportEntityDto:
+  type: object
+  required:
+    - entityType
+    - entityId
+    - relation
+    - createdAt
+  properties:
+    entityType:
+      $ref: "#/ReportRelatedEntityType"
+    entityId:
+      type: string
+      format: uuid
+    relation:
+      $ref: "#/ReportEntityRelation"
+    displayName:
+      type: string
+      description: Human-readable name resolved from the entity registry
+    createdAt:
+      type: string
+      format: date-time
+
+CreateReportDto:
+  oneOf:
+    - $ref: "#/CreateReportDtoOther"
+    - $ref: "#/CreateReportDtoFeatureSyncDecisionV1"
+    - $ref: "#/CreateReportDtoFeatureSyncDecisionV2"
+
+CreateReportDtoBase:
+  type: object
+  required:
+    - audience
+  properties:
+    projectId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Optional project scope for the report
+    audience:
+      $ref: "#/ReportAudience"
+    expiresAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Optional explicit expiration timestamp; defaults to retention policy
+    neverExpires:
+      type: boolean
+      default: false
+      description: >
+        When true the report is exempt from the retention-policy expiry and
+        lives until the entity it is attached to is deleted. expiresAt must
+        then be omitted. Eval run-record reports (EVAL_RUN, EVAL_ATTEMPT,
+        EVAL_HUMAN_REVIEW) are created with this set.
+    agent:
+      type: string
+      nullable: true
+      description: >
+        Optional report-level agent identity for the emitting run/session.
+        This is shared envelope metadata and must not be duplicated inside
+        individual report payload variants.
+    sourceExecutionId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Optional originating flow execution id
+    parentReportId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Optional parent report ID for hierarchical grouping
+    entities:
+      type: array
+      items:
+        $ref: "#/CreateReportEntityDto"
+    linkedEntities:
+      type: array
+      description: >
+        Optional list of typed `{ entityType, entityId }` references
+        for entities mentioned inline in the report's body (e.g.
+        @-mentions inside a `COMPETITIVE_ANALYSIS` or
+        `FEATURE_TREE_ANALYSIS` payload's `text` field). Each entry
+        materializes a `CONTEXT` row on the report alongside the
+        structured `entities[]` relationships, which describe the
+        report's primary/context anchoring rather than inline body
+        references. Optional and additive — reports that omit it are
+        valid.
+      items:
+        $ref: "#/LinkedReportEntityRef"
+
+CreateReportDtoOther:
+  allOf:
+    - $ref: "#/CreateReportDtoBase"
+    - type: object
+      required: [payload, reportType]
+      properties:
+        reportType:
+          type: string
+          enum: [PROJECT_REPORT, CODING_RESEARCH, EVIDENCE_PIPELINE, SNAPSHOT, ROLLUP_PROPOSAL, DAILY_SESSION, GOAL_PROGRESS, RISK_ALERT, SESSION_SUMMARY, COMMIT, PLAN, IMPLEMENT, REVIEW, CHANGE_WALKTHROUGH, FEATURE_SYNC, FEATURE_SYNC_HANDOFF, DECISION_NEEDED, PHASE_GROUNDING, VALIDATION_WALKTHROUGH, FEATURE_TREE_ANALYSIS, COMPETITIVE_ANALYSIS, SESSION_MONITOR_DEFERRAL, EVAL_RUN, EVAL_ATTEMPT, EVAL_HUMAN_REVIEW]
+        payload:
+          $ref: "#/OtherReportPayload"
+        schemaVersion:
+          type: integer
+          default: 1
+
+CreateReportDtoFeatureSyncDecisionV1:
+  allOf:
+    - $ref: "#/CreateReportDtoBase"
+    - type: object
+      required: [payload, reportType]
+      properties:
+        reportType:
+          type: string
+          enum: [FEATURE_SYNC_DECISION]
+        payload:
+          $ref: "#/FeatureSyncDecisionReportPayloadV1"
+        schemaVersion:
+          type: integer
+          enum: [1]
+          default: 1
+
+CreateReportDtoFeatureSyncDecisionV2:
+  allOf:
+    - $ref: "#/CreateReportDtoBase"
+    - type: object
+      required: [payload, reportType, schemaVersion]
+      properties:
+        reportType:
+          type: string
+          enum: [FEATURE_SYNC_DECISION]
+        payload:
+          $ref: "#/FeatureSyncDecisionReportPayloadV2"
+        schemaVersion:
+          type: integer
+          enum: [2]
+
+UpdateReportDto:
+  oneOf:
+    - $ref: "#/UpdateReportDtoOther"
+    - $ref: "#/UpdateReportDtoFeatureSyncDecisionV1"
+    - $ref: "#/UpdateReportDtoFeatureSyncDecisionV2"
+
+UpdateReportDtoBase:
+  type: object
+  properties:
+    audience:
+      $ref: "#/ReportAudience"
+    expiresAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Optional explicit expiration timestamp; defaults to retention policy
+    agent:
+      type: string
+      nullable: true
+      description: >
+        Optional report-level agent identity for the emitting run/session.
+        This is shared envelope metadata and must not be duplicated inside
+        individual report payload variants.
+    sourceExecutionId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Optional originating flow execution id
+    parentReportId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Optional parent report ID for hierarchical grouping
+    entities:
+      type: array
+      items:
+        $ref: "#/CreateReportEntityDto"
+    linkedEntities:
+      type: array
+      description: >
+        Optional list of typed `{ entityType, entityId }` references
+        for entities mentioned inline in the report's body. See
+        `CreateReportDto.linkedEntities`. Optional and additive —
+        updates that omit it are valid.
+      items:
+        $ref: "#/LinkedReportEntityRef"
+
+UpdateReportDtoOther:
+  allOf:
+    - $ref: "#/UpdateReportDtoBase"
+    - type: object
+      required: [payload]
+      properties:
+        payload:
+          $ref: "#/OtherReportPayload"
+        schemaVersion:
+          type: integer
+          minimum: 1
+
+UpdateReportDtoFeatureSyncDecisionV1:
+  allOf:
+    - $ref: "#/UpdateReportDtoBase"
+    - type: object
+      required: [payload, schemaVersion]
+      properties:
+        payload:
+          $ref: "#/FeatureSyncDecisionReportPayloadV1"
+        schemaVersion:
+          type: integer
+          enum: [1]
+
+UpdateReportDtoFeatureSyncDecisionV2:
+  allOf:
+    - $ref: "#/UpdateReportDtoBase"
+    - type: object
+      required: [payload, schemaVersion]
+      properties:
+        payload:
+          $ref: "#/FeatureSyncDecisionReportPayloadV2"
+        schemaVersion:
+          type: integer
+          enum: [2]
+
+ReportDto:
+  type: object
+  required:
+    - id
+    - organizationId
+    - reportType
+    - audience
+    - title
+    - payload
+    - version
+    - schemaVersion
+    - createdAt
+    - expiresAt
+    - entities
+  properties:
+    id:
+      type: string
+      format: uuid
+    organizationId:
+      type: string
+      format: uuid
+    projectId:
+      type: string
+      format: uuid
+      nullable: true
+    reportType:
+      $ref: "#/ReportType"
+    audience:
+      $ref: "#/ReportAudience"
+    title:
+      type: string
+      description: Human-readable report title derived from report type.
+    payload:
+      $ref: "#/ReportPayload"
+    version:
+      type: integer
+    schemaVersion:
+      type: integer
+    agent:
+      type: string
+      nullable: true
+      description: >
+        Optional report-level agent identity for the emitting run/session.
+        Conversation viewers may use this value to place reports with
+        compatible agent-authored messages before falling back to timestamp
+        proximity.
+    sourceExecutionId:
+      type: string
+      format: uuid
+      nullable: true
+    parentReportId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Parent report ID for hierarchical grouping
+    ragEnabled:
+      type: boolean
+      description: >
+        Whether this report may be ingested into graph and embeddings. Absent
+        means true. Derived by the API, never set by clients. A reusable
+        exclusion control, not an approval flag.
+    createdAt:
+      type: string
+      format: date-time
+    expiresAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Null when the report never expires.
+    entities:
+      type: array
+      items:
+        $ref: "#/ReportEntityDto"
+    linkedEntities:
+      type: array
+      description: >
+        Optional list of typed `{ entityType, entityId }` references
+        for entities mentioned inline in the report's body (e.g.
+        @-mentions inside a `COMPETITIVE_ANALYSIS` or
+        `FEATURE_TREE_ANALYSIS` payload's `text` field). Distinct from
+        the structured `entities[]` relationships, which describe the
+        report's primary/context anchoring rather than inline body
+        references. Omitted for reports that do not reference inline
+        entities.
+      items:
+        $ref: "#/LinkedReportEntityRef"
+
+ReportDtoBase:
+  type: object
+  required:
+    - id
+    - organizationId
+    - audience
+    - title
+    - version
+    - createdAt
+    - expiresAt
+    - entities
+  properties:
+    id:
+      type: string
+      format: uuid
+    organizationId:
+      type: string
+      format: uuid
+    projectId:
+      type: string
+      format: uuid
+      nullable: true
+    audience:
+      $ref: "#/ReportAudience"
+    title:
+      type: string
+      description: Human-readable report title derived from report type.
+    version:
+      type: integer
+    agent:
+      type: string
+      nullable: true
+      description: >
+        Optional report-level agent identity for the emitting run/session.
+        Conversation viewers may use this value to place reports with
+        compatible agent-authored messages before falling back to timestamp
+        proximity.
+    sourceExecutionId:
+      type: string
+      format: uuid
+      nullable: true
+    parentReportId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Parent report ID for hierarchical grouping
+    ragEnabled:
+      type: boolean
+      description: >
+        Whether this report may be ingested into graph and embeddings. Absent
+        means true. Derived by the API, never set by clients. A reusable
+        exclusion control, not an approval flag.
+    createdAt:
+      type: string
+      format: date-time
+    expiresAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Null when the report never expires.
+    entities:
+      type: array
+      items:
+        $ref: "#/ReportEntityDto"
+    linkedEntities:
+      type: array
+      description: >
+        Optional list of typed `{ entityType, entityId }` references
+        for entities mentioned inline in the report's body (e.g.
+        @-mentions inside a `COMPETITIVE_ANALYSIS` or
+        `FEATURE_TREE_ANALYSIS` payload's `text` field). Distinct from
+        the structured `entities[]` relationships, which describe the
+        report's primary/context anchoring rather than inline body
+        references. Omitted for reports that do not reference inline
+        entities.
+      items:
+        $ref: "#/LinkedReportEntityRef"
+
+ReportDtoOther:
+  allOf:
+    - $ref: "#/ReportDtoBase"
+    - type: object
+      required: [payload, reportType, schemaVersion]
+      properties:
+        reportType:
+          type: string
+          enum: [PROJECT_REPORT, CODING_RESEARCH, EVIDENCE_PIPELINE, SNAPSHOT, ROLLUP_PROPOSAL, DAILY_SESSION, GOAL_PROGRESS, RISK_ALERT, SESSION_SUMMARY, COMMIT, PLAN, IMPLEMENT, REVIEW, CHANGE_WALKTHROUGH, FEATURE_SYNC, FEATURE_SYNC_HANDOFF, DECISION_NEEDED, PHASE_GROUNDING, VALIDATION_WALKTHROUGH, FEATURE_TREE_ANALYSIS, COMPETITIVE_ANALYSIS, SESSION_MONITOR_DEFERRAL, EVAL_RUN, EVAL_ATTEMPT, EVAL_HUMAN_REVIEW]
+        payload:
+          $ref: "#/OtherReportPayload"
+        schemaVersion:
+          type: integer
+          minimum: 1
+
+ReportDtoFeatureSyncDecisionV1:
+  allOf:
+    - $ref: "#/ReportDtoBase"
+    - type: object
+      required: [payload, reportType, schemaVersion]
+      properties:
+        reportType:
+          type: string
+          enum: [FEATURE_SYNC_DECISION]
+        payload:
+          $ref: "#/FeatureSyncDecisionReportPayloadV1"
+        schemaVersion:
+          type: integer
+          enum: [1]
+
+ReportDtoFeatureSyncDecisionV2:
+  allOf:
+    - $ref: "#/ReportDtoBase"
+    - type: object
+      required: [payload, reportType, schemaVersion]
+      properties:
+        reportType:
+          type: string
+          enum: [FEATURE_SYNC_DECISION]
+        payload:
+          $ref: "#/FeatureSyncDecisionReportPayloadV2"
+        schemaVersion:
+          type: integer
+          enum: [2]
+
+CreateReportResponseDto:
+  oneOf:
+    - $ref: "#/CreateReportResponseDtoOther"
+    - $ref: "#/CreateReportResponseDtoFeatureSyncDecisionV1"
+    - $ref: "#/CreateReportResponseDtoFeatureSyncDecisionV2"
+
+CreateReportResponseMetadata:
+  type: object
+  required:
+    - reportGuidance
+  properties:
+    messageId:
+      type: string
+      format: uuid
+      description: >
+        Carrier message id minted atomically with the report when the
+        create request carries conversation context and no source message
+        id. Omitted when no carrier message is minted.
+    reportGuidance:
+      $ref: "./trigger-payloads.yaml#/SessionMonitorReportGuidance"
+
+CreateReportResponseDtoOther:
+  allOf:
+    - $ref: "#/ReportDtoOther"
+    - $ref: "#/CreateReportResponseMetadata"
+
+CreateReportResponseDtoFeatureSyncDecisionV1:
+  allOf:
+    - $ref: "#/ReportDtoFeatureSyncDecisionV1"
+    - $ref: "#/CreateReportResponseMetadata"
+
+CreateReportResponseDtoFeatureSyncDecisionV2:
+  allOf:
+    - $ref: "#/ReportDtoFeatureSyncDecisionV2"
+    - $ref: "#/CreateReportResponseMetadata"
+
+ReportSummaryDto:
+  type: object
+  description: >
+    Compact report summary returned by `list_reports_by_entity`. Carries only
+    the fields needed to render a list row and follow up with a full fetch.
+  required:
+    - id
+    - reportType
+    - createdAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    reportType:
+      $ref: "#/ReportType"
+    sourceExecution:
+      type: string
+      format: uuid
+      nullable: true
+      description: Originating flow execution id, when one is attached.
+    createdAt:
+      type: string
+      format: date-time
+CreateReportCompletedAttempt:
+  type: object
+  required: [code, requestId, attemptId, reportId]
+  properties:
+    code:
+      type: string
+      enum: [PROJECT_REPORT_ATTEMPT_COMPLETED]
+    requestId:
+      type: string
+      format: uuid
+    attemptId:
+      type: string
+      format: uuid
+    reportId:
+      type: string
+      format: uuid
+
+CreateReportCompletedAttemptError:
+  allOf:
+    - $ref: './common.yaml#/ApiErrorResponse'
+    - type: object
+      required: [code, data]
+      properties:
+        code:
+          type: string
+          enum: [PROJECT_REPORT_ATTEMPT_COMPLETED]
+        data:
+          $ref: '#/CreateReportCompletedAttempt'
+
+ChangeWalkthroughWorkspaceSource:
+  type: object
+  additionalProperties: false
+  required: [kind]
+  properties:
+    kind:
+      type: string
+      enum: [WORKSPACE]
+ChangeWalkthroughGitSource:
+  type: object
+  additionalProperties: false
+  required: [kind, revision]
+  properties:
+    kind:
+      type: string
+      enum: [GIT]
+    revision:
+      type: string
+      pattern: '^[0-9a-f]{40}([0-9a-f]{24})?$'
+      description: Immutable full Git commit object ID.
+ChangeWalkthroughSourceVersion:
+  oneOf:
+    - $ref: '#/ChangeWalkthroughWorkspaceSource'
+    - $ref: '#/ChangeWalkthroughGitSource'
+ChangeWalkthroughVerifiedSource:
+  type: object
+  additionalProperties: false
+  required: [status, checkedAt]
+  properties:
+    status:
+      type: string
+      enum: [VERIFIED]
+    checkedAt:
+      type: string
+      format: date-time
+ChangeWalkthroughUnresolvedSource:
+  type: object
+  additionalProperties: false
+  required: [status, reason]
+  properties:
+    status:
+      type: string
+      enum: [UNRESOLVED]
+    reason:
+      type: string
+      minLength: 1
+ChangeWalkthroughSourceVerification:
+  description: Host-computed evidence at submission time. Revalidate before opening current source.
+  oneOf:
+    - $ref: '#/ChangeWalkthroughVerifiedSource'
+    - $ref: '#/ChangeWalkthroughUnresolvedSource'
+ChangeWalkthroughExcerpt:
+  type: object
+  required: [serviceId, file, startLine, endLine, language, code, sourceVersion, verification]
+  properties:
+    serviceId:
+      type: string
+      format: uuid
+    file:
+      type: string
+      minLength: 1
+      description: Normalized repository-relative POSIX path with no absolute, dot, parent, empty or backslash segments. Invalid references are retained as UNRESOLVED.
+    startLine:
+      type: integer
+      minimum: 1
+    endLine:
+      type: integer
+      minimum: 1
+      description: Inclusive end, at least startLine. Invalid ranges are UNRESOLVED.
+    language:
+      type: string
+    code:
+      type: string
+      description: Exact literal lines joined with newline, excluding the final line separator.
+    sourceVersion:
+      $ref: '#/ChangeWalkthroughSourceVersion'
+    verification:
+      $ref: '#/ChangeWalkthroughSourceVerification'
+ChangeWalkthroughStep:
+  type: object
+  required: [excerpt, explanation]
+  properties:
+    excerpt:
+      $ref: '#/ChangeWalkthroughExcerpt'
+    explanation:
+      type: string
+ChangeWalkthroughChange:
+  type: object
+  required: [title, context, walkthrough, behavioralConsequence]
+  properties:
+    title:
+      type: string
+    context:
+      type: string
+    walkthrough:
+      type: array
+      items:
+        $ref: '#/ChangeWalkthroughStep'
+    behavioralConsequence:
+      type: string
+ChangeWalkthroughGroup:
+  type: object
+  required: [title, changes]
+  properties:
+    title:
+      type: string
+    changes:
+      type: array
+      items:
+        $ref: '#/ChangeWalkthroughChange'
+ChangeWalkthroughReportPayload:
+  description: Guided behavioral changes in importance order with inspected literal excerpts and immediate explanations. Required Review output, not a repair-authority gate.
+  allOf:
+    - $ref: '#/BaseReportPayload'
+  type: object
+  required: [reportType, summary, targetRunId, groups]
+  properties:
+    reportType:
+      type: string
+      enum: [CHANGE_WALKTHROUGH]
+    summary:
+      type: string
+    targetRunId:
+      type: string
+      format: uuid
+      description: Host-stamped reviewed Run identity whose resolved Service workspaces supply source authority.
+    groups:
+      type: array
+      items:
+        $ref: '#/ChangeWalkthroughGroup'

@@ -1,0 +1,30 @@
+PlanType:
+  type: string
+  enum:
+    - STANDARD
+    - MINI
+  description: >-
+    Plan structure type. STANDARD plans have multiple sequenced stages.
+    MINI plans use a single stage with all work items for simpler outcomes.
+
+PlanConfigurationV1:
+  type: object
+  additionalProperties: false
+  description: >-
+    Schema-backed configuration stored in the planConfiguration section of a
+    PLAN work item. Identity, lifecycle, project, owner, and parent fields are
+    ordinary Task scalars and are intentionally absent from this document.
+  required:
+    - schemaVersion
+    - planType
+    - worktreeBranch
+  properties:
+    schemaVersion:
+      type: string
+      enum:
+        - plan-configuration.v1
+    planType:
+      $ref: "#/PlanType"
+    worktreeBranch:
+      type: string
+      nullable: true

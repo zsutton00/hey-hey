@@ -1,0 +1,44 @@
+[
+  {
+    "workload": "create",
+    "variant": "before",
+    "samples": 500,
+    "totalMs": 5.507,
+    "relationReloads": 500
+  },
+  {
+    "workload": "create",
+    "variant": "after",
+    "samples": 500,
+    "totalMs": 2.093,
+    "relationReloads": 0
+  },
+  {
+    "workload": "draft-update",
+    "variant": "before",
+    "samples": 500,
+    "totalMs": 2.258,
+    "relationReloads": 500
+  },
+  {
+    "workload": "draft-update",
+    "variant": "after",
+    "samples": 500,
+    "totalMs": 3.259,
+    "relationReloads": 0
+  },
+  {
+    "workload": "immediately-applied-user-change",
+    "variant": "before",
+    "samples": 500,
+    "totalMs": 2.644,
+    "relationReloads": 500
+  },
+  {
+    "workload": "immediately-applied-user-change",
+    "variant": "after",
+    "samples": 500,
+    "totalMs": 2.426,
+    "relationReloads": 0
+  }
+]

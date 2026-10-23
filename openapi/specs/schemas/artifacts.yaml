@@ -1,0 +1,1252 @@
+# =============================================
+# Artifact Schemas
+# =============================================
+
+Influence:
+  type: object
+  additionalProperties: false
+  required:
+    - entityId
+    - entityType
+    - reasoning
+    - reasonType
+  properties:
+    entityId:
+      type: string
+      format: uuid
+      description: ID of the influencing entity
+      example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+      description: Type of the influencing entity
+    entityTitle:
+      type: string
+      nullable: true
+      description: >-
+        Snapshot of the influencing entity's title at the moment the
+        proposal was created. Optional on input — when omitted, the
+        server resolves it from the EntityRegistry and stamps it before
+        the row is persisted. Once stored, the snapshot intentionally
+        does not auto-update if the target is later renamed or deleted;
+        the mention link still resolves to the live entity for the
+        current name. May be null for rows whose target was missing
+        from the registry at write time.
+      example: Add optional serviceId to create_task
+    taskType:
+      type: string
+      description: >-
+        Point-in-time snapshot of the authoritative work-item subtype for a
+        TASK influence. Values are opaque registry keys and may be built-in or
+        project-defined. The server stamps this field for newly authored TASK
+        influences when the referenced task can be resolved. It is omitted for
+        non-TASK influences and remains absent on legacy or unresolved rows;
+        consumers must not infer STANDARD when it is missing.
+      example: BUG
+    reasoning:
+      type: string
+      description: LLM explanation of how this entity influenced the decision
+      example: This artifact provided context about user authentication patterns
+    reasonType:
+      type: string
+      description: >-
+        Specific type of influence relationship. Recognized values:
+        `explicit_mention`, `implied`, `derived`, `origin`, `user_reason`.
+        The `origin` value is system-injected to mark the host conversation's
+        workflow-about entity and is not declarable by agents. The
+        `user_reason` value is server-stamped on every user-authored PATCH
+        proposal (paired with `entityType: USER` and the editing user's id),
+        carrying the optional free-text reason the user supplied at save
+        time.
+      example: explicit_mention
+
+    confidence:
+      type: number
+      format: float
+      minimum: 0
+      maximum: 1
+      description: Confidence score for this influence relationship
+      example: 0.95
+
+# UIElementWithInfluences is now redundant since UIElement already includes required influences field
+
+# =============================================
+# Typed Artifact Data Schemas (Phase 3)
+# =============================================
+ArtifactData:
+  type: object
+  required:
+    - type
+  properties:
+    type:
+      $ref: "#/ArtifactType"
+    nodeId:
+      type: string
+      description: ID of the flow node that generated this artifact
+  discriminator:
+    propertyName: type
+    mapping:
+      QA_PAIR: "#/QAPairData"
+      DECISION: "#/DecisionData"
+      REQUIREMENT: "#/RequirementData"
+      DOCUMENT: "#/DocumentData"
+      NOTE: "#/NoteData"
+      TASK: "#/TaskData"
+      TASK_ORIGINAL: "#/TaskOriginalArtifactData"
+      ISSUE: "#/IssueData"
+      BUG: "#/BugData"
+      COMMENT: "#/CommentData"
+      INITIATIVE_ORIGINAL: "#/InitiativeArtifactData"
+      INITIATIVE_REFINED: "#/InitiativeArtifactData"
+      INSIGHT: "#/InsightData"
+
+QAPairData:
+  allOf:
+    - $ref: "#/ArtifactData"
+    - type: object
+      required:
+        - question
+        - answer
+        - systemMessageId
+        - userMessageId
+      properties:
+        question:
+          type: string
+          description: The question being asked
+        answer:
+          type: string
+          description: The answer provided
+        systemResponse:
+          type: string
+          description: System response that introduced the question
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Confidence score for the answer
+        systemMessageId:
+          type: string
+          description: ID of the system message that provided the answer
+        userMessageId:
+          type: string
+          description: ID of the user message that asked the question
+        questionField:
+          type: string
+          description: UI field identifier where the question originated
+  x-discriminator-value: QA_PAIR
+
+DecisionData:
+  allOf:
+    - $ref: "#/ArtifactData"
+    - type: object
+      required:
+        - title
+        - rationale
+        - alternatives
+        - outcome
+      properties:
+        title:
+          type: string
+          description: Title of the decision
+        rationale:
+          type: string
+          description: Reasoning behind the decision
+        alternatives:
+          type: array
+          items:
+            type: string
+          description: Alternative options that were considered
+        outcome:
+          type: string
+          description: Final decision outcome
+        stakeholders:
+          type: array
+          items:
+            type: string
+          description: People or roles involved in the decision
+        relatedArtifactIds:
+          type: array
+          items:
+            type: string
+          description: IDs of related artifacts
+        sourceConversationId:
+          type: string
+          description: ID of the conversation where this decision was made
+  x-discriminator-value: DECISION
+
+RequirementData:
+  allOf:
+    - $ref: "#/ArtifactData"
+    - type: object
+      required:
+        - title
+        - description
+        - priority
+        - status
+      properties:
+        title:
+          type: string
+          description: Requirement title
+        description:
+          type: string
+          description: Detailed requirement description
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          description: Priority level
+        status:
+          type: string
+          enum: [DRAFT, APPROVED, IMPLEMENTED, DEPRECATED]
+          description: Current status
+        acceptanceCriteria:
+          type: array
+          items:
+            type: string
+          description: Acceptance criteria for this requirement
+        sourceMessageId:
+          type: string
+          description: ID of the message that originated this requirement
+        relatedRequirements:
+          type: array
+          items:
+            type: string
+          description: IDs of related requirements
+  x-discriminator-value: REQUIREMENT
+
+DocumentData:
+  allOf:
+    - $ref: "#/ArtifactData"
+    - type: object
+      required:
+        - title
+        - content
+      properties:
+        title:
+          type: string
+          description: Document title
+        content:
+          type: string
+          description: Document content
+        sections:
+          type: array
+          items:
+            type: object
+            required:
+              - title
+              - content
+              - order
+            properties:
+              title:
+                type: string
+              content:
+                type: string
+              order:
+                type: integer
+          description: Document sections
+        sourceDocumentId:
+          type: string
+          description: ID of the source document
+        relatedDocuments:
+          type: array
+          items:
+            type: string
+          description: IDs of related documents
+  x-discriminator-value: DOCUMENT
+
+NoteData:
+  allOf:
+    - $ref: "#/ArtifactData"
+    - type: object
+      required:
+        - title
+        - content
+      properties:
+        title:
+          type: string
+          description: Note title
+        content:
+          type: string
+          description: Note content
+        tags:
+          type: array
+          items:
+            type: string
+          description: Note tags
+        sourceMessageId:
+          type: string
+          description: ID of the source message
+        relatedNotes:
+          type: array
+          items:
+            type: string
+          description: IDs of related notes
+  x-discriminator-value: NOTE
+
+TaskOriginalArtifactData:
+  allOf:
+    - $ref: "#/ArtifactData"
+    - $ref: "#/TaskOriginalData"
+  x-discriminator-value: TASK_ORIGINAL
+
+# Convenience type for original task payload (without ArtifactData envelope)
+TaskOriginalData:
+  type: object
+  required:
+    - taskType
+    - name
+    - description
+    - priority
+  properties:
+    taskType:
+      type: string
+      enum: [STANDARD, BUG, FEATURE, GOAL]
+      default: STANDARD
+    name:
+      type: string
+      description: Task name/title at generation time
+    description:
+      type: string
+      description: Original task description
+    priority:
+      type: string
+      enum: [low, medium, high, critical]
+      description: Original priority (lowercase to match generation payload)
+    acceptanceCriteria:
+      type: string
+      description: Original acceptance criteria (STANDARD tasks)
+    estimatedEffort:
+      type: string
+      enum: [small, medium, large]
+      description: Optional effort sizing captured from generation
+    tags:
+      type: array
+      items:
+        type: string
+      description: Optional tags captured from generation
+    reasoning:
+      type: string
+      description: Optional reasoning captured from generation
+
+TaskData:
+  allOf:
+    - $ref: "#/ArtifactData"
+    - type: object
+      required:
+        - title
+        - description
+        - status
+        - priority
+      properties:
+        title:
+          type: string
+          description: Task title
+        description:
+          type: string
+          description: Task description
+        status:
+          type: string
+          enum: [TODO, IN_PROGRESS, COMPLETED, CANCELLED]
+          description: Task status
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          description: Task priority
+        assignee:
+          type: string
+          description: Person assigned to the task
+        dueDate:
+          type: string
+          format: date-time
+          description: Due date for the task
+        sourceMessageId:
+          type: string
+          description: ID of the source message
+        relatedTasks:
+          type: array
+          items:
+            type: string
+          description: IDs of related tasks
+  x-discriminator-value: TASK
+
+IssueData:
+  allOf:
+    - $ref: "#/ArtifactData"
+    - type: object
+      required:
+        - title
+        - description
+        - status
+        - severity
+      properties:
+        title:
+          type: string
+          description: Issue title
+        description:
+          type: string
+          description: Issue description
+        status:
+          type: string
+          enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED]
+          description: Issue status
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          description: Issue severity
+        assignee:
+          type: string
+          description: Person assigned to the issue
+        sourceSystemId:
+          type: string
+          description: ID from the source system
+        relatedIssues:
+          type: array
+          items:
+            type: string
+          description: IDs of related issues
+  x-discriminator-value: ISSUE
+
+BugData:
+  allOf:
+    - $ref: "#/ArtifactData"
+    - type: object
+      required:
+        - title
+        - description
+        - reproductionSteps
+        - expectedBehavior
+        - actualBehavior
+        - status
+        - severity
+      properties:
+        title:
+          type: string
+          description: Bug title
+        description:
+          type: string
+          description: Bug description
+        reproductionSteps:
+          type: array
+          items:
+            type: string
+          description: Steps to reproduce the bug
+        expectedBehavior:
+          type: string
+          description: What should happen
+        actualBehavior:
+          type: string
+          description: What actually happens
+        status:
+          type: string
+          enum: [OPEN, IN_PROGRESS, FIXED, CLOSED]
+          description: Bug status
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          description: Bug severity
+        sourceCommitId:
+          type: string
+          description: Commit ID where the bug was found
+        relatedBugs:
+          type: array
+          items:
+            type: string
+          description: IDs of related bugs
+  x-discriminator-value: BUG
+
+CommentData:
+  allOf:
+    - $ref: "#/ArtifactData"
+    - type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          description: Comment content
+        author:
+          type: string
+          description: Comment author
+        timestamp:
+          type: string
+          format: date-time
+          description: Comment timestamp
+        parentArtifactId:
+          type: string
+          description: ID of the parent artifact
+        sourceMessageId:
+          type: string
+          description: ID of the source message
+  x-discriminator-value: COMMENT
+
+InitiativeArtifactData:
+  allOf:
+    - $ref: "#/ArtifactData"
+    - type: object
+      required:
+        - content
+        - reasoning
+        - confidence
+      properties:
+        content:
+          type: string
+          description: JSON string containing original LLM-generated initiative data
+        reasoning:
+          type: string
+          description: LLM reasoning for generating this initiative
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Confidence level of the initiative generation (0.0 - 1.0)
+
+InsightData:
+  allOf:
+    - $ref: "#/ArtifactData"
+    - type: object
+      required:
+        - confidence
+        - reasoning
+        - content
+      properties:
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Confidence level of the insight (0.0 - 1.0)
+        reasoning:
+          type: string
+          description: LLM reasoning for generating this insight
+        content:
+          type: string
+          description: The actual insight text content
+  x-discriminator-value: INSIGHT
+
+CreateArtifactDto:
+  type: object
+  required:
+    - organizationId
+    - type
+    - sourceType
+    - sourceId
+  properties:
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+      description: Project ID this artifact belongs to
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+      description: Organization ID
+    type:
+      $ref: "#/ArtifactType"
+      description: Type of artifact
+    title:
+      type: string
+      description: Optional title/summary of the artifact
+    data:
+      $ref: "#/ArtifactData"
+      description: Typed artifact data
+    # Common fields
+    parentId:
+      type: string
+      format: uuid
+      description: Parent artifact ID for hierarchical structures
+    sourceType:
+      $ref: "#/ArtifactSourceType"
+      description: Source type where this artifact came from
+    sourceId:
+      type: string
+      description: Source object ID
+    tags:
+      type: array
+      items:
+        type: string
+      description: Array of tags for categorization
+    category:
+      type: string
+      description: Main category
+    priority:
+      $ref: "./common.yaml#/Priority"
+      description: Priority level
+    status:
+      $ref: "#/ArtifactStatus"
+      description: Artifact status
+    isPublic:
+      type: boolean
+      description: Whether the artifact is public
+    generateEmbedding:
+      type: boolean
+      description: Generate embedding for semantic search
+      default: true
+    influences:
+      type: array
+      items:
+        $ref: "#/Influence"
+      description: Array of entities that influenced the creation of this artifact
+ArtifactType:
+  type: string
+  enum:
+    - QA_PAIR # Question/Answer from LLM interactions
+    - DOCUMENT # Full documents
+    - DOCUMENT_SECTION # Highlighted/extracted sections
+    - COMMENT # Comments on documents or other objects
+    - TASK_ORIGINAL # Tasks and todos
+    - WORKSTREAM # PR, feature branches, etc.
+    - INSIGHT # Derived insights or analysis
+    - REFERENCE # External references or links
+    - NOTE # General notes
+    - DECISION # Decisions made
+    - PULL_REQUEST # Pull requests
+    - ISSUE # Issues
+    - BUG # Bugs
+    - REQUIREMENT # Requirements or specifications
+    - INITIATIVE_ORIGINAL # Original LLM-generated initiative data
+    - INITIATIVE_REFINED # Refined LLM-generated initiative data
+  description: Type of artifact
+
+ArtifactStatus:
+  type: string
+  enum:
+    - ACTIVE
+    - ARCHIVED
+    - DELETED
+    - DRAFT
+    - DEPRECATED
+  description: Status of artifact
+
+ArtifactSourceType:
+  type: string
+  enum:
+    - CONVERSATION
+    - INTEGRATION
+    - GITHUB_README
+    - GITHUB_DOCS
+    - GITHUB_ISSUE
+    - GITHUB_PULL_REQUEST
+    - INITIATIVE
+    - SYSTEM
+    - TASK
+    - ADR
+    - RFC
+    - MESSAGE
+  description: Source type where the artifact originated
+
+UpdateArtifactDto:
+  type: object
+  properties:
+    title:
+      type: string
+      description: Optional title/summary of the artifact
+    data:
+      $ref: "#/ArtifactData"
+      description: Typed artifact Database
+    tags:
+      type: array
+      items:
+        type: string
+      description: Array of tags for categorization
+    category:
+      type: string
+      description: Main category
+    priority:
+      $ref: "./common.yaml#/Priority"
+      description: Priority level
+    status:
+      $ref: "#/ArtifactStatus"
+      description: Artifact status
+    isPublic:
+      type: boolean
+      description: Whether the artifact is public
+    regenerateEmbedding:
+      type: boolean
+      description: Regenerate embedding after update
+      example: true
+      default: false
+
+ArtifactResponseDto:
+  type: object
+  required:
+    - id
+    - type
+    - data
+    - hasEmbedding
+    - tags
+    - status
+    - isPublic
+    - createdAt
+    - updatedAt
+    - sourceType
+    - sourceId
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique identifier
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+      description: Project ID
+    type:
+      $ref: "#/ArtifactType"
+      description: Artifact type
+    title:
+      type: string
+      description: Title/summary
+    data:
+      $ref: "#/ArtifactData"
+      description: Typed artifact data
+    embeddingModel:
+      type: string
+      description: Embedding model used
+    hasEmbedding:
+      type: boolean
+      description: Has embedding been generated
+    parentId:
+      type: string
+      format: uuid
+      description: Parent object ID
+    rootId:
+      type: string
+      format: uuid
+      description: Root ancestor ID
+    sourceType:
+      $ref: "#/ArtifactSourceType"
+      description: Source type
+    sourceId:
+      type: string
+      description: Source ID
+    contentHash:
+      type: string
+      description: Content hash
+    wordCount:
+      type: integer
+      description: Word count
+    language:
+      type: string
+      description: Detected language
+    tags:
+      type: array
+      items:
+        type: string
+      description: Tags array
+    tagRelations:
+      type: array
+      items:
+        $ref: "#/ArtifactTag"
+      description: Normalized tag relationships
+    category:
+      type: string
+      description: Category
+    priority:
+      $ref: "./common.yaml#/Priority"
+      description: Priority
+    status:
+      $ref: "#/ArtifactStatus"
+      description: Status
+    isPublic:
+      type: boolean
+      description: Is public
+    createdAt:
+      type: string
+      format: date-time
+      description: Created timestamp
+    updatedAt:
+      type: string
+      format: date-time
+      description: Updated timestamp
+    archivedAt:
+      type: string
+      format: date-time
+      description: Archived timestamp
+
+PaginatedArtifactsDto:
+  type: object
+  required:
+    - data
+    - total
+    - page
+    - limit
+    - totalPages
+    - hasNext
+    - hasPrev
+  properties:
+    data:
+      type: array
+      items:
+        $ref: "#/ArtifactResponseDto"
+      description: Array of artifacts
+    total:
+      type: integer
+      description: Total count of items
+    page:
+      type: integer
+      description: Current page
+    limit:
+      type: integer
+      description: Items per page
+    totalPages:
+      type: integer
+      description: Total pages
+    hasNext:
+      type: boolean
+      description: Has next page
+    hasPrev:
+      type: boolean
+      description: Has previous page
+
+QueryArtifactsDto:
+  type: object
+  properties:
+    ids:
+      type: array
+      items:
+        format: uuid
+      description: Filter by artifact ID
+      example: ["artifact-123"]
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+      description: Filter by project ID
+      example: "proj-123"
+    type:
+      $ref: "#/ArtifactType"
+      description: Filter by artifact type
+    status:
+      $ref: "#/ArtifactStatus"
+      description: Filter by status
+    sourceType:
+      $ref: "#/ArtifactSourceType"
+      description: Filter by source type
+      example: "CONVERSATION"
+    sourceId:
+      type: string
+      description: Filter by source ID
+      example: "conv-456"
+    tags:
+      type: string
+      description: Filter by tags (comma-separated)
+      example: "authentication,jwt,security"
+    category:
+      type: string
+      description: Filter by category
+      example: "technical-guidance"
+    parentId:
+      type: string
+      format: uuid
+      description: Filter by parent ID
+      example: "parent-uuid"
+    publicOnly:
+      type: boolean
+      description: Include only public artifacts
+      example: false
+    page:
+      type: integer
+      default: 1
+      minimum: 1
+      description: Page number for pagination
+      example: 1
+    limit:
+      type: integer
+      default: 20
+      minimum: 1
+      maximum: 100
+      description: Number of items per page
+      example: 20
+    orderBy:
+      type: string
+      default: "createdAt"
+      description: Order by field
+      example: "createdAt"
+    orderDirection:
+      type: string
+      enum: [asc, desc]
+      default: "desc"
+      description: Order direction
+      example: "desc"
+
+ProjectArtifactSummaryDto:
+  type: object
+  required:
+    - projectId
+    - summary
+    - sampleObjects
+  properties:
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+      format: uuid
+      description: Project ID
+    summary:
+      type: object
+      required:
+        - total
+        - byType
+        - byCategory
+        - withEmbeddings
+        - publicCount
+        - recentCount
+      properties:
+        total:
+          type: integer
+          description: Total number of artifacts
+        byType:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Count by artifact type
+        byCategory:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Count by category
+        withEmbeddings:
+          type: integer
+          description: Number with embeddings
+        publicCount:
+          type: integer
+          description: Number of public artifacts
+        recentCount:
+          type: integer
+          description: Number created in last 7 days
+    sampleObjects:
+      type: array
+      items:
+        $ref: "#/ArtifactResponseDto"
+      description: Sample artifacts (first 5)
+
+# =============================================
+# Search Schemas
+# =============================================
+SemanticSearchDto:
+  type: object
+  required:
+    - query
+  properties:
+    query:
+      type: string
+      description: Search query text
+      example: "How to handle JWT authentication in Node.js?"
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+      description: Project ID to search within
+    limit:
+      type: integer
+      minimum: 1
+      maximum: 100
+      default: 10
+      description: Number of results to return
+    threshold:
+      type: number
+      minimum: 0.0
+      maximum: 1.0
+      default: 0.5
+      description: Minimum similarity threshold (0.0 - 1.0)
+    types:
+      type: array
+      items:
+        type: string
+      description: Filter by artifact types
+      example: ["QA_PAIR", "DOCUMENT_SECTION"]
+    tags:
+      type: array
+      items:
+        type: string
+      description: Filter by tags
+      example: ["authentication", "jwt"]
+    category:
+      type: string
+      description: Filter by category
+      example: "technical-guidance"
+    publicOnly:
+      type: boolean
+      description: Include only public artifacts
+      example: false
+    mode:
+      type: string
+      enum: ["semantic", "keyword", "hybrid"]
+      default: "semantic"
+      description: Search mode
+    filters:
+      type: object
+      description: Additional metadata filters
+      example: { sourceType: "conversation" }
+
+SearchResultDto:
+  type: object
+  required:
+    - id
+    - type
+    - score
+    - projectId
+    - tags
+    - createdAt
+    - data
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Artifact ID
+    title:
+      type: string
+      description: Artifact title
+    data:
+      $ref: "#/ArtifactData"
+      description: Typed artifact data
+    type:
+      type: string
+      description: Artifact type
+    score:
+      type: number
+      minimum: 0.0
+      maximum: 1.0
+      description: Similarity score (0.0 - 1.0)
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+      description: Project ID
+    tags:
+      type: array
+      items:
+        type: string
+      description: Tags array
+    category:
+      type: string
+      description: Category
+    createdAt:
+      type: string
+      format: date-time
+      description: Created timestamp
+    updatedAt:
+      type: string
+      format: date-time
+      description: Updated timestamp
+    sourceType:
+      $ref: "#/ArtifactSourceType"
+      description: Source type
+    sourceId:
+      type: string
+      description: Source ID
+    matchType:
+      type: string
+      enum: ["semantic", "keyword", "hybrid"]
+      description: Match type for search results
+    similarity:
+      type: number
+      description: Similarity score (legacy field)
+    highlights:
+      type: array
+      items:
+        type: string
+      description: Highlighted content snippets
+
+SemanticSearchResponseDto:
+  type: object
+  required:
+    - query
+    - resultsCount
+    - results
+    - executionTimeMs
+  properties:
+    query:
+      type: string
+      description: Original search query
+    resultsCount:
+      type: integer
+      description: Number of results returned
+    results:
+      type: array
+      items:
+        $ref: "#/SearchResultDto"
+      description: Search results
+    executionTimeMs:
+      type: integer
+      description: Search execution time in milliseconds
+    searchMetadata:
+      type: object
+      description: Search metadata
+      properties:
+        embeddingModel:
+          type: string
+          description: Embedding model used
+        searchType:
+          type: string
+          description: Type of search performed
+        appliedFilters:
+          type: object
+          description: Filters that were applied
+
+# =============================================
+# Tag Management Schemas
+# =============================================
+TagSource:
+  type: string
+  enum:
+    - SYSTEM
+    - USER
+    - AI_GENERATED
+  description: Source of the tag creation
+
+Tag:
+  type: object
+  required:
+    - id
+    - organizationId
+    - name
+    - source
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique identifier for the tag
+    organizationId:
+      type: string
+      format: uuid
+      description: Organization this tag belongs to
+    name:
+      type: string
+      description: Tag name (unique within organization)
+      example: "database"
+    description:
+      type: string
+      nullable: true
+      description: Optional description of the tag
+      example: "Database-related artifacts and discussions"
+    color:
+      type: string
+      nullable: true
+      pattern: "^#[0-9A-Fa-f]{6}$"
+      description: Hex color code for UI display
+      example: "#3B82F6"
+    source:
+      $ref: "#/TagSource"
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+ArtifactTag:
+  type: object
+  required:
+    - id
+    - artifactId
+    - tagId
+    - createdAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    artifactId:
+      type: string
+      format: uuid
+    tagId:
+      type: string
+      format: uuid
+    confidence:
+      type: number
+      format: float
+      minimum: 0.0
+      maximum: 1.0
+      nullable: true
+      description: Confidence score for AI-generated tags
+    createdAt:
+      type: string
+      format: date-time
+
+ProjectTag:
+  type: object
+  required:
+    - id
+    - projectId
+    - tagId
+    - createdAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+      format: uuid
+    tagId:
+      type: string
+      format: uuid
+    createdAt:
+      type: string
+      format: date-time
+
+CreateTagDto:
+  type: object
+  required:
+    - organizationId
+    - name
+  properties:
+    organizationId:
+      type: string
+      format: uuid
+    name:
+      type: string
+      minLength: 1
+      maxLength: 50
+      pattern: "^[a-zA-Z0-9-_]+$"
+      description: Tag name (alphanumeric, hyphens, underscores only)
+    description:
+      type: string
+      maxLength: 500
+      nullable: true
+    color:
+      type: string
+      pattern: "^#[0-9A-Fa-f]{6}$"
+      nullable: true
+    source:
+      $ref: "#/TagSource"
+      default: USER
+
+UpdateTagDto:
+  type: object
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 50
+      pattern: "^[a-zA-Z0-9-_]+$"
+    description:
+      type: string
+      maxLength: 500
+      nullable: true
+    color:
+      type: string
+      pattern: "^#[0-9A-Fa-f]{6}$"
+      nullable: true
+
+TagQueryDto:
+  type: object
+  properties:
+    organizationId:
+      type: string
+      format: uuid
+    source:
+      $ref: "#/TagSource"
+    search:
+      type: string
+      description: Search term for tag name or description
+    limit:
+      type: integer
+      minimum: 1
+      maximum: 100
+      default: 20
+    offset:
+      type: integer
+      minimum: 0
+      default: 0
+
+AssignTagDto:
+  type: object
+  required:
+    - tagId
+  properties:
+    tagId:
+      type: string
+      format: uuid
+    confidence:
+      type: number
+      format: float
+      minimum: 0.0
+      maximum: 1.0
+      nullable: true
+      description: For AI-generated tag assignments

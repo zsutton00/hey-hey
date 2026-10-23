@@ -1,0 +1,739 @@
+/**
+ * Generated API Path Constants
+ * Generated from OpenAPI spec - DO NOT EDIT MANUALLY
+ */
+
+// Base paths
+export const API_VERSION = 'v1';
+export const API_BASE_PATH = `/api/${API_VERSION}`;
+
+// Controller base paths
+export const ORGANIZATIONS_CONTROLLER_PATH = `${API_BASE_PATH}/organizations`;
+export const AUTH_CONTROLLER_PATH = `${API_BASE_PATH}/auth`;
+export const PRIVATE_BETA_CONTROLLER_PATH = `${API_BASE_PATH}/private-beta`;
+export const PAYMENT_PROVIDERS_CONTROLLER_PATH = `${API_BASE_PATH}/payment-providers`;
+export const WEBHOOKS_CONTROLLER_PATH = `${API_BASE_PATH}/webhooks`;
+export const ADMIN_CONTROLLER_PATH = `${API_BASE_PATH}/admin`;
+export const PRIVATE_BETA_ACCESS_CONTROLLER_PATH = `${API_BASE_PATH}/private-beta-access`;
+export const DEMO_SANDBOXES_CONTROLLER_PATH = `${API_BASE_PATH}/demo-sandboxes`;
+export const EVENTS_CONTROLLER_PATH = `${API_BASE_PATH}/events`;
+export const DEV_CONTROLLER_PATH = `${API_BASE_PATH}/dev`;
+export const JEV_CONTROLLER_PATH = `${API_BASE_PATH}/jev`;
+export const WORKFLOWS_CONTROLLER_PATH = `${API_BASE_PATH}/workflows`;
+export const DEBUG_CONTROLLER_PATH = `${API_BASE_PATH}/debug`;
+export const REPORT_BUG_CONTROLLER_PATH = `${API_BASE_PATH}/report-bug`;
+export const HELP_CONTROLLER_PATH = `${API_BASE_PATH}/help`;
+export const LLM_TRACKING_CONTROLLER_PATH = `${API_BASE_PATH}/llm-tracking`;
+export const SESSION_MESSAGE_TARGETS_CONTROLLER_PATH = `${API_BASE_PATH}/session-message-targets`;
+export const SUBAGENT_DISPATCHES_CONTROLLER_PATH = `${API_BASE_PATH}/subagent-dispatches`;
+export const ANALYTICS_CONTROLLER_PATH = `${API_BASE_PATH}/analytics`;
+export const MCP_CONTROLLER_PATH = `${API_BASE_PATH}/mcp`;
+export const MACHINES_CONTROLLER_PATH = `${API_BASE_PATH}/machines`;
+
+// Special controller paths for nested resources
+export const CONVERSATION_CONTROLLER_PATH =
+  'organizations/:organizationId/projects/:projectId/conversations';
+export const MESSAGE_CONTROLLER_PATH =
+  'organizations/:organizationId/projects/:projectId/messages';
+export const PROJECT_CONTROLLER_PATH = 'organizations/:organizationId/projects';
+
+// Individual endpoint paths
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROJECT_REPORT_REQUESTS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/project-report-requests';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROJECT_REPORT_REQUESTS_PREVIEW_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/project-report-requests/preview';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROJECT_REPORT_REQUESTS_REQUESTID_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROJECT_REPORT_REQUESTS_REQUESTID_RETRY_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId}/retry';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROJECT_REPORT_REQUESTS_REQUESTID_ACTIVITY_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId}/activity';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROJECT_REPORT_REQUESTS_REQUESTID_CONTEXT_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId}/context';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROJECT_REPORT_REQUESTS_REQUESTID_CONTEXT_BATCH_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId}/context:batch';
+export const AUTH_ACCOUNT_DEFAULT_ORGANIZATION_PATH =
+  '/auth/account-default-organization';
+export const AUTH_LOGIN_PATH = '/auth/login';
+export const AUTH_PASSWORD_RECOVERY_PATH = '/auth/password-recovery';
+export const AUTH_REGISTER_PATH = '/auth/register';
+export const AUTH_REFRESH_PATH = '/auth/refresh';
+export const AUTH_LOGOUT_PATH = '/auth/logout';
+export const AUTH_VALIDATE_PATH = '/auth/validate';
+export const AUTH_JWKS_PATH = '/auth/jwks';
+export const PRIVATE_BETA_ACCESS_REQUESTS_PATH =
+  '/private-beta/access-requests';
+export const PRIVATE_BETA_DISCLOSURE_PATH = '/private-beta/disclosure';
+export const PRIVATE_BETA_DISCLOSURE_ACCEPTANCE_PATH =
+  '/private-beta/disclosure/acceptance';
+export const PAYMENT_PROVIDERS_PROVIDER_ENVIRONMENT_WEBHOOK_PATH =
+  '/payment-providers/{provider}/{environment}/webhook';
+export const WEBHOOKS_GITHUB_INTEGRATIONID_PATH =
+  '/webhooks/github/{integrationId}';
+export const AUTH_CHANGE_PASSWORD_PATH = '/auth/change-password';
+export const AUTH_CHANGE_CURRENT_PASSWORD_PATH =
+  '/auth/change-current-password';
+export const ADMIN_PRIVATE_BETA_ACCESS_REQUESTS_PATH =
+  '/admin/private-beta-access-requests';
+export const ADMIN_PRIVATE_BETA_ACCESS_REQUESTS_REQUESTID_PATH =
+  '/admin/private-beta-access-requests/{requestId}';
+export const ADMIN_PRIVATE_BETA_ACCESS_REQUESTS_REQUESTID_DECISION_PATH =
+  '/admin/private-beta-access-requests/{requestId}/decision';
+export const ADMIN_PRIVATE_BETA_ACCESS_CLOSE_PATH =
+  '/admin/private-beta-access/close';
+export const PRIVATE_BETA_ACCESS_ADMISSION_MODE_PATH =
+  '/private-beta-access/admission-mode';
+export const ADMIN_PRIVATE_BETA_ACCESS_ADMISSION_MODE_PATH =
+  '/admin/private-beta-access/admission-mode';
+export const ADMIN_DEMO_SANDBOXES_PATH = '/admin/demo-sandboxes';
+export const ADMIN_DEMO_SANDBOXES_TEMPLATE_PATH =
+  '/admin/demo-sandboxes/template';
+export const ADMIN_DEMO_SANDBOXES_PROGRAM_PATH =
+  '/admin/demo-sandboxes/program';
+export const DEMO_SANDBOXES_PATH = '/demo-sandboxes';
+export const DEMO_SANDBOXES_AVAILABILITY_PATH = '/demo-sandboxes/availability';
+export const DEMO_SANDBOXES_RESUME_PATH = '/demo-sandboxes/resume';
+export const DEMO_SANDBOXES_CURRENT_PATH = '/demo-sandboxes/current';
+export const ADMIN_PLATFORM_ACCESS_PATH = '/admin/platform-access';
+export const ADMIN_ONBOARD_BETA_USER_PATH = '/admin/onboard-beta-user';
+export const ADMIN_ORGANIZATIONS_ORGANIZATIONID_PATH =
+  '/admin/organizations/{organizationId}';
+export const ORGANIZATIONS_PATH = '/organizations';
+export const ORGANIZATIONS_DIRECTORY_PATH = '/organizations/directory';
+export const ORGANIZATIONS_DIRECTORY_ORGANIZATIONID_PATH =
+  '/organizations/directory/{organizationId}';
+export const ORGANIZATIONS_DIRECTORY_ORGANIZATIONID_MEMBERS_PATH =
+  '/organizations/directory/{organizationId}/members';
+export const ORGANIZATIONS_ORGANIZATIONID_PATH =
+  '/organizations/{organizationId}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECT_ENTITLEMENT_PATH =
+  '/organizations/{organizationId}/project-entitlement';
+export const ORGANIZATIONS_DIRECTORY_ORGANIZATIONID_ENTITLEMENT_MAKE_OPEN_ENDED_PATH =
+  '/organizations/directory/{organizationId}/entitlement/make-open-ended';
+export const ORGANIZATIONS_ORGANIZATIONID_CANCEL_PATH =
+  '/organizations/{organizationId}/cancel';
+export const ORGANIZATIONS_ORGANIZATIONID_ACCOUNT_LIFECYCLE_PATH =
+  '/organizations/{organizationId}/account-lifecycle';
+export const ORGANIZATIONS_ORGANIZATIONID_REACTIVATE_PATH =
+  '/organizations/{organizationId}/reactivate';
+export const ORGANIZATIONS_ORGANIZATIONID_MEMBERS_PATH =
+  '/organizations/{organizationId}/members';
+export const ORGANIZATIONS_ORGANIZATIONID_MEMBERS_USERID_PATH =
+  '/organizations/{organizationId}/members/{userId}';
+export const ORGANIZATIONS_ORGANIZATIONID_MEMBERS_BULK_INVITE_PATH =
+  '/organizations/{organizationId}/members/bulk-invite';
+export const ORGANIZATIONS_ORGANIZATIONID_ENTITIES_SEARCH_PATH =
+  '/organizations/{organizationId}/entities/search';
+export const ORGANIZATIONS_ORGANIZATIONID_ENTITIES_SEMANTIC_SEARCH_PATH =
+  '/organizations/{organizationId}/entities/semantic-search';
+export const ORGANIZATIONS_ORGANIZATIONID_ENTITIES_NAMES_PATH =
+  '/organizations/{organizationId}/entities/names';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_ENTITIES_ENTITYTYPE_ENTITYID_CONTEXT_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/entities/{entityType}/{entityId}/context';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_TASKS_TASKID_FEATURE_SYNC_CONTEXT_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/tasks/{taskId}/feature-sync-context';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_FEATURES_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/features';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_FEATURES_SKELETON_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/features/skeleton';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_GOALS_ACTIVE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/goals/active';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_REPORTS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/reports';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_REPORTS_FILE_TOUCHES_BY_FILE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/reports/file-touches/by-file';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_REPORTS_FILE_TOUCHES_BY_WORK_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/reports/file-touches/by-work';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_REPORTS_FILE_HISTORY_BY_FILE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/reports/file-history/by-file';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_REPORTS_FILE_HISTORY_BY_WORK_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/reports/file-history/by-work';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_REPORTS_FILE_HISTORY_BY_SERVICE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/reports/file-history/by-service';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_ENTITIES_ENTITYTYPE_ENTITYID_DEPENDENT_TASKS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/entities/{entityType}/{entityId}/dependent-tasks';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_SEARCH_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/search';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_SEARCH_BATCH_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/search/batch';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_TOPOLOGY_ENTITY_SUMMARIES_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/topology/entity-summaries';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_TOPOLOGY_ENTITY_GRAPH_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/topology/entity-graph';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_TOPOLOGY_GRAPH_TOPOLOGY_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/topology/graph-topology';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_TOPOLOGY_SUBFACETS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/topology/subfacets';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_TOPOLOGY_CATEGORY_SUMMARIES_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/topology/category-summaries';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_TOPOLOGY_AUDITS_SUBFACET_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/topology/audits/subfacet';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_TOPOLOGY_AUDITS_SUBFACET_SUMMARY_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/topology/audits/subfacet-summary';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_TOPOLOGY_AUDITS_CATEGORY_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/topology/audits/category';
+export const ORGANIZATIONS_ORGANIZATIONID_INITIATIVES_PATH =
+  '/organizations/{organizationId}/initiatives';
+export const ORGANIZATIONS_ORGANIZATIONID_INITIATIVES_INITIATIVEID_PATH =
+  '/organizations/{organizationId}/initiatives/{initiativeId}';
+export const ORGANIZATIONS_ORGANIZATIONID_INITIATIVES_INITIATIVEID_PROJECTS_PROJECTID_PATH =
+  '/organizations/{organizationId}/initiatives/{initiativeId}/projects/{projectId}';
+export const ORGANIZATIONS_ORGANIZATIONID_INITIATIVES_INITIATIVEID_REFINE_PATH =
+  '/organizations/{organizationId}/initiatives/{initiativeId}/refine';
+export const ORGANIZATIONS_ORGANIZATIONID_INITIATIVES_INITIATIVEID_REFINEMENT_STATUS_PATH =
+  '/organizations/{organizationId}/initiatives/{initiativeId}/refinement/status';
+export const ORGANIZATIONS_ORGANIZATIONID_INITIATIVES_INITIATIVEID_REFINEMENT_COMPLETE_PATH =
+  '/organizations/{organizationId}/initiatives/{initiativeId}/refinement/complete';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_EDGES_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-edges';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_EDGES_AGENTEDGEID_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-edges/{agentEdgeId}';
+export const ORGANIZATIONS_ORGANIZATIONID_INITIATIVES_INITIATIVEID_EDIT_HISTORY_PATH =
+  '/organizations/{organizationId}/initiatives/{initiativeId}/edit-history';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_MONITORID_MONITOR_COMMANDS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-items/{monitorId}/monitor-commands';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-items';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_REFERENCES_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-items/references';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_TASKID_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-items/{taskId}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_WORKITEMID_GRAPH_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-items/{workItemId}/graph';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_TASKID_PLAN_GENERATION_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-items/{taskId}/plan-generation';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_TASKID_PLAN_GENERATION_ADMISSION_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-items/{taskId}/plan-generation/admission';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_TASKID_HIERARCHY_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-items/{taskId}/hierarchy';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_TASKID_TRACKS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-items/{taskId}/tracks';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_ALLOWED_STATUSES_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-items/allowed-statuses';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_TASKID_SUPERSEDE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-items/{taskId}/supersede';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_TASKID_DEPENDENCIES_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-items/{taskId}/dependencies';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_TASKID_DEPENDENCIES_DEPENDENCYID_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-items/{taskId}/dependencies/{dependencyId}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEM_TYPES_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-item-types';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEM_TYPES_TYPEKEY_GUIDANCE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/guidance';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEM_TYPES_GUIDANCE_BATCH_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-item-types/guidance/batch';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEM_TYPES_TYPEKEY_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEM_TYPES_TYPEKEY_CASCADE_IMPACT_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/cascade-impact';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEM_TYPES_TYPEKEY_RESET_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/reset';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEM_TYPES_TYPEKEY_SECTION_CONTENT_IMPACT_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/section-content-impact';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEM_TYPES_TYPEKEY_TRACKING_LINK_REVOCATION_IMPACT_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/tracking-link-revocation-impact';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_METRICS_PATH =
+  '/organizations/{organizationId}/projects/metrics';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PATH =
+  '/organizations/{organizationId}/projects';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PATH =
+  '/organizations/{organizationId}/projects/{projectId}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_MEMBERS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/members';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_MEMBERS_USERID_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/members/{userId}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_USER_SETTINGS_SETTINGSFAMILY_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/user-settings/{settingsFamily}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_ENTITY_PROMPT_TEMPLATES_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/entity-prompt-templates';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_ENTITY_PROMPT_TEMPLATES_TEMPLATEKEY_VALIDATE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/entity-prompt-templates/{templateKey}/validate';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_ENTITY_PROMPT_TEMPLATES_TEMPLATEKEY_EFFECTIVE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/entity-prompt-templates/{templateKey}/effective';
+export const ORGANIZATIONS_ORGANIZATIONID_DESIGN_DOCS_PATH =
+  '/organizations/{organizationId}/design-docs';
+export const ORGANIZATIONS_ORGANIZATIONID_DESIGN_DOCS_LIBRARY_PATH =
+  '/organizations/{organizationId}/design-docs/library';
+export const ORGANIZATIONS_ORGANIZATIONID_DESIGN_DOCS_DESIGNDOCID_PATH =
+  '/organizations/{organizationId}/design-docs/{designDocId}';
+export const ORGANIZATIONS_ORGANIZATIONID_DESIGN_DOCS_DESIGNDOCID_RESTORE_PATH =
+  '/organizations/{organizationId}/design-docs/{designDocId}/restore';
+export const ORGANIZATIONS_ORGANIZATIONID_DESIGN_DOCS_DESIGNDOCID_LINKS_PATH =
+  '/organizations/{organizationId}/design-docs/{designDocId}/links';
+export const ORGANIZATIONS_ORGANIZATIONID_DESIGN_DOCS_DESIGNDOCID_LINKS_LINKID_PATH =
+  '/organizations/{organizationId}/design-docs/{designDocId}/links/{linkId}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_COUNTS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/counts';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_INTEGRATIONS_GITHUB_AUTHORIZE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/integrations/github/authorize';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_INTEGRATIONS_GITHUB_CALLBACK_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/integrations/github/callback';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_INTEGRATIONS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/integrations';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_INTEGRATIONS_INTEGRATIONID_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/integrations/{integrationId}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_INTEGRATIONS_INTEGRATIONID_REPOSITORIES_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/integrations/{integrationId}/repositories';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_INTEGRATIONS_INTEGRATIONID_REPOSITORIES_PRIMARY_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/integrations/{integrationId}/repositories/primary';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_INTEGRATIONS_INTEGRATIONID_TEST_CONNECTION_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/integrations/{integrationId}/test-connection';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_MESSAGES_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/messages';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_MESSAGES_SEARCH_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/messages/search';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_MESSAGES_ID_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/messages/{id}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_MESSAGES_ID_PREPEND_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/messages/{id}/prepend';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_MESSAGES_ID_RETRY_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/messages/{id}/retry';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_MESSAGES_ID_RETRY_STATUS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/messages/{id}/retry-status';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_MESSAGES_MESSAGEID_ACTIONS_ACTIONID_CONFIRM_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/messages/{messageId}/actions/{actionId}/confirm';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_CONVERSATIONS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/conversations';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_CONVERSATIONS_ACTIVE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/conversations/active';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_CONVERSATIONS_CONVERSATIONID_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/conversations/{conversationId}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_CONVERSATIONS_CONVERSATIONID_VERSION_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/conversations/{conversationId}/version';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_ONBOARDING_CONVERSATIONS_CONVERSATIONID_REPLIES_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/onboarding/conversations/{conversationId}/replies';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_REPOSITORY_IMPORT_CONVERSATIONS_CONVERSATIONID_REPLIES_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/repository-import/conversations/{conversationId}/replies';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_TRACKER_IMPORT_CONVERSATIONS_CONVERSATIONID_REPLIES_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-tracker-import/conversations/{conversationId}/replies';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_CONVERSATIONS_CONVERSATIONID_CLI_STATUS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/conversations/{conversationId}/cli-status';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_CONVERSATIONS_CONVERSATIONID_MESSAGES_LATEST_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/conversations/{conversationId}/messages/latest';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_CONVERSATIONS_CONVERSATIONID_START_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/conversations/{conversationId}/start';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_CONVERSATIONS_CONVERSATIONID_START_RUN_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/conversations/{conversationId}/start-run';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_CONVERSATIONS_CONVERSATIONID_RETRY_OPEN_TRIGGER_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/conversations/{conversationId}/retry-open-trigger';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_MACHINES_MACHINEID_TASK_MONITORS_TASKMONITORID_COMMANDS_COMMANDID_CONVERSATIONS_CONVERSATIONID_RUN_EFFECTS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/machines/{machineId}/task-monitors/{taskMonitorId}/commands/{commandId}/conversations/{conversationId}/run-effects';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_MACHINES_MACHINEID_TASK_MONITORS_TASKMONITORID_COMMANDS_COMMANDID_AGENT_SESSIONS_AGENTSESSIONID_CONVERSATIONS_CONVERSATIONID_GUIDANCE_EFFECTS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/machines/{machineId}/task-monitors/{taskMonitorId}/commands/{commandId}/agent-sessions/{agentSessionId}/conversations/{conversationId}/guidance-effects';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_WORKFLOW_ANSWERS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/workflow-answers';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_SESSION_MONITOR_DECISIONS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/session-monitor-decisions';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_EXTERNAL_AGENT_COMPLETIONS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/external-agent-completions';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_OPERATIONS_OPERATIONID_INPUT_CANCELLATION_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-operations/{operationId}/input-cancellation';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_INPUT_EXECUTION_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/input-execution';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_CONVERSATIONS_CONVERSATIONID_QUEUED_INPUTS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/conversations/{conversationId}/queued-inputs';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_OPERATIONS_OPERATIONID_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-operations/{operationId}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_CONVERSATIONS_CONVERSATIONID_SKIP_TO_NODE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/conversations/{conversationId}/skip-to-node';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_CONVERSATIONS_CONVERSATIONID_AVAILABLE_SKIP_NODES_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/conversations/{conversationId}/available-skip-nodes';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_CONVERSATIONS_CONVERSATIONID_WORKFLOW_NODE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/conversations/{conversationId}/workflow-node';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_CONVERSATIONS_CONVERSATIONID_PROMPT_TYPE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/conversations/{conversationId}/prompt-type';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_CONVERSATIONS_CONVERSATIONID_CLONE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/conversations/{conversationId}/clone';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_CONVERSATIONS_CONVERSATIONID_INITIATIVES_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/conversations/{conversationId}/initiatives';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORKFLOWS_WORKFLOWNAME_WORKFLOWABOUTID_CONVERSATIONS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/workflows/{workflowName}/{workflowAboutId}/conversations';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_INITIATIVE_REFINEMENT_INITIATIVES_INITIATIVEID_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/initiative-refinement/initiatives/{initiativeId}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_INITIATIVE_REFINEMENT_CONVERSATIONS_CONVERSATIONID_INITIATIVES_INITIATIVEID_REFINE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/initiative-refinement/conversations/{conversationId}/initiatives/{initiativeId}/refine';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_INITIATIVE_REFINEMENT_CONVERSATIONS_CONVERSATIONID_INITIATIVES_INITIATIVEID_CONTENT_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/initiative-refinement/conversations/{conversationId}/initiatives/{initiativeId}/content';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_INITIATIVE_REFINEMENT_CONVERSATIONS_CONVERSATIONID_INITIATIVES_INITIATIVEID_DEEPEN_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/initiative-refinement/conversations/{conversationId}/initiatives/{initiativeId}/deepen';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_INITIATIVE_REFINEMENT_CONVERSATIONS_CONVERSATIONID_INITIATIVES_INITIATIVEID_FINALIZE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/initiative-refinement/conversations/{conversationId}/initiatives/{initiativeId}/finalize';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_ENTITYTYPE_ENTITYID_REFINEMENT_START_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-items/{entityType}/{entityId}/refinement/start';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_ENTITYTYPE_ENTITYID_REFINEMENT_CONTENT_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-items/{entityType}/{entityId}/refinement/content';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_ENTITYTYPE_ENTITYID_REFINEMENT_ADVANCE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-items/{entityType}/{entityId}/refinement/advance';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_ENTITYTYPE_ENTITYID_REFINEMENT_FINALIZE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-items/{entityType}/{entityId}/refinement/finalize';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_ENTITYTYPE_ENTITYID_REFINEMENT_STATUS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/work-items/{entityType}/{entityId}/refinement/status';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_STAGED_CONTENT_CONTENTTYPE_ENTITYID_ADVANCE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/staged-content/{contentType}/{entityId}/advance';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_STAGED_CONTENT_CONTENTTYPE_ENTITYID_REFINE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/staged-content/{contentType}/{entityId}/refine';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_STAGED_CONTENT_CONTENTTYPE_ENTITYID_FINALIZE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/staged-content/{contentType}/{entityId}/finalize';
+export const EVENTS_STATS_PATH = '/events/stats';
+export const EVENTS_HEALTH_PATH = '/events/health';
+export const EVENTS_NOTIFY_PROJECT_PROJECTID_PATH =
+  '/events/notify/project/{projectId}';
+export const EVENTS_NOTIFY_CONVERSATION_CONVERSATIONID_PATH =
+  '/events/notify/conversation/{conversationId}';
+export const EVENTS_NOTIFY_USER_USERID_PATH = '/events/notify/user/{userId}';
+export const EVENTS_NOTIFY_GLOBAL_PATH = '/events/notify/global';
+export const ORGANIZATIONS_ORGANIZATIONID_ARTIFACTS_PATH =
+  '/organizations/{organizationId}/artifacts';
+export const ORGANIZATIONS_ORGANIZATIONID_ARTIFACTS_ID_PATH =
+  '/organizations/{organizationId}/artifacts/{id}';
+export const ORGANIZATIONS_ORGANIZATIONID_ARTIFACTS_SEARCH_PATH =
+  '/organizations/{organizationId}/artifacts/search';
+export const ORGANIZATIONS_ORGANIZATIONID_ARTIFACTS_SEARCH_SIMPLE_PATH =
+  '/organizations/{organizationId}/artifacts/search/simple';
+export const ORGANIZATIONS_ORGANIZATIONID_ARTIFACTS_PROJECT_PROJECTID_SUMMARY_PATH =
+  '/organizations/{organizationId}/artifacts/project/{projectId}/summary';
+export const ORGANIZATIONS_ORGANIZATIONID_ARTIFACTS_ID_SIMILAR_PATH =
+  '/organizations/{organizationId}/artifacts/{id}/similar';
+export const ORGANIZATIONS_ORGANIZATIONID_TAGS_PATH =
+  '/organizations/{organizationId}/tags';
+export const ORGANIZATIONS_ORGANIZATIONID_TAGS_TAGID_PATH =
+  '/organizations/{organizationId}/tags/{tagId}';
+export const ORGANIZATIONS_ORGANIZATIONID_TAGS_SYNC_ARTIFACTS_PATH =
+  '/organizations/{organizationId}/tags/sync/artifacts';
+export const ORGANIZATIONS_ORGANIZATIONID_ARTIFACTS_ARTIFACTID_TAGS_PATH =
+  '/organizations/{organizationId}/artifacts/{artifactId}/tags';
+export const ORGANIZATIONS_ORGANIZATIONID_ARTIFACTS_ARTIFACTID_TAGS_SYNC_PATH =
+  '/organizations/{organizationId}/artifacts/{artifactId}/tags/sync';
+export const ORGANIZATIONS_ORGANIZATIONID_ARTIFACTS_ARTIFACTID_TAGS_TAGID_PATH =
+  '/organizations/{organizationId}/artifacts/{artifactId}/tags/{tagId}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_TAGS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/tags';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_TAGS_TAGID_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/tags/{tagId}';
+export const ORGANIZATIONS_ORGANIZATIONID_STARS_PATH =
+  '/organizations/{organizationId}/stars';
+export const ORGANIZATIONS_ORGANIZATIONID_STARS_ENTITYTYPE_ENTITYID_PATH =
+  '/organizations/{organizationId}/stars/{entityType}/{entityId}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/open-items';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_ACTIVATIONS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/open-items/activations';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_ITEMS_ENTITYTYPE_ENTITYID_NOTE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/note';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_ITEMS_ENTITYTYPE_ENTITYID_PIN_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/pin';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_ITEMS_ENTITYTYPE_ENTITYID_MOVE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/move';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_ITEMS_ENTITYTYPE_ENTITYID_REMOVE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/remove';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_REMOVE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/open-items/remove';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_PROMOTIONS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/open-items/promotions';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_ITEMS_ENTITYTYPE_ENTITYID_GOAL_FILTER_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/goal-filter';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_ITEMS_ENTITYTYPE_ENTITYID_GOAL_DISCLOSURE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/goal-disclosure';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_GROUPS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/open-items/groups';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_GROUPS_GROUPID_RENAME_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/open-items/groups/{groupId}/rename';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_GROUPS_GROUPID_DELETE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/open-items/groups/{groupId}/delete';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_GROUPS_GROUPID_DISCLOSURE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/open-items/groups/{groupId}/disclosure';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_GROUPS_GROUPID_MOVE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/open-items/groups/{groupId}/move';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_GROUPS_GROUPID_ASSIGN_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/open-items/groups/{groupId}/assign';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_UNGROUP_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/open-items/ungroup';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_GROUPS_GROUPID_MEMBERS_ENTITYTYPE_ENTITYID_MOVE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/open-items/groups/{groupId}/members/{entityType}/{entityId}/move';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_MIGRATION_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/open-items/migration';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_RESET_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/open-items/reset';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_TRIAGE_SESSION_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/open-items/triage-session';
+export const DEV_LLM_TRIGGER_REQUEST_PATH = '/dev/llm/trigger-request';
+export const DEV_LLM_TRIGGER_PROGRESS_PATH = '/dev/llm/trigger-progress';
+export const DEV_LLM_TRIGGER_COMPLETE_PATH = '/dev/llm/trigger-complete';
+export const DEV_LLM_ACTIVE_REQUESTS_PATH = '/dev/llm/active-requests';
+export const DEV_LLM_REQUEST_REQUESTID_STATUS_PATH =
+  '/dev/llm/request/{requestId}/status';
+export const DEV_LLM_SIMULATE_FLOW_PATH = '/dev/llm/simulate-flow';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_EVALS_EVALID_RUNS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/evals/{evalId}/runs';
+export const JEV_EVALUATE_CHOICE_PATH = '/jev/evaluate-choice';
+export const WORKFLOWS_TEMPLATES_PATH = '/workflows/templates';
+export const WORKFLOWS_TEMPLATES_TEMPLATEID_PATH =
+  '/workflows/templates/{templateId}';
+export const WORKFLOWS_TEMPLATES_TEMPLATEID_VALIDATE_PATH =
+  '/workflows/templates/{templateId}/validate';
+export const WORKFLOWS_TEMPLATES_TEMPLATEID_METRICS_PATH =
+  '/workflows/templates/{templateId}/metrics';
+export const WORKFLOWS_ANALYTICS_PATH = '/workflows/analytics';
+export const WORKFLOWS_EXECUTIONS_PATH = '/workflows/executions';
+export const WORKFLOWS_TEMPLATES_TEMPLATEID_STRUCTURE_PATH =
+  '/workflows/templates/{templateId}/structure';
+export const WORKFLOWS_TEMPLATES_TEMPLATEID_NODES_NODEID_PATH =
+  '/workflows/templates/{templateId}/nodes/{nodeId}';
+export const WORKFLOWS_TEMPLATES_TEMPLATEID_NODES_NODEID_TEST_PATH =
+  '/workflows/templates/{templateId}/nodes/{nodeId}/test';
+export const WORKFLOWS_TEMPLATES_TEMPLATEID_SIMULATE_PATH =
+  '/workflows/templates/{templateId}/simulate';
+export const WORKFLOWS_TEMPLATES_TEMPLATEID_EXECUTE_PATH =
+  '/workflows/templates/{templateId}/execute';
+export const WORKFLOWS_TEMPLATES_TEMPLATEID_DEBUG_PATH =
+  '/workflows/templates/{templateId}/debug';
+export const WORKFLOWS_WORKFLOWID_TIMELINE_PATH =
+  '/workflows/{workflowId}/timeline';
+export const DEBUG_TOPOLOGY_SCHEDULE_PATH = '/debug/topology/schedule';
+export const DEBUG_TOPOLOGY_SCHEDULE_RUNS_PATH =
+  '/debug/topology/schedule/runs';
+export const DEBUG_TOPOLOGY_SCHEDULE_RUN_NOW_PATH =
+  '/debug/topology/schedule/run-now';
+export const DEBUG_TOPOLOGY_SUBFACET_CANDIDATES_PATH =
+  '/debug/topology/subfacet-candidates';
+export const DEBUG_TOPOLOGY_LIFECYCLE_SUMMARY_PATH =
+  '/debug/topology/lifecycle-summary';
+export const DEBUG_PROJECTS_VIEW_PATH = '/debug/projects/view';
+export const DEBUG_PROJECTS_CONVERSATIONS_PATH =
+  '/debug/projects/conversations';
+export const DEBUG_PROJECTS_ARTIFACTS_PATH = '/debug/projects/artifacts';
+export const DEBUG_PROJECTS_MESSAGES_PATH = '/debug/projects/messages';
+export const DEBUG_PROJECTS_WORKFLOWS_WORKFLOWID_STATUS_PATH =
+  '/debug/projects/workflows/{workflowId}/status';
+export const DEBUG_EMBEDDINGS_ENTITY_PATH = '/debug/embeddings/entity';
+export const DEBUG_OUTBOX_EVENTS_ENTITYTYPE_ENTITYID_PATH =
+  '/debug/outbox-events/{entityType}/{entityId}';
+export const DEBUG_EVENTS_REPLAY_PATH = '/debug/events/replay';
+export const DEBUG_EVENTS_EVENTID_RETRIGGER_PATH =
+  '/debug/events/{eventId}/retrigger';
+export const DEBUG_WEBSOCKET_SUBSCRIPTIONS_PATH =
+  '/debug/websocket/subscriptions';
+export const DEBUG_WEBSOCKET_CHANNELS_PATH = '/debug/websocket/channels';
+export const DEBUG_WEBSOCKET_CONNECTIONS_CONNECTIONID_PATH =
+  '/debug/websocket/connections/{connectionId}';
+export const REPORT_BUG_PATH = '/report-bug';
+export const HELP_TREE_PATH = '/help/tree';
+export const HELP_SEARCH_PATH = '/help/search';
+export const HELP_NODES_IDORSLUGPATH_PATH = '/help/nodes/{idOrSlugPath}';
+export const HELP_ASSETS_ASSETPATH_PATH = '/help/assets/{assetPath}';
+export const LLM_TRACKING_PATH = '/llm-tracking';
+export const LLM_TRACKING_STATS_PATH = '/llm-tracking/stats';
+export const LLM_TRACKING_ID_PATH = '/llm-tracking/{id}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_INTEGRATIONS_SUGGESTED_USERS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/integrations/suggested-users';
+export const ORGANIZATIONS_ORGANIZATIONID_SUGGESTIONS_GENERATE_TASK_PATH =
+  '/organizations/{organizationId}/suggestions/generate-task';
+export const ORGANIZATIONS_ORGANIZATIONID_SUGGESTIONS_GENERATE_DESIGN_DOC_PATH =
+  '/organizations/{organizationId}/suggestions/generate-design-doc';
+export const ORGANIZATIONS_ORGANIZATIONID_SUGGESTIONS_TYPE_SUGGESTIONID_PATH =
+  '/organizations/{organizationId}/suggestions/{type}/{suggestionId}';
+export const ORGANIZATIONS_ORGANIZATIONID_CONVERSATIONS_CONVERSATIONID_GOAL_PM_ROUTING_DECISIONS_PATH =
+  '/organizations/{organizationId}/conversations/{conversationId}/goal-pm-routing-decisions';
+export const ORGANIZATIONS_ORGANIZATIONID_CONVERSATIONS_CONVERSATIONID_GOAL_PM_ROUTING_ENACTMENTS_PATH =
+  '/organizations/{organizationId}/conversations/{conversationId}/goal-pm-routing-enactments';
+export const ORGANIZATIONS_ORGANIZATIONID_CONVERSATIONS_CONVERSATIONID_GOAL_PM_ROUTING_ENACTMENTS_COMPLETE_PATH =
+  '/organizations/{organizationId}/conversations/{conversationId}/goal-pm-routing-enactments/complete';
+export const ORGANIZATIONS_ORGANIZATIONID_SUGGESTIONS_PATH =
+  '/organizations/{organizationId}/suggestions';
+export const ORGANIZATIONS_ORGANIZATIONID_WORKFLOWS_PATH =
+  '/organizations/{organizationId}/workflows';
+export const ORGANIZATIONS_ORGANIZATIONID_EXECUTIONS_EXECUTIONID_RESULT_PATH =
+  '/organizations/{organizationId}/executions/{executionId}/result';
+export const ORGANIZATIONS_ORGANIZATIONID_EXECUTIONS_EXECUTIONID_WAIT_PATH =
+  '/organizations/{organizationId}/executions/{executionId}/wait';
+export const ORGANIZATIONS_ORGANIZATIONID_SERVICES_PATH =
+  '/organizations/{organizationId}/services';
+export const ORGANIZATIONS_ORGANIZATIONID_SERVICES_SERVICEID_PATH =
+  '/organizations/{organizationId}/services/{serviceId}';
+export const ORGANIZATIONS_ORGANIZATIONID_SERVICES_SERVICEID_ARCHIVE_PATH =
+  '/organizations/{organizationId}/services/{serviceId}/archive';
+export const ORGANIZATIONS_ORGANIZATIONID_SERVICES_SERVICEID_LINKS_PATH =
+  '/organizations/{organizationId}/services/{serviceId}/links';
+export const ORGANIZATIONS_ORGANIZATIONID_IMPLEMENTATION_HINTS_PATH =
+  '/organizations/{organizationId}/implementation-hints';
+export const ORGANIZATIONS_ORGANIZATIONID_IMPLEMENTATION_HINTS_HINTID_PATH =
+  '/organizations/{organizationId}/implementation-hints/{hintId}';
+export const ORGANIZATIONS_ORGANIZATIONID_IMPLEMENTATION_HINTS_VERSIONS_PATH =
+  '/organizations/{organizationId}/implementation-hints/versions';
+export const ORGANIZATIONS_ORGANIZATIONID_IMPLEMENTATION_HINTS_HINTID_APPEND_VERSION_PATH =
+  '/organizations/{organizationId}/implementation-hints/{hintId}/append-version';
+export const ORGANIZATIONS_ORGANIZATIONID_IMPLEMENTATION_HINTS_HINTID_VERSIONS_PATH =
+  '/organizations/{organizationId}/implementation-hints/{hintId}/versions';
+export const ORGANIZATIONS_ORGANIZATIONID_IMPLEMENTATION_HINTS_HINTID_FILE_REFERENCES_PATH =
+  '/organizations/{organizationId}/implementation-hints/{hintId}/file-references';
+export const ORGANIZATIONS_ORGANIZATIONID_IMPLEMENTATION_HINTS_HINTID_FILE_REFERENCES_FILEREFERENCEID_PATH =
+  '/organizations/{organizationId}/implementation-hints/{hintId}/file-references/{fileReferenceId}';
+export const ORGANIZATIONS_ORGANIZATIONID_IMPLEMENTATION_HINTS_FILE_REFERENCES_QUERY_PATH =
+  '/organizations/{organizationId}/implementation-hints/file-references/query';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_INTERACTIONS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-interactions';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_SUBAGENT_INTERACTIONS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/subagent-interactions';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_SESSION_MESSAGE_INTERACTIONS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/session-message-interactions';
+export const SESSION_MESSAGE_TARGETS_PATH = '/session-message-targets';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_INTERACTIONS_INTERACTIONID_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-interactions/{interactionId}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_INTERACTIONS_INTERACTIONID_CANCEL_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-interactions/{interactionId}/cancel';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_SUBAGENT_DISPATCHES_CLAIM_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/subagent-dispatches/claim';
+export const SUBAGENT_DISPATCHES_SCOPES_PATH = '/subagent-dispatches/scopes';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_SUBAGENT_DISPATCHES_EFFECTID_HEARTBEAT_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/subagent-dispatches/{effectId}/heartbeat';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_SUBAGENT_DISPATCHES_EFFECTID_SETTLEMENT_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/subagent-dispatches/{effectId}/settlement';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_INTERACTIONS_INTERACTIONID_SETTLED_TURNS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-interactions/{interactionId}/settled-turns';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_TURN_ADMISSIONS_HEAD_CLAIM_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/turn-admissions/head:claim';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_TURN_ADMISSIONS_ADMISSIONID_SETTLED_TURNS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/turn-admissions/{admissionId}/settled-turns';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-sessions';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_CURRENT_STATE_BATCH_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-sessions/current-state:batch';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_OUTPUT_ATTENTION_BATCH_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-sessions/output-attention:batch';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_OUTPUT_ATTENTION_READY_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/output-attention:ready';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_OUTPUT_ATTENTION_ACKNOWLEDGE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/output-attention:acknowledge';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_PAGINATED_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-sessions/paginated';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_WORK_ITEM_COORDINATOR_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-sessions/work-item-coordinator';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_SERVICE_GRANTS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/service-grants';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_CONVERSATION_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/conversation';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_MACHINES_MACHINEID_SKILLS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/machines/{machineId}/skills';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_MACHINES_MACHINEID_MODEL_CATALOG_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/machines/{machineId}/model-catalog';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_CLI_READS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/cli-reads';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_STOP_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/stop';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_COMPACT_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/compact';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_PERMISSION_DECISION_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/permission-decision';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_QUESTION_ANSWER_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/question-answer';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_RESTART_PLAN_GENERATION_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/restart-plan-generation';
+export const ORGANIZATIONS_ORGANIZATIONID_VALIDATION_SESSIONS_PATH =
+  '/organizations/{organizationId}/validation-sessions';
+export const ORGANIZATIONS_ORGANIZATIONID_VALIDATION_SESSIONS_ID_PATH =
+  '/organizations/{organizationId}/validation-sessions/{id}';
+export const ORGANIZATIONS_ORGANIZATIONID_SECONDARY_ACTIONS_PATH =
+  '/organizations/{organizationId}/secondary-actions';
+export const ORGANIZATIONS_ORGANIZATIONID_CODING_PROMPTS_RESEARCH_EXECUTIONS_PATH =
+  '/organizations/{organizationId}/coding-prompts/research-executions';
+export const ORGANIZATIONS_ORGANIZATIONID_REPORTS_PATH =
+  '/organizations/{organizationId}/reports';
+export const ORGANIZATIONS_ORGANIZATIONID_REPORTS_REPORTID_PATH =
+  '/organizations/{organizationId}/reports/{reportId}';
+export const ORGANIZATIONS_ORGANIZATIONID_NOTIFICATIONS_PATH =
+  '/organizations/{organizationId}/notifications';
+export const ORGANIZATIONS_ORGANIZATIONID_NOTIFICATIONS_NOTIFICATIONID_READ_PATH =
+  '/organizations/{organizationId}/notifications/{notificationId}/read';
+export const ORGANIZATIONS_ORGANIZATIONID_NOTIFICATIONS_NOTIFICATIONID_UNREAD_PATH =
+  '/organizations/{organizationId}/notifications/{notificationId}/unread';
+export const ORGANIZATIONS_ORGANIZATIONID_NOTIFICATIONS_NOTIFICATIONID_ACKNOWLEDGE_PATH =
+  '/organizations/{organizationId}/notifications/{notificationId}/acknowledge';
+export const ORGANIZATIONS_ORGANIZATIONID_NOTIFICATIONS_NOTIFICATIONID_DISMISS_PATH =
+  '/organizations/{organizationId}/notifications/{notificationId}/dismiss';
+export const ORGANIZATIONS_ORGANIZATIONID_USERS_ID_NOTIFICATION_PREFERENCES_PATH =
+  '/organizations/{organizationId}/users/{id}/notification-preferences';
+export const ORGANIZATIONS_ORGANIZATIONID_ACTIVITY_CORRELATIONS_PATH =
+  '/organizations/{organizationId}/activity-correlations';
+export const ORGANIZATIONS_ORGANIZATIONID_ACTIVITY_CORRELATIONS_QUERY_PATH =
+  '/organizations/{organizationId}/activity-correlations/query';
+export const ORGANIZATIONS_ORGANIZATIONID_ACTIVITY_CORRELATIONS_SLEEP_PATH =
+  '/organizations/{organizationId}/activity-correlations/sleep';
+export const ORGANIZATIONS_ORGANIZATIONID_ACTIVITY_CORRELATIONS_ENTITIES_ENTITYTYPE_ENTITYID_PATH =
+  '/organizations/{organizationId}/activity-correlations/entities/{entityType}/{entityId}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSALS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/proposals';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSALS_FUTURES_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/proposals/futures';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSALS_FUTURES_FUTUREID_APPLICABILITY_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/proposals/futures/{futureId}/applicability';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSALS_FUTURES_FUTUREID_APPLY_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/proposals/futures/{futureId}/apply';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSALS_FUTURES_FUTUREID_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/proposals/futures/{futureId}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSALS_PROPOSALID_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSAL_GROUPS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/proposal-groups';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSAL_GROUPS_GROUPID_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/proposal-groups/{groupId}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSAL_GROUPS_GROUPID_MEMBERS_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/proposal-groups/{groupId}/members';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSAL_GROUPS_GROUPID_MEMBERS_MEMBERID_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/proposal-groups/{groupId}/members/{memberId}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSAL_GROUPS_GROUPID_MEMBERS_MEMBERID_PREREQUISITES_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/proposal-groups/{groupId}/members/{memberId}/prerequisites';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSAL_GROUPS_GROUPID_FINALIZE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/proposal-groups/{groupId}/finalize';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSAL_GROUPS_GROUPID_APPROVE_ALL_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/proposal-groups/{groupId}/approve-all';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSALS_PROPOSALID_RECONCILIATION_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/reconciliation';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSALS_PROPOSALID_VALIDATE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/validate';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSALS_PROPOSALID_REJECT_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/reject';
+export const ANALYTICS_EVENTS_PATH = '/analytics/events';
+export const ANALYTICS_ATTENTION_PATH = '/analytics/attention';
+export const MCP_HEALTH_PATH = '/mcp/health';
+export const MCP_TOOLS_PATH = '/mcp/tools';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_CONTROLLER_AUTHORIZATIONS_RESOLVE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/controller-authorizations/resolve';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_CONTROLLER_AUTHORIZATIONS_PREPARE_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/controller-authorizations/prepare';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_CONTROLLER_AUTHORIZATIONS_SUBMIT_PATH =
+  '/organizations/{organizationId}/projects/{projectId}/controller-authorizations/submit';
+export const MACHINES_ENROLLMENTS_PATH = '/machines/enrollments';
+export const MACHINES_ENROLLMENTS_CLAIM_BEGIN_PATH =
+  '/machines/enrollments/claim/begin';
+export const MACHINES_ENROLLMENTS_CLAIM_COMPLETE_PATH =
+  '/machines/enrollments/claim/complete';
+export const MACHINES_ENROLLMENTS_CLAIM_ABANDON_PATH =
+  '/machines/enrollments/claim/abandon';
+export const MACHINES_ENROLLMENTS_ENROLLMENTID_POLL_PATH =
+  '/machines/enrollments/{enrollmentId}/poll';
+export const MACHINES_ENROLLMENTS_ENROLLMENTID_CONFIRM_PATH =
+  '/machines/enrollments/{enrollmentId}/confirm';
+export const MACHINES_MACHINEID_CONTROLLER_ENROLLMENTS_PATH =
+  '/machines/{machineId}/controller-enrollments';
+export const MACHINES_MACHINEID_CONTROLLERS_PATH =
+  '/machines/{machineId}/controllers';
+export const MACHINES_MACHINEID_CONTROLLERS_INSPECT_PATH =
+  '/machines/{machineId}/controllers/inspect';
+export const MACHINES_MACHINEID_CONTROLLERS_RECONCILE_PATH =
+  '/machines/{machineId}/controllers/reconcile';
+export const MACHINES_MACHINEID_CONTROLLERS_CONTROLLERCREDENTIALID_PATH =
+  '/machines/{machineId}/controllers/{controllerCredentialId}';
+export const MACHINES_MACHINEID_CONTROLLERS_CONTROLLERCREDENTIALID_REVOKE_PATH =
+  '/machines/{machineId}/controllers/{controllerCredentialId}/revoke';
+export const MACHINES_PAIRING_CODES_PATH = '/machines/pairing-codes';
+export const MACHINES_PAIRING_CODES_ID_PATH = '/machines/pairing-codes/{id}';
+export const MACHINES_REGISTER_PATH = '/machines/register';
+export const MACHINES_PATH = '/machines';
+export const MACHINES_MACHINEID_PATH = '/machines/{machineId}';
+export const MACHINES_MACHINEID_PING_PATH = '/machines/{machineId}/ping';
+export const MACHINES_MACHINEID_KEY_ROTATIONS_PATH =
+  '/machines/{machineId}/key-rotations';
+export const MACHINES_MACHINEID_SECURITY_EVENTS_PATH =
+  '/machines/{machineId}/security-events';

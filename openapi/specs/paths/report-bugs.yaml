@@ -1,0 +1,47 @@
+# Report-a-problem intake routes
+
+/report-bug:
+  post:
+    summary: Report a product problem
+    description: Creates a BUG in the configured Hey Hey intake without requiring organization context from the caller.
+    operationId: reportBug
+    tags:
+      - Report Bugs
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../schemas/report-bugs.yaml#/ReportBugRequestDto"
+    responses:
+      "201":
+        description: BUG created in the configured intake.
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "../schemas/common.yaml#/ApiResponse"
+                - type: object
+                  required:
+                    - data
+                  properties:
+                    data:
+                      $ref: "../schemas/report-bugs.yaml#/ReportBugResponseDto"
+      "400":
+        description: Invalid description, diagnostic context, or missing consent.
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/common.yaml#/ApiErrorResponse"
+      "429":
+        description: Report rate limit exceeded.
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/common.yaml#/ApiErrorResponse"
+      "503":
+        description: Configured report intake is unavailable.
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/common.yaml#/ApiErrorResponse"

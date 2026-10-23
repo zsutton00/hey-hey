@@ -1,0 +1,504 @@
+# =============================================
+# Integration Schemas
+# =============================================
+
+IntegrationType:
+  type: string
+  enum:
+    - GITHUB
+    - SLACK
+    - TEAMS
+    - JIRA
+    - CONFLUENCE
+    - LINEAR
+    - NOTION
+    - FIGMA
+    - ASANA
+    - TRELLO
+    - DISCORD
+    - WEBHOOK
+  description: |
+    Type of integration service.
+    Extensible list of supported integrations for software development and project management tools.
+
+IntegrationState:
+  type: string
+  enum:
+    - ACTIVE
+    - INACTIVE
+  description: Basic state of the integration (active/inactive)
+
+IntegrationConnectionStatus:
+  type: string
+  enum:
+    - CONNECTED
+    - DISCONNECTED
+    - ERROR
+    - PENDING
+    - CONFIGURING
+  description: |
+    Connection health status of the integration.
+    - CONNECTED: Integration is working properly
+    - DISCONNECTED: Integration is not connected or authentication failed
+    - ERROR: Integration encountered an error
+    - PENDING: Initial connection attempt in progress
+    - CONFIGURING: Integration is being set up
+
+CreateIntegrationDto:
+  type: object
+  required:
+    - type
+    - name
+    - config
+    - targetType
+  properties:
+    type:
+      $ref: "#/IntegrationType"
+      description: Type of integration to create
+    name:
+      type: string
+      minLength: 1
+      maxLength: 100
+      description: Human-readable name for this integration instance
+      example: "Main GitHub Repository"
+    description:
+      type: string
+      maxLength: 500
+      nullable: true
+      description: Optional description of what this integration is used for
+      example: "Integration for the main product repository"
+    config:
+      discriminator:
+        propertyName: type
+        mapping:
+          GITHUB: "#/components/schemas/GitHubIntegrationConfig"
+          JIRA: "#/components/schemas/JiraIntegrationConfig"
+          WEBHOOK: "#/components/schemas/WebhookIntegrationConfig"
+      oneOf:
+        - $ref: "#/components/schemas/GitHubIntegrationConfig"
+        - $ref: "#/components/schemas/JiraIntegrationConfig"
+        - $ref: "#/components/schemas/WebhookIntegrationConfig"
+      description: |
+        Integration-specific configuration. Structure depends on integration type:
+        - GITHUB: GitHubIntegrationConfig with token, repositoryUrl, organization
+        - JIRA: JiraIntegrationConfig with instanceUrl, apiToken, email, projectKeys, issueTypes
+        - SLACK: { botToken, workspaceId, channels }
+        - TEAMS: { tenantId, clientId, clientSecret }
+    targetType:
+      $ref: "#/IntegrationTargetType"
+      description: Type of target for the integration
+    state:
+      $ref: "#/IntegrationState"
+      default: ACTIVE
+      description: Initial state of the integration
+
+UpdateIntegrationDto:
+  type: object
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 100
+      description: Updated name for the integration
+    description:
+      type: string
+      maxLength: 500
+      nullable: true
+      description: Updated description
+    config:
+      type: object
+      description: Updated integration configuration
+    state:
+      $ref: "#/IntegrationState"
+      description: Updated state of the integration
+
+IntegrationResponseDto:
+  type: object
+  required:
+    - id
+    - projectId
+    - organizationId
+    - type
+    - name
+    - state
+    - connectionStatus
+    - targetType
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      $ref: "./common.yaml#/IntegrationId"
+      description: Unique identifier for the integration
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+      description: Project this integration belongs to
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+      description: Organization this integration belongs to
+    type:
+      $ref: "#/IntegrationType"
+      description: Type of integration
+    name:
+      type: string
+      description: Human-readable name of the integration
+    description:
+      type: string
+      nullable: true
+      description: Optional description of the integration
+    config:
+      discriminator:
+        propertyName: type
+        mapping:
+          GITHUB: "#/components/schemas/GitHubIntegrationConfig"
+          JIRA: "#/components/schemas/JiraIntegrationConfig"
+          WEBHOOK: "#/components/schemas/WebhookIntegrationConfig"
+      oneOf:
+        - $ref: "#/components/schemas/GitHubIntegrationConfig"
+        - $ref: "#/components/schemas/JiraIntegrationConfig"
+        - $ref: "#/components/schemas/WebhookIntegrationConfig"
+      description: |
+        Integration configuration (sensitive fields may be redacted in responses).
+        Note: Actual secrets/tokens should be encrypted at rest and may be omitted or masked in API responses.
+    targetType:
+      $ref: "#/IntegrationTargetType"
+      description: Type of target for the integration
+    state:
+      $ref: "#/IntegrationState"
+      description: Current state of the integration
+    connectionStatus:
+      $ref: "#/IntegrationConnectionStatus"
+      description: Current connection health status
+    lastConnectionCheck:
+      type: string
+      format: date-time
+      nullable: true
+      description: Timestamp of last connection health check
+    lastSuccessfulSync:
+      type: string
+      format: date-time
+      nullable: true
+      description: Timestamp of last successful data synchronization
+    errorMessage:
+      type: string
+      nullable: true
+      description: Last error message if integration is in ERROR state
+    createdBy:
+      allOf:
+        - $ref: "./common.yaml#/UserId"
+      nullable: true
+      description: User who created this integration
+    createdAt:
+      type: string
+      format: date-time
+      description: Creation timestamp
+    updatedAt:
+      type: string
+      format: date-time
+      description: Last update timestamp
+    deletedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Deletion timestamp if integration is soft deleted
+
+GitHubRepositoryDto:
+  type: object
+  required:
+    - name
+    - fullName
+    - url
+    - defaultBranch
+    - owner
+  properties:
+    name:
+      type: string
+      description: Repository name
+      example: "api"
+    fullName:
+      type: string
+      description: Owner and repository name
+      example: "octocat/api"
+    description:
+      type: string
+      nullable: true
+      description: Repository description
+      example: "Public API for the platform"
+    url:
+      type: string
+      format: uri
+      description: Repository URL
+      example: "https://github.com/octocat/api"
+    defaultBranch:
+      type: string
+      description: Default branch name
+      example: "main"
+    owner:
+      type: string
+      description: Repository owner login
+      example: "octocat"
+
+PaginatedGitHubRepositoryResponse:
+  type: object
+  required:
+    - data
+    - pagination
+  properties:
+    data:
+      type: array
+      items:
+        $ref: "#/GitHubRepositoryDto"
+      description: Array of repository data
+    pagination:
+      type: object
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+      properties:
+        page:
+          type: integer
+          description: Current page number
+          example: 1
+        limit:
+          type: integer
+          description: Number of items per page
+          example: 20
+        total:
+          type: integer
+          description: Total number of items
+          example: 85
+        totalPages:
+          type: integer
+          description: Total number of pages
+          example: 5
+
+UpdateGitHubPrimaryRepositoryDto:
+  type: object
+  required:
+    - fullName
+  properties:
+    fullName:
+      type: string
+      description: Full name of the repository to set as primary
+      example: "octocat/api"
+
+# Integration Config Schemas
+GitHubIntegrationConfig:
+  type: object
+  properties:
+    token:
+      type: string
+      description: GitHub OAuth access token
+      example: "ghp_xxxxxxxxxxxxxxxxxxxx"
+    refreshToken:
+      type: string
+      description: GitHub OAuth refresh token
+      example: "ghr_xxxxxxxxxxxxxxxxxxxx"
+    tokenExpiresAt:
+      type: string
+      format: date-time
+      description: ISO timestamp when the access token expires
+      example: "2024-01-01T00:00:00Z"
+    refreshTokenExpiresAt:
+      type: string
+      format: date-time
+      description: ISO timestamp when the refresh token expires
+      example: "2024-06-01T00:00:00Z"
+    scope:
+      type: string
+      description: OAuth scopes granted to the token
+      example: "repo"
+    tokenType:
+      type: string
+      description: OAuth token type
+      example: "bearer"
+    repositoryUrl:
+      type: string
+      format: uri
+      description: Optional specific repository URL to target
+      example: "https://github.com/owner/repo"
+    organization:
+      type: string
+      description: Optional GitHub organization name
+      example: "my-org"
+    primaryRepository:
+      type: object
+      description: Primary repository metadata for webhook registration
+      required:
+        - fullName
+        - owner
+        - defaultBranch
+      properties:
+        fullName:
+          type: string
+          description: Owner and repository name
+          example: "octocat/api"
+        owner:
+          type: string
+          description: Repository owner login
+          example: "octocat"
+        defaultBranch:
+          type: string
+          description: Default branch name
+          example: "main"
+      additionalProperties: false
+    webhookSecret:
+      type: string
+      description: Optional webhook secret for the integration
+      example: "secret-1234567890"
+  additionalProperties: false
+
+JiraIntegrationConfig:
+  type: object
+  required:
+    - instanceUrl
+    - apiToken
+    - email
+  properties:
+    instanceUrl:
+      type: string
+      format: uri
+      description: Jira instance URL
+      example: "https://company.atlassian.net"
+    apiToken:
+      type: string
+      description: Jira API token for authentication
+      example: "ATATT3xFfGF0T4JaL8of..."
+    email:
+      type: string
+      format: email
+      description: Email address associated with the API token
+      example: "user@company.com"
+    projectKeys:
+      type: array
+      items:
+        type: string
+      description: Optional array of specific project keys to sync
+      example: ["PROJ", "DEV", "QA"]
+    issueTypes:
+      type: array
+      items:
+        type: string
+      description: Optional array of issue types to include
+      example: ["Bug", "Task", "Story", "Epic"]
+  additionalProperties: false
+
+IntegrationTargetType:
+  type: string
+  enum:
+    - USER
+    - ORGANIZATION
+  description: Type of target for the integration
+
+components:
+  schemas:
+    GitHubIntegrationConfig:
+      type: object
+      properties:
+        token:
+          type: string
+          description: GitHub OAuth access token
+          example: "ghp_xxxxxxxxxxxxxxxxxxxx"
+        refreshToken:
+          type: string
+          description: GitHub OAuth refresh token
+          example: "ghr_xxxxxxxxxxxxxxxxxxxx"
+        tokenExpiresAt:
+          type: string
+          format: date-time
+          description: ISO timestamp when the access token expires
+          example: "2024-01-01T00:00:00Z"
+        refreshTokenExpiresAt:
+          type: string
+          format: date-time
+          description: ISO timestamp when the refresh token expires
+          example: "2024-06-01T00:00:00Z"
+        scope:
+          type: string
+          description: OAuth scopes granted to the token
+          example: "repo"
+        tokenType:
+          type: string
+          description: OAuth token type
+          example: "bearer"
+        repositoryUrl:
+          type: string
+          format: uri
+          description: Optional specific repository URL to target
+          example: "https://github.com/owner/repo"
+        organization:
+          type: string
+          description: Optional GitHub organization name
+          example: "my-org"
+        primaryRepository:
+          type: object
+          description: Primary repository metadata for webhook registration
+          required:
+            - fullName
+            - owner
+            - defaultBranch
+          properties:
+            fullName:
+              type: string
+              description: Owner and repository name
+              example: "octocat/api"
+            owner:
+              type: string
+              description: Repository owner login
+              example: "octocat"
+            defaultBranch:
+              type: string
+              description: Default branch name
+              example: "main"
+          additionalProperties: false
+        webhookSecret:
+          type: string
+          description: Optional webhook secret for the integration
+          example: "secret-1234567890"
+      additionalProperties: false
+    JiraIntegrationConfig:
+      type: object
+      required:
+        - instanceUrl
+        - apiToken
+        - email
+      properties:
+        instanceUrl:
+          type: string
+          format: uri
+          description: Jira instance URL
+          example: "https://company.atlassian.net"
+        apiToken:
+          type: string
+          description: Jira API token for authentication
+          example: "ATATT3xFfGF0T4JaL8of..."
+        email:
+          type: string
+          format: email
+          description: Email address associated with the API token
+          example: "user@company.com"
+        projectKeys:
+          type: array
+          items:
+            type: string
+          description: Optional array of specific project keys to sync
+          example: ["PROJ", "DEV", "QA"]
+        issueTypes:
+          type: array
+          items:
+            type: string
+          description: Optional array of issue types to include
+          example: ["Bug", "Task", "Story", "Epic"]
+      additionalProperties: false
+    GenericIntegrationConfig:
+      type: object
+      description: Catch-all configuration for integrations without a dedicated schema
+      properties:
+        tbd:
+          type: string
+          description: Need this to work with java generator
+    WebhookIntegrationConfig:
+      allOf:
+        - $ref: "#/components/schemas/GenericIntegrationConfig"
+      description: Generic webhook integration configuration (placeholder for specific fields)

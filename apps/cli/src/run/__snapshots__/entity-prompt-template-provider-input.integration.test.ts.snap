@@ -1,0 +1,445 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`canonical entity prompt templates at the provider boundary > preserves the 'agent session' heading boundary > agent session 1`] = `
+"
+
+## Agent Session
+
+### Context identity:
+
+entity-1 / AGENT_SESSION.
+
+Agent Session body: Canonical Agent Session;
+
+status: ACTIVE.
+
+### Related entities:
+
+[].
+
+### Feature hierarchy:
+
+[].
+
+### Proposals:
+
+[].
+
+### Agent sessions:
+
+[].
+
+---
+
+SHARED SESSION PROMPT"
+`;
+
+exports[`canonical entity prompt templates at the provider boundary > preserves the 'bug' heading boundary > bug 1`] = `
+"
+
+## Bug
+
+### Context identity:
+
+entity-1 / TASK.
+
+Bug body: Canonical Bug;
+
+type: BUG;
+
+status: ACTIVE;
+
+sections: [].
+
+### Related entities:
+
+[].
+
+### Feature hierarchy:
+
+[].
+
+### Proposals:
+
+[].
+
+### Agent sessions:
+
+[].
+
+---
+
+SHARED SESSION PROMPT"
+`;
+
+exports[`canonical entity prompt templates at the provider boundary > preserves the 'contract' heading boundary > contract 1`] = `
+"
+
+## Contract
+
+### Context identity:
+
+entity-1 / TASK.
+
+Contract body: Canonical Contract;
+
+type: CONTRACT;
+
+status: ACTIVE;
+
+sections: [].
+
+### Related entities:
+
+[].
+
+### Feature hierarchy:
+
+[].
+
+### Proposals:
+
+[].
+
+### Agent sessions:
+
+[].
+
+---
+
+SHARED SESSION PROMPT"
+`;
+
+exports[`canonical entity prompt templates at the provider boundary > preserves the 'design doc' heading boundary > design doc 1`] = `
+"
+
+## Design Doc
+
+### Context identity:
+
+entity-1 / DESIGN_DOC.
+
+Design Doc body: Canonical Design Doc;
+
+status: ACTIVE;
+
+sections: [].
+
+### Related entities:
+
+[].
+
+### Feature hierarchy:
+
+[].
+
+### Proposals:
+
+[].
+
+### Agent sessions:
+
+[].
+
+---
+
+SHARED SESSION PROMPT"
+`;
+
+exports[`canonical entity prompt templates at the provider boundary > preserves the 'diagram element' heading boundary > diagram element 1`] = `
+"
+
+## Diagram Element
+
+### Context identity:
+
+entity-1 / TASK.
+
+Diagram Element body: Canonical Diagram Element;
+
+type: DIAGRAM_ELEMENT;
+
+status: ACTIVE;
+
+sections: [].
+
+### Related entities:
+
+[].
+
+### Feature hierarchy:
+
+[].
+
+### Proposals:
+
+[].
+
+### Agent sessions:
+
+[].
+
+---
+
+SHARED SESSION PROMPT"
+`;
+
+exports[`canonical entity prompt templates at the provider boundary > preserves the 'diagram' heading boundary > diagram 1`] = `
+"
+
+## Diagram
+
+### Context identity:
+
+entity-1 / TASK.
+
+Diagram body: Canonical Diagram;
+
+type: DIAGRAM;
+
+status: ACTIVE;
+
+sections: [].
+
+### Related entities:
+
+[].
+
+### Feature hierarchy:
+
+[].
+
+### Proposals:
+
+[].
+
+### Agent sessions:
+
+[].
+
+---
+
+SHARED SESSION PROMPT"
+`;
+
+exports[`canonical entity prompt templates at the provider boundary > preserves the 'feature' heading boundary > feature 1`] = `
+"
+
+## Feature
+
+### Context identity:
+
+entity-1 / TASK.
+
+Feature body: Canonical Feature;
+
+type: FEATURE;
+
+status: ACTIVE;
+
+sections: [].
+
+### Related entities:
+
+[].
+
+### Feature hierarchy:
+
+[].
+
+### Proposals:
+
+[].
+
+### Agent sessions:
+
+[].
+
+---
+
+SHARED SESSION PROMPT"
+`;
+
+exports[`canonical entity prompt templates at the provider boundary > preserves the 'goal' heading boundary > goal 1`] = `
+"
+
+## Goal
+
+### Context identity:
+
+entity-1 / TASK.
+
+Goal body: Canonical Goal;
+
+type: GOAL;
+
+status: ACTIVE;
+
+sections: [].
+
+### Related entities:
+
+[].
+
+### Feature hierarchy:
+
+[].
+
+### Proposals:
+
+[].
+
+### Agent sessions:
+
+[].
+
+---
+
+SHARED SESSION PROMPT"
+`;
+
+exports[`canonical entity prompt templates at the provider boundary > preserves the 'plan' heading boundary > plan 1`] = `
+"
+
+## Plan
+
+### Context identity:
+
+entity-1 / TASK.
+
+Plan body: Canonical Plan;
+
+type: PLAN;
+
+status: ACTIVE.
+
+### Related entities:
+
+[].
+
+### Feature hierarchy:
+
+[].
+
+### Proposals:
+
+[].
+
+### Agent sessions:
+
+[].
+
+---
+
+SHARED SESSION PROMPT"
+`;
+
+exports[`canonical entity prompt templates at the provider boundary > preserves the 'project' heading boundary > project 1`] = `
+"
+
+## Project
+
+### Context identity:
+
+entity-1 / PROJECT.
+
+Project body: Canonical Project;
+
+status: ACTIVE.
+
+### Related entities:
+
+[].
+
+### Feature hierarchy:
+
+[].
+
+### Proposals:
+
+[].
+
+### Agent sessions:
+
+[].
+
+---
+
+SHARED SESSION PROMPT"
+`;
+
+exports[`canonical entity prompt templates at the provider boundary > preserves the 'task monitor' heading boundary > task monitor 1`] = `
+"
+
+## Task Monitor
+
+### Context identity:
+
+entity-1 / TASK.
+
+Task Monitor body: Canonical Task Monitor;
+
+type: TASK_MONITOR;
+
+status: ACTIVE;
+
+sections: [].
+
+### Related entities:
+
+[].
+
+### Feature hierarchy:
+
+[].
+
+### Proposals:
+
+[].
+
+### Agent sessions:
+
+[].
+
+---
+
+SHARED SESSION PROMPT"
+`;
+
+exports[`canonical entity prompt templates at the provider boundary > preserves the 'task' heading boundary > task 1`] = `
+"
+
+## Task
+
+### Context identity:
+
+entity-1 / TASK.
+
+Task body: Canonical Task;
+
+type: STANDARD;
+
+status: ACTIVE;
+
+sections: [].
+
+### Related entities:
+
+[].
+
+### Feature hierarchy:
+
+[].
+
+### Proposals:
+
+[].
+
+### Agent sessions:
+
+[].
+
+---
+
+SHARED SESSION PROMPT"
+`;

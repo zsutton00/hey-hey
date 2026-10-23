@@ -1,0 +1,55 @@
+{
+  "node": "v22.17.0",
+  "measuredAt": "2026-09-22T02:58:35.845Z",
+  "baseline": false,
+  "results": [
+    {
+      "workload": "members-1-references-1",
+      "samples": 30,
+      "medianMs": 12.243832999999995,
+      "p95Ms": 13.85550000000012,
+      "minQueries": 18,
+      "maxQueries": 18
+    },
+    {
+      "workload": "members-1-references-10",
+      "samples": 30,
+      "medianMs": 12.665457999999944,
+      "p95Ms": 21.307666000000154,
+      "minQueries": 18,
+      "maxQueries": 18
+    },
+    {
+      "workload": "members-5-references-1",
+      "samples": 30,
+      "medianMs": 28.801375000000007,
+      "p95Ms": 33.82375000000047,
+      "minQueries": 38,
+      "maxQueries": 38
+    },
+    {
+      "workload": "members-5-references-10",
+      "samples": 30,
+      "medianMs": 30.965124999999716,
+      "p95Ms": 38.00987499999974,
+      "minQueries": 38,
+      "maxQueries": 38
+    },
+    {
+      "workload": "members-20-references-1",
+      "samples": 30,
+      "medianMs": 86.23420799999985,
+      "p95Ms": 107.54066700000112,
+      "minQueries": 113,
+      "maxQueries": 113
+    },
+    {
+      "workload": "members-20-references-10",
+      "samples": 30,
+      "medianMs": 97.69208400000025,
+      "p95Ms": 126.16179100000045,
+      "minQueries": 113,
+      "maxQueries": 113
+    }
+  ]
+}

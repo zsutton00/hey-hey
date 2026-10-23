@@ -1,0 +1,147 @@
+# =============================================
+# Help Routes
+# =============================================
+
+/help/tree:
+  get:
+    summary: Get help tree
+    description: Returns the shallow, globally scoped help browse tree. The payload contains no user-specific data, so it is safe to cache.
+    operationId: getHelpTree
+    tags:
+      - Help
+    responses:
+      "200":
+        description: Cacheable help tree retrieved successfully.
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "../schemas/common.yaml#/ApiResponse"
+                - type: object
+                  properties:
+                    data:
+                      $ref: "../schemas/help.yaml#/HelpTreeResponse"
+
+/help/search:
+  get:
+    summary: Search help
+    description: Searches help nodes by query text and returns ranked matches.
+    operationId: searchHelp
+    tags:
+      - Help
+    parameters:
+      - name: q
+        in: query
+        required: true
+        schema:
+          type: string
+        description: Search query text.
+      - name: maxResults
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 10
+        description: Maximum number of results to return.
+    responses:
+      "200":
+        description: Help search completed successfully.
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "../schemas/common.yaml#/ApiResponse"
+                - type: object
+                  properties:
+                    data:
+                      $ref: "../schemas/help.yaml#/HelpSearchResponse"
+
+/help/nodes/{idOrSlugPath}:
+  get:
+    summary: Get a single help node
+    description: Returns a help node with its body and ordered inline demos. The path accepts either a node UUID or a slash-separated slug path.
+    operationId: getHelpNode
+    tags:
+      - Help
+    parameters:
+      - name: idOrSlugPath
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Help node UUID or slash-separated slug path.
+    responses:
+      "200":
+        description: Help node retrieved successfully.
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "../schemas/common.yaml#/ApiResponse"
+                - type: object
+                  properties:
+                    data:
+                      $ref: "../schemas/help.yaml#/HelpNodeWithBody"
+      "404":
+        description: Help node not found.
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/common.yaml#/ApiErrorResponse"
+
+/help/assets/{assetPath}:
+  get:
+    summary: Get a repository-managed help asset
+    description: Returns a checked-in image referenced by a Help article. The path is relative to the Help assets directory and cannot escape it.
+    operationId: getHelpAsset
+    tags:
+      - Help
+    parameters:
+      - name: assetPath
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Repository-relative path below the Help assets directory.
+    responses:
+      "200":
+        description: Help image retrieved successfully as raw bytes.
+        content:
+          image/png:
+            schema:
+              type: string
+              format: binary
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+          image/gif:
+            schema:
+              type: string
+              format: binary
+          image/webp:
+            schema:
+              type: string
+              format: binary
+          image/svg+xml:
+            schema:
+              type: string
+              format: binary
+          image/avif:
+            schema:
+              type: string
+              format: binary
+      "400":
+        description: Asset path is invalid or attempts to escape the assets directory.
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/common.yaml#/ApiErrorResponse"
+      "404":
+        description: Help asset not found.
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/common.yaml#/ApiErrorResponse"

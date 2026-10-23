@@ -1,0 +1,22 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`TaskRefinementAgentNextLevelNode agent input snapshot captures task agent request snapshot 1`] = `
+{
+  "activeSection": "description",
+  "initiative": {
+    "acceptanceCriteria": "Must support 5 node types.",
+    "description": "Tooling for advanced workflow orchestration.",
+    "details": "Phase 1 covers canvas + persistence.",
+    "title": "Workflow Studio",
+  },
+  "lastUserMessage": "Update the acceptanceCriteria section to reflect changes made to the description section.",
+  "recentConversationMessages": undefined,
+  "requiredOps": 1,
+  "task": {
+    "acceptanceCriteria": "User can create workflows with validation.",
+    "description": "Initial implementation of workflow builder UI.",
+    "taskType": "STANDARD",
+    "title": "Implement workflow builder",
+  },
+}
+`;

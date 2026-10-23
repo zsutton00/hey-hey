@@ -1,0 +1,67 @@
+AccountSubscriptionType:
+  type: string
+  enum: [BETA, PAID]
+
+AccountAccessStatus:
+  type: string
+  enum: [ACTIVE, REVOKED, EXPIRED]
+
+MakeBetaAccessOpenEndedRequestDto:
+  type: object
+  additionalProperties: false
+  required: [expectedRevision, reason]
+  properties:
+    expectedRevision:
+      type: integer
+      minimum: 1
+      description: Revision of the canonical entitlement the operator reviewed.
+    reason:
+      type: string
+      minLength: 1
+      maxLength: 255
+      pattern: ".*\\S.*"
+      description: Non-blank operator reason persisted with immutable transition evidence.
+
+AccountEntitlementDto:
+  type: object
+  additionalProperties: false
+  required:
+    - organizationId
+    - subscriptionType
+    - accessStatus
+    - accessThroughAt
+    - paidThroughAt
+    - revision
+    - updatedAt
+  properties:
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+    subscriptionType:
+      $ref: "#/AccountSubscriptionType"
+    accessStatus:
+      $ref: "#/AccountAccessStatus"
+    accessThroughAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Beta access horizon, or null for access until revoked.
+    paidThroughAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Paid access horizon; always null for BETA entitlements.
+    revision:
+      type: integer
+      minimum: 1
+    updatedAt:
+      type: string
+      format: date-time
+
+MakeBetaAccessOpenEndedResponse:
+  allOf:
+    - $ref: "./common.yaml#/ApiResponse"
+    - type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/AccountEntitlementDto"

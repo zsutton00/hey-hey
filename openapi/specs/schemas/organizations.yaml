@@ -1,0 +1,361 @@
+# =============================================
+# Organization Schemas
+# =============================================
+OrganizationResponseDto:
+  type: object
+  required:
+    - id
+    - name
+    - slug
+    - isActive
+    - createdAt
+    - updatedAt
+    - userRole
+  properties:
+    id:
+      $ref: "./common.yaml#/OrganizationId"
+    name:
+      type: string
+      description: Organization name
+    slug:
+      type: string
+      description: URL-friendly organization identifier
+    description:
+      type: string
+      nullable: true
+      description: Optional organization description
+    isActive:
+      type: boolean
+      description: Whether the organization is active
+    settings:
+      type: object
+      description: Organization-specific settings
+    createdAt:
+      type: string
+      format: date-time
+      description: Creation timestamp
+    updatedAt:
+      type: string
+      format: date-time
+      description: Last update timestamp
+    userRole:
+      $ref: "#/OrganizationRole"
+      description: Current user's role in this organization
+    memberCount:
+      type: integer
+      description: Total number of members in the organization
+
+OrganizationAccountLifecycleState:
+  type: string
+  enum:
+    - ACTIVE
+    - SUSPENDED
+    - IRREVERSIBLY_CLOSED
+    - DELETED
+  description: >-
+    Server-owned lifecycle state distinguishing ordinary access, recoverable
+    suspension, committed irreversible closure, and verified deletion.
+
+OrganizationAccountLifecycleDto:
+  type: object
+  additionalProperties: false
+  required:
+    - lifecycleState
+    - accessEndsAt
+    - deletionEligibleAt
+    - irreversibleClosureAt
+    - deletedAt
+    - accessAllowed
+    - canReactivate
+  properties:
+    lifecycleState:
+      $ref: "#/OrganizationAccountLifecycleState"
+    accessEndsAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: >-
+        Immutable server-derived end of product access; null while access has no
+        scheduled end.
+    deletionEligibleAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: >-
+        Earliest instant irreversible closure may commit after recoverable
+        suspension; null while deletion is not scheduled.
+    irreversibleClosureAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: >-
+        Instant irreversible closure committed; null while recovery remains
+        possible or deletion is not scheduled.
+    deletedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: >-
+        Instant authoritative and projection deletion was verified complete;
+        null until deletion finishes.
+    accessAllowed:
+      type: boolean
+      description: Whether the authoritative lifecycle decision currently permits access.
+    canReactivate:
+      type: boolean
+      description: Whether an authenticated eligible member may still reactivate the account.
+
+GetOrganizationAccountLifecycleResponse:
+  allOf:
+    - $ref: "./common.yaml#/ApiResponse"
+    - type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: "#/OrganizationAccountLifecycleDto"
+
+CancelOrganizationAccountResponse:
+  allOf:
+    - $ref: "./common.yaml#/ApiResponse"
+    - type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: "#/OrganizationAccountLifecycleDto"
+
+ReactivateOrganizationAccountResponse:
+  allOf:
+    - $ref: "./common.yaml#/ApiResponse"
+    - type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: "#/OrganizationReactivationSuccess"
+
+OrganizationReactivationSuccess:
+  allOf:
+    - $ref: "#/OrganizationAccountLifecycleDto"
+    - type: object
+      required:
+        - outcome
+      properties:
+        outcome:
+          type: string
+          enum:
+            - REACTIVATED
+          description: Terminal outcome confirming that recovery committed.
+
+OrganizationReactivationDeadlineLostResponse:
+  allOf:
+    - $ref: "./common.yaml#/ApiErrorResponse"
+    - type: object
+      required:
+        - code
+        - data
+      properties:
+        code:
+          type: string
+          enum:
+            - REACTIVATION_DEADLINE_LOST
+          description: Machine-readable reason that reactivation did not commit.
+        data:
+          type: object
+          required:
+            - outcome
+            - lifecycle
+          properties:
+            outcome:
+              type: string
+              enum:
+                - DEADLINE_LOST
+              description: Terminal outcome confirming irreversible closure won.
+            lifecycle:
+              $ref: "#/OrganizationAccountLifecycleDto"
+
+CreateOrganizationDto:
+  type: object
+  required:
+    - name
+  properties:
+    name:
+      type: string
+      minLength: 2
+      maxLength: 100
+      description: Organization name
+    slug:
+      type: string
+      pattern: "^[a-z0-9-]+$"
+      minLength: 2
+      maxLength: 50
+      description: URL-friendly identifier (auto-generated if not provided)
+    description:
+      type: string
+      maxLength: 500
+      description: Optional organization description
+
+UpdateOrganizationDto:
+  type: object
+  properties:
+    name:
+      type: string
+      minLength: 2
+      maxLength: 100
+      description: Organization name
+    description:
+      type: string
+      maxLength: 500
+      nullable: true
+      description: Organization description
+    settings:
+      type: object
+      description: Organization-specific settings
+
+OrganizationMemberResponseDto:
+  type: object
+  required:
+    - id
+    - userId
+    - organizationId
+    - role
+    - isActive
+    - createdAt
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Membership ID
+    userId:
+      type: string
+      format: uuid
+      description: User ID
+    organizationId:
+      type: string
+      format: uuid
+      description: Organization ID
+    role:
+      $ref: "#/OrganizationRole"
+    isActive:
+      type: boolean
+      description: Whether the membership is active
+    invitedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: When the user was invited
+    joinedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: When the user joined
+    createdAt:
+      type: string
+      format: date-time
+      description: Creation timestamp
+    user:
+      $ref: "./auth.yaml#/UserResponseDto"
+      description: User details
+
+InviteToOrganizationDto:
+  type: object
+  required:
+    - email
+    - role
+  properties:
+    email:
+      type: string
+      format: email
+      description: Email of the user to invite
+    role:
+      $ref: "#/OrganizationRole"
+      description: Role to assign to the invited user
+    projects:
+      type: array
+      description: >-
+        Optional list of projects to assign the invited user to. Assignments
+        are created in the same transaction as the organization membership,
+        so a single project failure rolls back the entire invite.
+      items:
+        $ref: "#/InviteProjectAssignmentDto"
+
+InviteProjectAssignmentDto:
+  type: object
+  required:
+    - projectId
+    - role
+  properties:
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+    role:
+      allOf:
+        - $ref: "./projects.yaml#/ProjectRole"
+      description: Role to assign to the invited user within this project
+
+BulkInviteToOrganizationDto:
+  type: object
+  required:
+    - invitations
+  properties:
+    invitations:
+      type: array
+      minItems: 1
+      maxItems: 25
+      items:
+        $ref: "#/InviteToOrganizationDto"
+      description: List of user invitations to process (maximum 25 for security)
+
+BulkInviteResult:
+  type: object
+  required:
+    - email
+    - success
+  properties:
+    email:
+      type: string
+      format: email
+      description: Email address that was invited
+    success:
+      type: boolean
+      description: Whether the invitation was successful
+    member:
+      $ref: "#/OrganizationMemberResponseDto"
+      nullable: true
+      description: Created member data if successful
+    error:
+      type: string
+      nullable: true
+      description: Error message if invitation failed
+
+BulkInviteResponse:
+  type: object
+  required:
+    - totalRequested
+    - totalSuccessful
+    - totalFailed
+    - results
+  properties:
+    totalRequested:
+      type: integer
+      description: Total number of invitations requested
+    totalSuccessful:
+      type: integer
+      description: Number of successful invitations
+    totalFailed:
+      type: integer
+      description: Number of failed invitations
+    results:
+      type: array
+      items:
+        $ref: "#/BulkInviteResult"
+      description: Detailed results for each invitation
+
+OrganizationRole:
+  type: string
+  enum:
+    - OWNER
+    - ADMIN
+    - MEMBER
+    - VIEWER
+  description: Role within an organization

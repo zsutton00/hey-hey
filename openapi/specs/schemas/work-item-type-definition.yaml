@@ -1,0 +1,2373 @@
+# =============================================
+# Work-Item Type Definition Schemas
+# =============================================
+# The canonical type-definition payload shared by the three actors that
+# handle a drafted work-item type: the agent/admin that composes it, the
+# submit tool that accepts it, and the validator that checks it before it
+# becomes a proposal. The submit tool's input schema *is* this contract —
+# there is no separate structured-output schema — so the spec shape and the
+# server-side check at submit time are the only authority. Keep this in
+# lockstep with the WORK_ITEM_TYPE proposal target in proposals.yaml and the
+# work_item_type registry table in the API.
+
+WorkItemTypeKey:
+  type: string
+  description: >
+    An open work-item type key — either one of the system values (STANDARD,
+    FEATURE, GOAL, BUG, PLAN, PLAN_STAGE, CONTRACT, DIAGRAM, DIAGRAM_ELEMENT,
+    TASK_MONITOR) or a project-scoped custom key (e.g. "MARKETING"). Used
+    wherever a type filter or type reference must
+    accept custom types registered via the work-item type registry.
+  example: "STANDARD"
+
+WorkItemIconKey:
+  type: string
+  enum:
+    - task
+    - bug
+    - feature
+    - goal
+    - contract
+    - design
+    - decision
+    - workflow
+    - plan
+    - plan-stage
+    - star
+    - flag
+    - folder
+    - book
+    - lightbulb
+    - science
+    - code
+    - database
+    - link
+    - people
+    - chat
+    - calendar
+    - timer
+    - chart
+    - shield
+  description: Closed UI presentation palette token resolved by shared clients; registry data never contains component names or asset paths.
+
+WorkItemColorKey:
+  type: string
+  enum: [primary, secondary, success, warning, error, info]
+  description: Curated theme color token. Only PROJECT_CUSTOM definitions may author a color; canonical definitions and overrides retain platform colors. Omission restores the default presentation.
+
+WorkItemTypeRole:
+  type: string
+  enum:
+    - work-item
+    - project-info
+    - scheduled
+    - trigger
+    - monitor
+  description: >
+    Classification-only role for a work-item type. The role lets consumers
+    group definitions by purpose without branching on stable type keys. It
+    does not define lifecycle, scheduling, triggering, capability, status,
+    parentage, or execution behavior.
+
+WorkItemConfigKind:
+  type: string
+  enum:
+    - INITIAL_WORKTREE
+  description: |
+    Explicit launch-configuration kind accepted by a work-item type. The
+    registry policy uses this closed vocabulary; eligibility is never inferred
+    from the work-item type key or role.
+
+WorkItemConfigV1:
+  type: object
+  additionalProperties: false
+  required:
+    - kind
+    - version
+  properties:
+    kind:
+      $ref: "#/WorkItemConfigKind"
+      description: Discriminator for the launch-configuration semantics.
+    version:
+      type: string
+      enum: ["v1"]
+      description: |
+        Schema-version literal for this launch-configuration kind. A future
+        required-field change must mint a new version rather than changing v1.
+    initialWorktreeBranch:
+      type: string
+      minLength: 1
+      nullable: true
+      description: |
+        Optional branch default for coding-session setup. Null or omission
+        means no stored branch choice; creating the work item never creates a
+        checkout or materializes a worktree.
+  description: First version of the generic work-item launch configuration envelope.
+
+WorkItemConfig:
+  oneOf:
+    - $ref: "#/WorkItemConfigV1"
+  discriminator:
+    propertyName: kind
+    mapping:
+      INITIAL_WORKTREE: "#/WorkItemConfigV1"
+  description: |
+    Discriminated union of typed, versioned launch configuration envelopes.
+    The kind selects the configuration semantics and version evolves the
+    shape within that kind.
+
+WorkItemTypeDefinitionDto:
+  type: object
+  additionalProperties: false
+  description: >
+    A complete work-item-type definition — the serialized registry
+    config for one type, composed by the agentic drafter or the admin
+    form and submitted as a WORK_ITEM_TYPE proposal. Canonical-seeded and
+    project-authored custom definitions use this same shape and declare the
+    same axes.
+  required:
+    - key
+    - name
+    - role
+    - sections
+    - allowedStatuses
+  properties:
+    key:
+      type: string
+      description: >
+        Stable registry identifier for the type (e.g. "MARKETING" or
+        "WORKFLOW_STEP"). This is the value carried on a work item's `type`,
+        the `{typeKey}` path segment on the /work-item-types endpoints, and
+        the key get_tool_guidance is requested by. Immutable once a type is
+        created.
+      example: "WORKFLOW"
+    name:
+      type: string
+      description: Human-readable display name shown in create flows and review surfaces.
+      example: "Marketing"
+    agentGuidance:
+      $ref: "#/WorkItemTypeAgentGuidance"
+    maintenanceGuidance:
+      type: string
+      description: Optional type-owned advice for maintaining items of this type.
+    role:
+      $ref: "#/WorkItemTypeRole"
+    acceptedConfigKinds:
+      type: array
+      items:
+        $ref: "#/WorkItemConfigKind"
+      description: |
+        Launch-configuration kinds explicitly accepted for this effective
+        work-item type definition. Omitted legacy policy is treated as an
+        empty array; consumers must not infer acceptance from key, role, or
+        another capability.
+    iconKey:
+      $ref: "#/WorkItemIconKey"
+      description: Optional registry-backed UI icon identity. Missing values fail closed in type-specific consumers.
+    colorKey:
+      $ref: "#/WorkItemColorKey"
+      description: Optional independent custom-type theme color. Omit to clear the stored selection. Forbidden on canonical definitions and canonical overrides.
+    description:
+      type: string
+      nullable: true
+      description: One-paragraph purpose of the type — what work it captures and when to reach for it.
+    sections:
+      type: array
+      description: >
+        Ordered per-type content sections. Each section carries its own
+        writing standard, so the authoring contract for an item of this type
+        is fully described by its definition.
+      items:
+        $ref: "#/WorkItemTypeSectionDefinition"
+    requiredScalars:
+      type: array
+      description: >
+        Scalar fields an item of this type must carry. Each entry names a
+        field from the closed WorkItemTypeScalarField set; membership here
+        means an item cannot be created without that field.
+      items:
+        $ref: "#/WorkItemTypeScalarField"
+    forbiddenScalars:
+      type: array
+      description: >
+        Scalar fields an item of this type may not carry. Each entry names a
+        field from the closed WorkItemTypeScalarField set; membership here
+        means the field is rejected on items of this type. A field absent
+        from both lists is optional.
+      items:
+        $ref: "#/WorkItemTypeScalarField"
+    allowedStatuses:
+      type: array
+      description: >
+        The work statuses an item of this type may occupy. Reuses the shared
+        WorkStatus enum rather than declaring a type-local status set.
+      items:
+        $ref: "./common.yaml#/WorkStatus"
+    allowedParentTypes:
+      type: array
+      description: >
+        Type keys an item of this type may be parented under. An empty array
+        means the type is top-level only.
+      items:
+        $ref: "#/WorkItemTypeKey"
+      example: ["FEATURE"]
+    edgeTargets:
+      type: array
+      description: >
+        Which typed edges an item of this type may originate, and the type
+        keys each edge may point at. Reuses the shared AgentEdgeType enum.
+      items:
+        $ref: "#/WorkItemTypeEdgeTarget"
+    allowedParentEntityTypes:
+      type: array
+      description: >
+        Entity types (not type keys) an item of this type may be parented
+        under — the EntityType-grained parentage axis the engine reads,
+        distinct from the type-key `allowedParentTypes` above. The list is
+        evaluated literally: an empty array permits no EntityType parent.
+      items:
+        $ref: "./common.yaml#/EntityType"
+    tracking:
+      $ref: "#/WorkItemTypeTracking"
+    agentSettableStatuses:
+      type: array
+      description: >
+        The subset of `allowedStatuses` an agent may set directly on an item
+        of this type. Statuses the engine reserves for system transitions are
+        absent here. Reuses the shared WorkStatus enum.
+      items:
+        $ref: "./common.yaml#/WorkStatus"
+    anchorableReportTypes:
+      type: array
+      description: >
+        Report types that may be anchored to an item of this type. Reuses the
+        shared ReportType enum. An empty array means no report type anchors to
+        this type.
+      items:
+        $ref: "./reports.yaml#/ReportType"
+    writingStandards:
+      allOf:
+        - $ref: "#/WorkItemTypeWritingStandards"
+      nullable: true
+      description: >
+        Type-level authoring prose an agent reads before creating or editing
+        an item of this type — distinct from the per-section
+        `writingStandard`. Split by authoring mode (create / edit). Null when
+        the type carries no type-level standards.
+    capabilities:
+      $ref: "#/WorkItemTypeCapabilities"
+
+WorkItemTypeSectionDefinition:
+  type: object
+  description: One content section in a work-item type, with the writing standard that governs it.
+  required:
+    - key
+    - label
+  properties:
+    key:
+      type: string
+      description: Stable identifier for the section within the type (e.g. "audience").
+      example: "audience"
+    label:
+      type: string
+      description: Human-readable section heading shown in the editor and review surfaces.
+      example: "Target audience"
+    writingStandard:
+      type: string
+      nullable: true
+      description: >
+        Guidance describing what belongs in this section and to what quality
+        bar — the per-section authoring contract surfaced to drafters.
+    kind:
+      type: string
+      enum:
+        - markdown
+        - json
+        - html/css
+        - structured-mockup
+      default: markdown
+      description: >
+        Storage and editor kind for the section. Markdown sections store prose;
+        json sections store a schema-backed JSON document; html/css sections
+        store a strict object with required string `html` and `css` fields;
+        structured-mockup sections store a versioned, host-rendered component
+        document.
+        All kinds are serialized through the shared work-item section boundary.
+    schemaRef:
+      type: string
+      nullable: true
+      description: >
+        OpenAPI component schema reference for json sections. Omitted for
+        markdown, html/css, and structured-mockup sections.
+    sizeProfiles:
+      type: array
+      minItems: 1
+      items:
+        $ref: "#/WorkItemHtmlCssSizeProfile"
+      description: >
+        Ordered, named presentation profiles available to authors of an
+        html/css or structured-mockup section. Omitted for markdown and json
+        sections. Dimension policy belongs to the definition; item content
+        stores only sizeKey.
+    diagramElementPolicy:
+      $ref: "#/DiagramElementPolicy"
+    defaultSizeKey:
+      type: string
+      minLength: 1
+      description: >
+        Profile key used when legacy or newly-authored content omits sizeKey.
+        Required whenever sizeProfiles are configured and omitted otherwise.
+    required:
+      type: boolean
+      default: true
+      description: >
+        Whether an item must supply this section when it is created. Omitted
+        for legacy definitions means true; optional sections may be omitted or
+        explicitly cleared after creation.
+
+WorkItemHtmlCssDimensions:
+  type: object
+  additionalProperties: false
+  required:
+    - width
+    - height
+  properties:
+    width:
+      type: integer
+      minimum: 1
+    height:
+      type: integer
+      minimum: 1
+
+WorkItemHtmlCssSizeBreakpoint:
+  type: object
+  additionalProperties: false
+  required:
+    - minContainerWidth
+    - inline
+    - page
+  properties:
+    minContainerWidth:
+      type: integer
+      minimum: 0
+      description: Inclusive container-width threshold. Breakpoints are ordered by this value and begin at zero.
+    inline:
+      $ref: "#/WorkItemHtmlCssDimensions"
+    page:
+      $ref: "#/WorkItemHtmlCssDimensions"
+
+WorkItemHtmlCssSizeProfile:
+  type: object
+  additionalProperties: false
+  required:
+    - key
+    - label
+    - breakpoints
+  properties:
+    key:
+      type: string
+      minLength: 1
+      description: Stable value persisted as sizeKey in section content.
+    label:
+      type: string
+      minLength: 1
+      description: Author-facing profile label.
+    breakpoints:
+      type: array
+      minItems: 1
+      items:
+        $ref: "#/WorkItemHtmlCssSizeBreakpoint"
+      description: Strictly ascending thresholds beginning at zero.
+
+WorkItemHtmlCssSectionContent:
+  type: object
+  additionalProperties: false
+  description: Reusable source payload for an html/css work-item section.
+  required:
+    - html
+    - css
+  properties:
+    html:
+      type: string
+      description: HTML source for the section.
+    css:
+      type: string
+      description: CSS source for the section. An empty string is valid.
+    sizeKey:
+      type: string
+      minLength: 1
+      description: Optional stable profile selection resolved against the effective section definition; omission uses defaultSizeKey.
+    annotations:
+      type: array
+      items:
+        $ref: "#/WorkItemHtmlCssAnnotation"
+      description: Optional section-scoped review records kept separate from authored HTML and CSS.
+
+WorkItemHtmlCssAnnotationElementTarget:
+  type: object
+  additionalProperties: false
+  required: [type, nodeId]
+  properties:
+    type:
+      type: string
+      enum: [element]
+    nodeId:
+      type: string
+      minLength: 1
+      description: Stable data-hh-id value exposed by the validated HTML/CSS document.
+
+WorkItemHtmlCssAnnotationPositionTarget:
+  type: object
+  additionalProperties: false
+  required: [type, x, y, sizeKey]
+  properties:
+    type:
+      type: string
+      enum: [position]
+    x:
+      type: number
+      minimum: 0
+      maximum: 1
+    y:
+      type: number
+      minimum: 0
+      maximum: 1
+    sizeKey:
+      type: string
+      minLength: 1
+      description: Presentation profile in which the normalized position was authored.
+
+WorkItemHtmlCssAnnotationTarget:
+  oneOf:
+    - $ref: "#/WorkItemHtmlCssAnnotationElementTarget"
+    - $ref: "#/WorkItemHtmlCssAnnotationPositionTarget"
+  discriminator:
+    propertyName: type
+
+WorkItemHtmlCssAnnotation:
+  type: object
+  additionalProperties: false
+  required:
+    [id, note, author, category, lifecycle, authoredProposalId, authoredSizeKey, target]
+  properties:
+    id:
+      $ref: "#/WorkItemStructuredMockupAnnotationId"
+    note:
+      type: string
+      minLength: 1
+      maxLength: 4000
+    author:
+      $ref: "#/WorkItemStructuredMockupAnnotationAuthor"
+    category:
+      $ref: "#/WorkItemStructuredMockupAnnotationCategory"
+    lifecycle:
+      $ref: "#/WorkItemStructuredMockupAnnotationLifecycle"
+    authoredProposalId:
+      type: string
+      format: uuid
+    authoredSizeKey:
+      type: string
+      minLength: 1
+    target:
+      $ref: "#/WorkItemHtmlCssAnnotationTarget"
+
+WorkItemStructuredMockupWidth:
+  oneOf:
+    - $ref: "#/WorkItemStructuredMockupWidthFlexible"
+    - $ref: "#/WorkItemStructuredMockupWidthFixed"
+
+WorkItemStructuredMockupWidthFlexible:
+  type: object
+  additionalProperties: false
+  required:
+    - mode
+  properties:
+    mode:
+      type: string
+      enum:
+        - fit
+        - fill
+
+WorkItemStructuredMockupWidthFixed:
+  type: object
+  additionalProperties: false
+  required:
+    - mode
+    - value
+  properties:
+    mode:
+      type: string
+      enum:
+        - fixed
+    value:
+      type: integer
+      minimum: 1
+      description: Pixel width. Required only when mode is fixed.
+
+WorkItemStructuredMockupHeight:
+  oneOf:
+    - $ref: "#/WorkItemStructuredMockupHeightContent"
+    - $ref: "#/WorkItemStructuredMockupHeightFixed"
+
+WorkItemStructuredMockupHeightContent:
+  type: object
+  additionalProperties: false
+  required:
+    - mode
+  properties:
+    mode:
+      type: string
+      enum:
+        - content
+
+WorkItemStructuredMockupHeightFixed:
+  type: object
+  additionalProperties: false
+  required:
+    - mode
+    - value
+  properties:
+    mode:
+      type: string
+      enum:
+        - fixed
+    value:
+      type: integer
+      minimum: 1
+      description: Pixel height. Required only when mode is fixed.
+
+WorkItemStructuredMockupLayoutProps:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - width
+    - height
+  properties:
+    id:
+      type: string
+      minLength: 1
+      description: Stable document-local component identity, unique within the document.
+    width:
+      $ref: "#/WorkItemStructuredMockupWidth"
+    height:
+      $ref: "#/WorkItemStructuredMockupHeight"
+
+WorkItemStructuredMockupTextProps:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - width
+    - height
+    - text
+  properties:
+    id:
+      type: string
+      minLength: 1
+      description: Stable document-local component identity, unique within the document.
+    width:
+      $ref: "#/WorkItemStructuredMockupWidth"
+    height:
+      $ref: "#/WorkItemStructuredMockupHeight"
+    text:
+      type: string
+    variant:
+      type: string
+      enum: [body, heading, caption, label, badge]
+      description: Host-owned text hierarchy and emphasis. Omission renders body text.
+
+WorkItemStructuredMockupButtonProps:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - width
+    - height
+    - label
+  properties:
+    id:
+      type: string
+      minLength: 1
+      description: Stable document-local component identity, unique within the document.
+    width:
+      $ref: "#/WorkItemStructuredMockupWidth"
+    height:
+      $ref: "#/WorkItemStructuredMockupHeight"
+    label:
+      type: string
+
+WorkItemStructuredMockupInputProps:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - width
+    - height
+    - label
+    - placeholder
+  properties:
+    id:
+      type: string
+      minLength: 1
+      description: Stable document-local component identity, unique within the document.
+    width:
+      $ref: "#/WorkItemStructuredMockupWidth"
+    height:
+      $ref: "#/WorkItemStructuredMockupHeight"
+    label:
+      type: string
+    placeholder:
+      type: string
+    value:
+      type: string
+    multiline:
+      type: boolean
+      description: Explicit textarea mode. When omitted, newline-containing values use multiline mode.
+
+WorkItemStructuredMockupSurfaceProps:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - width
+    - height
+  properties:
+    id:
+      type: string
+      minLength: 1
+      description: Stable document-local component identity, unique within the document.
+    width:
+      $ref: "#/WorkItemStructuredMockupWidth"
+    height:
+      $ref: "#/WorkItemStructuredMockupHeight"
+    label:
+      type: string
+
+WorkItemStructuredMockupImagePlaceholderProps:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - width
+    - height
+    - altText
+  properties:
+    id:
+      type: string
+      minLength: 1
+      description: Stable document-local component identity, unique within the document.
+    width:
+      $ref: "#/WorkItemStructuredMockupWidth"
+    height:
+      $ref: "#/WorkItemStructuredMockupHeight"
+    altText:
+      type: string
+
+WorkItemStructuredMockupContainerProps:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - width
+    - height
+    - gap
+    - padding
+    - justify
+    - align
+  properties:
+    id:
+      type: string
+      minLength: 1
+      description: Stable document-local component identity, unique within the document.
+    width:
+      $ref: "#/WorkItemStructuredMockupWidth"
+    height:
+      $ref: "#/WorkItemStructuredMockupHeight"
+    gap:
+      type: integer
+      minimum: 0
+    padding:
+      type: integer
+      minimum: 0
+    justify:
+      type: string
+      enum: [start, center, end, spread]
+      description: Main-axis distribution of child components.
+    align:
+      type: string
+      enum: [start, center, end, stretch]
+      description: Cross-axis positioning of child components.
+
+    surface:
+      type: string
+      enum: [plain, panel, muted, dashed]
+      description: Host-owned surface treatment for a container with editable children. Omission renders plain layout.
+
+WorkItemStructuredMockupSlotProps:
+  type: object
+  additionalProperties: false
+  required: [id, width, height, name]
+  properties:
+    id:
+      type: string
+      minLength: 1
+      description: Stable document-local slot identity, unique within the source document.
+    width:
+      $ref: "#/WorkItemStructuredMockupWidth"
+    height:
+      $ref: "#/WorkItemStructuredMockupHeight"
+    name:
+      type: string
+      minLength: 1
+      description: Stable source-owned destination name used by reusable occurrences.
+    surface:
+      type: string
+      enum: [plain, panel, muted, dashed]
+
+WorkItemStructuredMockupIconProps:
+  type: object
+  additionalProperties: false
+  required: [id, width, height, iconKey, accessibleLabel]
+  properties:
+    id: { type: string, minLength: 1 }
+    width: { $ref: "#/WorkItemStructuredMockupWidth" }
+    height: { $ref: "#/WorkItemStructuredMockupHeight" }
+    iconKey: { type: string, minLength: 1 }
+    accessibleLabel: { type: string, minLength: 1 }
+
+WorkItemStructuredMockupSlotAssignment:
+  type: object
+  additionalProperties: false
+  required: [slotName, children]
+  properties:
+    slotName:
+      type: string
+      minLength: 1
+    children:
+      type: array
+      items:
+        $ref: "#/WorkItemStructuredMockupComponentV4"
+
+WorkItemStructuredMockupOccurrenceProps:
+  type: object
+  additionalProperties: false
+  required: [id, width, height, sourceMockupId, slotAssignments]
+  properties:
+    id:
+      type: string
+      minLength: 1
+      description: Stable document-local occurrence identity, distinct from sourceMockupId.
+    width: { $ref: "#/WorkItemStructuredMockupWidth" }
+    height: { $ref: "#/WorkItemStructuredMockupHeight" }
+    sourceMockupId:
+      type: string
+      format: uuid
+    slotAssignments:
+      type: array
+      items:
+        $ref: "#/WorkItemStructuredMockupSlotAssignment"
+
+WorkItemStructuredMockupText:
+  type: object
+  additionalProperties: false
+  required: [type, props]
+  properties:
+    type:
+      type: string
+      enum: [text]
+    props:
+      $ref: "#/WorkItemStructuredMockupTextProps"
+
+WorkItemStructuredMockupButton:
+  type: object
+  additionalProperties: false
+  required: [type, props]
+  properties:
+    type:
+      type: string
+      enum: [button]
+    props:
+      $ref: "#/WorkItemStructuredMockupButtonProps"
+
+WorkItemStructuredMockupInput:
+  type: object
+  additionalProperties: false
+  required: [type, props]
+  properties:
+    type:
+      type: string
+      enum: [input]
+    props:
+      $ref: "#/WorkItemStructuredMockupInputProps"
+
+WorkItemStructuredMockupCard:
+  type: object
+  additionalProperties: false
+  required: [type, props]
+  properties:
+    type:
+      type: string
+      enum: [card]
+    props:
+      $ref: "#/WorkItemStructuredMockupSurfaceProps"
+
+WorkItemStructuredMockupRectangle:
+  type: object
+  additionalProperties: false
+  required: [type, props]
+  properties:
+    type:
+      type: string
+      enum: [rectangle]
+    props:
+      $ref: "#/WorkItemStructuredMockupSurfaceProps"
+
+WorkItemStructuredMockupDivider:
+  type: object
+  additionalProperties: false
+  required: [type, props]
+  properties:
+    type:
+      type: string
+      enum: [divider]
+    props:
+      $ref: "#/WorkItemStructuredMockupLayoutProps"
+
+WorkItemStructuredMockupImagePlaceholder:
+  type: object
+  additionalProperties: false
+  required: [type, props]
+  properties:
+    type:
+      type: string
+      enum: [image-placeholder]
+    props:
+      $ref: "#/WorkItemStructuredMockupImagePlaceholderProps"
+
+WorkItemStructuredMockupRow:
+  type: object
+  additionalProperties: false
+  required: [type, props, children]
+  properties:
+    type:
+      type: string
+      enum: [row]
+    props:
+      $ref: "#/WorkItemStructuredMockupContainerProps"
+    children:
+      type: array
+      items:
+        $ref: "#/WorkItemStructuredMockupComponent"
+
+WorkItemStructuredMockupColumn:
+  type: object
+  additionalProperties: false
+  required: [type, props, children]
+  properties:
+    type:
+      type: string
+      enum: [column]
+    props:
+      $ref: "#/WorkItemStructuredMockupContainerProps"
+    children:
+      type: array
+      items:
+        $ref: "#/WorkItemStructuredMockupComponent"
+
+WorkItemStructuredMockupSlot:
+  type: object
+  additionalProperties: false
+  required: [type, props]
+  properties:
+    type: { type: string, enum: [slot] }
+    props: { $ref: "#/WorkItemStructuredMockupSlotProps" }
+
+WorkItemStructuredMockupIcon:
+  type: object
+  additionalProperties: false
+  required: [type, props]
+  properties:
+    type: { type: string, enum: [icon] }
+    props: { $ref: "#/WorkItemStructuredMockupIconProps" }
+
+WorkItemStructuredMockupOccurrence:
+  type: object
+  additionalProperties: false
+  required: [type, props]
+  properties:
+    type: { type: string, enum: [mockup-occurrence] }
+    props: { $ref: "#/WorkItemStructuredMockupOccurrenceProps" }
+
+WorkItemStructuredMockupComponentV4:
+  oneOf:
+    - $ref: "#/WorkItemStructuredMockupText"
+    - $ref: "#/WorkItemStructuredMockupButton"
+    - $ref: "#/WorkItemStructuredMockupInput"
+    - $ref: "#/WorkItemStructuredMockupCard"
+    - $ref: "#/WorkItemStructuredMockupRectangle"
+    - $ref: "#/WorkItemStructuredMockupDivider"
+    - $ref: "#/WorkItemStructuredMockupImagePlaceholder"
+    - $ref: "#/WorkItemStructuredMockupRowV4"
+    - $ref: "#/WorkItemStructuredMockupColumnV4"
+    - $ref: "#/WorkItemStructuredMockupSlot"
+    - $ref: "#/WorkItemStructuredMockupIcon"
+    - $ref: "#/WorkItemStructuredMockupOccurrence"
+  discriminator:
+    propertyName: type
+
+WorkItemStructuredMockupRowV4:
+  type: object
+  additionalProperties: false
+  required: [type, props, children]
+  properties:
+    type: { type: string, enum: [row] }
+    props: { $ref: "#/WorkItemStructuredMockupContainerProps" }
+    children:
+      { type: array, items: { $ref: "#/WorkItemStructuredMockupComponentV4" } }
+
+WorkItemStructuredMockupColumnV4:
+  type: object
+  additionalProperties: false
+  required: [type, props, children]
+  properties:
+    type: { type: string, enum: [column] }
+    props: { $ref: "#/WorkItemStructuredMockupContainerProps" }
+    children:
+      { type: array, items: { $ref: "#/WorkItemStructuredMockupComponentV4" } }
+
+WorkItemStructuredMockupIconKey:
+  type: string
+  enum:
+    - task
+    - bug
+    - feature
+    - goal
+    - contract
+    - workflow
+    - plan
+    - plan-stage
+    - add
+    - arrow-down
+    - arrow-left
+    - arrow-right
+    - arrow-up
+    - check
+    - close
+    - edit
+    - info
+    - menu
+    - search
+    - settings
+    - star
+    - warning
+  description: >
+    Registered host icon token. The token resolves through the shared icon
+    registry; structured content cannot provide an asset path, SVG, component
+    name, or renderer implementation.
+
+WorkItemStructuredMockupSemanticRole:
+  type: string
+  enum:
+    - button
+    - heading
+    - img
+    - link
+    - list
+    - listitem
+    - navigation
+    - region
+    - status
+    - separator
+    - textbox
+    - none
+    - presentation
+  description: Host-controlled semantic role exposed to implementation agents without changing the visual design.
+
+WorkItemStructuredMockupColor:
+  type: string
+  enum: [primary, secondary, success, warning, error, info, neutral, muted, surface, transparent]
+  description: Host palette token used for constrained component color.
+
+WorkItemStructuredMockupOverflow:
+  type: string
+  enum: [visible, hidden]
+  description: Constrained overflow behavior for a component boundary.
+
+WorkItemStructuredMockupCaretDirection:
+  type: string
+  enum: [up, right, down, left]
+  description: Direction in which a caret points.
+
+WorkItemStructuredMockupShapeKind:
+  type: string
+  enum: [circle, square, rounded, pill, diamond, triangle]
+  description: Host-controlled basic shape kind.
+
+WorkItemStructuredMockupDividerOrientation:
+  type: string
+  enum: [horizontal, vertical]
+  description: Explicit divider axis.
+
+WorkItemStructuredMockupV5AppearanceProps:
+  type: object
+  additionalProperties: false
+  properties:
+    role:
+      $ref: "#/WorkItemStructuredMockupSemanticRole"
+    description:
+      type: string
+      minLength: 1
+      description: Agent-readable semantic description that is not rendered as design text.
+    color:
+      $ref: "#/WorkItemStructuredMockupColor"
+    opacity:
+      type: number
+      minimum: 0
+      maximum: 1
+      description: Inclusive opacity value applied by the host renderer.
+    overflow:
+      $ref: "#/WorkItemStructuredMockupOverflow"
+
+WorkItemStructuredMockupTextV5Props:
+  type: object
+  additionalProperties: false
+  required: [id, width, height, text]
+  properties:
+    id: { type: string, minLength: 1 }
+    width: { $ref: "#/WorkItemStructuredMockupWidth" }
+    height: { $ref: "#/WorkItemStructuredMockupHeight" }
+    text: { type: string }
+    variant: { type: string, enum: [body, heading, caption, label, badge] }
+    role: { $ref: "#/WorkItemStructuredMockupSemanticRole" }
+    description: { type: string, minLength: 1 }
+    color: { $ref: "#/WorkItemStructuredMockupColor" }
+    opacity: { type: number, minimum: 0, maximum: 1 }
+    overflow: { $ref: "#/WorkItemStructuredMockupOverflow" }
+
+WorkItemStructuredMockupButtonV5Props:
+  type: object
+  additionalProperties: false
+  required: [id, width, height, label]
+  properties:
+    id: { type: string, minLength: 1 }
+    width: { $ref: "#/WorkItemStructuredMockupWidth" }
+    height: { $ref: "#/WorkItemStructuredMockupHeight" }
+    label: { type: string }
+    role: { $ref: "#/WorkItemStructuredMockupSemanticRole" }
+    description: { type: string, minLength: 1 }
+    color: { $ref: "#/WorkItemStructuredMockupColor" }
+    opacity: { type: number, minimum: 0, maximum: 1 }
+    overflow: { $ref: "#/WorkItemStructuredMockupOverflow" }
+
+WorkItemStructuredMockupInputV5Props:
+  type: object
+  additionalProperties: false
+  required: [id, width, height, label, placeholder]
+  properties:
+    id: { type: string, minLength: 1 }
+    width: { $ref: "#/WorkItemStructuredMockupWidth" }
+    height: { $ref: "#/WorkItemStructuredMockupHeight" }
+    label: { type: string }
+    placeholder: { type: string }
+    value: { type: string }
+    multiline: { type: boolean }
+    role: { $ref: "#/WorkItemStructuredMockupSemanticRole" }
+    description: { type: string, minLength: 1 }
+    color: { $ref: "#/WorkItemStructuredMockupColor" }
+    opacity: { type: number, minimum: 0, maximum: 1 }
+    overflow: { $ref: "#/WorkItemStructuredMockupOverflow" }
+
+WorkItemStructuredMockupSurfaceV5Props:
+  type: object
+  additionalProperties: false
+  required: [id, width, height]
+  properties:
+    id: { type: string, minLength: 1 }
+    width: { $ref: "#/WorkItemStructuredMockupWidth" }
+    height: { $ref: "#/WorkItemStructuredMockupHeight" }
+    label: { type: string }
+    role: { $ref: "#/WorkItemStructuredMockupSemanticRole" }
+    description: { type: string, minLength: 1 }
+    color: { $ref: "#/WorkItemStructuredMockupColor" }
+    opacity: { type: number, minimum: 0, maximum: 1 }
+    overflow: { $ref: "#/WorkItemStructuredMockupOverflow" }
+
+WorkItemStructuredMockupImagePlaceholderV5Props:
+  type: object
+  additionalProperties: false
+  required: [id, width, height, altText]
+  properties:
+    id: { type: string, minLength: 1 }
+    width: { $ref: "#/WorkItemStructuredMockupWidth" }
+    height: { $ref: "#/WorkItemStructuredMockupHeight" }
+    altText: { type: string }
+    role: { $ref: "#/WorkItemStructuredMockupSemanticRole" }
+    description: { type: string, minLength: 1 }
+    color: { $ref: "#/WorkItemStructuredMockupColor" }
+    opacity: { type: number, minimum: 0, maximum: 1 }
+    overflow: { $ref: "#/WorkItemStructuredMockupOverflow" }
+
+WorkItemStructuredMockupContainerV5Props:
+  type: object
+  additionalProperties: false
+  required: [id, width, height, gap, padding, justify, align]
+  properties:
+    id: { type: string, minLength: 1 }
+    width: { $ref: "#/WorkItemStructuredMockupWidth" }
+    height: { $ref: "#/WorkItemStructuredMockupHeight" }
+    gap: { type: integer, minimum: 0 }
+    padding: { type: integer, minimum: 0 }
+    justify: { type: string, enum: [start, center, end, spread] }
+    align: { type: string, enum: [start, center, end, stretch] }
+    surface: { type: string, enum: [plain, panel, muted, dashed] }
+    role: { $ref: "#/WorkItemStructuredMockupSemanticRole" }
+    description: { type: string, minLength: 1 }
+    color: { $ref: "#/WorkItemStructuredMockupColor" }
+    opacity: { type: number, minimum: 0, maximum: 1 }
+    overflow: { $ref: "#/WorkItemStructuredMockupOverflow" }
+
+WorkItemStructuredMockupSlotV5Props:
+  type: object
+  additionalProperties: false
+  required: [id, width, height, name]
+  properties:
+    id: { type: string, minLength: 1 }
+    width: { $ref: "#/WorkItemStructuredMockupWidth" }
+    height: { $ref: "#/WorkItemStructuredMockupHeight" }
+    name: { type: string, minLength: 1 }
+    surface: { type: string, enum: [plain, panel, muted, dashed] }
+    role: { $ref: "#/WorkItemStructuredMockupSemanticRole" }
+    description: { type: string, minLength: 1 }
+    color: { $ref: "#/WorkItemStructuredMockupColor" }
+    opacity: { type: number, minimum: 0, maximum: 1 }
+    overflow: { $ref: "#/WorkItemStructuredMockupOverflow" }
+
+WorkItemStructuredMockupIconV5Props:
+  type: object
+  additionalProperties: false
+  required: [id, width, height, iconKey, accessibleLabel]
+  properties:
+    id: { type: string, minLength: 1 }
+    width: { $ref: "#/WorkItemStructuredMockupWidth" }
+    height: { $ref: "#/WorkItemStructuredMockupHeight" }
+    iconKey: { $ref: "#/WorkItemStructuredMockupIconKey" }
+    accessibleLabel: { type: string, minLength: 1 }
+    role: { $ref: "#/WorkItemStructuredMockupSemanticRole" }
+    description: { type: string, minLength: 1 }
+    color: { $ref: "#/WorkItemStructuredMockupColor" }
+    opacity: { type: number, minimum: 0, maximum: 1 }
+    overflow: { $ref: "#/WorkItemStructuredMockupOverflow" }
+
+WorkItemStructuredMockupCaretProps:
+  type: object
+  additionalProperties: false
+  required: [id, width, height, direction]
+  properties:
+    id: { type: string, minLength: 1 }
+    width: { $ref: "#/WorkItemStructuredMockupWidth" }
+    height: { $ref: "#/WorkItemStructuredMockupHeight" }
+    direction: { $ref: "#/WorkItemStructuredMockupCaretDirection" }
+    role: { $ref: "#/WorkItemStructuredMockupSemanticRole" }
+    description: { type: string, minLength: 1 }
+    color: { $ref: "#/WorkItemStructuredMockupColor" }
+    opacity: { type: number, minimum: 0, maximum: 1 }
+    overflow: { $ref: "#/WorkItemStructuredMockupOverflow" }
+
+WorkItemStructuredMockupShapeProps:
+  type: object
+  additionalProperties: false
+  required: [id, width, height, kind]
+  properties:
+    id: { type: string, minLength: 1 }
+    width: { $ref: "#/WorkItemStructuredMockupWidth" }
+    height: { $ref: "#/WorkItemStructuredMockupHeight" }
+    kind: { $ref: "#/WorkItemStructuredMockupShapeKind" }
+    role: { $ref: "#/WorkItemStructuredMockupSemanticRole" }
+    description: { type: string, minLength: 1 }
+    color: { $ref: "#/WorkItemStructuredMockupColor" }
+    opacity: { type: number, minimum: 0, maximum: 1 }
+    overflow: { $ref: "#/WorkItemStructuredMockupOverflow" }
+
+WorkItemStructuredMockupDividerV5Props:
+  type: object
+  additionalProperties: false
+  required: [id, width, height, orientation]
+  properties:
+    id: { type: string, minLength: 1 }
+    width: { $ref: "#/WorkItemStructuredMockupWidth" }
+    height: { $ref: "#/WorkItemStructuredMockupHeight" }
+    orientation: { $ref: "#/WorkItemStructuredMockupDividerOrientation" }
+    role: { $ref: "#/WorkItemStructuredMockupSemanticRole" }
+    description: { type: string, minLength: 1 }
+    color: { $ref: "#/WorkItemStructuredMockupColor" }
+    opacity: { type: number, minimum: 0, maximum: 1 }
+    overflow: { $ref: "#/WorkItemStructuredMockupOverflow" }
+
+WorkItemStructuredMockupOccurrenceV5Props:
+  type: object
+  additionalProperties: false
+  required: [id, width, height, sourceMockupId, slotAssignments]
+  properties:
+    id: { type: string, minLength: 1 }
+    width: { $ref: "#/WorkItemStructuredMockupWidth" }
+    height: { $ref: "#/WorkItemStructuredMockupHeight" }
+    sourceMockupId: { type: string, format: uuid }
+    slotAssignments:
+      type: array
+      items: { $ref: "#/WorkItemStructuredMockupSlotAssignmentV5" }
+    role: { $ref: "#/WorkItemStructuredMockupSemanticRole" }
+    description: { type: string, minLength: 1 }
+    color: { $ref: "#/WorkItemStructuredMockupColor" }
+    opacity: { type: number, minimum: 0, maximum: 1 }
+    overflow: { $ref: "#/WorkItemStructuredMockupOverflow" }
+
+WorkItemStructuredMockupSlotAssignmentV5:
+  type: object
+  additionalProperties: false
+  required: [slotName, children]
+  properties:
+    slotName: { type: string, minLength: 1 }
+    children:
+      type: array
+      items: { $ref: "#/WorkItemStructuredMockupComponentV5" }
+
+WorkItemStructuredMockupTextV5:
+  type: object
+  additionalProperties: false
+  required: [type, props]
+  properties:
+    type: { type: string, enum: [text] }
+    props: { $ref: "#/WorkItemStructuredMockupTextV5Props" }
+
+WorkItemStructuredMockupButtonV5:
+  type: object
+  additionalProperties: false
+  required: [type, props]
+  properties:
+    type: { type: string, enum: [button] }
+    props: { $ref: "#/WorkItemStructuredMockupButtonV5Props" }
+
+WorkItemStructuredMockupInputV5:
+  type: object
+  additionalProperties: false
+  required: [type, props]
+  properties:
+    type: { type: string, enum: [input] }
+    props: { $ref: "#/WorkItemStructuredMockupInputV5Props" }
+
+WorkItemStructuredMockupCardV5:
+  type: object
+  additionalProperties: false
+  required: [type, props]
+  properties:
+    type: { type: string, enum: [card] }
+    props: { $ref: "#/WorkItemStructuredMockupSurfaceV5Props" }
+
+WorkItemStructuredMockupRectangleV5:
+  type: object
+  additionalProperties: false
+  required: [type, props]
+  properties:
+    type: { type: string, enum: [rectangle] }
+    props: { $ref: "#/WorkItemStructuredMockupSurfaceV5Props" }
+
+WorkItemStructuredMockupImagePlaceholderV5:
+  type: object
+  additionalProperties: false
+  required: [type, props]
+  properties:
+    type: { type: string, enum: [image-placeholder] }
+    props: { $ref: "#/WorkItemStructuredMockupImagePlaceholderV5Props" }
+
+WorkItemStructuredMockupDividerV5:
+  type: object
+  additionalProperties: false
+  required: [type, props]
+  properties:
+    type: { type: string, enum: [divider] }
+    props: { $ref: "#/WorkItemStructuredMockupDividerV5Props" }
+
+WorkItemStructuredMockupIconV5:
+  type: object
+  additionalProperties: false
+  required: [type, props]
+  properties:
+    type: { type: string, enum: [icon] }
+    props: { $ref: "#/WorkItemStructuredMockupIconV5Props" }
+
+WorkItemStructuredMockupCaret:
+  type: object
+  additionalProperties: false
+  required: [type, props]
+  properties:
+    type: { type: string, enum: [caret] }
+    props: { $ref: "#/WorkItemStructuredMockupCaretProps" }
+
+WorkItemStructuredMockupShape:
+  type: object
+  additionalProperties: false
+  required: [type, props]
+  properties:
+    type: { type: string, enum: [shape] }
+    props: { $ref: "#/WorkItemStructuredMockupShapeProps" }
+
+WorkItemStructuredMockupRowV5:
+  type: object
+  additionalProperties: false
+  required: [type, props, children]
+  properties:
+    type: { type: string, enum: [row] }
+    props: { $ref: "#/WorkItemStructuredMockupContainerV5Props" }
+    children:
+      type: array
+      items: { $ref: "#/WorkItemStructuredMockupComponentV5" }
+
+WorkItemStructuredMockupColumnV5:
+  type: object
+  additionalProperties: false
+  required: [type, props, children]
+  properties:
+    type: { type: string, enum: [column] }
+    props: { $ref: "#/WorkItemStructuredMockupContainerV5Props" }
+    children:
+      type: array
+      items: { $ref: "#/WorkItemStructuredMockupComponentV5" }
+
+WorkItemStructuredMockupSlotV5:
+  type: object
+  additionalProperties: false
+  required: [type, props]
+  properties:
+    type: { type: string, enum: [slot] }
+    props: { $ref: "#/WorkItemStructuredMockupSlotV5Props" }
+
+WorkItemStructuredMockupOccurrenceV5:
+  type: object
+  additionalProperties: false
+  required: [type, props]
+  properties:
+    type: { type: string, enum: [mockup-occurrence] }
+    props: { $ref: "#/WorkItemStructuredMockupOccurrenceV5Props" }
+
+WorkItemStructuredMockupComponentV5:
+  oneOf:
+    - $ref: "#/WorkItemStructuredMockupTextV5"
+    - $ref: "#/WorkItemStructuredMockupButtonV5"
+    - $ref: "#/WorkItemStructuredMockupInputV5"
+    - $ref: "#/WorkItemStructuredMockupCardV5"
+    - $ref: "#/WorkItemStructuredMockupRectangleV5"
+    - $ref: "#/WorkItemStructuredMockupDividerV5"
+    - $ref: "#/WorkItemStructuredMockupImagePlaceholderV5"
+    - $ref: "#/WorkItemStructuredMockupIconV5"
+    - $ref: "#/WorkItemStructuredMockupCaret"
+    - $ref: "#/WorkItemStructuredMockupShape"
+    - $ref: "#/WorkItemStructuredMockupRowV5"
+    - $ref: "#/WorkItemStructuredMockupColumnV5"
+    - $ref: "#/WorkItemStructuredMockupSlotV5"
+    - $ref: "#/WorkItemStructuredMockupOccurrenceV5"
+  discriminator:
+    propertyName: type
+
+WorkItemStructuredMockupComponent:
+  oneOf:
+    - $ref: "#/WorkItemStructuredMockupText"
+    - $ref: "#/WorkItemStructuredMockupButton"
+    - $ref: "#/WorkItemStructuredMockupInput"
+    - $ref: "#/WorkItemStructuredMockupCard"
+    - $ref: "#/WorkItemStructuredMockupRectangle"
+    - $ref: "#/WorkItemStructuredMockupDivider"
+    - $ref: "#/WorkItemStructuredMockupImagePlaceholder"
+    - $ref: "#/WorkItemStructuredMockupRow"
+    - $ref: "#/WorkItemStructuredMockupColumn"
+  discriminator:
+    propertyName: type
+
+WorkItemStructuredMockupAnnotationId:
+  type: string
+  format: uuid
+
+WorkItemStructuredMockupAnnotationCategory:
+  type: string
+  enum: [context, suggestion, question, issue]
+
+WorkItemStructuredMockupAnnotationLifecycle:
+  type: string
+  enum: [open, resolved]
+
+WorkItemStructuredMockupAnnotationHumanAuthor:
+  type: object
+  additionalProperties: false
+  required: [type, userId]
+  properties:
+    type:
+      type: string
+      enum: [human]
+    userId:
+      $ref: "./common.yaml#/UserId"
+
+WorkItemStructuredMockupAnnotationAgentAuthor:
+  type: object
+  additionalProperties: false
+  required: [type, agentSessionId]
+  properties:
+    type:
+      type: string
+      enum: [agent]
+    agentSessionId:
+      $ref: "./common.yaml#/AgentSessionId"
+
+WorkItemStructuredMockupAnnotationAuthor:
+  oneOf:
+    - $ref: "#/WorkItemStructuredMockupAnnotationHumanAuthor"
+    - $ref: "#/WorkItemStructuredMockupAnnotationAgentAuthor"
+  discriminator:
+    propertyName: type
+
+WorkItemStructuredMockupAnnotationComponentTarget:
+  type: object
+  additionalProperties: false
+  required: [type, componentId]
+  properties:
+    type:
+      type: string
+      enum: [component]
+    componentId:
+      type: string
+      minLength: 1
+
+WorkItemStructuredMockupAnnotationPositionTarget:
+  type: object
+  additionalProperties: false
+  required: [type, x, y]
+  properties:
+    type:
+      type: string
+      enum: [position]
+    x:
+      type: number
+      minimum: 0
+      maximum: 1
+    y:
+      type: number
+      minimum: 0
+      maximum: 1
+
+WorkItemStructuredMockupAnnotationTarget:
+  oneOf:
+    - $ref: "#/WorkItemStructuredMockupAnnotationComponentTarget"
+    - $ref: "#/WorkItemStructuredMockupAnnotationPositionTarget"
+  discriminator:
+    propertyName: type
+
+WorkItemStructuredMockupAnnotation:
+  type: object
+  additionalProperties: false
+  required:
+    [
+      id,
+      note,
+      author,
+      category,
+      lifecycle,
+      authoredProposalId,
+      authoredSizeKey,
+      target,
+    ]
+  properties:
+    id:
+      $ref: "#/WorkItemStructuredMockupAnnotationId"
+    note:
+      type: string
+      minLength: 1
+      maxLength: 4000
+    author:
+      $ref: "#/WorkItemStructuredMockupAnnotationAuthor"
+    category:
+      $ref: "#/WorkItemStructuredMockupAnnotationCategory"
+    lifecycle:
+      $ref: "#/WorkItemStructuredMockupAnnotationLifecycle"
+    authoredProposalId:
+      type: string
+      format: uuid
+    authoredSizeKey:
+      type: string
+      minLength: 1
+    target:
+      $ref: "#/WorkItemStructuredMockupAnnotationTarget"
+
+WorkItemStructuredMockupSectionContentV3:
+  type: object
+  additionalProperties: false
+  required: [schemaVersion, revision, content, annotations]
+  properties:
+    schemaVersion:
+      type: string
+      enum: [work-item-structured-mockup.v3]
+    revision:
+      type: integer
+      minimum: 1
+    content:
+      type: array
+      items:
+        $ref: "#/WorkItemStructuredMockupComponent"
+    sizeKey:
+      type: string
+      minLength: 1
+    annotations:
+      type: array
+      items:
+        $ref: "#/WorkItemStructuredMockupAnnotation"
+
+WorkItemStructuredMockupSectionContentV4:
+  type: object
+  additionalProperties: false
+  required: [schemaVersion, revision, content, annotations]
+  properties:
+    schemaVersion: { type: string, enum: [work-item-structured-mockup.v4] }
+    revision: { type: integer, minimum: 1 }
+    content:
+      type: array
+      items: { $ref: "#/WorkItemStructuredMockupComponentV4" }
+    sizeKey: { type: string, minLength: 1 }
+    annotations:
+      type: array
+      items: { $ref: "#/WorkItemStructuredMockupAnnotation" }
+
+WorkItemStructuredMockupSectionContentV5:
+  type: object
+  additionalProperties: false
+  description: >
+    Versioned structured mockup document with a closed visual vocabulary and
+    agent-readable semantic metadata. Appearance values are host palette
+    tokens; content cannot provide CSS, selectors, external resources, or
+    renderer code.
+  required: [schemaVersion, revision, content, annotations]
+  properties:
+    schemaVersion: { type: string, enum: [work-item-structured-mockup.v5] }
+    revision: { type: integer, minimum: 1 }
+    content:
+      type: array
+      items: { $ref: "#/WorkItemStructuredMockupComponentV5" }
+    sizeKey: { type: string, minLength: 1 }
+    annotations:
+      type: array
+      items: { $ref: "#/WorkItemStructuredMockupAnnotation" }
+
+WorkItemStructuredMockupSectionContent:
+  oneOf:
+    - $ref: "#/WorkItemStructuredMockupSectionContentV3"
+    - $ref: "#/WorkItemStructuredMockupSectionContentV4"
+    - $ref: "#/WorkItemStructuredMockupSectionContentV5"
+  discriminator:
+    propertyName: schemaVersion
+
+WorkItemTypeScalarField:
+  type: string
+  enum:
+    - dueDate
+    - tag
+  description: >
+    A scalar field an item may carry beyond its content sections. The closed
+    set mirrors the registry's TaskScalarField axis. A work-item type lists
+    each field under requiredScalars (an item of the type must carry it) or
+    forbiddenScalars (an item of the type may not carry it); a field in
+    neither list is optional.
+
+WorkItemTypeEdgeTarget:
+  type: object
+  description: A typed edge an item of this type may originate, and the types it may point at.
+  required:
+    - edgeType
+    - targetTypeKeys
+  properties:
+    edgeType:
+      $ref: "./agent-edges.yaml#/AgentEdgeType"
+    targetTypeKeys:
+      type: array
+      description: >
+        Type keys this edge may point at. An empty array means the edge type
+        is permitted against any type.
+      items:
+        $ref: "#/WorkItemTypeKey"
+
+WorkItemTypeTracking:
+  type: object
+  additionalProperties: false
+  description: >
+    Inbound TRACKS authorization owned by this target work-item type. The
+    declaration names the entity categories and open work-item type keys that
+    may originate TRACKS relationships to this type. Source-oriented
+    eligibility is derived by inverting active target declarations;
+    `edgeTargets` does not authorize TRACKS.
+  required:
+    - allowedSourceEntityTypes
+    - allowedSourceTaskTypes
+  properties:
+    allowedSourceEntityTypes:
+      type: array
+      description: >
+        Entity types that may track an item of this target type. Reuses the
+        shared EntityType enum. Empty when no entity category may track it.
+      items:
+        $ref: "./common.yaml#/EntityType"
+    allowedSourceTaskTypes:
+      type: array
+      description: >
+        Open work-item type keys that may track this target when the source
+        entity is a work item. Every listed key must resolve to an active
+        definition in the same project snapshot.
+      items:
+        $ref: "#/WorkItemTypeKey"
+
+WorkItemTypeWritingStandards:
+  type: object
+  description: >
+    Type-level authoring prose for a work-item type, split by authoring mode.
+    Mirrors the WorkItemWritingStandards shape the registry reads: the
+    `create` body carries the full per-type discipline; the `edit` body adds
+    the edit-path framing on top of the same rules.
+  required:
+    - create
+    - edit
+  properties:
+    create:
+      type: string
+      description: Authoring prose read before creating an item of this type.
+    edit:
+      type: string
+      description: Authoring prose read before editing an item of this type.
+
+WorkItemTypeCapabilities:
+  type: object
+  description: >
+    Capability flags an item of this type carries — the boolean switches the
+    canonical definitions declare. Product Feature hierarchy participation is platform-owned by the FEATURE type key; structural work-item parentage is declared
+    by WorkItemTypeDefinitionDto.allowedParentTypes, while requiresParent
+    remains the independent mandatory-parent capability. Known keys are named
+    so generated clients can consume them directly; unknown keys are rejected
+    so consumers share one contract vocabulary.
+  properties:
+    requiresParent:
+      type: boolean
+      description: Whether an item of this type must be created under a parent.
+    planEligible:
+      type: boolean
+      description: Whether this type may be planned as plan implementation work.
+    hasSetInitialStatus:
+      type: boolean
+      description: Whether this type's first allowed status is an explicit initial-status policy.
+    rendersInline:
+      type: boolean
+      description: Whether mentions of this type may render as an inline rich surface instead of a badge.
+    showsInExplorerSidebar:
+      type: boolean
+      description: Whether this type opts into an Explorer Sidebar section; false or omission means no Explorer section is configured.
+    graph:
+      $ref: "#/WorkItemTypeGraphCapability"
+  additionalProperties: false
+
+WorkItemTypeGraphCapability:
+  type: object
+  description: >
+    Optional type-neutral graph presentation and authoring capability for work
+    items of this type. When present, graph readers and editors resolve their
+    behavior from these declarations rather than from a work-item type name.
+    `rendersInline` remains only the legacy inline-render compatibility flag;
+    graph data access, validation, rendering, and authoring are described here.
+  required:
+    - nodeChildType
+    - layout
+    - readableRelationships
+    - editableRelationships
+    - rendererKey
+    - editorKey
+    - supportedActions
+  properties:
+    nodeChildType:
+      allOf:
+        - $ref: "#/WorkItemTypeKey"
+      description: >
+        Child work-item type key eligible to act as a node inside this graph.
+        The value may name a system type or a project-scoped custom type.
+    layout:
+      $ref: "#/WorkItemTypeGraphLayoutDeclaration"
+    layoutPreference:
+      $ref: "#/WorkItemTypeGraphLayoutPreferenceDeclaration"
+      description: Type-owned declaration for the preferred graph shape section.
+    groups:
+      $ref: "#/WorkItemTypeGraphGroupsDeclaration"
+      description: Type-owned declaration for the optional Diagram groups section.
+    readableRelationships:
+      type: array
+      description: Relationship declarations readers may request for this graph surface.
+      items:
+        $ref: "#/WorkItemTypeGraphRelationshipDeclaration"
+    editableRelationships:
+      type: array
+      description: Relationship declarations editors may create, update, reconnect, or delete.
+      items:
+        $ref: "#/WorkItemTypeGraphRelationshipDeclaration"
+    searchableMetaLinkTargets:
+      type: array
+      description: >
+        Entity and work-item type targets that graph editors may search when
+        attaching meta relationships. Empty or omitted means the type exposes
+        no graph-specific meta-link target search affordance.
+      items:
+        $ref: "#/WorkItemTypeGraphSearchableMetaLinkTarget"
+    rendererKey:
+      type: string
+      description: Runtime UI renderer capability key selected by this type.
+      example: "work-item-graph"
+    editorKey:
+      type: string
+      description: Runtime UI editor capability key selected by this type.
+      example: "work-item-graph-editor"
+    supportedActions:
+      type: array
+      description: Graph viewer/editor actions supported by this type.
+      items:
+        $ref: "#/WorkItemTypeGraphAction"
+    readExpansions:
+      type: array
+      description: Fixed bounded traversals executed by aggregate readers.
+      items:
+        $ref: "#/WorkItemTypeGraphReadExpansion"
+
+WorkItemTypeGraphReadExpansion:
+  type: object
+  additionalProperties: false
+  required: [key, seed, path, projectionKind, deduplicateBy, limit]
+  properties:
+    key:
+      type: string
+      minLength: 1
+    seed:
+      type: string
+      enum: [graphRoot, graphNodes]
+    path:
+      type: array
+      minItems: 1
+      maxItems: 5
+      items:
+        $ref: "#/WorkItemTypeGraphReadExpansionHop"
+    projectionKind:
+      type: string
+      enum: [workItemReference]
+    deduplicateBy:
+      type: string
+      enum: [entityId]
+    excludeRoot:
+      type: boolean
+      default: false
+    limit:
+      type: integer
+      minimum: 1
+      maximum: 500
+
+WorkItemTypeGraphReadExpansionHop:
+  type: object
+  additionalProperties: false
+  required: [relationshipType, direction, target]
+  properties:
+    relationshipType:
+      type: string
+      enum: [DEPENDS_ON, HAS_TASK, GUARANTEES, IMPLEMENTS, CONSUMES]
+      description: Supported fixed traversal relationship label.
+    direction:
+      type: string
+      enum: [OUTGOING, INCOMING]
+    target:
+      $ref: "#/WorkItemTypeGraphReadExpansionEndpoint"
+
+WorkItemTypeGraphReadExpansionEndpoint:
+  type: object
+  additionalProperties: false
+  required: [entityTypes]
+  properties:
+    entityTypes:
+      type: array
+      minItems: 1
+      items:
+        $ref: "./agent-edges.yaml#/AgentEdgeEndpointEntityType"
+    workItemTypeKeys:
+      type: array
+      items:
+        $ref: "#/WorkItemTypeKey"
+
+WorkItemTypeGraphLayoutDeclaration:
+  type: object
+  description: >
+    Declares the type-owned JSON section that stores authored logical graph
+    layout. The section schema reference should point at the reusable
+    WorkItemGraphLayoutValue schema exposed from work-items.yaml unless a later
+    compatible version is explicitly selected.
+  required:
+    - sectionKey
+    - schemaRef
+  properties:
+    sectionKey:
+      type: string
+      description: Section key on the graph root item that stores authored layout.
+      example: "graphLayout"
+    schemaRef:
+      type: string
+      description: >
+        OpenAPI component schema reference for the layout value accepted by
+        the section. The default reusable value is
+        `#/components/schemas/WorkItemGraphLayoutValue`.
+      example: "#/components/schemas/WorkItemGraphLayoutValue"
+
+WorkItemTypeGraphLayoutPreferenceDeclaration:
+  type: object
+  additionalProperties: false
+  description: Declares the type-owned JSON section storing the preferred graph shape.
+  required:
+    - sectionKey
+    - schemaRef
+  properties:
+    sectionKey:
+      type: string
+      description: Section key on the graph root item that stores the preferred shape.
+      example: "graphLayoutPreference"
+    schemaRef:
+      type: string
+      description: OpenAPI component schema reference for the preference value.
+      example: "#/components/schemas/WorkItemGraphLayoutPreferenceValue"
+
+WorkItemTypeGraphGroupsDeclaration:
+  type: object
+  additionalProperties: false
+  description: >
+    Declares the optional type-owned JSON section storing named groups and
+    nested boundaries for graph nodes. Group edits stay independent of the
+    authored layout section.
+  required:
+    - sectionKey
+    - schemaRef
+  properties:
+    sectionKey:
+      type: string
+      description: Section key on the graph root item that stores groups.
+      example: "diagramGroups"
+    schemaRef:
+      type: string
+      description: OpenAPI component schema reference for the groups value.
+      example: "#/components/schemas/DiagramGroupsValue"
+
+WorkItemTypeGraphRelationshipDeclaration:
+  type: object
+  description: >
+    Type-neutral declaration for one relationship label visible to a graph
+    reader or editor, including its flow/meta role, endpoint constraints,
+    direction rules, and optional metadata schema.
+  required:
+    - edgeType
+    - category
+    - sourceEndpoint
+    - targetEndpoint
+  properties:
+    edgeType:
+      $ref: "./agent-edges.yaml#/AgentEdgeType"
+    category:
+      allOf:
+        - $ref: "./agent-edges.yaml#/AgentEdgeCategory"
+      description: Whether this relationship participates in graph flow structure or generic meta topology.
+    sourceEndpoint:
+      $ref: "#/WorkItemTypeGraphEndpointRule"
+    targetEndpoint:
+      $ref: "#/WorkItemTypeGraphEndpointRule"
+    direction:
+      $ref: "#/WorkItemTypeGraphDirectionRule"
+    metadataSchemaRef:
+      type: string
+      nullable: true
+      description: >
+        Optional OpenAPI component schema reference for relationship metadata
+        carried by this edge type. Null means no type-specific metadata schema
+        is declared.
+
+WorkItemTypeGraphEndpointRole:
+  type: string
+  enum:
+    - graphRoot
+    - graphNode
+    - externalEntity
+  description: >
+    Endpoint role relative to the graph surface. graphRoot is the containing
+    work item, graphNode is an eligible child node, and externalEntity is an
+    entity outside the authored graph.
+
+WorkItemTypeGraphEndpointRule:
+  type: object
+  description: Type-neutral endpoint constraints for a graph relationship declaration.
+  required:
+    - role
+    - entityTypes
+  properties:
+    role:
+      $ref: "#/WorkItemTypeGraphEndpointRole"
+    entityTypes:
+      type: array
+      description: Entity types allowed for this endpoint.
+      items:
+        $ref: "./agent-edges.yaml#/AgentEdgeEndpointEntityType"
+    workItemTypeKeys:
+      type: array
+      description: >
+        Work-item type keys allowed when the endpoint entity type is TASK.
+        Empty or omitted means any work-item type allowed by the surrounding
+        graph declaration.
+      items:
+        $ref: "#/WorkItemTypeKey"
+
+WorkItemTypeGraphDirectionRule:
+  type: object
+  description: Direction and predicate requirements for a graph relationship declaration.
+  properties:
+    required:
+      type: boolean
+      description: Whether this relationship must carry an explicit direction.
+      default: false
+    allowedDirections:
+      type: array
+      description: Directions allowed when a direction is present.
+      items:
+        $ref: "./agent-edges.yaml#/AgentEdgeDirection"
+    predicateRequired:
+      type: boolean
+      description: Whether this relationship must carry a branch label or predicate.
+      default: false
+
+WorkItemTypeGraphSearchableMetaLinkTarget:
+  type: object
+  description: Search target declaration for graph meta-link authoring.
+  required:
+    - edgeType
+    - targetEntityTypes
+  properties:
+    edgeType:
+      $ref: "./agent-edges.yaml#/AgentEdgeType"
+    targetEntityTypes:
+      type: array
+      items:
+        $ref: "./agent-edges.yaml#/AgentEdgeEndpointEntityType"
+      description: Entity types the editor may search for this meta relationship.
+    targetWorkItemTypeKeys:
+      type: array
+      items:
+        $ref: "#/WorkItemTypeKey"
+      description: >
+        Work-item type keys allowed when a target entity is a TASK. Empty or
+        omitted means any work-item type allowed by the relationship rule.
+
+WorkItemTypeGraphAction:
+  type: string
+  enum:
+    - viewGraph
+    - createNode
+    - updateNode
+    - deleteNode
+    - createRelationship
+    - updateRelationship
+    - reconnectRelationship
+    - deleteRelationship
+    - replaceLayout
+    - clearLayout
+  description: Type-neutral graph viewer/editor action key.
+
+WorkItemTypeLifecycleStatus:
+  type: string
+  enum:
+    - ACTIVE
+    - ARCHIVED
+  description: >
+    Lifecycle status of a registered work-item type. ACTIVE types can be used
+    to create new items; ARCHIVED types reject new items but keep existing
+    ones renderable and queryable.
+
+WorkItemTypeEditRequestDto:
+  type: object
+  description: >
+    Request to start proposal review for editing an existing project-owned
+    work-item type, whether canonical-seeded or custom. The submitted complete
+    WorkItemTypeDefinitionDto may change every authorable semantic axis while
+    the stable key and platform-protected hierarchy behavior remain immutable.
+    Removing sections or revoking tracking-source type keys requires the
+    existing count-backed acknowledgement, but approval updates only the
+    reviewed definition and never migrates or deletes existing work-item data
+    or relationships.
+  required:
+    - definition
+  properties:
+    definition:
+      $ref: "#/WorkItemTypeDefinitionDto"
+    acknowledgeCanonicalCustomization:
+      type: boolean
+      default: false
+      description: Must be true when editing a canonical definition creates a project override.
+
+WorkItemTypeSectionContentImpactDetailDto:
+  type: object
+  description: A removed section key and the number of existing work items that carry content for it.
+  required:
+    - sectionKey
+    - affectedItemCount
+  properties:
+    sectionKey:
+      type: string
+      description: Stable key of a section removed by the proposed definition edit.
+    affectedItemCount:
+      type: integer
+      format: int32
+      minimum: 0
+      description: Number of existing work items of this type with content stored under the removed section key.
+
+WorkItemTypeSectionContentImpactDto:
+  type: object
+  description: >
+    Read-only impact summary for removing sections from a work-item type.
+    Counts support acknowledgement before review; reading or confirming impact
+    never changes work items or their sections, and approval does not remove
+    existing section content.
+  required:
+    - totalAffectedItemCount
+    - sections
+  properties:
+    totalAffectedItemCount:
+      type: integer
+      format: int32
+      minimum: 0
+      description: >
+        Number of distinct existing work items with content in at least one
+        requested removed section. An item is counted once even when it has
+        content in multiple removed sections.
+    sections:
+      type: array
+      description: Impact detail for every requested removed section key, including zero-count keys.
+      items:
+        $ref: "#/WorkItemTypeSectionContentImpactDetailDto"
+
+WorkItemTypeTrackingLinkRevocationImpactDetailDto:
+  type: object
+  description: A revoked tracking source type key and the number of existing TRACKS links it invalidates.
+  required:
+    - sourceTypeKey
+    - affectedLinkCount
+  properties:
+    sourceTypeKey:
+      $ref: "#/WorkItemTypeKey"
+    affectedLinkCount:
+      type: integer
+      format: int32
+      minimum: 0
+      description: Number of existing TRACKS links whose source has the revoked work-item type key.
+
+WorkItemTypeTrackingLinkRevocationImpactDto:
+  type: object
+  description: >
+    Read-only impact summary for revoking inbound tracking-source work-item
+    type keys from a target definition. Counts include only TRACKS links made
+    outside the updated authoring policy. Counts support acknowledgement only;
+    reading, confirming, or approving the definition change never deletes
+    existing TRACKS links.
+  required:
+    - totalAffectedLinkCount
+    - sources
+  properties:
+    totalAffectedLinkCount:
+      type: integer
+      format: int32
+      minimum: 0
+      description: Total number of existing TRACKS links invalidated across all requested source type keys.
+    sources:
+      type: array
+      description: Impact detail for every requested revoked source type key, including zero-count keys.
+      items:
+        $ref: "#/WorkItemTypeTrackingLinkRevocationImpactDetailDto"
+
+WorkItemTypeCascadeImpactDto:
+  type: object
+  additionalProperties: false
+  description: >
+    Read-only impact snapshot for irreversibly deleting a project-owned custom
+    work-item type. Item count includes active and archived work items of the
+    type. Edge count includes distinct agent-authored graph edges incident on
+    those items, counting an edge only once when both endpoints are in the
+    affected item set. Canonical-seeded project definitions are not eligible
+    for hard deletion and do not produce a cascade impact snapshot.
+  required:
+    - itemCount
+    - edgeCount
+  properties:
+    itemCount:
+      type: integer
+      format: int32
+      minimum: 0
+      description: Number of existing work items that would be hard-deleted.
+    edgeCount:
+      type: integer
+      format: int32
+      minimum: 0
+      description: Number of distinct incident graph edges that would be deleted.
+
+WorkItemTypeCascadeImpactConflictDto:
+  allOf:
+    - $ref: "./common.yaml#/ApiErrorResponse"
+    - type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required:
+            - currentImpact
+          properties:
+            currentImpact:
+              $ref: "#/WorkItemTypeCascadeImpactDto"
+          description: Current impact that superseded the caller's confirmed snapshot.
+
+WorkItemTypeArchiveRequestDto:
+  type: object
+  description: >
+    Request to start review for archiving an existing project-owned
+    canonical-seeded or custom work-item type. Archive is a lifecycle status
+    transition that prevents new items from being created for the type while
+    keeping existing items renderable and queryable. It does not perform
+    hard-delete, does not cascade to existing items, and does not return
+    destructive-impact counts.
+  properties:
+    reason:
+      type: string
+      nullable: true
+      description: Optional reviewer-facing rationale for archiving the type.
+    acknowledgeCanonicalCustomization:
+      type: boolean
+      default: false
+      description: Must be true when archiving a canonical definition creates a project override.
+
+WorkItemTypeEffectiveSource:
+  type: string
+  enum:
+    - CANONICAL
+    - CANONICAL_OVERRIDE
+    - PROJECT_CUSTOM
+
+WorkItemTypeSummaryDto:
+  type: object
+  description: >
+    A centrally resolved project-effective definition. Canonical definitions
+    are overlaid by complete project overrides; custom definitions are supplied
+    only by project rows. Consumers do not merge sources locally.
+  required:
+    - id
+    - definition
+    - status
+    - projectId
+    - effectiveSource
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Stable identifier of the canonical or project row supplying the effective definition.
+    definition:
+      $ref: "#/WorkItemTypeDefinitionDto"
+    status:
+      $ref: "#/WorkItemTypeLifecycleStatus"
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+      description: Project scope in which this effective definition was resolved.
+    effectiveSource:
+      $ref: "#/WorkItemTypeEffectiveSource"
+
+WorkItemTypeGuidanceExample:
+  type: object
+  additionalProperties: false
+  required: [title, guidance]
+  properties:
+    title:
+      type: string
+      minLength: 1
+    guidance:
+      type: string
+      minLength: 1
+
+WorkItemTypeGuidanceContext:
+  type: object
+  additionalProperties: false
+  required: [focalTypeKeys, guidance]
+  properties:
+    focalTypeKeys:
+      type: array
+      minItems: 1
+      items:
+        type: string
+        minLength: 1
+    guidance:
+      type: string
+      minLength: 1
+    examples:
+      type: array
+      description: Examples in author-declared order.
+      items:
+        $ref: "#/WorkItemTypeGuidanceExample"
+
+WorkItemTypeAgentGuidance:
+  type: object
+  additionalProperties: false
+  required: [overview]
+  description: Semantic understanding, separate from catalog descriptions and authoring standards. Omission means no guide; content is never synthesized.
+  properties:
+    overview:
+      type: string
+      minLength: 1
+    examples:
+      type: array
+      description: General examples in author-declared order.
+      items:
+        $ref: "#/WorkItemTypeGuidanceExample"
+    contexts:
+      type: array
+      description: Sparse directional contexts in author-declared order.
+      items:
+        $ref: "#/WorkItemTypeGuidanceContext"
+
+WorkItemTypeContextualGuidanceDto:
+  type: object
+  additionalProperties: false
+  required: [guidance, examples]
+  properties:
+    guidance:
+      type: string
+      minLength: 1
+    examples:
+      type: array
+      items:
+        $ref: "#/WorkItemTypeGuidanceExample"
+
+WorkItemTypeGuidanceDto:
+  type: object
+  additionalProperties: false
+  required: [typeKey, name, overview, examples]
+  properties:
+    typeKey:
+      type: string
+      minLength: 1
+    name:
+      type: string
+    overview:
+      type: string
+      minLength: 1
+    examples:
+      type: array
+      description: Ordered general examples; empty when omitted from the definition.
+      items:
+        $ref: "#/WorkItemTypeGuidanceExample"
+    contextualGuidance:
+      type: array
+      description: Only matching contexts, in declared order. Omitted without a focal key or matching entries. Omitted examples become empty arrays.
+      items:
+        $ref: "#/WorkItemTypeContextualGuidanceDto"
+
+WorkItemTypeGuidancePurpose:
+  type: string
+  enum: [semantic, maintenance]
+  description: Selects the compact semantic or type-owned maintenance projection.
+
+WorkItemTypeMaintenanceGuidanceDto:
+  type: object
+  additionalProperties: false
+  required: [typeKey, name]
+  properties:
+    typeKey:
+      type: string
+      minLength: 1
+    name:
+      type: string
+    maintenanceGuidance:
+      type: string
+
+WorkItemTypeGuidanceBatchRequestDto:
+  type: object
+  additionalProperties: false
+  required: [typeKeys]
+  description: A bounded batch of project-scoped guidance reads sharing one purpose and optional focal type.
+  properties:
+    typeKeys:
+      type: array
+      minItems: 1
+      maxItems: 10
+      description: Distinct work-item type keys, returned in this order. Duplicate keys are invalid.
+      items:
+        type: string
+    purpose:
+      $ref: "#/WorkItemTypeGuidancePurpose"
+    focalTypeKey:
+      type: string
+
+WorkItemTypeGuidanceBatchResultDto:
+  oneOf:
+    - $ref: "#/WorkItemTypeGuidanceDto"
+    - $ref: "#/WorkItemTypeMaintenanceGuidanceDto"
+  description: One requested type's semantic or maintenance projection; typeKey identifies the request represented by this result.
+
+WorkItemTypeGuidanceBatchDto:
+  type: object
+  additionalProperties: false
+  required: [results]
+  description: One purpose-specific result per requested type, in the request's typeKeys order.
+  properties:
+    results:
+      type: array
+      minItems: 1
+      maxItems: 10
+      items:
+        $ref: "#/WorkItemTypeGuidanceBatchResultDto"
+
+DiagramElementPolicy:
+  type: object
+  additionalProperties: false
+  required: [roles, referenceTargets]
+  description: Project-effective policy on the DiagramElementMetadata section definition. Role keys must be unique and include GENERIC and DIAGRAM_REFERENCE so default creation and Diagram references remain available.
+  properties:
+    roles:
+      type: array
+      minItems: 1
+      items:
+        $ref: "#/DiagramElementRoleDefinition"
+    referenceTargets:
+      type: array
+      items:
+        $ref: "#/DiagramReferenceTargetRule"
+
+DiagramElementRoleDefinition:
+  type: object
+  additionalProperties: false
+  required: [key, label, notation]
+  properties:
+    key:
+      $ref: "./work-items.yaml#/DiagramElementRole"
+    label:
+      type: string
+      minLength: 1
+    notation:
+      type: string
+      enum: [box, person, cylinder, diamond, frame]
+      description: Stable host-owned notation token, never authored CSS or component code.
+
+DiagramReferenceTargetRule:
+  type: object
+  additionalProperties: false
+  required: [entityType]
+  properties:
+    entityType:
+      type: string
+      enum: [TASK, SERVICE]
+    workItemTypeKeys:
+      type: array
+      description: Allowed TASK discriminators; omitted permits any work-item type. Targets must still be accessible and non-archived. Invalid for SERVICE.
+      items:
+        $ref: "#/WorkItemTypeKey"

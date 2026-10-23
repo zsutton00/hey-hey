@@ -1,0 +1,125 @@
+# =============================================
+# Shared projection deletion contracts
+# =============================================
+ProjectionDeletionIdentity:
+  type: object
+  additionalProperties: false
+  required:
+    - organizationId
+    - markerId
+    - irreversibleClosureAt
+    - deletionDeadline
+  properties:
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+      description: Organization whose local projection must be deleted.
+    markerId:
+      type: string
+      format: uuid
+      description: Immutable retained identity of the committed closure marker.
+    irreversibleClosureAt:
+      type: string
+      format: date-time
+      description: Immutable instant at which irreversible closure committed.
+    deletionDeadline:
+      type: string
+      format: date-time
+      description: Snapshotted deadline by which live deletion must complete.
+
+ProjectionDeletionCommand:
+  type: object
+  additionalProperties: false
+  required:
+    - organizationId
+    - markerId
+    - irreversibleClosureAt
+    - deletionDeadline
+  properties:
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+      description: Organization whose local projection must be deleted.
+    markerId:
+      type: string
+      format: uuid
+      description: Immutable retained identity of the committed closure marker.
+    irreversibleClosureAt:
+      type: string
+      format: date-time
+      description: Immutable instant at which irreversible closure committed.
+    deletionDeadline:
+      type: string
+      format: date-time
+      description: Snapshotted deadline by which live deletion must complete.
+
+ProjectionDeletionResult:
+  type: object
+  additionalProperties: false
+  required:
+    - organizationId
+    - markerId
+    - irreversibleClosureAt
+    - deletionDeadline
+    - tombstoneRecorded
+    - contentVerificationCompleted
+  properties:
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+      description: Organization whose local projection was deleted.
+    markerId:
+      type: string
+      format: uuid
+      description: Retained immutable closure-marker identity echoed from the command.
+    irreversibleClosureAt:
+      type: string
+      format: date-time
+      description: Retained irreversible-closure instant echoed from the command.
+    deletionDeadline:
+      type: string
+      format: date-time
+      description: Retained deletion deadline echoed from the command.
+    tombstoneRecorded:
+      type: boolean
+      enum: [true]
+      description: The local immutable tombstone is durably retained before deletion.
+    contentVerificationCompleted:
+      type: boolean
+      enum: [true]
+      description: The service verified that all organization-owned content is absent.
+
+ProjectionDeletionValidationErrorResponse:
+  type: object
+  additionalProperties: false
+  required: [errorCode, message]
+  properties:
+    errorCode:
+      type: string
+      enum: [PROJECTION_DELETION_VALIDATION_FAILED]
+    message:
+      type: string
+
+ProjectionDeletionIdentityConflictResponse:
+  type: object
+  additionalProperties: false
+  required: [errorCode, message, retainedIdentity]
+  properties:
+    errorCode:
+      type: string
+      enum: [PROJECTION_DELETION_IDENTITY_CONFLICT]
+    message:
+      type: string
+    retainedIdentity:
+      $ref: "#/ProjectionDeletionIdentity"
+
+ProjectionDeletionRetryableFailureResponse:
+  type: object
+  additionalProperties: false
+  required: [errorCode, message, retryable]
+  properties:
+    errorCode:
+      type: string
+      enum: [PROJECTION_DELETION_RETRYABLE_FAILURE]
+    message:
+      type: string
+    retryable:
+      type: boolean
+      enum: [true]

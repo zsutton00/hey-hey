@@ -1,0 +1,41 @@
+# Report-a-problem intake schemas
+
+ReportBugRequestDto:
+  type: object
+  additionalProperties: false
+  required:
+    - description
+    - productLocation
+    - diagnosticConsent
+  properties:
+    description:
+      type: string
+      minLength: 1
+      maxLength: 10000
+      description: User-authored description stored as the BUG description.
+    productLocation:
+      type: string
+      minLength: 1
+      maxLength: 500
+      description: Read-only pathname and query string where the report originated.
+    correlationId:
+      type: string
+      maxLength: 128
+      nullable: true
+      description: Optional bounded identifier used to locate diagnostics separately.
+    diagnosticConsent:
+      type: boolean
+      enum:
+        - true
+      description: Explicit consent to send the enumerated bounded diagnostic fields.
+
+ReportBugResponseDto:
+  type: object
+  additionalProperties: false
+  required:
+    - bugId
+  properties:
+    bugId:
+      type: string
+      format: uuid
+      description: Identifier of the BUG created in the configured intake.

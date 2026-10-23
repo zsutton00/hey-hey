@@ -1,0 +1,909 @@
+import {
+  INestApplicationContext,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { existsSync, readdirSync } from 'fs';
+import { join } from 'path';
+import {
+  ListWorkflowTemplates200ResponseAllOfData,
+  WorkflowTemplateDto,
+  WorkflowTemplateSummaryDto,
+  WorkflowValidationErrorDto,
+  WorkflowValidationResultDto,
+} from '../../generated';
+import {
+  ConversationId,
+  OrganizationId,
+  ProjectId,
+  UserId,
+  WorkflowId,
+} from '../../types';
+import {
+  ConversationNode,
+  Flow,
+  FlowContext,
+  FlowUserMessage,
+  NodeType,
+  isLLMNode,
+  isOpenerNode,
+  isPromptConfigurableNode,
+  isQuestionsNode,
+} from '../../types/flow-internal.types';
+import { PromptBuilderService } from '../llm/prompt-builder.service';
+import { ContextAwareLogger } from '../../core/logging/context-aware-logger.service';
+import { FlowEngineService } from './flow-engine.service';
+import { getWorkflowEntryUiHints } from './workflow-ui-hints.util';
+
+interface ListTemplatesOptions {
+  organizationId?: string;
+  status?: 'active' | 'inactive' | 'draft';
+  limit: number;
+  offset: number;
+}
+
+@Injectable()
+export class WorkflowTemplateService {
+  private readonly logger = ContextAwareLogger.createServiceLogger(
+    WorkflowTemplateService.name,
+  );
+  private readonly templatesPath: string;
+  private readonly isProduction: boolean;
+  private templateCache = new Map<string, Flow>();
+
+  constructor(
+    private promptBuilder: PromptBuilderService,
+    private flowEngineService: FlowEngineService,
+    @Inject('APP_CONTEXT') private appContext: INestApplicationContext,
+  ) {
+    // Check if we're running from compiled JS by examining the current file location
+    const currentFileIsCompiled = __filename.includes('/dist/');
+    const distPath = join(process.cwd(), 'dist/src/flows/templates');
+    const srcPath = join(process.cwd(), 'src/flows/templates');
+
+    try {
+      // If this service file itself is running from dist, or if NODE_ENV is production
+      // and dist exists, use the compiled templates
+      if (
+        (currentFileIsCompiled || process.env.NODE_ENV === 'production') &&
+        existsSync(distPath)
+      ) {
+        this.isProduction = true;
+        this.templatesPath = distPath;
+      } else {
+        this.isProduction = false;
+        this.templatesPath = srcPath;
+      }
+    } catch {
+      // Fallback to source path
+      this.isProduction = false;
+      this.templatesPath = srcPath;
+    }
+
+    this.loadTemplates();
+  }
+
+  private loadTemplates(): void {
+    try {
+      const files = readdirSync(this.templatesPath);
+      const flowFiles = files.filter((file) =>
+        this.isProduction
+          ? file.endsWith('.flow.js')
+          : file.endsWith('.flow.ts'),
+      );
+
+      for (const file of flowFiles) {
+        try {
+          const filePath = join(this.templatesPath, file);
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const module = require(filePath);
+
+          // Look for exported flow objects
+          const flowExports = Object.values(module).filter(
+            (exp): exp is Flow =>
+              typeof exp === 'object' &&
+              exp !== null &&
+              'id' in exp &&
+              'name' in exp &&
+              'nodes' in exp,
+          );
+
+          for (const flow of flowExports) {
+            this.templateCache.set(flow.id, flow);
+            this.logger.log(`Loaded workflow template: ${flow.id}`);
+          }
+        } catch (error) {
+          this.logger.warn(`Failed to load template from ${file}:`, error);
+        }
+      }
+
+      this.logger.log(`Loaded ${this.templateCache.size} workflow templates`);
+    } catch (error) {
+      this.logger.error('Failed to load workflow templates:', error);
+    }
+  }
+
+  async listTemplates(
+    options: ListTemplatesOptions,
+  ): Promise<ListWorkflowTemplates200ResponseAllOfData> {
+    const allTemplates = Array.from(this.templateCache.values());
+
+    // Filter by status (for now, all templates are considered 'active')
+    let filteredTemplates = allTemplates;
+    if (options.status && options.status !== 'active') {
+      filteredTemplates = [];
+    }
+
+    // Apply pagination
+    const total = filteredTemplates.length;
+    const templates = filteredTemplates
+      .slice(options.offset, options.offset + options.limit)
+      .map((flow) => this.mapToSummaryDto(flow));
+
+    return {
+      templates,
+      totalCount: total,
+      hasMore: options.offset + options.limit < total,
+    };
+  }
+
+  async getTemplate(templateId: string): Promise<WorkflowTemplateDto> {
+    const flow = this.templateCache.get(templateId);
+    if (!flow) {
+      throw new NotFoundException(
+        `Workflow template '${templateId}' not found`,
+      );
+    }
+
+    return this.mapToDetailDto(flow);
+  }
+
+  async validateTemplate(
+    templateId: string,
+    flowContext: FlowContext,
+  ): Promise<WorkflowValidationResultDto> {
+    const flow = this.templateCache.get(templateId);
+    if (!flow) {
+      throw new NotFoundException(
+        `Workflow template '${templateId}' not found`,
+      );
+    }
+
+    const errors: WorkflowValidationErrorDto[] = [];
+    const warnings: WorkflowValidationErrorDto[] = [];
+
+    // Validate start node exists
+    if (!flow.startNode) {
+      errors.push({
+        code: 'MISSING_START_NODE',
+        message: 'Workflow template must have a start node defined',
+      });
+    } else if (!flow.nodes[flow.startNode]) {
+      errors.push({
+        code: 'INVALID_START_NODE',
+        message: `Start node '${flow.startNode}' does not exist in nodes`,
+        nodeId: flow.startNode,
+      });
+    }
+
+    // Validate nodes
+    const nodeIds = Object.keys(flow.nodes);
+    const reachableNodes = new Set<string>();
+    const orphanedNodes: string[] = [];
+
+    if (flow.startNode && flow.nodes[flow.startNode]) {
+      this.findReachableNodes(flow, flow.startNode, reachableNodes);
+    }
+
+    for (const nodeId of nodeIds) {
+      const node = flow.nodes[nodeId];
+
+      // Check if node is reachable
+      if (!reachableNodes.has(nodeId) && nodeId !== flow.startNode) {
+        orphanedNodes.push(nodeId);
+      }
+
+      // Validate node structure
+      if (!node.id) {
+        errors.push({
+          code: 'MISSING_NODE_ID',
+          message: 'Node must have an id property',
+          nodeId,
+        });
+      }
+
+      if (!node.type) {
+        errors.push({
+          code: 'MISSING_NODE_TYPE',
+          message: 'Node must have a type property',
+          nodeId,
+          field: 'type',
+        });
+      }
+
+      // Type-specific validation
+      if (isOpenerNode(node)) {
+        // OPENER nodes must have nextNode
+        if (!node.nextNode) {
+          errors.push({
+            code: 'MISSING_NEXT_NODE',
+            message: 'OPENER node must have a nextNode property',
+            nodeId,
+            field: 'nextNode',
+          });
+        } else if (!flow.nodes[node.nextNode]) {
+          errors.push({
+            code: 'INVALID_NEXT_NODE',
+            message: `OPENER node nextNode '${node.nextNode}' does not exist`,
+            nodeId,
+            field: 'nextNode',
+          });
+        }
+      } else if (isPromptConfigurableNode(node)) {
+        // LLM nodes must have transitions
+        if (!node.transitions) {
+          errors.push({
+            code: 'MISSING_TRANSITIONS',
+            message: 'LLM node must have transitions defined',
+            nodeId,
+            field: 'transitions',
+          });
+        } else {
+          // Validate transition targets exist
+          for (const [condition, targetNodeId] of Object.entries(
+            node.transitions,
+          )) {
+            const targetNodeIdValue =
+              typeof targetNodeId === 'function'
+                ? targetNodeId()
+                : targetNodeId;
+            if (
+              typeof targetNodeIdValue === 'string' &&
+              !flow.nodes[targetNodeIdValue]
+            ) {
+              errors.push({
+                code: 'INVALID_TRANSITION_TARGET',
+                message: `Transition '${condition}' targets non-existent node '${targetNodeIdValue}'`,
+                nodeId,
+                field: 'transitions',
+              });
+            }
+          }
+        }
+
+        // LLM nodes must have promptConfig
+        if (isPromptConfigurableNode(node)) {
+          if (!node.promptConfig) {
+            errors.push({
+              code: 'MISSING_PROMPT_CONFIG',
+              message: 'LLM node must have promptConfig',
+              nodeId,
+              field: 'promptConfig',
+            });
+          } else {
+            if (!node.promptConfig.systemPromptTemplate) {
+              warnings.push({
+                code: 'MISSING_SYSTEM_PROMPT',
+                message:
+                  'Node with promptConfig should have systemPromptTemplate',
+                nodeId,
+                field: 'promptConfig.systemPromptTemplate',
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // Find unreachable nodes
+    const unreachableNodes = nodeIds.filter(
+      (nodeId) => !reachableNodes.has(nodeId),
+    );
+
+    if (orphanedNodes.length > 0) {
+      warnings.push({
+        code: 'ORPHANED_NODES',
+        message: `Found ${orphanedNodes.length} orphaned nodes that are not reachable from start node`,
+      });
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors,
+      warnings,
+      nodeCount: nodeIds.length,
+      unreachableNodes,
+      orphanedNodes,
+    };
+  }
+
+  private findReachableNodes(
+    flow: Flow,
+    nodeId: string,
+    visited: Set<string>,
+  ): void {
+    if (visited.has(nodeId)) {
+      return;
+    }
+
+    visited.add(nodeId);
+    const node = flow.nodes[nodeId];
+
+    if (!node) return;
+
+    if (isOpenerNode(node)) {
+      // OPENER nodes have a single nextNode
+      if (node.nextNode && flow.nodes[node.nextNode]) {
+        this.findReachableNodes(flow, node.nextNode, visited);
+      }
+    } else if (isPromptConfigurableNode(node) && node.transitions) {
+      // LLM nodes have transitions
+      for (const targetNodeId of Object.values(node.transitions)) {
+        if (
+          typeof targetNodeId === 'string' &&
+          targetNodeId &&
+          flow.nodes[targetNodeId]
+        ) {
+          this.findReachableNodes(flow, targetNodeId, visited);
+        }
+      }
+    }
+  }
+
+  private mapToSummaryDto(flow: Flow): WorkflowTemplateSummaryDto {
+    const nodeCount = Object.keys(flow.nodes).length;
+    const now = new Date();
+
+    return {
+      id: flow.id,
+      name: flow.name,
+      description: flow.description,
+      version: flow.version,
+      status: 'active' as const,
+      nodeCount,
+      executionCount: 0, // TODO: Implement execution tracking
+      uiHints: getWorkflowEntryUiHints(flow),
+      lastExecuted: null,
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    };
+  }
+
+  private mapToDetailDto(flow: Flow): WorkflowTemplateDto {
+    const summary = this.mapToSummaryDto(flow);
+
+    return {
+      ...summary,
+      startNode: flow.startNode,
+      nodes: Object.fromEntries(
+        Object.entries(flow.nodes).map(([id, node]) => {
+          const baseNode = {
+            id: node.id,
+            type: node.type,
+            title:
+              typeof node.title === 'function'
+                ? 'Dynamic Title'
+                : node.title || node.id,
+            uiHints: node.uiHints,
+          };
+
+          if (isOpenerNode(node) || isQuestionsNode(node)) {
+            return [
+              id,
+              {
+                ...baseNode,
+                nextNode: node.nextNode,
+              },
+            ];
+          } else if (isPromptConfigurableNode(node)) {
+            // LLM node
+            return [
+              id,
+              {
+                ...baseNode,
+                promptConfig: node.promptConfig
+                  ? {
+                      systemPromptTemplate:
+                        node.promptConfig.systemPromptTemplate,
+                      temperature: node.promptConfig.temperature,
+                      responseSchema: node.promptConfig.responseSchema
+                        ? {}
+                        : undefined,
+                    }
+                  : undefined,
+                transitions: Object.fromEntries(
+                  Object.entries(node.transitions ?? {}).map(([key, value]) => [
+                    key,
+                    typeof value === 'function' ? 'function' : value,
+                  ]),
+                ),
+                defaultNext: node.defaultNext,
+              },
+            ];
+          } else {
+            // Fallback for other node types
+            return [id, baseNode];
+          }
+        }),
+      ),
+      contextTransforms: flow.contextTransforms ? {} : undefined,
+    };
+  }
+
+  async getNodeDetail(templateId: string, nodeId: string): Promise<unknown> {
+    const flow = this.templateCache.get(templateId);
+    if (!flow) {
+      throw new NotFoundException(
+        `Workflow template '${templateId}' not found`,
+      );
+    }
+
+    const node = flow.nodes[nodeId];
+    if (!node) {
+      throw new NotFoundException(
+        `Node '${nodeId}' not found in template '${templateId}'`,
+      );
+    }
+
+    // Generate example payload for this node
+    const examplePayload = this.generateExamplePayload(node, nodeId);
+
+    // Extract UI elements from node action
+    const uiElements = await this.extractUIElements(node);
+
+    const baseDetail = {
+      id: nodeId,
+      title: node.title || this.generateNodeTitle(nodeId),
+      type: node.type,
+      uiElements,
+      examplePayload,
+    };
+
+    if (isOpenerNode(node)) {
+      return {
+        ...baseDetail,
+        nextNode: node.nextNode,
+      };
+    } else if (isPromptConfigurableNode(node)) {
+      return {
+        ...baseDetail,
+        promptConfig: node.promptConfig
+          ? {
+              systemPromptTemplate: node.promptConfig.systemPromptTemplate,
+              temperature: node.promptConfig.temperature || 0.7,
+              responseSchema: node.promptConfig.responseSchema || {},
+            }
+          : undefined,
+        transitions: node.transitions
+          ? Object.fromEntries(
+              Object.entries(node.transitions).map(([key, fn]) => [
+                key,
+                typeof fn === 'function' ? this.getTransitionTarget(fn) : fn,
+              ]),
+            )
+          : {},
+      };
+    }
+
+    return baseDetail;
+  }
+
+  async testNode(
+    templateId: string,
+    nodeId: string,
+    testRequest: { context: FlowContext; userInput: Record<string, unknown> },
+  ) {
+    const flow = this.templateCache.get(templateId);
+    if (!flow) {
+      throw new NotFoundException(
+        `Workflow template '${templateId}' not found`,
+      );
+    }
+
+    const node = flow.nodes[nodeId];
+    if (!node) {
+      throw new NotFoundException(
+        `Node '${nodeId}' not found in template '${templateId}'`,
+      );
+    }
+
+    // Get available transitions for this node (need full routing config)
+    const nodeData = this.flowEngineService.getNode(flow.id, node.id);
+    const availableTransitions =
+      nodeData && 'transitions' in nodeData.routing
+        ? nodeData.routing.transitions
+        : undefined;
+
+    // Create user message from user input
+    const userMessage: FlowUserMessage = {
+      data: testRequest.userInput as Record<string, string | number | boolean>,
+      timestamp: new Date(),
+    } as Partial<FlowUserMessage> as FlowUserMessage;
+
+    // Convert test context to proper FlowContext structure if needed
+    const flowContext = this.normalizeTestContext(testRequest.context);
+
+    // Generate prompt using the same path as workflow execution
+    const generatedPrompt =
+      isPromptConfigurableNode(node) && node.promptConfig
+        ? await this.promptBuilder.buildPrompt(
+            node,
+            flowContext,
+            userMessage,
+            availableTransitions,
+            undefined, // options
+          )
+        : null;
+
+    // Generate mock response based on schema
+    const mockResponse = this.generateMockResponse(node);
+
+    // Determine next possible transitions
+    const nextPossibleNodes = await this.getNextPossibleTransitions(
+      node,
+      testRequest,
+    );
+
+    return {
+      generatedPrompt: generatedPrompt
+        ? {
+            systemPrompt: generatedPrompt.systemPrompt,
+            userPrompt: generatedPrompt.userPrompt,
+            combinedPrompt: generatedPrompt.fullPrompt,
+            temperature: generatedPrompt.temperature,
+            responseFormat: generatedPrompt.responseFormat,
+          }
+        : null,
+      mockResponse,
+      nextPossibleNodes,
+      contextAfterExecution: {
+        ...flowContext,
+      },
+    };
+  }
+
+  private generateNodeTitle(nodeId: string): string {
+    return nodeId
+      .split('_')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+
+  private generateExamplePayload(node: ConversationNode, nodeId: string) {
+    return {
+      context: {},
+      userInput: this.generateExampleUserInput(nodeId),
+      expectedOutput: this.generateExampleOutput(node),
+    };
+  }
+
+  private async extractUIElements(node: ConversationNode) {
+    try {
+      // Try to execute the node to get UI elements
+      const dummyContext = this.createDummyContext();
+      const hasAction = 'action' in node && typeof node.action === 'function';
+      if (hasAction) {
+        const actionResult = await node.execute(dummyContext);
+        // Handle both old NodeResult and new ActionNodeResult formats
+        if (
+          actionResult &&
+          typeof actionResult === 'object' &&
+          'nodeResult' in actionResult
+        ) {
+          // New ActionNodeResult format
+          return actionResult.uiElements || [];
+        } else if (
+          actionResult &&
+          typeof actionResult === 'object' &&
+          'uiElements' in actionResult
+        ) {
+          // Old NodeResult format (for backward compatibility)
+          return actionResult.uiElements || [];
+        } else {
+          // Fallback for unexpected formats
+          return [];
+        }
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to extract UI elements: ${(error as Error).message}`,
+      );
+    }
+    return [];
+  }
+
+  private getTransitionTarget(
+    transitionFn: (context: FlowContext) => string | null,
+  ): string | null {
+    try {
+      const dummyContext = this.createDummyContext();
+      return transitionFn(dummyContext);
+    } catch (error) {
+      return 'unknown';
+    }
+  }
+
+  private generateMockResponse(node: ConversationNode) {
+    // Return actual response for welcome node
+    if (node.id === 'welcome') {
+      return {
+        feedback:
+          "This sounds like a sophisticated knowledge management platform with some really compelling AI capabilities! I can see how connecting all those disparate tools and making organizational knowledge truly searchable and actionable could be transformative. The multi-persona approach is particularly interesting - different roles need very different views of the same underlying data.\n\nI'd love to dig deeper into a few key areas to better understand your vision:",
+        questions: [
+          {
+            id: 'primary_pain_point',
+            question:
+              "What's the biggest pain point you're seeing right now that sparked this idea? Is it information silos, time spent searching for context, or something else entirely?",
+            rationale:
+              'Understanding the core problem will help assess market fit and prioritization',
+            fieldType: 'text',
+          },
+          {
+            id: 'target_users',
+            question:
+              'When you think about your initial target users, which persona would you want to nail first - leaders looking for strategic insights, PMs managing execution, or developers needing technical context?',
+            rationale:
+              'Multi-persona platforms are complex; understanding the primary user helps scope MVP',
+            fieldType: 'select',
+          },
+          {
+            id: 'success_vision',
+            question:
+              'What would success look like in 6 months? Would it be reduced time-to-insight, better cross-team collaboration, or more strategic work items being generated?',
+            rationale:
+              'Helps understand success metrics and validates business impact expectations',
+            fieldType: 'text',
+          },
+        ],
+        initialUnderstanding: {
+          projectType: 'AI-powered enterprise knowledge platform',
+          complexity: 'complex',
+          keyTerms: [
+            'vector search',
+            'graph relationships',
+            'multi-persona',
+            'toolchain integration',
+            'conversational flows',
+            'work item generation',
+          ],
+        },
+        readyToProceed: false,
+        detectedIntent: 'technical_project',
+        intentConfidence: 0.75,
+      };
+    }
+
+    if (!isPromptConfigurableNode(node) || !node.promptConfig?.responseSchema) {
+      return { message: 'Mock response for node without defined schema' };
+    }
+
+    // Generate a mock response based on the schema structure
+    // This is a simplified version - in a real implementation, you might use the Zod schema
+    const schema = node.promptConfig.responseSchema;
+    return this.generateMockFromSchema(schema);
+  }
+
+  private generateMockFromSchema(schema: unknown): unknown {
+    // Simplified mock generation - this could be enhanced to use actual Zod schema parsing
+    if (schema && typeof schema === 'object' && '_def' in schema) {
+      const zodSchema = schema as {
+        _def: { typeName: string };
+        shape?: Record<string, unknown>;
+      };
+      if (zodSchema._def?.typeName === 'ZodObject') {
+        const result: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(zodSchema.shape || {})) {
+          result[key] = this.generateMockFromSchema(value);
+        }
+        return result;
+      }
+    }
+
+    // Fallback for basic types
+    return {
+      feedback: 'This is a mock response generated for testing purposes.',
+      questions: [
+        {
+          id: 'mock-q1',
+          question: 'This is a sample question generated for testing.',
+          rationale: 'Sample rationale for the question.',
+          fieldType: 'textarea',
+        },
+      ],
+      readyToProceed: false,
+    };
+  }
+
+  private async getNextPossibleTransitions(
+    node: ConversationNode,
+    testRequest: { context: FlowContext; userInput: Record<string, unknown> },
+  ) {
+    const possibleNodes: Array<{
+      condition: string;
+      targetNode: string | null;
+      likelihood: string;
+    }> = [];
+
+    if (isOpenerNode(node)) {
+      // OPENER nodes have a single nextNode
+      possibleNodes.push({
+        condition: 'always',
+        targetNode: node.nextNode,
+        likelihood: 'high',
+      });
+    } else if (isPromptConfigurableNode(node)) {
+      const transitions = node.transitions || {};
+
+      for (const [condition, transitionFn] of Object.entries(transitions)) {
+        try {
+          const targetNode =
+            typeof transitionFn === 'function' ? transitionFn() : transitionFn;
+
+          possibleNodes.push({
+            condition,
+            targetNode,
+            likelihood: condition === 'default' ? 'high' : 'medium',
+          });
+        } catch (error) {
+          // Skip transitions that fail
+        }
+      }
+    }
+
+    return possibleNodes;
+  }
+
+  private generateExampleUserInput(nodeId: string) {
+    switch (nodeId) {
+      case 'welcome':
+        return {
+          project_concept:
+            'I want to build a web application for managing team projects with real-time collaboration features.',
+        };
+      case 'technical_discovery':
+        return {
+          technical_details:
+            'We plan to use React for the frontend, Node.js for the backend, and PostgreSQL for the database.',
+        };
+      case 'business_discovery':
+        return {
+          business_goals:
+            'Our goal is to improve team productivity by 30% and reduce project delays.',
+        };
+      default:
+        return {
+          user_response: `Example user input for ${nodeId} node`,
+        };
+    }
+  }
+
+  private generateExampleOutput(node: ConversationNode) {
+    const nodeType = node.type;
+
+    switch (nodeType) {
+      case NodeType.LLM_QUESTIONS:
+        return {
+          feedback:
+            'Thank you for providing that information. I have a few follow-up questions to better understand your needs.',
+          questions: [
+            {
+              id: 'q1',
+              question: 'What is the primary problem you are trying to solve?',
+              rationale:
+                'Understanding the core problem helps prioritize features',
+              fieldType: 'textarea',
+            },
+          ],
+          readyToProceed: false,
+        };
+      case NodeType.ANALYZE:
+        return {
+          analysis: {
+            identifiedTechnologies: ['React', 'Node.js', 'PostgreSQL'],
+            integrationComplexity: 'medium',
+            potentialChallenges: [
+              {
+                area: 'Real-time features',
+                description:
+                  'Implementing WebSocket connections for real-time collaboration',
+                mitigation: 'Use Socket.IO for simplified WebSocket management',
+              },
+            ],
+            recommendations: [
+              'Start with MVP features',
+              'Plan for scalability',
+            ],
+          },
+          feedback: 'Based on your requirements, here is my analysis...',
+        };
+      case NodeType.GENERATE:
+        return {
+          feedback:
+            'I have created a roadmap with actionable initiatives for your project.',
+          initiatives: [
+            {
+              id: 'init-1',
+              title: 'Project Setup and Core Infrastructure',
+              description:
+                'Set up development environment and basic project structure',
+              status: 'pending',
+              priority: 'high',
+              tags: ['setup', 'infrastructure'],
+              estimatedEffort: 'medium',
+            },
+          ],
+          summary: {
+            totalInitiatives: 1,
+            estimatedTimeline: '8-12 weeks',
+            criticalPath: ['init-1'],
+          },
+          interactionComplete: false,
+        };
+      default:
+        return {
+          message: `Example output for ${nodeType} node`,
+          success: true,
+        };
+    }
+  }
+
+  private normalizeTestContext(testContext?: FlowContext): FlowContext {
+    // If testContext is already in proper FlowContext format, use it
+    if (testContext && testContext.core) {
+      return testContext;
+    }
+
+    // If testContext is in flat format (from API), convert it
+    const flatContext = testContext;
+    return {
+      core: {
+        workflowId: (flatContext?.core.workflowId ||
+          'test-workflow') as WorkflowId,
+        projectId: (flatContext?.core.projectId || 'test-project') as ProjectId,
+        organizationId: (flatContext?.core.organizationId ||
+          'test-org') as OrganizationId,
+        conversationId: (flatContext?.core.conversationId ||
+          'test-conversation') as ConversationId,
+        workflowAboutId: 'workflow-about-id',
+        workflowAboutType: 'workflow-about-type',
+        user: {
+          id: (flatContext?.core.user.id || 'test-user') as UserId,
+          role: 'user',
+        },
+        session: {
+          startTime: new Date(),
+          interactionCount: 0,
+        },
+      },
+      flowId: testContext.flowId,
+      flowPath: {
+        pathTaken: [],
+      },
+      lastIntent: flatContext?.lastIntent,
+    };
+  }
+
+  private createDummyContext(): FlowContext {
+    return {
+      core: {
+        workflowId: 'dummy-workflow' as WorkflowId,
+        projectId: 'dummy-project' as ProjectId,
+        organizationId: 'dummy-org' as OrganizationId,
+        conversationId: 'dummy-conversation' as ConversationId,
+        user: { id: 'dummy-user' as UserId, role: 'user' },
+        workflowAboutId: 'workflow-about-id',
+        workflowAboutType: 'workflow-about-type',
+        session: {
+          startTime: new Date(),
+          interactionCount: 0,
+        },
+      },
+      flowPath: {
+        pathTaken: [],
+      },
+      flowId: 'flowId',
+      lastIntent: undefined,
+    };
+  }
+}

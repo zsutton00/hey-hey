@@ -1,0 +1,421 @@
+FutureApplicability:
+  type: object
+  required: [revision, canApply, blockers, completionEligibility]
+  description: Read-only current-user applicability. Apply rechecks every gate atomically; this snapshot never authorizes a later write.
+  properties:
+    revision: {type: integer, minimum: 1}
+    canApply: {type: boolean}
+    completionEligibility:
+      $ref: "#/FutureCompletionEligibility"
+    blockers:
+      type: array
+      items:
+        type: string
+        enum: [APPROVAL_REQUIRED, PERMISSION_DENIED, COMPLETION_INCOMPLETE, BASELINE_CHANGED, BASELINE_UNAVAILABLE, CANCELLED, APPLIED]
+
+FutureApplicationOffer:
+  type: object
+  required: [futureId, proposalId, proposalTitle, targetEntityType, targetEntityId, applicability]
+  properties:
+    futureId: {type: string, format: uuid}
+    proposalId:
+      type: string
+      format: uuid
+      description: Latest reviewed proposal for the future.
+    proposalTitle: {type: string}
+    targetEntityType:
+      type: string
+      enum: [TASK, DESIGN_DOC]
+    targetEntityId: {type: string, format: uuid}
+    applicability:
+      $ref: "#/FutureApplicability"
+
+FutureRevisionContent:
+  description: Complete selected entity projection including all unchanged sections; never a patch or an overlay of independent futures.
+  oneOf:
+    - allOf:
+        - $ref: "../schemas/tasks.yaml#/TaskResponseDto"
+        - type: object
+          required: [sections]
+    - allOf:
+        - $ref: "../schemas/design-docs.yaml#/DesignDocResponseDto"
+        - type: object
+          required: [sections]
+
+FutureRevisionBaseline:
+  type: object
+  additionalProperties: false
+  required: [kind, revision, content]
+  properties:
+    kind:
+      type: string
+      enum: [LIVE, FUTURE]
+    revision:
+      type: string
+      minLength: 1
+      description: Exact source revision token; for FUTURE, the decimal reviewed revision number.
+    futureId:
+      type: string
+      format: uuid
+      description: Required only for FUTURE; identifies one selected parent.
+    content:
+      $ref: "#/FutureRevisionContent"
+
+FutureCompletionDependency:
+  type: object
+  additionalProperties: false
+  required: [edgeType, targetEntityType, targetEntityId]
+  properties:
+    edgeType:
+      type: string
+      enum: [DEPENDS_ON]
+    targetEntityType:
+      type: string
+      enum: [TASK]
+      description: Canonical work-item identity. Eligible types have registry role work-item, or the platform PLAN type explicitly. Completion remains owned by Work Items and Plans.
+    targetEntityId:
+      type: string
+      format: uuid
+
+FutureRevisionUpdate:
+  type: object
+  additionalProperties: false
+  required: [operation, futureId, expectedRevision, baseline, result, dependencies]
+  description: >-
+    A REVISE result preserves baseline.content.status for both target types;
+    TASK results also preserve baseline.content.config and
+    baseline.content.source because Apply does not write those fields.
+  properties:
+    operation:
+      type: string
+      enum: [REVISE]
+    futureId:
+      type: string
+      format: uuid
+      description: Stable caller-reserved future identity retained by subsequent proposals.
+    expectedRevision:
+      type: integer
+      minimum: 0
+      description: Zero creates a future; refinements name the current reviewed revision.
+    baseline:
+      $ref: "#/FutureRevisionBaseline"
+    result:
+      $ref: "#/FutureRevisionContent"
+    dependencies:
+      type: array
+      uniqueItems: true
+      items:
+        $ref: "#/FutureCompletionDependency"
+      description: Complete reviewed dependency set owned by this future, separate from generic links and group enactment order.
+
+FutureRevisionCancellation:
+  type: object
+  additionalProperties: false
+  required: [operation, futureId, expectedRevision]
+  properties:
+    operation:
+      type: string
+      enum: [CANCEL]
+    futureId:
+      type: string
+      format: uuid
+    expectedRevision:
+      type: integer
+      minimum: 1
+
+FutureRevisionMutation:
+  description: VERSIONED_UPDATE payload for TASK or DESIGN_DOC. Ordinary approval stores or cancels a non-live future. Refinements reference the same futureId; pending or rejected proposals leave its approved content, baseline, dependencies, and approval intact. Ordinary refinement approval accepts the result without an additional acceptance step. Live-target edges and tracks are not accepted on this action; declare completion dependencies in this payload. Baseline and result must match the proposal target and scope. A FUTURE baseline names an existing reviewed parent revision with identical content.
+  oneOf:
+    - $ref: "#/FutureRevisionUpdate"
+    - $ref: "#/FutureRevisionCancellation"
+
+FutureRevisionBaselineSelection:
+  description: The server reads the selected content so authors never resend it.
+  oneOf:
+    - type: object
+      additionalProperties: false
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          enum: [LIVE]
+    - type: object
+      additionalProperties: false
+      required: [kind, futureId, revision]
+      properties:
+        kind:
+          type: string
+          enum: [FUTURE]
+        futureId:
+          type: string
+          format: uuid
+        revision:
+          type: integer
+          minimum: 1
+
+FutureWorkItemChanges:
+  type: object
+  additionalProperties: false
+  description: Same change shape as a live work-item edit. Status, type, config and source stay with the baseline because Apply does not write them.
+  properties:
+    name:
+      type: string
+      minLength: 1
+    priority:
+      $ref: "../schemas/tasks.yaml#/TaskPriority"
+    tag:
+      $ref: "../schemas/tasks.yaml#/FeatureTag"
+    initiativeId:
+      type: string
+      format: uuid
+    dueDate:
+      type: string
+      format: date-time
+      nullable: true
+    assigneeId:
+      type: string
+      format: uuid
+      nullable: true
+    parentTaskId:
+      type: string
+      format: uuid
+      nullable: true
+    sections:
+      type: array
+      items:
+        $ref: "../schemas/tasks.yaml#/TaskSectionInput"
+    requirementOps:
+      type: array
+      items:
+        $ref: "../schemas/tasks.yaml#/FeatureRequirementOperation"
+
+FutureDesignDocSectionChange:
+  type: object
+  additionalProperties: false
+  required: [key, content]
+  properties:
+    key:
+      type: string
+      minLength: 1
+    content:
+      type: string
+    order:
+      type: integer
+      nullable: true
+
+FutureDesignDocChanges:
+  type: object
+  additionalProperties: false
+  description: Same change shape as a live design-doc edit; status stays with the baseline.
+  properties:
+    name:
+      type: string
+      minLength: 1
+    template:
+      $ref: "../schemas/design-docs.yaml#/DesignDocTemplate"
+    tags:
+      type: array
+      items:
+        type: string
+    summary:
+      type: string
+      nullable: true
+    parentEntityId:
+      type: string
+      format: uuid
+      nullable: true
+    parentEntityType:
+      allOf:
+        - $ref: "../schemas/design-docs.yaml#/DesignDocParentEntityType"
+      nullable: true
+    sections:
+      type: array
+      items:
+        $ref: "#/FutureDesignDocSectionChange"
+
+FutureRevisionChange:
+  type: object
+  additionalProperties: false
+  required: [operation, futureId, expectedRevision, changes]
+  description: >-
+    Authored as a delta so agents never reproduce unchanged content; the
+    server stores the complete FutureRevisionUpdate it materializes.
+  properties:
+    operation:
+      type: string
+      enum: [REVISE]
+    futureId:
+      type: string
+      format: uuid
+    expectedRevision:
+      type: integer
+      minimum: 0
+    baseline:
+      $ref: "#/FutureRevisionBaselineSelection"
+    changes:
+      anyOf:
+        - $ref: "#/FutureWorkItemChanges"
+        - $ref: "#/FutureDesignDocChanges"
+    dependencies:
+      type: array
+      uniqueItems: true
+      items:
+        $ref: "#/FutureCompletionDependency"
+
+FutureRevisionAuthoring:
+  description: Agent authoring input; refinements build on the future's latest reviewed result so earlier reviewed changes are kept.
+  oneOf:
+    - $ref: "#/FutureRevisionChange"
+    - $ref: "#/FutureRevisionCancellation"
+
+FutureRevisionOutcome:
+  type: string
+  enum: [STAGED, APPLIED, CANCELLED]
+  description: Application outcome only; review, baseline drift and dependency eligibility are separate concerns.
+
+FutureRevisionHistoryEntry:
+  type: object
+  required: [revision, proposalId, reviewedAt, mutation]
+  properties:
+    revision:
+      type: integer
+      minimum: 1
+    proposalId:
+      type: string
+      format: uuid
+    reviewedAt:
+      type: string
+      format: date-time
+    mutation:
+      $ref: "#/FutureRevisionMutation"
+
+FutureCompletionBlocker:
+  type: object
+  required: [dependency, reason]
+  properties:
+    dependency:
+      $ref: "#/FutureCompletionDependency"
+    reason:
+      type: string
+      enum: [INCOMPLETE, CANCELLED, ARCHIVED, SUPERSEDED, MISSING, UNRESOLVABLE]
+    status:
+      $ref: "common.yaml#/WorkStatus"
+
+FutureCompletionEligibility:
+  type: object
+  required: [eligible, blockers]
+  description: Authoritative completion of explicit future dependencies only. An empty set is eligible. This does not establish approval, permission, baseline currency, or application success and never triggers application. Implementation work is ready at VERIFYING or COMPLETED; Plans require explicit final acceptance.
+  properties:
+    eligible:
+      type: boolean
+    blockers:
+      type: array
+      items:
+        $ref: "#/FutureCompletionBlocker"
+
+FutureRevisionResponse:
+  type: object
+  required: [id, organizationId, projectId, targetEntityType, targetEntityId, revision, outcome, originatingProposalId, latestProposalId, baseline, result, dependencies, history, outstandingRefinementProposalIds, completionEligibility]
+  properties:
+    id:
+      type: string
+      format: uuid
+    organizationId:
+      type: string
+      format: uuid
+    projectId:
+      type: string
+      format: uuid
+    targetEntityType:
+      type: string
+      enum: [TASK, DESIGN_DOC]
+    targetEntityId:
+      type: string
+      format: uuid
+    revision:
+      type: integer
+    outcome:
+      $ref: "#/FutureRevisionOutcome"
+    completionEligibility:
+      $ref: "#/FutureCompletionEligibility"
+    originatingProposalId:
+      type: string
+      format: uuid
+    latestProposalId:
+      type: string
+      format: uuid
+    baseline:
+      $ref: "#/FutureRevisionBaseline"
+    result:
+      $ref: "#/FutureRevisionContent"
+    dependencies:
+      type: array
+      items:
+        $ref: "#/FutureCompletionDependency"
+    history:
+      type: array
+      items:
+        $ref: "#/FutureRevisionHistoryEntry"
+    outstandingRefinementProposalIds:
+      type: array
+      uniqueItems: true
+      description: Ordinary-visible DRAFT VERSIONED_UPDATE proposals referencing this futureId and target in this project, including pending revisions and cancellations. Excludes approved/rejected proposals and hidden BUILDING group members. Includes proposals based on older reviewed revisions so unresolved changes remain discoverable. These references are separate from approved history and never replace the approved projection or its approval. Resolve proposal details through existing proposal reads; Apply must recheck current state.
+      items:
+        type: string
+        format: uuid
+    appliedAt:
+      type: string
+      format: date-time
+      nullable: true
+    appliedRevision:
+      type: integer
+      nullable: true
+    cancelledAt:
+      type: string
+      format: date-time
+      nullable: true
+
+FutureApplyRequest:
+  type: object
+  additionalProperties: false
+  required: [expectedRevision]
+  properties:
+    expectedRevision:
+      type: integer
+      minimum: 1
+      description: Approved future revision the user chose to apply.
+    confirmation:
+      $ref: '#/FutureApplyConfirmation'
+FutureApplyConfirmation:
+  type: object
+  additionalProperties: false
+  required: [revision, refinements]
+  description: Explicit authorization to invalidate exactly these pending refinement versions after successful application of this approved revision. Echo the returned value. This does not waive any application check.
+  properties:
+    revision: {type: integer, minimum: 1}
+    refinements:
+      type: array
+      items:
+        $ref: '#/FutureApplyRefinement'
+FutureApplyRefinement:
+  type: object
+  additionalProperties: false
+  required: [proposalId, updatedAt]
+  properties:
+    proposalId: {type: string, format: uuid}
+    updatedAt: {type: string, format: date-time}
+FutureApplyResponse:
+  type: object
+  required: [status, future]
+  properties:
+    status:
+      type: string
+      enum: [APPLIED, CONFIRMATION_REQUIRED, BLOCKED]
+    future:
+      $ref: '#/FutureRevisionResponse'
+    confirmation:
+      $ref: '#/FutureApplyConfirmation'
+    blocker:
+      type: string
+      enum: [REVISION_CHANGED, COMPLETION_INCOMPLETE, BASELINE_CHANGED, BASELINE_UNAVAILABLE, CANCELLED]
+  description: Application through existing enactment. BLOCKED identifies a gate and leaves live content and refinements unchanged. Baseline blockers require reviewed reconciliation outside this endpoint; acknowledging drift cannot bypass it. CONFIRMATION_REQUIRED identifies the approved revision and exact pending refinements. APPLIED records the applied revision and invalidates confirmed pending refinements atomically with target application. Failed transactions preserve refinements and can be retried explicitly.

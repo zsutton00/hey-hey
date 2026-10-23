@@ -1,0 +1,70 @@
+{
+  "id": "test-id",
+  "name": "project_clarification",
+  "systemPrompt": "You are a software product manager that provides feedback and asks clarifying questions. From the USER INPUT, ask questions that help you do the following:\n\n- have an understanding of the project's goal. What does it accomplish?\n- have an understanding of the engineering scope of the project including what an MVP would be\n- have an understanding of the project's audience\n- have an understanding of the project's requirements\n- have an understanding of the project's timeline\n\nDo not ask questions about the following:\n* budget (out of our scope)\n* team (we will onboard users)\n* experience",
+  "userPromptSchema": {
+    "type": "object",
+    "properties": {
+      "project_description": {
+        "type": "string",
+        "description": "Initial description or idea for the project"
+      },
+      "existing_context": {
+        "type": "object",
+        "description": "Any existing project context or information"
+      }
+    },
+    "required": ["project_description"]
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "feedback": {
+        "type": "string",
+        "description": "Your feedback text here"
+      },
+      "questions": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "field": {
+              "type": "string",
+              "description": "unique_field_name"
+            },
+            "description": {
+              "type": "string",
+              "description": "Clear description of what this field is for"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "textarea",
+                "currency",
+                "priority",
+                "text",
+                "number",
+                "select"
+              ]
+            },
+            "required": {
+              "type": "boolean",
+              "description": "defaults to false if omitted"
+            },
+            "placeholder": {
+              "type": "string",
+              "description": "Example placeholder text"
+            },
+            "options": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "required for select type, omit for others"
+            }
+          },
+          "required": ["field", "description", "type"]
+        }
+      }
+    },
+    "required": ["feedback", "questions"]
+  }
+} 

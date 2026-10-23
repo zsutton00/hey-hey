@@ -1,0 +1,217 @@
+# =============================================
+# Workflow Execution Schemas
+# =============================================
+RepositoryGroundingWorkflowContext:
+  type: object
+  additionalProperties: false
+  required:
+    - prerequisites
+    - analysisConfiguration
+  properties:
+    prerequisites:
+      $ref: "./repository-grounding.yaml#/RepositoryGroundingPrerequisites"
+      description: Accepted Service, brief, entry, and machine choices.
+    analysisConfiguration:
+      $ref: "./repository-grounding.yaml#/RepositoryGroundingAnalysisConfiguration"
+      description: Saved scope, provider, model, usage, and bounds choices.
+    repositoryFeatureEnrichmentAcceptedAnalysis:
+      $ref: "./repository-grounding.yaml#/RepositoryGroundingSuccess"
+      description: Latest accepted repository analysis snapshot used by the next enrichment round. The initial repository analysis is projected here before the first question round.
+    repositoryFeatureEnrichmentCompletedRounds:
+      type: integer
+      minimum: 0
+      maximum: 2
+    repositoryFeatureEnrichmentAnswerBatches:
+      type: array
+      maxItems: 2
+      items:
+        $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentAnswerBatch"
+    repositoryFeatureEnrichmentLatestOutcome:
+      $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentCompletion"
+    repositoryFeatureEnrichmentFinal:
+      $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentSuccess"
+  description: >-
+    Workflow value carrying the accepted repository-grounding choices and
+    latest enrichment snapshot between the user review gates and the
+    external-agent handoff. This is not a durable analysis-attempt or review
+    persistence shape.
+
+WorkflowExecutionSummaryDto:
+  type: object
+  required:
+    - workflowId
+    - runId
+    - workflowType
+    - status
+    - startTime
+  properties:
+    workflowId:
+      $ref: "./common.yaml#/WorkflowId"
+    runId:
+      type: string
+      description: Temporal run ID
+    workflowType:
+      type: string
+      description: Temporal workflow type name
+    status:
+      type: string
+      description: Workflow execution status
+    startTime:
+      type: string
+      format: date-time
+      description: Workflow start timestamp
+    closeTime:
+      type: string
+      format: date-time
+      nullable: true
+      description: Workflow completion timestamp, if finished
+
+ListWorkflowExecutionsResponseDto:
+  type: object
+  required:
+    - workflows
+  properties:
+    workflows:
+      type: array
+      items:
+        $ref: "./workflows.yaml#/WorkflowExecutionSummaryDto"
+    nextPageToken:
+      type: string
+      nullable: true
+      description: Opaque pagination token for the next page, if any
+
+WorkflowNodeResponseDto:
+  type: object
+  required:
+    - currentNodeId
+    - workflowName
+  properties:
+    currentNodeId:
+      type: string
+      nullable: true
+      description: |
+        ID of the workflow node the conversation is currently sitting on.
+        Null when the conversation has no active workflow attached or the
+        workflow has reached a terminal state. Consumers are expected to
+        fall back to their default dispatch behavior when this is null.
+    workflowName:
+      allOf:
+        - $ref: "./conversations.yaml#/WorkflowName"
+      nullable: true
+      description: |
+        Template name of the workflow attached to the conversation. Null when
+        the conversation has never been bound to a workflow.
+
+PromptTypeResponseDto:
+  type: object
+  required:
+    - promptType
+    - nodeId
+    - triggerMessageId
+    - workflowState
+  properties:
+    workflowState:
+      type: string
+      # Required, never null: the load-bearing discriminator. Consumers branch
+      # exhaustively on this instead of inferring state from the nullable
+      # fields below — which can no longer distinguish "workflow alive, parked
+      # on a user gate" from "workflow over". The resolver collapses its
+      # internal branches into exactly these three states.
+      enum:
+        - agent-pending
+        - live-non-agent
+        - terminal
+      description: |
+        Three-state discriminator for where the conversation's workflow stands.
+
+        - agent-pending: the workflow is paused on an EXTERNAL_AGENT node and
+          the CLI owns the next turn — whether the workflow is still live on
+          that node or has gone but left a paused execution that resolves to an
+          agent node. This is the ONLY state in which nodeId and
+          triggerMessageId may be non-null; promptType carries the agent node's
+          own prompt-type.
+        - live-non-agent: the workflow is still alive but parked on a node that
+          is not an EXTERNAL_AGENT — e.g. a QUESTIONS review gate awaiting the
+          user. The CLI has no pending turn, so nodeId and triggerMessageId are
+          null and promptType is the flow's terminalPromptType. Distinct from
+          terminal: the workflow has NOT finished, it is waiting on the user.
+        - terminal: the workflow is complete, gone with no paused execution, or
+          was never attached. nodeId and triggerMessageId are null; promptType
+          is the flow's terminalPromptType, or null when the conversation has
+          no workflow or no registered flow template.
+    promptType:
+      type: string
+      nullable: true
+      # Value-set MUST mirror the CLI's LocalPromptType enum declared in
+      # openapi/specs/agent-bridge/openapi.yaml (the source of truth). The API
+      # only ever returns the subset of values it emits via EXTERNAL_AGENT
+      # triggers or terminal-flow fallbacks — adding a new agent-emitted
+      # promptType requires extending both this enum and the CLI's enum
+      # in lockstep.
+      #
+      # `debug` is deliberately absent here even though it exists in the
+      # Agent Bridge's LocalPromptType enum: it is explicit-selection-only, with no
+      # workflow node emitting it, so the API never returns it via an
+      # EXTERNAL_AGENT trigger or a terminal-flow fallback. The lockstep
+      # rule applies only to agent-emitted promptTypes, which `debug` is
+      # not — so the value-set below is intentionally not extended with it.
+      #
+      # `research` is deliberately absent here for the same reason: it is
+      # explicit-selection-only, with no workflow node emitting it, so the
+      # API never returns it via an EXTERNAL_AGENT trigger or a terminal-
+      # flow fallback. The lockstep rule applies only to agent-emitted
+      # promptTypes, which `research` is not — so the value-set below is
+      # intentionally not extended with it.
+      #
+      # The final two values — `plan_shaping_finalize`,
+      # `coding_freeform` — are the terminal-flow fallbacks: the complete set
+      # of `terminalPromptType` values declared across the registered flow
+      # templates, returned whenever a workflow is parked on a non-agent node
+      # (workflowState `live-non-agent`) or has finished/gone (workflowState
+      # `terminal`). They are NOT agent-emitted, so the agent-promptType
+      # lockstep rule above does not apply; they appear here only because the
+      # resolver actually returns them.
+      enum:
+        - startup_session
+        - feature_sync_analyze
+        - feature_sync_iterate
+        - work_tracker_connect
+        - work_tracker_import
+        - repository_grounding
+        - repository_placement
+        - implement
+        - feature_tree_conversation
+        - plan_shaping_finalize
+        - coding_freeform
+      description: |
+        Prompt-type to use when dispatching the next CLI turn for this
+        conversation. Resolves to the currently-paused EXTERNAL_AGENT node's
+        promptType in the `agent-pending` workflowState, and to the flow's
+        terminalPromptType in the `live-non-agent` and `terminal` states —
+        except that it is null when the conversation has never been bound to a
+        workflow or its workflow has no registered flow template (both
+        `terminal`). Consumers should branch on workflowState rather than on
+        this value, treating a null promptType as "no workflow-defined prompt
+        type" and falling back to their default dispatch behavior.
+    nodeId:
+      type: string
+      nullable: true
+      description: |
+        ID of the EXTERNAL_AGENT node the conversation is currently paused on.
+        Populated only when the workflow is active and the current node is
+        EXTERNAL_AGENT. Null in every other case — no workflow attached,
+        workflow complete or gone, current node is not EXTERNAL_AGENT.
+        Consumers authoring completion messages back-reference this id so the
+        server can match the paused flow execution without the caller having
+        to cache it locally.
+    triggerMessageId:
+      type: string
+      nullable: true
+      description: |
+        Id of the open SYSTEM trigger message awaiting completion under
+        nodeId. Null when nodeId is null, and also null when the projection
+        finds no pending trigger for the current node (e.g. the trigger has
+        already been completed by a later message). Pairs with nodeId to give
+        callers everything they need to author the completion message
+        (`completesExternalAgentNode.completesTriggerMessageId`) without
+        relying on caller-side cached state.

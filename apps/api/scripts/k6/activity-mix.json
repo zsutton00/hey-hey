@@ -1,0 +1,17 @@
+{
+  "mixVersion": 1,
+  "thinkTimeSeconds": { "min": 2, "max": 8 },
+  "actions": {
+    "context_feature": 30,
+    "context_task": 15,
+    "context_hub": 5,
+    "feature_list": 5,
+    "children_list": 8,
+    "edges_list": 7,
+    "work_item_read": 5,
+    "search_hybrid": 10,
+    "search_semantic": 8,
+    "write_scratch_edit": 6,
+    "write_scratch_add": 1
+  }
+}

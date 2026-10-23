@@ -1,0 +1,119 @@
+WorkTrackerImportRequest:
+  type: object
+  additionalProperties: false
+  required: [projectId, conversationId, workflowId, workflowNodeId, machineId, source, provider, resolvedFrontierModel, reasoningEffort]
+  properties:
+    promptType:
+      type: string
+      enum: [work_tracker_connect, work_tracker_import]
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+    conversationId:
+      $ref: "./common.yaml#/ConversationId"
+    workflowId:
+      $ref: "./common.yaml#/WorkflowId"
+    workflowNodeId:
+      type: string
+      minLength: 1
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    source:
+      type: string
+      enum: [jira, linear]
+    provider:
+      type: string
+      enum: [claude, codex]
+    resolvedFrontierModel:
+      type: string
+      minLength: 1
+    reasoningEffort:
+      type: string
+      enum: [none, minimal, low, medium, high, xhigh, max, ultra, default]
+    fastMode:
+      type: boolean
+    connectionConfirmed:
+      type: boolean
+      description: Server-recorded explicit user confirmation; never inferred from agent output.
+  description: Accepted runtime and source choices, without credentials or a Service binding.
+
+WorkTrackerConnectionCompletion:
+  type: object
+  additionalProperties: false
+  required: [outcome, source]
+  properties:
+    outcome:
+      type: string
+      enum: [connected, connection_required]
+    source:
+      type: string
+      enum: [jira, linear]
+  description: Runtime tool reachability. CLI code owns connection instructions.
+
+WorkTrackerImportSuccess:
+  type: object
+  additionalProperties: false
+  required: [outcome, source, narrative, hierarchy, evidence]
+  properties:
+    outcome:
+      type: string
+      enum: [success]
+    source:
+      type: string
+      enum: [jira, linear]
+    narrative:
+      type: string
+      minLength: 1
+    hierarchy:
+      $ref: "./repository-grounding.yaml#/RepositoryGroundingHierarchy"
+    evidence:
+      type: array
+      minItems: 1
+      items:
+        type: object
+        additionalProperties: false
+        required: [reference, summary]
+        properties:
+          reference:
+            type: string
+            minLength: 1
+            description: Source record URL or provider record identifier, never credentials.
+          summary:
+            type: string
+            minLength: 1
+  description: Candidate outline only; final server-owned approval materializes Features.
+
+WorkTrackerImportCompletion:
+  oneOf:
+    - $ref: "#/WorkTrackerConnectionCompletion"
+    - $ref: "#/WorkTrackerImportSuccess"
+
+WorkTrackerImportSource:
+  type: string
+  enum: [jira, linear]
+
+WorkTrackerImportConfiguration:
+  type: object
+  additionalProperties: false
+  required: [source, machineId, provider, resolvedFrontierModel, reasoningEffort]
+  properties:
+    source:
+      $ref: "#/WorkTrackerImportSource"
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    provider:
+      type: string
+      enum: [claude, codex]
+    resolvedFrontierModel:
+      type: string
+      minLength: 1
+    reasoningEffort:
+      type: string
+      enum: [none, minimal, low, medium, high, xhigh, max, ultra, default]
+    fastMode:
+      type: boolean
+  description: User-accepted source and runtime choices for one work-tracker import.
+
+WorkTrackerImportAction:
+  type: string
+  enum: [CONFIRM_CONNECTION, START_IMPORT, CHANGE_CHOICES, FINISH_LATER]
+  description: Explicit user action at a work-tracker import gate.

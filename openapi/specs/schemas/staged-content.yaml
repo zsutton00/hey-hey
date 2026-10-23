@@ -1,0 +1,456 @@
+# =============================================
+# Staged Content Schema Definitions
+# =============================================
+# Generic schemas for staged content workflows and operations
+
+StagedContentTypeId:
+  type: string
+  description: Identifier for generic staged content types
+  enum:
+    - work-item
+    - initiative
+    - adr
+    - brainstorm
+    - decision
+
+StageOperationType:
+  type: string
+  description: Operation type supported by staged content controller
+  enum:
+    - session
+    - advance
+    - refine
+    - content_update
+    - finalize
+
+StageValidationRuleType:
+  type: string
+  description: Validation rule types enforced during stage transitions
+  enum:
+    - field_required
+    - invalid_stage
+    - invalid_template
+    - min_length
+    - max_length
+    - custom_function
+
+StageOperationOptions:
+  type: object
+  description: Options controlling staged content operations
+  properties:
+    skipValidation:
+      type: boolean
+      description: Skip validation checks for the operation
+    forceAdvance:
+      type: boolean
+      description: Force progression even if validations fail
+    preserveHistory:
+      type: boolean
+      description: Preserve previous stage history when updating content
+    notifyStakeholders:
+      type: boolean
+      description: Send notifications to subscribed stakeholders
+    generateArtifacts:
+      type: boolean
+      description: Trigger artifact generation during the operation
+
+StageValidationError:
+  type: object
+  description: Validation error encountered while processing a staged operation
+  required:
+    - field
+    - rule
+    - message
+    - code
+    - severity
+  properties:
+    field:
+      type: string
+      description: Field associated with the validation error
+    rule:
+      $ref: "#/StageValidationRuleType"
+    message:
+      type: string
+      description: Human-readable validation error message
+    code:
+      type: string
+      description: Machine-readable validation error code
+    severity:
+      type: string
+      enum: [error, warning, info]
+      description: Severity level of the validation error
+    suggestedFix:
+      type: string
+      description: Suggested fix or next step for resolving the error
+
+StageValidationRule:
+  type: object
+  description: Validation rule configuration for a stage
+  required:
+    - type
+  properties:
+    type:
+      $ref: "#/StageValidationRuleType"
+    field:
+      type: string
+      description: Field evaluated by the validation rule
+    minLength:
+      type: integer
+      description: Minimum character length required
+    maxLength:
+      type: integer
+      description: Maximum character length permitted
+    customValidator:
+      type: string
+      description: Identifier for custom validation logic
+    errorMessage:
+      type: string
+      description: Override validation error message
+    required:
+      type: boolean
+      description: Indicates if the field must be present to advance
+
+StageDefinition:
+  type: object
+  description: Definition of a single stage within a staged content type
+  required:
+    - id
+    - name
+    - displayName
+    - order
+    - contentFields
+    - nextStages
+    - validationRules
+    - interactionType
+    - isTerminal
+  properties:
+    id:
+      type: string
+      description: Unique identifier for the stage
+    name:
+      type: string
+      description: Internal stage name
+    displayName:
+      type: string
+      description: Human-readable name for the stage
+    order:
+      type: integer
+      description: Stage order within the progression (1-based)
+    contentFields:
+      type: array
+      description: Fields that must be completed in this stage
+      items:
+        type: string
+    nextStages:
+      type: array
+      description: Allowed next stages from the current stage
+      items:
+        type: string
+    validationRules:
+      type: array
+      description: Validation rules evaluated before advancing
+      items:
+        $ref: "#/StageValidationRule"
+    interactionType:
+      type: string
+      enum: [user_input, ai_generation, hybrid]
+      description: Primary interaction mode for the stage
+    isTerminal:
+      type: boolean
+      description: Indicates if the stage is terminal (no further progression)
+    workflowNodeId:
+      type: string
+      description: Optional workflow node identifier for orchestration
+    customLogic:
+      type: string
+      description: Reference to custom logic executed for the stage
+    estimatedDuration:
+      type: integer
+      description: Estimated duration in minutes to complete the stage
+
+StagedContentTypeFeatures:
+  type: object
+  description: Feature switches enabled for a staged content type
+  properties:
+    messageClassification:
+      type: boolean
+    changeDetection:
+      type: boolean
+    workflowOrchestration:
+      type: boolean
+    optimizationHints:
+      type: boolean
+    autoProgression:
+      type: boolean
+    versionControl:
+      type: boolean
+    collaborativeEditing:
+      type: boolean
+
+StagedContentEntitySchema:
+  type: object
+  description: Schema metadata for staged content entities
+  required:
+    - entityType
+    - statusMapping
+    - progressCalculation
+  properties:
+    entityType:
+      type: string
+      description: Entity type identifier for the staged content
+    statusMapping:
+      type: object
+      description: Map of stage identifiers to status values
+      additionalProperties:
+        type: string
+    progressCalculation:
+      type: string
+      enum: [linear, weighted, custom]
+      description: Strategy for calculating overall progress
+    weightings:
+      type: object
+      description: Optional stage weightings for weighted progress
+      additionalProperties:
+        type: number
+    customProgressCalculator:
+      type: string
+      description: Identifier for custom progress calculation logic
+
+StagedContentTypeDefinition:
+  type: object
+  description: Complete configuration for a staged content type
+  required:
+    - id
+    - displayName
+    - implementationType
+    - stages
+    - entitySchema
+  properties:
+    id:
+      $ref: "#/StagedContentTypeId"
+    type:
+      type: string
+      description: Legacy entity type identifier for backwards compatibility
+    displayName:
+      type: string
+    description:
+      type: string
+    version:
+      type: string
+    implementationType:
+      type: string
+      enum: [simple, workflow, hybrid]
+      description: Implementation strategy for the content type
+    stages:
+      type: array
+      items:
+        $ref: "#/StageDefinition"
+    entitySchema:
+      $ref: "#/StagedContentEntitySchema"
+    features:
+      $ref: "#/StagedContentTypeFeatures"
+
+StageAction:
+  type: object
+  description: Action available to the user at the current stage
+  required:
+    - type
+    - label
+    - description
+    - enabled
+  properties:
+    type:
+      $ref: "#/StageOperationType"
+    label:
+      type: string
+    description:
+      type: string
+    enabled:
+      type: boolean
+    requiresInput:
+      type: boolean
+    validationRequired:
+      type: boolean
+    estimatedDuration:
+      type: integer
+      description: Estimated duration in minutes if applicable
+
+StagedContentConversationSummary:
+  type: object
+  description: Summary of the conversation associated with staged content
+  required:
+    - id
+  properties:
+    id:
+      $ref: "./common.yaml#/ConversationId"
+    workflowId:
+      $ref: "./common.yaml#/WorkflowId"
+      nullable: true
+    messages:
+      type: array
+      description: Optional cached messages for the session
+      items:
+        type: object
+        additionalProperties: true
+
+StagedContentEntity:
+  type: object
+  description: Base representation of a staged content entity
+  required:
+    - id
+    - organizationId
+    - currentStage
+    - status
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+      nullable: true
+    currentStage:
+      type: string
+    status:
+      type: string
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+    entityType:
+      type: string
+      nullable: true
+  additionalProperties: true
+
+StagedContentSession:
+  type: object
+  description: Session context for staged content interactions
+  required:
+    - entity
+    - contentType
+    - currentStage
+    - progress
+    - availableActions
+  properties:
+    entity:
+      $ref: "#/StagedContentEntity"
+    conversation:
+      $ref: "#/StagedContentConversationSummary"
+    contentType:
+      $ref: "#/StagedContentTypeDefinition"
+    currentStage:
+      $ref: "#/StageDefinition"
+    progress:
+      type: integer
+      format: int32
+      description: Progress percentage for the staged content
+    availableActions:
+      type: array
+      items:
+        $ref: "#/StageAction"
+    lastActivity:
+      type: string
+      format: date-time
+      nullable: true
+
+StageOperationResult:
+  type: object
+  description: Result of executing a staged content operation
+  required:
+    - success
+    - message
+    - entity
+    - newStage
+    - progress
+    - actions
+    - timestamp
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    entity:
+      $ref: "#/StagedContentEntity"
+    newStage:
+      type: string
+    progress:
+      type: integer
+      format: int32
+    actions:
+      type: array
+      items:
+        $ref: "#/StageAction"
+    errors:
+      type: array
+      items:
+        $ref: "#/StageValidationError"
+    warnings:
+      type: array
+      items:
+        type: string
+    conversationId:
+      type: string
+      format: uuid
+    workflowId:
+      type: string
+      nullable: true
+    validationErrors:
+      type: array
+      items:
+        $ref: "#/StageValidationError"
+    timestamp:
+      type: string
+      format: date-time
+
+StagedContentAdvanceRequest:
+  type: object
+  description: Request payload to advance staged content to the next stage
+  properties:
+    targetStage:
+      type: string
+      description: Explicit target stage identifier
+    skipValidation:
+      type: boolean
+      description: Skip validation when advancing stages
+    options:
+      $ref: "#/StageOperationOptions"
+
+StagedContentRefineRequest:
+  type: object
+  description: Request payload for AI-assisted refinement
+  required:
+    - message
+  properties:
+    message:
+      type: string
+      description: User message or prompt for refinement
+    options:
+      $ref: "#/StageOperationOptions"
+    classifiedIntent:
+      type: string
+      description: Optional intent classification metadata
+    planId:
+      $ref: "./common.yaml#/PlanId"
+      description: Optional plan identifier to link refinement conversation
+
+StagedContentContentUpdateRequest:
+  type: object
+  description: Request payload for updating specific stage content fields
+  required:
+    - field
+    - content
+  properties:
+    field:
+      type: string
+      description: Identifier for the field being updated
+    content:
+      description: New content replacing the existing value
+    previousContent:
+      description: Optional previous content for change detection
+    options:
+      $ref: "#/StageOperationOptions"

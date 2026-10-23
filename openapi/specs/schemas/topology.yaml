@@ -1,0 +1,659 @@
+# =============================================
+# Topology Query Schemas
+# =============================================
+
+TopologySummaryCategory:
+  type: string
+  enum:
+    - technology
+    - product
+    - process
+    - people
+  description: Topology summary category
+
+TopologySubfacetStatus:
+  type: string
+  enum:
+    - ACTIVE
+    - PROVISIONAL
+    - DEPRECATED
+  description: Status of a topology subfacet
+
+TopologyJsonBlob:
+  description: Arbitrary JSON payload for consolidation artifacts.
+  type: object
+  additionalProperties: true
+
+TopologyEntitySummarySubfacetDto:
+  type: object
+  required:
+    - id
+    - name
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+    updatedAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+TopologyEntitySummaryDto:
+  type: object
+  required:
+    - entityType
+    - entityId
+    - summary
+    - category
+    - updatedAt
+    - subfacets
+  properties:
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    entityId:
+      type: string
+    summary:
+      type: string
+    category:
+      $ref: "#/TopologySummaryCategory"
+    updatedAt:
+      type: string
+      format: date-time
+    subfacets:
+      type: array
+      items:
+        $ref: "#/TopologyEntitySummarySubfacetDto"
+  additionalProperties: false
+
+TopologySubfacetDto:
+  type: object
+  required:
+    - id
+    - name
+    - slug
+    - category
+    - status
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+    slug:
+      type: string
+    category:
+      $ref: "#/TopologySummaryCategory"
+    status:
+      $ref: "#/TopologySubfacetStatus"
+    summary:
+      type: string
+      nullable: true
+    lastSummarizedAt:
+      type: string
+      format: date-time
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+TopologyCategorySummaryDto:
+  type: object
+  required:
+    - category
+    - summary
+    - lastUpdated
+  properties:
+    category:
+      $ref: "#/TopologySummaryCategory"
+    summary:
+      type: string
+    briefSummary:
+      type: string
+      nullable: true
+    lastUpdated:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+TopologySubfacetConsolidationRunDto:
+  type: object
+  required:
+    - id
+    - organizationId
+    - category
+    - since
+    - until
+    - thresholdApplied
+    - accumulatedSnapshot
+    - consolidationResult
+    - createdAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+    category:
+      $ref: "#/TopologySummaryCategory"
+    since:
+      type: string
+      format: date-time
+    until:
+      type: string
+      format: date-time
+    thresholdApplied:
+      type: integer
+    accumulatedSnapshot:
+      $ref: "#/TopologyJsonBlob"
+    consolidatedBefore:
+      $ref: "#/TopologyJsonBlob"
+      nullable: true
+    consolidationResult:
+      $ref: "#/TopologyJsonBlob"
+    createdAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+TopologySubfacetSummarizationRunDto:
+  type: object
+  required:
+    - id
+    - organizationId
+    - category
+    - subfacetId
+    - since
+    - until
+    - thresholdApplied
+    - accumulatedSnapshot
+    - consolidationResult
+    - createdAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+    category:
+      $ref: "#/TopologySummaryCategory"
+    subfacetId:
+      type: string
+      format: uuid
+    since:
+      type: string
+      format: date-time
+    until:
+      type: string
+      format: date-time
+    thresholdApplied:
+      type: integer
+    accumulatedSnapshot:
+      $ref: "#/TopologyJsonBlob"
+    consolidatedBefore:
+      $ref: "#/TopologyJsonBlob"
+      nullable: true
+    consolidationResult:
+      $ref: "#/TopologyJsonBlob"
+    createdAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+TopologyCategorySummarizationRunDto:
+  type: object
+  required:
+    - id
+    - organizationId
+    - category
+    - since
+    - until
+    - thresholdApplied
+    - accumulatedSnapshot
+    - consolidationResult
+    - createdAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+    category:
+      $ref: "#/TopologySummaryCategory"
+    since:
+      type: string
+      format: date-time
+    until:
+      type: string
+      format: date-time
+    thresholdApplied:
+      type: integer
+    accumulatedSnapshot:
+      $ref: "#/TopologyJsonBlob"
+    consolidatedBefore:
+      $ref: "#/TopologyJsonBlob"
+      nullable: true
+    consolidationResult:
+      $ref: "#/TopologyJsonBlob"
+    createdAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+
+TopologyConsolidationScheduleStatus:
+  type: string
+  enum:
+    - ACTIVE
+    - PAUSED
+  description: Status of a topology consolidation schedule
+
+TopologyConsolidationRunStatus:
+  type: string
+  enum:
+    - RUNNING
+    - SUCCEEDED
+    - PARTIALLY_FAILED
+    - FAILED
+  description: Status of a topology consolidation run
+
+TopologyGraphResponse:
+  type: object
+  additionalProperties: true
+  description: Raw topology graph response from the graph service.
+
+TopologyConsolidationScheduleDto:
+  type: object
+  required:
+    - id
+    - organizationId
+    - projectId
+    - status
+    - cadenceHours
+    - retryMaxAttempts
+    - retryBackoffSeconds
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+    status:
+      $ref: "#/TopologyConsolidationScheduleStatus"
+    cadenceHours:
+      type: integer
+    maxEntitiesPerRun:
+      type: integer
+    maxEntitiesPerSubfacet:
+      type: integer
+    maxEntitiesPerSubfacetSummary:
+      type: integer
+    maxPerCategory:
+      type: integer
+    maxPerSubfacet:
+      type: integer
+    threshold:
+      type: integer
+    maxIterations:
+      type: integer
+    retryMaxAttempts:
+      type: integer
+    retryBackoffSeconds:
+      type: integer
+    lockToken:
+      type: string
+      nullable: true
+    leaseExpiresAt:
+      type: string
+      format: date-time
+      nullable: true
+    runningSince:
+      type: string
+      format: date-time
+      nullable: true
+    currentRunId:
+      type: string
+      format: uuid
+      nullable: true
+    nextRunAt:
+      type: string
+      format: date-time
+      nullable: true
+    lastRunAt:
+      type: string
+      format: date-time
+      nullable: true
+    lastSuccessAt:
+      type: string
+      format: date-time
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+TopologyConsolidationRunDto:
+  type: object
+  required:
+    - id
+    - scheduleId
+    - organizationId
+    - projectId
+    - status
+    - trigger
+    - since
+    - until
+    - entitiesDiscovered
+    - entitiesProcessed
+    - categoriesProcessed
+    - subfacetsProcessed
+    - startedAt
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    scheduleId:
+      type: string
+      format: uuid
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+    status:
+      $ref: "#/TopologyConsolidationRunStatus"
+    trigger:
+      type: string
+    since:
+      type: string
+      format: date-time
+    until:
+      type: string
+      format: date-time
+    temporalWorkflowId:
+      type: string
+      nullable: true
+    entitiesDiscovered:
+      type: integer
+    entitiesProcessed:
+      type: integer
+    categoriesProcessed:
+      type: integer
+    subfacetsProcessed:
+      type: integer
+    errorMessage:
+      type: string
+      nullable: true
+    details:
+      $ref: "#/TopologyJsonBlob"
+      nullable: true
+    startedAt:
+      type: string
+      format: date-time
+    completedAt:
+      type: string
+      format: date-time
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+TopologySubfacetCandidateDto:
+  type: object
+  required:
+    - id
+    - organizationId
+    - projectId
+    - category
+    - name
+    - normalizedSlug
+    - proposalCount
+    - firstSeenAt
+    - lastSeenAt
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+    category:
+      $ref: "#/TopologySummaryCategory"
+    name:
+      type: string
+    normalizedSlug:
+      type: string
+    proposalCount:
+      type: integer
+    latestConfidence:
+      type: number
+    latestRationale:
+      type: string
+    lastSourceEntityType:
+      $ref: "./common.yaml#/EntityType"
+    lastSourceEntityId:
+      type: string
+    firstSeenAt:
+      type: string
+      format: date-time
+    lastSeenAt:
+      type: string
+      format: date-time
+    promotedAt:
+      type: string
+      format: date-time
+    promotedSubfacetId:
+      type: string
+      format: uuid
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+TopologySubfacetLifecycleStatusCountsDto:
+  type: object
+  required:
+    - ACTIVE
+    - PROVISIONAL
+    - DEPRECATED
+  properties:
+    ACTIVE:
+      type: integer
+    PROVISIONAL:
+      type: integer
+    DEPRECATED:
+      type: integer
+  additionalProperties: false
+
+TopologyNearPromotionSubfacetDto:
+  type: object
+  required:
+    - id
+    - name
+    - category
+    - survivalCount
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+    category:
+      $ref: "#/TopologySummaryCategory"
+    survivalCount:
+      type: integer
+    lastSeenInConsolidationAt:
+      type: string
+      format: date-time
+      nullable: true
+  additionalProperties: false
+
+TopologyPromotableCandidateDto:
+  type: object
+  required:
+    - id
+    - category
+    - name
+    - proposalCount
+    - lastSeenAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    category:
+      $ref: "#/TopologySummaryCategory"
+    name:
+      type: string
+    proposalCount:
+      type: integer
+    lastSeenAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+TopologySubfacetLifecycleSummaryDto:
+  type: object
+  required:
+    - organizationId
+    - projectId
+    - countsByCategory
+    - nearPromotionProvisionals
+    - promotableCandidates
+  properties:
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+    countsByCategory:
+      type: object
+      required:
+        - technology
+        - product
+        - process
+        - people
+      properties:
+        technology:
+          $ref: "#/TopologySubfacetLifecycleStatusCountsDto"
+        product:
+          $ref: "#/TopologySubfacetLifecycleStatusCountsDto"
+        process:
+          $ref: "#/TopologySubfacetLifecycleStatusCountsDto"
+        people:
+          $ref: "#/TopologySubfacetLifecycleStatusCountsDto"
+      additionalProperties: false
+    nearPromotionProvisionals:
+      type: array
+      items:
+        $ref: "#/TopologyNearPromotionSubfacetDto"
+    promotableCandidates:
+      type: array
+      items:
+        $ref: "#/TopologyPromotableCandidateDto"
+  additionalProperties: false
+
+TopologyUpsertScheduleDto:
+  type: object
+  required:
+    - projectId
+  properties:
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+    cadenceHours:
+      type: integer
+    status:
+      $ref: "#/TopologyConsolidationScheduleStatus"
+    maxEntitiesPerRun:
+      type: integer
+    maxEntitiesPerSubfacet:
+      type: integer
+    maxEntitiesPerSubfacetSummary:
+      type: integer
+    maxPerCategory:
+      type: integer
+    maxPerSubfacet:
+      type: integer
+    threshold:
+      type: integer
+    maxIterations:
+      type: integer
+    retryMaxAttempts:
+      type: integer
+    retryBackoffSeconds:
+      type: integer
+  additionalProperties: false
+
+TopologyPatchScheduleDto:
+  type: object
+  required:
+    - projectId
+  properties:
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+    cadenceHours:
+      type: integer
+    status:
+      $ref: "#/TopologyConsolidationScheduleStatus"
+    maxEntitiesPerRun:
+      type: integer
+    maxEntitiesPerSubfacet:
+      type: integer
+    maxEntitiesPerSubfacetSummary:
+      type: integer
+    maxPerCategory:
+      type: integer
+    maxPerSubfacet:
+      type: integer
+    threshold:
+      type: integer
+    maxIterations:
+      type: integer
+    retryMaxAttempts:
+      type: integer
+    retryBackoffSeconds:
+      type: integer
+    nextRunAt:
+      type: string
+      format: date-time
+      nullable: true
+  additionalProperties: false
+
+TopologyTriggerScheduleNowDto:
+  type: object
+  required:
+    - projectId
+  properties:
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+  additionalProperties: false

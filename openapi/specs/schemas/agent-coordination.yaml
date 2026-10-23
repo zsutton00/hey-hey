@@ -1,0 +1,2023 @@
+# Agent Coordination Management Schemas
+# Provides strongly typed schemas for Phase 3 multi-agent coordination,
+# resource management, and workflow orchestration capabilities.
+
+# =============================================
+# Refiner Workflow Schemas
+ConversationMessage:
+  type: object
+  required:
+    - id
+    - content
+  properties:
+    id:
+      type: string
+      description: Message identifier
+    content:
+      type: string
+      description: Message content
+    role:
+      type: string
+      description: Message role (user, assistant, system)
+
+MentionContext:
+  type: object
+  required:
+    - entityId
+    - entityType
+    - messageId
+  properties:
+    entityId:
+      type: string
+      description: Identifier for the mentioned entity
+    entityType:
+      type: string
+      description: Entity type for the mention
+    messageId:
+      type: string
+      description: Source message identifier
+    summary:
+      type: string
+      description: Optional summary of the mention
+
+RefinerOptionalInputs:
+  type: object
+  properties:
+    recentConversationMessages:
+      type: array
+      items:
+        $ref: "#/ConversationMessage"
+      description: Last 2-3 conversation messages to filter from search results
+    mentions:
+      type: array
+      items:
+        $ref: "#/MentionContext"
+      description: Mention metadata captured for this conversation
+    requiredOps:
+      type: integer
+      minimum: 0
+      description: Minimum number of section updates required in the response
+
+UsageSummary:
+  type: object
+  required:
+    - promptTokens
+    - completionTokens
+    - totalTokens
+  properties:
+    modelId:
+      type: string
+      nullable: true
+    promptTokens:
+      type: integer
+      minimum: 0
+    completionTokens:
+      type: integer
+      minimum: 0
+    totalTokens:
+      type: integer
+      minimum: 0
+    estimatedCostUsd:
+      type: number
+      nullable: true
+
+InitiativeSummary:
+  type: object
+  required:
+    - title
+    - description
+    - details
+    - acceptanceCriteria
+  properties:
+    title:
+      type: string
+    description:
+      type: string
+    details:
+      type: string
+    acceptanceCriteria:
+      type: string
+
+TaskSummary:
+  type: object
+  required:
+    - title
+    - description
+  properties:
+    taskType:
+      type: string
+      enum: [STANDARD, BUG, FEATURE]
+      default: STANDARD
+    title:
+      type: string
+    description:
+      type: string
+    acceptanceCriteria:
+      type: string
+
+RefinerInfluence:
+  type: object
+  required:
+    - entityId
+    - entityType
+    - reasonType
+  properties:
+    entityId:
+      type: string
+      description: UUID of the entity that influenced this item
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+      description: Type of the influencing entity
+    reasoning:
+      type: string
+      description: Explanation of how this entity influenced the item
+    reasonType:
+      type: string
+      description: >-
+        Type of influence relationship. Recognized values:
+        `explicit_mention`, `implied`, `derived`, `origin`. The `origin`
+        value is system-injected to mark the host conversation's
+        workflow-about entity and is not declarable by agents.
+    confidence:
+      type: number
+      minimum: 0
+      maximum: 1
+      nullable: true
+      description: Optional confidence score (0-1)
+
+ReplaceOp:
+  type: object
+  required:
+    - text
+  properties:
+    type:
+      type: string
+      default: replace
+    target:
+      type: string
+    text:
+      type: string
+
+InitiativeActiveSectionEnum:
+  type: string
+  enum:
+    - description
+    - details
+    - acceptanceCriteria
+    - review
+
+TaskActiveSectionEnum:
+  type: string
+  enum:
+    - description
+    - acceptanceCriteria
+    - review
+
+AdrActiveSectionEnum:
+  type: string
+  enum:
+    - context
+    - decision
+    - consequences
+    - review
+
+InitiativeRefinerRequest:
+  allOf:
+    - type: object
+      required:
+        - initiative
+        - lastUserMessage
+        - activeSection
+      properties:
+        initiative:
+          $ref: "#/InitiativeSummary"
+        lastUserMessage:
+          type: string
+        activeSection:
+          $ref: "#/InitiativeActiveSectionEnum"
+    - $ref: "#/RefinerOptionalInputs"
+
+TaskRefinerRequest:
+  allOf:
+    - type: object
+      required:
+        - task
+        - initiative
+        - lastUserMessage
+        - activeSection
+      properties:
+        task:
+          $ref: "#/TaskSummary"
+        initiative:
+          $ref: "#/InitiativeSummary"
+        lastUserMessage:
+          type: string
+        activeSection:
+          $ref: "#/TaskActiveSectionEnum"
+    - $ref: "#/RefinerOptionalInputs"
+
+AdrRefinerRequest:
+  allOf:
+    - type: object
+      required:
+        - adr
+        - lastUserMessage
+        - activeSection
+      properties:
+        adr:
+          type: object
+          required:
+            - title
+            - context
+            - decision
+            - consequences
+          properties:
+            title:
+              type: string
+            context:
+              type: string
+            decision:
+              type: string
+            consequences:
+              type: string
+        lastUserMessage:
+          type: string
+        activeSection:
+          $ref: "#/AdrActiveSectionEnum"
+        initiative:
+          $ref: "#/InitiativeSummary"
+        task:
+          $ref: "#/TaskSummary"
+    - $ref: "#/RefinerOptionalInputs"
+
+BrainstormRefinerRequest:
+  allOf:
+    - type: object
+      required:
+        - title
+        - content
+        - lastUserMessage
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        lastUserMessage:
+          type: string
+        resumeRunId:
+          type: string
+          description: Resume an existing brainstorm run
+        resumeData:
+          type: object
+          additionalProperties: true
+          description: Payload used to resume a suspended brainstorm run
+    - $ref: "#/RefinerOptionalInputs"
+
+DecisionRefinerRequest:
+  allOf:
+    - type: object
+      required:
+        - title
+        - content
+        - lastUserMessage
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        lastUserMessage:
+          type: string
+    - $ref: "#/RefinerOptionalInputs"
+
+InitiativeRefinerResponse:
+  type: object
+  properties:
+    response:
+      type: string
+    sectionCompleteConfidence:
+      type: number
+      minimum: 0
+      maximum: 1
+    influences:
+      type: array
+      items:
+        $ref: "#/RefinerInfluence"
+    ops:
+      type: array
+      items:
+        $ref: "#/ReplaceOp"
+    relatedEntities:
+      type: array
+      items:
+        $ref: "#/RelatedEntityDto"
+    usage:
+      allOf:
+        - $ref: "#/UsageSummary"
+      nullable: true
+
+TaskRefinerResponse:
+  type: object
+  properties:
+    response:
+      type: string
+    sectionCompleteConfidence:
+      type: number
+      minimum: 0
+      maximum: 1
+    influences:
+      type: array
+      items:
+        $ref: "#/RefinerInfluence"
+    ops:
+      type: array
+      items:
+        $ref: "#/ReplaceOp"
+    relatedEntities:
+      type: array
+      items:
+        $ref: "#/RelatedEntityDto"
+    usage:
+      allOf:
+        - $ref: "#/UsageSummary"
+      nullable: true
+
+AdrRefinerResponse:
+  type: object
+  properties:
+    response:
+      type: string
+    nextStep:
+      type: string
+    influences:
+      type: array
+      items:
+        $ref: "#/RefinerInfluence"
+    ops:
+      type: array
+      items:
+        $ref: "#/ReplaceOp"
+    relatedEntities:
+      type: array
+      items:
+        $ref: "#/RelatedEntityDto"
+    usage:
+      allOf:
+        - $ref: "#/UsageSummary"
+      nullable: true
+
+BrainstormRefinerCompletedResponse:
+  type: object
+  properties:
+    content:
+      type: string
+    response:
+      type: string
+    nextStep:
+      type: string
+    influences:
+      type: array
+      items:
+        $ref: "#/RefinerInfluence"
+    ops:
+      type: array
+      items:
+        $ref: "#/ReplaceOp"
+    relatedEntities:
+      type: array
+      items:
+        $ref: "#/RelatedEntityDto"
+    usage:
+      allOf:
+        - $ref: "#/UsageSummary"
+      nullable: true
+
+BrainstormRefinerSuspendedResponse:
+  type: object
+  required:
+    - status
+    - runId
+    - clarifyingQuestions
+  properties:
+    status:
+      type: string
+      enum: [suspended]
+    runId:
+      type: string
+      description: Workflow run identifier to resume
+    clarifyingQuestions:
+      type: array
+      items:
+        type: string
+
+BrainstormRefinerResponse:
+  oneOf:
+    - $ref: "#/BrainstormRefinerCompletedResponse"
+    - $ref: "#/BrainstormRefinerSuspendedResponse"
+
+DecisionRefinerResponse:
+  type: object
+  properties:
+    content:
+      type: string
+    response:
+      type: string
+    nextStep:
+      type: string
+    influences:
+      type: array
+      items:
+        $ref: "#/RefinerInfluence"
+    ops:
+      type: array
+      items:
+        $ref: "#/ReplaceOp"
+    relatedEntities:
+      type: array
+      items:
+        $ref: "#/RelatedEntityDto"
+    usage:
+      allOf:
+        - $ref: "#/UsageSummary"
+      nullable: true
+
+# =============================================
+# Coding Prompt Schemas
+# =============================================
+CodingPromptRequest:
+  type: object
+  required:
+    - lastUserMessage
+    - task
+  properties:
+    lastUserMessage:
+      type: string
+    task:
+      $ref: "#/TaskSummary"
+    initiative:
+      $ref: "#/InitiativeSummary"
+    mentions:
+      type: array
+      items:
+        $ref: "#/MentionContext"
+      description: Mention metadata captured for this conversation
+    serviceId:
+      type: string
+      format: uuid
+      description: Service ID to scope implementation hint searches
+    implementationHints:
+      type: string
+      description: Additional implementation guidance provided by the user
+    previousPrompt:
+      type: string
+      description: Previously generated prompt text for follow-up edits
+    turnCount:
+      type: integer
+      minimum: 1
+      description: Current turn number in the coding prompt loop
+    clarificationAnswers:
+      type: array
+      items:
+        type: string
+      description: User answers to clarifying questions from round 1
+    recentConversationMessages:
+      type: array
+      items:
+        $ref: "#/ConversationMessage"
+      description: Recent conversation messages used to de-duplicate context
+
+CodingPromptPlanningMessage:
+  type: object
+  required:
+    - role
+    - content
+  properties:
+    role:
+      type: string
+      enum:
+        - system
+        - user
+        - assistant
+        - tool
+    content:
+      type: string
+    name:
+      type: string
+
+CodingPromptPlanningRetrievalPlanStep:
+  type: object
+  required:
+    - index
+  properties:
+    index:
+      type: integer
+    tool:
+      type: string
+    query:
+      type: string
+    why:
+      type: string
+
+CodingPromptPlanningRetrievalDeniedStep:
+  type: object
+  required:
+    - index
+  properties:
+    index:
+      type: integer
+    tool:
+      type: string
+    query:
+      type: string
+    reason:
+      type: string
+
+CodingPromptPlanningRetrievalErrorDetail:
+  type: object
+  required:
+    - message
+  properties:
+    message:
+      type: string
+
+CodingPromptPlanningRetrievalError:
+  type: object
+  required:
+    - index
+  properties:
+    index:
+      type: integer
+    tool:
+      type: string
+    query:
+      type: string
+    error:
+      $ref: "#/CodingPromptPlanningRetrievalErrorDetail"
+
+CodingPromptPlanningRetrievalSummary:
+  type: object
+  required:
+    - planSteps
+    - deniedSteps
+    - errors
+    - fromCache
+  properties:
+    planSteps:
+      type: array
+      items:
+        $ref: "#/CodingPromptPlanningRetrievalPlanStep"
+    deniedSteps:
+      type: array
+      items:
+        $ref: "#/CodingPromptPlanningRetrievalDeniedStep"
+    errors:
+      type: array
+      items:
+        $ref: "#/CodingPromptPlanningRetrievalError"
+    fromCache:
+      type: boolean
+
+EvidenceItem:
+  type: object
+  required:
+    - id
+    - type
+  properties:
+    id:
+      type: string
+    type:
+      type: string
+      enum:
+        - initiative
+        - task
+        - design_doc
+        - plan
+        - message
+        - service
+        - artifact
+        - project
+        - implementation_hint
+    title:
+      type: string
+    content:
+      type: string
+    topologySummary:
+      type: string
+    score:
+      type: number
+    source:
+      type: string
+      enum:
+        - semantic_search
+        - unified_search
+
+CodingPromptPlanningResponse:
+  type: object
+  required:
+    - mode
+    - messages
+    - plannerMessages
+    - retrieval
+    - evidenceItems
+    - relatedEntities
+  properties:
+    mode:
+      type: string
+      enum:
+        - planning
+    messages:
+      type: array
+      items:
+        $ref: "#/CodingPromptPlanningMessage"
+    plannerMessages:
+      type: array
+      items:
+        $ref: "#/CodingPromptPlanningMessage"
+    retrieval:
+      $ref: "#/CodingPromptPlanningRetrievalSummary"
+    evidenceItems:
+      type: array
+      items:
+        $ref: "#/EvidenceItem"
+    projectStateSummary:
+      type: string
+    relatedEntities:
+      type: array
+      items:
+        $ref: "#/RelatedEntityDto"
+
+# =============================================
+# Plan Scope Schemas
+# =============================================
+PlanSize:
+  type: string
+  enum:
+    - small
+    - medium
+    - large
+  description: T-shirt size estimate for plan complexity
+
+PlanScopeConstraintsInput:
+  type: object
+  description: Optional constraints captured across turns
+  properties:
+    scope:
+      type: array
+      items:
+        type: string
+      description: Scope boundaries, inclusions, exclusions, and assumptions
+    dependencies:
+      type: array
+      items:
+        type: string
+      description: Dependencies, prerequisites, blockers, and integration needs
+    targetUsers:
+      type: array
+      items:
+        type: string
+      description: Intended user segments, rollout cohorts, or adoption scope
+
+PlanScopeConstraints:
+  type: object
+  required:
+    - scope
+    - dependencies
+    - targetUsers
+  properties:
+    scope:
+      type: array
+      items:
+        type: string
+      description: Scope boundaries, inclusions, exclusions, and assumptions
+    dependencies:
+      type: array
+      items:
+        type: string
+      description: Dependencies, prerequisites, blockers, and integration needs
+    targetUsers:
+      type: array
+      items:
+        type: string
+      description: Intended user segments, rollout cohorts, or adoption scope
+
+PlanScopeRequest:
+  type: object
+  required:
+    - lastUserMessage
+  properties:
+    lastUserMessage:
+      type: string
+      description: Latest user message for scope discovery
+    initiative:
+      $ref: "#/InitiativeSummary"
+    task:
+      $ref: "#/TaskSummary"
+    constraints:
+      $ref: "#/PlanScopeConstraintsInput"
+    clarifyingAnswers:
+      type: array
+      items:
+        type: object
+        required:
+          - question
+          - answer
+        properties:
+          question:
+            type: string
+          answer:
+            type: string
+      description: User answers to clarifying questions for scope constraints
+    openQuestions:
+      type: array
+      items:
+        type: string
+      description: Previously asked open questions to avoid repetition
+    turnCount:
+      type: integer
+      minimum: 1
+      description: Current turn number in the scope discovery loop
+    recentConversationMessages:
+      type: array
+      items:
+        $ref: "#/ConversationMessage"
+      description: Recent conversation messages used to de-duplicate context
+    mentions:
+      type: array
+      items:
+        $ref: "#/MentionContext"
+      description: Mention metadata captured for this conversation
+
+PlanScopeResponse:
+  type: object
+  required:
+    - response
+    - constraints
+  properties:
+    response:
+      type: string
+      description: User-facing response and next-step guidance
+    constraints:
+      $ref: "#/PlanScopeConstraints"
+    openQuestions:
+      type: array
+      items:
+        type: string
+      description: Targeted follow-up questions needed to close gaps
+    planSize:
+      $ref: "#/PlanSize"
+      description: T-shirt size estimate for plan complexity
+    relatedEntities:
+      type: array
+      items:
+        $ref: "#/RelatedEntityDto"
+    usage:
+      allOf:
+        - $ref: "#/UsageSummary"
+      nullable: true
+
+# =============================================
+# Plan Proposal Schemas
+# =============================================
+PlanProposalDescription:
+  type: object
+  required:
+    - approach
+    - outcome
+    - verification
+  properties:
+    approach:
+      type: string
+      description: 2-3 sentence summary of the approach
+    outcome:
+      type: string
+      description: 2-4 sentences on what the finished product will do
+    verification:
+      type: string
+      description: How we'll know this meets the goals
+
+PlanProposalWorkstream:
+  type: object
+  required:
+    - name
+    - focus
+  properties:
+    name:
+      type: string
+      description: Clear name for this workstream
+    focus:
+      type: string
+      description: What this workstream accomplishes
+
+PlanProposal:
+  type: object
+  required:
+    - description
+    - workstreams
+  properties:
+    description:
+      $ref: "#/PlanProposalDescription"
+    workstreams:
+      type: array
+      minItems: 3
+      maxItems: 6
+      items:
+        $ref: "#/PlanProposalWorkstream"
+
+PlanProposalIntake:
+  type: object
+  required:
+    - why
+    - outcome
+    - verification
+  properties:
+    what:
+      type: string
+      description: What the user wants to build
+    why:
+      type: string
+      description: Why this matters or the motivating goal
+    outcome:
+      type: string
+      description: What success looks like for the finished work
+    verification:
+      type: string
+      description: How we'll know the plan meets the goals
+
+PlanApprovalRequest:
+  type: object
+  required:
+    - lastUserMessage
+    - intake
+  properties:
+    lastUserMessage:
+      type: string
+      description: Latest user message for plan approval
+    intake:
+      $ref: "#/PlanProposalIntake"
+    scope:
+      type: string
+      description: Current understanding of plan scope or boundaries
+    constraints:
+      $ref: "#/PlanScopeConstraintsInput"
+    clarifyingAnswers:
+      type: array
+      items:
+        type: object
+        required:
+          - question
+          - answer
+        properties:
+          question:
+            type: string
+          answer:
+            type: string
+      description: User answers to clarifying questions for plan approval
+    previousProposal:
+      $ref: "#/PlanProposalResponse"
+    userFeedback:
+      type: object
+      required:
+        - hasChanges
+        - description
+        - workstreams
+      properties:
+        hasChanges:
+          type: boolean
+          description: Flag indicating whether the user changed the proposal
+        description:
+          $ref: "#/PlanProposalDescription"
+        workstreams:
+          type: array
+          items:
+            type: object
+            required:
+              - id
+              - name
+              - focus
+            properties:
+              id:
+                type: string
+                description: Unique identifier for workstream
+              name:
+                type: string
+                description: Clear name for this workstream
+              focus:
+                type: string
+                description: What this workstream accomplishes
+              isNew:
+                type: boolean
+                description: Flag indicating if workstream was added by user
+              isDeleted:
+                type: boolean
+                description: Flag indicating if workstream was deleted by user
+      description: Round 2 user feedback or revision guidance
+    turnCount:
+      type: integer
+      minimum: 1
+      description: Current turn number in the plan approval loop
+    recentConversationMessages:
+      type: array
+      items:
+        $ref: "#/ConversationMessage"
+      description: Recent conversation messages used to de-duplicate context
+    mentions:
+      type: array
+      items:
+        $ref: "#/MentionContext"
+      description: Mention metadata captured for this conversation
+PlanProposalResponse:
+  type: object
+  required:
+    - description
+    - workstreams
+  properties:
+    description:
+      $ref: "#/PlanProposalDescription"
+    workstreams:
+      type: array
+      items:
+        $ref: "#/PlanProposalWorkstream"
+    relatedEntities:
+      type: array
+      items:
+        $ref: "#/RelatedEntityDto"
+    usage:
+      allOf:
+        - $ref: "#/UsageSummary"
+      nullable: true
+
+# =============================================
+# Plan Document Generation Schemas
+# =============================================
+
+# =============================================
+# Plan Gap Discovery Schemas
+# =============================================
+PlanGapCategory:
+  type: string
+  enum:
+    - tasks
+    - design_docs
+    - services
+
+PlanGapItem:
+  type: object
+  required:
+    - title
+    - sourceCategory
+  properties:
+    title:
+      type: string
+    description:
+      type: string
+    sourceCategory:
+      $ref: "#/PlanGapCategory"
+    notes:
+      type: string
+    overlapDetected:
+      type: boolean
+    overlapNotes:
+      type: string
+    potentialCoverage:
+      type: array
+      items:
+        $ref: "#/RelatedEntityDto"
+      description: Related entities that might cover this gap
+
+PlanGapDiscoveryPlan:
+  type: object
+  required:
+    - goal
+    - outcome
+  properties:
+    description:
+      type: string
+    goal:
+      type: string
+    outcome:
+      type: string
+
+PlanGapClarification:
+  type: object
+  required:
+    - tasks
+    - design_docs
+    - services
+  properties:
+    tasks:
+      type: array
+      items:
+        type: string
+    design_docs:
+      type: array
+      items:
+        type: string
+    services:
+      type: array
+      items:
+        type: string
+
+PlanGapCategories:
+  type: object
+  required:
+    - tasks
+    - design_docs
+    - services
+  properties:
+    tasks:
+      type: array
+      items:
+        $ref: "#/PlanGapItem"
+    design_docs:
+      type: array
+      items:
+        $ref: "#/PlanGapItem"
+    services:
+      type: array
+      items:
+        $ref: "#/PlanGapItem"
+
+PlanGapDiscoveryRequest:
+  type: object
+  required:
+    - lastUserMessage
+    - plan
+    - category
+  properties:
+    planSize:
+      $ref: "#/PlanSize"
+      description: Plan size from scope discovery to calibrate gap count
+    taskThemes:
+      type: array
+      description: Task themes derived from the plan to guide coverage analysis
+      items:
+        type: object
+        required:
+          - title
+        properties:
+          title:
+            type: string
+          comment:
+            type: string
+    category:
+      $ref: "#/PlanGapCategory"
+      description: Category to analyze in this request
+    lastUserMessage:
+      type: string
+      description: Latest user message for gap discovery
+    plan:
+      $ref: "#/PlanGapDiscoveryPlan"
+    planProposal:
+      $ref: "#/PlanProposal"
+      description: Approved plan proposal to treat as primary context
+    scope:
+      type: string
+      description: Current understanding of plan scope
+    constraints:
+      type: array
+      items:
+        type: string
+      description: Known constraints or guardrails for the plan
+    clarifyingAnswers:
+      type: array
+      items:
+        type: object
+        required:
+          - question
+          - answer
+        properties:
+          question:
+            type: string
+          answer:
+            type: string
+      description: User answers to clarifying questions for gap discovery
+    userFeedback:
+      $ref: "#/PlanGapDiscoveryUserFeedback"
+      description: Latest user feedback from the gap review UI
+    turnCount:
+      type: integer
+      minimum: 1
+      description: Current turn number in the gap discovery loop
+    recentConversationMessages:
+      type: array
+      items:
+        $ref: "#/ConversationMessage"
+      description: Recent conversation messages used to de-duplicate context
+    mentions:
+      type: array
+      items:
+        $ref: "#/MentionContext"
+      description: Mention metadata captured for this conversation
+
+PlanGapDiscoveryUserFeedback:
+  type: object
+  required:
+    - type
+    - nextAction
+    - gapReviews
+    - manuallyAdded
+    - clarifyingAnswers
+  properties:
+    type:
+      type: string
+      enum: [PLAN_GAPS]
+      description: User response type for plan gap discovery
+    nextAction:
+      type: string
+      enum:
+        - READY_FOR_NEXT_STEP
+        - CONTINUE_REVISING
+      description: User intent for how to proceed
+    gapReviews:
+      type: array
+      items:
+        $ref: "#/PlanGapReview"
+      description: User review decisions for system-identified gaps
+    manuallyAdded:
+      type: array
+      items:
+        $ref: "#/PlanGapAddedEntity"
+      description: User-added entities and manual entries
+    clarifyingAnswers:
+      type: array
+      items:
+        $ref: "#/PlanGapClarifyingAnswer"
+      description: User answers to clarifying questions
+  description: User feedback for plan gap discovery
+
+PlanGapReview:
+  type: object
+  required:
+    - title
+    - action
+    - coverageReviews
+  properties:
+    title:
+      type: string
+      description: Gap item title
+    action:
+      type: string
+      enum: [accept, reject, pending]
+      description: User's review action for the gap
+    comment:
+      type: string
+      description: Optional comment from the user
+    coverageReviews:
+      type: array
+      items:
+        $ref: "#/PlanGapCoverageReview"
+      description: Coverage decisions for existing work tied to the gap
+  description: User review decision for a gap item
+
+PlanGapCoverageReview:
+  type: object
+  required:
+    - entityId
+    - action
+  properties:
+    entityId:
+      type: string
+      description: Identifier for the existing entity
+    action:
+      type: string
+      enum: [accept, reject, pending]
+      description: User's review action for the coverage entity
+    comment:
+      type: string
+      description: Optional comment from the user
+  description: User review decision for potential coverage
+
+PlanGapClarifyingAnswer:
+  type: object
+  required:
+    - question
+    - answer
+  properties:
+    question:
+      type: string
+      description: Clarifying question
+    answer:
+      type: string
+      description: User's answer
+  description: User response to a clarifying question
+
+PlanGapAddedEntity:
+  type: object
+  required:
+    - source
+    - kind
+    - entityType
+  properties:
+    source:
+      type: string
+      enum: [user_added]
+      description: Origin of the added item
+    kind:
+      type: string
+      enum: [existing, manual]
+      description: Whether this refers to an existing entity or a manual entry
+    entityType:
+      type: string
+      enum: [tasks, design_docs, services]
+      description: Category of the added item
+    entityId:
+      type: string
+      description: Identifier for an existing entity
+    name:
+      type: string
+      description: Display name for an existing entity
+    title:
+      type: string
+      description: Title for a manual entry
+    description:
+      type: string
+      description: Optional description for a manual entry
+  description: User-added entity for plan gap discovery
+
+PlanGapDiscoveryResponse:
+  type: object
+  required:
+    - response
+    - category
+    - gaps
+    - clarificationQuestions
+  properties:
+    category:
+      $ref: "#/PlanGapCategory"
+      description: Category analyzed in this response
+    response:
+      type: string
+      description: User-facing summary and next-step guidance
+    gaps:
+      $ref: "#/PlanGapCategories"
+    clarificationQuestions:
+      $ref: "#/PlanGapClarification"
+    relatedEntities:
+      type: array
+      items:
+        $ref: "#/RelatedEntityDto"
+    usage:
+      allOf:
+        - $ref: "#/UsageSummary"
+      nullable: true
+
+# Entity Conversation Schemas
+# =============================================
+
+EntityConversationMessage:
+  type: object
+  required:
+    - id
+    - content
+  properties:
+    id:
+      type: string
+      description: Message identifier
+    content:
+      type: string
+      description: Message content
+    role:
+      type: string
+      description: Message role (user, assistant, system)
+
+EntityConversationBaseRequest:
+  type: object
+  required:
+    - lastUserMessage
+  properties:
+    lastUserMessage:
+      type: string
+      description: Latest user message to respond to
+    recentConversationMessages:
+      type: array
+      items:
+        $ref: "#/EntityConversationMessage"
+      description: Recent conversation messages used to de-duplicate context
+EntityConversationTaskSummary:
+  type: object
+  required:
+    - title
+    - description
+  properties:
+    taskType:
+      type: string
+      enum: [STANDARD, BUG, FEATURE]
+      default: STANDARD
+    title:
+      type: string
+    description:
+      type: string
+    acceptanceCriteria:
+      type: string
+
+EntityConversationInitiativeSummary:
+  type: object
+  required:
+    - title
+    - description
+    - details
+    - acceptanceCriteria
+  properties:
+    title:
+      type: string
+    description:
+      type: string
+    details:
+      type: string
+    acceptanceCriteria:
+      type: string
+
+EntityConversationDesignDocSection:
+  type: object
+  required:
+    - content
+  properties:
+    key:
+      type: string
+    title:
+      type: string
+    content:
+      type: string
+
+EntityConversationDesignDocSummary:
+  type: object
+  required:
+    - title
+  properties:
+    title:
+      type: string
+    summary:
+      type: string
+    sections:
+      type: array
+      items:
+        $ref: "#/EntityConversationDesignDocSection"
+
+EntityConversationAgentSessionSummary:
+  type: object
+  required:
+    - title
+  properties:
+    title:
+      type: string
+    goal:
+      type: string
+    summary:
+      type: string
+    notes:
+      type: string
+    decisions:
+      type: array
+      items:
+        type: string
+    nextSteps:
+      type: array
+      items:
+        type: string
+    files:
+      type: array
+      items:
+        type: string
+
+EntityConversationProjectSummary:
+  type: object
+  required:
+    - title
+  properties:
+    title:
+      type: string
+    description:
+      type: string
+    status:
+      type: string
+    goals:
+      type: array
+      items:
+        type: string
+    constraints:
+      type: array
+      items:
+        type: string
+    timeline:
+      type: string
+
+EntityConversationPlanSummary:
+  type: object
+  required:
+    - title
+    - outcome
+  properties:
+    title:
+      type: string
+    outcome:
+      type: string
+    description:
+      type: string
+    status:
+      type: string
+
+EntityConversationTaskRequest:
+  allOf:
+    - $ref: "#/EntityConversationBaseRequest"
+    - type: object
+      required:
+        - entityType
+        - entity
+      properties:
+        entityType:
+          type: string
+          enum:
+            - task
+        entity:
+          $ref: "#/EntityConversationTaskSummary"
+
+EntityConversationInitiativeRequest:
+  allOf:
+    - $ref: "#/EntityConversationBaseRequest"
+    - type: object
+      required:
+        - entityType
+        - entity
+      properties:
+        entityType:
+          type: string
+          enum:
+            - initiative
+        entity:
+          $ref: "#/EntityConversationInitiativeSummary"
+
+EntityConversationDesignDocRequest:
+  allOf:
+    - $ref: "#/EntityConversationBaseRequest"
+    - type: object
+      required:
+        - entityType
+        - entity
+      properties:
+        entityType:
+          type: string
+          enum:
+            - design-doc
+        entity:
+          $ref: "#/EntityConversationDesignDocSummary"
+
+EntityConversationAgentSessionRequest:
+  allOf:
+    - $ref: "#/EntityConversationBaseRequest"
+    - type: object
+      required:
+        - entityType
+        - entity
+      properties:
+        entityType:
+          type: string
+          enum:
+            - agent-session
+        entity:
+          $ref: "#/EntityConversationAgentSessionSummary"
+
+EntityConversationProjectRequest:
+  allOf:
+    - $ref: "#/EntityConversationBaseRequest"
+    - type: object
+      required:
+        - entityType
+        - entity
+      properties:
+        entityType:
+          type: string
+          enum:
+            - project
+        entity:
+          $ref: "#/EntityConversationProjectSummary"
+
+EntityConversationPlanRequest:
+  allOf:
+    - $ref: "#/EntityConversationBaseRequest"
+    - type: object
+      required:
+        - entityType
+        - entity
+      properties:
+        entityType:
+          type: string
+          enum:
+            - plan
+        entity:
+          $ref: "#/EntityConversationPlanSummary"
+
+EntityConversationRequest:
+  oneOf:
+    - $ref: "#/EntityConversationTaskRequest"
+    - $ref: "#/EntityConversationInitiativeRequest"
+    - $ref: "#/EntityConversationDesignDocRequest"
+    - $ref: "#/EntityConversationAgentSessionRequest"
+    - $ref: "#/EntityConversationProjectRequest"
+    - $ref: "#/EntityConversationPlanRequest"
+
+EntityConversationSuggestedAction:
+  type: string
+  enum:
+    - generate_task
+    - generate_step_task
+    - generate_inititiave
+    - generate_design_doc
+    - generate_step_design_doc
+    - generate_agent_session
+
+EntityConversationResponse:
+  type: object
+  required:
+    - response
+    - relatedEntities
+  properties:
+    response:
+      type: string
+    suggestedActions:
+      type: array
+      items:
+        $ref: "#/EntityConversationSuggestedAction"
+    influences:
+      type: array
+      items:
+        $ref: "./artifacts.yaml#/Influence"
+    relatedEntities:
+      type: array
+      items:
+        $ref: "#/RelatedEntityDto"
+    usage:
+      allOf:
+        - $ref: "#/UsageSummary"
+      nullable: true
+
+# =============================================
+# Project Conversation Schemas
+# =============================================
+ProjectConversationMessage:
+  type: object
+  required:
+    - id
+    - content
+  properties:
+    id:
+      type: string
+      description: Message identifier
+    content:
+      type: string
+      description: Message content
+    role:
+      type: string
+      description: Message role (user, assistant, system)
+
+ProjectConversationBaseRequest:
+  type: object
+  required:
+    - lastUserMessage
+  properties:
+    lastUserMessage:
+      type: string
+      description: Latest user message to respond to
+    recentConversationMessages:
+      type: array
+      items:
+        $ref: "#/ProjectConversationMessage"
+      description: Recent conversation messages used to de-duplicate context
+ProjectConversationProjectSummary:
+  type: object
+  required:
+    - title
+  properties:
+    title:
+      type: string
+    description:
+      type: string
+    status:
+      type: string
+    goals:
+      type: array
+      items:
+        type: string
+    constraints:
+      type: array
+      items:
+        type: string
+    timeline:
+      type: string
+
+ProjectConversationRequest:
+  allOf:
+    - $ref: "#/ProjectConversationBaseRequest"
+    - type: object
+      required:
+        - project
+      properties:
+        project:
+          $ref: "#/ProjectConversationProjectSummary"
+
+ProjectConversationSuggestedAction:
+  type: string
+  enum:
+    - generate_task
+    - generate_inititiave
+    - generate_design_doc
+    - generate_agent_session
+
+ProjectConversationResponse:
+  type: object
+  required:
+    - response
+    - relatedEntities
+    - conversationTitle
+  properties:
+    handledBy:
+      type: string
+      enum:
+        - conversation_writer
+        - proposal_writer
+      description: Which agent handled the request
+    intent:
+      type: string
+      description: Classified intent from the planner agent
+    response:
+      type: string
+    conversationTitle:
+      type: string
+      maxLength: 50
+      description: Short title for the conversation (max 50 characters)
+    suggestedActions:
+      type: array
+      items:
+        $ref: "#/ProjectConversationSuggestedAction"
+    influences:
+      type: array
+      items:
+        $ref: "./artifacts.yaml#/Influence"
+    relatedEntities:
+      type: array
+      items:
+        $ref: "#/RelatedEntityDto"
+    usage:
+      allOf:
+        - $ref: "#/UsageSummary"
+      nullable: true
+
+# =============================================
+# Activity Delta Schemas
+# Contract between API service and Agents service for daily-session workflow.
+# Defines how activity deltas flow from the API node to the Agents service.
+# =============================================
+
+ActivityDeltaStatusChange:
+  type: object
+  required:
+    - entityId
+    - entityType
+    - previousStatus
+    - currentStatus
+    - changedAt
+  properties:
+    entityId:
+      type: string
+      format: uuid
+      description: ID of the entity whose status changed
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    title:
+      type: string
+      description: Human-readable title of the entity
+    previousStatus:
+      type: string
+      description: Status before the transition
+      example: "IN_PROGRESS"
+    currentStatus:
+      type: string
+      description: Status after the transition
+      example: "COMPLETED"
+    changedAt:
+      type: string
+      format: date-time
+      description: Timestamp when the status transition occurred
+
+ActivityDeltaItemCompletion:
+  type: object
+  required:
+    - entityId
+    - entityType
+    - completedAt
+  properties:
+    entityId:
+      type: string
+      format: uuid
+      description: ID of the completed entity
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    title:
+      type: string
+      description: Human-readable title of the completed entity
+    completedAt:
+      type: string
+      format: date-time
+      description: Timestamp when the item was completed
+
+ActivityDeltaNewSignal:
+  type: object
+  required:
+    - entityId
+    - entityType
+    - signalType
+    - receivedAt
+  properties:
+    entityId:
+      type: string
+      format: uuid
+      description: ID of the entity that received the signal
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    title:
+      type: string
+      description: Human-readable title of the entity
+    signalType:
+      type: string
+      description: Type of signal received (e.g., new message, mention, review request)
+      example: "new_message"
+    summary:
+      type: string
+      description: Brief human-readable summary of the signal
+    receivedAt:
+      type: string
+      format: date-time
+      description: Timestamp when the signal was received
+
+ActivityDelta:
+  type: object
+  required:
+    - statusChanges
+    - itemCompletions
+    - newSignals
+    - computedAt
+  properties:
+    statusChanges:
+      type: array
+      items:
+        $ref: "#/ActivityDeltaStatusChange"
+      description: Status transitions detected since the activity snapshot was taken
+    itemCompletions:
+      type: array
+      items:
+        $ref: "#/ActivityDeltaItemCompletion"
+      description: Items that reached a completed state since the snapshot
+    newSignals:
+      type: array
+      items:
+        $ref: "#/ActivityDeltaNewSignal"
+      description: New signals (messages, mentions, reviews) received since the snapshot
+    computedAt:
+      type: string
+      format: date-time
+      description: Timestamp when this delta was computed by the API service
+
+ActivityRecordLinkType:
+  type: string
+  enum:
+    - SELF
+    - PARENT
+    - CHILD
+    - SIBLING
+    - DEPENDS_ON
+    - BLOCKS
+    - RELATED
+  description: Relationship between the originating entity and a linked entity in an activity record.
+
+ActivityRecordLinkedEntity:
+  type: object
+  required:
+    - entityId
+    - entityType
+    - linkType
+    - title
+  properties:
+    entityId:
+      type: string
+      format: uuid
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    linkType:
+      $ref: "#/ActivityRecordLinkType"
+    title:
+      type: string
+      description: Human-readable title/name for the linked entity.
+    updatedAt:
+      type: string
+      format: date-time
+      description: The entity's most recent graph-backed update timestamp, when available.
+    status:
+      type: string
+      description: Current task or agent session status when upstream data is available for this entity.
+    conversationId:
+      type: string
+      format: uuid
+      nullable: true
+      description: The most recent conversation associated with this entity, if any.
+    lastMessage:
+      type: object
+      nullable: true
+      description: The latest message in the agent session conversation when this linked entity is an agent session. Passed through as an opaque object.
+
+ActivityRecordPlanContext:
+  type: object
+  properties:
+    planId:
+      type: string
+      format: uuid
+      description: Unique identifier for a plan.
+    planTitle:
+      type: string
+      description: Human-readable title for the plan.
+    planStageId:
+      type: string
+      format: uuid
+      description: Unique identifier for a plan stage.
+    planStageTitle:
+      type: string
+      description: Human-readable title for the plan stage.
+    planStepId:
+      type: string
+      format: uuid
+      description: Unique identifier for a plan step.
+    planStepTitle:
+      type: string
+      description: Human-readable title for the plan step.
+
+ActivityRecord:
+  type: object
+  required:
+    - entityId
+    - entityType
+    - title
+    - timestamp
+    - linkedEntities
+    - reports
+  properties:
+    entityId:
+      type: string
+      format: uuid
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    title:
+      type: string
+      description: Human-readable title for the activity record.
+    status:
+      type: string
+      description: Current status when available.
+    timestamp:
+      type: string
+      format: date-time
+      description: Ranking timestamp for this record.
+    updatedAt:
+      type: string
+      format: date-time
+      description: Most recent update timestamp when available.
+    linkedEntities:
+      type: array
+      items:
+        $ref: "#/ActivityRecordLinkedEntity"
+      description: Entities linked to this activity record (parent, child, sibling, etc.).
+    reports:
+      type: array
+      items:
+        type: object
+      description: Report snapshots associated with this record. Passed through as opaque objects.
+    conversationId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Most recent conversation associated with this record, if any.
+    lastMessage:
+      type: object
+      nullable: true
+      description: The latest message in the conversation when this record represents an agent session. Passed through as an opaque object.
+    plan:
+      $ref: "#/ActivityRecordPlanContext"
+
+ActivityDeltaPayload:
+  type: object
+  required:
+    - payloadVersion
+    - computedDelta
+    - activitySnapshot
+  properties:
+    payloadVersion:
+      type: integer
+      minimum: 1
+      description: Schema version for backward compatibility. Increment when breaking changes are introduced.
+      example: 1
+    activitySnapshot:
+      type: array
+      items:
+        $ref: "#/ActivityRecord"
+      description: Activity state snapshot taken at session start, used as the baseline for delta computation
+    computedDelta:
+      $ref: "#/ActivityDelta"
+      description: Computed differences between the activity snapshot and current state
+    lastSystemMessage:
+      type: string
+      description: The most recent system message from the conversation, providing continuity context for the agent
+    lastUserActivities:
+      type: array
+      items:
+        $ref: "#/ActivityRecord"
+      description: Recent user activity records correlated to the current session
+    conversationId:
+      $ref: "./common.yaml#/ConversationId"
+      description: Conversation this delta payload belongs to
+    sessionStartedAt:
+      type: string
+      format: date-time
+      description: Timestamp when the daily session began, anchoring the snapshot baseline
+
+DailySessionRequest:
+  description: >
+    Request payload for the daily session workflow. Extends the API-side
+    ActivityDeltaPayload with agent-workflow fields (lastUserMessage,
+    recentConversationMessages).
+  allOf:
+    - $ref: "#/ActivityDeltaPayload"
+    - type: object
+      required:
+        - lastUserMessage
+      properties:
+        lastUserMessage:
+          type: string
+          description: Latest user message to respond to
+        recentConversationMessages:
+          type: array
+          items:
+            $ref: "#/ConversationMessage"
+          description: Recent conversation messages for context continuity and de-duplication
+
+DailySessionSuggestedAction:
+  type: string
+  enum:
+    - review_item
+    - follow_up
+    - continue_work
+
+DailySessionResponse:
+  type: object
+  required:
+    - response
+    - relatedEntities
+    - conversationTitle
+  properties:
+    response:
+      type: string
+      description: Natural-language response from the daily session writer
+    conversationTitle:
+      type: string
+      maxLength: 50
+      description: Short title for the conversation (max 50 characters)
+    suggestedActions:
+      type: array
+      items:
+        $ref: "#/DailySessionSuggestedAction"
+    influences:
+      type: array
+      items:
+        $ref: "./artifacts.yaml#/Influence"
+    relatedEntities:
+      type: array
+      items:
+        $ref: "#/RelatedEntityDto"
+    usage:
+      allOf:
+        - $ref: "#/UsageSummary"
+      nullable: true
+
+RelatedEntityDto:
+  type: object
+  required:
+    - entityId
+    - entityType
+    - entityName
+  properties:
+    entityId:
+      type: string
+      description: Related entity identifier
+    entityType:
+      type: string
+      description: Related entity type
+    entityName:
+      type: string
+      description: Display name for the related entity
+    writerPayloadMode:
+      type: string
+      enum:
+        - full_document
+        - summary_only
+        - excluded
+      description: How this entity's evidence would be included in writer context
+    selectedForHydration:
+      type: boolean
+      description: Whether this entity was selected for full-document hydration
+    hydrated:
+      type: boolean
+      description: Whether full-document hydration succeeded for this entity

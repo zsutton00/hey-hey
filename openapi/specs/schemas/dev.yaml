@@ -1,0 +1,771 @@
+# =============================================
+# LLM Development/Testing Schemas
+# =============================================
+
+LLMUsageDto:
+  type: object
+  required:
+    - promptTokens
+    - completionTokens
+    - totalTokens
+  properties:
+    promptTokens:
+      type: integer
+      minimum: 0
+      description: Number of tokens in the prompt
+      example: 100
+    completionTokens:
+      type: integer
+      minimum: 0
+      description: Number of tokens in the completion
+      example: 150
+    totalTokens:
+      type: integer
+      minimum: 0
+      description: Total tokens used
+      example: 250
+
+# =============================================
+# Debug/Admin Schemas
+# =============================================
+ProjectDebugViewDto:
+  type: object
+  required:
+    - projectId
+    - organizationId
+    - project
+    - conversations
+    - messages
+    - artifacts
+    - summary
+  properties:
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+      description: Project ID
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+      description: Organization ID
+    project:
+      type: object
+      required:
+        - id
+        - name
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Project ID
+        name:
+          type: string
+          description: Project name
+        description:
+          type: string
+          description: Project description
+        status:
+          type: string
+          description: Project status
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+    conversations:
+      type: object
+      required:
+        - total
+        - active
+        - completed
+        - failed
+        - recent
+      properties:
+        total:
+          type: integer
+          description: Total number of conversations
+        active:
+          type: integer
+          description: Number of active conversations
+        completed:
+          type: integer
+          description: Number of completed conversations
+        failed:
+          type: integer
+          description: Number of failed conversations
+        recent:
+          type: array
+          items:
+            type: object
+            required:
+              - id
+              - status
+              - category
+              - initiatedBy
+              - createdAt
+              - updatedAt
+              - messageCount
+            properties:
+              id:
+                type: string
+                format: uuid
+                description: Conversation ID
+              title:
+                type: string
+                description: Conversation title
+              status:
+                type: string
+                description: Conversation status
+              category:
+                type: string
+                description: Conversation category
+              initiatedBy:
+                type: string
+                description: Who initiated the conversation
+              createdAt:
+                type: string
+                format: date-time
+                description: Creation timestamp
+              updatedAt:
+                type: string
+                format: date-time
+                description: Last update timestamp
+              messageCount:
+                type: integer
+                description: Number of messages in conversation
+          description: Recent conversations
+    messages:
+      type: object
+      required:
+        - total
+        - byType
+        - byStatus
+        - recent
+      properties:
+        total:
+          type: integer
+          description: Total number of messages
+        byType:
+          type: object
+          required:
+            - USER
+            - SYSTEM
+          properties:
+            USER:
+              type: integer
+              description: Number of user messages
+            SYSTEM:
+              type: integer
+              description: Number of system messages
+          description: Message count by type
+        byStatus:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Message count by status
+        recent:
+          type: array
+          items:
+            type: object
+            required:
+              - id
+              - type
+              - status
+              - conversationId
+              - createdAt
+            properties:
+              id:
+                type: string
+                format: uuid
+                description: Message ID
+              type:
+                type: string
+                enum: [USER, SYSTEM]
+                description: Message type
+              status:
+                type: string
+                description: Message status
+              conversationId:
+                type: string
+                format: uuid
+                description: Conversation ID
+              createdAt:
+                type: string
+                format: date-time
+                description: Creation timestamp
+              parentMessageId:
+                type: string
+                format: uuid
+                description: Parent message ID
+          description: Recent messages
+    artifacts:
+      type: object
+      required:
+        - total
+        - byType
+        - byStatus
+        - withEmbeddings
+        - recent
+      properties:
+        total:
+          type: integer
+          description: Total number of artifacts
+        byType:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Artifact count by type
+        byStatus:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Artifact count by status
+        withEmbeddings:
+          type: integer
+          description: Number of artifacts with embeddings
+        recent:
+          type: array
+          items:
+            type: object
+            required:
+              - id
+              - type
+              - status
+              - hasEmbedding
+              - createdAt
+            properties:
+              id:
+                type: string
+                format: uuid
+                description: Artifact ID
+              type:
+                type: string
+                description: Artifact type
+              title:
+                type: string
+                description: Artifact title
+              status:
+                type: string
+                description: Artifact status
+              sourceType:
+                type: string
+                description: Source type
+              sourceId:
+                type: string
+                description: Source ID
+              hasEmbedding:
+                type: boolean
+                description: Whether artifact has embedding
+              createdAt:
+                type: string
+                format: date-time
+                description: Creation timestamp
+          description: Recent artifacts
+    events:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: Total number of events
+        byType:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Event count by type
+        recent:
+          type: array
+          items:
+            type: object
+            required:
+              - id
+              - eventType
+              - aggregateId
+              - eventData
+              - createdAt
+            properties:
+              id:
+                type: string
+                format: uuid
+                description: Event ID
+              eventType:
+                type: string
+                description: Event type
+              aggregateId:
+                type: string
+                description: Aggregate ID
+              eventData:
+                type: object
+                description: Event data
+              createdAt:
+                type: string
+                format: date-time
+                description: Creation timestamp
+          description: Recent events
+      description: Event data (optional)
+    summary:
+      type: object
+      required:
+        - totalEntities
+        - lastActivity
+        - activeSince
+      properties:
+        totalEntities:
+          type: integer
+          description: Total number of entities across all types
+        lastActivity:
+          type: string
+          format: date-time
+          description: Timestamp of last activity
+        activeSince:
+          type: string
+          format: date-time
+          description: When the project became active
+      description: Summary statistics
+
+WorkflowStatusDebugDto:
+  type: object
+  required:
+    - workflowId
+    - status
+    - taskQueue
+    - workflowType
+    - debugInfo
+  properties:
+    workflowId:
+      $ref: "./common.yaml#/WorkflowId"
+      description: Workflow ID
+    status:
+      type: object
+      required:
+        - name
+        - runId
+        - startTime
+      properties:
+        name:
+          type: string
+          description: Workflow status name
+          example: "RUNNING"
+        runId:
+          type: string
+          description: Workflow run ID
+          example: "abc123-def456-ghi789"
+        startTime:
+          type: string
+          format: date-time
+          description: Workflow start time
+        closeTime:
+          type: string
+          format: date-time
+          description: Workflow close time (if completed)
+        executionTime:
+          type: integer
+          description: Execution time in milliseconds (if completed)
+      description: Workflow execution status
+    taskQueue:
+      type: string
+      description: Task queue name
+      example: "main-task-queue"
+    workflowType:
+      type: string
+      description: Workflow type
+      example: "ConversationFlowWorkflow"
+    conversation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Conversation ID
+        projectId:
+          type: string
+          format: uuid
+          description: Project ID
+        organizationId:
+          type: string
+          format: uuid
+          description: Organization ID
+        title:
+          type: string
+          description: Conversation title
+        status:
+          type: string
+          description: Conversation status
+      description: Associated conversation context
+    debugInfo:
+      type: object
+      required:
+        - canReceiveSignals
+        - isActive
+      properties:
+        canReceiveSignals:
+          type: boolean
+          description: Whether workflow can receive signals
+        isActive:
+          type: boolean
+          description: Whether workflow is currently active
+        lastActivity:
+          type: string
+          format: date-time
+          description: Last activity timestamp
+      description: Debug information
+    currentStep:
+      type: object
+      properties:
+        step:
+          type: string
+          description: Current workflow step
+          example: "processing_user_input"
+        currentNodeId:
+          type: string
+          description: Current node ID
+          example: "node-123"
+        phase:
+          type: string
+          description: Current phase
+          example: "execution"
+        isComplete:
+          type: boolean
+          description: Whether current step is complete
+        iterations:
+          type: integer
+          description: Number of iterations completed
+        hasOpener:
+          type: boolean
+          description: Whether step has opener
+        lastActivity:
+          type: string
+          format: date-time
+          description: Last activity timestamp
+        pathTaken:
+          type: array
+          items:
+            type: string
+          description: Path taken through workflow
+      description: Current step information (only if workflow is active)
+    logs:
+      type: object
+      properties:
+        activities:
+          type: array
+          items:
+            type: object
+            required:
+              - activityType
+              - activityId
+              - timestamp
+              - status
+            properties:
+              activityType:
+                type: string
+                description: Type of activity
+                example: "processUserMessage"
+              activityId:
+                type: string
+                description: Activity ID
+                example: "activity-123"
+              timestamp:
+                type: string
+                format: date-time
+                description: Activity timestamp
+              status:
+                type: string
+                enum:
+                  [
+                    "SCHEDULED",
+                    "STARTED",
+                    "COMPLETED",
+                    "FAILED",
+                    "TIMED_OUT",
+                    "CANCELED",
+                  ]
+                description: Activity status
+              result:
+                type: object
+                description: Activity result (if completed)
+              failure:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Failure message
+                  source:
+                    type: string
+                    description: Failure source
+                  stackTrace:
+                    type: string
+                    description: Stack trace
+                description: Failure details (if failed)
+          description: Activity execution logs
+        failures:
+          type: array
+          items:
+            type: object
+            required:
+              - timestamp
+              - message
+              - source
+            properties:
+              timestamp:
+                type: string
+                format: date-time
+                description: Failure timestamp
+              message:
+                type: string
+                description: Failure message
+              source:
+                type: string
+                description: Failure source
+                example: "Activity"
+              stackTrace:
+                type: string
+                description: Stack trace
+              activityType:
+                type: string
+                description: Associated activity type
+          description: All workflow and activity failures
+        signals:
+          type: array
+          items:
+            type: object
+            required:
+              - signalName
+              - timestamp
+            properties:
+              signalName:
+                type: string
+                description: Signal name
+                example: "userMessage"
+              timestamp:
+                type: string
+                format: date-time
+                description: Signal timestamp
+              input:
+                type: object
+                description: Signal input data
+          description: Signals sent to workflow
+      description: Workflow execution logs (only included if requested)
+    error:
+      type: string
+      description: Error message if workflow status retrieval failed
+
+# =============================================
+# LLM Response Data Objects
+# =============================================
+LLMRequestResponseData:
+  type: object
+  properties:
+    requestId:
+      type: string
+      description: Generated request ID
+    organizationId:
+      type: string
+      description: Organization ID
+    projectId:
+      type: string
+      description: Project ID
+    prompt:
+      type: string
+      description: The prompt that was sent
+
+LLMProgressResponseData:
+  type: object
+  properties:
+    requestId:
+      type: string
+      description: Request ID
+    chunk:
+      type: string
+      description: Progress chunk
+    tokensGenerated:
+      type: integer
+      description: Tokens generated so far
+
+LLMCompleteResponseData:
+  type: object
+  properties:
+    requestId:
+      type: string
+      description: Request ID
+    status:
+      type: string
+      enum: ["success", "failed"]
+      description: Completion status
+    content:
+      type: string
+      description: Generated content
+    usage:
+      $ref: "#/LLMUsageDto"
+      description: Token usage statistics
+
+ActiveRequestsResponseData:
+  type: object
+  properties:
+    activeRequests:
+      type: array
+      items:
+        type: string
+      description: Array of active request IDs
+    count:
+      type: integer
+      description: Number of active requests
+
+RequestStatusResponseData:
+  type: object
+  properties:
+    requestId:
+      type: string
+      description: Request ID
+    isActive:
+      type: boolean
+      description: Whether the request is currently active
+    startTime:
+      type: string
+      format: date-time
+      description: When the request started
+    duration:
+      type: integer
+      description: Duration in milliseconds since start
+
+SimulateFlowResponseData:
+  type: object
+  properties:
+    requestId:
+      type: string
+      description: Generated request ID
+    simulateDelay:
+      type: integer
+      description: Delay used for simulation
+    steps:
+      type: array
+      items:
+        type: string
+      description: Description of simulation steps
+
+# =============================================
+# LLM Tracking Schemas
+# =============================================
+LLMPromptResponseDto:
+  type: object
+  required:
+    - id
+    - organizationId
+    - provider
+    - model
+    - stream
+    - prompt
+    - responseContent
+    - success
+    - createdAt
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique identifier for the record
+    requestId:
+      type: string
+      description: LLM request ID
+    organizationId:
+      type: string
+      format: uuid
+      description: Organization ID
+    projectId:
+      type: string
+      format: uuid
+      description: Project ID
+    conversationId:
+      type: string
+      format: uuid
+      description: Conversation ID
+    workflowId:
+      type: string
+      format: uuid
+      description: Workflow ID
+    flowId:
+      type: string
+      description: Flow ID
+    userId:
+      type: string
+      format: uuid
+      description: User ID
+    nodeId:
+      type: string
+      description: Flow node ID
+    nodeType:
+      type: string
+      description: Flow node type
+    provider:
+      type: string
+      description: LLM provider name
+      example: anthropic
+    model:
+      type: string
+      description: LLM model name
+      example: claude-sonnet-4
+    taskType:
+      type: string
+      description: Type of task
+    toolName:
+      type: string
+      description: Tool name if applicable
+    temperature:
+      type: number
+      format: float
+      description: Temperature parameter
+    maxTokens:
+      type: integer
+      description: Maximum tokens parameter
+    stream:
+      type: boolean
+      description: Whether response was streamed
+    prompt:
+      type: string
+      description: The prompt sent to LLM
+    responseContent:
+      type: string
+      description: The response from LLM
+    responseSchema:
+      type: object
+      description: Response schema if structured output
+    promptTokens:
+      type: integer
+      description: Number of prompt tokens
+    completionTokens:
+      type: integer
+      description: Number of completion tokens
+    totalTokens:
+      type: integer
+      description: Total tokens used
+    inputCost:
+      type: number
+      format: float
+      description: Input cost for the LLM call
+    outputCost:
+      type: number
+      format: float
+      description: Output cost for the LLM call
+    totalCost:
+      type: number
+      format: float
+      description: Total cost for the LLM call
+    durationMs:
+      type: integer
+      description: Duration in milliseconds
+    success:
+      type: boolean
+      description: Whether the LLM call succeeded
+    errorMessage:
+      type: string
+      description: Error message if failed
+    errorType:
+      type: string
+      description: Error type if failed
+    metadata:
+      type: object
+      description: Additional metadata
+    createdAt:
+      type: string
+      format: date-time
+      description: Timestamp when record was created

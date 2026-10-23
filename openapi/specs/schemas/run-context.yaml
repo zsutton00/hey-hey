@@ -1,0 +1,114 @@
+# =============================================
+# Shared run-context wire schemas
+# Single source of truth for the run context metadata carried by the
+# platform-signed start-run envelope and the transport-neutral Agent Bridge
+# runtime contract (agent-bridge/openapi.yaml).
+# =============================================
+
+RunContextMetadata:
+  type: object
+  required:
+    - capturedAt
+    - organizationId
+    - projectId
+    - agentSessionId
+    - userComments
+    - fileReferences
+  properties:
+    capturedAt:
+      type: string
+      format: date-time
+    organizationId:
+      type: string
+      minLength: 1
+    projectId:
+      type: string
+      minLength: 1
+    agentSessionId:
+      type: string
+      minLength: 1
+      description: >
+        The platform `agentSession.id` (UUID) of the row that owns this
+        run. This is the canonical record id — NOT the legacy
+        `agentSession.agentSessionId` string. The CLI adopts this value
+        verbatim as the local run's `agentic_session_id` and stamps it on
+        the `X-Agent-Session-ID` header for every MCP request, so
+        sourcing the wrong field here will cause reports and edges to
+        attach to a phantom session that the platform cannot resolve.
+    launchPlanId:
+      type: string
+      minLength: 1
+      description: >
+        Plan that this run was launched from (e.g. the plan whose stage
+        step opened this coding session). Set client-side by the launching
+        UI when the session originates from a plan surface, threaded onto
+        the local run's contextMetadata so the analyze step can branch on
+        plan-membership pre-prompt. Carried only on the Agent Bridge
+        wire — the platform API service does not persist this field.
+        Distinct from the platform agent-session's `planId`, which
+        identifies the plan being *generated* by a PLAN_GENERATION
+        session.
+    launchStepId:
+      type: string
+      minLength: 1
+      description: >
+        Plan step that this run was launched from. Paired with
+        `launchPlanId` to identify which step within the plan stage this
+        session is executing. Set client-side by the launching UI and
+        carried only on the Agent Bridge wire; the platform API
+        service does not persist this field.
+    launchStageId:
+      type: string
+      minLength: 1
+      description: >
+        Plan stage that contains `launchStepId`. Set client-side by the
+        launching UI from the same route params that supply
+        `launchPlanId` / `launchStepId`, and threaded onto downstream
+        prompt payloads so the analyze and coding-plan agents can call
+        `get_plan_stage(stageId: launchStageId)` directly. Carried only
+        on the Agent Bridge wire; the platform API service does not
+        persist this field.
+    task:
+      $ref: "./tasks.yaml#/TaskResponseDto"
+    targetSessionId:
+      type: string
+      minLength: 1
+      description: >
+        The platform `agentSession.id` (UUID) of the session this run is
+        operating *against*, when the route observes another session rather
+        than owning its own conversation alone. Used by the session-monitor
+        route as the find-or-create key so subsequent firings against the
+        same target reuse the same monitor AgentSession. Carried only on
+        the Agent Bridge wire; the platform API service does not persist
+        this field.
+    taskMonitorId:
+      type: string
+      format: uuid
+      description: >
+        Canonical TASK_MONITOR work-item identity for a coordinating monitor
+        Run. Used only by the shared monitor identity resolver to find or
+        create one coordinator per monitor; source preparation provenance and
+        entity conversation identifiers never participate in this key.
+    userComments:
+      type: array
+      items:
+        type: string
+    fileReferences:
+      $ref: "#/RunReferences"
+
+RunReferences:
+  type: object
+  required:
+    - resolved
+    - unresolved
+  properties:
+    resolved:
+      type: array
+      items:
+        type: string
+        minLength: 1
+    unresolved:
+      type: array
+      items:
+        type: string
+        minLength: 1

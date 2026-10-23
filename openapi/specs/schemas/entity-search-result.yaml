@@ -1,0 +1,20 @@
+type: object
+properties:
+  entityId:
+    type: string
+    format: uuid
+  entityType:
+    $ref: './common.yaml#/EntityType'
+  entityName:
+    type: string
+  similarity:
+    type: number
+    format: float
+  status:
+    type: string
+    nullable: true
+required:
+  - entityId
+  - entityType
+  - entityName
+  - similarity

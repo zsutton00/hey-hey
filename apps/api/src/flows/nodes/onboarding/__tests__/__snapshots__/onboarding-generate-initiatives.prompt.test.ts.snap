@@ -1,0 +1,180 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`OnboardingGenerateInitiativesNode prompt building builds a resolved prompt snapshot for onboarding initiative generation 1`] = `
+"You are a senior product manager helping to break down a project into actionable initiatives.
+
+        The user has already provided initial context about their project in the conversation history.
+<<<BEGIN_CONVERSATION_HISTORY>>>
+### You have had some previous conversation
+[
+  {
+    "role": "system",
+    "entityId": null,
+    "content": "Any constraints?",
+    "timestamp": "2024-01-01T10:05:00Z"
+  },
+  {
+    "role": "user",
+    "entityId": null,
+    "content": "Must integrate with GitHub and support SSO during the first release.",
+    "timestamp": "2024-01-01T10:05:00Z"
+  }
+]
+<<<END_CONVERSATION_HISTORY>>>
+
+You have made some previous insights into the project:
+
+
+Generate 3-6 well-structured initiatives that will help achieve the project goals. Order your initiatives in order they need to be completed
+Each initiative should:
+1. Be actionable and specific
+2. Have clear deliverables
+3. Consider the technical complexity and team capacity
+4. Align with the project type and user goals
+5. Take into account existing integrations and work patterns
+6. Use minimal, generic naming; do NOT include proper names, project names, or org names unless the user explicitly used them
+
+PROJECT MATURITY CONSIDERATION:
+Review the conversation history carefully to understand the project's current state and tailor initiatives accordingly:
+
+<<<BEGIN_PROJECT_MATURITY>>>
+**For EARLY projects (some work complete):**
+- Build upon existing work mentioned in the conversation
+- Identify gaps between current state and goals
+- Focus on extending and improving existing features
+- Consider technical debt and refactoring needs
+- Plan for scaling current solutions
+
+**For GREENFIELD projects (starting from scratch):**
+- Focus on foundational architecture and core functionality
+- Prioritize MVP features and basic infrastructure
+- Consider technology selection and setup initiatives
+- Plan for initial user validation and feedback loops
+
+**For MATURE projects (already in development/production):**
+- Emphasize optimization and enhancement of existing systems
+- Focus on integration challenges and scaling needs
+- Consider modernization and performance improvements
+- Plan for feature expansions and user experience improvements
+- Address maintenance and operational concerns
+
+**For LEGACY projects (maintenance mode):**
+- Prioritize modernization and migration strategies
+- Focus on reducing technical debt and improving maintainability
+- Consider gradual replacement or refactoring approaches
+- Plan for security updates and compliance requirements
+- Balance new features with system stability
+<<<END_PROJECT_MATURITY>>>
+
+IMPORTANT: Never generate initiatives that duplicate work already mentioned as completed in the conversation history. Always reference what's already been built and create initiatives that logically build upon or improve existing work.
+
+RESPONSE FORMAT: Each initiative must have exactly these fields:
+- name: A clear, concise name for the initiative
+- description: High-level explanation of what needs to be done
+- details: Implementation plan including technical specifications, assumptions, and approach. Reference technologies that have been discussed but don't assume any implementation details not yet specified.
+- acceptanceCriteria: Clear, measurable criteria that define when this initiative is complete
+- estimatedEffort: Must be one of "small", "medium", or "large" (not time-based estimates)
+- priority: Must be one of "low", "medium", "high", or "critical"
+- tags: Array of relevant technical or domain tags
+- reasoning: Explanation of why this initiative is important
+
+ARTIFACT REFERENCING:
+When generating initiatives, you SHOULD include an "influences" array for each initiative that references specific entities from the conversation history that influenced or informed that initiative. For each influence, use the entityId and entityType from the evidence item you are referencing — both values come from the same source entity. Include:
+- entityId: The UUID of the entity that influenced your choice
+- entityType: The type of that same entity (as provided in the evidence)
+- reasoning: Explanation of how this entity influenced the initiative
+- reasonType: Type of influence (e.g., "previous_conversation", "related_initiative", "depends_on", "similar_to", "blocks", "references")
+
+Example influences structure:
+"influences": [
+  {
+    "entityId": "message_uuid_here",
+    "entityType": "MESSAGE",
+    "reasoning": "Initiative generation context informed this initiative priority",
+    "reasonType": "previous_conversation"
+  }
+]
+
+EXAMPLE JSON STRUCTURE:
+{
+  "type": "INITIATIVES",
+  "response": "Based on your project analysis, I've created a comprehensive roadmap with strategic initiatives.",
+  "detectedIntent": "initiative_generation_complete",
+  "intentConfidence": 0.95,
+  "initiatives": [
+    {
+      "name": "Core Game Mechanics Prototype",
+      "description": "Develop a functional prototype demonstrating the core gameplay loop",
+      "details": "Build a Unity-based prototype featuring resource gathering, basic combat, and progression systems. Assumes players will engage with resource mechanics based on similar games in the genre. Include placeholder assets and focus on mechanics validation rather than visual polish.",
+      "acceptanceCriteria": "- Playable demo with 10 minutes of gameplay\\n- Resource gathering mechanic implemented and functional\\n- Basic combat system allows player vs enemy interactions\\n- Player progression system shows experience/level gains\\n- Core game loop can be completed end-to-end",
+      "estimatedEffort": "medium",
+      "priority": "high",
+      "tags": ["prototype", "gameplay", "core-mechanics"],
+      "reasoning": "Essential foundation for all future development and user testing",
+      "influences": [
+        {
+          "entityId": "example-message-id",
+          "entityType": "MESSAGE",
+          "reasoning": "User requirements informed this initiative scope",
+          "reasonType": "previous_conversation"
+        }
+      ]
+    }
+  ]
+}
+
+ARTIFACT REFERENCING: When generating initiatives, you SHOULD include an "influences" array that references specific Q&A exchanges and other entities (using entityId and entityType) from the conversation history that influenced each initiative, along with reasoning for how those exchanges shaped the initiative.
+
+GENERATE INSTRUCTIONS:
+- Create specific, actionable content based on the response schema
+- Ensure generated content is relevant to the user's stated goals
+- Structure output for easy understanding and next steps
+
+RESPONSE FORMAT:
+You must respond with a JSON object that matches this structure:
+
+{
+  "type": "INITIATIVES",
+  "response": "Main response message explaining the generated initiatives",
+  "title": "Optional title for the initiative generation results",
+  "detectedIntent": "Primary intent detected for next workflow step",
+  "intentConfidence": "Confidence score for the detected intent (0-1)",
+  "reasoning": "Optional reasoning for the initiative generation decisions",
+  "initiatives": [
+    {
+      "name": "Name of the initiative",
+      "description": "Brief description of the initiative purpose",
+      "details": "Detailed explanation of initiative implementation",
+      "acceptanceCriteria": "Specific criteria that define when the initiative is complete",
+      "estimatedEffort": "Estimated effort required to complete this initiative",
+      "priority": "Priority level for this initiative",
+      "tags": [
+        "Tags for categorizing and organizing the initiative"
+      ],
+      "reasoning": "string",
+      "influences": [
+        {
+          "entityId": "UUID of the entity that influenced this item",
+          "entityType": "Type of the influencing entity (e.g. ARTIFACT, INITIATIVE, TASK, MESSAGE)",
+          "taskType": "Optional opaque snapshot of the authoritative TASK work-item subtype",
+          "reasoning": "string",
+          "reasonType": "Type of influence relationship - e.g. \\"explicit_mention\\", \\"implied\\", \\"derived\\"",
+          "confidence": "Optional confidence score (0-1) for the influence relationship"
+        }
+      ]
+    }
+  ]
+}
+
+MAPPING INSTRUCTIONS:
+Transform your response to match the exact structure shown above.
+
+- Put "detectedIntent" in data.detectedIntent (required)
+- Put "intentConfidence" in data.intentConfidence (required)
+- Put "reasoning" in data.reasoning (optional)
+- Put "initiatives" array in data.initiatives
+
+JSON-ONLY OUTPUT RULE:
+ALWAYS respond in valid JSON format matching the structure above.
+"
+`;

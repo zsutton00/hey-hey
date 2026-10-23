@@ -1,0 +1,538 @@
+# =====================================================
+# Existing-machine controller enrollment and management
+# =====================================================
+
+ControllerManagementProtocolVersion:
+  type: integer
+  enum: [2]
+  description: The only protocol version accepted by controller management.
+
+MachineControllerAuthenticationProofDto:
+  type: object
+  additionalProperties: false
+  required:
+    - machineId
+    - challenge
+    - signature
+  properties:
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+      description: >-
+        The machine identifier covered by the proof. The server compares it
+        with the path identifier and never treats this client value as identity.
+    challenge:
+      type: string
+      format: byte
+      minLength: 43
+      maxLength: 44
+      pattern: "^[A-Za-z0-9+/]+={0,2}$"
+      description: >-
+        Fresh server-issued challenge bytes. The challenge is single-use and
+        expires at the machine-authentication boundary.
+    signature:
+      type: string
+      format: byte
+      minLength: 86
+      maxLength: 88
+      pattern: "^[A-Za-z0-9+/]+={0,2}$"
+      description: >-
+        Base64-encoded Ed25519 signature over the exact challenge bytes. The
+        server verifies it against the stored public key for the same machine
+        whose credential hash was validated.
+  description: >-
+    Fresh key proof is required in addition to the MachineCredentialAuth
+    bearer credential. A credential, path identifier, or body identifier alone
+    never establishes the machine principal.
+
+ExistingMachineControllerEnrollmentRequestDto:
+  type: object
+  additionalProperties: false
+  required:
+    - authorizationProtocolVersion
+    - machineProof
+  properties:
+    authorizationProtocolVersion:
+      $ref: "#/ControllerManagementProtocolVersion"
+      description: The existing machine must opt into protocol version 2.
+    machineProof:
+      $ref: "#/MachineControllerAuthenticationProofDto"
+  description: >-
+    Closed machine-authenticated request for opening one controller enrollment
+    against the stored machine row. The request deliberately has no machine
+    public-key or machine-name field: those values remain server-bound to the
+    existing machine and cannot be replaced by a caller.
+
+ControllerEnrollmentEligibilityState:
+  type: string
+  enum:
+    - LEGACY_PROTOCOL
+    - CONTROLLER_ENROLLMENT_REQUIRED
+    - READY
+    - NO_CONTROLLER
+  description: >-
+    Existing-machine states that may enter the local controller ceremony.
+    LEGACY_PROTOCOL and CONTROLLER_ENROLLMENT_REQUIRED are upgrade paths;
+    READY and NO_CONTROLLER cover additional-controller and recovery paths.
+
+ControllerCredentialRevocationState:
+  type: string
+  enum:
+    - ACTIVE
+    - REVOKED
+
+ControllerCredentialSummaryDto:
+  type: object
+  additionalProperties: false
+  required:
+    - credentialId
+    - controllerCredentialPublicKey
+    - label
+    - fingerprint
+    - createdAt
+    - lastUsedAt
+    - backupEligible
+    - backupState
+    - revocationState
+    - revokedAt
+  properties:
+    credentialId:
+      $ref: "./controller-authorization.yaml#/ControllerCredentialId"
+      description: Opaque identifier of the enrolled controller credential.
+    controllerCredentialPublicKey:
+      $ref: "./controller-authorization.yaml#/ControllerCredentialPublicKey"
+      description: Per-controller ES256 verification material for local admission.
+    label:
+      type: string
+      minLength: 1
+      maxLength: 128
+      description: User-visible label retained for the controller.
+    fingerprint:
+      type: string
+      minLength: 8
+      maxLength: 32
+      pattern: "^[a-f0-9]+$"
+      description: Short non-secret fingerprint suitable for user inspection.
+    createdAt:
+      type: string
+      format: date-time
+    lastUsedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Last accepted controller use, or null when never used.
+    backupEligible:
+      type: boolean
+      description: Whether the authenticator reports that backup is eligible.
+    backupState:
+      type: boolean
+      description: Whether the authenticator reports that the credential is backed up.
+    revocationState:
+      $ref: "#/ControllerCredentialRevocationState"
+    revokedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Revocation time, or null while the credential is active.
+
+ControllerInventoryResponseDto:
+  type: object
+  additionalProperties: false
+  required:
+    - machineId
+    - authorizationProtocolVersion
+    - enrollmentState
+    - executionReadiness
+    - controllers
+  properties:
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    authorizationProtocolVersion:
+      $ref: "./controller-authorization.yaml#/AuthorizationProtocolVersion"
+    enrollmentState:
+      $ref: "#/ControllerEnrollmentEligibilityState"
+    executionReadiness:
+      $ref: "./controller-authorization.yaml#/MachineExecutionReadinessState"
+    controllers:
+      type: array
+      items:
+        $ref: "#/ControllerCredentialSummaryDto"
+      description: Closed disclosure-only controller evidence for this machine.
+
+MachineControllerInventoryRequestDto:
+  type: object
+  additionalProperties: false
+  required:
+    - authorizationProtocolVersion
+    - machineProof
+  properties:
+    authorizationProtocolVersion:
+      $ref: "#/ControllerManagementProtocolVersion"
+    machineProof:
+      $ref: "#/MachineControllerAuthenticationProofDto"
+  description: >-
+    Closed machine-authenticated request for inspecting controller evidence.
+    It cannot create, replace, or increase any controller authority.
+
+MachineControllerReconciliationRequestDto:
+  type: object
+  additionalProperties: false
+  required:
+    - authorizationProtocolVersion
+    - machineProof
+    - knownControllerCredentialIds
+  properties:
+    authorizationProtocolVersion:
+      $ref: "#/ControllerManagementProtocolVersion"
+    machineProof:
+      $ref: "#/MachineControllerAuthenticationProofDto"
+    knownControllerCredentialIds:
+      type: array
+      maxItems: 128
+      uniqueItems: true
+      items:
+        $ref: "./controller-authorization.yaml#/ControllerCredentialId"
+      description: >-
+        Local registry identifiers used only to calculate reconciliation
+        evidence. Server inventory and revocation state remain authoritative.
+
+ControllerReconciliationResponseDto:
+  type: object
+  additionalProperties: false
+  required:
+    - machineId
+    - authorizationProtocolVersion
+    - enrollmentState
+    - executionReadiness
+    - controllers
+    - revokedControllerCredentialIds
+  properties:
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    authorizationProtocolVersion:
+      $ref: "./controller-authorization.yaml#/AuthorizationProtocolVersion"
+    enrollmentState:
+      $ref: "#/ControllerEnrollmentEligibilityState"
+    executionReadiness:
+      $ref: "./controller-authorization.yaml#/MachineExecutionReadinessState"
+    controllers:
+      type: array
+      items:
+        $ref: "#/ControllerCredentialSummaryDto"
+    revokedControllerCredentialIds:
+      type: array
+      uniqueItems: true
+      items:
+        $ref: "./controller-authorization.yaml#/ControllerCredentialId"
+      description: >-
+        Server-confirmed revoked identifiers that the local registry must
+        remove from its active allowlist.
+
+ControllerRevocationRequestDto:
+  type: object
+  additionalProperties: false
+  required:
+    - authorizationProtocolVersion
+    - machineProof
+  properties:
+    authorizationProtocolVersion:
+      $ref: "#/ControllerManagementProtocolVersion"
+    machineProof:
+      $ref: "#/MachineControllerAuthenticationProofDto"
+  description: >-
+    Machine-local authority reduction. It requires the same two-part machine
+    principal as enrollment and reconciliation; it cannot be opened by an
+    account session.
+
+ControllerRevocationReductionBodyDto:
+  type: object
+  additionalProperties: false
+  required:
+    - version
+    - kind
+    - action
+    - machineId
+    - controllerCredentialId
+    - revokedAt
+    - enrollmentState
+    - executionReadiness
+  properties:
+    version:
+      $ref: "#/ControllerManagementProtocolVersion"
+    kind:
+      type: string
+      enum: [controller_revocation_reduction]
+    action:
+      type: string
+      enum: [CONTROLLER_REVOKE]
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    controllerCredentialId:
+      $ref: "./controller-authorization.yaml#/ControllerCredentialId"
+    revokedAt:
+      type: string
+      format: date-time
+    enrollmentState:
+      $ref: "#/ControllerEnrollmentEligibilityState"
+    executionReadiness:
+      $ref: "./controller-authorization.yaml#/MachineExecutionReadinessState"
+
+SignedControllerRevocationReductionEnvelope:
+  type: object
+  additionalProperties: false
+  required:
+    - machineId
+    - userId
+    - controllerCredentialId
+    - nonce
+    - timestampMs
+    - protocolVersion
+    - event
+    - signature
+  properties:
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    userId:
+      $ref: "./common.yaml#/UserId"
+    controllerCredentialId:
+      $ref: "./controller-authorization.yaml#/ControllerCredentialId"
+    nonce:
+      type: string
+      format: uuid
+    timestampMs:
+      type: integer
+      format: int64
+    protocolVersion:
+      $ref: "#/ControllerManagementProtocolVersion"
+    event:
+      $ref: "#/ControllerRevocationReductionBodyDto"
+    signature:
+      type: string
+      format: byte
+      minLength: 86
+      maxLength: 88
+      pattern: "^[A-Za-z0-9+/]+={0,2}$"
+      description: >-
+        Server Ed25519 signature over the complete version-2 reduction frame.
+
+MachineRevocationReductionBodyDto:
+  type: object
+  additionalProperties: false
+  required:
+    - version
+    - kind
+    - action
+    - machineId
+    - revokedAt
+    - executionReadiness
+  properties:
+    version:
+      $ref: "#/ControllerManagementProtocolVersion"
+    kind:
+      type: string
+      enum: [machine_revocation_reduction]
+    action:
+      type: string
+      enum: [MACHINE_REVOKE]
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    revokedAt:
+      type: string
+      format: date-time
+    executionReadiness:
+      type: string
+      enum: [MACHINE_REVOKED]
+
+SignedMachineRevocationReductionEnvelope:
+  type: object
+  additionalProperties: false
+  required:
+    - machineId
+    - userId
+    - nonce
+    - timestampMs
+    - protocolVersion
+    - event
+    - signature
+  properties:
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    userId:
+      $ref: "./common.yaml#/UserId"
+    nonce:
+      type: string
+      format: uuid
+    timestampMs:
+      type: integer
+      format: int64
+    protocolVersion:
+      $ref: "#/ControllerManagementProtocolVersion"
+    event:
+      $ref: "#/MachineRevocationReductionBodyDto"
+    signature:
+      type: string
+      format: byte
+      minLength: 86
+      maxLength: 88
+      pattern: "^[A-Za-z0-9+/]+={0,2}$"
+      description: >-
+        Server Ed25519 signature over the complete version-2 reduction frame.
+
+SignedAuthorityReductionEnvelope:
+  oneOf:
+    - $ref: "#/SignedControllerRevocationReductionEnvelope"
+    - $ref: "#/SignedMachineRevocationReductionEnvelope"
+  description: >-
+    Closed signed controller-authority reduction union consumed by a connected
+    protocol-2 CLI before it acknowledges durable local application.
+
+AuthorityReductionAppliedAcknowledgement:
+  type: object
+  additionalProperties: false
+  required:
+    - status
+    - nonce
+  properties:
+    status:
+      type: string
+      enum: [APPLIED]
+    nonce:
+      type: string
+      format: uuid
+
+AuthorityReductionRejectedAcknowledgement:
+  type: object
+  additionalProperties: false
+  required:
+    - status
+    - reason
+  properties:
+    status:
+      type: string
+      enum: [REJECTED]
+    reason:
+      type: string
+      enum:
+        - SCHEMA_INVALID
+        - SIGNATURE_INVALID
+        - MACHINE_MISMATCH
+        - OWNER_MISMATCH
+        - STALE
+        - NONCE_REPLAY
+        - ROUTING_MISMATCH
+        - PERSISTENCE_FAILED
+        - HANDLER_UNAVAILABLE
+
+AuthorityReductionAcknowledgement:
+  oneOf:
+    - $ref: "#/AuthorityReductionAppliedAcknowledgement"
+    - $ref: "#/AuthorityReductionRejectedAcknowledgement"
+  discriminator:
+    propertyName: status
+    mapping:
+      APPLIED: "#/AuthorityReductionAppliedAcknowledgement"
+      REJECTED: "#/AuthorityReductionRejectedAcknowledgement"
+
+ControllerRevocationResponseDto:
+  type: object
+  additionalProperties: false
+  required:
+    - outcome
+    - machineId
+    - controllerCredentialId
+    - revokedAt
+    - executionReadiness
+    - reductionFrame
+  properties:
+    outcome:
+      type: string
+      enum: [REVOKED]
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    controllerCredentialId:
+      $ref: "./controller-authorization.yaml#/ControllerCredentialId"
+    revokedAt:
+      type: string
+      format: date-time
+    executionReadiness:
+      $ref: "./controller-authorization.yaml#/MachineExecutionReadinessState"
+    reductionFrame:
+      $ref: "#/SignedControllerRevocationReductionEnvelope"
+
+ControllerManagementOutcomeCode:
+  type: string
+  enum:
+    - WRONG_OWNER
+    - MACHINE_REVOKED
+    - INVALID_STATE
+    - ALREADY_READY
+    - ALREADY_REVOKED
+
+ControllerManagementErrorDto:
+  type: object
+  additionalProperties: false
+  required:
+    - success
+    - message
+    - code
+    - data
+    - timestamp
+    - statusCode
+    - path
+  properties:
+    success:
+      type: boolean
+      enum: [false]
+    message:
+      type: string
+      enum:
+        - Unable to complete controller management operation.
+    code:
+      $ref: "#/ControllerManagementOutcomeCode"
+    data:
+      type: object
+      nullable: true
+      additionalProperties: false
+      description: No machine, controller, or ownership detail is returned.
+    timestamp:
+      type: string
+      format: date-time
+    statusCode:
+      type: integer
+      enum: [403, 409, 410]
+    path:
+      type: string
+
+LegacyMachinePairingRetiredErrorDto:
+  type: object
+  additionalProperties: false
+  required:
+    - success
+    - message
+    - code
+    - data
+    - timestamp
+    - statusCode
+    - path
+  properties:
+    success:
+      type: boolean
+      enum: [false]
+    message:
+      type: string
+      enum:
+        - Legacy machine pairing is retired.
+    code:
+      type: string
+      enum: [LEGACY_MACHINE_PAIRING_RETIRED]
+    data:
+      type: object
+      nullable: true
+      additionalProperties: false
+    timestamp:
+      type: string
+      format: date-time
+    statusCode:
+      type: integer
+      enum: [410]
+    path:
+      type: string

@@ -1,0 +1,828 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client-test"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./test.db"
+}
+
+enum InitiativeStatus {
+  REFINING_DESCRIPTION
+  REFINING_DETAILS
+  REFINING_ACCEPTANCE_CRITERIA
+  GENERATING_DESCRIPTION
+  GENERATING_DETAILS
+  GENERATING_ACCEPTANCE_CRITERIA
+  GENERATING_MULTI
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TaskDependencyRelationType {
+  DEPENDS_ON
+  BLOCKS
+}
+
+enum TaskDependencySourceType {
+  USER
+  SYSTEM
+}
+
+enum InitiativeCreatorType {
+  SYSTEM
+  USER
+}
+
+enum EntityType {
+  ORGANIZATION
+  PROJECT
+  TASK
+  MESSAGE
+  CONVERSATION
+  DESIGN_DOC
+  AGENT_SESSION
+}
+
+enum DesignDocTemplate {
+  CLASSIC
+  ADR
+  RFC
+}
+
+enum DesignDocParentEntityType {
+  TASK
+  DESIGN_DOC
+}
+
+model User {
+  id                      String               @id @default(uuid())
+  email                   String               @unique
+  name                    String
+  isActive                Boolean              @default(true)
+  lastLoginAt             DateTime?
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  devAdminMode            Boolean              @default(false)
+  isDevAdmin              Boolean              @default(false)
+  createdProjects         Project[]            @relation("ProjectCreator")
+  memberships             OrganizationMember[]
+  assignedTasks           Task[]               @relation("AssignedTasks")
+  reportedTasks           Task[]               @relation("ReportedTasks")
+  taskDependenciesCreated TaskDependency[]     @relation("TaskDependencyCreator")
+  assignedInitiatives     Initiative[]         @relation("InitiativeAssignee")
+  userOrganizations       UserOrganization[]
+  flowExecutions          FlowExecution[]
+  entityStars             EntityStar[]
+
+  @@map("users")
+}
+
+model Organization {
+  id                          String                       @id @default(uuid())
+  name                        String
+  slug                        String                       @unique
+  description                 String?
+  settings                    String                       @default("{}")
+  isActive                    Boolean                      @default(true)
+  createdAt                   DateTime                     @default(now())
+  updatedAt                   DateTime                     @updatedAt
+  projects                    Project[]
+  artifacts                   Artifact[]
+  influences                  Influence[]
+  conversations               Conversation[]
+  initiatives                 Initiative[]
+  integrations                Integration[]
+  members                     OrganizationMember[]
+  tags                        Tag[]
+  tasks                       Task[]
+  entityRegistry              EntityRegistry[]
+  UserOrganization            UserOrganization[]
+  organizationFlowPermissions OrganizationFlowPermission[]
+  flowExecutions              FlowExecution[]
+  ConversationHistoryConfig   ConversationHistoryConfig[]
+  designDocs                  DesignDoc[]
+  entityStars                 EntityStar[]
+  githubWebhookInbox          GitHubWebhookInbox[]
+
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id             String       @id @default(uuid())
+  userId         String
+  organizationId String
+  role           String       @default("MEMBER")
+  isActive       Boolean      @default(true)
+  invitedAt      DateTime?
+  joinedAt       DateTime?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@unique([userId, organizationId])
+  @@index([organizationId, role])
+  @@map("organization_members")
+}
+
+model Conversation {
+  id                   String          @id @default(uuid())
+  projectId            String?
+  organizationId       String
+  workflowId           String?
+  workflowAboutType    String?
+  initiatedBy          String
+  triggerEvent         String?
+  status               String          @default("STARTED")
+  title                String?
+  version              Int             @default(1)
+  lastModifiedBy       String?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  workflowName         String?
+  organization         Organization    @relation(fields: [organizationId], references: [id])
+  project              Project?        @relation(fields: [projectId], references: [id])
+  messages             Message[]
+  generatedInitiatives Initiative[]    @relation("InitiativeSource")
+  flowExecutions       FlowExecution[]
+  designDocs           DesignDoc[]
+
+  @@index([workflowId])
+  @@index([projectId])
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([workflowAboutType])
+  @@index([workflowName])
+}
+
+model Message {
+  id              String       @id @default(uuid())
+  conversationId  String
+  projectId       String
+  type            String
+  status          String       @default("open")
+  userId          String // ID of the user who created the message, or 'system' for system-generated messages
+  data            Json
+  createdAt       DateTime     @default(now())
+  parentMessageId String?
+  conversation    Conversation @relation(fields: [conversationId], references: [id])
+  parentMessage   Message?     @relation("MessageResponses", fields: [parentMessageId], references: [id])
+  responses       Message[]    @relation("MessageResponses")
+
+  @@index([projectId, createdAt])
+  @@index([conversationId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model Project {
+  maturity           String               @default("TAKING_SHAPE")
+  id                 String               @id @default(uuid())
+  name               String
+  description        String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  deletedAt          DateTime?
+  status             String               @default("ACTIVE")
+  createdBy          String?
+  organizationId     String
+  config             Json?
+  conversations      Conversation[]
+  creator            User?                @relation("ProjectCreator", fields: [createdBy], references: [id])
+  organization       Organization         @relation(fields: [organizationId], references: [id])
+  artifacts          Artifact[]
+  integrations       Integration[]
+  initiatives        ProjectInitiative[]
+  taskRelations      ProjectTask[]
+  flowExecutions     FlowExecution[]
+  designDocs         DesignDoc[]
+  githubWebhookInbox GitHubWebhookInbox[]
+
+  @@index([organizationId])
+  @@index([createdBy])
+}
+
+model Initiative {
+  id                   String                @id @default(uuid())
+  name                 String
+  description          String?
+  details              String?
+  acceptanceCriteria   String?
+  assigneeId           String?
+  reasoning            String?
+  organizationId       String
+  status               InitiativeStatus      @default(REFINING_DESCRIPTION)
+  priority             Priority?             @default(MEDIUM)
+  creatorType          InitiativeCreatorType @default(SYSTEM)
+  dueDate              DateTime?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  archivedAt           DateTime?
+  sourceConversationId String?
+  artifacts            Artifact[]
+  // conversations        Conversation[]  // Commented out: No opposite relation on Conversation model
+  assignee             User?                 @relation("InitiativeAssignee", fields: [assigneeId], references: [id])
+  organization         Organization          @relation(fields: [organizationId], references: [id])
+  sourceConversation   Conversation?         @relation("InitiativeSource", fields: [sourceConversationId], references: [id])
+  projects             ProjectInitiative[]
+  tasks                Task[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([sourceConversationId])
+  @@map("initiatives")
+}
+
+model ProjectInitiative {
+  id           String     @id @default(uuid())
+  projectId    String
+  initiativeId String
+  role         String?
+  createdAt    DateTime   @default(now())
+  initiative   Initiative @relation(fields: [initiativeId], references: [id])
+  project      Project    @relation(fields: [projectId], references: [id])
+
+  @@unique([projectId, initiativeId])
+  @@index([projectId])
+  @@index([initiativeId])
+  @@map("project_initiatives")
+}
+
+model Task {
+  id                String           @id @default(uuid())
+  name              String
+  description       String?
+  organizationId    String
+  initiativeId      String
+  status            String           @default("BACKLOG")
+  priority          String?          @default("MEDIUM")
+  dueDate           DateTime?
+  assigneeId        String?
+  reporterId        String?
+  lastAppliedProposalId String?
+  parentId          String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  archivedAt        DateTime?
+  artifactRelations ArtifactTask[]
+  projectRelations  ProjectTask[]
+  dependencies      TaskDependency[] @relation("TaskDependencies")
+  dependents        TaskDependency[] @relation("TaskDependents")
+  assignee          User?            @relation("AssignedTasks", fields: [assigneeId], references: [id])
+  initiative        Initiative       @relation(fields: [initiativeId], references: [id])
+  organization      Organization     @relation(fields: [organizationId], references: [id])
+  parent            Task?            @relation("TaskHierarchy", fields: [parentId], references: [id])
+  subTasks          Task[]           @relation("TaskHierarchy")
+  reporter          User?            @relation("ReportedTasks", fields: [reporterId], references: [id])
+
+  @@index([organizationId, status])
+  @@index([initiativeId, status])
+  @@index([assigneeId])
+  @@index([reporterId])
+  @@index([parentId])
+  @@map("tasks")
+}
+
+model TaskDependency {
+  id               String                     @id @default(uuid())
+  dependentTaskId  String
+  dependencyTaskId String
+  relationType     TaskDependencyRelationType @default(DEPENDS_ON)
+  sourceType       TaskDependencySourceType   @default(USER)
+  createdById      String?
+  reason           String?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  dependentTask  Task  @relation("TaskDependencies", fields: [dependentTaskId], references: [id], onDelete: Cascade)
+  dependencyTask Task  @relation("TaskDependents", fields: [dependencyTaskId], references: [id], onDelete: Cascade)
+  createdBy      User? @relation("TaskDependencyCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([dependentTaskId, dependencyTaskId])
+  @@index([dependentTaskId])
+  @@index([dependencyTaskId])
+  @@map("task_dependencies")
+}
+
+model ProjectTask {
+  id        String   @id @default(uuid())
+  projectId String
+  taskId    String
+  createdAt DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, taskId])
+  @@index([projectId])
+  @@index([taskId])
+  @@map("project_tasks")
+}
+
+model ArtifactTask {
+  id         String   @id @default(uuid())
+  artifactId String
+  taskId     String
+  createdAt  DateTime @default(now())
+  artifact   Artifact @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([artifactId, taskId])
+  @@index([artifactId])
+  @@index([taskId])
+  @@map("artifact_tasks")
+}
+
+model Artifact {
+  id             String             @id @default(uuid())
+  projectId      String?
+  type           String
+  title          String?
+  data           String
+  vectorId       String?
+  embeddingModel String?
+  hasEmbedding   Boolean            @default(false)
+  parentId       String?
+  rootId         String?
+  sourceType     String
+  sourceId       String
+  contentHash    String?
+  language       String?
+  tags           String             @default("[]")
+  category       String?
+  priority       String?
+  status         String             @default("ACTIVE")
+  isPublic       Boolean            @default(false)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  archivedAt     DateTime?
+  organizationId String
+  initiativeId   String?
+  relatedTo      ArtifactRelation[] @relation("SourceArtifact")
+  relatedFrom    ArtifactRelation[] @relation("TargetArtifact")
+  taskRelations  ArtifactTask[]
+  initiative     Initiative?        @relation(fields: [initiativeId], references: [id])
+  organization   Organization       @relation(fields: [organizationId], references: [id])
+  parent         Artifact?          @relation("ArtifactHierarchy", fields: [parentId], references: [id])
+  children       Artifact[]         @relation("ArtifactHierarchy")
+  project        Project?           @relation(fields: [projectId], references: [id])
+  designDocs     DesignDoc[]
+
+  @@index([projectId, type, status])
+  @@index([projectId, createdAt])
+  @@index([initiativeId, type, status])
+  @@index([initiativeId, createdAt])
+  @@index([organizationId])
+  @@index([sourceType, sourceId])
+  @@index([contentHash])
+  @@index([rootId])
+  @@index([tags])
+  @@index([vectorId])
+  @@index([hasEmbedding])
+  @@map("artifacts")
+}
+
+model ArtifactRelation {
+  id           String   @id @default(uuid())
+  sourceId     String
+  targetId     String
+  relationType String
+  strength     Float?
+  metadata     String?
+  createdAt    DateTime @default(now())
+  source       Artifact @relation("SourceArtifact", fields: [sourceId], references: [id])
+  target       Artifact @relation("TargetArtifact", fields: [targetId], references: [id])
+
+  @@unique([sourceId, targetId, relationType])
+  @@index([sourceId])
+  @@index([targetId])
+  @@index([relationType])
+  @@map("artifact_relations")
+}
+
+model Influence {
+  id              String       @id @default(uuid())
+  influencedType  String
+  influencedId    String
+  influencingType String
+  influencingId   String
+  reasoning       String
+  reasonType      String
+  confidence      Float?
+  createdAt       DateTime     @default(now())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([influencedType, influencedId, influencingType, influencingId, reasonType])
+  @@index([influencedType, influencedId])
+  @@index([influencingType, influencingId])
+  @@index([reasonType])
+  @@index([organizationId])
+  @@map("influences")
+}
+
+model DesignDoc {
+  id               String                     @id @default(uuid())
+  name             String
+  template         DesignDocTemplate          @default(ADR)
+  status           String                     @default("ADR_CONTEXT")
+  organizationId   String
+  projectId        String?
+  // tags               String[]  // Commented out: SQLite doesn't support String[] arrays
+  summary          Json?
+  metadata         Json?
+  parentEntityId   String?
+  parentEntityType DesignDocParentEntityType?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  archivedAt       DateTime?
+  sections         DesignDocSection[]
+
+  organization  Organization   @relation(fields: [organizationId], references: [id])
+  project       Project?       @relation(fields: [projectId], references: [id])
+  artifacts     Artifact[]
+  conversations Conversation[]
+
+  @@index([parentEntityType, parentEntityId])
+  @@map("design_docs")
+}
+
+model DesignDocSection {
+  id                   String   @id @default(uuid())
+  designDocId          String
+  key                  String
+  order                Int
+  content              String
+  crdtSnapshotBytes    Bytes?
+  crdtSnapshotSeq      Int?
+  materializedMarkdown String?
+  metadata             Json?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  designDoc DesignDoc                @relation(fields: [designDocId], references: [id], onDelete: Cascade)
+  updates   DesignDocSectionUpdate[]
+
+  @@unique([designDocId, key])
+  @@map("design_doc_sections")
+}
+
+model DesignDocSectionUpdate {
+  id          String   @id @default(uuid())
+  sectionId   String
+  seq         Int
+  updateBytes Bytes
+  updateHash  String
+  createdAt   DateTime @default(now())
+
+  section DesignDocSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@unique([sectionId, updateHash])
+  @@index([sectionId, seq])
+  @@map("design_doc_section_updates")
+}
+
+model Tag {
+  id             String       @id @default(uuid())
+  organizationId String
+  entityType     String
+  entityId       String
+  name           String
+  source         String       @default("USER")
+  confidence     Float?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, entityType, entityId, name])
+  @@index([organizationId, entityType, entityId])
+  @@index([organizationId, name])
+  @@index([organizationId, source])
+  @@map("tags")
+}
+
+model EntityStar {
+  id             String       @id @default(uuid())
+  organizationId String
+  userId         String
+  entityType     String
+  entityId       String
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@unique([organizationId, userId, entityType, entityId])
+  @@index([organizationId, userId])
+  @@index([organizationId, entityType, entityId])
+  @@map("entity_stars")
+}
+
+model OutboxEvent {
+  id             String    @id @default(uuid())
+  correlationId  String
+  causationId    String?
+  sagaId         String?
+  eventType      String
+  aggregateType  String
+  aggregateId    String
+  eventVersion   Int       @default(1)
+  payload        Json
+  headers        Json      @default("{}")
+  status         String    @default("PENDING")
+  retryCount     Int       @default(0)
+  maxRetries     Int       @default(3)
+  createdAt      DateTime  @default(now())
+  processedAt    DateTime?
+  nextRetryAt    DateTime?
+  scheduledFor   DateTime?
+  lastError      String?
+  errorCount     Int       @default(0)
+  partitionKey   String
+  sequenceNumber Int       @default(0)
+  sourceService  String
+  sourceMethod   String
+  sourceVersion  String?
+  userId         String?
+  organizationId String?
+  projectId      String?
+  conversationId String?
+  workflowId     String?
+
+  @@unique([aggregateType, aggregateId, eventType, sequenceNumber])
+  @@index([status, nextRetryAt, partitionKey])
+  @@index([correlationId])
+  @@index([causationId])
+  @@index([sagaId])
+  @@index([aggregateType, aggregateId])
+  @@index([partitionKey, sequenceNumber])
+  @@index([organizationId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([conversationId, createdAt])
+  @@index([workflowId, createdAt])
+  @@index([eventType, createdAt])
+  @@map("outbox_events")
+}
+
+model EventLog {
+  id             String    @id @default(uuid())
+  correlationId  String
+  causationId    String?
+  sagaId         String?
+  eventType      String
+  aggregateType  String
+  aggregateId    String
+  eventVersion   Int       @default(1)
+  payload        Json
+  metadata       Json      @default("{}")
+  processedAt    DateTime  @default(now())
+  processingTime Int?
+  sourceService  String
+  sourceMethod   String
+  sourceVersion  String?
+  userId         String?
+  organizationId String?
+  projectId      String?
+  conversationId String?
+  workflowId     String?
+  publishedTo    String?
+  publishedAt    DateTime?
+  publishLatency Int?
+
+  @@index([correlationId, processedAt])
+  @@index([causationId])
+  @@index([aggregateType, aggregateId, processedAt])
+  @@index([eventType, processedAt])
+  @@index([organizationId, processedAt])
+  @@index([projectId, processedAt])
+  @@index([conversationId, processedAt])
+  @@index([workflowId, processedAt])
+  @@index([sagaId, processedAt])
+  @@map("event_log")
+}
+
+model SagaState {
+  id               String    @id @default(uuid())
+  sagaId           String    @unique
+  sagaType         String
+  currentStep      String
+  status           String    @default("STARTED")
+  payload          Json
+  organizationId   String?
+  projectId        String?
+  conversationId   String?
+  workflowId       String?
+  userId           String?
+  startedAt        DateTime  @default(now())
+  completedAt      DateTime?
+  failedAt         DateTime?
+  compensationData Json?
+  lastError        String?
+
+  @@index([sagaType, status])
+  @@index([organizationId, sagaType])
+  @@index([projectId, sagaType])
+  @@map("saga_states")
+}
+
+model Integration {
+  id                  String               @id @default(uuid())
+  projectId           String
+  organizationId      String
+  type                String
+  name                String
+  description         String?
+  config              String
+  state               String               @default("ACTIVE")
+  targetType          String               @default("ORGANIZATION")
+  connectionStatus    String               @default("PENDING")
+  lastConnectionCheck DateTime?
+  lastSuccessfulSync  DateTime?
+  errorMessage        String?
+  createdBy           String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  deletedAt           DateTime?
+  organization        Organization         @relation(fields: [organizationId], references: [id])
+  project             Project              @relation(fields: [projectId], references: [id])
+  webhooks            IntegrationWebhook[]
+  githubWebhookInbox  GitHubWebhookInbox[]
+
+  @@index([projectId])
+  @@index([organizationId])
+  @@index([type])
+  @@index([state])
+  @@index([connectionStatus])
+  @@index([createdAt])
+  @@map("integrations")
+}
+
+model GitHubWebhookInbox {
+  id                 String       @id @default(uuid())
+  integrationId      String
+  organizationId     String
+  projectId          String
+  deliveryId         String
+  eventName          String
+  repositoryFullName String
+  payloadHash        String
+  normalizedEvent    String
+  acceptedAt         DateTime     @default(now())
+  integration        Integration  @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  organization       Organization @relation(fields: [organizationId], references: [id])
+  project            Project      @relation(fields: [projectId], references: [id])
+
+  @@unique([integrationId, deliveryId])
+  @@index([projectId, acceptedAt])
+  @@index([eventName, acceptedAt])
+  @@map("github_webhook_inbox")
+}
+
+model IntegrationWebhook {
+  id                String      @id @default(uuid())
+  integrationId     String
+  webhookType       String // 'github_repository', 'github_organization', etc.
+  externalWebhookId String? // The webhook ID from the external service
+  webhookUrl        String
+  events            String      @default("[]")
+  isActive          Boolean     @default(true)
+  lastTriggered     DateTime?
+  errorCount        Int         @default(0)
+  lastError         String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  integration       Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@unique([integrationId, webhookType])
+  @@index([integrationId])
+  @@index([webhookType])
+  @@index([isActive])
+  @@index([lastTriggered])
+  @@map("integration_webhooks")
+}
+
+// Add these models to your existing schema.prisma file
+
+model UserOrganization {
+  id             String    @id @default(uuid())
+  userId         String
+  organizationId String
+  role           String // viewer, contributor, admin, owner
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  user         User         @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model OrganizationFlowPermission {
+  id             String   @id @default(uuid())
+  organizationId String
+  flowId         String
+  enabled        Boolean  @default(true)
+  rateLimit      Int      @default(100) // per hour
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, flowId])
+  @@index([flowId])
+}
+
+model FlowExecution {
+  id              String    @id @default(uuid())
+  userId          String
+  flowId          String
+  organizationId  String
+  projectId       String
+  conversationId  String?
+  entityType      String?
+  entityId        String?
+  status          String    @default("STARTED")
+  startedAt       DateTime  @default(now())
+  completedAt     DateTime?
+  metadata        Json?
+  flowState       Json?
+  resumable       Boolean   @default(true)
+  errorMessage    String?
+  errorCode       String?
+  currentNode     String?
+  totalNodes      Int?
+  completedNodes  Int       @default(0)
+  executionTimeMs Int?
+  version         Int       @default(1)
+
+  conversation Conversation? @relation(fields: [conversationId], references: [id])
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  project      Project       @relation(fields: [projectId], references: [id])
+  user         User          @relation(fields: [userId], references: [id])
+
+  @@index([userId, flowId, startedAt])
+  @@index([organizationId, status])
+  @@index([projectId])
+  @@index([flowId, status, completedAt])
+}
+
+model CleanupMetric {
+  id              String   @id @default(uuid())
+  messagesRemoved Int?
+  durationMs      Int?
+  batchSize       Int?
+  cleanupType     String   @default("conversation_history") // conversation_history, flow_executions, etc.
+  createdAt       DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([cleanupType, createdAt])
+}
+
+model ConversationHistoryConfig {
+  id             String   @id @default(uuid())
+  organizationId String? // null = default config
+  flowType       String? // null = applies to all flows
+  maxMessages    Int      @default(50)
+  maxAgeMs       Int      @default(86400000) // 24 hours in ms
+  maxTokens      Int      @default(50000)
+  pruneThreshold Int      @default(100)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, flowType])
+  @@index([organizationId])
+  @@index([flowType])
+}
+
+model EntityRegistry {
+  id             String     @id @default(uuid())
+  organizationId String     @map("organization_id")
+  entityId       String     @map("entity_id")
+  entityType     EntityType @map("entity_type")
+  entityName     String?    @map("entity_name")
+  nameSearchText String?    @map("name_search_text")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  deletedAt      DateTime?  @map("deleted_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, entityId, entityType], map: "entity_registry_org_entity_id_type_key")
+  @@index([entityId], map: "entity_registry_entity_id_idx")
+  @@index([organizationId], map: "entity_registry_organization_id_idx")
+  @@index([nameSearchText], map: "entity_registry_name_search_text_idx")
+  @@index([organizationId, entityType, deletedAt])
+  @@map("entity_registry")
+}

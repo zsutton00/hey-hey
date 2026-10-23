@@ -1,0 +1,223 @@
+HintConnectionEndpointEntityType:
+  type: string
+  enum:
+    - ARTIFACT
+    - INITIATIVE
+    - PROJECT
+    - TASK
+    - MESSAGE
+    - CONVERSATION
+    - DESIGN_DOC
+    - AGENT_SESSION
+    - VALIDATION_SESSION
+    - SERVICE
+    - REPORT
+    - PROPOSAL
+    - IMPLEMENTATION_HINT
+    - HINT
+  description: >
+    Canonical entity type of a connected item. The graph service maps each value
+    to a closed set of Neo4j node labels when resolving the endpoint, so a
+    connection never lands on a generic stub. Features, tasks, diagrams,
+    Decisions and every other work item are TASK. HINT lets a hint connect to
+    another hint. `USER` is excluded because users are not stored as graph nodes.
+
+HintOriginEntityType:
+  type: string
+  enum:
+    - MESSAGE
+    - AGENT_SESSION
+  description: Kind of record a hint came from.
+
+HintOrigin:
+  type: object
+  description: >
+    The message or session a hint came from. Evidence only: it is never a
+    connection and is never used to find hints.
+  required:
+    - entityType
+    - entityId
+  properties:
+    entityType:
+      $ref: "#/HintOriginEntityType"
+    entityId:
+      type: string
+      format: uuid
+      description: Identifier of the originating message or agent session
+
+HintStrength:
+  type: number
+  format: double
+  minimum: 0
+  example: 1.0
+  description: >
+    Non-negative strength of one connection. The graph service stores and
+    returns it as given; step sizes, ceilings and removal thresholds belong to
+    the firing logic. Time never changes it.
+
+HintConnectionInput:
+  type: object
+  required:
+    - targetNodeId
+    - targetEntityType
+    - strength
+  properties:
+    targetNodeId:
+      type: string
+      format: uuid
+      description: Identifier of the item to connect the hint to
+    targetEntityType:
+      $ref: "#/HintConnectionEndpointEntityType"
+    strength:
+      $ref: "#/HintStrength"
+
+HintConnection:
+  type: object
+  description: >
+    One connected-to link from a hint to an item. The endpoint identity and
+    type are always present so callers can filter by item visibility.
+  required:
+    - id
+    - targetNodeId
+    - targetEntityType
+    - strength
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Connection identifier, stable for the life of the connection
+    targetNodeId:
+      type: string
+      format: uuid
+      description: Identifier of the connected item
+    targetEntityType:
+      $ref: "#/HintConnectionEndpointEntityType"
+    strength:
+      $ref: "#/HintStrength"
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+Hint:
+  type: object
+  required:
+    - id
+    - projectId
+    - text
+    - origin
+    - connections
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    projectId:
+      type: string
+      format: uuid
+    text:
+      type: string
+      minLength: 1
+      maxLength: 1000
+    origin:
+      $ref: "#/HintOrigin"
+    connections:
+      type: array
+      description: Retrieval connections only. Origin is never listed here. Empty once a hint is retired.
+      items:
+        $ref: "#/HintConnection"
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+    retiredAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Set once the hint is retired. Retired hints are never returned by connection reads.
+
+CreateHintDto:
+  type: object
+  required:
+    - text
+    - origin
+    - connections
+  properties:
+    text:
+      type: string
+      minLength: 1
+      maxLength: 1000
+    origin:
+      $ref: "#/HintOrigin"
+    connections:
+      type: array
+      minItems: 1
+      maxItems: 20
+      description: A hint cannot be created without at least one connection.
+      items:
+        $ref: "#/HintConnectionInput"
+
+UpdateHintTextDto:
+  type: object
+  required:
+    - text
+  properties:
+    text:
+      type: string
+      minLength: 1
+      maxLength: 1000
+
+SetHintConnectionStrengthDto:
+  type: object
+  required:
+    - strength
+  properties:
+    strength:
+      $ref: "#/HintStrength"
+
+RemoveHintConnectionResponse:
+  type: object
+  required:
+    - hint
+    - hintRetired
+  properties:
+    hint:
+      $ref: "#/Hint"
+    hintRetired:
+      type: boolean
+      description: True when the removed connection was the hint's last and the hint was retired with it.
+
+FindHintsByConnectedItemsRequest:
+  type: object
+  required:
+    - nodeIds
+  properties:
+    nodeIds:
+      type: array
+      minItems: 1
+      maxItems: 100
+      uniqueItems: true
+      items:
+        type: string
+        format: uuid
+
+FindHintsByConnectedItemsResponse:
+  type: object
+  required:
+    - hints
+  properties:
+    hints:
+      type: array
+      description: >
+        Live hints with at least one connection to a requested item,
+        deduplicated, each with all of its connections so the caller can filter
+        by item visibility.
+      items:
+        $ref: "#/Hint"

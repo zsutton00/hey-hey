@@ -1,0 +1,2501 @@
+# Diagram metadata, canonical references and groups use schema-backed sections
+# (diagramMetadata / diagramElementMetadata / diagramGroups) in generic CREATE
+# and UPDATE shapes.
+TargetEntityType:
+  type: string
+  enum:
+    - TASK
+    - DESIGN_DOC
+    - REPORT
+    - SERVICE
+    - AGENT_SESSION
+    - CONVERSATION
+    - WORK_ITEM_TYPE
+    - ENTITY_PROMPT_TEMPLATE
+  description: The type of entity a proposal targets
+
+ProposalType:
+  type: string
+  enum:
+    - SINGLE
+    - BATCH
+  description: |
+    Producer rule: emit BATCH when a single proposal carries multiple sub-entities
+    in its updates payload; emit SINGLE otherwise. The canonical multi-sub-entity
+    case is `create_steps` with `updates.steps.length > 1` — that proposal is BATCH.
+    A `create_steps` call with a single step, or any other proposal that targets
+    one entity, is SINGLE.
+
+ProposalAction:
+  type: string
+  enum:
+    - CREATE
+    - UPDATE
+    - DELETE
+    - VERSIONED_UPDATE
+  description: The intended operation of the proposal
+
+ProposalStatus:
+  type: string
+  enum:
+    - DRAFT
+    - APPROVED
+    - REJECTED
+  description: Current lifecycle status of the proposal
+
+ProposalGroupLifecycle:
+  type: string
+  enum:
+    - BUILDING
+    - REVIEWABLE
+    - SETTLED
+  description: Lifecycle of a persisted proposal group
+
+ProposalGroupMemberExecutionState:
+  type: string
+  enum:
+    - PENDING_APPROVAL
+    - WAITING_ON_DEPENDENCIES
+    - READY
+    - APPLYING
+    - RETRYABLE_FAILURE
+    - APPLIED
+    - REJECTED
+    - INVALIDATED
+    - FAILED
+  description: API-owned execution state for one proposal-group member
+
+ProposalGroupBlockedReason:
+  type: string
+  enum:
+    - APPROVALS_PENDING
+    - DEPENDENCIES_PENDING
+    - PREREQUISITE_REJECTED
+    - PREREQUISITE_INVALIDATED
+    - PREREQUISITE_FAILED
+    - RETRYABLE_FAILURE
+  description: Machine-readable reason a proposal-group member cannot proceed
+
+ProposalGroupApprovalProgress:
+  type: object
+  required:
+    - receivedApprovals
+    - requiredApprovals
+    - approvalSatisfied
+  properties:
+    receivedApprovals:
+      type: integer
+      minimum: 0
+      description: Number of distinct approvals received for this member
+    requiredApprovals:
+      type: integer
+      minimum: 0
+      description: Effective number of approvals required for this member
+    approvalSatisfied:
+      type: boolean
+      description: Whether the member has met its effective approval policy
+    approvalSatisfiedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: When the member first became approval-satisfied
+
+ProposalGroupDependency:
+  type: object
+  required:
+    - dependentMemberId
+    - prerequisiteMemberId
+  properties:
+    dependentMemberId:
+      type: string
+      format: uuid
+      description: Group member that depends on the prerequisite
+    prerequisiteMemberId:
+      type: string
+      format: uuid
+      description: Group member that must be applied first
+
+ProposalGroupAttempt:
+  type: object
+  required:
+    - attemptCount
+  properties:
+    attemptCount:
+      type: integer
+      minimum: 0
+      description: Number of execution attempts made for this member
+    attemptId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Stable identity of the current or most recent execution attempt
+    startedAt:
+      type: string
+      format: date-time
+      nullable: true
+    completedAt:
+      type: string
+      format: date-time
+      nullable: true
+    lastAttemptedAt:
+      type: string
+      format: date-time
+      nullable: true
+    lastError:
+      type: string
+      nullable: true
+    diagnostic:
+      $ref: "#/ProposalApprovalFailureDiagnostic"
+      description: Most recent execution error, when one was recorded
+
+ProposalGroupTerminalTimestamps:
+  type: object
+  required:
+    - appliedAt
+    - rejectedAt
+    - invalidatedAt
+    - failedAt
+  properties:
+    appliedAt:
+      type: string
+      format: date-time
+      nullable: true
+    rejectedAt:
+      type: string
+      format: date-time
+      nullable: true
+    invalidatedAt:
+      type: string
+      format: date-time
+      nullable: true
+    failedAt:
+      type: string
+      format: date-time
+      nullable: true
+
+ProposalGroupMembership:
+  type: object
+  required:
+    - groupId
+    - memberId
+    - memberOrder
+    - revision
+    - lifecycle
+  properties:
+    groupId:
+      type: string
+      format: uuid
+      description: Stable proposal-group identity used for canonical routing
+    memberId:
+      type: string
+      format: uuid
+      description: Stable membership identity for this proposal
+    memberOrder:
+      type: integer
+      minimum: 0
+      description: Persisted deterministic order of this member in the group
+    revision:
+      type: integer
+      minimum: 0
+      description: Group revision associated with this membership snapshot
+    lifecycle:
+      $ref: "#/ProposalGroupLifecycle"
+
+ProposalGroupMemberSnapshot:
+  type: object
+  required:
+    - memberId
+    - memberOrder
+    - proposal
+    - approvalProgress
+    - executionState
+    - dependencies
+    - terminalTimestamps
+  properties:
+    memberId:
+      type: string
+      format: uuid
+      description: Stable membership identity
+    memberOrder:
+      type: integer
+      minimum: 0
+      description: Persisted deterministic position within the frozen revision
+    proposal:
+      $ref: "#/ProposalResponseDto"
+    reservedEntityId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Reserved target identity for a grouped CREATE member
+    approvalProgress:
+      $ref: "#/ProposalGroupApprovalProgress"
+    executionState:
+      $ref: "#/ProposalGroupMemberExecutionState"
+    dependencies:
+      type: array
+      items:
+        $ref: "#/ProposalGroupDependency"
+      description: All-of prerequisites relevant to this member
+    blockedReason:
+      $ref: "#/ProposalGroupBlockedReason"
+    attempt:
+      $ref: "#/ProposalGroupAttempt"
+    terminalTimestamps:
+      $ref: "#/ProposalGroupTerminalTimestamps"
+
+ProposalGroupSnapshot:
+  type: object
+  required:
+    - groupId
+    - organizationId
+    - projectId
+    - lifecycle
+    - currentRevision
+    - members
+    - dependencies
+    - createdAt
+    - updatedAt
+  properties:
+    groupId:
+      type: string
+      format: uuid
+      description: Stable proposal-group identity
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+    lifecycle:
+      $ref: "#/ProposalGroupLifecycle"
+    currentRevision:
+      type: integer
+      minimum: 0
+      description: Latest revision of the group
+    frozenRevision:
+      type: integer
+      minimum: 0
+      nullable: true
+      description: Immutable revision exposed for review, when finalized
+    frozenAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: When the frozen review revision became visible
+    settledAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: When every member reached a terminal state
+    originatingConversationId:
+      $ref: "./common.yaml#/ConversationId"
+    originatingMessageId:
+      $ref: "./common.yaml#/MessageId"
+    members:
+      type: array
+      items:
+        $ref: "#/ProposalGroupMemberSnapshot"
+      description: Members in persisted deterministic order
+    dependencies:
+      type: array
+      items:
+        $ref: "#/ProposalGroupDependency"
+      description: Complete all-of dependency graph for the snapshot
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+ProposalGroupExpectedRevision:
+  type: object
+  required:
+    - expectedRevision
+  properties:
+    expectedRevision:
+      type: integer
+      minimum: 0
+      description: Revision the caller read before attempting this BUILDING mutation
+
+StartProposalGroupRequest:
+  type: object
+  additionalProperties: false
+  properties:
+    originatingConversationId:
+      $ref: "./common.yaml#/ConversationId"
+  description: Starts one explicit hidden BUILDING group; membership is never inferred
+
+ProposalGroupAuthoringMember:
+  type: object
+  required:
+    - memberId
+    - memberOrder
+    - proposal
+    - prerequisiteMemberIds
+  properties:
+    memberId:
+      type: string
+      format: uuid
+      description: Stable identity of this member within the group
+    memberOrder:
+      type: integer
+      minimum: 0
+    proposal:
+      $ref: "#/CreateProposalDto"
+      description: Complete ordinary proposal draft carried by this member
+    reservedEntityId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Stable target identity reserved by the API for a CREATE member
+    prerequisiteMemberIds:
+      type: array
+      uniqueItems: true
+      items:
+        type: string
+        format: uuid
+      description: Complete all-of prerequisite set for this member
+
+ProposalGroupAuthoringSnapshot:
+  type: object
+  required:
+    - groupId
+    - organizationId
+    - projectId
+    - lifecycle
+    - currentRevision
+    - members
+    - createdAt
+    - updatedAt
+  properties:
+    groupId:
+      type: string
+      format: uuid
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+    lifecycle:
+      type: string
+      enum:
+        - BUILDING
+    currentRevision:
+      type: integer
+      minimum: 0
+    originatingConversationId:
+      $ref: "./common.yaml#/ConversationId"
+    originatingMessageId:
+      $ref: "./common.yaml#/MessageId"
+    members:
+      type: array
+      items:
+        $ref: "#/ProposalGroupAuthoringMember"
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+  description: Hidden mutable authoring projection returned after every successful BUILDING mutation
+
+AddProposalGroupMemberRequest:
+  allOf:
+    - $ref: "#/ProposalGroupExpectedRevision"
+    - type: object
+      required:
+        - proposal
+      properties:
+        proposal:
+          $ref: "#/CreateProposalRequestDto"
+
+UpdateProposalGroupMemberRequest:
+  allOf:
+    - $ref: "#/ProposalGroupExpectedRevision"
+    - type: object
+      required:
+        - proposal
+      properties:
+        proposal:
+          $ref: "#/CreateProposalRequestDto"
+          description: Complete replacement draft for the addressed member
+
+RemoveProposalGroupMemberRequest:
+  allOf:
+    - $ref: "#/ProposalGroupExpectedRevision"
+
+ReplaceProposalGroupPrerequisitesRequest:
+  allOf:
+    - $ref: "#/ProposalGroupExpectedRevision"
+    - type: object
+      required:
+        - prerequisiteMemberIds
+      properties:
+        prerequisiteMemberIds:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+          description: Complete replacement all-of prerequisite set for the addressed member
+
+FinalizeProposalGroupRequest:
+  allOf:
+    - $ref: "#/ProposalGroupExpectedRevision"
+
+ProposalGroupRevisionConflict:
+  type: object
+  required:
+    - code
+    - groupId
+    - expectedRevision
+    - currentRevision
+  properties:
+    code:
+      type: string
+      enum:
+        - PROPOSAL_GROUP_REVISION_CONFLICT
+    groupId:
+      type: string
+      format: uuid
+    expectedRevision:
+      type: integer
+      minimum: 0
+    currentRevision:
+      type: integer
+      minimum: 0
+  description: Stable stale-writer error returned without applying the requested mutation
+
+ProposalGroupValidationIssueCode:
+  type: string
+  enum:
+    - GROUP_EMPTY
+    - MEMBER_INVALID
+    - MEMBER_REFERENCE_UNRESOLVED
+    - PREREQUISITE_MEMBER_NOT_FOUND
+    - PREREQUISITE_SELF_REFERENCE
+    - PREREQUISITE_CYCLE
+    - RESERVED_ENTITY_ID_CONFLICT
+    - APPROVAL_POLICY_UNRESOLVED
+
+ProposalGroupValidationIssue:
+  type: object
+  required:
+    - code
+    - location
+    - message
+  properties:
+    code:
+      $ref: "#/ProposalGroupValidationIssueCode"
+    location:
+      type: string
+      minLength: 1
+      description: Stable field-addressable JSON Pointer into the authoring snapshot
+      example: /members/1/prerequisiteMemberIds/0
+    memberId:
+      type: string
+      format: uuid
+      nullable: true
+    message:
+      type: string
+      description: Human-readable explanation; clients branch on code and location
+
+ProposalGroupFinalizationSucceeded:
+  type: object
+  required:
+    - outcome
+    - group
+  properties:
+    outcome:
+      type: string
+      enum:
+        - FINALIZED
+    group:
+      $ref: "#/ProposalGroupSnapshot"
+
+ProposalGroupFinalizationFailed:
+  type: object
+  required:
+    - outcome
+    - authoringSnapshot
+    - issues
+  properties:
+    outcome:
+      type: string
+      enum:
+        - VALIDATION_FAILED
+    authoringSnapshot:
+      $ref: "#/ProposalGroupAuthoringSnapshot"
+    issues:
+      type: array
+      minItems: 1
+      items:
+        $ref: "#/ProposalGroupValidationIssue"
+
+ProposalGroupFinalizationResult:
+  oneOf:
+    - $ref: "#/ProposalGroupFinalizationSucceeded"
+    - $ref: "#/ProposalGroupFinalizationFailed"
+  discriminator:
+    propertyName: outcome
+    mapping:
+      FINALIZED: "#/ProposalGroupFinalizationSucceeded"
+      VALIDATION_FAILED: "#/ProposalGroupFinalizationFailed"
+
+ProposalGroupDecisionOutcome:
+  type: string
+  enum:
+    - APPROVAL_RECORDED
+    - ALREADY_APPROVED
+    - NOT_ELIGIBLE
+    - ALREADY_REJECTED
+    - ALREADY_TERMINAL
+    - FAILED
+
+ProposalGroupApproveAllMemberResult:
+  type: object
+  required:
+    - memberId
+    - proposalId
+    - outcome
+    - receivedApprovals
+    - requiredApprovals
+    - approvalSatisfied
+    - dependencyReady
+    - executionState
+  properties:
+    memberId:
+      type: string
+      format: uuid
+    proposalId:
+      $ref: "./common.yaml#/ProposalId"
+    outcome:
+      $ref: "#/ProposalGroupDecisionOutcome"
+    receivedApprovals:
+      type: integer
+      minimum: 0
+    requiredApprovals:
+      type: integer
+      minimum: 0
+    approvalSatisfied:
+      type: boolean
+    dependencyReady:
+      type: boolean
+      description: Whether every all-of prerequisite has applied; independent of approval satisfaction
+    executionState:
+      $ref: "#/ProposalGroupMemberExecutionState"
+    blockedReason:
+      $ref: "#/ProposalGroupBlockedReason"
+    message:
+      type: string
+      nullable: true
+    diagnostic:
+      $ref: "#/ProposalApprovalFailureDiagnostic"
+
+ProposalGroupApproveAllResult:
+  type: object
+  required:
+    - groupId
+    - revision
+    - results
+  properties:
+    groupId:
+      type: string
+      format: uuid
+    revision:
+      type: integer
+      minimum: 0
+    results:
+      type: array
+      items:
+        $ref: "#/ProposalGroupApproveAllMemberResult"
+      description: One ordinary approval attempt result for every frozen member, in member order
+  description: Batch transport only; it defines no group threshold and does not roll back independent successful outcomes
+ProposalOutOfDateStatus:
+  type: string
+  enum:
+    - NOT_APPLICABLE
+    - CURRENT
+    - OUT_OF_DATE
+  description: >
+    API-owned comparison state for the proposal target. UPDATE and DELETE
+    proposals targeting TASK are CURRENT when the captured and current
+    last-applied proposal markers are equal, including when both are null,
+    and OUT_OF_DATE when they differ. CREATE and non-TASK targets are
+    NOT_APPLICABLE.
+
+ProposalResponseDto:
+  type: object
+  required:
+    - id
+    - organizationId
+    - projectId
+    - type
+    - action
+    - status
+    - targetEntityId
+    - targetEntityType
+    - updates
+    - reviewedFuture
+    - requestorId
+    - requiredApprovals
+    - approvals
+    - outOfDateStatus
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: branded-ProposalId
+      description: "Unique identifier for a proposal (branded type)"
+      x-typescript-type: "ProposalId"
+      x-brand: "ProposalId"
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+    groupMembership:
+      $ref: "#/ProposalGroupMembership"
+      description: Optional persisted membership used to route grouped proposals to their canonical group read
+    type:
+      $ref: "#/ProposalType"
+    action:
+      $ref: "#/ProposalAction"
+    status:
+      $ref: "#/ProposalStatus"
+    targetEntityId:
+      type: string
+      description: >-
+        ID of the entity being targeted by this proposal. For an
+        ENTITY_PROMPT_TEMPLATE proposal, this is the stable templateKey from
+        the effective-template read; the selector in updates supplies the
+        corresponding focal-entity identity.
+    targetEntityType:
+      $ref: "#/TargetEntityType"
+    title:
+      type: string
+      nullable: true
+      description: >
+        Per-action snapshot of the proposal target's display title at the
+        moment the proposal was written. CREATE proposals carry the
+        caller-supplied name of the to-be entity (the entity has no
+        registry row yet, so the writer is the only source of truth — the
+        server rejects a CREATE proposal authored without a `title`).
+        UPDATE proposals carry the caller-supplied title when one was
+        provided, otherwise the server resolves the target's *prior*
+        title from the EntityRegistry at write time (a registry read
+        before the rename is applied yields the prior name); the diff
+        body carries the new name. DELETE proposals carry the
+        caller-supplied title when one was provided, otherwise the
+        server resolves the target's current title from the
+        EntityRegistry. The snapshot is intentionally not refreshed on
+        later renames or deletes — same staleness contract as the edge
+        `targetEntityTitle` and influence `entityTitle` snapshots.
+        Null on legacy rows that pre-date the column and on UPDATE/DELETE
+        rows whose target is missing from the registry at write time.
+    eli5:
+      type: string
+      maxLength: 150
+      description: Optional proposal-owned explanation captured at write time. Legacy proposals omit it.
+    updates:
+      $ref: "#/ProposalUpdates"
+    reviewedFuture:
+      allOf:
+        - $ref: "./future-revisions.yaml#/FutureRevisionResponse"
+      nullable: true
+      description: >-
+        API-owned reviewed future projection for VERSIONED_UPDATE proposals
+        when a persisted future revision exists for updates.futureId; null
+        otherwise.
+    requestorId:
+      type: string
+      description: Identifier of the actor who requested this proposal
+    requestorContext:
+      type: object
+      additionalProperties: true
+      description: Optional metadata about the requestor and request context
+    requiredApprovals:
+      type: integer
+      description: >
+        Effective number of approvals required by the API-owned proposal
+        policy. Clients must display this value rather than evaluating an
+        independent approval threshold.
+    influences:
+      type: array
+      items:
+        $ref: "./artifacts.yaml#/Influence"
+      description: >
+        Entities that influenced this proposal. Each entry declares the
+        influencing entity, how it influenced the proposal, and a reason type.
+    generatedWithVersion:
+      type: string
+      description: Model version or tool version used to generate the proposal
+    validationSessionId:
+      $ref: "./common.yaml#/ValidationSessionId"
+    conversationId:
+      $ref: "./common.yaml#/ConversationId"
+    messageId:
+      $ref: "./common.yaml#/MessageId"
+    edges:
+      type: array
+      items:
+        $ref: "#/ProposalEdgeDeclaration"
+      description: Edge declarations linking this proposal to other proposals
+    approvals:
+      type: array
+      items:
+        $ref: "#/ProposalApprovalDto"
+      description: >
+        Approval and rejection records for this proposal. When approval policy
+        permits a user author to count as an approver, the array contains
+        exactly one ordinary APPROVAL record for that author. A user author who
+        is not eligible to self-approve, and an agent-authored proposal, do not
+        contribute a synthetic human approval record. Clients derive whether a
+        user has already acted from these server-authored records.
+    outOfDateStatus:
+      $ref: "#/ProposalOutOfDateStatus"
+    materialization:
+      $ref: "#/WorkItemChangeSetMaterializationProgress"
+    ragEnabled:
+      type: boolean
+      description: >
+        Whether this proposal may be ingested into graph and embeddings. Absent
+        means true. Derived by the API, never set by clients. A reusable
+        exclusion control, not an approval flag.
+    applicationEligible:
+      type: boolean
+      description: >
+        Whether this proposal may be approved and applied. Absent means true.
+        Derived by the API, never set by clients. Independent of ragEnabled.
+    retainedOriginalTargetContent:
+      type: object
+      additionalProperties: true
+      nullable: true
+      description: >
+        Target content as it was when an eval proposal was made, kept on the
+        proposal so its diff still renders after the target changes. Captured
+        by the API, never set by clients. Absent for ordinary proposals.
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+WorkItemChangeSetMaterializationState:
+  type: string
+  enum:
+    - QUEUED
+    - APPLYING
+    - PUBLISHED
+    - RECOVERABLE_FAILURE
+
+WorkItemChangeSetOperationProgress:
+  type: object
+  required:
+    - operationIndex
+    - operationKind
+    - status
+    - attemptCount
+  properties:
+    operationIndex:
+      type: integer
+    operationKind:
+      type: string
+    status:
+      type: string
+      enum:
+        - PENDING
+        - APPLYING
+        - COMPLETED
+        - FAILED
+    attemptCount:
+      type: integer
+    lastError:
+      type: string
+      nullable: true
+    lastAttemptedAt:
+      type: string
+      format: date-time
+      nullable: true
+    completedAt:
+      type: string
+      format: date-time
+      nullable: true
+
+WorkItemChangeSetMaterializationProgress:
+  type: object
+  required:
+    - state
+    - attemptCount
+    - operations
+  properties:
+    state:
+      $ref: "#/WorkItemChangeSetMaterializationState"
+    attemptCount:
+      type: integer
+    lastError:
+      type: string
+      nullable: true
+    diagnostic:
+      $ref: "#/ProposalApprovalFailureDiagnostic"
+    lastAttemptedAt:
+      type: string
+      format: date-time
+      nullable: true
+    publishedAt:
+      type: string
+      format: date-time
+      nullable: true
+    fencesReleasedAt:
+      type: string
+      format: date-time
+      nullable: true
+    operations:
+      type: array
+      items:
+        $ref: "#/WorkItemChangeSetOperationProgress"
+
+ProposalApprovalFailureDiagnostic:
+  type: object
+  additionalProperties: false
+  required:
+    - issues
+    - issueCount
+    - truncated
+    - correlationId
+  properties:
+    issues:
+      type: array
+      maxItems: 32
+      items:
+        $ref: "#/ProjectedWorkItemChangeSetIssue"
+      description: Bounded field-addressable approval or enactment issues
+    issueCount:
+      type: integer
+      minimum: 0
+      description: Total number of issues before bounded response truncation
+    truncated:
+      type: boolean
+      description: Whether the issue collection was bounded
+    correlationId:
+      type: string
+      minLength: 1
+      description: Correlation reference for support and operational logs
+
+ProposalApprovalFailureErrorResponse:
+  type: object
+  additionalProperties: false
+  required:
+    - success
+    - message
+    - diagnostic
+    - statusCode
+    - timestamp
+    - path
+  properties:
+    success:
+      type: boolean
+      enum:
+        - false
+    message:
+      type: string
+    diagnostic:
+      $ref: "#/ProposalApprovalFailureDiagnostic"
+    statusCode:
+      type: integer
+    timestamp:
+      type: string
+      format: date-time
+    path:
+      type: string
+
+ProposalApprovalType:
+  type: string
+  enum:
+    - APPROVAL
+    - REJECTION
+  description: Whether the record is an approval or rejection
+
+ProposalApprovalDto:
+  type: object
+  required:
+    - userId
+    - type
+    - createdAt
+  properties:
+    userId:
+      type: string
+      description: ID of the user who cast this vote
+    type:
+      $ref: "#/ProposalApprovalType"
+    reason:
+      type: string
+      nullable: true
+      description: Optional reason provided with the vote
+    createdAt:
+      type: string
+      format: date-time
+      description: When the vote was recorded
+
+DeleteUpdatesPayload:
+  type: object
+  additionalProperties: false
+  description: >
+    Empty payload for ordinary DELETE proposals, including non-cascade
+    WORK_ITEM_TYPE retirement proposals that archive the type.
+
+WorkItemTypeLifecycleProposalOperation:
+  type: string
+  enum:
+    - CREATE
+    - EDIT
+    - RESTORE
+  description: >
+    Server-authored lifecycle operation carried by a WORK_ITEM_TYPE proposal.
+    RESTORE is distinct from CREATE even though both use the project-owned
+    collection submission route. Ordinary archive proposals continue to use
+    the empty DELETE payload.
+
+WorkItemTypeLifecycleUpdatesPayload:
+  type: object
+  additionalProperties: false
+  description: >
+    Typed lifecycle review payload for a project-owned work-item type. CREATE
+    carries a new definition, EDIT carries the submitted definition, RESTORE
+    carries the exact retained definition being reactivated. Reset-to-canonical
+    is represented as a proposal-gated deletion of the complete project
+    override rather than a lifecycle payload operation.
+  required:
+    - operation
+    - typeKey
+  properties:
+    operation:
+      $ref: "#/WorkItemTypeLifecycleProposalOperation"
+    typeKey:
+      $ref: "./work-item-type-definition.yaml#/WorkItemTypeKey"
+    definition:
+      $ref: "./work-item-type-definition.yaml#/WorkItemTypeDefinitionDto"
+    reason:
+      type: string
+      nullable: true
+      description: Reviewer-facing rationale for the lifecycle operation, when provided.
+
+WorkItemTypeCascadeDeleteUpdatesPayload:
+  type: object
+  additionalProperties: false
+  description: >
+    Confirmed impact snapshot stored on a DELETE/WORK_ITEM_TYPE proposal for
+    irreversible cascade deletion. This shape is distinct from the empty
+    ordinary DELETE payload so archive and unrelated delete proposals remain
+    backward compatible. The counts are validated once when the review is
+    created and remain the frozen approval scope; approval does not impose a
+    second impact-equality gate.
+  required:
+    - operation
+    - cascade
+    - typeKey
+    - itemCount
+    - edgeCount
+  properties:
+    operation:
+      type: string
+      enum:
+        - CASCADE_DELETE
+      description: Typed lifecycle operation discriminator for hard deletion.
+    cascade:
+      type: boolean
+      description: Must be true for this irreversible hard-delete payload; operation is the typed discriminator.
+    typeKey:
+      $ref: "./work-item-type-definition.yaml#/WorkItemTypeKey"
+    itemCount:
+      type: integer
+      format: int32
+      minimum: 0
+      description: Confirmed number of work items expected to be deleted.
+    edgeCount:
+      type: integer
+      format: int32
+      minimum: 0
+      description: Confirmed number of distinct incident graph edges expected to be deleted.
+
+EntityPromptTemplateExpectedEffectiveRevisionDto:
+  type: object
+  additionalProperties: false
+  required:
+    - revisionId
+    - revisionNumber
+  properties:
+    revisionId:
+      type: string
+      format: uuid
+      description: Immutable identity of the effective revision observed while authoring.
+    revisionNumber:
+      type: integer
+      format: int64
+      minimum: 1
+      description: Immutable revision number observed while authoring.
+  description: >-
+    Applicability token captured from the effective-template read. Approval
+    must fail without changing template state when this revision is no longer
+    effective.
+
+EntityPromptTemplateUpsertUpdatesPayload:
+  type: object
+  additionalProperties: false
+  required:
+    - operation
+    - projectId
+    - selector
+    - syntaxVersion
+    - content
+    - expectedEffectiveRevision
+  properties:
+    operation:
+      type: string
+      enum:
+        - UPSERT
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+      description: Project that will own the override after approval.
+    selector:
+      $ref: "./entity-prompt-template.yaml#/EntityPromptTemplateSelectorDto"
+    syntaxVersion:
+      $ref: "./entity-prompt-template.yaml#/EntityPromptTemplateSyntaxVersion"
+    content:
+      type: string
+      minLength: 1
+      description: Complete proposed template content reviewed by approvers.
+    expectedEffectiveRevision:
+      $ref: "#/EntityPromptTemplateExpectedEffectiveRevisionDto"
+  description: >-
+    Complete project-template override proposal. Creating or rejecting this
+    proposal does not persist a template draft or change effective template
+    state. Approval revalidates the complete payload, verifies applicability,
+    and atomically publishes one immutable project-owned revision.
+
+EntityPromptTemplateRetireUpdatesPayload:
+  type: object
+  additionalProperties: false
+  required:
+    - operation
+    - projectId
+    - selector
+    - expectedEffectiveRevision
+  properties:
+    operation:
+      type: string
+      enum:
+        - RETIRE
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+      description: Project whose active override will be retired after approval.
+    selector:
+      $ref: "./entity-prompt-template.yaml#/EntityPromptTemplateSelectorDto"
+    expectedEffectiveRevision:
+      $ref: "#/EntityPromptTemplateExpectedEffectiveRevisionDto"
+  description: >-
+    Complete active-override retirement proposal. Creating or rejecting this
+    proposal leaves template state unchanged. Approval verifies that the
+    expected project override is still effective, then atomically retires it
+    so the canonical template becomes effective.
+
+EntityPromptTemplateProposalUpdatesPayload:
+  oneOf:
+    - $ref: "#/EntityPromptTemplateUpsertUpdatesPayload"
+    - $ref: "#/EntityPromptTemplateRetireUpdatesPayload"
+  discriminator:
+    propertyName: operation
+    mapping:
+      UPSERT: "#/EntityPromptTemplateUpsertUpdatesPayload"
+      RETIRE: "#/EntityPromptTemplateRetireUpdatesPayload"
+  description: >-
+    Typed mutation payload carried by an ENTITY_PROMPT_TEMPLATE proposal.
+    Proposal lifecycle state remains represented only by ProposalStatus;
+    template lifecycle state describes effective persisted revisions only.
+
+ProposalUpdates:
+  oneOf:
+    - $ref: "./future-revisions.yaml#/FutureRevisionMutation"
+    - $ref: "./tasks.yaml#/CreateTaskDto"
+    - $ref: "./tasks.yaml#/UpdateTaskDto"
+    - $ref: "./design-docs.yaml#/CreateDesignDocDto"
+    - $ref: "./design-docs.yaml#/UpdateDesignDocDto"
+
+    - $ref: "#/WorkItemChangeSetValidationRequest"
+    - $ref: "#/DeleteUpdatesPayload"
+    - $ref: "#/WorkItemTypeLifecycleUpdatesPayload"
+    - $ref: "#/WorkItemTypeCascadeDeleteUpdatesPayload"
+    - $ref: "#/EntityPromptTemplateProposalUpdatesPayload"
+  description: >
+    The proposed change payload. Shape depends on action + targetEntityType:
+    CREATE/TASK -> CreateTaskDto, UPDATE/TASK -> UpdateTaskDto,
+    including the structured FEATURE requirement input and partial-operation
+    fields when the target work item is a FEATURE,
+    CREATE/DESIGN_DOC -> CreateDesignDocDto, UPDATE/DESIGN_DOC -> UpdateDesignDocDto,
+    UPDATE/PLAN -> UpdatePlanDto,
+    WORK_ITEM_TYPE lifecycle operations -> WorkItemTypeLifecycleUpdatesPayload,
+    DELETE/WORK_ITEM_TYPE with cascade=true ->
+    WorkItemTypeCascadeDeleteUpdatesPayload, and ordinary DELETE proposals ->
+    DeleteUpdatesPayload (empty object). UPDATE/ENTITY_PROMPT_TEMPLATE carries
+    an EntityPromptTemplateUpsertUpdatesPayload; DELETE/ENTITY_PROMPT_TEMPLATE
+    carries an EntityPromptTemplateRetireUpdatesPayload. Both template payloads
+    are submitted through the standard proposal route and return the standard
+    ProposalResponseDto rather than a publication result.
+
+CreateProposalDto:
+  type: object
+  required:
+    - type
+    - action
+    - targetEntityId
+    - targetEntityType
+    - updates
+  properties:
+    type:
+      $ref: "#/ProposalType"
+    action:
+      $ref: "#/ProposalAction"
+    targetEntityId:
+      type: string
+      description: >-
+        ID of the entity being targeted by this proposal. For an
+        ENTITY_PROMPT_TEMPLATE proposal, callers must use the stable
+        templateKey returned by the effective-template read; they must not
+        synthesize an ID from the selector or use a revision ID.
+    targetEntityType:
+      $ref: "#/TargetEntityType"
+    title:
+      type: string
+      nullable: true
+      description: >
+        Caller-supplied title snapshot. Required for `action=CREATE`
+        (the to-be entity has no registry row yet, so the writer must
+        supply the name; the server rejects a CREATE proposal authored
+        without a `title`). Optional for `action=UPDATE` and
+        `action=DELETE` — when omitted, the server resolves the target's
+        current title from the EntityRegistry. When supplied, the
+        caller-supplied value wins and is persisted verbatim.
+        See `ProposalResponseDto.title` for the per-action snapshot
+        semantics.
+    eli5:
+      type: string
+      maxLength: 150
+      minLength: 1
+      description: Proposal-owned explanation, absent only in proposals written before the experiment.
+    updates:
+      $ref: "#/ProposalUpdates"
+    requestorContext:
+      type: object
+      additionalProperties: true
+      description: Optional metadata about the requestor and request context
+    influences:
+      type: array
+      items:
+        $ref: "./artifacts.yaml#/Influence"
+      description: >
+        Entities that influenced this proposal. Each entry declares the
+        influencing entity, how it influenced the proposal, and a reason type.
+    generatedWithVersion:
+      type: string
+      description: Model version or tool version used to generate the proposal
+    validationSessionId:
+      type: string
+      format: uuid
+      description: Optional validation session to link this proposal to
+    conversationId:
+      type: string
+      format: uuid
+      description: Optional conversation to link this proposal to
+    edges:
+      type: array
+      items:
+        $ref: "#/ProposalEdgeDeclaration"
+      description: >
+        Optional edge declarations linking this proposal to other proposals.
+        Each entry declares a relationship that will become a pending edge
+        when the proposal is approved.
+    tracks:
+      $ref: "#/CreateWorkItemTracksAttachment"
+
+CreateProposalRequestDto:
+  allOf:
+    - $ref: "#/CreateProposalDto"
+    - type: object
+      required:
+        - eli5
+      properties:
+        eli5:
+          type: string
+          minLength: 1
+          maxLength: 150
+          description: Required proposal-owned explanation for every newly authored proposal.
+
+ProposalValidationLayer:
+  type: string
+  enum:
+    - structural
+    - referential
+    - permission
+
+ProposalValidationIssue:
+  type: object
+  additionalProperties: false
+  required:
+    - field
+    - code
+    - reason
+    - layer
+  properties:
+    field:
+      type: string
+    code:
+      type: string
+    reason:
+      type: string
+    layer:
+      $ref: "#/ProposalValidationLayer"
+    suggestion:
+      type: string
+    metadata:
+      type: object
+      additionalProperties: true
+      description: >-
+        Machine-readable identities and counts that locate the projected
+        topology involved in this finding. Identity values use the same
+        existing:/temporary: labels as the projected change-set response.
+
+SingleProposalValidationResult:
+  type: object
+  additionalProperties: false
+  required:
+    - index
+    - valid
+    - errors
+    - warnings
+  properties:
+    index:
+      type: integer
+    valid:
+      type: boolean
+    errors:
+      type: array
+      items:
+        $ref: "#/ProposalValidationIssue"
+    warnings:
+      type: array
+      items:
+        $ref: "#/ProposalValidationIssue"
+
+ProposalValidationResult:
+  type: object
+  additionalProperties: false
+  required:
+    - valid
+    - proposals
+  properties:
+    valid:
+      type: boolean
+    proposals:
+      type: array
+      items:
+        $ref: "#/SingleProposalValidationResult"
+
+# =============================================
+# Generic Work-Item Change-Set Schemas
+# =============================================
+WorkItemChangeSetIdentity:
+  oneOf:
+    - $ref: "#/ExistingWorkItemIdentity"
+    - $ref: "#/TemporaryWorkItemIdentity"
+  discriminator:
+    propertyName: refType
+    mapping:
+      existing: "#/ExistingWorkItemIdentity"
+      temporary: "#/TemporaryWorkItemIdentity"
+  description: Structurally distinct identity for an existing work item or a change-set-scoped temporary work item.
+
+ExistingWorkItemIdentity:
+  type: object
+  additionalProperties: false
+  required:
+    - refType
+    - id
+  properties:
+    refType:
+      type: string
+      enum:
+        - existing
+    id:
+      type: string
+      format: uuid
+
+TemporaryWorkItemIdentity:
+  type: object
+  additionalProperties: false
+  required:
+    - refType
+    - tempId
+  properties:
+    refType:
+      type: string
+      enum:
+        - temporary
+    tempId:
+      type: string
+      minLength: 1
+      description: Change-set-scoped temporary identifier. It is never converted into a persisted id during projection.
+
+WorkItemChangeSetRelationshipIdentity:
+  oneOf:
+    - $ref: "#/ExistingRelationshipIdentity"
+    - $ref: "#/TemporaryRelationshipIdentity"
+  discriminator:
+    propertyName: refType
+    mapping:
+      existing: "#/ExistingRelationshipIdentity"
+      temporary: "#/TemporaryRelationshipIdentity"
+
+ExistingRelationshipIdentity:
+  type: object
+  additionalProperties: false
+  required:
+    - refType
+    - id
+  properties:
+    refType:
+      type: string
+      enum:
+        - existing
+    id:
+      type: string
+      format: uuid
+
+TemporaryRelationshipIdentity:
+  type: object
+  additionalProperties: false
+  required:
+    - refType
+    - tempId
+  properties:
+    refType:
+      type: string
+      enum:
+        - temporary
+    tempId:
+      type: string
+      minLength: 1
+
+WorkItemChangeSetLayoutNodeIdentity:
+  oneOf:
+    - $ref: "#/ExistingWorkItemIdentity"
+    - $ref: "#/TemporaryWorkItemIdentity"
+  discriminator:
+    propertyName: refType
+    mapping:
+      existing: "#/ExistingWorkItemIdentity"
+      temporary: "#/TemporaryWorkItemIdentity"
+
+WorkItemChangeSetPosition:
+  type: object
+  additionalProperties: false
+  required:
+    - x
+    - y
+  properties:
+    x:
+      type: number
+    y:
+      type: number
+
+WorkItemChangeSetLayoutEntry:
+  type: object
+  additionalProperties: false
+  required:
+    - node
+    - position
+  properties:
+    node:
+      $ref: "#/WorkItemChangeSetLayoutNodeIdentity"
+    position:
+      $ref: "#/WorkItemChangeSetPosition"
+
+WorkItemChangeSetSectionValue:
+  nullable: true
+  description: >
+    Any JSON value. Markdown sections use strings; schema-backed JSON sections
+    may use objects, arrays, numbers, booleans, or null; html/css sections use
+    the strict WorkItemHtmlCssSectionContent object; structured-mockup sections
+    use the versioned WorkItemStructuredMockupSectionContent object. This envelope remains
+    intentionally broad so validation can dispatch by the resolved section
+    definition.
+
+WorkItemCreateOperation:
+  type: object
+  additionalProperties: false
+  required:
+    - op
+    - ref
+    - name
+  properties:
+    op:
+      type: string
+      enum:
+        - workItem.create
+    ref:
+      $ref: "#/TemporaryWorkItemIdentity"
+    name:
+      type: string
+      minLength: 1
+    type:
+      $ref: "./work-item-type-definition.yaml#/WorkItemTypeKey"
+    parent:
+      $ref: "#/WorkItemChangeSetIdentity"
+    status:
+      $ref: "./common.yaml#/WorkStatus"
+    priority:
+      $ref: "./tasks.yaml#/TaskPriority"
+    dueDate:
+      type: string
+      format: date-time
+      nullable: true
+    assigneeId:
+      type: string
+      format: uuid
+      nullable: true
+    tag:
+      $ref: "./tasks.yaml#/FeatureTag"
+    serviceIds:
+      type: array
+      description: >-
+        Optional complete known Service assignment array for a work-item type
+        whose project-effective registry role is work-item. Preserve this
+        value as a JSON array. Repeated IDs are accepted with an advisory
+        finding and produce one assignment per unique valid ID. Generic
+        work-item authoring continues to require project-valid references,
+        and the field is rejected for other registry roles. For
+        plan-materialized STANDARD children of PLAN_STAGE, omitted or empty
+        Service coverage remains admissible after plan-specific advisory
+        normalization; invalid project Service IDs are omitted before
+        persistence.
+      items:
+        $ref: "./common.yaml#/ServiceId"
+
+WorkItemUpdateOperation:
+  type: object
+  additionalProperties: false
+  required:
+    - op
+    - ref
+  properties:
+    op:
+      type: string
+      enum:
+        - workItem.update
+    ref:
+      $ref: "#/WorkItemChangeSetIdentity"
+    name:
+      type: string
+      minLength: 1
+    parent:
+      nullable: true
+      allOf:
+        - $ref: "#/WorkItemChangeSetIdentity"
+    status:
+      $ref: "./common.yaml#/WorkStatus"
+    priority:
+      $ref: "./tasks.yaml#/TaskPriority"
+    dueDate:
+      type: string
+      format: date-time
+      nullable: true
+    assigneeId:
+      type: string
+      format: uuid
+      nullable: true
+    tag:
+      $ref: "./tasks.yaml#/FeatureTag"
+    serviceIds:
+      type: array
+      description: >-
+        Optional complete known replacement Service assignment array for a
+        work-item type whose project-effective registry role is work-item.
+        Preserve this value as a JSON array. Repeated IDs are accepted with an
+        advisory finding and produce one assignment per unique valid ID.
+        Generic work-item authoring continues to require project-valid
+        references, and the field is rejected for other registry roles. For
+        plan-materialized STANDARD children of PLAN_STAGE, omitted or
+        empty Service coverage remains admissible after plan-specific advisory
+        normalization; invalid project Service IDs are omitted before
+        persistence.
+      items:
+        $ref: "./common.yaml#/ServiceId"
+
+WorkItemDeleteOperation:
+  type: object
+  additionalProperties: false
+  required:
+    - op
+    - ref
+  properties:
+    op:
+      type: string
+      enum:
+        - workItem.delete
+    ref:
+      $ref: "#/WorkItemChangeSetIdentity"
+
+WorkItemSectionReplaceOperation:
+  type: object
+  additionalProperties: false
+  required:
+    - op
+    - ref
+    - key
+    - content
+  properties:
+    op:
+      type: string
+      enum:
+        - section.replace
+    ref:
+      $ref: "#/WorkItemChangeSetIdentity"
+    key:
+      type: string
+      minLength: 1
+    content:
+      $ref: "#/WorkItemChangeSetSectionValue"
+
+WorkItemSectionClearOperation:
+  type: object
+  additionalProperties: false
+  required:
+    - op
+    - ref
+    - key
+  properties:
+    op:
+      type: string
+      enum:
+        - section.clear
+    ref:
+      $ref: "#/WorkItemChangeSetIdentity"
+    key:
+      type: string
+      minLength: 1
+
+WorkItemMetaRelationshipCreateOperation:
+  type: object
+  additionalProperties: false
+  required:
+    - op
+    - ref
+    - source
+    - target
+    - edgeType
+  properties:
+    op:
+      type: string
+      enum:
+        - relationship.create
+    ref:
+      $ref: "#/TemporaryRelationshipIdentity"
+    source:
+      $ref: "#/WorkItemChangeSetIdentity"
+    target:
+      $ref: "#/WorkItemChangeSetIdentity"
+    edgeType:
+      $ref: "./agent-edges.yaml#/AgentMetaEdgeType"
+    category:
+      type: string
+      enum:
+        - meta
+    direction:
+      nullable: true
+      allOf:
+        - $ref: "./agent-edges.yaml#/AgentEdgeDirection"
+    predicate:
+      type: string
+      nullable: true
+    reasoning:
+      type: string
+      nullable: true
+    metadata:
+      type: object
+      additionalProperties: true
+      nullable: true
+
+WorkItemStandardRelationshipCreateOperation:
+  type: object
+  additionalProperties: false
+  required:
+    - op
+    - ref
+    - source
+    - target
+    - edgeType
+    - category
+    - direction
+  properties:
+    op:
+      type: string
+      enum:
+        - relationship.create
+    ref:
+      $ref: "#/TemporaryRelationshipIdentity"
+    source:
+      $ref: "#/WorkItemChangeSetIdentity"
+    target:
+      $ref: "#/WorkItemChangeSetIdentity"
+    edgeType:
+      type: string
+      enum:
+        - STANDARD
+    category:
+      type: string
+      enum:
+        - flow
+    direction:
+      $ref: "./agent-edges.yaml#/AgentEdgeDirection"
+    reasoning:
+      type: string
+      nullable: true
+    metadata:
+      type: object
+      additionalProperties: true
+      nullable: true
+
+WorkItemConditionalRelationshipCreateOperation:
+  type: object
+  additionalProperties: false
+  required:
+    - op
+    - ref
+    - source
+    - target
+    - edgeType
+    - category
+    - direction
+    - predicate
+  properties:
+    op:
+      type: string
+      enum:
+        - relationship.create
+    ref:
+      $ref: "#/TemporaryRelationshipIdentity"
+    source:
+      $ref: "#/WorkItemChangeSetIdentity"
+    target:
+      $ref: "#/WorkItemChangeSetIdentity"
+    edgeType:
+      type: string
+      enum:
+        - CONDITIONAL
+    category:
+      type: string
+      enum:
+        - flow
+    direction:
+      $ref: "./agent-edges.yaml#/AgentEdgeDirection"
+    predicate:
+      $ref: "./agent-edges.yaml#/WorkflowEdgePredicate"
+    reasoning:
+      type: string
+      nullable: true
+    metadata:
+      type: object
+      additionalProperties: true
+      nullable: true
+
+WorkItemLoopRelationshipCreateOperation:
+  type: object
+  additionalProperties: false
+  required:
+    - op
+    - ref
+    - source
+    - target
+    - edgeType
+    - category
+  properties:
+    op:
+      type: string
+      enum:
+        - relationship.create
+    ref:
+      $ref: "#/TemporaryRelationshipIdentity"
+    source:
+      $ref: "#/WorkItemChangeSetIdentity"
+    target:
+      $ref: "#/WorkItemChangeSetIdentity"
+    edgeType:
+      type: string
+      enum:
+        - LOOP
+    category:
+      type: string
+      enum:
+        - flow
+    predicate:
+      $ref: "./agent-edges.yaml#/WorkflowEdgePredicate"
+    reasoning:
+      type: string
+      nullable: true
+    metadata:
+      type: object
+      additionalProperties: true
+      nullable: true
+
+WorkItemRelationshipCreateOperation:
+  oneOf:
+    - $ref: "#/WorkItemMetaRelationshipCreateOperation"
+    - $ref: "#/WorkItemStandardRelationshipCreateOperation"
+    - $ref: "#/WorkItemConditionalRelationshipCreateOperation"
+    - $ref: "#/WorkItemLoopRelationshipCreateOperation"
+  discriminator:
+    propertyName: edgeType
+    mapping:
+      RELATED_TO: "#/WorkItemMetaRelationshipCreateOperation"
+      DEPENDS_ON: "#/WorkItemMetaRelationshipCreateOperation"
+      DERIVES_FROM: "#/WorkItemMetaRelationshipCreateOperation"
+      SUPERSEDES: "#/WorkItemMetaRelationshipCreateOperation"
+      CONTRADICTS: "#/WorkItemMetaRelationshipCreateOperation"
+      EVOLVES: "#/WorkItemMetaRelationshipCreateOperation"
+      TRACKS: "#/WorkItemMetaRelationshipCreateOperation"
+      PROPOSED_TOGETHER: "#/WorkItemMetaRelationshipCreateOperation"
+      FULFILLED_BY: "#/WorkItemMetaRelationshipCreateOperation"
+      GUARANTEES: "#/WorkItemMetaRelationshipCreateOperation"
+      IMPLEMENTS: "#/WorkItemMetaRelationshipCreateOperation"
+      CONSUMES: "#/WorkItemMetaRelationshipCreateOperation"
+      STANDARD: "#/WorkItemStandardRelationshipCreateOperation"
+      CONDITIONAL: "#/WorkItemConditionalRelationshipCreateOperation"
+      LOOP: "#/WorkItemLoopRelationshipCreateOperation"
+
+WorkItemRelationshipUpdateOperation:
+  type: object
+  additionalProperties: false
+  required:
+    - op
+    - ref
+  properties:
+    op:
+      type: string
+      enum:
+        - relationship.update
+    ref:
+      $ref: "#/WorkItemChangeSetRelationshipIdentity"
+    source:
+      $ref: "#/WorkItemChangeSetIdentity"
+    sourceEntityType:
+      $ref: "./agent-edges.yaml#/AgentEdgeEndpointEntityType"
+    target:
+      $ref: "#/WorkItemChangeSetIdentity"
+    targetEntityType:
+      $ref: "./agent-edges.yaml#/AgentEdgeEndpointEntityType"
+    edgeType:
+      $ref: "./agent-edges.yaml#/AgentEdgeType"
+    category:
+      $ref: "./agent-edges.yaml#/AgentEdgeCategory"
+    direction:
+      nullable: true
+      $ref: "./agent-edges.yaml#/AgentEdgeDirection"
+    predicate:
+      type: string
+      nullable: true
+    reasoning:
+      type: string
+      nullable: true
+    metadata:
+      type: object
+      additionalProperties: true
+      nullable: true
+
+WorkItemRelationshipDeleteOperation:
+  type: object
+  additionalProperties: false
+  required:
+    - op
+    - ref
+  properties:
+    op:
+      type: string
+      enum:
+        - relationship.delete
+    ref:
+      $ref: "#/WorkItemChangeSetRelationshipIdentity"
+
+WorkItemLayoutReplaceOperation:
+  type: object
+  additionalProperties: false
+  required:
+    - op
+    - root
+    - sectionKey
+    - entries
+  properties:
+    op:
+      type: string
+      enum:
+        - layout.replace
+    root:
+      $ref: "#/WorkItemChangeSetIdentity"
+    sectionKey:
+      type: string
+      minLength: 1
+    entries:
+      type: array
+      items:
+        $ref: "#/WorkItemChangeSetLayoutEntry"
+
+WorkItemLayoutClearOperation:
+  type: object
+  additionalProperties: false
+  required:
+    - op
+    - root
+    - sectionKey
+  properties:
+    op:
+      type: string
+      enum:
+        - layout.clear
+    root:
+      $ref: "#/WorkItemChangeSetIdentity"
+    sectionKey:
+      type: string
+      minLength: 1
+
+WorkItemChangeSetOperation:
+  oneOf:
+    - $ref: "#/WorkItemCreateOperation"
+    - $ref: "#/WorkItemUpdateOperation"
+    - $ref: "#/WorkItemDeleteOperation"
+    - $ref: "#/WorkItemSectionReplaceOperation"
+    - $ref: "#/WorkItemSectionClearOperation"
+    - $ref: "#/WorkItemRelationshipCreateOperation"
+    - $ref: "#/WorkItemRelationshipUpdateOperation"
+    - $ref: "#/WorkItemRelationshipDeleteOperation"
+    - $ref: "#/WorkItemLayoutReplaceOperation"
+    - $ref: "#/WorkItemLayoutClearOperation"
+  discriminator:
+    propertyName: op
+    mapping:
+      workItem.create: "#/WorkItemCreateOperation"
+      workItem.update: "#/WorkItemUpdateOperation"
+      workItem.delete: "#/WorkItemDeleteOperation"
+      section.replace: "#/WorkItemSectionReplaceOperation"
+      section.clear: "#/WorkItemSectionClearOperation"
+      relationship.create: "#/WorkItemRelationshipCreateOperation"
+      relationship.update: "#/WorkItemRelationshipUpdateOperation"
+      relationship.delete: "#/WorkItemRelationshipDeleteOperation"
+      layout.replace: "#/WorkItemLayoutReplaceOperation"
+      layout.clear: "#/WorkItemLayoutClearOperation"
+
+WorkItemChangeSetValidationRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - root
+    - operations
+  properties:
+    root:
+      $ref: "#/WorkItemChangeSetIdentity"
+    operations:
+      type: array
+      items:
+        $ref: "#/WorkItemChangeSetOperation"
+    layoutBoundary:
+      type: array
+      description: Complete set of work-item identities expected in the root graph layout boundary.
+      items:
+        $ref: "#/WorkItemChangeSetLayoutNodeIdentity"
+
+ProjectedWorkItemSection:
+  type: object
+  additionalProperties: false
+  required:
+    - key
+    - content
+  properties:
+    key:
+      type: string
+    content:
+      $ref: "#/WorkItemChangeSetSectionValue"
+
+ProjectedWorkItem:
+  type: object
+  additionalProperties: false
+  required:
+    - identity
+    - label
+    - type
+    - name
+    - sections
+    - deleted
+  properties:
+    identity:
+      $ref: "#/WorkItemChangeSetIdentity"
+    label:
+      type: string
+    type:
+      $ref: "./work-item-type-definition.yaml#/WorkItemTypeKey"
+    name:
+      type: string
+    parent:
+      nullable: true
+      $ref: "#/WorkItemChangeSetIdentity"
+    status:
+      $ref: "./common.yaml#/WorkStatus"
+    priority:
+      $ref: "./tasks.yaml#/TaskPriority"
+    dueDate:
+      type: string
+      format: date-time
+      nullable: true
+    assigneeId:
+      type: string
+      format: uuid
+      nullable: true
+    tag:
+      $ref: "./tasks.yaml#/FeatureTag"
+    serviceIds:
+      type: array
+      uniqueItems: true
+      items:
+        $ref: "./common.yaml#/ServiceId"
+    sections:
+      type: array
+      items:
+        $ref: "#/ProjectedWorkItemSection"
+    deleted:
+      type: boolean
+
+ProjectedWorkItemRelationship:
+  type: object
+  additionalProperties: false
+  required:
+    - identity
+    - label
+    - source
+    - target
+    - edgeType
+    - deleted
+  properties:
+    identity:
+      $ref: "#/WorkItemChangeSetRelationshipIdentity"
+    label:
+      type: string
+    source:
+      $ref: "#/WorkItemChangeSetIdentity"
+    sourceEntityType:
+      $ref: "./agent-edges.yaml#/AgentEdgeEndpointEntityType"
+    target:
+      $ref: "#/WorkItemChangeSetIdentity"
+    targetEntityType:
+      $ref: "./agent-edges.yaml#/AgentEdgeEndpointEntityType"
+    edgeType:
+      $ref: "./agent-edges.yaml#/AgentEdgeType"
+    category:
+      $ref: "./agent-edges.yaml#/AgentEdgeCategory"
+    direction:
+      nullable: true
+      $ref: "./agent-edges.yaml#/AgentEdgeDirection"
+    predicate:
+      type: string
+      nullable: true
+    reasoning:
+      type: string
+      nullable: true
+    metadata:
+      type: object
+      additionalProperties: true
+      nullable: true
+    deleted:
+      type: boolean
+
+ProjectedWorkItemChangeSetIssue:
+  type: object
+  additionalProperties: false
+  required:
+    - field
+    - code
+    - reason
+    - layer
+  properties:
+    field:
+      type: string
+    code:
+      type: string
+    reason:
+      type: string
+    layer:
+      type: string
+      enum:
+        - structural
+        - referential
+        - permission
+    suggestion:
+      type: string
+    metadata:
+      type: object
+      additionalProperties: true
+      description: >-
+        Machine-readable identities and counts that locate the projected
+        topology involved in this finding. Identity values use the same
+        existing:/temporary: labels as the projected change-set response.
+
+ProjectedWorkItemChangeSetResponse:
+  type: object
+  additionalProperties: false
+  required:
+    - valid
+    - projectedRoot
+    - children
+    - sections
+    - incidentRelationships
+    - identityLabels
+    - issues
+    - warnings
+  properties:
+    valid:
+      type: boolean
+    projectedRoot:
+      nullable: true
+      $ref: "#/ProjectedWorkItem"
+    children:
+      type: array
+      items:
+        $ref: "#/ProjectedWorkItem"
+    sections:
+      type: array
+      items:
+        $ref: "#/ProjectedWorkItemSection"
+    incidentRelationships:
+      type: array
+      items:
+        $ref: "#/ProjectedWorkItemRelationship"
+    identityLabels:
+      type: object
+      additionalProperties:
+        type: string
+    issues:
+      type: array
+      items:
+        $ref: "#/ProjectedWorkItemChangeSetIssue"
+    warnings:
+      type: array
+      items:
+        $ref: "#/ProjectedWorkItemChangeSetIssue"
+
+UpdateProposalDto:
+  type: object
+  properties:
+    type:
+      $ref: "#/ProposalType"
+    action:
+      $ref: "#/ProposalAction"
+    status:
+      $ref: "#/ProposalStatus"
+    reviewedReconciliationRevisionId:
+      type: string
+      format: uuid
+      description: Immutable reconciled revision displayed for review. Required when approving reconciled content; further drift requires reconciliation again.
+    acknowledgeOutOfDate:
+      type: boolean
+      deprecated: true
+      description: Retained for older clients. Acknowledgement never authorizes application of stale content.
+    targetEntityId:
+      type: string
+      description: >-
+        Replacement target identity. For ENTITY_PROMPT_TEMPLATE proposals,
+        this remains the stable templateKey returned by the effective-template
+        read, never a selector-derived value or revision ID.
+    targetEntityType:
+      $ref: "#/TargetEntityType"
+    title:
+      type: string
+      nullable: true
+      description: >
+        Optional caller-supplied title snapshot override (rarely used —
+        the server stamps this field at write time on create; updates do
+        not refresh it).
+    eli5:
+      type: string
+      minLength: 1
+      maxLength: 150
+      description: Optional replacement for the proposal-owned explanation while the proposal is in draft.
+    updates:
+      $ref: "#/ProposalUpdates"
+    requestorContext:
+      type: object
+      additionalProperties: true
+    influences:
+      type: array
+      items:
+        $ref: "./artifacts.yaml#/Influence"
+      description: >
+        Entities that influenced this proposal. Entries supplied here are
+        **appended** to the proposal's existing influences — this field is
+        not a replacement of the prior list. Optional; omit when the update
+        carries no new influence attribution. The canonical user-edit case
+        attaches a single entry with `entityType: USER`, `reasonType:
+        user_reason`, the editing user's id as `entityId`, and an optional
+        free-text `reasoning` string captured at save time. Server-side, the
+        `updates` patch and any appended influences are applied atomically
+        within the same request — see the PATCH /proposals/{proposalId}
+        operation description.
+    generatedWithVersion:
+      type: string
+      description: Model version or tool version used to generate the proposal
+    validationSessionId:
+      type: string
+      format: uuid
+      nullable: true
+    conversationId:
+      type: string
+      format: uuid
+      nullable: true
+
+RejectProposalDto:
+  type: object
+  properties:
+    reason:
+      type: string
+      maxLength: 2000
+      description: >
+        Reason for rejecting the proposal. Optional for CREATE proposals;
+        UPDATE and DELETE proposals require a non-blank reason.
+
+RejectionResult:
+  type: object
+  required:
+    - proposal
+  properties:
+    proposal:
+      $ref: "#/ProposalResponseDto"
+
+PaginatedProposalsResponse:
+  type: object
+  required:
+    - data
+    - total
+    - limit
+    - offset
+  properties:
+    data:
+      type: array
+      items:
+        $ref: "#/ProposalResponseDto"
+    total:
+      type: integer
+    limit:
+      type: integer
+    offset:
+      type: integer
+    windowStart:
+      type: string
+      format: date-time
+      description: Inclusive proposal occurrence-time lower bound applied to data and total
+    windowEnd:
+      type: string
+      format: date-time
+      description: Exclusive proposal occurrence-time upper bound applied to data and total
+
+RollupProposalReportPayload:
+  description: >
+    Payload shape for reports with reportType ROLLUP_PROPOSAL.
+    Stored in the report's payload JSON field.
+  allOf:
+    - $ref: "./reports.yaml#/BaseReportPayload"
+    - type: object
+      required:
+        - reportType
+        - taskId
+        - triggeredBy
+        - triggeredAt
+        - parentFeatures
+        - relatedFeatures
+      properties:
+        reportType:
+          type: string
+          enum:
+            - ROLLUP_PROPOSAL
+        taskId:
+          type: string
+          format: uuid
+          description: ID of the feature task being updated by this rollup
+        triggeredBy:
+          type: string
+          description: User ID or agent ID that triggered the rollup proposal
+        triggeredAt:
+          type: string
+          format: date-time
+        parentFeatures:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Proposal IDs for parent feature updates
+        relatedFeatures:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Proposal IDs for related feature updates
+
+# =============================================
+# Proposal Edge Declaration Schemas
+# =============================================
+ProposalEdgeType:
+  type: string
+  enum:
+    - DEPENDS_ON
+    - BLOCKS
+    - RELATED_TO
+    - SUPERSEDES
+    - DERIVES_FROM
+    - CONTRADICTS
+    - EVOLVES
+    - TRACKS
+  description: >
+    Relationship type for edges declared on proposals. Values are a
+    proposal-scoped subset of the graph-service RelationshipType enum.
+    `SUPERSEDES` is declared by the supersede transition: the proposal that
+    sets a task's status to `SUPERSEDED` carries the matching `SUPERSEDES`
+    edge to the successor task, so the status change and the edge travel
+    on one reviewable proposal. `EVOLVES` marks that the source entity
+    refines, extends, or iterates on the target entity, which remains
+    canonical — distinct from `SUPERSEDES`, where the target is displaced.
+    `TRACKS` is reserved for the server-authored declaration produced by a
+    compound `CreateWorkItemTracksAttachment`; generic proposal edge inputs
+    do not author it directly.
+
+CreateWorkItemTracksAttachment:
+  type: object
+  additionalProperties: false
+  required:
+    - sourceEntityId
+  properties:
+    sourceEntityId:
+      type: string
+      format: uuid
+      description: >
+        Existing work-item id that will originate a TRACKS relationship to
+        the newly created TASK. The source work-item type is resolved from
+        the registry at runtime; it must be configured as a tracking source
+        and must allow the new work-item type as a tracking target.
+  description: >
+    Optional compound attachment for CREATE/TASK proposals. Validation happens
+    before proposal persistence, and approval materializes the new work item
+    together with a TRACKS relationship from this existing source. Use the
+    separate attach-to-goal operation when the target entity already exists.
+
+ProposalEdgeTargetType:
+  type: string
+  enum:
+    - TASK
+    - DESIGN_DOC
+    - PROPOSAL
+  description: >
+    Type of entity referenced by a declared proposal edge. `TASK` and
+    `DESIGN_DOC` link to an already-materialized entity (the edge is
+    created in the graph service immediately on approval). `PROPOSAL`
+    references a proposal in the same organization and project. endpointMode
+    determines whether proposal identities are retained or resolved on approval.
+
+ProposalEdgeEndpointMode:
+  type: string
+  enum:
+    - ENTITY
+    - PROPOSAL
+  description: >
+    ENTITY (also the behavior when omitted) materializes entity relationships
+    on approval, deferring proposal targets until approved. PROPOSAL stores a
+    durable source-proposal to target-proposal relationship from authoring and
+    requires targetEntityType PROPOSAL. Neither endpoint is replaced by its
+    materialized entity. Pending, undecided, rejected, and approved targets
+    retain the relationship. This is not an enactment prerequisite.
+
+ProposalEdgeDeclaration:
+  type: object
+  description: >
+    endpointMode PROPOSAL requires targetEntityType PROPOSAL. Graph-shaped
+    CREATE/UPDATE proposals may declare deferred ENTITY-mode outer edges only
+    to PROPOSAL targets; internal relationships to existing entities belong
+    in operations. sourceRef identifies the Diagram or one of its projected
+    work items as the edge source. It is only valid for PROPOSAL targets and
+    deferred ENTITY mode. When omitted, the proposal root is the source.
+  required:
+    - targetEntityId
+    - targetEntityType
+    - edgeType
+  properties:
+    endpointMode:
+      $ref: "#/ProposalEdgeEndpointMode"
+    sourceRef:
+      $ref: "#/WorkItemChangeSetIdentity"
+      description: >
+        Optional projected work-item source for a deferred ENTITY-mode edge
+        to a PROPOSAL target. Use `{ refType: "temporary", tempId }` for a
+        work item created in this change set or `{ refType: "existing", id }`
+        for an existing work item in the projected change set. Omit this field
+        to source the proposal root. This field is not valid for TASK or
+        DESIGN_DOC targets, or for durable endpointMode PROPOSAL links.
+    targetEntityId:
+      type: string
+      format: uuid
+      description: >
+        ID of the target of the edge. When `targetEntityType` is
+        `TASK` or `DESIGN_DOC`, this is the id of an existing entity.
+        When `targetEntityType` is `PROPOSAL`, this is the id of a
+        proposal in the same organization and project.
+    targetEntityType:
+      $ref: "#/ProposalEdgeTargetType"
+    targetEntityTitle:
+      type: string
+      nullable: true
+      description: >
+        Snapshot of the target entity's title at the moment the proposal
+        was created. Optional on input — when omitted and `targetEntityType`
+        is `TASK` or `DESIGN_DOC`, the server resolves the title from the
+        EntityRegistry and stamps it before the row is persisted. For
+        `PROPOSAL` targets with endpointMode PROPOSAL, the server snapshots
+        the proposal title at authoring. ENTITY-mode proposal targets retain
+        their deferred title semantics. The stored
+        snapshot intentionally does not auto-update if the target is
+        renamed or deleted; the mention link still resolves to the live
+        entity for the current name.
+    edgeType:
+      $ref: "#/ProposalEdgeType"
+    description:
+      type: string
+      description: Human-readable explanation of the relationship
+  allOf:
+    - not:
+        required:
+          - sourceRef
+        properties:
+          targetEntityType:
+            enum:
+              - TASK
+              - DESIGN_DOC
+    - not:
+        required:
+          - sourceRef
+        properties:
+          endpointMode:
+            enum:
+              - PROPOSAL
+
+ProposalReconciliationBasis:
+  type: object
+  additionalProperties: false
+  required: [entityType, entityId, version, content]
+  properties:
+    entityType:
+      type: string
+      enum: [TASK, DESIGN_DOC, REPORT, SERVICE, AGENT_SESSION, CONVERSATION, WORK_ITEM_TYPE, ENTITY_PROMPT_TEMPLATE, EDGE]
+    entityId:
+      type: string
+    version:
+      type: string
+      description: Server-owned version of the exact captured content, including section edits.
+    content:
+      type: object
+      additionalProperties: true
+      description: Complete canonical content produced by the owning entity adapter; never a client-supplied historical baseline.
+
+ProposalReconciliationRevision:
+  type: object
+  additionalProperties: false
+  required: [id, proposalId, source, bases, proposedResult, intent, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    proposalId:
+      type: string
+      format: uuid
+    source:
+      type: string
+      enum: [AUTHORING, MERGE, AGENT_FIX]
+    previousRevisionId:
+      type: string
+      format: uuid
+      nullable: true
+    bases:
+      type: array
+      items:
+        $ref: '#/ProposalReconciliationBasis'
+    proposedResult:
+      type: object
+      additionalProperties: true
+      description: Complete canonical projected content. Graph change sets are keyed by target identity. Omitted patch fields are preserved from the exact authoring basis.
+    intent:
+      type: string
+      nullable: true
+      description: Exact authored explanation or title; null when neither was supplied.
+    createdAt:
+      type: string
+      format: date-time
+
+ProposalReconciliationState:
+  type: object
+  additionalProperties: false
+  required: [status, currentBases, revisions, conflictingPaths]
+  properties:
+    status:
+      type: string
+      enum: [NOT_APPLICABLE, CURRENT, RECONCILIATION_REQUIRED, AGENT_FIX_REQUIRED, READY_FOR_REVIEW]
+    currentBases:
+      type: array
+      items:
+        $ref: '#/ProposalReconciliationBasis'
+    revisions:
+      type: array
+      items:
+        $ref: '#/ProposalReconciliationRevision'
+    conflictingPaths:
+      type: array
+      items:
+        type: string
+    candidateRevisionId:
+      type: string
+      format: uuid
+    replacementGroupId:
+      type: string
+      format: uuid
+    replacementProposalId:
+      type: string
+      format: uuid
+
+CreateProposalReconciliationCandidate:
+  oneOf:
+    - $ref: '#/ProposalReconciliationMergeRequest'
+    - $ref: '#/ProposalReconciliationAgentFixRequest'
+
+ProposalReconciliationMergeRequest:
+  type: object
+  additionalProperties: false
+  required: [method]
+  properties:
+    method:
+      type: string
+      enum: [MERGE]
+
+ProposalReconciliationAgentFixRequest:
+  type: object
+  additionalProperties: false
+  required: [method, proposedResult, expectedCurrentBases]
+  properties:
+    method:
+      type: string
+      enum: [AGENT_FIX]
+    proposedResult:
+      type: object
+      additionalProperties: true
+      description: Required for Agent fix; admitted through ordinary proposal validation before persistence. Submission never authorizes application.
+    expectedCurrentBases:
+      type: array
+      items:
+        $ref: '#/ProposalReconciliationBasis'
+      description: The server-issued current bases used to prepare an Agent fix; further drift rejects submission.

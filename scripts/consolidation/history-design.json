@@ -1,0 +1,185 @@
+{
+  "schemaVersion": "hey-hey.history-design.v1",
+  "agreement": {
+    "historyPolicy": "user-agreed-single-fresh-baseline",
+    "localScope": "Five captured trees including selected working changes",
+    "publicationAuthorized": false,
+    "thisStep": "Design only; no assembly, transformation, scan, push, deployment or cutover",
+    "detailedBoundaries": "Layout/pnpm agreed; extraction and generation details remain proposed and require review before integration."
+  },
+  "bindings": {
+    "sourceManifest": {
+      "path": "scripts/consolidation/source-inputs.json",
+      "sha256": "9b8f2580a3c0adae41856c869c87587775b22e9c7d861053e05eeec8ac4bf720",
+      "captureSetId": "sha256:46191ee2148a4ed12d7db4e4d228cfe2304508e8bf483b40c74ef1efdd2a78f5"
+    },
+    "sources": [
+      {
+        "serviceId": "ad38d073-3d37-4a66-943e-dfccfa0729f3",
+        "key": "api",
+        "captureId": "sha256:5253819ccd0537b2476365f925925ed704048fcb63dc3058d04fcd5039bdc110",
+        "contentDigest": "b825f9aeb91cdfd38641a7db55c6f8965256fa7d7978bf47d809a278ae0c6a1e"
+      },
+      {
+        "serviceId": "fd9d0961-d3e9-4796-83ee-7720025c3dbe",
+        "key": "cli",
+        "captureId": "sha256:300ab48982a350bb24a30feb1203a2a990d14a1e0967825445da1d082e6cc195",
+        "contentDigest": "51003a195f87d2b4190f879d03de599dabbbfc7ef210c58aaf3f2550f04f9e8e"
+      },
+      {
+        "serviceId": "3ef90bdf-98c2-4010-a0bd-b1ca9001dc0a",
+        "key": "openapi",
+        "captureId": "sha256:380510e7510dc6f6b7c6e044e6515bb8aa491acb4ee7193fc4225aed4f936359",
+        "contentDigest": "7544cee9b278a80bd281e789a7e1fafc24259c5b4a90c19983fb32b7baaf4890"
+      },
+      {
+        "serviceId": "fe4cf998-335b-4818-ac55-4781024bdaff",
+        "key": "ui",
+        "captureId": "sha256:b3bef9b81712a830558a674927b1b4263c8953da77c210b0a2873cc2b8689e67",
+        "contentDigest": "8b19a9b8ac15ae6653f91a1e45b6f4aba84be9f966ccfcdaa5ced5cb0c835189"
+      },
+      {
+        "serviceId": "120a3e96-14e2-4fe9-9eaa-e6ef80697c64",
+        "key": "ui-common",
+        "captureId": "sha256:ebdb95662594dba09e582eb72d057cde921e97464c50852b0225e1feefffcf3a",
+        "contentDigest": "22437910ec9aa20e4b8c643fe705ca9ce004a63503ba63a8b40a48b555208132"
+      }
+    ],
+    "designs": [
+      {
+        "path": "scripts/consolidation/package-boundaries.json",
+        "sha256": "df974001caefbefd2d2260dd83407aca224046a2ef77c2b2dadb0fe2aa0bc2d6"
+      },
+      {
+        "path": "scripts/consolidation/generation-targets.json",
+        "sha256": "a54fe3acf51d3a546fb8ffe432af352e5d4cc675ed4516d0136ce502d0a599de"
+      }
+    ]
+  },
+  "pathMappings": {
+    "reference": "scripts/consolidation/package-boundaries.json#/sourceAreas",
+    "joinKey": "sourceInputRef.serviceId",
+    "rule": "Resolve exactly five unique complete captures to their destination prefixes. Reject collisions, absolute paths, traversal or missing identities."
+  },
+  "history": {
+    "policy": "single-fresh-root-commit",
+    "importOldCommits": false,
+    "cutoff": null,
+    "parents": [],
+    "mergeTreatment": "No source commits, parents, merges, tags, refs or Git metadata imported. Original histories remain in originals/private captures.",
+    "ordering": "No replay. Materialize sources by ascending serviceId and paths in UTF-8 byte order; reject collisions; create exactly one baseline.",
+    "gitObjectFormat": "sha1",
+    "commit": {
+      "authorName": "Hey Hey Consolidation",
+      "authorEmail": "consolidation@heyhey.invalid",
+      "committerName": "Hey Hey Consolidation",
+      "committerEmail": "consolidation@heyhey.invalid",
+      "authorDate": "2000-01-01T00:00:00+00:00",
+      "committerDate": "2000-01-01T00:00:00+00:00",
+      "message": "Consolidate five captured Hey Hey source trees\n",
+      "signing": false,
+      "rule": "Fixed synthetic metadata is for reproducibility, not a cutoff. Use Git plumbing with raw bytes/modes and explicit metadata, bypass host filters, autocrlf, hooks and signing."
+    },
+    "provenance": "Private evidence maps each serviceId, captured revision, captureId and contentDigest to the one baseline commit/tree and destination. No per-old-commit equivalents exist. Record path exclusions, moves and overlays privately."
+  },
+  "baselineConstruction": [
+    "Verify manifest/design bindings, five complete eligible captures, private receipt and every artifact/blob digest with the capture verifier. Never substitute mutable source checkouts.",
+    "Reconstruct captured revision; apply staged then unstaged binary-capable patches and selected untracked/ignored files. Captured direct entries/blobs govern final bytes, deletions, symlinks and modes, including working bytes hidden by filters/index flags. Verify each source content digest before mapping.",
+    "Collapse index/working distinction into the one baseline tree; preserve that distinction privately in captures. Apply explicit exclusions and quarantine, map through package boundaries, preserve all remaining bytes/modes.",
+    "Overlay only reviewed root tooling and inputs listed in rootOverlay, accounting separately for additions without changing captured facts.",
+    "Create parentless baseline with fixed metadata; retain private preservation comparisons and identity mapping. Verify original trees, refs and working changes are unchanged."
+  ],
+  "sourceExclusions": [
+    {
+      "source": "cli",
+      "paths": [
+        "src/commands/api-logs.txt",
+        "src/agents/task-monitor/state-machine/cli.json"
+      ],
+      "reason": "Documented historical log/state dumps with token-shaped values; exclude exact paths without reading contents."
+    }
+  ],
+  "scopeExclusions": [
+    "Graph and Embeddings stay separate; Agents, deployment config and Demos are not additional source trees.",
+    "Private snapshots, receipts, patches, raw provenance/comparisons, local absolute paths and source .git directories never enter candidate.",
+    "Unselected ignored/untracked material remains excluded by immutable capture decisions; assembly cannot broaden selection."
+  ],
+  "workflowQuarantine": {
+    "from": "Each source .github/workflows/**",
+    "to": "scripts/consolidation/quarantined-workflows/<source-key>/.github/workflows/**",
+    "rule": "Preserve bytes/modes, record exact moves; activate nothing automatically. Replace publishing/version-push workflows deliberately during later reviewed integration."
+  },
+  "generatedFiles": {
+    "baselinePolicy": "retain-captured-generated-files",
+    "filterHistory": false,
+    "formerRecipe": "Do not inherit API/UI Common generated-path filtering or Graph dependency filtering; Graph is outside candidate.",
+    "laterRemovalGate": "Separate reviewed integration delta must retain all spec/schema/fixture/builder/template/postprocessor inputs and pinned recipes, prove successful regeneration and pass affected checks before readiness."
+  },
+  "rootOverlay": {
+    "files": [
+      {
+        "path": "scripts/consolidation/capture-source-inputs.mjs",
+        "sha256": "7b42b3a75215f80e56f5949937dd8b486e98b597af279ae6dd19a8570e3d3b5c"
+      },
+      {
+        "path": "scripts/consolidation/capture-source-inputs.test.mjs",
+        "sha256": "b964494a6f9dc6124d39c1d0d845547136d33842242bd274b7cebba2f1924ef6"
+      },
+      {
+        "path": "scripts/consolidation/generation-targets.json",
+        "sha256": "a54fe3acf51d3a546fb8ffe432af352e5d4cc675ed4516d0136ce502d0a599de"
+      },
+      {
+        "path": "scripts/consolidation/package-boundaries.json",
+        "sha256": "df974001caefbefd2d2260dd83407aca224046a2ef77c2b2dadb0fe2aa0bc2d6"
+      },
+      {
+        "path": "scripts/consolidation/source-inputs.json",
+        "sha256": "9b8f2580a3c0adae41856c869c87587775b22e9c7d861053e05eeec8ac4bf720"
+      }
+    ],
+    "thisDesign": "Include this file too; record its SHA-256 outside itself in the durable task outcome/private assembly evidence to avoid a self-hash cycle.",
+    "rule": "Use reviewed root bytes, not an unreviewed directory copy. Later assembler/verification tooling requires separately recorded hashes/deltas."
+  },
+  "laterIntegration": {
+    "commitPolicy": "Separate reviewable commits after baseline, never folded silently into it.",
+    "reference": "scripts/consolidation/package-boundaries.json#/integrationFiles",
+    "scope": [
+      "Workspace manifests, one root lockfile, public exports and declared dependencies",
+      "Reviewed platform-client/agent-runtime extraction and consumer rewiring",
+      "Coordinated generation, resolvers, boundary enforcement and generated tracking policy",
+      "Independent UI/API image builds and affected checks",
+      "Standalone CLI packaging and isolated installation",
+      "Public-source documentation and licence alignment"
+    ],
+    "rule": "Record exact content/path/mode deltas and governing digests. Review detailed proposed boundaries before implementation; no product behavior, publication or live deployment authority."
+  },
+  "visibilityAndLicensing": {
+    "openapiLocalInclusion": "agreed",
+    "openapiPublication": "undecided; blocks public push only",
+    "observedOn": "2026-10-19",
+    "observations": {
+      "ui": "package.json: AGPL-3.0-only",
+      "ui-common": "package.json: AGPL-3.0-only",
+      "api": "package.json: AGPL-3.0-only",
+      "cli": "package.json: AGPL-3.0-only",
+      "openapi": "package.json: ISC; no LICENSE/LICENCE-named file found"
+    },
+    "observationScope": "Current authorized working trees; recheck exact candidate. No licence metadata changed here.",
+    "publicReadinessOwner": "Later public-source readiness must reconcile OpenAPI ISC metadata/missing licence with AGPL decision, provide combined-root licensing and matching published package fields, and retain third-party notices. Local inclusion is not publication consent.",
+    "publicationExclusions": "Private capture artifacts/raw provenance remain private. Do not silently remove OpenAPI to bypass undecided consent; pause public push for explicit disposition."
+  },
+  "invalidation": [
+    "Any manifest, capture identity/content digest, receipt/artifact verification failure or missing source invalidates this binding; stop assembly.",
+    "Finish ongoing source work, recapture inputs and renew exact digest binding before expecting new changes in candidate. Never consume newer live bytes silently; immutable captures remain historical evidence.",
+    "Changes to boundary/generation designs, mappings, exclusions, root overlays or recipe require renewed review/binding. Never rewrite capture identities to match new files."
+  ],
+  "laterVerificationObligations": [
+    "Implement/test assembly on small dirty-history fixtures; verify deterministic baseline identity and unchanged originals.",
+    "Verify each source bytes/deletions/modes/symlinks/working changes, accounting for exclusion/quarantine/overlay deltas.",
+    "Prove regeneration before generated-file removal; run affected clean-checkout checks, independent images and isolated CLI install in later tasks.",
+    "Inspect exact candidate and all integration commits, resolve OpenAPI visibility/licensing, scan full candidate history for secrets before separate public-push approval.",
+    "Deployment/cutover remain separate gates."
+  ],
+  "reconciliation": "Fresh baseline replaces former six-destination/pre-October replay assumptions for these five local inputs only. No cutoff or old commit replay; separate Graph/Embeddings work remains unchanged."
+}

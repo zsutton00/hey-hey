@@ -1,0 +1,379 @@
+# Canonical collaboration and per-session Turn admission envelopes.
+AgentInteractionKind:
+  type: string
+  enum: [SUBAGENT, SESSION_MESSAGE, SUPERVISION]
+AgentInteractionMode:
+  type: string
+  enum: [FOREGROUND, BACKGROUND]
+SubagentCapability:
+  type: string
+  enum: [RESEARCH]
+AgentInteractionState:
+  type: string
+  enum: [ADMITTING, DISPATCHING, WAITING, RESULT_READY, DELIVERING, DELIVERED, REJECTED, CANCELLED, FAILED, EXPIRED]
+AgentInteractionAttemptState:
+  type: string
+  enum: [PENDING, DISPATCHING, ACCEPTED, RUNNING, SUCCEEDED, FAILED, CANCELLED, EXPIRED]
+TurnAdmissionSource:
+  type: string
+  enum: [USER, WORKFLOW, SUBAGENT, AGENT_INTERACTION]
+TurnAdmissionState:
+  type: string
+  enum: [QUEUED, OCCUPIED, SETTLED, CANCELLED]
+AgentInteractionAuthority:
+  type: object
+  additionalProperties: false
+  required: [kind, machineId, sourceSessionId, targetSessionId]
+  properties:
+    kind: {type: string, enum: [MACHINE_SESSION]}
+    machineId: {type: string, format: uuid}
+    sourceSessionId: {type: string, format: uuid}
+    targetSessionId: {type: string, format: uuid}
+    subagentCapability: {$ref: '#/SubagentCapability'}
+    expiresAt: {type: string, format: date-time}
+SessionMessageInput:
+  type: object
+  additionalProperties: false
+  required: [sourceSessionId, interactionId, attemptId, authorKind, authority]
+  properties:
+    sourceSessionId: {type: string, format: uuid}
+    interactionId: {type: string, format: uuid}
+    attemptId: {type: string, format: uuid}
+    authorKind: {type: string, enum: [AGENT]}
+    authority: {$ref: '#/AgentInteractionAuthority'}
+    objective: {type: string, minLength: 1}
+    answerReference: {type: string, format: uuid}
+    answerText: {type: string, minLength: 1, maxLength: 16000}
+AgentInteractionResult:
+  type: object
+  additionalProperties: false
+  required: [attemptId, ordinal, outcome, settledAt, targetSessionId, targetTurnId, completedAssistantMessageId, reports]
+  properties:
+    attemptId: {type: string, format: uuid}
+    ordinal: {type: integer, minimum: 1}
+    outcome: {type: string, enum: [SUCCEEDED, FAILED, CANCELLED, EXPIRED]}
+    settledAt: {type: string, format: date-time}
+    targetSessionId: {type: string, format: uuid}
+    targetTurnId: {type: string, format: uuid}
+    completedAssistantMessageId: {type: string, format: uuid, nullable: true}
+    reports:
+      type: array
+      items: {type: string, format: uuid}
+    failureCode: {type: string}
+    resultReference: {type: string}
+    outputText: {type: string}
+AgentInteractionAttempt:
+  type: object
+  additionalProperties: false
+  required: [id, interactionId, ordinal, targetSessionId, state, generation, authority, dispatchEffectId]
+  properties:
+    id: {type: string, format: uuid}
+    interactionId: {type: string, format: uuid}
+    ordinal: {type: integer, minimum: 1}
+    targetSessionId: {type: string, format: uuid}
+    targetTurnId: {type: string, format: uuid}
+    state: {$ref: '#/AgentInteractionAttemptState'}
+    generation: {type: integer, minimum: 1}
+    authority: {$ref: '#/AgentInteractionAuthority'}
+    dispatchEffectId: {type: string, format: uuid}
+    result: {$ref: '#/AgentInteractionResult'}
+AgentInteraction:
+  type: object
+  additionalProperties: false
+  required: [id, projectId, kind, mode, sourceSessionId, targetSessionId, destinationSessionId, state, revision, generation, idempotencyKey, projectionId, attempts, createdAt]
+  properties:
+    id: {type: string, format: uuid}
+    projectId: {type: string, format: uuid}
+    kind: {$ref: '#/AgentInteractionKind'}
+    mode: {$ref: '#/AgentInteractionMode'}
+    sourceSessionId: {type: string, format: uuid}
+    sourceRunId: {type: string, format: uuid}
+    sourceTurnId: {type: string, format: uuid}
+    targetSessionId: {type: string, format: uuid}
+    destinationSessionId: {type: string, format: uuid}
+    state: {$ref: '#/AgentInteractionState'}
+    revision: {type: integer, minimum: 1}
+    generation: {type: integer, minimum: 1}
+    idempotencyKey: {type: string, minLength: 1}
+    projectionId: {type: string, format: uuid}
+    expiresAt: {type: string, format: date-time}
+    cancelledAt: {type: string, format: date-time}
+    createdAt: {type: string, format: date-time}
+    attempts:
+      type: array
+      minItems: 1
+      items: {$ref: '#/AgentInteractionAttempt'}
+TurnAdmission:
+  type: object
+  additionalProperties: false
+  required: [id, agentSessionId, source, state, ordinal, generation, idempotencyKey, authorKind, createdAt]
+  properties:
+    id: {type: string, format: uuid}
+    agentSessionId: {type: string, format: uuid}
+    source: {$ref: '#/TurnAdmissionSource'}
+    state: {$ref: '#/TurnAdmissionState'}
+    ordinal: {type: integer, minimum: 1}
+    generation: {type: integer, minimum: 1}
+    idempotencyKey: {type: string, minLength: 1}
+    authorKind: {type: string, enum: [HUMAN, SYSTEM, AGENT]}
+    authorUserId: {type: string, format: uuid}
+    inputMessageId: {type: string, format: uuid}
+    interactionAttemptId: {type: string, format: uuid}
+    sessionMessageInput: {$ref: '#/SessionMessageInput'}
+    turnId: {type: string, format: uuid}
+    createdAt: {type: string, format: date-time}
+TurnAdmissionClaimRequest:
+  type: object
+  additionalProperties: false
+  required: [turnId]
+  properties:
+    turnId: {type: string, format: uuid}
+    admissionId: {type: string, format: uuid}
+TurnAdmissionClaimResponse:
+  type: object
+  additionalProperties: false
+  required: [claimed]
+  properties:
+    claimed: {type: boolean}
+    admission: {$ref: '#/TurnAdmission'}
+SessionMessageTargetList:
+  type: object
+  additionalProperties: false
+  required: [targets]
+  properties:
+    targets:
+      type: array
+      items:
+        type: object
+        additionalProperties: false
+        required: [organizationId, projectId, targetSessionId, admissionId, admission, userId]
+        properties:
+          userId: {type: string, format: uuid}
+          organizationId: {type: string, format: uuid}
+          projectId: {type: string, format: uuid}
+          targetSessionId: {type: string, format: uuid}
+          admissionId: {type: string, format: uuid}
+          admission: {$ref: "#/TurnAdmission"}
+          turnId: {type: string, format: uuid}
+AgentInteractionAdmissionRequest:
+  type: object
+  additionalProperties: false
+  required: [id, kind, mode, sourceSessionId, targetSessionId, destinationSessionId, attemptId, expectedRevision, generation, idempotencyKey, authority]
+  properties:
+    id: {type: string, format: uuid}
+    kind: {$ref: '#/AgentInteractionKind'}
+    mode: {$ref: '#/AgentInteractionMode'}
+    sourceSessionId: {type: string, format: uuid}
+    sourceRunId: {type: string, format: uuid}
+    sourceTurnId: {type: string, format: uuid}
+    targetSessionId: {type: string, format: uuid}
+    destinationSessionId: {type: string, format: uuid}
+    attemptId: {type: string, format: uuid}
+    expectedRevision: {type: integer, minimum: 0}
+    generation: {type: integer, minimum: 1}
+    idempotencyKey: {type: string, minLength: 1}
+    authority: {$ref: '#/AgentInteractionAuthority'}
+    objective: {type: string, minLength: 1}
+    answerReference: {type: string, format: uuid}
+    expiresAt: {type: string, format: date-time}
+SessionMessageInteractionAdmissionRequest:
+  type: object
+  additionalProperties: false
+  required: [id, attemptId, sourceSessionId, targetSessionId, commandText, idempotencyKey, expectedRevision]
+  properties:
+    id: {type: string, format: uuid}
+    attemptId: {type: string, format: uuid}
+    sourceSessionId: {type: string, format: uuid}
+    targetSessionId: {type: string, format: uuid}
+    commandText: {type: string, minLength: 1}
+    idempotencyKey: {type: string, minLength: 1}
+    expectedRevision: {type: integer, minimum: 0}
+AgentInteractionAdmissionResponse:
+  type: object
+  additionalProperties: false
+  required: [interaction, replayed]
+  properties:
+    interaction: {$ref: '#/AgentInteraction'}
+    replayed: {type: boolean}
+SubagentInteractionAdmissionRequest:
+  type: object
+  additionalProperties: false
+  required: [id, attemptId, sourceSessionId, sourceRunId, mode, capability, objective, serviceIds, idempotencyKey, expectedRevision, authorization]
+  properties:
+    id: {type: string, format: uuid}
+    attemptId: {type: string, format: uuid}
+    sourceSessionId: {type: string, format: uuid}
+    sourceRunId: {type: string, format: uuid}
+    mode: {$ref: '#/AgentInteractionMode'}
+    capability: {$ref: '#/SubagentCapability'}
+    objective: {type: string, minLength: 1}
+    serviceIds:
+      type: array
+      description: Complete child Service set chosen at submission. Service IDs must be distinct. An empty array admits graph-only work. The API derives the child launch Service from this set.
+      items: {type: string, format: uuid}
+    idempotencyKey: {type: string, minLength: 1}
+    expectedRevision: {type: integer, minimum: 0}
+    expiresAt: {type: string, format: date-time}
+    authorization:
+      $ref: './controller-authorization.yaml#/AdmissionEnvelopeAuthorization'
+      description: >-
+        Fresh controller assertion or active bounded grant for CONVERSATION_TRIGGER
+        on the source Agent Session, admitted for the current controller
+        installation and the source session's machine. Account or session
+        ownership alone never makes child work executable. It is excluded from
+        the idempotency fingerprint, so a retry joins the admitted interaction
+        without minting new authority.
+SubagentChildScope:
+  type: object
+  additionalProperties: false
+  description: Child Service scope fixed at admission. launchServiceId is the source session's launch Service when selected, otherwise the first submitted Service, and is absent for graph-only work.
+  required: [serviceIds]
+  properties:
+    serviceIds:
+      type: array
+      items: {type: string, format: uuid}
+    launchServiceId: {type: string, format: uuid}
+SubagentDispatchClaimResponse:
+  type: object
+  additionalProperties: false
+  required: [claimed, foregroundWaits]
+  properties:
+    claimed: {type: boolean}
+    dispatch: {$ref: '#/SubagentDispatch'}
+    foregroundWaits:
+      type: array
+      items: {$ref: '#/SubagentForegroundWait'}
+SubagentDispatchScopesResponse:
+  type: object
+  additionalProperties: false
+  required: [scopes]
+  properties:
+    scopes:
+      type: array
+      items:
+        type: object
+        additionalProperties: false
+        required: [organizationId, projectId]
+        properties:
+          organizationId: {type: string, format: uuid}
+          projectId: {type: string, format: uuid}
+SubagentForegroundWait:
+  type: object
+  additionalProperties: false
+  required: [interactionId, sourceSessionId, sourceRunId]
+  properties:
+    interactionId: {type: string, format: uuid}
+    sourceSessionId: {type: string, format: uuid}
+    sourceRunId: {type: string, format: uuid}
+SubagentDispatch:
+  type: object
+  additionalProperties: false
+  required: [interactionId, attemptId, effectId, leaseToken, sourceSessionId, sourceRunId, sourceExecutionContext, targetTurnId, mode, capability, objective, generation, authorization, actionPayloadHash]
+  properties:
+    interactionId: {type: string, format: uuid}
+    attemptId: {type: string, format: uuid}
+    effectId: {type: string, format: uuid}
+    leaseToken: {type: string, format: uuid}
+    sourceSessionId: {type: string, format: uuid}
+    sourceRunId: {type: string, format: uuid}
+    sourceExecutionContext:
+      type: object
+      additionalProperties: false
+      required: [provider, conversationId, createdAt, serviceIds]
+      properties:
+        provider: {type: string}
+        conversationId: {type: string, format: uuid}
+        createdAt: {type: string, format: date-time}
+        launchServiceId: {type: string, format: uuid}
+        serviceIds:
+          type: array
+          items: {type: string, format: uuid}
+        entityType: {type: string}
+        entityId: {type: string, format: uuid}
+    childScope:
+      allOf: [{$ref: '#/SubagentChildScope'}]
+      description: Admitted child Service scope. Absent only for interactions admitted before child scope was recorded.
+    targetTurnId: {type: string, format: uuid}
+    mode: {$ref: '#/AgentInteractionMode'}
+    capability: {$ref: '#/SubagentCapability'}
+    objective: {type: string, minLength: 1}
+    generation: {type: integer, minimum: 1}
+    authorization:
+      allOf: [{$ref: './controller-authorization.yaml#/ExecutableEnvelopeAuthorization'}]
+      nullable: true
+      description: >-
+        Executable controller evidence the API admitted and retained on this
+        attempt. The CLI independently verifies it before launching the child.
+        Null only for attempts admitted before evidence was retained; those are
+        never executed.
+    actionPayloadHash:
+      type: string
+      pattern: '^[a-f0-9]{64}$'
+      nullable: true
+      description: >-
+        Lowercase SHA-256 of the RFC 8785 canonical child payload bound at
+        admission: {version: 1, kind: "subagent", interactionId, attemptId,
+        sourceSessionId, sourceRunId, mode, capability, objective, serviceIds},
+        where serviceIds is the admitted child Service set in submission order.
+        Null exactly when authorization is null.
+SubagentDispatchHeartbeatRequest:
+  type: object
+  additionalProperties: false
+  required: [leaseToken]
+  properties:
+    leaseToken: {type: string, format: uuid}
+SubagentSettledAttempt:
+  type: object
+  additionalProperties: false
+  required: [leaseToken, generation, targetTurnId, outcome, settledAt]
+  properties:
+    leaseToken: {type: string, format: uuid}
+    generation: {type: integer, minimum: 1}
+    targetTurnId: {type: string, format: uuid}
+    outcome: {type: string, enum: [SUCCEEDED, FAILED, CANCELLED, EXPIRED]}
+    settledAt: {type: string, format: date-time}
+    outputText: {type: string}
+    failureCode: {type: string}
+SubagentCancellationRequest:
+  type: object
+  additionalProperties: false
+  required: [expectedRevision]
+  properties:
+    expectedRevision: {type: integer, minimum: 1}
+AgentInteractionSettledTurn:
+  type: object
+  additionalProperties: false
+  required: [attemptId, interactionId, generation, targetSessionId, targetTurnId, terminalOutcome, settledAt, completedAssistantMessageId, reports]
+  properties:
+    attemptId: {type: string, format: uuid}
+    interactionId: {type: string, format: uuid}
+    generation: {type: integer, minimum: 1}
+    targetSessionId: {type: string, format: uuid}
+    targetTurnId: {type: string, format: uuid}
+    terminalOutcome: {type: string, enum: [COMPLETED, FAILED, ABORTED]}
+    settledAt: {type: string, format: date-time}
+    completedAssistantMessageId: {type: string, format: uuid, nullable: true}
+    reports:
+      type: array
+      items: {type: string, format: uuid}
+AgentInteractionSettlementReceipt:
+  type: object
+  additionalProperties: false
+  required: [accepted]
+  properties:
+    accepted: {type: boolean}
+TurnAdmissionSettledTurn:
+  type: object
+  additionalProperties: false
+  required: [admissionId, agentSessionId, generation, turnId, terminalOutcome, settledAt, completedAssistantMessageId, reports]
+  properties:
+    admissionId: {type: string, format: uuid}
+    agentSessionId: {type: string, format: uuid}
+    generation: {type: integer, minimum: 1}
+    turnId: {type: string, format: uuid}
+    terminalOutcome: {type: string, enum: [COMPLETED, FAILED, ABORTED]}
+    settledAt: {type: string, format: date-time}
+    completedAssistantMessageId: {type: string, format: uuid, nullable: true}
+    reports:
+      type: array
+      items: {type: string, format: uuid}

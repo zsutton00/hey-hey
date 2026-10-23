@@ -1,0 +1,114 @@
+SessionMonitorDecisionId:
+  type: string
+  format: uuid
+  description: >-
+    Stable identity of one Session Monitor decision. A retry uses the same
+    identity with a fresh machine-effect proof; the API returns the recorded
+    result only when the semantic request fingerprint is unchanged.
+
+SessionMonitorDecisionAction:
+  type: object
+  additionalProperties: false
+  required: [kind, action]
+  properties:
+    kind:
+      type: string
+      enum: [ACTION]
+    action:
+      type: string
+      minLength: 1
+      description: Action selected from the server-provided active-node vocabulary.
+    response:
+      type: string
+
+SessionMonitorDecisionResponse:
+  type: object
+  additionalProperties: false
+  required: [kind, response]
+  properties:
+    kind:
+      type: string
+      enum: [RESPONSE]
+    response:
+      type: string
+      minLength: 1
+
+SessionMonitorDecisionDeferral:
+  type: object
+  additionalProperties: false
+  required: [kind]
+  properties:
+    kind:
+      type: string
+      enum: [DEFER]
+
+SessionMonitorDecision:
+  oneOf:
+    - $ref: "#/SessionMonitorDecisionAction"
+    - $ref: "#/SessionMonitorDecisionResponse"
+    - $ref: "#/SessionMonitorDecisionDeferral"
+  discriminator:
+    propertyName: kind
+    mapping:
+      ACTION: "#/SessionMonitorDecisionAction"
+      RESPONSE: "#/SessionMonitorDecisionResponse"
+      DEFER: "#/SessionMonitorDecisionDeferral"
+
+SubmitSessionMonitorDecisionRequestDto:
+  type: object
+  additionalProperties: false
+  required:
+    - decisionId
+    - parentAgentSessionId
+    - reportId
+    - conversationId
+    - content
+    - decision
+    - proof
+  properties:
+    decisionId:
+      $ref: "#/SessionMonitorDecisionId"
+    parentAgentSessionId:
+      $ref: "./common.yaml#/AgentSessionId"
+    reportId:
+      $ref: "./common.yaml#/ReportId"
+    conversationId:
+      $ref: "./common.yaml#/ConversationId"
+    workflowNodeId:
+      type: string
+      minLength: 1
+      description: Required for ACTION and RESPONSE decisions; omitted for DEFER.
+    pendingTriggerMessageId:
+      $ref: "./common.yaml#/MessageId"
+      description: Required for ACTION and RESPONSE decisions; omitted for DEFER.
+    content:
+      type: string
+      minLength: 1
+      description: User-visible explanation persisted as decision evidence.
+    decision:
+      $ref: "#/SessionMonitorDecision"
+    proof:
+      $ref: "./machine-effect-admission.yaml#/MachineEffectProofDto"
+
+SubmitSessionMonitorDecisionResponseDto:
+  type: object
+  additionalProperties: false
+  required:
+    - decisionId
+    - decisionFingerprint
+    - evidenceMessageId
+    - consequenceMessageId
+    - replayed
+  properties:
+    decisionId:
+      $ref: "#/SessionMonitorDecisionId"
+    decisionFingerprint:
+      $ref: "./agent-operation.yaml#/AgentOperationFingerprint"
+    evidenceMessageId:
+      $ref: "./common.yaml#/MessageId"
+    consequenceMessageId:
+      allOf:
+        - $ref: "./common.yaml#/MessageId"
+      nullable: true
+    replayed:
+      type: boolean

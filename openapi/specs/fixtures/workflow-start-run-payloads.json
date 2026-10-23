@@ -1,0 +1,39 @@
+{
+  "envelopeBase": {
+    "model": "gpt-5",
+    "reasoningEffort": "medium",
+    "provider": "codex",
+    "contextMetadata": {
+      "capturedAt": "2026-07-17T00:00:00.000Z",
+      "organizationId": "organization-id",
+      "projectId": "project-id",
+      "agentSessionId": "agent-session-id",
+      "userComments": [],
+      "fileReferences": {
+        "resolved": [],
+        "unresolved": []
+      }
+    },
+    "agentSessionId": "agent-session-id"
+  },
+  "entityScoped": {
+    "promptType": "workflow_kickoff",
+    "userMessage": "Create a plan for this task.",
+    "entity": {
+      "entityType": "TASK",
+      "entityId": "11111111-1111-4111-8111-111111111111"
+    }
+  },
+  "unscoped": {
+    "promptType": "workflow_kickoff",
+    "userMessage": "Start an unscoped workflow."
+  },
+  "invalidEntity": {
+    "promptType": "workflow_kickoff",
+    "userMessage": "This malformed focal entity must be rejected.",
+    "entity": {
+      "entityType": "TASK",
+      "entityId": "not-a-uuid"
+    }
+  }
+}

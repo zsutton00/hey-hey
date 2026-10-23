@@ -1,0 +1,392 @@
+DesignDocTemplate:
+  type: string
+  description: Template used to structure the design document.
+  enum:
+    - CLASSIC
+    - ADR
+    - RFC
+    - BRAINSTORM
+    - DECISION
+    - PLAN_DOCUMENT
+  example: CLASSIC
+
+AdrStatus:
+  type: string
+  description: Status values for ADR (Architecture Decision Record) documents.
+  enum:
+    - ADR_CONTEXT
+    - ADR_REFINING_CONTEXT
+    - ADR_DECISION
+    - ADR_GENERATING_DECISION
+    - ADR_REFINING_DECISION
+    - ADR_CONSEQUENCES
+    - ADR_GENERATING_CONSEQUENCES
+    - ADR_REFINING_CONSEQUENCES
+    - REFINING_CONTENT
+    - IN_REVIEW
+    - READY
+  example: ADR_CONTEXT
+
+BrainstormStatus:
+  type: string
+  description: Status values for Brainstorm documents
+  enum:
+    - REFINING_CONTENT
+    - IN_REVIEW
+    - READY
+  example: REFINING_CONTENT
+
+DecisionStatus:
+  type: string
+  description: Status values for Decision documents
+  enum:
+    - REFINING_CONTENT
+    - IN_REVIEW
+    - READY
+  example: REFINING_CONTENT
+
+DesignDocSection:
+  type: object
+  required:
+    - key
+    - order
+  properties:
+    id:
+      type: string
+      description: The section's unique id
+    key:
+      type: string
+      description: Unique identifier for the section (e.g., context, decision).
+    order:
+      type: integer
+      description: Ordering index for rendering sections.
+
+MaterializedDesignDocSection:
+  allOf:
+    - $ref: "#/DesignDocSection"
+    - type: object
+      required:
+        - materializedMarkdown
+        - id
+      properties:
+        materializedMarkdown:
+          type: string
+          description: Persisted markdown snapshot for the section.
+        crdtSnapshotSeq:
+          type: integer
+          nullable: true
+          description: Sequence number associated with the persisted CRDT snapshot.
+
+DesignDocParentEntityType:
+  type: string
+  description: Entity type that owns a design document as its parent.
+  enum:
+    - TASK
+    - DESIGN_DOC
+  example: TASK
+
+DesignDocResponseDto:
+  type: object
+  required:
+    - id
+    - name
+    - template
+    - status
+    - organizationId
+    - tags
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique identifier for the design document.
+    name:
+      type: string
+      description: Human readable title for the design document.
+    template:
+      $ref: "#/DesignDocTemplate"
+    status:
+      type: string
+      description: Current workflow status (template-specific).
+      example: DRAFT_CONCEPT
+    organizationId:
+      type: string
+      format: uuid
+    projectId:
+      type: string
+      format: uuid
+      nullable: true
+    parentEntityId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Identifier of the entity that owns this design document, when set.
+    parentEntityType:
+      allOf:
+        - $ref: "#/DesignDocParentEntityType"
+      nullable: true
+      description: Type of the parent entity. Set together with parentEntityId.
+    tags:
+      type: array
+      items:
+        type: string
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+    sections:
+      type: array
+      items:
+        $ref: "#/MaterializedDesignDocSection"
+    summary:
+      type: string
+
+DesignDocDraftSection:
+  allOf:
+    - $ref: "#/DesignDocSection"
+    - type: object
+      properties:
+        content:
+          type: string
+        order:
+          type: integer
+          nullable: true
+
+CreateDesignDocDto:
+  type: object
+  required:
+    - name
+  properties:
+    name:
+      type: string
+    template:
+      $ref: "#/DesignDocTemplate"
+    status:
+      type: string
+      description: Optional status override.
+    sections:
+      type: array
+      items:
+        $ref: "#/DesignDocDraftSection"
+      description: Optional explicit sections. If omitted, template defaults will be applied.
+    projectId:
+      type: string
+      format: uuid
+    parentEntityId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Identifier of the entity that owns the new design document. Set together with parentEntityType.
+    parentEntityType:
+      allOf:
+        - $ref: "#/DesignDocParentEntityType"
+      nullable: true
+      description: Type of the owning entity. Required when parentEntityId is set.
+    tags:
+      type: array
+      items:
+        type: string
+    summary:
+      type: string
+      nullable: true
+
+UpdateDesignDocDto:
+  type: object
+  description: Fields to update for a design document. All fields are optional.
+  properties:
+    name:
+      type: string
+    template:
+      $ref: "#/DesignDocTemplate"
+    status:
+      type: string
+    projectId:
+      type: string
+      format: uuid
+    tags:
+      type: array
+      items:
+        type: string
+    summary:
+      type: string
+      nullable: true
+    parentEntityId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Identifier of the entity that owns the new design document. Set together with parentEntityType.
+    parentEntityType:
+      allOf:
+        - $ref: "#/DesignDocParentEntityType"
+      nullable: true
+      description: Type of the owning entity. Required when parentEntityId is set.
+    sections:
+      type: array
+      description: Optional updated sections for the design document.
+      items:
+        $ref: "#/DesignDocDraftSection"
+    sectionUpdateSource:
+      $ref: "#/DesignDocSectionUpdateSource"
+      description: Source of section updates when this update is paired with section-apply operations.
+    reason:
+      type: string
+      nullable: true
+      description: |
+        Optional free-text reason describing why this edit is being made.
+        Consumed at the controller boundary: trimmed, then attached to the
+        resulting proposal as a USER-typed influence (entityType=USER,
+        entityId=<requestor's userId>, reasonType=user_reason). Never
+        included in the proposal's `updates` payload. Empty / whitespace-only
+        values still produce the USER influence (with empty reasoning) so
+        every PATCH carries an attribution row.
+
+UpdateDesignDocResponseDto:
+  type: object
+  required:
+    - status
+    - designDoc
+  description: |
+    Result of `PATCH /design-docs/{designDocId}`. Every PATCH is funneled
+    through a user-authored proposal: when the proposal auto-applies the
+    response carries `status: APPLIED` and the updated `designDoc`; otherwise
+    it carries `status: PENDING`, the unchanged `designDoc`, and the
+    `proposal` that needs review.
+  properties:
+    status:
+      $ref: "./tasks.yaml#/UpdateTaskResultStatus"
+    designDoc:
+      $ref: "#/DesignDocResponseDto"
+    proposal:
+      $ref: "./proposals.yaml#/ProposalResponseDto"
+      description: |
+        Present only when `status: PENDING`. Describes the pending proposal
+        that the PATCH produced.
+
+DesignDocSectionUpdateSource:
+  type: string
+  description: Source of design doc section updates in PATCH requests.
+  enum:
+    - USER
+    - AGENT_SUGGESTED
+  example: "USER"
+
+DesignDocLinkEntityType:
+  type: string
+  description: Parent entity type that owns the design document.
+  enum:
+    - task
+    - design-doc
+  example: task
+
+CreateDesignDocLinkDto:
+  type: object
+  required:
+    - entityType
+    - entityId
+  properties:
+    entityType:
+      $ref: "#/DesignDocLinkEntityType"
+    entityId:
+      type: string
+      description: Identifier of the linked entity.
+      example: task_123
+    linkType:
+      type: string
+      nullable: true
+      description: Optional label describing the relationship context.
+      example: context
+
+CreateDesignDocLinkRequest:
+  description: Accepts an array of link definitions for bulk creation.
+  type: array
+  minItems: 1
+  items:
+    $ref: "#/CreateDesignDocLinkDto"
+
+DesignDocLinkResponseDto:
+  type: object
+  required:
+    - id
+    - designDocId
+    - organizationId
+    - entityType
+    - entityId
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Identifier for the link. Synthesized from the design doc id since each design doc has at most one parent.
+    designDocId:
+      type: string
+      format: uuid
+      description: Identifier of the design document.
+    organizationId:
+      type: string
+      format: uuid
+      description: Owning organization of the link.
+    entityType:
+      $ref: "#/DesignDocLinkEntityType"
+    entityId:
+      type: string
+      description: Identifier of the linked parent entity.
+    linkType:
+      type: string
+      nullable: true
+      description: Optional label describing the nature of the relationship.
+    entityName:
+      type: string
+      nullable: true
+      description: Optional human-readable label for the linked entity (e.g., task name/title).
+    entityStatus:
+      type: string
+      nullable: true
+      description: Optional status for the linked entity (e.g., task or design doc status).
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+DesignDocLibraryNodeType:
+  type: string
+  description: Entity type represented in the design doc library hierarchy.
+  enum:
+    - initiative
+    - plan
+    - task
+    - design-doc
+
+DesignDocLibraryNodeDto:
+  type: object
+  description: Node in the design doc library hierarchy.
+  required:
+    - id
+    - type
+    - name
+    - children
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Identifier of the entity.
+    type:
+      $ref: "#/DesignDocLibraryNodeType"
+    name:
+      type: string
+      description: Display title of the entity.
+    designDoc:
+      allOf:
+        - $ref: "#/DesignDocResponseDto"
+      nullable: true
+      description: Full design doc entity when type is design-doc; otherwise null.
+    children:
+      type: array
+      description: Child nodes nested under this entity.
+      items:
+        $ref: "#/DesignDocLibraryNodeDto"

@@ -1,0 +1,33 @@
+AbandonMachineEnrollmentClaimRequestDto:
+  type: object
+  additionalProperties: false
+  required:
+    - enrollmentId
+    - organizationId
+  properties:
+    enrollmentId:
+      type: string
+      format: uuid
+      description: Identifier returned by begin-claim.
+      example: "550e8400-e29b-41d4-a716-446655440040"
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+
+AbandonMachineEnrollmentClaimResponseDto:
+  type: object
+  additionalProperties: false
+  required:
+    - enrollmentId
+    - state
+  properties:
+    enrollmentId:
+      type: string
+      format: uuid
+      description: Identifier of the enrollment rejected by the browser claimant.
+      example: "550e8400-e29b-41d4-a716-446655440040"
+    state:
+      type: string
+      enum:
+        - rejected
+      description: The enrollment is terminal and cannot be resumed by the CLI.
+      example: rejected

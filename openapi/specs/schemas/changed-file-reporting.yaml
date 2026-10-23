@@ -1,0 +1,68 @@
+ChangedFileClaim:
+  type: object
+  additionalProperties: false
+  required: [serviceId, path]
+  properties:
+    serviceId:
+      type: string
+      minLength: 1
+    path:
+      type: string
+      minLength: 1
+      description: Repository-relative path in the service's active execution workspace.
+ChangedFileReportInput:
+  type: object
+  additionalProperties: false
+  required: [turnId, providerSessionId, changedFiles]
+  properties:
+    turnId:
+      type: string
+      minLength: 1
+    providerSessionId:
+      type: string
+      minLength: 1
+    changedFiles:
+      type: array
+      items:
+        $ref: '#/ChangedFileClaim'
+      description: Each item is validated independently; malformed items never discard healthy claims. An empty array explicitly reports no changes.
+ChangedFileReportFinding:
+  type: object
+  additionalProperties: false
+  required: [index, status, reason]
+  properties:
+    index:
+      type: integer
+      minimum: 0
+    status:
+      type: string
+      enum: [accepted, corrected, rejected]
+    reason:
+      type: string
+    claim:
+      $ref: '#/ChangedFileClaim'
+    suggestion:
+      $ref: '#/ChangedFileClaim'
+ChangedFileReportResult:
+  type: object
+  additionalProperties: false
+  required: [state, findings]
+  properties:
+    context:
+      type: object
+      additionalProperties: false
+      required: [turnId, providerSessionId]
+      properties:
+        turnId:
+          type: string
+          nullable: true
+        providerSessionId:
+          type: string
+          nullable: true
+    state:
+      type: string
+      enum: [not_reported, needs_correction, validated]
+    findings:
+      type: array
+      items:
+        $ref: '#/ChangedFileReportFinding'

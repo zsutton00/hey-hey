@@ -1,0 +1,225 @@
+# =============================================
+# Suggestions Schemas
+# =============================================
+SuggestionType:
+  type: string
+  description: Suggestion type key used by the UI
+  enum:
+    - task_generation_generate
+    - task_stub_generation_generate
+    - adr_content_apply
+    - initiative_content_apply
+    - task_content_apply
+    - complete_onboarding
+    - coding_prompt_accept
+    - suggested_action_task
+    - suggested_action_design_doc
+    - suggested_action_initiative
+    - related_entities
+    - generated_initiative
+
+CreateSuggestedTaskRequestDto:
+  type: object
+  required:
+    - suggestionId
+    - projectId
+    - initiativeId
+    - sourceConversationId
+    - sourceMessageId
+    - name
+  properties:
+    suggestionId:
+      type: string
+      description: Suggestion identifier, typically `${messageId}:${suggestionKey}`
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+    initiativeId:
+      $ref: "./common.yaml#/InitiativeId"
+    name:
+      type: string
+      description: Explicit name for the generated task
+    description:
+      type: string
+      description: Optional description to help guide generation
+    parentTaskId:
+      $ref: "./common.yaml#/TaskId"
+      nullable: true
+    sourceConversationId:
+      $ref: "./common.yaml#/ConversationId"
+    sourceMessageId:
+      $ref: "./common.yaml#/MessageId"
+    trigger:
+      type: string
+      description: Trigger label for observability
+
+CreateSuggestedTaskResponseDto:
+  type: object
+  required:
+    - workflowId
+  properties:
+    workflowId:
+      $ref: "./common.yaml#/WorkflowId"
+
+CreateSuggestedDesignDocRequestDto:
+  type: object
+  required:
+    - suggestionId
+    - projectId
+    - sourceConversationId
+    - sourceMessageId
+    - name
+    - template
+  properties:
+    suggestionId:
+      type: string
+      description: Suggestion identifier, typically `${messageId}:${suggestionKey}`
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+    initiativeId:
+      $ref: "./common.yaml#/InitiativeId"
+      nullable: true
+    taskId:
+      $ref: "./common.yaml#/TaskId"
+      nullable: true
+    name:
+      type: string
+      description: Explicit name for the generated design document
+    description:
+      type: string
+      description: Optional description to help guide generation
+    template:
+      $ref: "./design-docs.yaml#/DesignDocTemplate"
+    sourceConversationId:
+      $ref: "./common.yaml#/ConversationId"
+    sourceMessageId:
+      $ref: "./common.yaml#/MessageId"
+    trigger:
+      type: string
+      description: Trigger label for observability
+
+CreateSuggestedDesignDocResponseDto:
+  type: object
+  required:
+    - workflowId
+  properties:
+    workflowId:
+      $ref: "./common.yaml#/WorkflowId"
+
+SuggestionDecisionMetadata:
+  oneOf:
+    - $ref: "#/CreateSuggestedTaskDecisionMetadata"
+    - $ref: "#/CreateSuggestedDesignDocDecisionMetadata"
+    - $ref: "#/ProposedInitiativeDecisionMetadata"
+  discriminator:
+    propertyName: kind
+    mapping:
+      CREATE_SUGGESTED_TASK: "#/CreateSuggestedTaskDecisionMetadata"
+      CREATE_SUGGESTED_DESIGN_DOC: "#/CreateSuggestedDesignDocDecisionMetadata"
+      PROPOSED_INITIATIVE: "#/ProposedInitiativeDecisionMetadata"
+
+CreateSuggestedTaskDecisionMetadata:
+  type: object
+  required:
+    - kind
+  properties:
+    kind:
+      type: string
+      enum: [CREATE_SUGGESTED_TASK]
+    workflowId:
+      $ref: "./common.yaml#/WorkflowId"
+      nullable: true
+    taskId:
+      $ref: "./common.yaml#/TaskId"
+      nullable: true
+
+CreateSuggestedDesignDocDecisionMetadata:
+  type: object
+  required:
+    - kind
+  properties:
+    kind:
+      type: string
+      enum: [CREATE_SUGGESTED_DESIGN_DOC]
+    workflowId:
+      $ref: "./common.yaml#/WorkflowId"
+      nullable: true
+    designDocId:
+      $ref: "./common.yaml#/DesignDocId"
+      nullable: true
+
+ProposedInitiativeDecisionMetadata:
+  type: object
+  required:
+    - kind
+    - initiativeId
+  properties:
+    kind:
+      type: string
+      enum: [PROPOSED_INITIATIVE]
+    initiativeId:
+      $ref: "./common.yaml#/InitiativeId"
+
+SuggestionDecisionRequestDto:
+  type: object
+  required:
+    - accepted
+  properties:
+    accepted:
+      type: boolean
+      description: True when accepted, false when rejected
+    sourceConversationId:
+      $ref: "./common.yaml#/ConversationId"
+      nullable: true
+    sourceMessageId:
+      $ref: "./common.yaml#/MessageId"
+      nullable: true
+    metadata:
+      $ref: "#/SuggestionDecisionMetadata"
+      nullable: true
+
+SuggestionDecisionResponseDto:
+  type: object
+  required:
+    - id
+    - type
+    - accepted
+    - decidedBy
+    - createdAt
+  properties:
+    id:
+      type: string
+      description: External suggestion identifier
+    type:
+      $ref: "#/SuggestionType"
+    accepted:
+      type: boolean
+      nullable: true
+      description: True when accepted, false when rejected, null when no decision exists
+    decidedBy:
+      type: string
+      nullable: true
+      description: User that made the selection, if available
+    createdAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Creation timestamp, if a decision exists
+    sourceConversationId:
+      $ref: "./common.yaml#/ConversationId"
+      nullable: true
+    sourceMessageId:
+      $ref: "./common.yaml#/MessageId"
+      nullable: true
+    metadata:
+      $ref: "#/SuggestionDecisionMetadata"
+      nullable: true
+
+ListSuggestionDecisionsResponseDto:
+  type: object
+  required:
+    - decisions
+  properties:
+    decisions:
+      type: array
+      items:
+        $ref: "#/SuggestionDecisionResponseDto"

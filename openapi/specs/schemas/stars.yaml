@@ -1,0 +1,35 @@
+EntityStarDto:
+  type: object
+  description: Starred entity record for a user.
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique identifier for the star record.
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+      description: Organization ID.
+    userId:
+      $ref: "./common.yaml#/UserId"
+      description: User ID who starred the entity.
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    entityId:
+      type: string
+      format: uuid
+      description: Entity identifier.
+    entityName:
+      type: string
+      nullable: true
+      description: Entity name from the registry (if available).
+    createdAt:
+      type: string
+      format: date-time
+      description: When the star was created.
+  required:
+    - id
+    - organizationId
+    - userId
+    - entityType
+    - entityId
+    - createdAt

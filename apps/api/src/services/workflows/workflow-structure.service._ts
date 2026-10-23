@@ -1,0 +1,573 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConversationId,
+  OrganizationId,
+  ProjectId,
+  UserId,
+  WorkflowId,
+} from 'src/types';
+import {
+  EdgeStylingDto,
+  NodeStylingDto,
+  WorkflowEdgeDto,
+  WorkflowLayoutDto,
+  WorkflowNodeStructureDto,
+  WorkflowStructureDto,
+} from '../../generated';
+import {
+  ConversationNode,
+  Flow,
+  FlowContext,
+  isPromptConfigurableNode,
+  isOpenerNode,
+  NodeType,
+} from '../../types/flow-internal.types';
+import { WorkflowTemplateService } from './workflow-template.service._ts';
+import { ContextAwareLogger } from '../../core/logging/context-aware-logger.service';
+import { getWorkflowNodeUiHints } from './workflow-ui-hints.util';
+
+interface StructureOptions {
+  includeMetadata?: boolean;
+}
+
+@Injectable()
+export class WorkflowStructureService {
+  private readonly logger = ContextAwareLogger.createServiceLogger(
+    WorkflowStructureService.name,
+  );
+
+  constructor(
+    private readonly workflowTemplateService: WorkflowTemplateService,
+  ) {}
+
+  async getWorkflowStructure(
+    templateId: string,
+    options: StructureOptions = {},
+  ): Promise<WorkflowStructureDto> {
+    this.logger.log(`Getting workflow structure for template: ${templateId}`);
+
+    // Get the raw flow from the template cache
+    const flow = (
+      this.workflowTemplateService as unknown as {
+        templateCache: Map<string, Flow>;
+      }
+    ).templateCache.get(templateId);
+    if (!flow) {
+      throw new NotFoundException(
+        `Workflow template '${templateId}' not found`,
+      );
+    }
+
+    return this.analyzeWorkflowStructure(flow, options);
+  }
+
+  // Node type styling configuration
+  private readonly nodeStyles: Record<string, NodeStylingDto> = {
+    gather: {
+      backgroundColor: '#e3f2fd',
+      borderColor: '#1976d2',
+      textColor: '#000000',
+      shape: 'rectangle',
+      width: 180,
+      height: 80,
+    },
+    analyze: {
+      backgroundColor: '#fff3e0',
+      borderColor: '#f57c00',
+      textColor: '#000000',
+      shape: 'diamond',
+      width: 160,
+      height: 100,
+    },
+    generate: {
+      backgroundColor: '#e8f5e8',
+      borderColor: '#388e3c',
+      textColor: '#000000',
+      shape: 'rectangle',
+      width: 200,
+      height: 90,
+    },
+    confirm: {
+      backgroundColor: '#fce4ec',
+      borderColor: '#c2185b',
+      textColor: '#000000',
+      shape: 'hexagon',
+      width: 160,
+      height: 80,
+    },
+    action: {
+      backgroundColor: '#f3e5f5',
+      borderColor: '#7b1fa2',
+      textColor: '#000000',
+      shape: 'circle',
+      width: 120,
+      height: 120,
+    },
+    agent: {
+      backgroundColor: '#e1f5fe',
+      borderColor: '#0277bd',
+      textColor: '#000000',
+      shape: 'hexagon',
+      width: 160,
+      height: 100,
+    },
+  };
+
+  // Edge styling configuration
+  private readonly edgeStyles: Record<string, EdgeStylingDto> = {
+    default: {
+      strokeColor: '#666666',
+      strokeWidth: 2,
+      strokeStyle: 'solid',
+      arrowType: 'arrow',
+    },
+    condition: {
+      strokeColor: '#1976d2',
+      strokeWidth: 2,
+      strokeStyle: 'solid',
+      arrowType: 'arrow',
+    },
+    error: {
+      strokeColor: '#d32f2f',
+      strokeWidth: 2,
+      strokeStyle: 'dashed',
+      arrowType: 'arrow',
+    },
+  };
+
+  async analyzeWorkflowStructure(
+    flow: Flow,
+    options: StructureOptions = {},
+  ): Promise<WorkflowStructureDto> {
+    this.logger.log(`Analyzing structure for workflow: ${flow.id}`);
+
+    // 1. Analyze nodes and create structure
+    const nodeStructures = this.analyzeNodes(flow);
+
+    // 2. Analyze edges/transitions
+    const edges = this.analyzeEdges(flow);
+
+    // 3. Calculate layout
+    const layout = this.calculateLayout(flow.startNode, nodeStructures, edges);
+
+    // 4. Apply layout positions to nodes
+    const positionedNodes = this.applyLayoutPositions(
+      flow.startNode,
+      nodeStructures,
+      layout,
+    );
+
+    // Calculate levels and identify end nodes
+    const levels = this.calculateNodeLevels(
+      flow.startNode,
+      nodeStructures,
+      edges,
+    );
+    const endNodes = this.findEndNodes(nodeStructures, edges);
+    const selfLoops = this.findSelfLoops(edges);
+
+    return {
+      templateId: flow.id,
+      templateName: flow.name,
+      description: flow.description,
+      version: flow.version.toString(),
+      startNode: flow.startNode,
+      endNodes,
+      levels: Object.fromEntries(
+        Object.entries(levels).map(([level, nodeIds]) => [
+          level,
+          { nodes: nodeIds },
+        ]),
+      ),
+      nodes: positionedNodes,
+      edges: edges.filter((e) => e.sourceNodeId !== e.targetNodeId), // Regular edges
+      selfLoops,
+      layout,
+      metadata: options.includeMetadata
+        ? this.generateMetadata(flow)
+        : undefined,
+    };
+  }
+
+  private analyzeNodes(flow: Flow): WorkflowNodeStructureDto[] {
+    const nodes: WorkflowNodeStructureDto[] = [];
+
+    for (const [nodeId, node] of Object.entries(flow.nodes)) {
+      const nodeStructure: WorkflowNodeStructureDto = {
+        id: nodeId,
+        type:
+          node.type === NodeType.AGENT
+            ? 'action'
+            : (node.type as WorkflowNodeStructureDto.TypeEnum),
+        title:
+          typeof node.title === 'function'
+            ? node.title({} as FlowContext)
+            : node.title || this.generateNodeTitle(nodeId),
+        description: this.generateNodeDescription(node),
+        position: { x: 0, y: 0 }, // Will be calculated in layout
+        styling: this.getNodeStyling(node.type),
+        uiHints: getWorkflowNodeUiHints(node),
+        conditions: this.extractConditions(node),
+        metadata: {
+          hasPromptConfig:
+            isPromptConfigurableNode(node) && !!node.promptConfig,
+          transitionCount: isOpenerNode(node)
+            ? 1
+            : Object.keys('transitions' in node ? node.transitions || {} : {})
+                .length,
+          isStartNode: nodeId === flow.startNode,
+        },
+      };
+
+      nodes.push(nodeStructure);
+    }
+
+    return nodes;
+  }
+
+  private analyzeEdges(flow: Flow): WorkflowEdgeDto[] {
+    const edges: WorkflowEdgeDto[] = [];
+
+    // Create a dummy context for structure analysis
+    const dummyContext = this.createDummyContext();
+
+    for (const [sourceNodeId, node] of Object.entries(flow.nodes)) {
+      if (isOpenerNode(node)) {
+        // OPENER nodes have a simple nextNode
+        const edgeId = `${sourceNodeId}-next-${node.nextNode}`;
+        const edge: WorkflowEdgeDto = {
+          id: edgeId,
+          sourceNodeId,
+          targetNodeId: node.nextNode,
+          condition: undefined,
+          label: 'Continue',
+          styling: this.getEdgeStyling('default'),
+          isDefaultPath: true,
+        };
+        edges.push(edge);
+        continue;
+      }
+
+      if (!isPromptConfigurableNode(node) || !node.transitions) continue;
+
+      for (const [condition, transitionFn] of Object.entries(
+        node.transitions,
+      )) {
+        try {
+          // Call the transition function to get the target node ID
+          const targetNodeId = transitionFn();
+
+          if (
+            typeof targetNodeId === 'string' &&
+            targetNodeId &&
+            flow.nodes[targetNodeId]
+          ) {
+            const edgeId = `${sourceNodeId}-${condition}-${targetNodeId}`;
+
+            const edge: WorkflowEdgeDto = {
+              id: edgeId,
+              sourceNodeId,
+              targetNodeId,
+              condition: condition !== 'default' ? condition : undefined,
+              label: this.generateEdgeLabel(condition),
+              styling: this.getEdgeStyling(condition),
+              isDefaultPath: condition === 'default',
+            };
+
+            edges.push(edge);
+          }
+        } catch (error) {
+          this.logger.warn(
+            `Failed to resolve transition '${condition}' from node '${sourceNodeId}': ${(error as Error).message}`,
+          );
+          // Skip this edge if the transition function fails
+        }
+      }
+    }
+
+    return edges;
+  }
+
+  private calculateLayout(
+    startNodeId: string,
+    nodes: WorkflowNodeStructureDto[],
+    edges: WorkflowEdgeDto[],
+  ): WorkflowLayoutDto {
+    // Simple hierarchical layout algorithm
+    const levels = this.calculateNodeLevels(startNodeId, nodes, edges);
+    const nodeSpacing = 120;
+    const levelSpacing = 180;
+
+    return {
+      algorithm: 'hierarchical',
+      direction: 'top-to-bottom',
+      spacing: {
+        nodeSpacing,
+        levelSpacing,
+      },
+      bounds: {
+        width:
+          Math.max(...Object.values(levels).map((level) => level.length)) *
+          (200 + nodeSpacing),
+        height: Object.keys(levels).length * levelSpacing,
+      },
+    };
+  }
+
+  private calculateNodeLevels(
+    startNodeId: string,
+    nodes: WorkflowNodeStructureDto[],
+    edges: WorkflowEdgeDto[],
+  ): Record<number, string[]> {
+    const levels: Record<number, string[]> = {};
+
+    // Find start node
+    const startNode = nodes.find((n) => n.id === startNodeId);
+
+    if (!startNode) {
+      throw new Error(`Could not find node ${startNodeId}`);
+    }
+
+    // BFS to assign levels, handling cycles and multiple paths
+    const queue: Array<{ nodeId: string; level: number }> = [
+      { nodeId: startNode.id, level: 0 },
+    ];
+
+    // Track the minimum level each node can reach
+    const minLevels: Record<string, number> = {};
+
+    while (queue.length > 0) {
+      const { nodeId, level } = queue.shift() as {
+        nodeId: string;
+        level: number;
+      };
+
+      // If we've seen this node at a higher level, update it
+      if (minLevels[nodeId] !== undefined && minLevels[nodeId] <= level) {
+        continue;
+      }
+
+      minLevels[nodeId] = level;
+
+      // Find children (but avoid immediate self-loops for level calculation)
+      const outgoingEdges = edges.filter(
+        (e) => e.sourceNodeId === nodeId && e.targetNodeId !== nodeId,
+      );
+
+      for (const edge of outgoingEdges) {
+        const targetLevel = level + 1;
+        if (
+          minLevels[edge.targetNodeId] === undefined ||
+          minLevels[edge.targetNodeId] > targetLevel
+        ) {
+          queue.push({ nodeId: edge.targetNodeId, level: targetLevel });
+        }
+      }
+    }
+
+    // Assign nodes to levels based on minimum reachable level
+    for (const [nodeId, level] of Object.entries(minLevels)) {
+      if (!levels[level]) levels[level] = [];
+      levels[level].push(nodeId);
+    }
+
+    // Add any unvisited nodes to level 0
+    for (const node of nodes) {
+      if (minLevels[node.id] === undefined) {
+        if (!levels[0]) levels[0] = [];
+        levels[0].push(node.id);
+      }
+    }
+
+    return levels;
+  }
+
+  private applyLayoutPositions(
+    startNodeId: string,
+    nodes: WorkflowNodeStructureDto[],
+    layout: WorkflowLayoutDto,
+  ): WorkflowNodeStructureDto[] {
+    const levels = this.calculateNodeLevels(startNodeId, nodes, []);
+    const nodeSpacing = layout.spacing?.nodeSpacing || 120;
+    const levelSpacing = layout.spacing?.levelSpacing || 180;
+
+    const positionedNodes = [...nodes];
+
+    for (const [levelStr, nodeIds] of Object.entries(levels)) {
+      const level = parseInt(levelStr);
+      const y = level * levelSpacing + 50; // Add top margin
+
+      nodeIds.forEach((nodeId, index) => {
+        const node = positionedNodes.find((n) => n.id === nodeId);
+        if (node) {
+          const totalWidth = nodeIds.length * (200 + nodeSpacing) - nodeSpacing;
+          const startX = Math.max(
+            50,
+            (layout.bounds?.width || 800) / 2 - totalWidth / 2,
+          );
+
+          node.position = {
+            x: startX + index * (200 + nodeSpacing),
+            y,
+          };
+        }
+      });
+    }
+
+    return positionedNodes;
+  }
+
+  private getNodeStyling(nodeType: string): NodeStylingDto {
+    return this.nodeStyles[nodeType] || this.nodeStyles.gather;
+  }
+
+  private getEdgeStyling(condition: string): EdgeStylingDto {
+    if (condition === 'default') {
+      return this.edgeStyles.default;
+    }
+    if (condition.includes('error') || condition.includes('fail')) {
+      return this.edgeStyles.error;
+    }
+    return this.edgeStyles.condition;
+  }
+
+  private generateNodeTitle(nodeId: string): string {
+    // Convert snake_case to Title Case
+    return nodeId
+      .split('_')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+
+  private generateNodeDescription(node: ConversationNode): string | undefined {
+    if (
+      isPromptConfigurableNode(node) &&
+      node.promptConfig?.systemPromptTemplate
+    ) {
+      // Extract first sentence or first 100 chars of system prompt
+      const prompt = node.promptConfig.systemPromptTemplate;
+      const firstSentence = prompt.split('.')[0];
+      return firstSentence.length > 100
+        ? firstSentence.substring(0, 97) + '...'
+        : firstSentence;
+    }
+    return undefined;
+  }
+
+  private extractConditions(node: ConversationNode): string[] {
+    if (isOpenerNode(node)) {
+      return ['continue'];
+    }
+    if (isPromptConfigurableNode(node) && node.transitions) {
+      return Object.keys(node.transitions);
+    }
+    return [];
+  }
+
+  private generateEdgeLabel(condition: string): string | undefined {
+    if (condition === 'default') return undefined;
+
+    // Convert snake_case to readable label
+    return condition
+      .split('_')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+
+  private generateMetadata(flow: Flow): Record<string, unknown> {
+    const nodeCount = Object.keys(flow.nodes).length;
+    const edgeCount = Object.values(flow.nodes).reduce((total, node) => {
+      if (isOpenerNode(node)) return total + 1;
+      if (isPromptConfigurableNode(node))
+        return (
+          total +
+          Object.keys('transitions' in node ? node.transitions || {} : {})
+            .length
+        );
+      return total;
+    }, 0);
+
+    const nodeTypes = Object.values(flow.nodes).reduce(
+      (acc, node) => {
+        acc[node.type] = (acc[node.type] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+
+    return {
+      nodeCount,
+      edgeCount,
+      nodeTypes,
+      hasContextTransforms: !!flow.contextTransforms,
+      complexity: this.calculateComplexity(nodeCount, edgeCount),
+    };
+  }
+
+  private calculateComplexity(
+    nodeCount: number,
+    edgeCount: number,
+  ): 'simple' | 'moderate' | 'complex' {
+    const complexity = nodeCount + edgeCount * 0.5;
+    if (complexity <= 10) return 'simple';
+    if (complexity <= 25) return 'moderate';
+    return 'complex';
+  }
+
+  private findEndNodes(
+    nodes: WorkflowNodeStructureDto[],
+    edges: WorkflowEdgeDto[],
+  ): string[] {
+    const nodesWithOutgoingEdges = new Set(
+      edges
+        .filter((e) => e.sourceNodeId !== e.targetNodeId) // Exclude self-loops
+        .map((e) => e.sourceNodeId),
+    );
+
+    return nodes
+      .filter((node) => !nodesWithOutgoingEdges.has(node.id))
+      .map((node) => node.id);
+  }
+
+  private findSelfLoops(edges: WorkflowEdgeDto[]): Array<{
+    nodeId: string;
+    condition: string;
+    label?: string | null;
+  }> {
+    return edges
+      .filter((edge) => edge.sourceNodeId === edge.targetNodeId)
+      .map((edge) => ({
+        nodeId: edge.sourceNodeId,
+        condition: edge.condition || 'default',
+        label: edge.label,
+      }));
+  }
+
+  private createDummyContext(): FlowContext {
+    // Create a minimal context for structure analysis
+    // This allows transition functions to execute without real runtime data
+    return {
+      core: {
+        workflowId: 'dummy-workflow' as WorkflowId,
+        projectId: 'dummy-project' as ProjectId,
+        organizationId: 'dummy-org' as OrganizationId,
+        conversationId: 'dummy-conversation' as ConversationId,
+        workflowAboutId: 'workflow-about-id',
+        workflowAboutType: 'workflow-about-type',
+        user: {
+          id: 'dummy-user' as UserId,
+          role: 'user',
+        },
+        session: {
+          startTime: new Date(),
+          interactionCount: 0,
+        },
+      },
+      flowPath: {
+        pathTaken: [],
+      },
+      flowId: 'dummy flowId',
+      lastIntent: undefined,
+    };
+  }
+}

@@ -1,0 +1,33 @@
+# OpenAPI Generator Configuration
+# Global configuration for client code generation
+
+# TypeScript Axios Client Configuration
+typescript-axios:
+  npmName: "@hey-hey/api-client"
+  npmVersion: "1.0.0"
+  supportsES6: true
+  withInterfaces: true
+  useSingleRequestParameter: true
+  withNodeImports: false
+  withoutRuntimeChecks: false
+  modelPropertyNaming: "camelCase"
+  
+# Python Client Configuration  
+python:
+  packageName: "hey_hey_client"
+  packageVersion: "1.0.0"
+  clientPackage: "hey_hey_client"
+  projectName: "hey-hey-python-client"
+  packageCompany: "Hey-Hey"
+  packageAuthor: "Hey-Hey Team"
+  packageAuthorEmail: "support@hey-hey.com"
+  packageUrl: "https://github.com/hey-hey/python-client"
+  
+# Java Client Configuration (if needed in future)
+java:
+  groupId: "com.heyhey"
+  artifactId: "hey-hey-java-client"
+  artifactVersion: "1.0.0"
+  invokerPackage: "com.heyhey.client"
+  modelPackage: "com.heyhey.client.model"
+  apiPackage: "com.heyhey.client.api"

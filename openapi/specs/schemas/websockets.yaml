@@ -1,0 +1,3307 @@
+# =============================================
+# WebSocket Event Schemas - Lightweight Notifications
+# =============================================
+WebSocketEvent:
+  type: object
+  required:
+    - type
+    - timestamp
+    - organizationId
+  properties:
+    type:
+      type: string
+      description: Event type identifier
+    timestamp:
+      type: string
+      format: date-time
+      description: When the event occurred
+    organizationId:
+      type: string
+      description: Associated organization ID
+    projectId:
+      type: string
+      description: Associated project ID (if applicable)
+    conversationId:
+      type: string
+      description: Associated conversation ID (if applicable)
+    userId:
+      type: string
+      description: Associated user ID (if applicable)
+
+WebSocketMessageCreatedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - messageId
+      properties:
+        type:
+          type: string
+          enum: ["message.created"]
+        messageId:
+          type: string
+          description: ID of the created message
+
+WebSocketMessageUpdatedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - messageId
+      properties:
+        type:
+          type: string
+          enum: ["message.updated"]
+        messageId:
+          type: string
+          description: ID of the updated message
+        changedFields:
+          type: array
+          items:
+            type: string
+          description: List of fields that were updated
+          example: ["content", "metadata"]
+
+WebSocketMessageRealtimeEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - messageId
+        - requestId
+        - sequence
+        - kind
+        - source
+        - projectId
+        - conversationId
+      properties:
+        type:
+          type: string
+          enum: ["message.realtime"]
+        messageId:
+          type: string
+          description: ID of the message receiving realtime updates
+        requestId:
+          type: string
+          description: Request identifier for the realtime stream
+        sequence:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Monotonic sequence per request/message stream
+        kind:
+          type: string
+          enum:
+            - "response.delta"
+            - "response.replace"
+            - "loading.update"
+            - "tool.progress"
+            - "run.status"
+            - "run.error"
+        source:
+          type: string
+          description: Producer that emitted the realtime event
+        payload:
+          type: object
+          additionalProperties: false
+          properties:
+            responseDelta:
+              type: string
+            response:
+              type: string
+            loadingText:
+              type: string
+            currentStep:
+              type: string
+            progress:
+              type: number
+            status:
+              type: string
+            toolName:
+              type: string
+            toolPhase:
+              type: string
+            error:
+              type: string
+            metadata:
+              type: object
+              additionalProperties: true
+
+WebSocketMessageDeletedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - messageId
+      properties:
+        type:
+          type: string
+          enum: ["message.deleted"]
+        messageId:
+          type: string
+          description: ID of the deleted message
+
+WebSocketConversationCreatedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - projectId
+        - conversationId
+      properties:
+        type:
+          type: string
+          enum: ["conversation.created"]
+        projectId:
+          type: string
+        conversationId:
+          type: string
+
+WebSocketConversationUpdatedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - previousVersion
+        - newVersion
+        - changeType
+        - projectId
+        - conversationId
+      properties:
+        type:
+          type: string
+          enum: ["conversation.updated"]
+        previousVersion:
+          type: integer
+          minimum: 1
+          description: Version before the update
+          example: 5
+        newVersion:
+          type: integer
+          minimum: 1
+          description: Version after the update
+          example: 6
+        changeType:
+          type: string
+          enum:
+            - "user"
+            - "message_added"
+            - "message_prepended"
+            - "message_deleted"
+            - "status_change"
+            - "system"
+          description: Type of change that triggered the version update
+          example: "message_added"
+        lastModifiedBy:
+          type: string
+          description: ID of user who made the change
+          example: "user-123"
+        changedFields:
+          type: array
+          items:
+            type: string
+          description: List of conversation fields that were updated
+          example: ["status", "lastActivity"]
+        latestMessageId:
+          type: string
+          description: |
+            ID of the most recent message in the conversation. Clients use
+            this to no-op (when it matches their cache) or to fetch a delta
+            via `GET .../messages?since=<previousLatestMessageId>`.
+          example: "msg-7f9e"
+
+WebSocketConversationStatusChangedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - previousStatus
+        - newStatus
+        - projectId
+        - conversationId
+      properties:
+        type:
+          type: string
+          enum: ["conversation.status_changed"]
+        previousStatus:
+          type: string
+          description: Previous conversation status
+        newStatus:
+          type: string
+          description: New conversation status
+
+WebSocketProjectCreatedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      properties:
+        type:
+          type: string
+          enum: ["project.created"]
+
+WebSocketProjectUpdatedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      properties:
+        type:
+          type: string
+          enum: ["project.updated"]
+        changedFields:
+          type: array
+          items:
+            type: string
+          description: List of project fields that were updated
+          example: ["name", "description", "settings"]
+
+WebSocketProjectStatusChangedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - previousStatus
+        - newStatus
+      properties:
+        type:
+          type: string
+          enum: ["project.status_changed"]
+        previousStatus:
+          type: string
+          description: Previous project status
+        newStatus:
+          type: string
+          description: New project status
+
+WebSocketTaskCreatedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - taskId
+      properties:
+        type:
+          type: string
+          enum: ["task.created"]
+        taskId:
+          type: string
+          description: ID of the task
+        initiativeId:
+          type: string
+          description: ID of the parent initiative (absent for FEATURE tasks)
+
+WebSocketTaskUpdatedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - taskId
+        - changedBy
+      properties:
+        type:
+          type: string
+          enum: ["task.updated"]
+        taskId:
+          type: string
+          description: ID of the task
+        initiativeId:
+          type: string
+          description: ID of the parent initiative (absent for most tasks)
+        changedFields:
+          type: array
+          items:
+            type: string
+          description: List of task fields that were updated
+          example: ["name", "status", "priority"]
+        totalFieldsChanged:
+          type: integer
+          description: Total number of fields that were changed
+          example: 3
+        changedBy:
+          type: object
+          properties:
+            userId:
+              type: string
+              description: ID of the user who made the changes
+            email:
+              type: string
+              description: Email of the user who made the changes
+            name:
+              type: string
+              description: Name of the user who made the changes
+          description: Information about who made the changes
+
+WebSocketTaskStatusChangedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - taskId
+        - previousStatus
+        - newStatus
+      properties:
+        type:
+          type: string
+          enum: ["task.status_changed"]
+        taskId:
+          type: string
+          description: ID of the task
+        initiativeId:
+          type: string
+          description: ID of the parent initiative (absent for most tasks)
+        previousStatus:
+          type: string
+          description: Previous task status
+        newStatus:
+          type: string
+          description: New task status
+
+WebSocketInitiativeCreatedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - initiativeId
+      properties:
+        type:
+          type: string
+          enum: ["initiative.created"]
+        initiativeId:
+          type: string
+          description: ID of the initiative
+
+WebSocketInitiativeUpdatedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - initiativeId
+        - changedBy
+      properties:
+        type:
+          type: string
+          enum: ["initiative.updated"]
+        initiativeId:
+          type: string
+          description: ID of the initiative
+        projectId:
+          type: string
+          description: Active project that triggered the update.
+        originatingProjectId:
+          type: string
+          description: Canonical project captured at initiative creation.
+        linkedProjectIds:
+          type: array
+          items:
+            type: string
+          description: All projects currently linked to the initiative.
+        changedFields:
+          type: array
+          items:
+            type: string
+          description: List of initiative fields that were updated
+          example: ["name", "status", "priority"]
+        totalFieldsChanged:
+          type: integer
+          description: Total number of fields that were changed
+          example: 3
+        changedBy:
+          type: object
+          properties:
+            userId:
+              type: string
+              description: ID of the user who made the changes
+            email:
+              type: string
+              description: Email of the user who made the changes
+            name:
+              type: string
+              description: Name of the user who made the changes
+          description: Information about who made the changes
+
+WebSocketInitiativeStatusChangedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - initiativeId
+        - previousStatus
+        - newStatus
+      properties:
+        type:
+          type: string
+          enum: ["initiative.status_changed"]
+        initiativeId:
+          type: string
+          description: ID of the initiative
+        previousStatus:
+          type: string
+          description: Previous initiative status
+        newStatus:
+          type: string
+          description: New initiative status
+
+WebSocketDesignDocCreatedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - designDocId
+      properties:
+        type:
+          type: string
+          enum: ["design_doc.created"]
+        designDocId:
+          type: string
+          description: ID of the design doc
+
+WebSocketDesignDocUpdatedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - designDocId
+        - changedBy
+      properties:
+        type:
+          type: string
+          enum: ["design_doc.updated"]
+        designDocId:
+          type: string
+          description: ID of the design doc
+        changedFields:
+          type: array
+          items:
+            type: string
+          description: List of design doc fields that were updated
+          example: ["title", "content", "status"]
+        totalFieldsChanged:
+          type: integer
+          description: Total number of fields that were changed
+          example: 3
+        changedBy:
+          type: object
+          properties:
+            userId:
+              type: string
+              description: ID of the user who made the changes
+            email:
+              type: string
+              description: Email of the user who made the changes
+            name:
+              type: string
+              description: Name of the user who made the changes
+          description: Information about who made the changes
+
+WebSocketDesignDocStatusChangedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - designDocId
+        - previousStatus
+        - newStatus
+      properties:
+        type:
+          type: string
+          enum: ["design_doc.status_changed"]
+        designDocId:
+          type: string
+          description: ID of the design doc
+        previousStatus:
+          type: string
+          description: Previous design doc status
+        newStatus:
+          type: string
+          description: New design doc status
+
+WebSocketSystemNotificationEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - $ref: "./notifications.yaml#/NotificationPushEventPayload"
+    - type: object
+      properties:
+        type:
+          type: string
+          enum: ["system.notification"]
+        message:
+          type: string
+          description: Legacy human-readable message.
+        severity:
+          type: string
+          enum: ["info", "warning", "error"]
+          description: Legacy severity hint.
+
+# =============================================
+# WebSocket Agent Session Events
+# =============================================
+WebSocketAgentSessionCreatedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - agentSessionId
+      properties:
+        type:
+          type: string
+          enum: ["agent_session.created"]
+        agentSessionId:
+          type: string
+          description: ID of the agent session
+
+WebSocketAgentSessionDeletedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - agentSessionId
+      properties:
+        type:
+          type: string
+          enum: ["agent_session.deleted"]
+        agentSessionId:
+          type: string
+          description: ID of the agent session
+
+WebSocketAgentSessionStatusChangedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - agentSessionId
+        - previousStatus
+        - newStatus
+      properties:
+        type:
+          type: string
+          enum: ["agent_session.status_changed"]
+        agentSessionId:
+          type: string
+          description: ID of the agent session
+        previousStatus:
+          type: string
+          description: Previous agent session status
+        newStatus:
+          type: string
+          description: New agent session status
+
+# =============================================
+# WebSocket Proposal Events
+# =============================================
+WebSocketProposalApprovedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - proposalId
+        - targetEntityId
+        - targetEntityType
+        - action
+      properties:
+        type:
+          type: string
+          enum: ["proposal.approved"]
+        proposalId:
+          type: string
+          description: ID of the approved proposal
+        targetEntityId:
+          type: string
+          description: ID of the entity targeted by the proposal
+        targetEntityType:
+          type: string
+          description: Type of the target entity (TASK, DESIGN_DOC)
+        action:
+          type: string
+          description: Proposal action (CREATE, UPDATE, DELETE)
+        resultingEntityId:
+          type: string
+          description: ID of the entity created or modified as a result
+
+WebSocketProposalGroupLifecycleEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - projectId
+        - groupId
+        - revision
+        - changedMemberIds
+      properties:
+        type:
+          type: string
+          enum: ["proposal_group.lifecycle"]
+        groupId:
+          type: string
+          format: uuid
+        revision:
+          type: integer
+          minimum: 0
+        changedMemberIds:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+      description: Compact project-scoped invalidation signal for refetching the canonical group
+
+# =============================================
+# Agent Session Current State Events
+# =============================================
+AgentSessionCurrentStateObservation:
+  type: object
+  additionalProperties: false
+  required:
+    - agentSessionId
+    - currentState
+    - observedAt
+  properties:
+    agentSessionId:
+      type: string
+      format: uuid
+      description: Agent Session identity whose state is being observed.
+    currentState:
+      $ref: "../schemas/coding-sessions.yaml#/AgentSessionCurrentState"
+    observedAt:
+      type: string
+      format: date-time
+      description: Time at which the CLI observed the current state.
+  description: >-
+    Inbound observation sent by the CLI over the authenticated WebSocket for
+    an Agent Session. The CLI supplies only Agent Session identity, current
+    state, and observation time; the platform derives authorization, project
+    scope, and revision.
+
+WebSocketAgentSessionCurrentStateChangedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - projectId
+        - agentSessionId
+        - currentState
+        - revision
+        - transitionedAt
+      properties:
+        type:
+          type: string
+          enum: ["agent_session.current_state_changed"]
+        projectId:
+          type: string
+          format: uuid
+          description: Project scope of the Agent Session state projection.
+        agentSessionId:
+          type: string
+          format: uuid
+          description: Agent Session identity.
+        currentState:
+          $ref: "../schemas/coding-sessions.yaml#/AgentSessionCurrentState"
+        revision:
+          type: integer
+          format: int64
+          minimum: 0
+          description: >-
+            Monotonic revision ordering complete latest-value entries for this
+            Agent Session. Skipped revisions do not imply missing history or
+            require a recovery read.
+        transitionedAt:
+          type: string
+          format: date-time
+          description: Time at which the current state became effective.
+  description: >-
+    Project-scoped outbound latest-value projection update. The complete
+    entry is applied directly by clients keyed by Agent Session identity.
+    Revision orders complete values; skipped numbers do not imply that a
+    client must fetch missing history. This behavior is governed by the
+    Agent Session realtime cache synchronization boundary.
+
+# =============================================
+# Agent Session Context Size Events
+# =============================================
+AgentSessionContextSizeObservation:
+  type: object
+  additionalProperties: false
+  required:
+    - agentSessionId
+    - runId
+    - providerSessionId
+    - totalTokens
+    - observedAt
+  properties:
+    agentSessionId:
+      type: string
+      format: uuid
+      description: Agent Session identity whose context size is being observed.
+    runId:
+      type: string
+      format: uuid
+      description: Run whose turn completion produced the reading.
+    providerSessionId:
+      type: string
+      description: Latest provider session of the Run, which the reading describes.
+    totalTokens:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Full context-window total for the provider session.
+    observedAt:
+      type: string
+      format: date-time
+      description: Time at which the CLI took the reading.
+    maxTokens:
+      type: integer
+      format: int64
+      minimum: 1
+      nullable: true
+      description: >-
+        Model context window for the provider session. Omitted when the
+        provider does not report one.
+  description: >-
+    Inbound observation sent by the CLI over the authenticated WebSocket when
+    a turn completes. The CLI supplies only Agent Session identity and the
+    reading; the platform derives authorization and project scope, persists
+    the latest value, and relays it to browsers.
+
+WebSocketAgentSessionContextSizeChangedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - projectId
+        - agentSessionId
+        - contextSize
+      properties:
+        type:
+          type: string
+          enum: ["agent_session.context_size_changed"]
+        projectId:
+          type: string
+          format: uuid
+          description: Project scope of the Agent Session.
+        agentSessionId:
+          type: string
+          format: uuid
+          description: Agent Session identity.
+        contextSize:
+          $ref: "../schemas/coding-sessions.yaml#/AgentSessionContextSize"
+  description: >-
+    Project-scoped outbound latest-value update for an Agent Session's
+    context-window size. Clients apply the complete entry keyed by Agent
+    Session identity; a newer `observedAt` wins. The canonical Agent Session
+    read (`AgentSessionDto.contextSize`) remains authoritative.
+
+# =============================================
+# Conversation Phase Events
+# =============================================
+ConversationPhase:
+  type: string
+  enum:
+    - idle
+    - starting
+    - gathering_context
+    - thinking
+    - writing
+    - awaiting_approval
+    - reviewing
+  description: >-
+    The current conversation-scoped Run phase. This vocabulary is separate
+    from the Agent Session current-state projection.
+
+ConversationPhaseObservation:
+  type: object
+  additionalProperties: false
+  required:
+    - conversationId
+    - phase
+    - observedAt
+  properties:
+    conversationId:
+      type: string
+      format: uuid
+      description: Conversation whose Run phase is being observed.
+    phase:
+      $ref: "#/ConversationPhase"
+    observedAt:
+      type: string
+      format: date-time
+      description: Time at which the CLI observed the phase.
+  description: >-
+    Inbound observation sent by the CLI over the authenticated WebSocket. The
+    platform derives organization and project scope from the authenticated
+    connection and conversation authorization.
+
+WebSocketConversationPhaseChangedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - projectId
+        - conversationId
+        - phase
+        - revision
+        - transitionedAt
+      properties:
+        type:
+          type: string
+          enum: ["conversation.phase_changed"]
+        projectId:
+          type: string
+          format: uuid
+          description: Project scope of the conversation phase projection.
+        conversationId:
+          type: string
+          format: uuid
+          description: Conversation identity.
+        phase:
+          $ref: "#/ConversationPhase"
+        revision:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Monotonic revision for the complete latest-value entry.
+        transitionedAt:
+          type: string
+          format: date-time
+          description: Time at which the phase became effective.
+  description: >-
+    Conversation-scoped outbound latest-value projection update. Authorized
+    room subscribers receive the complete current value and revision.
+
+WebSocketAgentSessionOutputAttentionChangedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - projectId
+        - userId
+        - agentSessionId
+        - state
+        - revision
+        - changedAt
+      properties:
+        type:
+          type: string
+          enum: ["agent_session.output_attention_changed"]
+        projectId:
+          type: string
+          format: uuid
+          description: Project scope of the Agent Session attention projection.
+        userId:
+          type: string
+          format: uuid
+          description: Authenticated user scope of the attention projection.
+        agentSessionId:
+          type: string
+          format: uuid
+          description: Agent Session identity.
+        state:
+          $ref: "../schemas/coding-sessions.yaml#/AgentSessionOutputAttentionState"
+        revision:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Monotonic revision for the complete latest-value entry.
+        changedAt:
+          type: string
+          format: date-time
+          description: Time at which the attention value became effective.
+  description: >-
+    User-scoped outbound latest-value projection update. Clients apply the
+    complete entry directly by Agent Session identity and revision; it is
+    separate from lifecycle current-state events and is delivered only to the
+    authenticated user's room.
+
+ProviderIdentityInboundPayload:
+  type: object
+  required:
+    - conversationId
+    - agentSessionId
+    - providerSessionId
+  properties:
+    conversationId:
+      type: string
+      description: Conversation the Run belongs to.
+    agentSessionId:
+      type: string
+      description: The platform AgenticSession this Run is bound to.
+    providerSessionId:
+      type: string
+      description: Provider-side session id surfaced by the SDK at Run start.
+    providerConversationId:
+      type: string
+      nullable: true
+      description: >-
+        Provider-side conversation id, when the provider has one (Codex).
+        Null for providers that expose only a session id (Claude).
+  additionalProperties: false
+  description: >-
+    Inbound frame sent by the CLI over the WebSocket carrying the
+    provider-side session and conversation ids for a Run. The CLI is the
+    authoritative source of these ids — it holds them the moment it spawns
+    the provider. The gateway persists them onto the agent session so any
+    device watching the conversation can render the Run without a host
+    browser round-tripping them back. This frame is NOT a trigger — it
+    carries no signed envelope and never causes the CLI to execute work.
+
+ServiceRepoBinding:
+  type: object
+  required:
+    - serviceId
+    - repositoryPath
+    - createdAt
+    - updatedAt
+  properties:
+    serviceId:
+      type: string
+      description: The service this binding maps to
+    repositoryPath:
+      type: string
+      description: Absolute filesystem path to the cloned repository on this machine
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+MachineRepoBindingsInboundPayload:
+  type: object
+  required:
+    - bindings
+  properties:
+    bindings:
+      type: array
+      items:
+        $ref: "#/ServiceRepoBinding"
+  additionalProperties: false
+  description: >-
+    Inbound frame sent by the CLI over the WebSocket to report its current
+    service-to-repository bindings. The gateway caches the full set per machineId
+    and fans it out to every socket in the conversation rooms the machine serves.
+    This frame is NOT a trigger — it carries no signed envelope.
+
+WebSocketMachineRepoBindingsEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - machineId
+        - bindings
+      properties:
+        type:
+          type: string
+          enum: ["machine.repo_bindings"]
+        machineId:
+          type: string
+          description: Machine whose repo bindings are being reported
+        bindings:
+          type: array
+          items:
+            $ref: "#/ServiceRepoBinding"
+  description: >-
+    Outbound frame emitted to each `conversation:${id}` room the machine is
+    serving whenever its repo bindings change or the machine disconnects
+    (bindings will be empty on disconnect). Browsers use it to know which local
+    paths back each service so they can open files directly.
+
+# =============================================
+# WebSocket Machine Security Event Feed
+# =============================================
+WebSocketMachineSecurityEventEvent:
+  type: object
+  required:
+    - type
+    - timestamp
+    - userId
+    - machineId
+    - event
+  properties:
+    type:
+      type: string
+      enum: ["machine_security_event"]
+    timestamp:
+      type: string
+      format: date-time
+      description: When the event was recorded.
+    userId:
+      type: string
+      description: >-
+        Owner the frame is routed to. Machines are user-scoped (not
+        org-scoped), so this frame carries no organizationId and is delivered to
+        the `user:${userId}` room.
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    event:
+      $ref: "./machine-security-events.yaml#/MachineSecurityEventDto"
+  description: >-
+    Display/cache-only frame announcing a newly recorded machine security
+    event. Routed to the owning user's `user:${userId}` room so the
+    Settings → Machines feed updates within seconds rather than only on poll. It
+    carries the full persisted event so the client can prepend it without a
+    refetch. This is NOT a trigger frame: it never causes the CLI to execute
+    work.
+
+# =============================================
+# WebSocket Trigger Frames
+# =============================================
+# The only websocket frames that cause the CLI to execute work. Each is
+# a WebSocketEvent subtype carrying one `envelope` field — the
+# server-signed, machine-addressed trigger body. Every other frame in
+# this file is a display/cache-only notification and never triggers
+# execution.
+WebSocketConversationTriggerEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - envelope
+      properties:
+        type:
+          type: string
+          enum: ["trigger.conversation"]
+        envelope:
+          $ref: "#/ControllerAuthorizedSignedConversationTriggerEnvelope"
+  description: >-
+    Trigger frame wrapping a signed conversation-trigger envelope — the
+    rich `AgentTrigger` body whose `promptType` payloads drive a
+    conversation agent turn. Emitted to the conversation owner's machine
+    alongside the room's `conversation.updated` notification frame.
+
+WebSocketConversationControlEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - envelope
+      properties:
+        type:
+          type: string
+          enum: ["trigger.control"]
+        envelope:
+          $ref: "#/ControllerAuthorizedSignedConversationControlEnvelope"
+  description: >-
+    Trigger frame wrapping a signed conversation-control envelope — a
+    `kind`-discriminated, entity-IDs-only control body owned by the
+    conversation owner. Used for authority-increasing controls on the CLI run
+    that owns a conversation. Unlike `trigger.conversation`, this
+    body carries no prompt text or payload escape hatch; its safety rests
+    on controller authorization, the server signature, the kind allowlist, and
+    conversation-owner binding.
+
+WebSocketConversationReductionEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - envelope
+      properties:
+        type:
+          type: string
+          enum: ["trigger.control_reduction"]
+        envelope:
+          $ref: "#/SignedConversationReductionEnvelope"
+  description: >-
+    Signed stop control that only reduces authority and intentionally does not
+    require or create controller execution authorization.
+
+WebSocketAuthorityReductionEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - envelope
+      properties:
+        type:
+          type: string
+          enum: ["trigger.authority_reduction"]
+        envelope:
+          $ref: "./controller-management.yaml#/SignedAuthorityReductionEnvelope"
+  description: >-
+    Signed controller- or machine-authority reduction. The addressed CLI
+    acknowledges APPLIED only after durable local reconciliation completes.
+
+WebSocketMonitorCommandEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - projectId
+        - envelope
+      properties:
+        type:
+          type: string
+          enum: ["trigger.monitor_command"]
+        envelope:
+          oneOf:
+            - $ref: "#/ControllerAuthorizedSignedMonitorCommandEnvelope"
+            - $ref: "#/SignedMonitorAuthorityNeutralEnvelope"
+  description: >-
+    Trigger frame wrapping either a controller-authorized host-affecting
+    command or signed authenticated authority-neutral Task Monitor input. It
+    addresses a durable monitor work item before any Run or conversation
+    binding exists; the CLI verifies it before targeted admission.
+
+WebSocketMonitorReductionEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - projectId
+        - envelope
+      properties:
+        type:
+          type: string
+          enum: ["trigger.monitor_reduction"]
+        envelope:
+          $ref: "#/SignedMonitorReductionEnvelope"
+  description: >-
+    Signed pause, stop, or halt command that remains available without the
+    controller execution gate because it can only reduce authority.
+
+WebSocketCliReadRequestEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - envelope
+      properties:
+        type:
+          type: string
+          enum: ["cli.read.request"]
+        envelope:
+          $ref: "#/ControllerAuthorizedSignedCliReadEnvelope"
+  description: >-
+    Machine-addressed, acknowledged request for typed host-owned CLI state.
+    The platform signs the request and emits it only to the Run's durably bound
+    machine. The CLI acknowledges only after verification and operation
+    execution complete, returning a correlated `CliReadResponseDto`.
+
+WebSocketApplicationEffectEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - envelope
+      properties:
+        type:
+          type: string
+          enum: ["trigger.application_effect"]
+        envelope:
+          $ref: "#/ControllerAuthorizedSignedApplicationEffectEnvelope"
+  description: >-
+    Protocol-2 launch of one persisted application effect. The frame cannot
+    carry an untyped payload or omit controller/grant authorization.
+
+WebSocketExactActionEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - envelope
+      properties:
+        type:
+          type: string
+          enum: ["trigger.exact_action"]
+        envelope:
+          $ref: "#/ControllerAuthorizedSignedExactActionEnvelope"
+  description: >-
+    Protocol-2 delivery of an existing exact-action declaration. Its fingerprint
+    and revision remain application constraints inside controller authorization.
+
+# =============================================
+# Signed CLI trigger envelopes
+# =============================================
+# The server-signed websocket trigger envelopes: the cryptographic
+# identity/integrity layer over the trigger bodies. Both the server's
+# signer and the CLI's Zod validator derive from these schemas, so the
+# two sides canonicalize identical bytes. Legacy and protocol-2 envelopes share
+# one security core (SignedEnvelopeFields); distinct concrete schemas keep the
+# frame type and executable authorization shape closed.
+SignedEnvelopeFields:
+  type: object
+  required:
+    - machineId
+    - userId
+    - nonce
+    - timestampMs
+    - signature
+  properties:
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    userId:
+      $ref: "./common.yaml#/UserId"
+    nonce:
+      type: string
+      format: uuid
+      description: >-
+        Random UUID minted by the server per envelope. The CLI rejects
+        an envelope whose nonce it has already seen within the freshness
+        window, defeating replay of a captured envelope.
+      example: "550e8400-e29b-41d4-a716-446655440099"
+    timestampMs:
+      type: integer
+      format: int64
+      description: >-
+        Unix epoch milliseconds at which the server signed the envelope.
+        The CLI rejects an envelope whose timestamp is outside ±30s of
+        local time, bounding the replay window.
+      example: 1747920000000
+    signature:
+      type: string
+      description: >-
+        Base64-encoded Ed25519 signature produced with the server's
+        private signing key, covering the canonical byte string defined
+        below. The CLI verifies it against the server public signing key
+        delivered at machine pairing.
+      example: "k7wQ2k1m...base64-ed25519-signature...=="
+  description: >-
+    The shared security core composed (via `allOf`) into legacy and protocol-2
+    signed envelopes. Carries machine/owner binding
+    (`machineId`, `userId`), replay protection (`nonce`, `timestampMs`),
+    and the server `signature`. Each concrete envelope adds one `event`
+    field carrying its body; protocol-2 executable envelopes additionally add
+    `protocolVersion` and the shared closed authorization union. Its activation
+    arm carries fresh assertion evidence plus the complete immutable descriptor;
+    its reuse arm carries only the active grant reference. The CLI runs the ordered
+    verification pipeline (schema validation → signature → machineId →
+    userId → timestamp → nonce → frame-type/kind allowlist) and silently
+    drops any envelope that fails; an unknown field rejects the whole
+    frame.
+
+
+    ## Signature canonicalization contract
+
+
+    The server signer and the CLI verifier MUST canonicalize identical
+    bytes. The signed message is the UTF-8 encoding of the RFC 8785
+    (JSON Canonicalization Scheme) serialization of the envelope with
+    the `signature` property removed. For a legacy envelope that object is
+    `{ event, machineId, userId, nonce, timestampMs }`; for a protocol-2
+    executable envelope it is
+    `{ authorization, event, machineId, nonce, protocolVersion, timestampMs, userId }`.
+    RFC 8785 fixes
+    object key ordering (lexicographic by UTF-16 code unit), number
+    formatting, and string escaping, so the trigger body and the four
+    binding fields serialize to one deterministic byte string on both
+    sides. The server signs those bytes with its Ed25519 private key;
+    the CLI reconstructs the same object from the received envelope
+    (dropping `signature`), canonicalizes it identically, and verifies.
+    The signature therefore covers every concrete-envelope property except
+    `signature`. For protocol 2 this explicitly includes the complete
+    authorization union, protocol version, event body, and all binding fields;
+    tampering with any of them invalidates it. Outer WebSocketEvent routing
+    fields are not signed.
+
+SignedConversationTriggerEnvelope:
+  allOf:
+    - $ref: "#/SignedEnvelopeFields"
+    - type: object
+      required:
+        - event
+      properties:
+        event:
+          $ref: "./conversations.yaml#/AgentTrigger"
+  description: >-
+    Server-signed envelope wrapping the rich `AgentTrigger` body, whose
+    `promptType` payloads drive a conversation agent turn. Carried by
+    the `trigger.conversation` frame. Unlike `PlatformEventBody`, this
+    body is content-carrying by design — its safety rests on the server
+    signature and machine/owner binding, not on structural minimality.
+    See `SignedEnvelopeFields` for the signature canonicalization
+    contract.
+
+SignedConversationControlEnvelope:
+  allOf:
+    - $ref: "#/SignedEnvelopeFields"
+    - type: object
+      required:
+        - event
+      properties:
+        event:
+          $ref: "#/ConversationControlBody"
+  description: >-
+    Server-signed envelope wrapping the closed, `kind`-discriminated
+    `ConversationControlBody` — the entity-IDs-only control body sent by
+    the conversation owner to remotely command the CLI run that owns the
+    conversation. Carried by the `trigger.control` frame. Mirrors
+    `SignedPlatformEventEnvelope`'s discipline: entity IDs only, no
+    free-form text or `payload` escape hatch. See `SignedEnvelopeFields`
+    for the signature canonicalization contract.
+
+SignedMonitorCommandEnvelope:
+  allOf:
+    - $ref: "#/SignedEnvelopeFields"
+    - type: object
+      required:
+        - event
+      properties:
+        event:
+          $ref: "./monitor-commands.yaml#/MonitorCommandBody"
+  description: >-
+    Server-signed envelope wrapping the complete explicit monitor command.
+    Every routing and execution field is inside `event` and therefore covered
+    by the signature canonicalization contract in `SignedEnvelopeFields`.
+
+SignedCliReadEnvelope:
+  allOf:
+    - $ref: "#/SignedEnvelopeFields"
+    - type: object
+      required:
+        - event
+      properties:
+        event:
+          $ref: "#/CliReadEnvelopeBody"
+  description: >-
+    Server-signed envelope wrapping a closed, operation-discriminated CLI read
+    body. Carried by the `cli.read.request` frame and verified under the same
+    signature, machine/user binding, freshness, and replay rules as trigger
+    envelopes.
+
+ControllerAuthorizedSignedConversationTriggerEnvelope:
+  type: object
+  additionalProperties: false
+  required:
+    [
+      machineId,
+      userId,
+      nonce,
+      timestampMs,
+      signature,
+      protocolVersion,
+      authorization,
+      event,
+    ]
+  properties:
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    userId:
+      $ref: "./common.yaml#/UserId"
+    nonce:
+      type: string
+      format: uuid
+    timestampMs:
+      type: integer
+      format: int64
+    signature:
+      type: string
+    protocolVersion:
+      type: integer
+      enum: [2]
+    authorization:
+      $ref: "./controller-authorization.yaml#/ExecutableEnvelopeAuthorization"
+    event:
+      $ref: "./conversations.yaml#/AgentTrigger"
+  description: >-
+    Protocol-2 conversation envelope whose complete authorization and event are
+    covered by the platform signature.
+
+ConversationAuthorityIncreasingControlBody:
+  oneOf:
+    - $ref: "#/ConversationControlCompactRun"
+    - $ref: "#/ConversationControlPermissionDecision"
+    - $ref: "#/ConversationControlQuestionAnswer"
+  discriminator:
+    propertyName: kind
+    mapping:
+      compact_run: "#/ConversationControlCompactRun"
+      permission_decision: "#/ConversationControlPermissionDecision"
+      question_answer: "#/ConversationControlQuestionAnswer"
+
+ConversationAuthorityReductionBody:
+  oneOf:
+    - $ref: "#/ConversationControlCancelInput"
+    - $ref: "#/ConversationControlStopRun"
+  discriminator:
+    propertyName: kind
+    mapping:
+      cancel_input: "#/ConversationControlCancelInput"
+      stop_run: "#/ConversationControlStopRun"
+
+ControllerAuthorizedSignedConversationControlEnvelope:
+  type: object
+  additionalProperties: false
+  required:
+    [
+      machineId,
+      userId,
+      nonce,
+      timestampMs,
+      signature,
+      protocolVersion,
+      authorization,
+      event,
+    ]
+  properties:
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    userId:
+      $ref: "./common.yaml#/UserId"
+    nonce:
+      type: string
+      format: uuid
+    timestampMs:
+      type: integer
+      format: int64
+    signature:
+      type: string
+    protocolVersion:
+      type: integer
+      enum: [2]
+    authorization:
+      $ref: "./controller-authorization.yaml#/ExecutableEnvelopeAuthorization"
+    event:
+      $ref: "#/ConversationAuthorityIncreasingControlBody"
+
+SignedConversationReductionEnvelope:
+  type: object
+  additionalProperties: false
+  required:
+    [machineId, userId, nonce, timestampMs, signature, protocolVersion, event]
+  properties:
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    userId:
+      $ref: "./common.yaml#/UserId"
+    nonce:
+      type: string
+      format: uuid
+    timestampMs:
+      type: integer
+      format: int64
+    signature:
+      type: string
+    protocolVersion:
+      type: integer
+      enum: [2]
+    event:
+      $ref: "#/ConversationAuthorityReductionBody"
+  description: >-
+    Protocol-2 reduction. The signature covers event, version, and addressing,
+    but controller execution authorization is intentionally absent.
+
+ControllerAuthorizedSignedMonitorCommandEnvelope:
+  type: object
+  additionalProperties: false
+  required:
+    [
+      machineId,
+      userId,
+      nonce,
+      timestampMs,
+      signature,
+      protocolVersion,
+      authorization,
+      event,
+    ]
+  properties:
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    userId:
+      $ref: "./common.yaml#/UserId"
+    nonce:
+      type: string
+      format: uuid
+    timestampMs:
+      type: integer
+      format: int64
+    signature:
+      type: string
+    protocolVersion:
+      type: integer
+      enum: [2]
+    authorization:
+      $ref: "./controller-authorization.yaml#/ExecutableEnvelopeAuthorization"
+    event:
+      $ref: "./monitor-commands.yaml#/MonitorCommandBodyV2"
+
+SignedMonitorReductionEnvelope:
+  type: object
+  additionalProperties: false
+  required:
+    [machineId, userId, nonce, timestampMs, signature, protocolVersion, event]
+  properties:
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    userId:
+      $ref: "./common.yaml#/UserId"
+    nonce:
+      type: string
+      format: uuid
+    timestampMs:
+      type: integer
+      format: int64
+    signature:
+      type: string
+    protocolVersion:
+      type: integer
+      enum: [2]
+    event:
+      $ref: "./monitor-commands.yaml#/MonitorAuthorityReductionBodyV2"
+
+SignedMonitorAuthorityNeutralEnvelope:
+  type: object
+  additionalProperties: false
+  required:
+    [machineId, userId, nonce, timestampMs, signature, protocolVersion, event]
+  properties:
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    userId:
+      $ref: "./common.yaml#/UserId"
+    nonce:
+      type: string
+      format: uuid
+    timestampMs:
+      type: integer
+      format: int64
+    signature:
+      type: string
+    protocolVersion:
+      type: integer
+      enum: [2]
+    event:
+      $ref: "./monitor-commands.yaml#/MonitorAuthorityNeutralBodyV2"
+  description: >-
+    Protocol-2 authenticated Task Monitor input signed by the platform. It
+    carries no controller execution authorization because admission cannot
+    directly start, resume, or terminate host work.
+
+ControllerAuthorizedSignedCliReadEnvelope:
+  type: object
+  additionalProperties: false
+  required:
+    [
+      machineId,
+      userId,
+      nonce,
+      timestampMs,
+      signature,
+      protocolVersion,
+      authorization,
+      event,
+    ]
+  properties:
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    userId:
+      $ref: "./common.yaml#/UserId"
+    nonce:
+      type: string
+      format: uuid
+    timestampMs:
+      type: integer
+      format: int64
+    signature:
+      type: string
+    protocolVersion:
+      type: integer
+      enum: [2]
+    authorization:
+      $ref: "./controller-authorization.yaml#/ExecutableEnvelopeAuthorization"
+    event:
+      $ref: "#/CliReadEnvelopeBody"
+
+ControllerAuthorizedSignedApplicationEffectEnvelope:
+  type: object
+  additionalProperties: false
+  required:
+    [
+      machineId,
+      userId,
+      nonce,
+      timestampMs,
+      signature,
+      protocolVersion,
+      authorization,
+      event,
+    ]
+  properties:
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    userId:
+      $ref: "./common.yaml#/UserId"
+    nonce:
+      type: string
+      format: uuid
+    timestampMs:
+      type: integer
+      format: int64
+    signature:
+      type: string
+    protocolVersion:
+      type: integer
+      enum: [2]
+    authorization:
+      $ref: "./controller-authorization.yaml#/ExecutableEnvelopeAuthorization"
+    event:
+      $ref: "./controller-authorization.yaml#/ApplicationEffectLaunchBody"
+
+ControllerAuthorizedSignedExactActionEnvelope:
+  type: object
+  additionalProperties: false
+  required:
+    [
+      machineId,
+      userId,
+      nonce,
+      timestampMs,
+      signature,
+      protocolVersion,
+      authorization,
+      event,
+    ]
+  properties:
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    userId:
+      $ref: "./common.yaml#/UserId"
+    nonce:
+      type: string
+      format: uuid
+    timestampMs:
+      type: integer
+      format: int64
+    signature:
+      type: string
+    protocolVersion:
+      type: integer
+      enum: [2]
+    authorization:
+      $ref: "./controller-authorization.yaml#/ExecutableEnvelopeAuthorization"
+    event:
+      $ref: "./controller-authorization.yaml#/ExactActionDeliveryBody"
+
+CliReadRunChangedFilesCountRequest:
+  type: object
+  required:
+    - operation
+    - runId
+    - authorization
+  properties:
+    operation:
+      type: string
+      enum:
+        - run.changed_files.count
+    runId:
+      type: string
+      format: uuid
+      description: Persisted CLI Run identity to prepare and read.
+    authorization:
+      $ref: "./controller-authorization.yaml#/AdmissionEnvelopeAuthorization"
+  additionalProperties: false
+
+CliReadRunChangedFilesInventoryRequest:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunChangedFilesInventoryRequest"
+
+CliReadRunChangedFileDetailRequest:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunChangedFileDetailRequest"
+
+CliReadRunContextUsageGetRequest:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunContextUsageGetRequest"
+
+CliReadRunSkillsListRequest:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunSkillsListRequest"
+
+CliReadRunToolCallsLatestTurnRequest:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunToolCallsLatestTurnRequest"
+
+CliReadProjectSessionCostsListRequest:
+  type: object
+  required:
+    - operation
+    - projectId
+    - limit
+    - authorization
+  properties:
+    operation:
+      type: string
+      enum:
+        - project.session_costs.list
+    projectId:
+      type: string
+      format: uuid
+      description: Project whose persisted Run-owned provider-session costs are requested.
+    activityFrom:
+      type: string
+      format: date-time
+      description: Inclusive lower bound for the Run's latest activity.
+    activityTo:
+      type: string
+      format: date-time
+      description: Inclusive upper bound for the Run's latest activity.
+    minKnownCostUsd:
+      type: number
+      minimum: 0
+      description: Minimum numeric aggregate cost. Fully unavailable rows do not match.
+    limit:
+      type: integer
+      format: int32
+      minimum: 1
+      maximum: 100
+    cursor:
+      type: string
+      nullable: true
+      minLength: 1
+      description: Opaque continuation bound to the normalized filters.
+    authorization:
+      $ref: "./controller-authorization.yaml#/AdmissionEnvelopeAuthorization"
+  additionalProperties: false
+
+CliReadProviderUsageGetRequest:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadProviderUsageGetRequest"
+
+CliReadRuntimeModelCatalogGetRequest:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRuntimeModelCatalogGetRequest"
+
+CliReadRequestDto:
+  oneOf:
+    - $ref: "#/CliReadRunChangedFilesCountRequest"
+    - $ref: "#/CliReadRunChangedFilesInventoryRequest"
+    - $ref: "#/CliReadRunChangedFileDetailRequest"
+    - $ref: "#/CliReadRunContextUsageGetRequest"
+    - $ref: "#/CliReadRunSkillsListRequest"
+    - $ref: "#/CliReadRunToolCallsLatestTurnRequest"
+    - $ref: "#/CliReadProjectSessionCostsListRequest"
+    - $ref: "#/CliReadProviderUsageGetRequest"
+  discriminator:
+    propertyName: operation
+    mapping:
+      run.changed_files.count: "#/CliReadRunChangedFilesCountRequest"
+      run.changed_files.inventory: "#/CliReadRunChangedFilesInventoryRequest"
+      run.changed_files.detail: "#/CliReadRunChangedFileDetailRequest"
+      run.context_usage.get: "#/CliReadRunContextUsageGetRequest"
+      run.skills.list: "#/CliReadRunSkillsListRequest"
+      run.tool_calls.latest_turn: "#/CliReadRunToolCallsLatestTurnRequest"
+      project.session_costs.list: "#/CliReadProjectSessionCostsListRequest"
+      provider.usage.get: "#/CliReadProviderUsageGetRequest"
+  description: >-
+    Closed union of host-owned state reads accepted by the platform Agent
+    Session endpoint. New operations extend this union without creating a new
+    transport.
+
+CliReadRunChangedFilesCountEnvelopeBody:
+  type: object
+  required:
+    - requestId
+    - agentSessionId
+    - operation
+    - runId
+  properties:
+    requestId:
+      type: string
+      format: uuid
+      description: Correlation identity minted by the platform for this read.
+    agentSessionId:
+      type: string
+      format: uuid
+      description: Canonical Agent Session authorization target.
+    operation:
+      type: string
+      enum:
+        - run.changed_files.count
+    runId:
+      type: string
+      format: uuid
+      description: Persisted CLI Run identity to prepare and read.
+  additionalProperties: false
+
+CliReadRunChangedFilesInventoryEnvelopeBody:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunChangedFilesInventoryEnvelopeBody"
+
+CliReadRunChangedFileDetailEnvelopeBody:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunChangedFileDetailEnvelopeBody"
+
+CliReadRunContextUsageGetEnvelopeBody:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunContextUsageGetEnvelopeBody"
+
+CliReadRunSkillsListEnvelopeBody:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunSkillsListEnvelopeBody"
+
+CliReadRunToolCallsLatestTurnEnvelopeBody:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunToolCallsLatestTurnEnvelopeBody"
+
+CliReadProjectSessionCostsListEnvelopeBody:
+  type: object
+  required:
+    - requestId
+    - agentSessionId
+    - operation
+    - projectId
+    - limit
+  properties:
+    requestId:
+      type: string
+      format: uuid
+      description: Correlation identity minted by the platform for this read.
+    agentSessionId:
+      type: string
+      format: uuid
+      description: Canonical Agent Session authorization target.
+    operation:
+      type: string
+      enum:
+        - project.session_costs.list
+    projectId:
+      type: string
+      format: uuid
+    activityFrom:
+      type: string
+      format: date-time
+    activityTo:
+      type: string
+      format: date-time
+    minKnownCostUsd:
+      type: number
+      minimum: 0
+    limit:
+      type: integer
+      format: int32
+      minimum: 1
+      maximum: 100
+    cursor:
+      type: string
+      nullable: true
+      minLength: 1
+  additionalProperties: false
+
+CliReadProviderUsageGetEnvelopeBody:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadProviderUsageGetEnvelopeBody"
+
+CliReadRuntimeModelCatalogGetEnvelopeBody:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRuntimeModelCatalogGetEnvelopeBody"
+
+CliReadEnvelopeBody:
+  oneOf:
+    - $ref: "#/CliReadRunChangedFilesCountEnvelopeBody"
+    - $ref: "#/CliReadRunChangedFilesInventoryEnvelopeBody"
+    - $ref: "#/CliReadRunChangedFileDetailEnvelopeBody"
+    - $ref: "#/CliReadRunContextUsageGetEnvelopeBody"
+    - $ref: "#/CliReadRunSkillsListEnvelopeBody"
+    - $ref: "#/CliReadRunToolCallsLatestTurnEnvelopeBody"
+    - $ref: "#/CliReadWorkspaceSkillsListEnvelopeBody"
+    - $ref: "#/CliReadProjectSessionCostsListEnvelopeBody"
+    - $ref: "#/CliReadProviderUsageGetEnvelopeBody"
+    - $ref: "#/CliReadRuntimeModelCatalogGetEnvelopeBody"
+  discriminator:
+    propertyName: operation
+    mapping:
+      run.changed_files.count: "#/CliReadRunChangedFilesCountEnvelopeBody"
+      run.changed_files.inventory: "#/CliReadRunChangedFilesInventoryEnvelopeBody"
+      run.changed_files.detail: "#/CliReadRunChangedFileDetailEnvelopeBody"
+      run.context_usage.get: "#/CliReadRunContextUsageGetEnvelopeBody"
+      run.skills.list: "#/CliReadRunSkillsListEnvelopeBody"
+      run.tool_calls.latest_turn: "#/CliReadRunToolCallsLatestTurnEnvelopeBody"
+      workspace.skills.list: "#/CliReadWorkspaceSkillsListEnvelopeBody"
+      project.session_costs.list: "#/CliReadProjectSessionCostsListEnvelopeBody"
+      provider.usage.get: "#/CliReadProviderUsageGetEnvelopeBody"
+      runtime.model_catalog.get: "#/CliReadRuntimeModelCatalogGetEnvelopeBody"
+
+CliReadChangedFilesCountResult:
+  type: object
+  required:
+    - runId
+    - changedFilesCount
+  properties:
+    runId:
+      type: string
+      format: uuid
+    changedFilesCount:
+      type: integer
+      format: int32
+      minimum: 0
+  additionalProperties: false
+
+CliReadChangedFileIdentity:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadChangedFileIdentity"
+
+CliReadChangedFileInventoryEntry:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadChangedFileInventoryEntry"
+
+CliReadChangedFileDetail:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadChangedFileDetail"
+
+CliReadRunContextUsageResult:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunContextUsageResult"
+
+ContextData:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/ContextData"
+
+CliReadProviderSessionUsageCost:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadProviderSessionUsageCost"
+
+CliReadProjectSessionCostMember:
+  type: object
+  required:
+    - providerId
+    - providerSessionId
+    - providerConversationId
+    - providerSessionAgentId
+    - observedAt
+    - cost
+  properties:
+    providerId:
+      type: string
+      enum:
+        - claude
+        - codex
+        - opencode
+    providerSessionId:
+      type: string
+      minLength: 1
+    providerConversationId:
+      type: string
+      nullable: true
+    providerSessionAgentId:
+      type: string
+      nullable: true
+    observedAt:
+      type: string
+      format: date-time
+    cost:
+      $ref: "#/CliReadProviderSessionUsageCost"
+  additionalProperties: false
+
+CliReadProjectSessionCostContext:
+  type: object
+  required:
+    - entityType
+    - entityId
+    - entityTitle
+    - promptType
+  properties:
+    entityType:
+      type: string
+      nullable: true
+    entityId:
+      type: string
+      nullable: true
+    entityTitle:
+      type: string
+      nullable: true
+    promptType:
+      type: string
+      nullable: true
+  additionalProperties: false
+
+CliReadProjectSessionCostRow:
+  type: object
+  required:
+    - agentSessionId
+    - conversationId
+    - context
+    - providerSessions
+    - knownCostUsd
+    - completeness
+    - latestActivityAt
+    - costReadAt
+  properties:
+    agentSessionId:
+      type: string
+      format: uuid
+    conversationId:
+      type: string
+      format: uuid
+    context:
+      $ref: "#/CliReadProjectSessionCostContext"
+    providerSessions:
+      type: array
+      items:
+        $ref: "#/CliReadProjectSessionCostMember"
+    knownCostUsd:
+      type: number
+      nullable: true
+      minimum: 0
+    completeness:
+      type: string
+      enum:
+        - complete
+        - partial
+        - unavailable
+    latestActivityAt:
+      type: string
+      format: date-time
+    costReadAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+CliReadProjectSessionCostsResult:
+  type: object
+  required:
+    - items
+    - nextCursor
+    - sourceAvailability
+    - costReadAt
+  properties:
+    items:
+      type: array
+      items:
+        $ref: "#/CliReadProjectSessionCostRow"
+    nextCursor:
+      type: string
+      nullable: true
+    sourceAvailability:
+      type: string
+      enum:
+        - available
+        - partial
+        - unavailable
+    costReadAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+CliReadErrorCode:
+  type: string
+  enum:
+    - RUN_NOT_FOUND
+    - RUN_ID_MISMATCH
+    - INVALID_RUN_CONTEXT
+    - INVALID_PROJECT_CONTEXT
+    - INVALID_REQUEST
+    - INVALID_CURSOR
+    - SERVICE_NOT_FOUND
+    - REPOSITORY_NOT_FOUND
+    - INVALID_REPOSITORY_PATH
+    - FILE_TOO_LARGE
+    - INVALID_FILE_MEMBERSHIP
+    - RESULT_TOO_LARGE
+    - READ_FAILED
+    - PROVIDER_UNAVAILABLE
+    - PROVIDER_FAILURE
+    - CATALOG_BUSY
+    - INVALID_WORKSPACE
+    - MACHINE_NOT_BOUND
+    - NO_RECIPIENT
+    - TIMEOUT
+    - CORRELATION_MISMATCH
+    - MALFORMED_ACK
+
+CliReadError:
+  type: object
+  required:
+    - code
+    - message
+  properties:
+    code:
+      $ref: "#/CliReadErrorCode"
+    message:
+      type: string
+  additionalProperties: false
+
+CliReadRunChangedFilesCountSuccessResponseDto:
+  type: object
+  required:
+    - requestId
+    - operation
+    - status
+    - result
+  properties:
+    requestId:
+      type: string
+      format: uuid
+    operation:
+      type: string
+      enum:
+        - run.changed_files.count
+    status:
+      type: string
+      enum:
+        - success
+    result:
+      $ref: "#/CliReadChangedFilesCountResult"
+  additionalProperties: false
+
+CliReadRunChangedFilesInventorySuccessResponseDto:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunChangedFilesInventorySuccessResponseDto"
+
+CliReadRunChangedFileDetailSuccessResponseDto:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunChangedFileDetailSuccessResponseDto"
+
+CliReadRunContextUsageGetSuccessResponseDto:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunContextUsageGetSuccessResponseDto"
+
+CliReadRunSkillsListSuccessResponseDto:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunSkillsListSuccessResponseDto"
+
+CliReadRunToolCallsLatestTurnSuccessResponseDto:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunToolCallsLatestTurnSuccessResponseDto"
+
+CliReadProjectSessionCostsListSuccessResponseDto:
+  type: object
+  required:
+    - requestId
+    - operation
+    - status
+    - result
+  properties:
+    requestId:
+      type: string
+      format: uuid
+    operation:
+      type: string
+      enum:
+        - project.session_costs.list
+    status:
+      type: string
+      enum:
+        - success
+    result:
+      $ref: "#/CliReadProjectSessionCostsResult"
+  additionalProperties: false
+
+CliReadProviderUsageGetSuccessResponseDto:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadProviderUsageGetSuccessResponseDto"
+
+CliReadRuntimeModelCatalogGetSuccessResponseDto:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRuntimeModelCatalogGetSuccessResponseDto"
+
+CliReadRunChangedFilesCountErrorResponseDto:
+  type: object
+  required:
+    - requestId
+    - operation
+    - status
+    - error
+  properties:
+    requestId:
+      type: string
+      format: uuid
+    operation:
+      type: string
+      enum:
+        - run.changed_files.count
+    status:
+      type: string
+      enum:
+        - error
+    error:
+      $ref: "#/CliReadError"
+  additionalProperties: false
+
+CliReadRunChangedFilesInventoryErrorResponseDto:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunChangedFilesInventoryErrorResponseDto"
+
+CliReadRunChangedFileDetailErrorResponseDto:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunChangedFileDetailErrorResponseDto"
+
+CliReadRunContextUsageGetErrorResponseDto:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunContextUsageGetErrorResponseDto"
+
+CliReadRunSkillsListErrorResponseDto:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunSkillsListErrorResponseDto"
+
+CliReadRunToolCallsLatestTurnErrorResponseDto:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunToolCallsLatestTurnErrorResponseDto"
+
+CliReadProjectSessionCostsListErrorResponseDto:
+  type: object
+  required:
+    - requestId
+    - operation
+    - status
+    - error
+  properties:
+    requestId:
+      type: string
+      format: uuid
+    operation:
+      type: string
+      enum:
+        - project.session_costs.list
+    status:
+      type: string
+      enum:
+        - error
+    error:
+      $ref: "#/CliReadError"
+  additionalProperties: false
+
+CliReadProviderUsageGetErrorResponseDto:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadProviderUsageGetErrorResponseDto"
+
+CliReadRuntimeModelCatalogGetErrorResponseDto:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRuntimeModelCatalogGetErrorResponseDto"
+
+CliReadSuccessResponseDto:
+  oneOf:
+    - $ref: "#/CliReadRunChangedFilesCountSuccessResponseDto"
+    - $ref: "#/CliReadRunChangedFilesInventorySuccessResponseDto"
+    - $ref: "#/CliReadRunChangedFileDetailSuccessResponseDto"
+    - $ref: "#/CliReadRunContextUsageGetSuccessResponseDto"
+    - $ref: "#/CliReadRunSkillsListSuccessResponseDto"
+    - $ref: "#/CliReadRunToolCallsLatestTurnSuccessResponseDto"
+    - $ref: "#/CliReadWorkspaceSkillsListSuccessResponseDto"
+    - $ref: "#/CliReadProjectSessionCostsListSuccessResponseDto"
+    - $ref: "#/CliReadProviderUsageGetSuccessResponseDto"
+    - $ref: "#/CliReadRuntimeModelCatalogGetSuccessResponseDto"
+  discriminator:
+    propertyName: operation
+    mapping:
+      run.changed_files.count: "#/CliReadRunChangedFilesCountSuccessResponseDto"
+      run.changed_files.inventory: "#/CliReadRunChangedFilesInventorySuccessResponseDto"
+      run.changed_files.detail: "#/CliReadRunChangedFileDetailSuccessResponseDto"
+      run.context_usage.get: "#/CliReadRunContextUsageGetSuccessResponseDto"
+      run.skills.list: "#/CliReadRunSkillsListSuccessResponseDto"
+      run.tool_calls.latest_turn: "#/CliReadRunToolCallsLatestTurnSuccessResponseDto"
+      workspace.skills.list: "#/CliReadWorkspaceSkillsListSuccessResponseDto"
+      project.session_costs.list: "#/CliReadProjectSessionCostsListSuccessResponseDto"
+      provider.usage.get: "#/CliReadProviderUsageGetSuccessResponseDto"
+      runtime.model_catalog.get: "#/CliReadRuntimeModelCatalogGetSuccessResponseDto"
+
+CliReadErrorResponseDto:
+  oneOf:
+    - $ref: "#/CliReadRunChangedFilesCountErrorResponseDto"
+    - $ref: "#/CliReadRunChangedFilesInventoryErrorResponseDto"
+    - $ref: "#/CliReadRunChangedFileDetailErrorResponseDto"
+    - $ref: "#/CliReadRunContextUsageGetErrorResponseDto"
+    - $ref: "#/CliReadRunSkillsListErrorResponseDto"
+    - $ref: "#/CliReadRunToolCallsLatestTurnErrorResponseDto"
+    - $ref: "#/CliReadWorkspaceSkillsListErrorResponseDto"
+    - $ref: "#/CliReadProjectSessionCostsListErrorResponseDto"
+    - $ref: "#/CliReadProviderUsageGetErrorResponseDto"
+    - $ref: "#/CliReadRuntimeModelCatalogGetErrorResponseDto"
+  discriminator:
+    propertyName: operation
+    mapping:
+      run.changed_files.count: "#/CliReadRunChangedFilesCountErrorResponseDto"
+      run.changed_files.inventory: "#/CliReadRunChangedFilesInventoryErrorResponseDto"
+      run.changed_files.detail: "#/CliReadRunChangedFileDetailErrorResponseDto"
+      run.context_usage.get: "#/CliReadRunContextUsageGetErrorResponseDto"
+      run.skills.list: "#/CliReadRunSkillsListErrorResponseDto"
+      run.tool_calls.latest_turn: "#/CliReadRunToolCallsLatestTurnErrorResponseDto"
+      workspace.skills.list: "#/CliReadWorkspaceSkillsListErrorResponseDto"
+      project.session_costs.list: "#/CliReadProjectSessionCostsListErrorResponseDto"
+      provider.usage.get: "#/CliReadProviderUsageGetErrorResponseDto"
+      runtime.model_catalog.get: "#/CliReadRuntimeModelCatalogGetErrorResponseDto"
+
+CliReadResponseDto:
+  oneOf:
+    - $ref: "#/CliReadSuccessResponseDto"
+    - $ref: "#/CliReadErrorResponseDto"
+  description: >-
+    Correlated terminal result for a CLI read. Transport failures are returned
+    through the same typed error arm so callers never interpret silence as a
+    successful empty read.
+
+# =============================================
+# Signed CLI User Settings command envelopes
+# =============================================
+SignedCliSettingsEnvelope:
+  allOf:
+    - $ref: "#/SignedEnvelopeFields"
+    - type: object
+      required:
+        - event
+      properties:
+        event:
+          $ref: "#/CliSettingsEnvelopeBody"
+  description: >-
+    Server-signed envelope wrapping the closed, operation-discriminated Daily
+    Session settings command. It is carried by `cli.settings.request` and uses
+    the same machine, user, freshness, replay, and signature protections as
+    other authenticated CLI frames.
+
+WebSocketCliSettingsRequestEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - envelope
+      properties:
+        type:
+          type: string
+          enum: ["cli.settings.request"]
+        envelope:
+          $ref: "#/SignedCliSettingsEnvelope"
+  description: >-
+    Machine-addressed, acknowledged request for the project-scoped Daily
+    Session settings resource. The CLI acknowledges only after it has verified
+    the signed envelope and completed the read or atomic replacement.
+
+CliSettingsDailySessionGetRequest:
+  type: object
+  required:
+    - operation
+    - projectId
+  properties:
+    operation:
+      type: string
+      enum:
+        - daily_session.settings.get
+    projectId:
+      type: string
+      format: uuid
+      description: Project whose Daily Session settings are requested.
+  additionalProperties: false
+
+CliSettingsDailySessionReplaceRequest:
+  type: object
+  required:
+    - operation
+    - projectId
+    - expectedPersistenceRevision
+    - value
+  properties:
+    operation:
+      type: string
+      enum:
+        - daily_session.settings.replace
+    projectId:
+      type: string
+      format: uuid
+      description: Project whose Daily Session settings are replaced.
+    expectedPersistenceRevision:
+      type: integer
+      minimum: 0
+      description: Revision read by the caller before this full replacement.
+    value:
+      $ref: "../schemas/user-settings.yaml#/DailySessionUserSettingsValueV1"
+  additionalProperties: false
+
+CliSettingsRequestDto:
+  oneOf:
+    - $ref: "#/CliSettingsDailySessionGetRequest"
+    - $ref: "#/CliSettingsDailySessionReplaceRequest"
+  discriminator:
+    propertyName: operation
+    mapping:
+      daily_session.settings.get: "#/CliSettingsDailySessionGetRequest"
+      daily_session.settings.replace: "#/CliSettingsDailySessionReplaceRequest"
+  description: >-
+    Closed command union for the project-scoped Daily Session settings family.
+    Future settings families add explicit operation variants rather than
+    widening this command to arbitrary JSON.
+
+CliSettingsDailySessionGetEnvelopeBody:
+  type: object
+  required:
+    - requestId
+    - operation
+    - projectId
+  properties:
+    requestId:
+      type: string
+      format: uuid
+      description: Correlation identity minted by the platform.
+    operation:
+      type: string
+      enum:
+        - daily_session.settings.get
+    projectId:
+      type: string
+      format: uuid
+  additionalProperties: false
+
+CliSettingsDailySessionReplaceEnvelopeBody:
+  type: object
+  required:
+    - requestId
+    - operation
+    - projectId
+    - expectedPersistenceRevision
+    - value
+  properties:
+    requestId:
+      type: string
+      format: uuid
+      description: Correlation identity minted by the platform.
+    operation:
+      type: string
+      enum:
+        - daily_session.settings.replace
+    projectId:
+      type: string
+      format: uuid
+    expectedPersistenceRevision:
+      type: integer
+      minimum: 0
+    value:
+      $ref: "../schemas/user-settings.yaml#/DailySessionUserSettingsValueV1"
+  additionalProperties: false
+
+CliSettingsEnvelopeBody:
+  oneOf:
+    - $ref: "#/CliSettingsDailySessionGetEnvelopeBody"
+    - $ref: "#/CliSettingsDailySessionReplaceEnvelopeBody"
+  discriminator:
+    propertyName: operation
+    mapping:
+      daily_session.settings.get: "#/CliSettingsDailySessionGetEnvelopeBody"
+      daily_session.settings.replace: "#/CliSettingsDailySessionReplaceEnvelopeBody"
+
+CliSettingsErrorCode:
+  type: string
+  enum:
+    - INVALID_REQUEST
+    - INVALID_PROJECT_CONTEXT
+    - USER_SETTINGS_VALIDATION_FAILED
+    - USER_SETTINGS_REVISION_CONFLICT
+    - SETTINGS_UNAVAILABLE
+    - PERSISTENCE_FAILED
+    - MACHINE_NOT_BOUND
+    - NO_RECIPIENT
+    - TIMEOUT
+    - CORRELATION_MISMATCH
+    - MALFORMED_ACK
+
+CliSettingsGenericError:
+  type: object
+  required:
+    - code
+    - message
+  properties:
+    code:
+      $ref: "#/CliSettingsErrorCode"
+    message:
+      type: string
+      minLength: 1
+  additionalProperties: false
+
+CliSettingsValidationError:
+  type: object
+  required:
+    - code
+    - message
+    - issues
+  properties:
+    code:
+      type: string
+      enum:
+        - USER_SETTINGS_VALIDATION_FAILED
+    message:
+      type: string
+      minLength: 1
+    issues:
+      type: array
+      minItems: 1
+      items:
+        $ref: "../schemas/user-settings.yaml#/UserSettingsValidationIssue"
+  additionalProperties: false
+
+CliSettingsRevisionConflictError:
+  type: object
+  required:
+    - code
+    - message
+    - expectedPersistenceRevision
+    - currentPersistenceRevision
+  properties:
+    code:
+      type: string
+      enum:
+        - USER_SETTINGS_REVISION_CONFLICT
+    message:
+      type: string
+      minLength: 1
+    expectedPersistenceRevision:
+      type: integer
+      minimum: 0
+    currentPersistenceRevision:
+      type: integer
+      minimum: 0
+  additionalProperties: false
+
+CliSettingsError:
+  oneOf:
+    - $ref: "#/CliSettingsGenericError"
+    - $ref: "#/CliSettingsValidationError"
+    - $ref: "#/CliSettingsRevisionConflictError"
+  discriminator:
+    propertyName: code
+    mapping:
+      INVALID_REQUEST: "#/CliSettingsGenericError"
+      INVALID_PROJECT_CONTEXT: "#/CliSettingsGenericError"
+      USER_SETTINGS_VALIDATION_FAILED: "#/CliSettingsValidationError"
+      USER_SETTINGS_REVISION_CONFLICT: "#/CliSettingsRevisionConflictError"
+      SETTINGS_UNAVAILABLE: "#/CliSettingsGenericError"
+      PERSISTENCE_FAILED: "#/CliSettingsGenericError"
+      MACHINE_NOT_BOUND: "#/CliSettingsGenericError"
+      NO_RECIPIENT: "#/CliSettingsGenericError"
+      TIMEOUT: "#/CliSettingsGenericError"
+      CORRELATION_MISMATCH: "#/CliSettingsGenericError"
+      MALFORMED_ACK: "#/CliSettingsGenericError"
+
+CliSettingsDailySessionSuccessResponseDto:
+  type: object
+  required:
+    - requestId
+    - operation
+    - status
+    - result
+  properties:
+    requestId:
+      type: string
+      format: uuid
+    operation:
+      type: string
+      enum:
+        - daily_session.settings.get
+        - daily_session.settings.replace
+    status:
+      type: string
+      enum:
+        - success
+    result:
+      $ref: "../schemas/user-settings.yaml#/UserSettingsDailySessionResourceV1"
+  additionalProperties: false
+
+CliSettingsDailySessionErrorResponseDto:
+  type: object
+  required:
+    - requestId
+    - operation
+    - status
+    - error
+  properties:
+    requestId:
+      type: string
+      format: uuid
+    operation:
+      type: string
+      enum:
+        - daily_session.settings.get
+        - daily_session.settings.replace
+    status:
+      type: string
+      enum:
+        - error
+    error:
+      $ref: "#/CliSettingsError"
+  additionalProperties: false
+
+CliSettingsResponseDto:
+  oneOf:
+    - $ref: "#/CliSettingsDailySessionSuccessResponseDto"
+    - $ref: "#/CliSettingsDailySessionErrorResponseDto"
+  description: >-
+    Correlated terminal result for a CLI User Settings command. Validation,
+    stale-revision, unavailable, timeout, and malformed acknowledgements remain
+    typed error outcomes so callers never infer success from silence.
+
+ConversationControlStopRun:
+  type: object
+  required:
+    - kind
+    - conversationId
+    - runId
+  properties:
+    kind:
+      type: string
+      enum:
+        - stop_run
+      description: >-
+        Discriminator for the stop-run control. Selects the dispatcher
+        branch that aborts the active Turn on the addressed Run.
+    conversationId:
+      $ref: "./common.yaml#/ConversationId"
+    runId:
+      type: string
+      format: uuid
+      description: >-
+        Agentic-session id of the CLI Run to stop. The dispatcher uses
+        the `conversationId` to locate the active Run binding and verifies
+        the binding's runId matches before invoking the stop path.
+      example: "550e8400-e29b-41d4-a716-446655440099"
+  additionalProperties: false
+  description: >-
+    Structural control body for stopping a CLI Run owned by the
+    conversation. Carries entity IDs only: no free-form text, prompt
+    fragment, or `payload` escape hatch. The CLI dispatcher resolves the
+    Run via `conversationId` and calls the run-service stop path —
+    idempotent on the absent / already-stopped cases.
+
+ConversationControlCompactRun:
+  type: object
+  required:
+    - kind
+    - agentSessionId
+    - conversationId
+    - runId
+  properties:
+    kind:
+      type: string
+      enum:
+        - compact_run
+      description: >-
+        Discriminator for the compact-run control. Selects the dispatcher
+        branch that compacts the conversation history of the addressed Run.
+    agentSessionId:
+      type: string
+      format: uuid
+      description: Canonical Agent Session authorization target.
+    conversationId:
+      $ref: "./common.yaml#/ConversationId"
+    runId:
+      type: string
+      format: uuid
+      description: >-
+        Agentic-session id of the live CLI Run to compact. The dispatcher
+        uses the `conversationId` to locate the active Run binding and
+        verifies the binding's runId matches before invoking the
+        compaction path.
+      example: "550e8400-e29b-41d4-a716-446655440099"
+  additionalProperties: false
+  description: >-
+    Structural control body for compacting a CLI Run owned by the
+    conversation. Carries entity IDs only: no free-form text, prompt
+    fragment, or `payload` escape hatch. The CLI dispatcher resolves the
+    Run via `conversationId` and invokes the compaction path on the
+    addressed Run.
+
+ConversationControlPermissionDecision:
+  type: object
+  required:
+    - kind
+    - agentSessionId
+    - decision
+    - requestId
+    - sessionId
+    - agentType
+    - idempotencyToken
+  properties:
+    kind:
+      type: string
+      enum:
+        - permission_decision
+      description: >-
+        Discriminator for the permission-decision control. Selects the
+        dispatcher branch that delivers the user's permission decision to
+        the live runner awaiting the gate.
+    agentSessionId:
+      type: string
+      format: uuid
+      description: Canonical Agent Session authorization target.
+    decision:
+      type: string
+      enum:
+        - approve
+        - always_approve
+        - deny
+        - whitelist
+      description: >-
+        The user's approval decision for the pending permission request.
+    requestId:
+      type: string
+      minLength: 1
+      description: >-
+        Stable identifier for the permission request this decision responds
+        to. The CLI dispatcher uses this to locate the awaiting runner.
+    sessionId:
+      type: string
+      minLength: 1
+      description: >-
+        Provider session identifier. Together with `agentType`, uniquely
+        identifies the agent session holding the permission gate.
+    agentType:
+      type: string
+      enum:
+        - claude
+        - codex
+        - opencode
+      description: >-
+        Agent provider that issued the permission request.
+    reason:
+      type: string
+      nullable: true
+      description: >-
+        User-supplied explanation for the decision, rendered alongside the
+        Approved/Denied message in CLI output.
+    idempotencyToken:
+      type: string
+      minLength: 1
+      description: >-
+        Stable token for deduplicating delivery of this decision. The CLI
+        discards duplicate frames that arrive from re-sends.
+  additionalProperties: false
+  description: >-
+    Structural control body for delivering a user permission decision to a
+    live CLI runner awaiting a permission gate. Carries the decision payload
+    and matching identifiers only: no free-form prompt fragment or `payload`
+    escape hatch. The CLI dispatcher matches the frame to the awaiting runner
+    via `requestId`, `sessionId`, and `agentType`, then unblocks the gate
+    with the received `decision`.
+
+ConversationControlQuestionAnswer:
+  type: object
+  required:
+    - kind
+    - agentSessionId
+    - requestId
+    - sessionId
+    - agentType
+    - answers
+    - idempotencyToken
+  properties:
+    kind:
+      type: string
+      enum:
+        - question_answer
+    agentSessionId:
+      type: string
+      format: uuid
+      description: Canonical Agent Session authorization target.
+    requestId:
+      type: string
+      minLength: 1
+      description: >-
+        Identifier of the agent question this answer responds to. The CLI
+        dispatcher uses this to locate the waiting tool call.
+    sessionId:
+      type: string
+      minLength: 1
+    agentType:
+      type: string
+      enum:
+        - claude
+        - codex
+        - opencode
+    answers:
+      type: object
+      additionalProperties:
+        type: string
+      description: >-
+        Answer per question, keyed by question text. Multi-select answers are
+        the chosen labels joined by ", ".
+    idempotencyToken:
+      type: string
+      minLength: 1
+      description: >-
+        Stable token for deduplicating delivery of this answer. The CLI
+        discards duplicate frames that arrive from re-sends.
+  additionalProperties: false
+  description: >-
+    Structural control body delivering a user's answers to a live CLI runner
+    whose question tool call (Claude `AskUserQuestion`) is waiting.
+
+ConversationControlBody:
+  oneOf:
+    - $ref: "#/ConversationControlCancelInput"
+    - $ref: "#/ConversationControlStopRun"
+    - $ref: "#/ConversationControlCompactRun"
+    - $ref: "#/ConversationControlPermissionDecision"
+    - $ref: "#/ConversationControlQuestionAnswer"
+  discriminator:
+    propertyName: kind
+    mapping:
+      cancel_input: "#/ConversationControlCancelInput"
+      stop_run: "#/ConversationControlStopRun"
+      compact_run: "#/ConversationControlCompactRun"
+      permission_decision: "#/ConversationControlPermissionDecision"
+      question_answer: "#/ConversationControlQuestionAnswer"
+  description: >-
+    The closed, `kind`-discriminated control body that a
+    SignedConversationControlEnvelope wraps. Every variant has shape
+    `{ kind, ...fields }`. `stop_run`, `compact_run`, `permission_decision`,
+    and `question_answer` are the control kinds defined today; further
+    control kinds extend the union via a new variant plus a new
+    discriminator-mapping entry. The kind allowlist enforced by the CLI
+    verifier is intentionally distinct from the `trigger.conversation`
+    promptType allowlist — control kinds and prompt types do not share
+    namespace.
+
+# =============================================
+# WebSocket Connection Management
+# =============================================
+WebSocketAuthRequest:
+  type: object
+  properties:
+    accessToken:
+      type: string
+      description: JWT access token for authentication
+    organizationId:
+      type: string
+      format: uuid
+      description: Organization ID to subscribe to
+    projectIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: Array of project IDs to subscribe to within the organization
+    conversationIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: Array of conversation IDs to subscribe to
+    initiativeIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: Array of initiative IDs to subscribe to
+    designDocIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: Array of design doc IDs to subscribe to
+    clientType:
+      type: string
+      enum: ["cli", "browser"]
+      description: >-
+        Kind of client opening this socket. The gateway uses this to tag
+        the stored connection so per-user CLI presence (used by
+        cli-status) can be answered without inspecting transport headers.
+        Optional for older clients; absent connections are treated as
+        non-CLI for presence checks.
+    machineId:
+      type: string
+      description: >-
+        Paired machine identifier the CLI authenticates as. Required when
+        clientType is "cli" — the cli-status endpoint surfaces this
+        binding through the per-user presence boolean. Ignored when
+        clientType is "browser".
+    machineCredential:
+      type: string
+      description: >-
+        Paired machine credential (the bearer token issued at pairing)
+        presented by the CLI. Its presence alongside clientType "cli" and
+        a machineId tells the gateway to challenge this connection with a
+        machine-credential challenge-response handshake rather than
+        completing auth from the handshake cookie. Omitted by unpaired
+        CLIs and browsers, which take the cookie-JWT identity path.
+
+# =============================================
+# Machine-credential challenge-response handshake
+# =============================================
+# Two server↔CLI frames that prove the connecting CLI holds the paired
+
+WebSocketMachineChallengeResponse:
+  type: object
+  required:
+    - machineId
+    - signature
+  properties:
+    machineId:
+      type: string
+      description: Paired machine identifier the CLI is proving possession of.
+    signature:
+      type: string
+      description: >-
+        Base64-encoded Ed25519 signature over the challenge bytes, produced
+        with the machine's paired private key. The gateway verifies it
+        against the stored machine public key (PEM SPKI) before completing
+        authentication; a missing or invalid signature rejects the
+        connection.
+
+WebSocketAuthenticatedSuccessResponse:
+  type: object
+  additionalProperties: false
+  required:
+    - status
+    - connectionId
+    - userId
+    - projectIds
+    - conversationIds
+    - initiativeIds
+    - designDocIds
+  properties:
+    status:
+      type: string
+      enum: ["success"]
+    connectionId:
+      type: string
+      description: WebSocket connection ID
+    userId:
+      type: string
+      format: uuid
+      description: Authenticated user ID
+    organizationId:
+      type: string
+      format: uuid
+      description: Organization ID accepted for the connection
+    projectIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: Project IDs accepted for the connection
+    conversationIds:
+      type: array
+      items:
+        type: string
+      description: Conversation IDs accepted for the connection
+    initiativeIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: Initiative IDs accepted for the connection
+    designDocIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: Design doc IDs accepted for the connection
+
+WebSocketTerminalAuthenticationErrorResponse:
+  type: object
+  additionalProperties: false
+  required:
+    - status
+    - reason
+    - message
+  properties:
+    status:
+      type: string
+      enum: ["error"]
+    reason:
+      type: string
+      enum: ["authentication_required"]
+      description: >-
+        Stable browser terminal-authentication reason. It deliberately does
+        not distinguish token expiry from server-side session invalidation.
+        Browsers may use it to begin ordinary session recovery and reconnect;
+        they must not attempt an in-socket token refresh.
+    message:
+      type: string
+      enum: ["Authentication required"]
+      description: Generic browser-safe copy that reveals no credential detail.
+
+WebSocketMachineAuthenticationErrorResponse:
+  type: object
+  additionalProperties: false
+  required:
+    - status
+    - message
+  properties:
+    status:
+      type: string
+      enum: ["error"]
+    reason:
+      type: string
+      enum: ["machine_revoked"]
+      description: >-
+        Machine-channel-only terminal reason. Present only when a paired
+        machine credential has been revoked. Browser authentication and room
+        authorization failures must never use this reason.
+    message:
+      type: string
+      description: Machine authentication failure copy.
+
+WebSocketAuthResponse:
+  description: Result emitted by the server on the `authenticated` event.
+  oneOf:
+    - $ref: "#/WebSocketAuthenticatedSuccessResponse"
+    - $ref: "#/WebSocketAccessDeniedResponse"
+    - $ref: "#/WebSocketTerminalAuthenticationErrorResponse"
+    - $ref: "#/WebSocketMachineAuthenticationErrorResponse"
+
+WebSocketSubscriptionRequest:
+  type: object
+  required:
+    - eventTypes
+  properties:
+    eventTypes:
+      type: array
+      items:
+        type: string
+        enum:
+          - "message.created"
+          - "message.updated"
+          - "message.realtime"
+          - "message.deleted"
+          - "conversation.created"
+          - "conversation.updated"
+          - "conversation.status_changed"
+          - "conversation.deleted"
+          - "project.created"
+          - "project.updated"
+          - "project.status_changed"
+          - "task.created"
+          - "task.updated"
+          - "task.status_changed"
+          - "initiative.created"
+          - "initiative.updated"
+          - "initiative.status_changed"
+          - "design_doc.created"
+          - "design_doc.updated"
+          - "design_doc.status_changed"
+          - "agent_session.created"
+          - "agent_session.deleted"
+          - "agent_session.status_changed"
+          - "agent_session.current_state_changed"
+          - "agent_session.context_size_changed"
+          - "agent_session.output_attention_changed"
+          - "conversation.phase_changed"
+          - "task_monitor.state_changed"
+          - "daily_session.updated"
+          - "proposal.approved"
+          - "proposal_group.lifecycle"
+          - "eval_run.updated"
+          - "eval_attempt.updated"
+          - "system.notification"
+          - "machine_security_event"
+          - "trigger.conversation"
+          - "trigger.control"
+          - "trigger.control_reduction"
+          - "trigger.authority_reduction"
+          - "trigger.monitor_command"
+          - "trigger.monitor_reduction"
+          - "trigger.application_effect"
+          - "trigger.exact_action"
+          - "cli.read.request"
+    projectIds:
+      type: array
+      items:
+        type: string
+      description: Additional project IDs to subscribe to
+    conversationIds:
+      type: array
+      items:
+        type: string
+      description: Additional conversation IDs to subscribe to
+    initiativeIds:
+      type: array
+      items:
+        type: string
+      description: Additional initiative IDs to subscribe to
+    designDocIds:
+      type: array
+      items:
+        type: string
+      description: Additional design doc IDs to subscribe to
+
+WebSocketSubscribedSuccessResponse:
+  type: object
+  additionalProperties: false
+  required:
+    - status
+    - eventTypes
+    - projectIds
+    - conversationIds
+    - initiativeIds
+    - designDocIds
+  properties:
+    status:
+      type: string
+      enum: ["success"]
+    eventTypes:
+      type: array
+      items:
+        type: string
+      description: Event types accepted for subscription.
+    projectIds:
+      type: array
+      items:
+        type: string
+      description: Project IDs accepted for subscription.
+    conversationIds:
+      type: array
+      items:
+        type: string
+      description: Conversation IDs accepted for subscription.
+    initiativeIds:
+      type: array
+      items:
+        type: string
+      description: Initiative IDs accepted for subscription.
+    designDocIds:
+      type: array
+      items:
+        type: string
+      description: Design doc IDs accepted for subscription.
+
+WebSocketAccessDeniedResponse:
+  type: object
+  additionalProperties: false
+  required:
+    - status
+    - reason
+    - message
+  properties:
+    status:
+      type: string
+      enum: ["error"]
+    reason:
+      type: string
+      enum: ["access_denied"]
+      description: >-
+        Stable room-authorization denial reason. It does not reveal whether a
+        requested entity is missing, archived, foreign, or unauthorized.
+    message:
+      type: string
+      enum: ["Access denied"]
+      description: Generic browser-safe copy for every room denial.
+
+WebSocketSubscribedResponse:
+  description: Result emitted by the server on the `subscribed` event.
+  oneOf:
+    - $ref: "#/WebSocketSubscribedSuccessResponse"
+    - $ref: "#/WebSocketAccessDeniedResponse"
+
+WebSocketJoinRoomRequest:
+  type: object
+  properties:
+    projectId:
+      type: string
+      description: Project room to join
+    conversationId:
+      type: string
+      description: Conversation room to join
+    initiativeId:
+      type: string
+      description: Initiative room to join
+    designDocId:
+      type: string
+      description: Design doc room to join
+    openItemsProjectId:
+      type: string
+      format: uuid
+      description: Private Open Items room for the authenticated user and authorized project.
+
+WebSocketJoinedSuccessResponse:
+  type: object
+  additionalProperties: false
+  required:
+    - status
+  properties:
+    status:
+      type: string
+      enum: ["success"]
+    projectId:
+      type: string
+      description: Project room accepted for joining.
+    conversationId:
+      type: string
+      description: Conversation room accepted for joining.
+    initiativeId:
+      type: string
+      description: Initiative room accepted for joining.
+    designDocId:
+      type: string
+      description: Design doc room accepted for joining.
+    openItemsProjectId:
+      type: string
+      format: uuid
+      description: Private Open Items room for the authenticated user and authorized project.
+
+WebSocketJoinedResponse:
+  description: Result after membership completes. Returned through the request-specific Socket.IO acknowledgement callback when supplied; otherwise emitted on the joined event. Browser reconciliation uses the callback to correlate operations.
+  oneOf:
+    - $ref: "#/WebSocketJoinedSuccessResponse"
+    - $ref: "#/WebSocketAccessDeniedResponse"
+
+# =============================================
+# WebSocket Presence Heartbeat
+# =============================================
+WebSocketHeartbeat:
+  type: object
+  required:
+    - type
+  properties:
+    type:
+      type: string
+      enum: ["heartbeat"]
+      description: Frame discriminator. Always "heartbeat".
+    timestamp:
+      type: string
+      format: date-time
+      description: When the CLI emitted the heartbeat (ISO-8601).
+    organizationId:
+      type: string
+      description: Organization the emitting CLI is connected to.
+    clientType:
+      type: string
+      enum: ["cli", "browser"]
+      description: Kind of client emitting the heartbeat. Always "cli" today.
+    machineId:
+      type: string
+      description: >-
+        Paired machine identifier the CLI authenticated as. Present for a
+        machine connection; the gateway keys on it to refresh that machine's
+        durable `lastSeen`. Absent heartbeats only refresh the in-memory
+        connection activity.
+  description: >-
+    Periodic application-level liveness frame emitted by an authenticated CLI
+    over its already-open socket (default every 30s). The gateway consumes it to
+    refresh the connection's in-memory activity timestamp and, when a machineId
+    is present, persist the machine's `lastSeen` so presence reflects a
+    maintained signal rather than the one-time authentication snapshot. This is
+    NOT a trigger frame — it never causes the CLI to execute work. Field names
+    match the shipped CLI exactly (platform-ws.ts).
+
+WebSocketLeaveRoomRequest:
+  description: Browser-only departure using a request-specific Socket.IO acknowledgement callback.
+  type: object
+  additionalProperties: false
+  required: [roomType, roomId]
+  properties:
+    roomType:
+      type: string
+      enum: [project, conversation, initiative, design_doc, open_items]
+    roomId:
+      type: string
+      minLength: 1
+
+WebSocketLeftSuccessResponse:
+  description: Confirms physical departure and removal of delivery bookkeeping before success.
+  type: object
+  additionalProperties: false
+  required: [status, roomType, roomId]
+  properties:
+    status:
+      type: string
+      enum: [success]
+    roomType:
+      type: string
+      enum: [project, conversation, initiative, design_doc, open_items]
+    roomId:
+      type: string
+      minLength: 1
+
+WebSocketLeftResponse:
+  description: Request-specific acknowledgement of browser departure. Failure never includes requested scope.
+  oneOf:
+    - $ref: "#/WebSocketLeftSuccessResponse"
+    - $ref: "#/WebSocketAccessDeniedResponse"
+
+CliReadWorkspaceSkillsListRequest:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadWorkspaceSkillsListRequest"
+
+CliReadWorkspaceSkillsListEnvelopeBody:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadWorkspaceSkillsListEnvelopeBody"
+
+CliReadWorkspaceSkillsListSuccessResponseDto:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadWorkspaceSkillsListSuccessResponseDto"
+
+CliReadWorkspaceSkillsListErrorResponseDto:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadWorkspaceSkillsListErrorResponseDto"
+
+
+ConversationControlCancelInput:
+  type: object
+  additionalProperties: false
+  required: [kind, conversationId, agentSessionId, operationId, operationFingerprint, messageId]
+  properties:
+    kind:
+      type: string
+      enum: [cancel_input]
+    conversationId:
+      $ref: './common.yaml#/ConversationId'
+    agentSessionId:
+      $ref: './common.yaml#/AgentSessionId'
+    operationId:
+      $ref: './agent-operation.yaml#/AgentOperationId'
+    operationFingerprint:
+      $ref: './agent-operation.yaml#/AgentOperationFingerprint'
+    messageId:
+      $ref: './common.yaml#/MessageId'
+  description: Signed authority reduction for exactly one input; never aborts active execution.
+
+WebSocketOpenItemsChangedEvent:
+  type: object
+  additionalProperties: false
+  required: [type, projectId, revision]
+  properties:
+    type:
+      type: string
+      enum: [open_items.changed]
+    projectId:
+      type: string
+      format: uuid
+    revision:
+      type: integer
+      format: int64
+      minimum: 1

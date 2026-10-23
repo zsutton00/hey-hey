@@ -1,0 +1,159 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`RfcGenerateNode prompt building builds a resolved prompt snapshot for RFC generation 1`] = `
+"You are an expert at creating comprehensive Request for Comments (RFCs). Create a high-quality RFC based on the conversation and information gathered.
+
+<<<BEGIN_CONVERSATION_HISTORY>>>
+### You have had some previous conversation
+[
+  {
+    "role": "system",
+    "entityId": null,
+    "content": "What are we building?",
+    "timestamp": "2024-01-01T10:00:00Z"
+  },
+  {
+    "role": "user",
+    "entityId": null,
+    "content": "A knowledge base that uses AI summarization to turn call transcripts into ADRs.",
+    "timestamp": "2024-01-01T10:00:00Z"
+  },
+  {
+    "role": "system",
+    "entityId": null,
+    "content": "Any constraints?",
+    "timestamp": "2024-01-01T10:05:00Z"
+  },
+  {
+    "role": "user",
+    "entityId": null,
+    "content": "Must ship an initial RFC describing scope, risks, and rollout plan by end of week.",
+    "timestamp": "2024-01-01T10:05:00Z"
+  }
+]
+<<<END_CONVERSATION_HISTORY>>>
+
+Generate a complete RFC that includes:
+
+1. **Title**: Clear, descriptive title for the proposed change
+2. **Status**: Current status (typically "Draft" for new RFCs)
+3. **Summary**: Brief overview of what is being proposed
+4. **Problem Statement**: What problem are we solving? Why is change needed?
+5. **Proposal**: What specific change or feature is being proposed?
+6. **Motivation**: Why is this the right approach? What are the benefits?
+7. **Detailed Design**: How will this be implemented? Include:
+   - Overview of the approach
+   - Step-by-step implementation plan
+   - API changes if applicable
+   - Data model changes if applicable
+8. **Alternatives**: Other approaches considered, with pros/cons and reasoning for rejection
+9. **Impact**: How will this affect users, systems, and processes?
+10. **Risks**: Potential risks with impact level and mitigation strategies
+11. **Timeline**: Implementation phases with deliverables and time estimates
+
+Guidelines:
+- Use clear, professional language suitable for stakeholder review
+- Be specific and actionable where possible
+- Include rationale for why the proposed approach is preferred
+- Consider both technical and business implications
+- Make it valuable for reviewers who need to understand and provide feedback
+- Focus on enabling informed decision-making by stakeholders
+
+Base the RFC on all information provided in the conversation. If some details are missing, make reasonable assumptions but note them explicitly.
+
+GENERATE INSTRUCTIONS:
+- Create specific, actionable content based on the response schema
+- Ensure generated content is relevant to the user's stated goals
+- Structure output for easy understanding and next steps
+
+RESPONSE FORMAT:
+You must respond with a JSON object that matches this structure:
+
+{
+  "title": "string",
+  "status": "[SELECT ONE: Draft, In Review, Accepted, Rejected, Implemented]",
+  "summary": "string",
+  "problemStatement": "string",
+  "proposal": "string",
+  "motivation": "string",
+  "detailedDesign": {
+    "overview": "string",
+    "implementation": [
+      {
+        "step": "string",
+        "description": "string",
+        "technical_details": "string"
+      }
+    ],
+    "apiChanges": [
+      "string"
+    ],
+    "dataChanges": [
+      "string"
+    ]
+  },
+  "alternatives": [
+    {
+      "name": "string",
+      "description": "string",
+      "pros": [
+        "string"
+      ],
+      "cons": [
+        "string"
+      ],
+      "reasoning": "string"
+    }
+  ],
+  "impact": {
+    "users": [
+      "string"
+    ],
+    "systems": [
+      "string"
+    ],
+    "processes": [
+      "string"
+    ],
+    "migration": "string"
+  },
+  "risks": [
+    {
+      "risk": "string",
+      "impact": "[SELECT ONE: Low, Medium, High]",
+      "mitigation": "string"
+    }
+  ],
+  "timeline": {
+    "phases": [
+      {
+        "phase": "string",
+        "duration": "string",
+        "deliverables": [
+          "string"
+        ]
+      }
+    ],
+    "totalEstimate": "string"
+  },
+  "metadata": {
+    "authors": [
+      "string"
+    ],
+    "reviewers": [
+      "string"
+    ],
+    "created": "string",
+    "lastModified": "string"
+  }
+}
+
+MAPPING INSTRUCTIONS:
+Transform your response to match the exact structure shown above.
+
+- Put "summary" object in data.summary
+
+JSON-ONLY OUTPUT RULE:
+ALWAYS respond in valid JSON format matching the structure above.
+"
+`;

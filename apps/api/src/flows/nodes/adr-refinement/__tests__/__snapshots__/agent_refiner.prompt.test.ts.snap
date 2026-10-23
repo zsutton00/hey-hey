@@ -1,0 +1,21 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`AdrRefinementAgentAnalysisNode agent input snapshot captures agent input snapshot 1`] = `
+{
+  "activeSection": "decision",
+  "adr": {
+    "consequences": "Potential latency concerns across regions.",
+    "context": "Context about the platform.",
+    "decision": "Adopt a single API gateway.",
+    "title": "Realtime API Platform",
+  },
+  "lastUserMessage": "We need to revisit the API gateway decision with zero-downtime goals.",
+  "requiredOps": 0,
+  "task": {
+    "acceptanceCriteria": "",
+    "description": "",
+    "taskType": "STANDARD",
+    "title": "Implement multi-region routing",
+  },
+}
+`;

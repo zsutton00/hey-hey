@@ -1,0 +1,36 @@
+{
+  "mixVersion": 2,
+  "calibration": "Staging API HTTP completions 2026-10-12 07:34:33–07:49:33 UTC: 747 requests, ~50/min mean, busiest complete minute 179. MCP calls (18) and real agent execution are not simulated.",
+  "cohorts": {
+    "light": { "requestsPerMinute": 50 },
+    "heavy": {
+      "everyNthUser": 10,
+      "requestsPerMinute": 50,
+      "burst": {
+        "requestsPerMinute": 180,
+        "durationSeconds": 60,
+        "periodSeconds": 240,
+        "firstAtSeconds": 30
+      }
+    }
+  },
+  "searchesPerMinute": 2,
+  "searchActions": { "search_hybrid": 10, "search_semantic": 8 },
+  "actions": {
+    "context_feature": 26,
+    "context_task": 13,
+    "context_hub": 4,
+    "feature_list": 4,
+    "children_list": 7,
+    "edges_list": 6,
+    "work_item_read": 5,
+    "write_scratch_edit": 5,
+    "write_scratch_add": 1,
+    "session_queued_inputs": 10,
+    "conversation_read": 5,
+    "conversation_messages": 5,
+    "session_read": 4,
+    "session_current_state": 2,
+    "session_message_write": 3
+  }
+}

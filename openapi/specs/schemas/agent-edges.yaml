@@ -1,0 +1,387 @@
+AgentEdgeType:
+  type: string
+  enum:
+    - RELATED_TO
+    - DEPENDS_ON
+    - DERIVES_FROM
+    - SUPERSEDES
+    - CONTRADICTS
+    - EVOLVES
+    - TRACKS
+    - PROPOSED_TOGETHER
+    - FULFILLED_BY
+    - GUARANTEES
+    - IMPLEMENTS
+    - CONSUMES
+    - STANDARD
+    - CONDITIONAL
+    - LOOP
+  description: >
+    Relationship type for agent-authored topology edges between two entities.
+    Each value carries a distinct semantic:
+
+    - RELATED_TO: source and target share context but have no directional
+      dependency, derivation, or replacement relationship.
+    - DEPENDS_ON: source entity requires the target entity to be in place
+      (functionally or temporally) before it is meaningful or completable.
+    - DERIVES_FROM: target entity is the origin or basis from which the
+      source entity was produced; the target remains canonical and the
+      source is a downstream artifact.
+    - SUPERSEDES: source entity replaces the target entity; the target is
+      displaced and should no longer be treated as canonical.
+    - CONTRADICTS: source entity disagrees with the target entity; both
+      remain visible so the conflict can be resolved by an authoring agent.
+    - EVOLVES: source entity refines, extends, or iterates on the target
+      entity, which remains canonical. Distinct from SUPERSEDES (target is
+      displaced) and DERIVES_FROM (target is origin only and the source
+      stands apart).
+    - TRACKS: source references the target as a tracked deliverable. The
+      meaning is composed with source and target type — the canonical
+      use is a GOAL-typed task referencing a FEATURE / STANDARD / BUG task
+      or a PLAN it expects to ship. DESIGN_DOC and other GOAL targets are
+      rejected at the attach boundary (track the parent feature or plan
+      instead). Validation lives in the boundary handler, not the edge
+      service.
+    - PROPOSED_TOGETHER: source and target were created or modified by the
+      same proposal, making them co-authored siblings. Symmetric (the edge
+      carries no direction beyond the storage tuple) and system-emitted
+      (derived by the Graph service from a proposal-approved event rather
+      than authored by a user or agent). Carries no semantic claim about
+      dependency, derivation, or replacement — only that the two entities
+      share a proposal origin. Always paired with source `system`.
+    - FULFILLED_BY: meta edge from a WORKFLOW_STEP work item to the work item
+      where that step's implementation lives. It remains visible in generic
+      meta-edge surfaces and is never categorized as flow.
+    - STANDARD: flow edge from one WORKFLOW_STEP to the next ordinary step in
+      the same workflow graph. Carries category `flow` and requires direction.
+    - CONDITIONAL: flow edge from a WORKFLOW_STEP to the next branch selected
+      by a predicate. Carries category `flow` and requires both direction and
+      predicate.
+    - LOOP: flow edge representing a self-loop or return loop in a workflow
+      graph. Carries category `flow`, does not carry direction, and may carry
+      a predicate when the return is conditional.
+
+AgentMetaEdgeType:
+  type: string
+  enum:
+    - RELATED_TO
+    - DEPENDS_ON
+    - DERIVES_FROM
+    - SUPERSEDES
+    - CONTRADICTS
+    - EVOLVES
+    - TRACKS
+    - PROPOSED_TOGETHER
+    - FULFILLED_BY
+    - GUARANTEES
+    - IMPLEMENTS
+    - CONSUMES
+  description: Agent-authored relationship types in the meta category. GUARANTEES, IMPLEMENTS and CONSUMES connect TASK DIAGRAM_ELEMENT sources to TASK CONTRACT targets.
+
+AgentEdgeCategory:
+  type: string
+  enum:
+    - meta
+    - flow
+  default: meta
+  description: >
+    Rendering and traversal category for an edge. Existing edge records and
+    callers that omit this field default to `meta`. Flow-category edges
+    (`STANDARD`, `CONDITIONAL`, `LOOP`) are workflow structure and must stay
+    out of generic related-entity, supersede/evolves, task-list, and
+    link-discovery surfaces. Meta-category edges remain the regular topology
+    and fulfillment surface.
+
+AgentEdgeDirection:
+  type: string
+  enum:
+    - forward
+    - backward
+  description: >
+    Direction declared on workflow flow edges where the direction matters to
+    rendering or validation. `STANDARD` and `CONDITIONAL` edges require this
+    field. `LOOP` edges do not carry it because the source step is also the
+    return point.
+
+WorkflowEdgePredicate:
+  type: string
+  minLength: 1
+  maxLength: 200
+  pattern: '^(?=.*[A-Za-z0-9_\.:/=()!<>&|+\-])[A-Za-z0-9_ .:/=()!<>&|+\-]+$'
+  description: >
+    Non-blank branch label or predicate carried by a CONDITIONAL workflow
+    edge or an optionally conditional LOOP workflow edge. Values are limited
+    to printable ASCII identifier, comparison, boolean, grouping, path, and
+    arithmetic characters so every service applies the same portable
+    predicate syntax.
+
+AgentEdgeEndpointEntityType:
+  type: string
+  enum:
+    - ARTIFACT
+    - INITIATIVE
+    - PROJECT
+    - TASK
+    - MESSAGE
+    - CONVERSATION
+    - DESIGN_DOC
+    - AGENT_SESSION
+    - VALIDATION_SESSION
+    - SERVICE
+    - REPORT
+    - PROPOSAL
+    - IMPLEMENTATION_HINT
+  description: >
+    Canonical entity type for an agent-edge endpoint. The graph service maps
+    each value to a closed set of Neo4j node labels when resolving or creating
+    missing endpoints for edge writes. `USER` is intentionally excluded because
+    users are not stored as entity-registry graph nodes.
+
+AgentEdgeContractRules:
+  type: object
+  description: >
+    Machine-readable summary of the workflow edge contract for schema checks
+    and generated clients. This schema is not an endpoint payload; it records
+    invariants that cross service boundaries.
+  required:
+    - legacyDefaultCategory
+    - metaEdgeTypes
+    - flowEdgeTypes
+    - directionRequiredEdgeTypes
+    - predicateAllowedEdgeTypes
+    - predicateRequiredEdgeTypes
+    - workflowCrossWorkflowSourceType
+    - workflowCrossWorkflowTargetTypes
+  properties:
+    legacyDefaultCategory:
+      type: string
+      enum:
+        - meta
+      description: Existing edges and omitted category values default to meta.
+    metaEdgeTypes:
+      type: array
+      items:
+        $ref: "#/AgentEdgeType"
+      example:
+        - RELATED_TO
+        - DEPENDS_ON
+        - DERIVES_FROM
+        - SUPERSEDES
+        - CONTRADICTS
+        - EVOLVES
+        - TRACKS
+        - PROPOSED_TOGETHER
+        - FULFILLED_BY
+        - GUARANTEES
+        - IMPLEMENTS
+        - CONSUMES
+      description: Edge types that belong to the meta category.
+    flowEdgeTypes:
+      type: array
+      items:
+        $ref: "#/AgentEdgeType"
+      example:
+        - STANDARD
+        - CONDITIONAL
+        - LOOP
+      description: Edge types that belong to the flow category.
+    directionRequiredEdgeTypes:
+      type: array
+      items:
+        $ref: "#/AgentEdgeType"
+      example:
+        - STANDARD
+        - CONDITIONAL
+      description: Flow edge types that require direction.
+    predicateRequiredEdgeTypes:
+      type: array
+      items:
+        $ref: "#/AgentEdgeType"
+      example:
+        - CONDITIONAL
+      description: Flow edge types that require predicate.
+    predicateAllowedEdgeTypes:
+      type: array
+      items:
+        $ref: "#/AgentEdgeType"
+      example:
+        - CONDITIONAL
+        - LOOP
+      description: Flow edge types that may carry a predicate.
+    workflowCrossWorkflowSourceType:
+      type: string
+      enum:
+        - WORKFLOW_STEP
+      description: Cross-workflow edges always originate from a workflow step.
+    workflowCrossWorkflowTargetTypes:
+      type: array
+      items:
+        type: string
+        enum:
+          - WORKFLOW_STEP
+          - WORKFLOW
+      example:
+        - WORKFLOW_STEP
+        - WORKFLOW
+      description: Cross-workflow edges may target a workflow step or a workflow container.
+
+EdgeSource:
+  type: string
+  enum:
+    - system
+    - agent
+    - user
+  description: >
+    Origin of an edge — who or what put it in the graph. Used by response
+    surfaces that want to render or filter edges by provenance.
+
+    - system: edge produced by platform code rather than authored by a
+      user or agent. Covers both structural edges created as part of an
+      entity's own lifecycle (e.g. HAS_TASK created when a task is
+      attached to a feature) and edges materialized by the Graph service
+      from a separate signal such as a proposal-approved event (e.g.
+      PROPOSED_TOGETHER edges).
+    - agent: edge authored by an AI agent through the edge-proposal
+      surface, carrying agent reasoning.
+    - user: edge authored directly by a human through the UI.
+
+AgentEdgeResponseDto:
+  type: object
+  required:
+    - id
+    - sourceNodeId
+    - targetNodeId
+    - type
+    - reasoning
+    - createdAt
+    - updatedAt
+  example:
+    id: "8d2f4b1a-1c3e-4f5a-9b6d-7e8c9a0b1c2d"
+    sourceNodeId: "11111111-1111-1111-1111-111111111111"
+    sourceNodeName: "Source task"
+    targetNodeId: "22222222-2222-2222-2222-222222222222"
+    targetNodeName: "Target task"
+    type: PROPOSED_TOGETHER
+    source: system
+    reasoning: >
+      Co-authored siblings: both entities were created by the same
+      approved proposal.
+    createdBySessionId: null
+    lastModifiedBySessionId: null
+    createdAt: "2026-06-05T12:00:00Z"
+    updatedAt: "2026-06-05T12:00:00Z"
+  properties:
+    id:
+      type: string
+      format: uuid
+    sourceNodeId:
+      type: string
+      format: uuid
+    sourceEntityType:
+      $ref: "#/AgentEdgeEndpointEntityType"
+      description: >
+        Canonical entity type for the source endpoint, as persisted by the
+        Graph service for validation and reconnect operations.
+    sourceNodeName:
+      type: string
+      nullable: true
+      description: >
+        Display name for the source endpoint when the node has a materialized
+        name, title, or label property; omitted for stub endpoints.
+    targetNodeId:
+      type: string
+      format: uuid
+    targetEntityType:
+      $ref: "#/AgentEdgeEndpointEntityType"
+      description: >
+        Canonical entity type for the target endpoint, as persisted by the
+        Graph service for validation and reconnect operations.
+    targetNodeName:
+      type: string
+      nullable: true
+      description: >
+        Display name for the target endpoint when the node has a materialized
+        name, title, or label property; omitted for stub endpoints.
+    targetNodeType:
+      type: string
+      nullable: true
+      description: >
+        Work-item subtype materialized on the target endpoint, such as
+        `CONTRACT`; omitted when the endpoint is not a work item or has not
+        been materialized.
+    type:
+      $ref: "#/AgentEdgeType"
+    category:
+      allOf:
+        - $ref: "#/AgentEdgeCategory"
+      description: >
+        Edge category used by readers to distinguish generic meta edges from
+        workflow flow structure. Missing values from legacy records are
+        interpreted as `meta`.
+      default: meta
+    direction:
+      allOf:
+        - $ref: "#/AgentEdgeDirection"
+      nullable: true
+      description: >
+        Required for `STANDARD` and `CONDITIONAL` flow edges; omitted for
+        `LOOP` and meta edges.
+    predicate:
+      allOf:
+        - $ref: "#/WorkflowEdgePredicate"
+      nullable: true
+      description: >
+        Predicate expression or branch label required for `CONDITIONAL` flow
+        edges and optional for `LOOP` flow edges. Omitted for `STANDARD` and
+        meta edges.
+    reasoning:
+      type: string
+    source:
+      $ref: "#/EdgeSource"
+      description: >
+        Origin of the edge. Defaults to `agent` for edges authored
+        through the agent edge-proposal surface; `system` for edges
+        produced by platform code, including those materialized by the
+        Graph service from a domain event (e.g. PROPOSED_TOGETHER edges
+        derived from proposal approval). Absent on responses from older
+        deployments that predate this field — callers should treat the
+        missing value as `agent`.
+      example: agent
+    createdBySessionId:
+      type: string
+      format: uuid
+      nullable: true
+    lastModifiedBySessionId:
+      type: string
+      format: uuid
+      nullable: true
+    metadata:
+      type: object
+      additionalProperties: true
+      nullable: true
+      description: Label-specific relationship metadata declared by the edge contract.
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+PaginatedAgentEdgeResponseDto:
+  type: object
+  properties:
+    content:
+      type: array
+      items:
+        $ref: "#/AgentEdgeResponseDto"
+    page:
+      type: object
+      properties:
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
+        size:
+          type: integer
+        number:
+          type: integer

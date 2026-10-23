@@ -1,0 +1,76 @@
+TaskMonitorRunEffectPayload:
+  allOf:
+    - $ref: "./trigger-payloads.yaml#/StartRunPromptPayload"
+    - type: object
+      additionalProperties: false
+      required: [operationId, operationFingerprint, machineId]
+      properties:
+        operationId:
+          $ref: "./agent-operation.yaml#/AgentOperationId"
+        operationFingerprint:
+          $ref: "./agent-operation.yaml#/AgentOperationFingerprint"
+        machineId:
+          $ref: "./common.yaml#/MachineId"
+          description: >-
+            Delivery machine selected by the durable Task Monitor runtime. It
+            must equal both the addressed path machine and the machine resolved
+            from MachineCredentialAuth.
+  description: >-
+    Existing start-run semantic payload without browser authorization. The API
+    admits the paired-machine proof and the originating Task Monitor command,
+    then derives the bounded executable authorization from persisted state.
+
+SubmitTaskMonitorRunEffectRequestDto:
+  type: object
+  additionalProperties: false
+  required: [run, proof]
+  properties:
+    run:
+      $ref: "#/TaskMonitorRunEffectPayload"
+    proof:
+      $ref: "./machine-effect-admission.yaml#/MachineEffectProofDto"
+
+SubmitTaskMonitorRunEffectResponseDto:
+  allOf:
+    - $ref: "./conversations.yaml#/ConversationStartRunResponseDto"
+    - type: object
+      additionalProperties: false
+
+SubmitTaskMonitorGuidanceEffectRequestDto:
+  type: object
+  additionalProperties: false
+  required: [guidance, proof]
+  properties:
+    guidance:
+      type: string
+      minLength: 1
+      maxLength: 5000
+      description: Exact executable guidance selected by the Task Monitor coordinator.
+    proof:
+      $ref: "./machine-effect-admission.yaml#/MachineEffectProofDto"
+
+SubmitTaskMonitorGuidanceEffectResponseDto:
+  type: object
+  additionalProperties: false
+  required:
+    - operationId
+    - operationFingerprint
+    - messageId
+    - triggerMessageId
+    - replayed
+  properties:
+    operationId:
+      $ref: "./agent-operation.yaml#/AgentOperationId"
+    operationFingerprint:
+      $ref: "./agent-operation.yaml#/AgentOperationFingerprint"
+    messageId:
+      $ref: "./common.yaml#/MessageId"
+    triggerMessageId:
+      $ref: "./common.yaml#/MessageId"
+    replayed:
+      type: boolean
+  description: >-
+    Server-authored USER message and signed non-Temporal delivery identities.
+    The API derives author, Task Monitor provenance, prompt type, operation
+    identity from the admitted proof effect, correlation, and trigger fields
+    after machine and grant admission.

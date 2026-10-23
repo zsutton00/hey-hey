@@ -1,0 +1,506 @@
+{
+  "schemaVersion": "hey-hey.package-boundaries.v1",
+  "purpose": "Reviewed input to later combined-checkout assembly and extraction; this file does not perform either operation.",
+  "agreement": {
+    "layout": "user-approved",
+    "workspace": "user-approved",
+    "detailedBoundaries": "proposed-for-review",
+    "assemblyAuthorized": false
+  },
+  "artifactPlacement": {
+    "stagedInSourceArea": "combined-root",
+    "sourcePath": "scripts/consolidation/package-boundaries.json",
+    "combinedPath": "scripts/consolidation/package-boundaries.json",
+    "generationTargets": "scripts/consolidation/generation-targets.json",
+    "rule": "Consolidation inputs live at the combined repository root, outside apps/ui. Later assembly must preserve these root inputs and validate both schema versions and review digests before consuming them."
+  },
+  "captureBinding": {
+    "manifest": "scripts/consolidation/source-inputs.json",
+    "state": "awaiting-source-capture",
+    "lookup": "Resolve each sourceInputRef.serviceId to exactly one complete captured source and use its capture identity and digest; do not resolve a floating branch or recapture source inside assembly.",
+    "schemaHandoff": "The capture task owns the manifest schema and capture identities. Its eventual schema must support these service-qualified references; adapt a reader if field spelling differs, without rewriting captured facts.",
+    "assemblyPrerequisites": [
+      "All five references resolve to complete, verified captures.",
+      "Boundary and generation design digests are reviewed.",
+      "History and visibility review supplies its own approved recipe."
+    ]
+  },
+  "workspace": {
+    "tool": "pnpm",
+    "packageManager": "pnpm@10.18.1",
+    "lockfile": "pnpm-lock.yaml",
+    "packageGlobs": ["apps/*", "packages/*", "openapi"],
+    "internalDependencyProtocol": "workspace:*",
+    "rootPrivate": true,
+    "rationale": "All three TypeScript applications already use pnpm. Workspaces preserve separate package manifests and build tools while replacing sibling-checkout links with declared dependencies in one lockfile.",
+    "dependencyPolicy": "Runtime and build dependencies stay in their owning manifests. Root dependencies are repository tooling only. Preserve consumer-specific React, TypeScript and generator versions; do not flatten incompatible versions through global overrides.",
+    "installPolicy": "Carry reviewed minimumReleaseAge, native/build-script allowlists and the existing Playwright release-age exception into one root pnpm-workspace.yaml. Replace link: overrides with workspace dependencies. Keep browser React/React DOM peers aligned without forcing the CLI Ink dependency graph onto the browser version.",
+    "buildRunner": "pnpm filtered scripts; no additional task-runner adoption in this design"
+  },
+  "sourceAreas": [
+    {
+      "key": "ui",
+      "sourceInputRef": {
+        "serviceId": "fe4cf998-335b-4818-ac55-4781024bdaff"
+      },
+      "destination": "apps/ui",
+      "kind": "browser-app",
+      "owns": [
+        "Routes and application composition",
+        "Vite configuration",
+        "Static UI server and UI image"
+      ],
+      "allowedInternalDependencies": ["ui-common"],
+      "artifact": "apps/ui/dist"
+    },
+    {
+      "key": "api",
+      "sourceInputRef": {
+        "serviceId": "ad38d073-3d37-4a66-943e-dfccfa0729f3"
+      },
+      "destination": "apps/api",
+      "kind": "server-app",
+      "owns": [
+        "NestJS API and worker",
+        "Prisma generation and Flyway migrations",
+        "Server-specific generated models and runtime schemas",
+        "API image"
+      ],
+      "allowedInternalDependencies": [],
+      "artifact": "apps/api/dist",
+      "note": "Inspection found no UI Common imports in API src. Do not introduce an API dependency on extracted packages without an actual consumer."
+    },
+    {
+      "key": "cli",
+      "sourceInputRef": {
+        "serviceId": "fd9d0961-d3e9-4796-83ee-7720025c3dbe"
+      },
+      "destination": "apps/cli",
+      "kind": "node-app",
+      "owns": [
+        "Agent Bridge orchestration, local server and terminal UI",
+        "Consumer-specific platform, loopback and bridge generation",
+        "Standalone heyhey release artifact"
+      ],
+      "allowedInternalDependencies": ["platform-client", "agent-runtime"],
+      "artifact": "apps/cli/dist/index.mjs"
+    },
+    {
+      "key": "ui-common",
+      "sourceInputRef": {
+        "serviceId": "120a3e96-14e2-4fe9-9eaa-e6ef80697c64"
+      },
+      "destination": "packages/ui-common",
+      "kind": "ui-library",
+      "packageName": "@hey-hey/ui-common",
+      "owns": [
+        "Components, hooks, data collections and contexts",
+        "Browser authentication, configuration and React providers",
+        "Existing UI-facing API and client exports",
+        "UI-only coordination helpers"
+      ],
+      "allowedInternalDependencies": ["platform-client", "agent-runtime"],
+      "publication": "private",
+      "note": "Preserve UI's public import surface. Re-export shared implementations where extracted; never maintain duplicate runtime registries or duplicate implementations."
+    },
+    {
+      "key": "openapi",
+      "sourceInputRef": {
+        "serviceId": "3ef90bdf-98c2-4010-a0bd-b1ca9001dc0a"
+      },
+      "destination": "openapi",
+      "kind": "contract-source",
+      "owns": [
+        "All specifications, referenced schemas and fixtures",
+        "Contract validation and shared schema builders"
+      ],
+      "allowedInternalDependencies": [],
+      "publication": "requires-separate-visibility-review"
+    }
+  ],
+  "extraction": {
+    "state": "proposed-for-review; implemented by later extraction work",
+    "strategy": "Move only the CLI-facing dependency closure into two purpose-specific packages. Preserve UI Common's existing UI-facing exports as delegates to the single shared implementation.",
+    "packages": [
+      {
+        "key": "platform-client",
+        "destination": "packages/platform-client",
+        "packageName": "@hey-hey/platform-client",
+        "environment": "browser-and-node",
+        "publication": "private; bundled into CLI",
+        "publicEntrypoints": ["./api", "./clients"],
+        "sourceOwner": "ui-common",
+        "move": [
+          "src/api generated TypeScript/Axios output",
+          "src/clients/createApiRuntime.ts",
+          "src/clients/dataClient.ts",
+          "src/clients/serviceClients.ts",
+          "Runtime registration, getters, proxies and listeners from src/clients/runtime.ts",
+          "src/data/core/requestInitiator.ts, initiatorContext.ts and resolveInitiator.ts dependency closure"
+        ],
+        "retainInUiCommon": [
+          "src/clients/WebClientProvider.tsx",
+          "initializeBrowserApiRuntime browser-default configuration wrapper",
+          "src/services/authService.ts, configService.ts and runtimeConfig.ts",
+          "UI Common generated browser validators and existing API/client entrypoints"
+        ],
+        "constraints": [
+          "No React, MUI, browser authentication singleton or import.meta.env dependency in the headless client entrypoint.",
+          "Preserve explicit-baseUrl createBrowserApiRuntime behavior used by CLI despite its current name.",
+          "Keep existing request-initiator browser guards and behavior; do not impose browser globals on Node.",
+          "All re-exports must reach the same runtime registry, auth adapter, refresh deduplication and client instances."
+        ],
+        "allowedInternalDependencies": []
+      },
+      {
+        "key": "agent-runtime",
+        "destination": "packages/agent-runtime",
+        "packageName": "@hey-hey/agent-runtime",
+        "environment": "separate-node-and-browser-entrypoints",
+        "publication": "private; bundled into CLI",
+        "publicEntrypoints": ["./node", "./coordination", "./catalog"],
+        "sourceOwner": "ui-common",
+        "move": [
+          "src/agents/core, credentials, node and session dependency closure",
+          "src/agents/tool-execution-hooks.ts",
+          "src/agents/coordination/parser.ts, schemas.ts, startupPlanRendering.ts and types.ts",
+          "src/utils/run-attachment-format.ts",
+          "src/components/AgentSession/capabilityCatalog.ts"
+        ],
+        "typeOnlyDependencies": [
+          "Preserve WorkItemTypeKey's string type without importing UI constants at runtime.",
+          "Use platform-client generated types for coordination and catalog contracts."
+        ],
+        "retainInUiCommon": [
+          "Coordination finalAssessmentTaskNeighborhood.ts, projectModeCatalog.ts, prompts.ts and session-method helpers not required by CLI's imported symbols",
+          "UI data/plans helpers, workItemSections.ts, entityIcons.ts and React icon components"
+        ],
+        "constraints": [
+          "Export CLI's currently imported symbols explicitly instead of forwarding the full existing agents barrel.",
+          "The catalog and coordination entrypoints must not import the Node entrypoint or Node builtins, including through type barrels. Point AgentSessionId type imports at their defining type module instead of the core barrel, which also exports filesystem stores.",
+          "UI Common's retained helpers import the extracted parser/types/renderers where needed; no reverse dependency on UI Common.",
+          "Preserve the classified Claude turn-result contract and credential/session behavior."
+        ],
+        "allowedInternalDependencies": ["platform-client"]
+      }
+    ],
+    "observedCliImports": [
+      {
+        "entrypoint": "@hey-hey/ui-common/agents",
+        "files": 40,
+        "examples": [
+          "ClaudeCodeSdkClient",
+          "CodexSdkClient",
+          "CredentialManager",
+          "parseStartupSessionPlanResponseFromText",
+          "renderStartupPlanSummary",
+          "toolExecutionHookSettings"
+        ]
+      },
+      {
+        "entrypoint": "@hey-hey/ui-common/clients",
+        "files": 27,
+        "symbols": [
+          "AccessToken",
+          "ApiAuthAdapter",
+          "ApiRuntime",
+          "createBrowserApiRuntime",
+          "platformClient",
+          "registerApiRuntime",
+          "tasksClient"
+        ]
+      },
+      {
+        "entrypoint": "@hey-hey/ui-common/capability-catalog",
+        "files": 14,
+        "examples": [
+          "listModels",
+          "listEfforts",
+          "supportsFastMode",
+          "installCapabilityCatalog"
+        ]
+      },
+      {
+        "entrypoint": "@hey-hey/ui-common/dist/types/api/api",
+        "files": 1,
+        "reason": "Project-report contract test; migrate to a public generated-contract export."
+      }
+    ],
+    "inspectionLimits": "Counts include tests and scripts and describe this inspection, not an immutable captured source. Static imports/exports were traversed, including type edges; runtime bundling has not been verified here.",
+    "evidence": [
+      "UI Common clients/index.ts exports WebClientProvider and runtime.ts imports browser configuration.",
+      "The full agents barrel reaches finalAssessmentTaskNeighborhood, workItemSections and entityIcons; extracting that entire barrel would pull UI dependencies across the boundary.",
+      "Capability catalog imports generated API enums but has no React dependency.",
+      "CLI currently builds all UI Common dist plus CLI declarations before bundling; the extracted boundary removes that requirement."
+    ]
+  },
+  "importPolicy": {
+    "noAppToAppImports": true,
+    "noPackageToAppImports": true,
+    "noCliOrApiToUiCommonImports": true,
+    "publicExportsOnly": true,
+    "relativeImportsWithinPackageOnly": true,
+    "typeImportsFollowSameRules": true,
+    "browserMustNotReachNodeEntrypoints": true,
+    "enforcement": "Later assembly adds a root check:boundaries command and CI gate. Resolve static imports, re-exports, literal dynamic imports and require calls to owning packages, validate declared dependencies and explicit exports, forbid cross-package relative paths and transitive browser-to-Node reachability. Include negative fixtures proving UI-to-API, package-to-app and deep-source imports fail.",
+    "developmentResolution": "Vite source resolution may map only declared public exports. Existing wildcard UI Common source aliases must become explicit public exports for the actually used subpaths; do not carry a wildcard bypass into the combined repository."
+  },
+  "buildOrder": [
+    {
+      "step": "validate-and-generate",
+      "dependsOn": [],
+      "work": "Validate one reviewed OpenAPI source and run the coordinated consumer-specific generation targets."
+    },
+    {
+      "step": "platform-client",
+      "dependsOn": ["validate-and-generate"],
+      "work": "Build headless client JavaScript and declarations."
+    },
+    {
+      "step": "agent-runtime",
+      "dependsOn": ["platform-client"],
+      "work": "Build separate Node, coordination and catalog exports and declarations."
+    },
+    {
+      "step": "ui-common",
+      "dependsOn": ["platform-client", "agent-runtime"],
+      "work": "Check and build UI Common; retain source HMR and browser peer deduplication."
+    },
+    {
+      "step": "ui",
+      "dependsOn": ["ui-common"],
+      "work": "Check and build Vite assets from the current checkout's package sources."
+    },
+    {
+      "step": "cli",
+      "dependsOn": ["platform-client", "agent-runtime"],
+      "work": "Typecheck, test and bundle standalone CLI without building the UI Common browser library."
+    },
+    {
+      "step": "api",
+      "dependsOn": ["validate-and-generate"],
+      "work": "Generate Prisma client, check and build API/worker. Database migrations remain a separate authorized operation."
+    }
+  ],
+  "artifacts": {
+    "ui": {
+      "buildContext": ".",
+      "dockerfile": "apps/ui/Dockerfile",
+      "distinctImage": "ui-service",
+      "runtimeInputs": ["apps/ui/dist", "apps/ui/docker/server.mjs"],
+      "preserve": [
+        "Runtime configuration behavior",
+        "APP_VERSION provenance",
+        "React/MUI/Jotai peer resolution and Puck prebundling"
+      ]
+    },
+    "api": {
+      "buildContext": ".",
+      "dockerfile": "apps/api/Dockerfile",
+      "distinctImage": "api-service",
+      "runtimeInputs": [
+        "apps/api/dist",
+        "Production dependencies and generated Prisma client",
+        "apps/api/prisma",
+        "apps/api/config",
+        "apps/api/scripts",
+        "apps/api/db",
+        "apps/api/content",
+        "Flyway runtime and docker entrypoint"
+      ],
+      "preserve": [
+        "Separate API and worker runtime responsibilities",
+        "Existing migration and secret-delivery behavior"
+      ]
+    },
+    "cli": {
+      "format": "Node 20+ ESM npm-installable tarball",
+      "entrypoint": "dist/index.mjs",
+      "binary": "heyhey",
+      "bundledInternalPackages": ["platform-client", "agent-runtime"],
+      "runtimeExternals": [
+        "Node builtins",
+        "@napi-rs/keyring",
+        "playwright-core"
+      ],
+      "rules": [
+        "Packed runtime manifest contains no workspace:, link: or file: dependencies.",
+        "Native keyring and Playwright remain real runtime dependencies; preserve platform addon selection and Playwright asset-relative resolution.",
+        "Pack and install in a temporary directory outside the workspace; verify bin, help, version, native module loading and Playwright module/assets resolution.",
+        "Use the existing governed GitHub Release tarball channel; publication is outside this task."
+      ],
+      "observedTestGap": "src/package/cli-package.package-test.ts expects only keyring as non-builtin external; scripts/build.mjs explicitly externalizes both keyring and playwright-core. Later packaging work must reconcile the test and verify an actual isolated tarball install, not just run the repository's dist file."
+    },
+    "imageRegistryAndPromotion": "Preserve distinct image identities; registry/organization cutover and live deployment references require their separate review. No publication or deployment is authorized by this design."
+  },
+  "affectedBuilds": {
+    "algorithm": "Start with changed owning packages and follow declared reverse dependencies. Changes to root workspace/build tooling select every app. Resolve OpenAPI references conservatively across all specs/schemas/shared/fixtures/scripts; OpenAPI changes select all internal generation targets and apps plus the external-consumer handoff.",
+    "examples": [
+      {
+        "changed": "apps/ui/**",
+        "checksAndArtifacts": ["ui"]
+      },
+      {
+        "changed": "apps/api/**",
+        "checksAndArtifacts": ["api"]
+      },
+      {
+        "changed": "apps/cli/**",
+        "checksAndArtifacts": ["cli"]
+      },
+      {
+        "changed": "packages/ui-common/**",
+        "checksAndArtifacts": ["ui-common", "ui"]
+      },
+      {
+        "changed": "packages/platform-client/** or packages/agent-runtime/**",
+        "checksAndArtifacts": [
+          "platform-client",
+          "agent-runtime",
+          "ui-common",
+          "ui",
+          "cli"
+        ]
+      },
+      {
+        "changed": "openapi/** or root lockfile/workspace/build configuration",
+        "checksAndArtifacts": ["all-internal-targets-and-apps"]
+      }
+    ],
+    "externalConsumers": "Notify Graph and Embeddings when their pinned spec closure changes; never silently rebuild them against a floating checkout."
+  },
+  "integrationFiles": [
+    {
+      "sourceArea": "ui",
+      "files": [
+        "package.json",
+        "pnpm-workspace.yaml",
+        "tsconfig.app.json",
+        "vite.config.ts",
+        "vite-linked-dependencies.ts",
+        "scripts/link-worktree-dependencies.mjs"
+      ],
+      "laterChange": "Replace sibling links with current-workspace public exports; preserve live UI Common source resolution, Puck integration and browser singleton peers."
+    },
+    {
+      "sourceArea": "ui-common",
+      "files": [
+        "package.json",
+        "pnpm-workspace.yaml",
+        "tsup.config.ts",
+        "tsconfig.cli-declarations.json",
+        "src/clients/index.ts",
+        "src/clients/runtime.ts",
+        "src/agents/index.ts",
+        "src/agents/prompts.ts",
+        "src/components/AgentSession/capabilityCatalog.ts"
+      ],
+      "laterChange": "Extract the listed closures, retain browser adapters/public UI exports, replace CLI-only declaration shims with package declarations and explicit browser/Node exports."
+    },
+    {
+      "sourceArea": "cli",
+      "files": [
+        "package.json",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "scripts/build.mjs",
+        "src/@types/ui-common-subpaths.d.ts",
+        "src/package/cli-package.package-test.ts",
+        "src/shared/api/project-report-contract.test.ts"
+      ],
+      "laterChange": "Use extracted public packages; remove sibling build paths, link override and dist/types imports. Preserve ESM bundle/runtime externals and verify isolated installation. Rewrite actual import sites mechanically against the recorded public surfaces."
+    },
+    {
+      "sourceArea": "api",
+      "files": [
+        "package.json",
+        "openapitools.json",
+        "scripts/openapi-root.js",
+        "scripts/generated-root.js",
+        "scripts/generate-api-atomically.js",
+        "scripts/model-generation-lock.js",
+        "scripts/openapi-generation-cache.js",
+        "scripts/generate-openapi-models.js",
+        "scripts/generate-embeddings-types.js",
+        "scripts/generate-graphs-types.js"
+      ],
+      "laterChange": "Use combined openapi root and reviewed source identity; preserve generator options, postprocessors, staging/cache and lock semantics."
+    },
+    {
+      "sourceArea": "ui-common",
+      "files": [
+        "openapitools.json",
+        "scripts/openapi-root.cjs",
+        "scripts/generate-entity-prompt-template-language.cjs",
+        "scripts/clean-generated-api-imports.cjs",
+        "scripts/generate-activity-history-contract.cjs"
+      ],
+      "laterChange": "Pin the same combined spec root in every resolver, relocate headless output with its owner, and preserve postprocessing order."
+    },
+    {
+      "sourceArea": "cli",
+      "files": [
+        "openapitools.json",
+        "scripts/openapi-root.cjs",
+        "scripts/postprocess-generated-api.sh",
+        ".github/workflows/generated-contract-drift.yml"
+      ],
+      "laterChange": "Generate from the reviewed in-repository spec, retain CLI-specific output, and remove the second OpenAPI checkout from drift CI."
+    },
+    {
+      "sourceArea": "openapi",
+      "files": ["package.json", "openapitools.json", "scripts/generate-all.sh"],
+      "laterChange": "Keep validation and shared builders authoritative. Root orchestration runs the listed consumer recipes rather than substituting OpenAPI's differently configured example clients."
+    },
+    {
+      "sourceArea": "ui",
+      "files": [
+        "Dockerfile",
+        "docker-compose.yml",
+        ".github/workflows/publish-image.yaml"
+      ],
+      "laterChange": "Build from combined root; remove separate UI Common checkout/additional context and use one combined source provenance."
+    },
+    {
+      "sourceArea": "api",
+      "files": [
+        "Dockerfile",
+        ".github/workflows/publish-image.yaml",
+        "docker-compose.migration-stack.yml",
+        "scripts/migration-stack.sh",
+        "scripts/migration-stack-sources.js",
+        "scripts/worktree-db.ts"
+      ],
+      "laterChange": "Build API from combined root with its required runtime assets; adapt source-root discovery without weakening per-worktree database isolation."
+    },
+    {
+      "sourceArea": "deploy",
+      "files": [
+        "docker-compose.prod.yml",
+        "docker-compose.staging.yml",
+        "scripts/deploy-staging.sh"
+      ],
+      "laterChange": "Handoff only in this task: retain API_IMAGE/UI_IMAGE and STAGING_API_IMAGE/STAGING_UI_IMAGE selection. Later reviewed image work updates source/image references without changing secret paths or promotion policy."
+    },
+    {
+      "sourceArea": "combined-root",
+      "files": [
+        "package.json",
+        "pnpm-workspace.yaml",
+        "pnpm-lock.yaml",
+        "scripts/check-boundaries.mjs",
+        "scripts/generate-contracts.mjs",
+        ".github/workflows/verify.yaml"
+      ],
+      "laterChange": "Later work creates workspace tooling, explicit boundary enforcement, coordinated generation and affected verification. These files do not exist yet."
+    }
+  ],
+  "verificationHandoff": [
+    "Boundary negative fixtures and package dependency/export checks pass.",
+    "UI typecheck and production build resolve local UI Common and preserve browser behavior.",
+    "Agent SDK, parser/rendering, credential and CLI integration tests pass, including classified Claude turn results.",
+    "Generation drift checks match the reviewed source identity without collapsing incompatible targets.",
+    "CLI tarball installs outside the workspace with keyring and Playwright resolution intact.",
+    "UI/API images build independently; shared/spec changes select affected checks and artifacts."
+  ]
+}

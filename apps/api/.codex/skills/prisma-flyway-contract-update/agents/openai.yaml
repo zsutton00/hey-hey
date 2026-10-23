@@ -1,0 +1,4 @@
+interface:
+  display_name: "Prisma + Flyway Contract Update"
+  short_description: "Safely ship Prisma+Flyway schema changes"
+  default_prompt: "Use $prisma-flyway-contract-update to implement and validate a DB schema change end-to-end."

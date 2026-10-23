@@ -1,0 +1,667 @@
+# =============================================
+# Explicit Task Monitor command delivery
+# =============================================
+
+TaskMonitorCommandTarget:
+  type: object
+  additionalProperties: false
+  required:
+    - workItemType
+    - workItemId
+  properties:
+    workItemType:
+      type: string
+      enum:
+        - TASK_MONITOR
+    workItemId:
+      type: string
+      format: uuid
+
+TaskMonitorStartCommand:
+  type: object
+  additionalProperties: false
+  required:
+    - cause
+    - launchConfig
+  properties:
+    cause:
+      type: string
+      enum:
+        - START
+    launchConfig:
+      $ref: "./trigger-payloads.yaml#/TaskMonitorLaunchConfig"
+    userMessage:
+      type: string
+      maxLength: 5000
+
+TaskMonitorPauseCommand:
+  type: object
+  additionalProperties: false
+  required:
+    - cause
+  properties:
+    cause:
+      type: string
+      enum:
+        - PAUSE
+
+TaskMonitorResumeCommand:
+  type: object
+  additionalProperties: false
+  required:
+    - cause
+  properties:
+    cause:
+      type: string
+      enum:
+        - RESUME
+
+TaskMonitorGuidanceChangedCommand:
+  type: object
+  additionalProperties: false
+  required:
+    - cause
+    - guidance
+  properties:
+    cause:
+      type: string
+      enum:
+        - GUIDANCE_CHANGED
+    guidance:
+      type: string
+      minLength: 1
+      maxLength: 5000
+
+TaskMonitorHumanDecisionEvidence:
+  type: object
+  additionalProperties: false
+  required:
+    - userId
+    - authenticatedAt
+  properties:
+    userId:
+      type: string
+      format: uuid
+    authenticatedAt:
+      type: string
+      format: date-time
+
+TaskMonitorHumanDecisionCommand:
+  type: object
+  additionalProperties: false
+  required:
+    - cause
+    - interventionId
+    - providerActionId
+    - runId
+    - agentSessionId
+    - fingerprint
+    - resolution
+    - human
+  properties:
+    cause:
+      type: string
+      enum:
+        - HUMAN_DECISION
+    interventionId:
+      type: string
+      format: uuid
+    providerActionId:
+      type: string
+      minLength: 1
+    runId:
+      type: string
+      format: uuid
+    agentSessionId:
+      type: string
+      format: uuid
+    fingerprint:
+      type: string
+      minLength: 1
+    resolution:
+      type: string
+      enum:
+        - APPROVE
+        - DENY
+    human:
+      $ref: "#/TaskMonitorHumanDecisionEvidence"
+
+TaskMonitorHumanDecisionRequestCommand:
+  type: object
+  additionalProperties: false
+  required:
+    - cause
+    - interventionId
+    - providerActionId
+    - runId
+    - agentSessionId
+    - fingerprint
+    - resolution
+  properties:
+    cause:
+      type: string
+      enum:
+        - HUMAN_DECISION
+    interventionId:
+      type: string
+      format: uuid
+    providerActionId:
+      type: string
+      minLength: 1
+    runId:
+      type: string
+      format: uuid
+    agentSessionId:
+      type: string
+      format: uuid
+    fingerprint:
+      type: string
+      minLength: 1
+    resolution:
+      type: string
+      enum:
+        - APPROVE
+        - DENY
+  description: >-
+    Authenticated browser submission shape. The platform stamps the durable
+    human identity and authentication time before signed machine delivery.
+
+TaskMonitorStopCommand:
+  type: object
+  additionalProperties: false
+  required:
+    - cause
+  properties:
+    cause:
+      type: string
+      enum:
+        - STOP
+
+TaskMonitorJudgmentResolvedCommand:
+  type: object
+  additionalProperties: false
+  required:
+    - cause
+    - judgment
+  properties:
+    cause:
+      type: string
+      enum:
+        - JUDGMENT_RESOLVED
+    judgment:
+      $ref: "./work-items.yaml#/TaskMonitorJudgmentResponse"
+
+TaskMonitorContinueCommand:
+  type: object
+  additionalProperties: false
+  required:
+    - cause
+  properties:
+    cause:
+      type: string
+      enum:
+        - CONTINUE
+
+TaskMonitorCompleteCommand:
+  type: object
+  additionalProperties: false
+  required:
+    - cause
+  properties:
+    cause:
+      type: string
+      enum:
+        - COMPLETE
+
+TaskMonitorHaltCommand:
+  type: object
+  additionalProperties: false
+  required:
+    - cause
+  properties:
+    cause:
+      type: string
+      enum:
+        - HALT
+
+TaskMonitorExternalCommand:
+  oneOf:
+    - $ref: "#/TaskMonitorStartCommand"
+    - $ref: "#/TaskMonitorPauseCommand"
+    - $ref: "#/TaskMonitorResumeCommand"
+    - $ref: "#/TaskMonitorGuidanceChangedCommand"
+    - $ref: "#/TaskMonitorHumanDecisionCommand"
+    - $ref: "#/TaskMonitorStopCommand"
+    - $ref: "#/TaskMonitorJudgmentResolvedCommand"
+    - $ref: "#/TaskMonitorContinueCommand"
+    - $ref: "#/TaskMonitorCompleteCommand"
+    - $ref: "#/TaskMonitorHaltCommand"
+  discriminator:
+    propertyName: cause
+    mapping:
+      START: "#/TaskMonitorStartCommand"
+      PAUSE: "#/TaskMonitorPauseCommand"
+      RESUME: "#/TaskMonitorResumeCommand"
+      GUIDANCE_CHANGED: "#/TaskMonitorGuidanceChangedCommand"
+      HUMAN_DECISION: "#/TaskMonitorHumanDecisionCommand"
+      STOP: "#/TaskMonitorStopCommand"
+      JUDGMENT_RESOLVED: "#/TaskMonitorJudgmentResolvedCommand"
+      CONTINUE: "#/TaskMonitorContinueCommand"
+      COMPLETE: "#/TaskMonitorCompleteCommand"
+      HALT: "#/TaskMonitorHaltCommand"
+  description: >-
+    Closed union of user-authored Task Monitor lifecycle commands. Automated
+    progression is driven by canonical report and Agent Session lifecycle events.
+
+TaskMonitorAuthorityIncreasingCommand:
+  oneOf:
+    - $ref: "#/TaskMonitorStartCommand"
+    - $ref: "#/TaskMonitorResumeCommand"
+    - $ref: "#/TaskMonitorJudgmentResolvedCommand"
+    - $ref: "#/TaskMonitorContinueCommand"
+    - $ref: "#/TaskMonitorCompleteCommand"
+  discriminator:
+    propertyName: cause
+    mapping:
+      START: "#/TaskMonitorStartCommand"
+      RESUME: "#/TaskMonitorResumeCommand"
+      JUDGMENT_RESOLVED: "#/TaskMonitorJudgmentResolvedCommand"
+      CONTINUE: "#/TaskMonitorContinueCommand"
+      COMPLETE: "#/TaskMonitorCompleteCommand"
+  description: >-
+    Closed protocol-2 command set that may start, resume, continue, redirect,
+    or complete host work. Its signed executable envelope supplies exactly one
+    fresh controller assertion or matching controller-device grant reference.
+
+TaskMonitorAuthorityReductionCommand:
+  oneOf:
+    - $ref: "#/TaskMonitorPauseCommand"
+    - $ref: "#/TaskMonitorStopCommand"
+    - $ref: "#/TaskMonitorHaltCommand"
+  discriminator:
+    propertyName: cause
+    mapping:
+      PAUSE: "#/TaskMonitorPauseCommand"
+      STOP: "#/TaskMonitorStopCommand"
+      HALT: "#/TaskMonitorHaltCommand"
+  description: >-
+    Closed commands that only suspend or terminate authority. They do not carry
+    or create controller execution authorization.
+
+TaskMonitorAuthorityNeutralCommand:
+  oneOf:
+    - $ref: "#/TaskMonitorGuidanceChangedCommand"
+    - $ref: "#/TaskMonitorHumanDecisionCommand"
+  discriminator:
+    propertyName: cause
+    mapping:
+      GUIDANCE_CHANGED: "#/TaskMonitorGuidanceChangedCommand"
+      HUMAN_DECISION: "#/TaskMonitorHumanDecisionCommand"
+  description: >-
+    Authenticated user input that advances Task Monitor-owned state without
+    directly starting, resuming, or terminating host execution.
+
+TaskMonitorAuthorityNeutralRequestCommand:
+  oneOf:
+    - $ref: "#/TaskMonitorGuidanceChangedCommand"
+    - $ref: "#/TaskMonitorHumanDecisionRequestCommand"
+  discriminator:
+    propertyName: cause
+    mapping:
+      GUIDANCE_CHANGED: "#/TaskMonitorGuidanceChangedCommand"
+      HUMAN_DECISION: "#/TaskMonitorHumanDecisionRequestCommand"
+
+SubmitTaskMonitorAuthorityIncreasingCommandRequestDto:
+  type: object
+  additionalProperties: false
+  required:
+    - requestId
+    - authorization
+    - command
+  properties:
+    requestId:
+      type: string
+      format: uuid
+      description: Client-authored retry key retained across HTTP retries.
+    authorization:
+      $ref: "./controller-authorization.yaml#/AdmissionEnvelopeAuthorization"
+      description: >-
+        Exactly one fresh controller assertion with its complete immutable
+        descriptor or one active controller-device grant reference. Required
+        for START, RESUME, JUDGMENT_RESOLVED, CONTINUE, and COMPLETE; omitted
+        for the account-only PAUSE, STOP, and HALT reductions.
+    machineId:
+      type: string
+      format: uuid
+      description: Optional explicit active machine owned by the acting user.
+    command:
+      $ref: "#/TaskMonitorAuthorityIncreasingCommand"
+
+SubmitTaskMonitorAuthorityReductionCommandRequestDto:
+  type: object
+  additionalProperties: false
+  required:
+    - requestId
+    - command
+  properties:
+    requestId:
+      type: string
+      format: uuid
+      description: Client-authored retry key retained across HTTP retries.
+    machineId:
+      type: string
+      format: uuid
+      description: Optional explicit active machine owned by the acting user.
+    command:
+      $ref: "#/TaskMonitorAuthorityReductionCommand"
+
+SubmitTaskMonitorAuthorityNeutralCommandRequestDto:
+  type: object
+  additionalProperties: false
+  required:
+    - requestId
+    - command
+  properties:
+    requestId:
+      type: string
+      format: uuid
+      description: Client-authored retry key retained across HTTP retries.
+    machineId:
+      type: string
+      format: uuid
+      description: Optional explicit active machine owned by the acting user.
+    command:
+      $ref: "#/TaskMonitorAuthorityNeutralRequestCommand"
+
+SubmitTaskMonitorCommandRequestDto:
+  oneOf:
+    - $ref: "#/SubmitTaskMonitorAuthorityIncreasingCommandRequestDto"
+    - $ref: "#/SubmitTaskMonitorAuthorityReductionCommandRequestDto"
+    - $ref: "#/SubmitTaskMonitorAuthorityNeutralCommandRequestDto"
+
+MonitorCommandBody:
+  type: object
+  additionalProperties: false
+  required:
+    - version
+    - kind
+    - commandId
+    - createdAt
+    - expiresAt
+    - organizationId
+    - projectId
+    - target
+    - command
+  properties:
+    version:
+      type: integer
+      enum:
+        - 1
+    kind:
+      type: string
+      enum:
+        - task_monitor_command
+    commandId:
+      type: string
+      format: uuid
+      description: Durable command, idempotency, acknowledgement, and log correlation identity.
+    createdAt:
+      type: string
+      format: date-time
+    expiresAt:
+      type: string
+      format: date-time
+    organizationId:
+      type: string
+      format: uuid
+    projectId:
+      type: string
+      format: uuid
+    target:
+      $ref: "#/TaskMonitorCommandTarget"
+    command:
+      $ref: "#/TaskMonitorExternalCommand"
+  description: >-
+    Complete signed monitor command. It deliberately contains no Run,
+    conversation, agent-session, handler, or internal declaration identity.
+
+MonitorCommandBodyV2:
+  type: object
+  additionalProperties: false
+  required:
+    - version
+    - kind
+    - commandId
+    - createdAt
+    - expiresAt
+    - organizationId
+    - projectId
+    - target
+    - command
+  properties:
+    version:
+      type: integer
+      enum: [2]
+    kind:
+      type: string
+      enum: [task_monitor_command]
+    commandId:
+      type: string
+      format: uuid
+    createdAt:
+      type: string
+      format: date-time
+    expiresAt:
+      type: string
+      format: date-time
+    organizationId:
+      type: string
+      format: uuid
+    projectId:
+      type: string
+      format: uuid
+    target:
+      $ref: "#/TaskMonitorCommandTarget"
+    command:
+      $ref: "#/TaskMonitorAuthorityIncreasingCommand"
+  description: >-
+    Protocol-2 authority-increasing command. Authorization is a sibling of this
+    event in the platform-signed executable envelope.
+
+MonitorAuthorityReductionBodyV2:
+  type: object
+  additionalProperties: false
+  required:
+    - version
+    - kind
+    - commandId
+    - createdAt
+    - expiresAt
+    - organizationId
+    - projectId
+    - target
+    - command
+  properties:
+    version:
+      type: integer
+      enum: [2]
+    kind:
+      type: string
+      enum: [task_monitor_authority_reduction]
+    commandId:
+      type: string
+      format: uuid
+    createdAt:
+      type: string
+      format: date-time
+    expiresAt:
+      type: string
+      format: date-time
+    organizationId:
+      type: string
+      format: uuid
+    projectId:
+      type: string
+      format: uuid
+    target:
+      $ref: "#/TaskMonitorCommandTarget"
+    command:
+      $ref: "#/TaskMonitorAuthorityReductionCommand"
+  description: >-
+    Signed and addressed protocol-2 reduction command. It intentionally has no
+    controller assertion or bounded-grant arm.
+
+MonitorAuthorityNeutralBodyV2:
+  type: object
+  additionalProperties: false
+  required:
+    - version
+    - kind
+    - commandId
+    - createdAt
+    - expiresAt
+    - organizationId
+    - projectId
+    - target
+    - command
+  properties:
+    version:
+      type: integer
+      enum: [2]
+    kind:
+      type: string
+      enum: [task_monitor_authority_neutral]
+    commandId:
+      type: string
+      format: uuid
+    createdAt:
+      type: string
+      format: date-time
+    expiresAt:
+      type: string
+      format: date-time
+    organizationId:
+      type: string
+      format: uuid
+    projectId:
+      type: string
+      format: uuid
+    target:
+      $ref: "#/TaskMonitorCommandTarget"
+    command:
+      $ref: "#/TaskMonitorAuthorityNeutralCommand"
+  description: >-
+    Signed protocol-2 authenticated user input. It carries no controller
+    execution authorization because it does not directly authorize host work.
+
+MonitorCommandRejectionStage:
+  type: string
+  enum:
+    - VERIFICATION
+    - ADMISSION
+
+MonitorCommandRejectionReason:
+  type: string
+  enum:
+    - SCHEMA_INVALID
+    - SIGNATURE_INVALID
+    - MACHINE_MISMATCH
+    - OWNER_MISMATCH
+    - STALE
+    - EXPIRED
+    - NONCE_REPLAY
+    - KIND_NOT_ALLOWED
+    - ROUTING_MISMATCH
+    - MONITOR_NOT_FOUND
+    - INVALID_CONTEXT
+    - INVALID_LIFECYCLE
+    - PAUSED
+    - HALTED
+    - NOT_READY
+    - GUIDANCE_REQUIRED
+    - DUPLICATE
+    - NO_ELIGIBLE_WORK
+    - MISSING_JUDGMENT
+    - ROUTE_REJECTED
+    - INTERNAL_ERROR
+
+MonitorCommandAdmittedAcknowledgement:
+  type: object
+  additionalProperties: false
+  required:
+    - status
+    - commandId
+    - replayed
+  properties:
+    status:
+      type: string
+      enum:
+        - ADMITTED
+    commandId:
+      type: string
+      format: uuid
+    replayed:
+      type: boolean
+
+MonitorCommandRejectedAcknowledgement:
+  type: object
+  additionalProperties: false
+  required:
+    - status
+    - stage
+    - reason
+  properties:
+    status:
+      type: string
+      enum:
+        - REJECTED
+    commandId:
+      type: string
+      format: uuid
+    stage:
+      $ref: "#/MonitorCommandRejectionStage"
+    reason:
+      $ref: "#/MonitorCommandRejectionReason"
+    message:
+      type: string
+      maxLength: 1000
+
+MonitorCommandAcknowledgement:
+  oneOf:
+    - $ref: "#/MonitorCommandAdmittedAcknowledgement"
+    - $ref: "#/MonitorCommandRejectedAcknowledgement"
+  discriminator:
+    propertyName: status
+    mapping:
+      ADMITTED: "#/MonitorCommandAdmittedAcknowledgement"
+      REJECTED: "#/MonitorCommandRejectedAcknowledgement"
+
+SubmitTaskMonitorCommandResponseDto:
+  type: object
+  additionalProperties: false
+  required:
+    - commandId
+    - status
+  properties:
+    commandId:
+      type: string
+      format: uuid
+    status:
+      type: string
+      enum:
+        - QUEUED
+        - ADMITTED
+        - REJECTED
+    replayed:
+      type: boolean
+    stage:
+      $ref: "#/MonitorCommandRejectionStage"
+    reason:
+      $ref: "#/MonitorCommandRejectionReason"
+    message:
+      type: string
+      maxLength: 1000
+  description: >-
+    Current result returned by command submission. QUEUED means the durable
+    command remains eligible for reconnect delivery; there is intentionally no
+    public status-read endpoint.

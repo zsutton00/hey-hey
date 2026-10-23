@@ -1,0 +1,94 @@
+TaskMonitorExecutionCondition:
+  type: object
+  additionalProperties: false
+  required: [lifecycle, control, work, intervention]
+  properties:
+    lifecycle:
+      type: string
+      enum: [ABSENT, RUNNING, HALTED, COMPLETED]
+    control:
+      type: string
+      nullable: true
+      enum: [ACTIVE, PAUSING, PAUSED, RESUMING, null]
+    work:
+      type: string
+      nullable: true
+      enum: [LOADING_MONITOR, COORDINATING, VALIDATING_LAUNCH, RECONCILING_TASK_ACTIVATION, RECONCILING_MONITOR_PROJECTION, LAUNCH_READY, CREATING_AGENT_SESSION, CREATING_CONVERSATION, STARTING_RUN, RECONCILING_AGENT_SESSION_CREATION, RECONCILING_CONVERSATION_CREATION, RECONCILING_RUN_START, PERSISTING_LAUNCH, PROJECTING_STARTED, OBSERVING_RUN, EVALUATING_RUN, REQUESTING_REVIEW, AWAITING_REVIEW, REVIEW_REQUEST_FAILED, MONITOR_LOAD_FAILED, LAUNCH_JUDGMENT, OUTCOME_JUDGMENT, RETRYABLE_LAUNCH, ADMITTING_LAUNCH_RETRY, null]
+    intervention:
+      type: string
+      nullable: true
+      enum: [CLEAR, PENDING, APPLYING_DECISION, APPLICATION_FAILED, APPLICATION_STALE, APPLICATION_CANCELLED, APPLICATION_UNCERTAIN, null]
+  description: Independent committed execution regions; region values are null outside RUNNING.
+
+TaskMonitorStateFailure:
+  type: object
+  additionalProperties: false
+  required: [code, cause, correctiveGuidance]
+  properties:
+    code:
+      type: string
+      enum: [OPERATION_FAILED, BRANCH_CHECKED_OUT_IN_HOST_REPOSITORY, INVALID_CONFIGURATION, CATALOG_UNAVAILABLE]
+    cause:
+      type: string
+      description: The concrete cause retained by the monitor owner; never a guessed diagnosis.
+    correctiveGuidance:
+      type: string
+      description: Actionable correction supported by the committed failure and current policy.
+    setting:
+      type: string
+    suppliedValue:
+      type: string
+    supportedValues:
+      type: array
+      items:
+        type: string
+  description: Report only known details. Configuration and catalog classifications are available for authoritative producers; publication does not add recovery admission behavior.
+
+TaskMonitorLifecycleAction:
+  type: object
+  additionalProperties: false
+  required: [kind, command]
+  properties:
+    kind:
+      type: string
+      enum: [INITIAL_START, PAUSED_CONTINUATION, RETRYABLE_RECOVERY, PAUSE, STOP]
+    command:
+      type: string
+      enum: [START, RESUME, PAUSE, STOP]
+  description: The owner advertises only currently admitted command mappings; clients retain Start/Pause presentation and use existing signed command admission.
+
+TaskMonitorStateProjection:
+  type: object
+  additionalProperties: false
+  required: [execution, availableActions]
+  properties:
+    execution:
+      $ref: '#/TaskMonitorExecutionCondition'
+    failure:
+      $ref: '#/TaskMonitorStateFailure'
+    availableActions:
+      type: array
+      items:
+        $ref: '#/TaskMonitorLifecycleAction'
+  description: Complete replacement snapshot. Omitted failure means the owner has no current failure; freshness updates never remove a retained failure.
+
+TaskMonitorStateObservation:
+  type: object
+  additionalProperties: false
+  required: [taskMonitorId, machineId, sourceRevision, projection]
+  properties:
+    taskMonitorId:
+      type: string
+      format: uuid
+    machineId:
+      type: string
+      format: uuid
+    sourceRevision:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Durable CLI machine revision; unchanged when replayed.
+    projection:
+      $ref: '#/TaskMonitorStateProjection'
+  description: Sent on task_monitor.state_observed. Machine identity must match the authenticated connection and canonical owner. Platform derives project and organization scope.
+

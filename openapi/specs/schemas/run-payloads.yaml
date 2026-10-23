@@ -1,0 +1,1078 @@
+# =============================================
+# Shared run-payload wire schemas
+# Single source of truth for the start-run-eligible
+# discriminated payload union carried on both the
+# platform start-run envelope (trigger-payloads.yaml)
+# and the transport-neutral Agent Bridge runtime contract
+# (agent-bridge/openapi.yaml). Flat top-level schema names;
+# refs as ./file.yaml#/Name and
+# ../agent-bridge/openapi.yaml#/components/schemas/Name for
+# the per-handler body payloads owned by the Agent Bridge.
+# =============================================
+
+LocalPromptType:
+  type: string
+  enum:
+    - startup_session
+    - plan_execution
+    - final_assessment
+    - verification_plan
+    - child_task_updates
+    - entity_conversation
+    - goal_pm
+    - set_splitting
+    - free_form
+    - debug
+    - research
+    - run_eval
+    - quick
+    - daily_session
+    - rollup_proposal
+    - task_refiner
+    - feature_refiner
+    - design_doc_refiner
+    - proposal_refiner
+    - commit
+    - agent_search
+    - report_update
+    - code_review
+    - feature_sync_analyze
+    - feature_sync_iterate
+    - plan_shaping_feature_sync_analyze
+    - plan_shaping_feature_sync_iterate
+    - plan_shaping_feature_sync_discuss
+    - plan_shaping_proposed_stages
+    - plan_shaping_refine_stage
+    - plan_shaping_visual_preview
+    - plan_shaping_phase_breakdown
+    - plan_shaping_step_review
+    - plan_shaping_finalize
+    - implement
+    - validation_walkthrough
+    - coding_freeform
+    - session_message
+    - workflow-defined
+    - feature_tree_conversation
+    - open_items_triage
+    - verify_feature
+    - work_tracker_connect
+    - work_tracker_import
+    - repository_grounding
+    - repository_feature_enrichment
+    - repository_first_work
+    - repository_placement
+    - session_monitor
+    - task_monitor
+    - html_css_mockup_revision
+    - project_assistant
+    - project_mode
+    - project_report
+    - release_notes
+  description: |
+    Discriminator for typed prompt payloads.
+
+    `debug` is a debugging-discipline variant of the free-form mode: it
+    reuses the free-form payload shape but swaps in a system prompt tuned
+    for methodical root-cause investigation. It is explicit-selection-only
+    — no workflow node emits it and no terminal fallback resolves to it; a
+    user must deliberately choose the debug mode to start a run with it.
+    There is deliberately no `coding_debug` follow-up analogue mirroring
+    `coding_freeform`: debug-session follow-ups already re-ground through
+    the mode-agnostic `coding_freeform` prompt, which re-situates the model
+    in the coding-session context regardless of the prior promptType, so a
+    debug-specific follow-up prompt would be redundant. Note that the
+    `PromptTypeResponseDto` mirror in workflows.yaml is intentionally NOT
+    extended with `debug` (it is selection-only, never API-returned), so
+    the lockstep rule between that mirror and this enum is not misread as
+    requiring the addition there.
+
+    `research` is a read-only investigation variant of the free-form mode:
+    it reuses the free-form payload shape but swaps in a system prompt
+    tuned for a read-only investigative posture — gathering evidence and
+    synthesizing findings without mutating code or entities. Like `debug`,
+    it is explicit-selection-only: no workflow node emits it and no
+    terminal fallback resolves to it; a user must deliberately choose the
+    research mode to start a run with it. There is deliberately no
+    `coding_research` follow-up analogue mirroring `coding_freeform`:
+    research-session follow-ups already re-ground through the
+    mode-agnostic `coding_freeform` prompt, which re-situates the model in
+    the coding-session context regardless of the prior promptType, so a
+    research-specific follow-up prompt would be redundant. The
+    `PromptTypeResponseDto` mirror in workflows.yaml is intentionally NOT
+    extended with `research` (it is selection-only, never API-returned),
+    so the lockstep rule between that mirror and this enum is not misread
+    as requiring the addition there.
+
+    `quick` is a minimal pass-through variant: no graph fetching, no design-doc
+    loading, no Project Assistant pass. The user's message is the full prompt; the
+    handler applies only a brief coding-context framing. Like `debug` and
+    `research`, it is explicit-selection-only — no workflow node emits it and
+    no terminal fallback resolves to it. There is no follow-up analogue; quick
+    sessions re-ground through the mode-agnostic `coding_freeform` prompt on
+    follow-ups. The `PromptTypeResponseDto` mirror in workflows.yaml is
+    intentionally NOT extended with `quick` (selection-only, never
+    API-returned), and `quick` is NOT added to `PROJECT_ASSISTANT_ELIGIBLE_PROMPT_TYPES`.
+
+    `coding_freeform` is the override-by-construction system prompt for
+    coding-session follow-ups. When a user sends a free-form message into
+    an active coding session, the message-service edge sets this prompt
+    type so the resolver swaps in a fresh, situating system prompt that
+    re-grounds the model in the coding-session context — naming the
+    session, surfacing the prior promptType as a loose fact, and
+    orienting positively toward the user's latest message. This closes
+    the empty-prompt re-grounding hole left when a follow-up turn would
+    otherwise inherit the previous turn's promptType.
+
+    `workflow-defined` is a wire-level sentinel. The CLI's message-service
+    edge resolves it into a concrete prompt type before any runtime code
+    runs: `sendMessage` (and the coalesced-drain path) calls the platform's
+    `getConversationPromptType` endpoint with the run's `conversationId`
+    and substitutes the returned value in place of the sentinel. A null
+    response — meaning the conversation has no active workflow node with a
+    declared prompt type — is rejected with HTTP 400 before the request
+    enters Turn construction. Consumers downstream of the edge (resolver,
+    prepare, dispatch queue, Turn lifecycle) therefore never observe the
+    sentinel; there is no fallback to the run's persisted value.
+    The route's payload-required guard does not apply to this sentinel.
+
+    `plan_shaping_feature_sync_discuss` is a follow-up-only persona for chat
+    turns sent while the conversation is parked on the plan-shaping
+    feature-sync review gate. Like `coding_freeform`, it is never carried on
+    a platform EXTERNAL_AGENT trigger: the message-service edge resolves the
+    `workflow-defined` sentinel, sees a `FEATURE_SYNC_REVIEW` gate on the
+    `getConversationPromptType` response, and synthesizes this prompt type
+    locally with the gate's design doc, plan, and outstanding flagged items.
+    Because it is CLI-synthesized and never API-returned, it is deliberately
+    NOT added to the `PromptTypeResponseDto.promptType` mirror in
+    workflows.yaml (which carries only API-returned prompt types) — the
+    lockstep rule between that mirror and this enum does not apply to it. The
+    turn has no submission tools, so it cannot post a workflow completion.
+
+    `project_assistant` is an internal-only subagent promptType dispatched
+    once per coding Run before the parent agent's first turn. It runs the
+    Project Assistant handler as a subagent, emits a `CODING_RESEARCH` report,
+    and records a `previousProviderSession` that is prepended to the parent's
+    first prompt so the coding agent begins with relevant entity context
+    already surfaced. It is never delivered via the platform API and has no
+    `RunCreatePayload` entry. The `PromptTypeResponseDto` mirror in
+    workflows.yaml is intentionally NOT extended with it.
+
+# =============================================
+# Pathless Agent Skill selection and catalog models
+# =============================================
+
+AgentSkillProvider:
+  type: string
+  enum:
+    - claude
+    - codex
+    - opencode
+
+AgentSkillCatalogScope:
+  type: string
+  enum:
+    - user
+    - repo
+    - system
+    - admin
+
+AgentSkillSelection:
+  type: object
+  required:
+    - provider
+    - name
+    - catalogScope
+  properties:
+    provider:
+      $ref: "#/AgentSkillProvider"
+    name:
+      type: string
+      minLength: 1
+      maxLength: 200
+      description: Provider-owned Skill name. Host paths are never part of the selection.
+    catalogScope:
+      $ref: "#/AgentSkillCatalogScope"
+  additionalProperties: false
+
+AgentSkillInterfaceMetadata:
+  type: object
+  properties:
+    brandColor:
+      type: string
+      nullable: true
+    defaultPrompt:
+      type: string
+      nullable: true
+    displayName:
+      type: string
+      nullable: true
+    iconLarge:
+      type: string
+      nullable: true
+    iconSmall:
+      type: string
+      nullable: true
+    shortDescription:
+      type: string
+      nullable: true
+  additionalProperties: false
+
+AgentSkillToolDependency:
+  type: object
+  required:
+    - type
+    - value
+  properties:
+    type:
+      type: string
+    value:
+      type: string
+    command:
+      type: string
+      nullable: true
+    description:
+      type: string
+      nullable: true
+    transport:
+      type: string
+      nullable: true
+    url:
+      type: string
+      nullable: true
+  additionalProperties: false
+
+AgentSkillDependencies:
+  type: object
+  required:
+    - tools
+  properties:
+    tools:
+      type: array
+      items:
+        $ref: "#/AgentSkillToolDependency"
+  additionalProperties: false
+
+AgentSkillCatalogEntry:
+  type: object
+  required:
+    - provider
+    - name
+    - catalogScope
+    - description
+    - enabled
+  properties:
+    provider:
+      $ref: "#/AgentSkillProvider"
+    name:
+      type: string
+      minLength: 1
+      maxLength: 200
+    catalogScope:
+      $ref: "#/AgentSkillCatalogScope"
+    description:
+      type: string
+    shortDescription:
+      type: string
+      nullable: true
+    enabled:
+      type: boolean
+    interface:
+      $ref: "#/AgentSkillInterfaceMetadata"
+    dependencies:
+      $ref: "#/AgentSkillDependencies"
+  additionalProperties: false
+
+AgentSkillDiscoveryError:
+  type: object
+  required:
+    - provider
+    - message
+  properties:
+    provider:
+      $ref: "#/AgentSkillProvider"
+    message:
+      type: string
+  additionalProperties: false
+
+AgentSkillCatalog:
+  type: object
+  required:
+    - provider
+    - skills
+    - errors
+  properties:
+    provider:
+      $ref: "#/AgentSkillProvider"
+    skills:
+      type: array
+      items:
+        $ref: "#/AgentSkillCatalogEntry"
+    errors:
+      type: array
+      items:
+        $ref: "#/AgentSkillDiscoveryError"
+  additionalProperties: false
+
+# =============================================
+# Start-run-eligible discriminated payload union
+# =============================================
+
+RunCreatePayload:
+  oneOf:
+    - $ref: "#/RunCreatePayloadStartupSession"
+    - $ref: "#/RunCreatePayloadPlanExecution"
+    - $ref: "#/RunCreatePayloadEntityConversation"
+    - $ref: "#/RunCreatePayloadGoalPm"
+    - $ref: "#/RunCreatePayloadFreeForm"
+    - $ref: "#/RunCreatePayloadDebug"
+    - $ref: "#/RunCreatePayloadResearch"
+    - $ref: "#/RunCreatePayloadRunEval"
+    - $ref: "#/RunCreatePayloadQuick"
+    - $ref: "#/RunCreatePayloadProjectMode"
+    - $ref: "#/RunCreatePayloadDailySession"
+    - $ref: "#/RunCreatePayloadProjectReport"
+    - $ref: "#/RunCreatePayloadReleaseNotes"
+    - $ref: "#/RunCreatePayloadTaskRefiner"
+    - $ref: "#/RunCreatePayloadFeatureRefiner"
+    - $ref: "#/RunCreatePayloadDesignDocRefiner"
+    - $ref: "#/RunCreatePayloadProposalRefiner"
+    - $ref: "#/RunCreatePayloadAgentSearch"
+    - $ref: "#/RunCreatePayloadReportUpdate"
+    - $ref: "#/RunCreatePayloadFeatureTreeConversation"
+    - $ref: "#/RunCreatePayloadOpenItemsTriage"
+    - $ref: "#/RunCreatePayloadVerifyFeature"
+    - $ref: "#/RunCreatePayloadWorkTrackerConnect"
+    - $ref: "#/RunCreatePayloadWorkTrackerImport"
+    - $ref: "#/RunCreatePayloadRepositoryGrounding"
+    - $ref: "#/RunCreatePayloadRepositoryFeatureEnrichment"
+    - $ref: "#/RunCreatePayloadRepositoryFirstWork"
+    - $ref: "#/RunCreatePayloadFeatureSyncAnalyze"
+    - $ref: "#/RunCreatePayloadFeatureSyncIterate"
+    - $ref: "#/RunCreatePayloadPlanShapingFeatureSyncAnalyze"
+    - $ref: "#/RunCreatePayloadPlanShapingFeatureSyncIterate"
+    - $ref: "#/RunCreatePayloadPlanShapingProposedStages"
+    - $ref: "#/RunCreatePayloadPlanShapingRefineStage"
+    - $ref: "#/RunCreatePayloadPlanShapingVisualPreview"
+    - $ref: "#/RunCreatePayloadPlanShapingPhaseBreakdown"
+    - $ref: "#/RunCreatePayloadPlanShapingStepReview"
+    - $ref: "#/RunCreatePayloadPlanShapingFinalize"
+    - $ref: "#/RunCreatePayloadValidationWalkthrough"
+    - $ref: "#/RunCreatePayloadSetSplitting"
+    - $ref: "#/RunCreatePayloadSessionMonitor"
+    - $ref: "#/RunCreatePayloadTaskMonitor"
+    - $ref: "#/RunCreatePayloadHtmlCssMockupRevision"
+    - $ref: "#/RunCreatePayloadWorkflowKickoff"
+  discriminator:
+    propertyName: promptType
+    mapping:
+      startup_session: "#/RunCreatePayloadStartupSession"
+      plan_execution: "#/RunCreatePayloadPlanExecution"
+      entity_conversation: "#/RunCreatePayloadEntityConversation"
+      goal_pm: "#/RunCreatePayloadGoalPm"
+      free_form: "#/RunCreatePayloadFreeForm"
+      debug: "#/RunCreatePayloadDebug"
+      research: "#/RunCreatePayloadResearch"
+      run_eval: "#/RunCreatePayloadRunEval"
+      quick: "#/RunCreatePayloadQuick"
+      project_mode: "#/RunCreatePayloadProjectMode"
+      daily_session: "#/RunCreatePayloadDailySession"
+      project_report: "#/RunCreatePayloadProjectReport"
+      release_notes: "#/RunCreatePayloadReleaseNotes"
+      task_refiner: "#/RunCreatePayloadTaskRefiner"
+      feature_refiner: "#/RunCreatePayloadFeatureRefiner"
+      design_doc_refiner: "#/RunCreatePayloadDesignDocRefiner"
+      proposal_refiner: "#/RunCreatePayloadProposalRefiner"
+      agent_search: "#/RunCreatePayloadAgentSearch"
+      report_update: "#/RunCreatePayloadReportUpdate"
+      feature_tree_conversation: "#/RunCreatePayloadFeatureTreeConversation"
+      open_items_triage: "#/RunCreatePayloadOpenItemsTriage"
+      verify_feature: "#/RunCreatePayloadVerifyFeature"
+      work_tracker_connect: "#/RunCreatePayloadWorkTrackerConnect"
+      work_tracker_import: "#/RunCreatePayloadWorkTrackerImport"
+      repository_grounding: "#/RunCreatePayloadRepositoryGrounding"
+      repository_feature_enrichment: "#/RunCreatePayloadRepositoryFeatureEnrichment"
+      repository_first_work: "#/RunCreatePayloadRepositoryFirstWork"
+      feature_sync_analyze: "#/RunCreatePayloadFeatureSyncAnalyze"
+      feature_sync_iterate: "#/RunCreatePayloadFeatureSyncIterate"
+      plan_shaping_feature_sync_analyze: "#/RunCreatePayloadPlanShapingFeatureSyncAnalyze"
+      plan_shaping_feature_sync_iterate: "#/RunCreatePayloadPlanShapingFeatureSyncIterate"
+      plan_shaping_proposed_stages: "#/RunCreatePayloadPlanShapingProposedStages"
+      plan_shaping_refine_stage: "#/RunCreatePayloadPlanShapingRefineStage"
+      plan_shaping_visual_preview: "#/RunCreatePayloadPlanShapingVisualPreview"
+      plan_shaping_phase_breakdown: "#/RunCreatePayloadPlanShapingPhaseBreakdown"
+      plan_shaping_step_review: "#/RunCreatePayloadPlanShapingStepReview"
+      plan_shaping_finalize: "#/RunCreatePayloadPlanShapingFinalize"
+      validation_walkthrough: "#/RunCreatePayloadValidationWalkthrough"
+      set_splitting: "#/RunCreatePayloadSetSplitting"
+      session_monitor: "#/RunCreatePayloadSessionMonitor"
+      task_monitor: "#/RunCreatePayloadTaskMonitor"
+      html_css_mockup_revision: "#/RunCreatePayloadHtmlCssMockupRevision"
+      workflow_kickoff: "#/RunCreatePayloadWorkflowKickoff"
+  description: >
+    Discriminated union of every start-run-eligible payload. Carries
+    the handler's typed payload alongside the `promptType` literal
+    the CLI dispatcher branches on. Variants for the 4 subagent-owned
+    handlers (`commit`, `code_review`, `final_assessment`, `implement`)
+    and the follow-up-only handler (`coding_freeform`) is
+    intentionally absent — they are never entered via start-run, only
+    via in-process subagent dispatch or as user-message follow-ups
+    against an already-running session.
+
+RunCreatePayloadStartupSession:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - startup_session
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "./trigger-payloads.yaml#/LocalStartupSessionPromptPayload"
+
+RunCreatePayloadPlanExecution:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - plan_execution
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "../agent-bridge/openapi.yaml#/components/schemas/LocalPlanExecutionPromptPayload"
+
+RunCreatePayloadEntityConversation:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - userMessage
+      properties:
+        promptType:
+          type: string
+          enum:
+            - entity_conversation
+    - $ref: "../agent-bridge/openapi.yaml#/components/schemas/LocalEntityConversationPromptPayload"
+
+RunCreatePayloadGoalPm:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - userMessage
+      properties:
+        promptType:
+          type: string
+          enum:
+            - goal_pm
+    - $ref: "../agent-bridge/openapi.yaml#/components/schemas/LocalGoalPmPromptPayload"
+
+RunCreatePayloadFreeForm:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - userMessage
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - free_form
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "../agent-bridge/openapi.yaml#/components/schemas/LocalFreeFormPromptPayload"
+
+RunCreatePayloadDebug:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - userMessage
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - debug
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "../agent-bridge/openapi.yaml#/components/schemas/LocalDebugPromptPayload"
+
+RunCreatePayloadResearch:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - userMessage
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - research
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "../agent-bridge/openapi.yaml#/components/schemas/LocalResearchPromptPayload"
+
+RunCreatePayloadRunEval:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - userMessage
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - run_eval
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "../agent-bridge/openapi.yaml#/components/schemas/LocalRunEvalPromptPayload"
+
+RunCreatePayloadQuick:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - userMessage
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - quick
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "../agent-bridge/openapi.yaml#/components/schemas/LocalQuickPromptPayload"
+
+RunCreatePayloadProjectMode:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - userMessage
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - project_mode
+          description: |
+            Stable routing discriminator for every project-defined MODE. The
+            selected MODE work-item identity remains in AgentSession config.
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "../agent-bridge/openapi.yaml#/components/schemas/LocalQuickPromptPayload"
+  description: |
+    Start-run payload for an explicitly selected project MODE. It preserves the
+    ordinary coding launch payload while routing through one trusted handler;
+    selection and captured files travel in the accompanying AgentSession config.
+
+RunCreatePayloadDailySession:
+  allOf:
+    - type: object
+      required:
+        - promptType
+      properties:
+        promptType:
+          type: string
+          enum:
+            - daily_session
+    - $ref: "../agent-bridge/openapi.yaml#/components/schemas/LocalDailySessionPromptPayload"
+
+RunCreatePayloadTaskRefiner:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - task_refiner
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "../agent-bridge/openapi.yaml#/components/schemas/LocalTaskRefinerPromptPayload"
+
+RunCreatePayloadFeatureRefiner:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - feature_refiner
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "../agent-bridge/openapi.yaml#/components/schemas/LocalFeatureRefinerPromptPayload"
+
+RunCreatePayloadDesignDocRefiner:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - design_doc_refiner
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "../agent-bridge/openapi.yaml#/components/schemas/LocalDesignDocRefinerPromptPayload"
+
+RunCreatePayloadProposalRefiner:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - proposal_refiner
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "../agent-bridge/openapi.yaml#/components/schemas/LocalProposalRefinerPromptPayload"
+
+RunCreatePayloadAgentSearch:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - userMessage
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - agent_search
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "../agent-bridge/openapi.yaml#/components/schemas/LocalAgentSearchPromptPayload"
+
+RunCreatePayloadReportUpdate:
+  allOf:
+    - type: object
+      required:
+        - promptType
+      properties:
+        promptType:
+          type: string
+          enum:
+            - report_update
+    - $ref: "../agent-bridge/openapi.yaml#/components/schemas/LocalReportUpdatePromptPayload"
+
+RunCreatePayloadFeatureTreeConversation:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - userMessage
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - feature_tree_conversation
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "./trigger-payloads.yaml#/FeatureTreeConversationPromptPayload"
+
+RunCreatePayloadOpenItemsTriage:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - userMessage
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - open_items_triage
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "./trigger-payloads.yaml#/OpenItemsTriagePromptPayload"
+
+RunCreatePayloadVerifyFeature:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - userMessage
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - verify_feature
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "./trigger-payloads.yaml#/VerifyFeaturePromptPayload"
+
+RunCreatePayloadRepositoryGrounding:
+  allOf:
+    - type: object
+      required:
+        - promptType
+      properties:
+        promptType:
+          type: string
+          enum:
+            - repository_grounding
+    - $ref: "./trigger-payloads.yaml#/RepositoryGroundingPromptPayload"
+
+RunCreatePayloadRepositoryFeatureEnrichment:
+  allOf:
+    - type: object
+      required:
+        - promptType
+      properties:
+        promptType:
+          type: string
+          enum:
+            - repository_feature_enrichment
+    - $ref: "./trigger-payloads.yaml#/RepositoryFeatureEnrichmentPromptPayload"
+
+RunCreatePayloadRepositoryFirstWork:
+  allOf:
+    - type: object
+      required:
+        - promptType
+      properties:
+        promptType:
+          type: string
+          enum:
+            - repository_first_work
+    - $ref: "./trigger-payloads.yaml#/RepositoryFirstWorkPromptPayload"
+
+RunCreatePayloadSessionMonitor:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - session_monitor
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "./trigger-payloads.yaml#/SessionMonitorPromptPayload"
+
+RunCreatePayloadTaskMonitor:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - task_monitor
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "./trigger-payloads.yaml#/TaskMonitorPromptPayload"
+
+RunCreatePayloadHtmlCssMockupRevision:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - html_css_mockup_revision
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "../agent-bridge/openapi.yaml#/components/schemas/LocalHtmlCssMockupRevisionPromptPayload"
+
+RunCreatePayloadFeatureSyncAnalyze:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - userMessage
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - feature_sync_analyze
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "./trigger-payloads.yaml#/FeatureSyncAnalyzePromptPayload"
+
+RunCreatePayloadFeatureSyncIterate:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - userMessage
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - feature_sync_iterate
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "./trigger-payloads.yaml#/FeatureSyncIteratePromptPayload"
+
+RunCreatePayloadPlanShapingFeatureSyncAnalyze:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - plan_shaping_feature_sync_analyze
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "./trigger-payloads.yaml#/PlanShapingFeatureSyncAnalyzePromptPayload"
+
+RunCreatePayloadPlanShapingFeatureSyncIterate:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - plan_shaping_feature_sync_iterate
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "./trigger-payloads.yaml#/PlanShapingFeatureSyncIteratePromptPayload"
+
+RunCreatePayloadPlanShapingProposedStages:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - plan_shaping_proposed_stages
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "./trigger-payloads.yaml#/PlanShapingProposedStagesPromptPayload"
+
+RunCreatePayloadPlanShapingRefineStage:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - plan_shaping_refine_stage
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "./trigger-payloads.yaml#/PlanShapingRefineStagePromptPayload"
+
+RunCreatePayloadPlanShapingVisualPreview:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - plan_shaping_visual_preview
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "./trigger-payloads.yaml#/PlanShapingVisualPreviewPromptPayload"
+
+RunCreatePayloadPlanShapingPhaseBreakdown:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - plan_shaping_phase_breakdown
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "./trigger-payloads.yaml#/PlanShapingPhaseBreakdownPromptPayload"
+
+RunCreatePayloadPlanShapingStepReview:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - plan_shaping_step_review
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "./trigger-payloads.yaml#/PlanShapingStepReviewPromptPayload"
+
+RunCreatePayloadPlanShapingFinalize:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - plan_shaping_finalize
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "../agent-bridge/openapi.yaml#/components/schemas/PlanShapingFinalizePromptPayload"
+
+RunCreatePayloadValidationWalkthrough:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - validation_walkthrough
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "../agent-bridge/openapi.yaml#/components/schemas/LocalValidationWalkthroughPromptPayload"
+
+RunCreatePayloadSetSplitting:
+  allOf:
+    - type: object
+      required:
+        - promptType
+        - userMessage
+        - entity
+      properties:
+        promptType:
+          type: string
+          enum:
+            - set_splitting
+        entity:
+          $ref: "./run-entity.yaml#/RunEntityReference"
+    - $ref: "../agent-bridge/openapi.yaml#/components/schemas/LocalSetSplittingPromptPayload"
+
+RunCreatePayloadWorkflowKickoff:
+  type: object
+  required:
+    - promptType
+    - userMessage
+  additionalProperties: false
+  properties:
+    promptType:
+      type: string
+      enum:
+        - workflow_kickoff
+    entity:
+      $ref: "./run-entity.yaml#/RunEntityReference"
+      description: >
+        Canonical focal entity for an entity-scoped workflow launch. Omit only
+        when the workflow is genuinely unscoped. The entity type and id are
+        the identity source; callers must not introduce workflow-specific
+        identity fields.
+    userMessage:
+      type: string
+      minLength: 1
+      description: >
+        The user's launch kickoff text. The API authors a real USER message
+        row from this value before the start-run trigger, ordered ahead of
+        the workflow's first turn, so the user's opening text renders before
+        the response.
+  description: >
+    Payload variant for the workflow-orchestrated materialization arm of
+    `start-run`. Carries the kickoff text the API needs to author the USER row
+    that opens a workflow session (e.g. plan mode) and, when scoped, the same
+    canonical `entity` reference used by other start-run payload variants.
+    Always paired with `workflowName`; the CLI materializes the Run from this
+    payload but does not fire it as a turn. Omitting `entity` is the explicit
+    genuinely-unscoped form. The wire form mirrors kickoff-bearing turn-firing
+    variants by carrying `userMessage`, keeping kickoff text single-sourced in
+    the request payload across both arms.
+
+RunCreatePayloadWorkTrackerConnect:
+  allOf:
+    - type: object
+      required: [promptType]
+      properties:
+        promptType:
+          type: string
+          enum: [work_tracker_connect]
+    - $ref: "./work-tracker-import.yaml#/WorkTrackerImportRequest"
+
+RunCreatePayloadWorkTrackerImport:
+  allOf:
+    - type: object
+      required: [promptType]
+      properties:
+        promptType:
+          type: string
+          enum: [work_tracker_import]
+    - $ref: "./work-tracker-import.yaml#/WorkTrackerImportRequest"
+
+RunCreatePayloadProjectReport:
+  type: object
+  additionalProperties: false
+  required:
+    - promptType
+    - request
+  properties:
+    promptType:
+      type: string
+      enum:
+        - project_report
+    request:
+      $ref: ./project-reports.yaml#/ProjectReportLaunchPayload
+
+RunCreatePayloadReleaseNotes:
+  type: object
+  additionalProperties: false
+  required:
+    - promptType
+    - request
+  properties:
+    promptType:
+      type: string
+      enum:
+        - release_notes
+    request:
+      $ref: ./project-reports.yaml#/ProjectReportLaunchPayload
+  description: >-
+    Launches a RELEASE_NOTES project report request. Unlike project_report, the run is bound to every active
+    project Service repository and has read-only git and file access to them.

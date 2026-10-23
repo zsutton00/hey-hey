@@ -1,0 +1,64 @@
+CreateCodingPromptResearchExecutionDto:
+  type: object
+  properties:
+    taskId:
+      type: string
+      format: uuid
+      description: Task ID target for coding prompt research
+    designDocId:
+      type: string
+      format: uuid
+      description: Design doc ID target for coding prompt research
+    planId:
+      type: string
+      format: uuid
+      description: Optional plan ID for scoping/validation
+
+CodingPromptResearchExecutionTargetDto:
+  type: object
+  required:
+    - projectId
+    - workflowAboutType
+    - workflowAboutId
+  properties:
+    taskId:
+      type: string
+      format: uuid
+    designDocId:
+      type: string
+      format: uuid
+    planId:
+      type: string
+      format: uuid
+    projectId:
+      type: string
+      format: uuid
+    workflowAboutType:
+      type: string
+      enum:
+        - task
+        - design-doc
+    workflowAboutId:
+      type: string
+      format: uuid
+
+CodingPromptResearchExecutionStartedDto:
+  type: object
+  required:
+    - executionId
+    - status
+    - createdAt
+    - target
+  properties:
+    executionId:
+      type: string
+      format: uuid
+    status:
+      type: string
+      enum:
+        - STARTED
+    createdAt:
+      type: string
+      format: date-time
+    target:
+      $ref: "#/CodingPromptResearchExecutionTargetDto"

@@ -1,0 +1,553 @@
+# =============================================
+# Private Beta Access Schemas
+# =============================================
+
+PrivateBetaAccessRequestId:
+  type: string
+  format: branded-PrivateBetaAccessRequestId
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+  description: >-
+    Stable opaque identifier for a private-beta access request. This identity
+    is used to correlate persistence, review, notifications, and provisioning;
+    it is not returned by the public submission operation.
+  example: "550e8400-e29b-41d4-a716-446655440026"
+  x-typescript-type: "PrivateBetaAccessRequestId"
+  x-brand: "PrivateBetaAccessRequestId"
+  x-semantic-type: "resource-identifier"
+
+PrivateBetaAccessRequestStatus:
+  type: string
+  enum:
+    - PENDING
+    - APPROVAL_IN_PROGRESS
+    - APPROVED
+    - REJECTED
+    - PROVISIONING_FAILED
+    - EXISTING_ACCOUNT
+  description: >-
+    Durable lifecycle state for a private-beta access request. PENDING is
+    awaiting review; APPROVAL_IN_PROGRESS is claimed for provisioning;
+    APPROVED and REJECTED are terminal decisions; PROVISIONING_FAILED records
+    an approval whose provisioning attempt failed and may be retried;
+    EXISTING_ACCOUNT records a signup whose email already belongs to an
+    account, so the requester was directed to sign in instead.
+
+PrivateBetaAccessProgramStatus:
+  type: string
+  enum:
+    - OPEN
+    - CLOSED
+  description: Durable lifecycle state of the private-beta program.
+
+PrivateBetaSelfServiceAdmissionMode:
+  type: string
+  enum:
+    - OPEN
+    - PAUSED
+  description: >-
+    Durable mode evaluated when a signup is submitted. OPEN authorizes the
+    durable request immediately. PAUSED retains it for authenticated operator
+    approval without closing the private-beta program or affecting existing
+    accounts and organizations.
+
+PublicPrivateBetaAdmissionModeDto:
+  type: object
+  additionalProperties: false
+  required: [mode]
+  properties:
+    mode:
+      $ref: "#/PrivateBetaSelfServiceAdmissionMode"
+
+PrivateBetaSelfServiceAdmissionModeDto:
+  type: object
+  additionalProperties: false
+  required:
+    - mode
+    - updatedAt
+    - updatedByUserId
+  properties:
+    mode:
+      $ref: "#/PrivateBetaSelfServiceAdmissionMode"
+    updatedAt:
+      type: string
+      format: date-time
+      description: Timestamp of the most recent durable mode transition or initialization.
+    updatedByUserId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Authenticated operator responsible for the latest transition; null only for the initial OPEN state.
+
+UpdatePrivateBetaSelfServiceAdmissionModeDto:
+  type: object
+  additionalProperties: false
+  required:
+    - mode
+  properties:
+    mode:
+      $ref: "#/PrivateBetaSelfServiceAdmissionMode"
+
+PrivateBetaSelfServiceAdmissionModeUpdateResultDto:
+  type: object
+  additionalProperties: false
+  required:
+    - mode
+    - updatedAt
+    - updatedByUserId
+    - alreadyCurrent
+  properties:
+    mode:
+      $ref: "#/PrivateBetaSelfServiceAdmissionMode"
+    updatedAt:
+      type: string
+      format: date-time
+      description: Timestamp of the latest durable transition.
+    updatedByUserId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Authenticated operator responsible for the latest transition.
+    alreadyCurrent:
+      type: boolean
+      description: True when this request replayed the already-current mode without another transition.
+
+PrivateBetaAccessProgramCloseResultDto:
+  type: object
+  additionalProperties: false
+  required:
+    - status
+    - closedAt
+    - closedByUserId
+    - alreadyClosed
+    - revokedCredentialCount
+  description: >-
+    Durable result of closing private-beta access. Repeated close operations
+    return the original closure identity and report that closure was already
+    complete.
+  properties:
+    status:
+      $ref: "#/PrivateBetaAccessProgramStatus"
+      description: Resulting durable program state.
+    closedAt:
+      type: string
+      format: date-time
+      description: Timestamp when private-beta access was first closed.
+    closedByUserId:
+      type: string
+      format: uuid
+      description: Authenticated administrator who first closed private-beta access.
+    alreadyClosed:
+      type: boolean
+      description: Whether the program had already been closed before this operation.
+    revokedCredentialCount:
+      type: integer
+      minimum: 0
+      description: Number of outstanding private-beta credentials revoked by this operation.
+
+PrivateBetaAccessProvisioningFailureCode:
+  type: string
+  enum:
+    - USER_CONFLICT
+    - USER_PROVISIONING
+    - ORGANIZATION_PROVISIONING
+    - CREDENTIAL_PROVISIONING
+    - API_KEY_PROVISIONING
+    - WELCOME_EMAIL
+    - UNKNOWN
+  description: >-
+    Bounded internal category for a failed provisioning attempt. This value
+    never contains provider, database, credential, address, or submitted-field
+    diagnostics.
+
+PrivateBetaAccessProvisioningOutcomeDto:
+  type: object
+  additionalProperties: false
+  required:
+    - status
+    - attemptedAt
+    - completedAt
+    - organizationId
+    - userId
+    - failureCode
+    - failureMessage
+    - retryable
+  description: >-
+    Persisted metadata for the provisioning attempt associated with an approved
+    request. A failed, retryable attempt remains visible to internal reviewers;
+    this object is null until provisioning has produced an outcome.
+  properties:
+    status:
+      type: string
+      enum:
+        - SUCCEEDED
+        - FAILED
+      description: Outcome of the most recent provisioning attempt.
+    attemptedAt:
+      type: string
+      format: date-time
+      description: Timestamp when the most recent provisioning attempt began.
+    completedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Timestamp when the most recent provisioning attempt completed.
+    organizationId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Organization created by successful provisioning, when available.
+    userId:
+      type: string
+      format: uuid
+      nullable: true
+      description: User created by successful provisioning, when available.
+    failureCode:
+      allOf:
+        - $ref: "#/PrivateBetaAccessProvisioningFailureCode"
+      nullable: true
+      description: Bounded failure category when the most recent attempt failed.
+    failureMessage:
+      type: string
+      maxLength: 2000
+      nullable: true
+      description: >-
+        Stable review-safe message when the most recent attempt failed. It never
+        contains provider, database, credential, address, or submitted-field
+        diagnostics.
+    retryable:
+      type: boolean
+      description: Whether another provisioning attempt may be made.
+
+PrivateBetaAccessRequestSubmissionDto:
+  type: object
+  additionalProperties: false
+  required:
+    - name
+    - workEmail
+    - organizationName
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 120
+      description: Full name of the person requesting private-beta access.
+      example: "Ada Lovelace"
+    workEmail:
+      type: string
+      format: email
+      minLength: 3
+      maxLength: 254
+      description: Email address used for signup and activation after authorization.
+      example: "ada@example.com"
+    organizationName:
+      type: string
+      minLength: 1
+      maxLength: 200
+      description: Name of the organization the requester represents.
+      example: "Analytical Engines"
+    teamSize:
+      type: integer
+      minimum: 1
+      maximum: 10000
+      description: Number of people on the team that would use Hey Hey.
+      example: 5
+    productContext:
+      type: string
+      minLength: 1
+      maxLength: 2000
+      description: Product or project context the team wants to manage with Hey Hey.
+      example: "We are building a developer tool with a small distributed team."
+    accessRationale:
+      type: string
+      minLength: 1
+      maxLength: 2000
+      description: Why the requester wants private-beta access.
+      example: "We want to evaluate agent-assisted planning on a real product."
+
+PrivateBetaAccessRequestAcceptedResponseDto:
+  type: object
+  additionalProperties: false
+  required:
+    - accepted
+  properties:
+    accepted:
+      type: boolean
+      enum: [true]
+      description: >-
+        True means the valid request was durably received. It does not mean
+        access was approved or disclose whether another sensitive record exists.
+
+PrivateBetaAccessRequestReviewDto:
+  type: object
+  additionalProperties: false
+  required:
+    - requestId
+    - name
+    - workEmail
+    - organizationName
+    - teamSize
+    - productContext
+    - accessRationale
+    - status
+    - createdAt
+    - decidedAt
+    - provisioningOutcome
+  description: >-
+    Authenticated internal view of one durably stored private-beta access
+    request. The work email is the normalized value persisted by intake.
+  properties:
+    requestId:
+      $ref: "#/PrivateBetaAccessRequestId"
+      description: Stable identity of the durably stored request.
+    name:
+      type: string
+      minLength: 1
+      maxLength: 120
+      description: Stored full name of the requester.
+    workEmail:
+      type: string
+      format: email
+      minLength: 3
+      maxLength: 254
+      description: Normalized work email persisted from the submission.
+    organizationName:
+      type: string
+      minLength: 1
+      maxLength: 200
+      description: Stored name of the organization the requester represents.
+    teamSize:
+      type: integer
+      nullable: true
+      minimum: 1
+      maximum: 10000
+      description: Stored number of people on the team that would use Hey Hey.
+    productContext:
+      type: string
+      nullable: true
+      minLength: 1
+      maxLength: 2000
+      description: Stored product or project context from the submission.
+    accessRationale:
+      type: string
+      nullable: true
+      minLength: 1
+      maxLength: 2000
+      description: Stored rationale for requesting private-beta access.
+    status:
+      $ref: "#/PrivateBetaAccessRequestStatus"
+      description: Current durable review and provisioning state of the request.
+    createdAt:
+      type: string
+      format: date-time
+      description: Timestamp when the request was durably created.
+    decidedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Timestamp when the approve-or-reject decision was recorded.
+    provisioningOutcome:
+      allOf:
+        - $ref: "#/PrivateBetaAccessProvisioningOutcomeDto"
+      nullable: true
+      description: Most recent persisted provisioning outcome, when one exists.
+
+PrivateBetaAccessRequestDecisionInputDto:
+  type: object
+  additionalProperties: false
+  required:
+    - decision
+  description: Single internal decision to apply to the request identified by the path.
+  properties:
+    decision:
+      type: string
+      enum:
+        - APPROVE
+        - REJECT
+      description: The terminal review decision to record for the request.
+
+PrivateBetaAccessRequestDecisionResultDto:
+  type: object
+  additionalProperties: false
+  required:
+    - requestId
+    - decision
+    - status
+    - decidedAt
+    - provisioningOutcome
+  description: >-
+    Persisted result of an approve-or-reject decision. Repeated decisions return
+    this same shape, including the persisted provisioning outcome when present.
+  properties:
+    requestId:
+      $ref: "#/PrivateBetaAccessRequestId"
+      description: Stable identity of the durably stored request.
+    decision:
+      type: string
+      enum:
+        - APPROVE
+        - REJECT
+      description: Decision recorded for the request.
+    status:
+      $ref: "#/PrivateBetaAccessRequestStatus"
+      description: Resulting durable review and provisioning state.
+    decidedAt:
+      type: string
+      format: date-time
+      description: Timestamp when the decision was recorded.
+    provisioningOutcome:
+      allOf:
+        - $ref: "#/PrivateBetaAccessProvisioningOutcomeDto"
+      nullable: true
+      description: Persisted provisioning outcome, when approval produced one.
+
+PrivateBetaDisclosureDocumentKind:
+  type: string
+  enum:
+    - TERMS
+    - PRIVACY
+    - SECURITY
+  description: The published private-beta disclosure a user must review.
+
+PrivateBetaDisclosureActionType:
+  type: string
+  enum:
+    - AGREED
+    - ACKNOWLEDGED
+  description: >-
+    The affirmative action recorded for a disclosure. Terms require AGREED;
+    Privacy and Agent Bridge Security require ACKNOWLEDGED.
+
+PrivateBetaDisclosureRequirementDto:
+  type: object
+  additionalProperties: false
+  required:
+    - documentKind
+    - version
+    - effectiveDate
+    - actionType
+  description: >-
+    The current published version and required affirmative action for one
+    private-beta disclosure.
+  properties:
+    documentKind:
+      $ref: "#/PrivateBetaDisclosureDocumentKind"
+    version:
+      type: string
+      minLength: 1
+      maxLength: 128
+      description: Exact published document version that must be accepted.
+    effectiveDate:
+      type: string
+      format: date
+      description: Effective date of the published document version.
+    actionType:
+      $ref: "#/PrivateBetaDisclosureActionType"
+
+PrivateBetaDisclosureAcceptanceDto:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - documentKind
+    - version
+    - effectiveDate
+    - userId
+    - organizationId
+    - actionType
+    - acceptedAt
+  description: >-
+    Immutable audit record for one accepted or acknowledged disclosure
+    version. The accepting identity and timestamp are always server-derived.
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Stable identity of the immutable acceptance record.
+    documentKind:
+      $ref: "#/PrivateBetaDisclosureDocumentKind"
+    version:
+      type: string
+      minLength: 1
+      maxLength: 128
+      description: Published document version that was presented.
+    effectiveDate:
+      type: string
+      format: date
+      description: Effective date of the document version that was presented.
+    userId:
+      type: string
+      format: uuid
+      description: Authenticated user who performed the action.
+    organizationId:
+      type: string
+      format: uuid
+      description: Authenticated user's active account organization.
+    actionType:
+      $ref: "#/PrivateBetaDisclosureActionType"
+    acceptedAt:
+      type: string
+      format: date-time
+      description: Server timestamp when the action was durably recorded.
+
+PrivateBetaDisclosureStatusDto:
+  type: object
+  additionalProperties: false
+  required:
+    - requiredDocuments
+    - recordedAcceptances
+    - isComplete
+  description: >-
+    Authenticated private-beta disclosure status for the active user and
+    account. Product use is permitted only when isComplete is true.
+  properties:
+    requiredDocuments:
+      type: array
+      minItems: 3
+      maxItems: 3
+      items:
+        $ref: "#/PrivateBetaDisclosureRequirementDto"
+    recordedAcceptances:
+      type: array
+      items:
+        $ref: "#/PrivateBetaDisclosureAcceptanceDto"
+    isComplete:
+      type: boolean
+      description: Whether every current required document action is recorded.
+
+PrivateBetaDisclosureAcceptanceInputDto:
+  type: object
+  additionalProperties: false
+  required:
+    - documentKind
+    - version
+    - effectiveDate
+    - actionType
+  description: >-
+    The presented disclosure version and affirmative action. User, account,
+    and timestamp fields are intentionally not client-supplied.
+  properties:
+    documentKind:
+      $ref: "#/PrivateBetaDisclosureDocumentKind"
+    version:
+      type: string
+      minLength: 1
+      maxLength: 128
+    effectiveDate:
+      type: string
+      format: date
+    actionType:
+      $ref: "#/PrivateBetaDisclosureActionType"
+
+PrivateBetaDisclosureAcceptanceResponseDto:
+  type: object
+  additionalProperties: false
+  required:
+    - accepted
+    - acceptance
+  properties:
+    accepted:
+      type: boolean
+      enum: [true]
+      description: The action was durably recorded or was an idempotent replay.
+    acceptance:
+      $ref: "#/PrivateBetaDisclosureAcceptanceDto"

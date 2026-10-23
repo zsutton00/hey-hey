@@ -1,0 +1,320 @@
+# =============================================
+# MCP Tool Catalog Schemas
+# =============================================
+
+McpToolEntry:
+  type: object
+  description: A single registered MCP tool with its metadata and JSON Schema definitions.
+  required:
+    - name
+    - description
+    - isActive
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      description: Canonical tool identifier.
+      example: unified_search
+    description:
+      type: string
+      description: Human-readable description of what the tool does.
+      example: Search across all content types within a project.
+    inputSchema:
+      type: object
+      description: JSON Schema describing the tool's accepted input parameters.
+      additionalProperties: true
+    outputSchema:
+      type: object
+      description: JSON Schema describing the tool's return value structure.
+      additionalProperties: true
+    isActive:
+      type: boolean
+      description: Whether the tool is currently active and available for invocation.
+      example: true
+
+McpToolCatalogResponse:
+  type: object
+  description: Complete catalog of all registered MCP tools discovered at application bootstrap.
+  required:
+    - tools
+    - count
+  additionalProperties: false
+  properties:
+    tools:
+      type: array
+      items:
+        $ref: "#/McpToolEntry"
+      description: List of all registered MCP tools with their metadata.
+    count:
+      type: integer
+      description: Total number of registered tools.
+      example: 3
+  example:
+    tools:
+      - name: unified_search
+        description: Search across all content types within a project.
+        inputSchema:
+          type: object
+          properties:
+            query:
+              type: string
+            projectId:
+              type: string
+        outputSchema:
+          type: object
+          properties:
+            results:
+              type: array
+        isActive: true
+    count: 1
+
+# =============================================
+# MCP Health Schemas
+# =============================================
+
+McpServerState:
+  type: string
+  description: Current lifecycle state of the MCP server.
+  enum:
+    - starting
+    - ready
+    - shutting_down
+  example: ready
+
+McpHealthResponse:
+  type: object
+  description: MCP server health check response.
+  required:
+    - status
+    - name
+    - version
+    - timestamp
+  additionalProperties: false
+  properties:
+    status:
+      $ref: "#/McpServerState"
+    name:
+      type: string
+      description: Configured server name.
+      example: hey-hey-mcp
+    version:
+      type: string
+      description: Configured server version.
+      example: "1.0.0"
+    timestamp:
+      type: string
+      format: date-time
+      description: ISO 8601 timestamp of the health check.
+      example: "2026-03-15T12:00:00Z"
+
+# =============================================
+# Singular Agent Session Read Tool Schemas
+# =============================================
+
+GetAgentSessionMessageCursor:
+  type: string
+  minLength: 1
+  description: >-
+    Opaque continuation cursor bound to one Agent Session and its resolved
+    Conversation. The cursor identifies the exclusive (createdAt, id) anchor
+    for the next newest-first page and cannot be reused across sessions or
+    Conversations.
+
+GetAgentSessionRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - agentSessionId
+  properties:
+    agentSessionId:
+      $ref: "./common.yaml#/AgentSessionId"
+    cursor:
+      $ref: "#/GetAgentSessionMessageCursor"
+    limit:
+      type: integer
+      minimum: 1
+      maximum: 100
+      default: 20
+      description: Maximum number of newest-first Conversation messages to return.
+
+GetAgentSessionResponse:
+  type: object
+  additionalProperties: false
+  required:
+    - agentSession
+    - messages
+  properties:
+    agentSession:
+      $ref: "./coding-sessions.yaml#/AgentSessionDto"
+      description: >-
+        Canonical authorized Agent Session representation, including its
+        derived currentState projection.
+    messages:
+      type: array
+      items:
+        $ref: "./conversations.yaml#/MessageResponseDto"
+      description: >-
+        One bounded page ordered by (createdAt, id) descending. Every message
+        belongs to the Agent Session's resolved Conversation.
+    nextCursor:
+      $ref: "#/GetAgentSessionMessageCursor"
+      description: >-
+        Present only when messages strictly older than this page remain.
+
+GetAgentSessionErrorCode:
+  type: string
+  enum:
+    - authentication_required
+    - project_scope_required
+    - agent_session_not_found
+    - invalid_cursor
+    - internal_error
+
+GetAgentSessionError:
+  type: object
+  additionalProperties: false
+  required:
+    - code
+    - message
+  properties:
+    code:
+      $ref: "#/GetAgentSessionErrorCode"
+    message:
+      type: string
+  description: >-
+    Structured MCP error details. agent_session_not_found intentionally covers
+    both absent sessions and sessions outside the caller's authorized project
+    scope so the boundary does not disclose cross-project existence.
+
+# =============================================
+# MCP Propose-Phase Response Schemas
+# =============================================
+
+McpProposeOutputSchemaId:
+  type: string
+  description: Stable identifier for the propose-phase output schema artifact.
+  enum:
+    - /schemas/mcp/propose-output/v1.0.0
+  example: /schemas/mcp/propose-output/v1.0.0
+
+McpOperationCatalogEntry:
+  type: object
+  description: |
+    Lightweight operation catalog contract used to make schema bindings explicit.
+    The outputSchema identifier below references the propose-phase envelope definitions.
+  required:
+    - operationId
+    - version
+    - status
+    - phaseSupport
+    - summary
+    - intents
+    - requiredScope
+    - inputSchema
+    - outputSchema
+  properties:
+    operationId:
+      type: string
+      description: Canonical operation identifier.
+      example: initiative_task_impact_scan
+    version:
+      type: string
+      enum:
+        - v1
+      example: v1
+    status:
+      type: string
+      enum:
+        - active
+        - deprecated
+      example: active
+    phaseSupport:
+      type: array
+      minItems: 1
+      items:
+        type: string
+        enum:
+          - propose
+      example:
+        - propose
+    summary:
+      type: string
+      description: Human-readable operation summary.
+      example: Propose task impact scan for an initiative.
+    intents:
+      type: array
+      items:
+        type: string
+      description: Canonical intent labels used by routing.
+      example:
+        - initiative_task_impact
+        - task_update_proposal
+    requiredScope:
+      type: array
+      minItems: 1
+      items:
+        type: string
+        enum:
+          - organizationId
+          - projectId
+          - initiativeId
+          - planId
+      example:
+        - organizationId
+        - projectId
+        - initiativeId
+    inputSchema:
+      type: string
+      description: Stable identifier for input schema.
+      example: /schemas/mcp/propose-input/v1.0.0
+    outputSchema:
+      $ref: "#/McpProposeOutputSchemaId"
+
+McpProposeValidationIssue:
+  $ref: "./proposals.yaml#/ProposalValidationIssue"
+
+McpProposeValidationErrorDetails:
+  type: object
+  required:
+    - validationErrors
+  additionalProperties: false
+  properties:
+    validationErrors:
+      type: array
+      minItems: 1
+      items:
+        $ref: "#/McpProposeValidationIssue"
+
+McpProposeValidationErrorEnvelope:
+  type: object
+  description: HTTP 400 response envelope for validation failures.
+  required:
+    - error
+  additionalProperties: false
+  properties:
+    error:
+      type: object
+      required:
+        - code
+        - message
+        - details
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          enum:
+            - validation_error
+        message:
+          type: string
+          example: Request payload failed validation.
+        details:
+          $ref: "#/McpProposeValidationErrorDetails"
+  example:
+    error:
+      code: validation_error
+      message: Request payload failed validation.
+      details:
+        validationErrors:
+          - field: changes[0].target
+            reason: target must reference an existing task field path
+            code: invalid_format

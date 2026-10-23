@@ -1,0 +1,594 @@
+ServiceDto:
+  type: object
+  required:
+    - id
+    - name
+    - organizationId
+    - status
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique identifier for the service
+    name:
+      type: string
+      description: Name of the service
+    description:
+      type: string
+      description: Description of what the service does
+    organizationId:
+      type: string
+      format: uuid
+      description: Organization this service belongs to
+    projectId:
+      type: string
+      format: uuid
+      description: Optional project this service belongs to
+    repositoryUrl:
+      type: string
+      description: URL to the code repository
+    repositoryType:
+      type: string
+      enum: [github, gitlab, bitbucket, other]
+      description: Type of code repository
+    repositoryId:
+      type: string
+      description: External repository ID
+    serviceType:
+      type: string
+      enum: [backend, ui, database, worker, mobile, desktop, library, other]
+      description: Type of service
+    language:
+      type: string
+      description: Primary programming language
+    framework:
+      type: string
+      description: Framework used (e.g., nestjs, react, nextjs)
+    tags:
+      type: array
+      items:
+        type: string
+      description: Tags for categorizing the service
+    status:
+      type: string
+      enum: [ACTIVE, ARCHIVED, DEPRECATED]
+      description: Current status of the service
+    childCounts:
+      $ref: "#/ServiceChildCounts"
+      description: Aggregated counts for entities linked to this service.
+    createdAt:
+      type: string
+      format: date-time
+      description: When the service was created
+    updatedAt:
+      type: string
+      format: date-time
+      description: When the service was last updated
+    archivedAt:
+      type: string
+      format: date-time
+      description: When the service was archived
+
+ServiceChildCounts:
+  type: object
+  description: Aggregated counts for entities linked to this service.
+  properties:
+    tasks:
+      type: integer
+      format: int32
+      description: Number of tasks linked to this service.
+      example: 3
+    initiatives:
+      type: integer
+      format: int32
+      description: Number of initiatives linked to this service.
+      example: 2
+    agentSessions:
+      type: integer
+      format: int32
+      description: Number of agent sessions linked to this service.
+      example: 4
+    implementationHints:
+      type: integer
+      format: int32
+      description: Number of implementation hints linked to this service.
+      example: 5
+
+CreateServiceDto:
+  type: object
+  required:
+    - name
+    - organizationId
+  properties:
+    name:
+      type: string
+      description: Name of the service
+    description:
+      type: string
+      description: Description of what the service does
+    organizationId:
+      type: string
+      format: uuid
+      description: Organization ID
+    projectId:
+      type: string
+      format: uuid
+      description: Optional project ID
+    repositoryUrl:
+      type: string
+      description: URL to the code repository
+    repositoryType:
+      type: string
+      enum: [github, gitlab, bitbucket, other]
+      description: Type of code repository
+    repositoryId:
+      type: string
+      description: External repository ID
+    serviceType:
+      type: string
+      enum: [backend, ui, database, worker, mobile, desktop, library, other]
+      description: Type of service
+    language:
+      type: string
+      description: Primary programming language
+    framework:
+      type: string
+      description: Framework used
+    tags:
+      type: array
+      items:
+        type: string
+      description: Tags for categorizing
+
+UpdateServiceDto:
+  type: object
+  properties:
+    name:
+      type: string
+      description: Name of the service
+    description:
+      type: string
+      description: Description of the service
+    projectId:
+      type: string
+      format: uuid
+      description: Project ID
+    repositoryUrl:
+      type: string
+      description: Repository URL
+    repositoryType:
+      type: string
+      enum: [github, gitlab, bitbucket, other]
+      description: Repository type
+    repositoryId:
+      type: string
+      description: External repository ID
+    serviceType:
+      type: string
+      enum: [backend, ui, database, worker, mobile, desktop, library, other]
+      description: Service type
+    language:
+      type: string
+      description: Programming language
+    framework:
+      type: string
+      description: Framework
+    tags:
+      type: array
+      items:
+        type: string
+      description: Tags
+    status:
+      type: string
+      enum: [ACTIVE, ARCHIVED, DEPRECATED]
+      description: Status
+
+ServiceLinkDto:
+  type: object
+  required:
+    - entityType
+    - entityId
+  properties:
+    entityType:
+      type: string
+      enum: [task, initiative, agent-session]
+      description: Type of entity to link
+    entityId:
+      type: string
+      format: uuid
+      description: ID of the entity to link
+    relationType:
+      type: string
+      description: Type of relationship (e.g., implements, supports, documents)
+
+ServiceTaskRelation:
+  type: object
+  required:
+    - id
+    - serviceId
+    - taskId
+    - createdAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    serviceId:
+      type: string
+      format: uuid
+    taskId:
+      type: string
+      format: uuid
+    relationType:
+      type: string
+      description: Type of relationship
+    createdAt:
+      type: string
+      format: date-time
+
+ServiceInitiativeRelation:
+  type: object
+  required:
+    - id
+    - serviceId
+    - initiativeId
+    - createdAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    serviceId:
+      type: string
+      format: uuid
+    initiativeId:
+      type: string
+      format: uuid
+    relationType:
+      type: string
+      description: Type of relationship
+    createdAt:
+      type: string
+      format: date-time
+
+ServiceAgentSessionRelation:
+  type: object
+  required:
+    - id
+    - serviceId
+    - agentSessionId
+    - createdAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    serviceId:
+      type: string
+      format: uuid
+    agentSessionId:
+      type: string
+      format: uuid
+    relationType:
+      type: string
+      description: Type of relationship
+    createdAt:
+      type: string
+      format: date-time
+
+ImplementationHintDto:
+  type: object
+  required:
+    - id
+    - serviceId
+    - agentSessionId
+    - featureName
+    - description
+    - sourceType
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    serviceId:
+      type: string
+      format: uuid
+    agentSessionId:
+      type: string
+      format: uuid
+      description: Owning agent session ID
+    featureName:
+      type: string
+      description: Feature or area the hint applies to
+    description:
+      type: string
+      description: Implementation guidance or convention
+    sourceType:
+      type: string
+      enum: [USER, SYSTEM]
+      description: Origin of the hint
+    hint:
+      type: string
+      description: Canonical implementation hint content.
+    context:
+      type: object
+      additionalProperties: true
+      description: Structured context used to derive the hint.
+    extractedFrom:
+      $ref: "#/ImplementationHintExtractedFrom"
+    confidence:
+      type: number
+      format: float
+      description: Optional confidence score from extraction.
+    version:
+      type: integer
+      format: int32
+      description: Current hint version number.
+    fileReferences:
+      type: array
+      items:
+        $ref: "#/ImplementationHintFileReferenceDto"
+      description: File references linked to this implementation hint.
+    versions:
+      type: array
+      items:
+        $ref: "#/ImplementationHintVersionDto"
+      description: All recorded versions for this hint (newest first unless filtered).
+    latestVersion:
+      $ref: "#/ImplementationHintVersionDto"
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+CreateImplementationHintDto:
+  type: object
+  required:
+    - serviceId
+    - agentSessionId
+    - featureName
+    - description
+    - sourceType
+  properties:
+    serviceId:
+      type: string
+      format: uuid
+      description: Service ID
+    agentSessionId:
+      type: string
+      format: uuid
+      description: Owning agent session ID
+    featureName:
+      type: string
+      description: Feature or area the hint applies to
+    description:
+      type: string
+      description: Implementation guidance or convention
+    sourceType:
+      type: string
+      enum: [USER, SYSTEM]
+      description: Origin of the hint
+    hint:
+      type: string
+      description: Canonical implementation hint content.
+    context:
+      type: object
+      additionalProperties: true
+      description: Structured context used to derive the hint.
+    extractedFrom:
+      $ref: "#/ImplementationHintExtractedFrom"
+    confidence:
+      type: number
+      format: float
+      description: Optional confidence score from extraction.
+    fileReferences:
+      type: array
+      items:
+        $ref: "#/CreateImplementationHintFileReferenceDto"
+      description: Initial file references linked to this implementation hint.
+
+UpdateImplementationHintDto:
+  type: object
+  required:
+    - serviceId
+  properties:
+    serviceId:
+      type: string
+      format: uuid
+      description: Service ID
+    agentSessionId:
+      type: string
+      format: uuid
+      description: Owning agent session ID
+    featureName:
+      type: string
+      description: Feature or area the hint applies to
+    description:
+      type: string
+      description: Implementation guidance or convention
+    sourceType:
+      type: string
+      enum: [USER, SYSTEM]
+      description: Origin of the hint
+    hint:
+      type: string
+      description: Canonical implementation hint content.
+    context:
+      type: object
+      additionalProperties: true
+      description: Structured context used to derive the hint.
+    extractedFrom:
+      $ref: "#/ImplementationHintExtractedFrom"
+    confidence:
+      type: number
+      format: float
+      description: Optional confidence score from extraction.
+
+ImplementationHintExtractedFrom:
+  type: string
+  enum: [AGENT, USER]
+  description: Origin category for extracted implementation hints.
+
+ImplementationHintVersionDto:
+  type: object
+  required:
+    - id
+    - hintId
+    - version
+    - hint
+    - extractedFrom
+    - createdAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    hintId:
+      type: string
+      format: uuid
+      description: Parent implementation hint ID.
+    version:
+      type: integer
+      format: int32
+      description: Monotonic version number for this hint.
+    hint:
+      type: string
+      description: Versioned implementation hint content.
+    context:
+      type: object
+      additionalProperties: true
+      description: Structured context captured for this version.
+    extractedFrom:
+      $ref: "#/ImplementationHintExtractedFrom"
+    confidence:
+      type: number
+      format: float
+      description: Optional confidence score for this version.
+    createdAt:
+      type: string
+      format: date-time
+
+AppendImplementationHintVersionDto:
+  type: object
+  required:
+    - expectedVersion
+    - hint
+    - extractedFrom
+  properties:
+    expectedVersion:
+      type: integer
+      format: int32
+      description: Current implementation hint version expected by the caller.
+    hint:
+      type: string
+      description: New implementation hint content to append as the next version.
+    context:
+      type: object
+      additionalProperties: true
+      description: Structured context captured for this version append.
+    extractedFrom:
+      $ref: "#/ImplementationHintExtractedFrom"
+    confidence:
+      type: number
+      format: float
+      description: Optional confidence score for this appended version.
+    fileReferences:
+      type: array
+      items:
+        $ref: "#/CreateImplementationHintFileReferenceDto"
+      description: Optional file references to attach to the hint.
+
+ImplementationHintFileReferenceDto:
+  type: object
+  required:
+    - id
+    - hintId
+    - filePath
+    - createdAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    hintId:
+      type: string
+      format: uuid
+      description: Parent implementation hint ID.
+    filePath:
+      type: string
+      description: Repository-relative file path.
+    startLine:
+      type: integer
+      format: int32
+      description: Optional start line for a referenced region.
+    endLine:
+      type: integer
+      format: int32
+      description: Optional end line for a referenced region.
+    createdAt:
+      type: string
+      format: date-time
+
+CreateImplementationHintFileReferenceDto:
+  type: object
+  required:
+    - filePath
+  properties:
+    filePath:
+      type: string
+      description: Repository-relative file path.
+    startLine:
+      type: integer
+      format: int32
+      description: Optional start line for a referenced region.
+    endLine:
+      type: integer
+      format: int32
+      description: Optional end line for a referenced region.
+
+UpdateImplementationHintFileReferenceDto:
+  type: object
+  properties:
+    filePath:
+      type: string
+      description: Repository-relative file path.
+    startLine:
+      type: integer
+      format: int32
+      description: Optional start line for a referenced region.
+    endLine:
+      type: integer
+      format: int32
+      description: Optional end line for a referenced region.
+
+QueryImplementationHintFileReferencesDto:
+  type: object
+  properties:
+    serviceId:
+      type: string
+      format: uuid
+      description: Filter file references by service ID.
+    filePath:
+      type: string
+      description: Filter file references by exact file path.
+    filePathMatch:
+      type: string
+      enum: [exact, prefix]
+      description: Match mode used for filePath filtering.
+    latest:
+      type: boolean
+      description: When true, return references attached to latest hint versions only.
+    page:
+      type: integer
+      format: int32
+      description: 1-based page index.
+    size:
+      type: integer
+      format: int32
+      description: Page size.
+    confidence:
+      type: number
+      format: float
+      description: Filter by linked version confidence.
+    extractedFrom:
+      $ref: "#/ImplementationHintExtractedFrom"

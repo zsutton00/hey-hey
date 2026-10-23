@@ -1,0 +1,475 @@
+# Workflow Context Management Schemas
+# Provides strongly typed schemas for Phase 3 context management features
+# including versioning, sharing, and transformation capabilities.
+
+# Context Version Schemas
+ContextVersionDto:
+  type: object
+  required:
+    - id
+    - workflowId
+    - version
+    - context
+    - metadata
+    - timestamp
+  properties:
+    id:
+      type: string
+      description: Unique version identifier
+    workflowId:
+      type: string
+      description: Workflow ID this version belongs to
+    version:
+      type: number
+      description: Version number
+    context:
+      type: object
+      description: Context data at this version
+      additionalProperties: true
+    metadata:
+      type: object
+      description: Version metadata
+      required:
+        - createdBy
+        - reason
+      properties:
+        createdBy:
+          type: string
+        reason:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        parentVersion:
+          type: string
+    timestamp:
+      type: string
+      format: date-time
+      description: Version creation timestamp
+    contextHash:
+      type: string
+      description: Context hash for integrity verification
+
+CreateContextVersionDto:
+  type: object
+  required:
+    - context
+    - metadata
+  properties:
+    context:
+      type: object
+      description: The context to version
+      additionalProperties: true
+    metadata:
+      type: object
+      description: Version metadata
+      required:
+        - createdBy
+        - reason
+      properties:
+        createdBy:
+          type: string
+        reason:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+
+ContextSnapshotDto:
+  type: object
+  required:
+    - id
+    - workflowId
+    - context
+    - description
+    - timestamp
+  properties:
+    id:
+      type: string
+      description: Snapshot identifier
+    workflowId:
+      type: string
+      description: Workflow ID
+    context:
+      type: object
+      description: Context data at snapshot time
+      additionalProperties: true
+    description:
+      type: string
+      description: Snapshot description
+    createdBy:
+      type: string
+      description: User who created the snapshot
+    tags:
+      type: array
+      items:
+        type: string
+      description: Snapshot tags
+    timestamp:
+      type: string
+      format: date-time
+      description: Snapshot creation timestamp
+
+CreateContextSnapshotDto:
+  type: object
+  required:
+    - context
+    - description
+  properties:
+    context:
+      type: object
+      description: The context to snapshot
+      additionalProperties: true
+    description:
+      type: string
+      description: Snapshot description
+    createdBy:
+      type: string
+      description: User creating the snapshot
+    tags:
+      type: array
+      items:
+        type: string
+      description: Snapshot tags
+
+# Context Sharing Schemas
+ShareTypeEnum:
+  type: string
+  enum:
+    - SNAPSHOT
+    - LIVE
+    - VERSIONED
+
+ShareScopeEnum:
+  type: string
+  enum:
+    - FULL
+    - SELECTIVE
+    - FILTERED
+
+ShareModeEnum:
+  type: string
+  enum:
+    - READ_ONLY
+    - READ_WRITE
+    - COLLABORATIVE
+
+ContextShareConfigDto:
+  type: object
+  required:
+    - shareType
+    - shareScope
+    - shareMode
+  properties:
+    shareType:
+      $ref: '#/ShareTypeEnum'
+      description: Type of sharing
+    shareScope:
+      $ref: '#/ShareScopeEnum'
+      description: Scope of sharing
+    shareMode:
+      $ref: '#/ShareModeEnum'
+      description: Sharing mode
+    autoSync:
+      type: boolean
+      description: Auto-sync changes
+    includedPaths:
+      type: array
+      items:
+        type: string
+      description: Included context paths
+    excludedPaths:
+      type: array
+      items:
+        type: string
+      description: Excluded context paths
+    timeToLive:
+      type: number
+      description: Time to live in milliseconds
+
+ContextPermissionsDto:
+  type: object
+  properties:
+    allowedWorkflowIds:
+      type: array
+      items:
+        type: string
+      description: Allowed workflow IDs
+    allowedOrganizations:
+      type: array
+      items:
+        type: string
+      description: Allowed organization IDs
+    allowedProjects:
+      type: array
+      items:
+        type: string
+      description: Allowed project IDs
+    canRead:
+      type: boolean
+      description: Can read context
+    canWrite:
+      type: boolean
+      description: Can write to context
+    canShare:
+      type: boolean
+      description: Can share context with others
+    requiresApproval:
+      type: boolean
+      description: Requires approval for access
+
+SharedContextDto:
+  type: object
+  required:
+    - id
+    - sourceWorkflowId
+    - organizationId
+    - projectId
+    - context
+    - shareConfig
+    - permissions
+    - createdAt
+  properties:
+    id:
+      type: string
+      description: Shared context identifier
+    sourceWorkflowId:
+      type: string
+      description: Source workflow ID
+    organizationId:
+      type: string
+      format: uuid
+      description: Organization ID
+    projectId:
+      type: string
+      format: uuid
+      description: Project ID
+    context:
+      type: object
+      description: Shared context data
+      additionalProperties: true
+    shareConfig:
+      $ref: '#/ContextShareConfigDto'
+      description: Sharing configuration
+    permissions:
+      $ref: '#/ContextPermissionsDto'
+      description: Context permissions
+    createdAt:
+      type: string
+      format: date-time
+      description: Share creation timestamp
+    contextVersion:
+      type: object
+      description: Context version if versioned sharing
+      additionalProperties: true
+
+CreateSharedContextDto:
+  type: object
+  required:
+    - organizationId
+    - projectId
+    - context
+    - shareConfig
+    - permissions
+  properties:
+    organizationId:
+      type: string
+      format: uuid
+      description: Organization ID
+    projectId:
+      type: string
+      format: uuid
+      description: Project ID
+    context:
+      type: object
+      description: Context to share
+      additionalProperties: true
+    shareConfig:
+      $ref: '#/ContextShareConfigDto'
+      description: Sharing configuration
+    permissions:
+      $ref: '#/ContextPermissionsDto'
+      description: Context permissions
+    contextVersion:
+      type: object
+      description: Context version for versioned sharing
+      additionalProperties: true
+
+ContextAccessRequestDto:
+  type: object
+  required:
+    - reason
+  properties:
+    requestedPermissions:
+      $ref: '#/ContextPermissionsDto'
+      description: Requested permissions (partial)
+    reason:
+      type: string
+      description: Reason for access request
+
+ContextAccessResultDto:
+  type: object
+  required:
+    - granted
+    - sharedContextId
+    - permissions
+  properties:
+    granted:
+      type: boolean
+      description: Access granted flag
+    sharedContextId:
+      type: string
+      description: Shared context ID
+    permissions:
+      $ref: '#/ContextPermissionsDto'
+      description: Granted permissions
+    expiresAt:
+      type: string
+      format: date-time
+      description: Access expiry time
+    denialReason:
+      type: string
+      description: Access denial reason
+
+UpdateSharedContextDto:
+  type: object
+  required:
+    - contextUpdates
+  properties:
+    contextUpdates:
+      type: object
+      description: Partial context updates
+      additionalProperties: true
+    changeDescription:
+      type: string
+      description: Description of changes
+
+UpdateSharedContextResponseDto:
+  type: object
+  required:
+    - success
+    - sharedContextId
+    - updatedAt
+  properties:
+    success:
+      type: boolean
+      description: Update success status
+    sharedContextId:
+      type: string
+      description: Shared context ID
+    updatedAt:
+      type: string
+      description: Update timestamp
+
+# Context Transformation Schemas
+TransformationStepDto:
+  type: object
+  required:
+    - name
+    - type
+    - config
+  properties:
+    name:
+      type: string
+      description: Step name
+    type:
+      type: string
+      description: Step type
+    config:
+      type: object
+      description: Step configuration
+      additionalProperties: true
+    enabled:
+      type: boolean
+      description: Step enabled flag
+
+TransformationPipelineDto:
+  type: object
+  required:
+    - id
+    - name
+    - workflowId
+    - steps
+    - createdAt
+  properties:
+    id:
+      type: string
+      description: Pipeline identifier
+    name:
+      type: string
+      description: Pipeline name
+    workflowId:
+      type: string
+      description: Workflow ID
+    steps:
+      type: array
+      items:
+        $ref: '#/TransformationStepDto'
+      description: Pipeline steps
+    createdAt:
+      type: string
+      format: date-time
+      description: Pipeline creation timestamp
+    enabled:
+      type: boolean
+      description: Pipeline enabled flag
+
+CreateTransformationPipelineDto:
+  type: object
+  required:
+    - name
+    - steps
+  properties:
+    name:
+      type: string
+      description: Pipeline name
+    steps:
+      type: array
+      items:
+        $ref: '#/TransformationStepDto'
+      description: Pipeline steps
+
+ProcessContextThroughPipelineDto:
+  type: object
+  required:
+    - context
+  properties:
+    context:
+      type: object
+      description: Context to transform
+      additionalProperties: true
+
+# Cleanup Schemas
+WorkflowContextCleanupResponseDto:
+  type: object
+  required:
+    - success
+    - workflowId
+    - cleanedUp
+    - cleanedAt
+  properties:
+    success:
+      type: boolean
+      description: Cleanup success status
+    workflowId:
+      type: string
+      description: Workflow ID
+    cleanedUp:
+      type: object
+      description: Cleanup statistics
+      required:
+        - versions
+        - sharedContexts
+        - pipelines
+      properties:
+        versions:
+          type: number
+        sharedContexts:
+          type: number
+        pipelines:
+          type: number
+    cleanedAt:
+      type: string
+      description: Cleanup timestamp

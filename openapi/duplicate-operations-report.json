@@ -1,0 +1,13 @@
+{
+  "summary": {
+    "totalOperations": 6,
+    "duplicateOperations": 0,
+    "totalDuplicateInstances": 0
+  },
+  "duplicates": {
+    "highPriority": [],
+    "mediumPriority": []
+  },
+  "warnings": [],
+  "errors": []
+}

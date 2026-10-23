@@ -1,0 +1,318 @@
+# =============================================
+# Authentication Schemas
+# =============================================
+AccountDefaultOrganizationDto:
+  type: object
+  additionalProperties: false
+  required: [organizationId]
+  properties:
+    organizationId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Explicit account preference; null means no saved choice. Never substitutes for an existing browser session selection.
+
+SetAccountDefaultOrganizationDto:
+  type: object
+  additionalProperties: false
+  required: [organizationId]
+  properties:
+    organizationId:
+      type: string
+      format: uuid
+      description: Must match the valid browser session's confirmed organization and current authorized membership.
+
+LoginDto:
+  type: object
+  required:
+    - email
+    - password
+  properties:
+    email:
+      type: string
+      format: email
+      description: User's email address
+    password:
+      type: string
+      minLength: 8
+      description: User's password
+
+PasswordRecoveryRequestDto:
+  type: object
+  additionalProperties: false
+  required:
+    - email
+  properties:
+    email:
+      type: string
+      format: email
+      description: Email address for the identity requesting recovery
+
+PasswordRecoveryAcknowledgementDto:
+  type: object
+  additionalProperties: false
+  required:
+    - message
+  properties:
+    message:
+      type: string
+      enum:
+        - If an eligible account exists, recovery instructions will be sent.
+
+RegisterDto:
+  type: object
+  required:
+    - email
+    - password
+    - name
+  properties:
+    email:
+      type: string
+      format: email
+      description: User's email address
+    password:
+      type: string
+      minLength: 8
+      description: User's password
+    name:
+      type: string
+      description: User's full name
+    organizationName:
+      type: string
+      description: Name for the user's default organization (optional)
+
+BrowserAuthResponseDto:
+  type: object
+  description: >-
+    Browser authentication response. Refresh continuity is maintained by
+    HttpOnly cookies and is never returned in JSON. The user's currentOrganizationId
+    is non-null and matches the confirmed organization in the access token.
+  required:
+    - user
+    - accessToken
+    - expiresIn
+  properties:
+    user:
+      $ref: "#/UserResponseDto"
+    accessToken:
+      type: string
+      description: Short-lived JWT access token for browser authorization
+    expiresIn:
+      type: integer
+      description: Access-token expiration time in seconds
+  additionalProperties: false
+
+BrowserOrganizationChoiceDto:
+  type: object
+  additionalProperties: false
+  required: [id, name]
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+
+BrowserOrganizationSelectionDto:
+  type: object
+  additionalProperties: false
+  description: >-
+    Authenticated browser identity requiring explicit organization selection.
+    No access token is issued and user.currentOrganizationId is null.
+    Choices are informational; an explicit request reauthorizes current access.
+  required: [status, user, organizations]
+  properties:
+    status:
+      type: string
+      enum: [selection_required, selection_denied]
+    user:
+      $ref: "#/UserResponseDto"
+    organizations:
+      type: array
+      items:
+        $ref: "#/BrowserOrganizationChoiceDto"
+
+BrowserSessionResponseDto:
+  description: >-
+    Establishes or atomically rotates cookie-only refresh continuity. Confirmed
+    access has matching token and user organization IDs. Fresh sign-in restores
+    an authorized saved organization, or selects the sole accessible organization
+    when no choice is saved. Multiple accessible organizations without a saved
+    choice return selection_required. Unauthorized stored or requested choices
+    return selection_denied without selecting another membership. Selection
+    outcomes persist null choice, clear prior access, and preserve browser identity.
+  oneOf:
+    - $ref: "#/BrowserAuthResponseDto"
+    - $ref: "#/BrowserOrganizationSelectionDto"
+
+RefreshBrowserSessionDto:
+  type: object
+  description: Optional explicit organization choice. Absence reauthorizes the stored choice; presence reauthorizes only the requested organization.
+  properties:
+    organizationId:
+      type: string
+      format: uuid
+  additionalProperties: false
+
+AuthResponseDto:
+  type: object
+  required:
+    - user
+    - accessToken
+    - refreshToken
+  properties:
+    user:
+      $ref: "#/UserResponseDto"
+    accessToken:
+      type: string
+      description: JWT access token
+    refreshToken:
+      type: string
+      description: Refresh token for token renewal
+    expiresIn:
+      type: integer
+      description: Token expiration time in seconds
+
+# =============================================
+# User Schemas
+# =============================================
+UserResponseDto:
+  type: object
+  required:
+    - id
+    - email
+    - name
+    - isActive
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      $ref: "./common.yaml#/UserId"
+    email:
+      type: string
+      format: email
+      description: User's email address
+    name:
+      type: string
+      description: User's full name
+    isActive:
+      type: boolean
+      description: Whether the user account is active
+    lastLoginAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Last login timestamp
+    createdAt:
+      type: string
+      format: date-time
+      description: Creation timestamp
+    updatedAt:
+      type: string
+      format: date-time
+      description: Last update timestamp
+    currentOrganizationId:
+      allOf:
+        - $ref: "./common.yaml#/OrganizationId"
+      nullable: true
+
+# =============================================
+# Password Change Schemas
+# =============================================
+ChangePasswordDto:
+  type: object
+  required:
+    - passwordChangeToken
+    - newPassword
+  properties:
+    passwordChangeToken:
+      type: string
+      description: >-
+        Purpose-specific, single-use credential issued either at login when
+        mustChangePassword is true, for an invited identity in a welcome link,
+        or for account recovery. The credential is exchangeable only through
+        the password-replacement operation and is validated against its
+        persisted purpose and purpose-specific expiry policy.
+    newPassword:
+      type: string
+      minLength: 8
+      description: The new password to set
+
+ChangeCurrentPasswordDto:
+  type: object
+  additionalProperties: false
+  required:
+    - currentPassword
+    - newPassword
+  properties:
+    currentPassword:
+      type: string
+      minLength: 1
+      description: The signed-in user's existing password; never returned or persisted.
+    newPassword:
+      type: string
+      minLength: 8
+      description: The replacement password.
+
+PasswordChangeRequiredDto:
+  type: object
+  required:
+    - mustChangePassword
+    - passwordChangeToken
+  properties:
+    mustChangePassword:
+      type: boolean
+      description: Always true when this response is returned
+    passwordChangeToken:
+      type: string
+      description: >-
+        Purpose-specific, single-use credential for the change-password
+        endpoint. Valid for no more than 15 minutes.
+
+# =============================================
+# Beta Onboarding Schemas
+# =============================================
+OnboardBetaUserDto:
+  type: object
+  required:
+    - email
+    - name
+    - organizationName
+  properties:
+    email:
+      type: string
+      format: email
+      description: Email address for the new beta user
+    name:
+      type: string
+      description: Full name of the new beta user
+    organizationName:
+      type: string
+      description: Name for the user's organization
+
+OnboardBetaUserResponseDto:
+  type: object
+  required:
+    - userId
+    - organizationId
+    - email
+  properties:
+    userId:
+      $ref: "./common.yaml#/UserId"
+    organizationId:
+      $ref: "./common.yaml#/OrganizationId"
+    email:
+      type: string
+      format: email
+      description: The email address the welcome was sent to
+
+PlatformAdminAccessDto:
+  type: object
+  required:
+    - isPlatformAdmin
+  properties:
+    isPlatformAdmin:
+      type: boolean
+      description: >-
+        Whether the caller is a platform admin, decided by the same allowlist
+        the server applies to admin endpoints.

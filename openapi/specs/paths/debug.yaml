@@ -1,0 +1,515 @@
+# =============================================
+# Debug/Admin API Endpoints
+# =============================================
+
+/debug/projects/view:
+  get:
+    tags:
+      - Debug/Admin
+    summary: Get comprehensive project debug view
+    description: Get all project-related entities (messages, conversations, artifacts, events) for debugging and admin purposes
+    parameters:
+      - name: projectId
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project ID to get debug view for
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          example: 10
+        description: Limit for recent items in each category
+    responses:
+      "200":
+        description: Project debug view retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/dev.yaml#/ProjectDebugViewDto"
+      "404":
+        description: Project not found
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/common.yaml#/ApiErrorResponse"
+      "500":
+        description: Internal server error
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/common.yaml#/ApiErrorResponse"
+
+/debug/projects/conversations:
+  get:
+    tags:
+      - Debug/Admin
+    summary: Get conversations for project
+    description: Get detailed conversation list for a specific project
+    parameters:
+      - name: projectId
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          example: 1
+        description: Page number
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          example: 20
+        description: Items per page
+    responses:
+      "200":
+        description: Conversations retrieved successfully
+
+/debug/projects/artifacts:
+  get:
+    tags:
+      - Debug/Admin
+    summary: Get artifacts for project
+    description: Get detailed artifact list for a specific project
+    parameters:
+      - name: projectId
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          example: 1
+        description: Page number
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          example: 20
+        description: Items per page
+    responses:
+      "200":
+        description: Artifacts retrieved successfully
+
+/debug/projects/messages:
+  get:
+    tags:
+      - Debug/Admin
+    summary: Get messages for project
+    description: Get detailed message list for a specific project
+    parameters:
+      - name: projectId
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      - name: conversationId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+        description: Filter by conversation ID
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          example: 1
+        description: Page number
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          example: 20
+        description: Items per page
+    responses:
+      "200":
+        description: Messages retrieved successfully
+
+/debug/projects/workflows/{workflowId}/status:
+  get:
+    tags:
+      - Debug/Admin
+    summary: Get workflow status for debugging
+    description: Returns current workflow execution status, conversation context, current step information with path taken, debugging information, and optionally workflow execution logs including activity failures and signals
+    parameters:
+      - name: workflowId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: The ID of the workflow to get status for
+      - name: includeLogs
+        in: query
+        required: false
+        schema:
+          type: boolean
+          example: false
+        description: Include workflow execution logs and history (can be expensive)
+    responses:
+      "200":
+        description: Workflow status information with current step details
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/dev.yaml#/WorkflowStatusDebugDto"
+      "404":
+        description: Workflow not found
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/common.yaml#/ApiErrorResponse"
+      "500":
+        description: Failed to retrieve workflow status
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/common.yaml#/ApiErrorResponse"
+
+/debug/embeddings/entity:
+  get:
+    operationId: getDebugEmbeddingsEntity
+    tags:
+      - Debug/Admin
+    summary: Get debug info for an entity from the embeddings service
+    description: Returns stored embeddings for a given entity type and source ID
+    parameters:
+      - name: type
+        in: query
+        required: true
+        schema:
+          type: string
+        description: Entity content type (e.g. task, initiative, message)
+      - name: id
+        in: query
+        required: true
+        schema:
+          type: string
+        description: Entity source ID
+      - name: projectId
+        in: query
+        required: true
+        schema:
+          $ref: "../schemas/common.yaml#/ProjectId"
+        description: Project the entity belongs to; only embeddings from this project are returned
+    responses:
+      "200":
+        description: Entity debug info retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/debug.yaml#/DebugEmbeddingsEntityResponseDto"
+      "400":
+        description: Missing required parameters
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/common.yaml#/ApiErrorResponse"
+      "403":
+        description: Caller is not an Owner of the project
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/common.yaml#/ApiErrorResponse"
+      "500":
+        description: Failed to fetch from embeddings service
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/common.yaml#/ApiErrorResponse"
+
+/debug/outbox-events/{entityType}/{entityId}:
+  get:
+    operationId: getEntityOutboxEventsDebug
+    tags:
+      - Debug/Admin
+    summary: Get outbox events for an entity
+    description: Get persisted outbox rows whose aggregate_type and aggregate_id match the provided entity.
+    parameters:
+      - name: entityType
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Entity type stored in outbox_events.aggregate_type
+      - name: entityId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Entity ID stored in outbox_events.aggregate_id
+    responses:
+      "200":
+        description: Outbox events retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/debug.yaml#/DebugOutboxEventsResponseDto"
+
+/debug/events/replay:
+  post:
+    operationId: replayDebugEvents
+    tags:
+      - Debug/Admin
+    summary: Validate and replay outbox events for debugging
+    description: >
+      Validates selected organization-scoped outbox events, optionally repairs
+      invalid payloads, and queues fresh pending replay copies without changing
+      the source rows.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../schemas/debug.yaml#/DebugEventReplayRequestDto"
+    responses:
+      "200":
+        description: Event validation and replay outcomes
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/debug.yaml#/DebugEventReplayResponseDto"
+      "400":
+        description: Invalid replay request
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/common.yaml#/ApiErrorResponse"
+      "403":
+        description: Event replay request is outside the caller's organization
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/common.yaml#/ApiErrorResponse"
+
+/debug/events/{eventId}/retrigger:
+  post:
+    operationId: retriggerDebugEvent
+    tags:
+      - Debug/Admin
+    summary: Retrigger one outbox event using the replay service
+    parameters:
+      - name: eventId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      "200":
+        description: Event retriggered successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/debug.yaml#/DebugEventReplayResponseDto"
+      "404":
+        description: Outbox event not found
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/common.yaml#/ApiErrorResponse"
+
+/llm-tracking:
+  get:
+    tags:
+      - Debug/Admin
+    summary: List LLM prompt/response records
+    description: Get paginated list of LLM prompt/response records for debugging and analysis
+    parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          example: 1
+        description: Page number (1-indexed)
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          example: 20
+        description: Items per page
+      - name: workflowId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+        description: Filter by workflow ID
+      - name: conversationId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+        description: Filter by conversation ID
+      - name: projectId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+        description: Filter by project ID
+      - name: nodeId
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Filter by node ID
+      - name: provider
+        in: query
+        required: false
+        schema:
+          type: string
+          example: anthropic
+        description: Filter by LLM provider
+      - name: success
+        in: query
+        required: false
+        schema:
+          type: boolean
+        description: Filter by success status
+    responses:
+      "200":
+        description: LLM prompt/response records retrieved successfully
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/ApiResponse"
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        required:
+                          - data
+                          - pagination
+                        data:
+                          type: array
+                          items:
+                            $ref: "../schemas/dev.yaml#/LLMPromptResponseDto"
+                        pagination:
+                          type: object
+                          properties:
+                            page:
+                              type: integer
+                            limit:
+                              type: integer
+                            total:
+                              type: integer
+      "500":
+        description: Internal server error
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/common.yaml#/ApiErrorResponse"
+
+/llm-tracking/stats:
+  get:
+    tags:
+      - Debug/Admin
+    summary: Get LLM usage statistics
+    description: Get aggregate statistics about LLM usage for the current organization
+    responses:
+      "200":
+        description: Statistics retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                organizationId:
+                  type: string
+                  format: uuid
+                stats:
+                  type: object
+                  properties:
+                    total:
+                      type: integer
+                      description: Total number of LLM calls
+                    successful:
+                      type: integer
+                      description: Number of successful calls
+                    failed:
+                      type: integer
+                      description: Number of failed calls
+                    successRate:
+                      type: number
+                      format: float
+                      description: Success rate percentage
+                    avgTokens:
+                      type: number
+                      format: float
+                      description: Average tokens per call
+                timestamp:
+                  type: string
+                  format: date-time
+      "500":
+        description: Internal server error
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/common.yaml#/ApiErrorResponse"
+
+/llm-tracking/{id}:
+  get:
+    tags:
+      - Debug/Admin
+    summary: Get single LLM prompt/response record
+    description: Get detailed information about a specific prompt/response
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: LLM prompt/response record ID
+    responses:
+      "200":
+        description: Record retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/dev.yaml#/LLMPromptResponseDto"
+      "404":
+        description: Record not found
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/common.yaml#/ApiErrorResponse"
+      "403":
+        description: Unauthorized access to this record
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/common.yaml#/ApiErrorResponse"
+      "500":
+        description: Internal server error
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/common.yaml#/ApiErrorResponse"

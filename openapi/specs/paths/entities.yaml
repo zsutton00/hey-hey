@@ -1,0 +1,34 @@
+# =============================================
+# Entity Lookup Endpoints
+# =============================================
+
+/organizations/{organizationId}/entities/names:
+  parameters:
+    - name: organizationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Organization ID
+  post:
+    tags:
+      - Entities
+    summary: Get entity names by ID and type pairs
+    description: Look up display names for a batch of entities using the entity registry.
+    operationId: getEntityNames
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../schemas/entity-names.yaml#/GetEntityNamesDto"
+    responses:
+      '200':
+        description: Entity names for the requested entities.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "../schemas/entity-names.yaml#/EntityNameDto"

@@ -1,0 +1,2356 @@
+# =============================================
+# AgentTrigger Payload Schemas
+# Single source of truth for all EXTERNAL_AGENT
+# node trigger payloads and their dependencies.
+# =============================================
+
+# =============================================
+# Shared enums and types
+# =============================================
+
+FeatureSyncDiscrepancy:
+  type: object
+  required:
+    - summary
+    - rationale
+  description: >
+    A single discrepancy surfaced by the feature-sync analyze turn when
+    it detects drift between a declared feature/task and the observed
+    code. Mirrors the server-side `featureSyncDiscrepancySchema` in
+    api/src/flows/nodes/feature-sync/schemas.ts and is the canonical
+    wire shape carried into the iterate trigger payload so the
+    iterate prompt can render the outstanding items directly instead
+    of leaning on conversation history.
+  properties:
+    id:
+      type: string
+      minLength: 1
+      description: >
+        Stable identifier the platform assigns to a flagged item so user
+        decisions and later revised sets can refer back to it.
+    summary:
+      type: string
+      description: >
+        Short product-language statement of what looks off.
+    rationale:
+      type: string
+      description: >
+        One- or two-sentence reason the item was flagged.
+    entityType:
+      type: string
+      enum:
+        - FEATURE
+        - TASK
+        - DESIGN_DOC
+        - SERVICE
+        - OTHER
+      description: >
+        The kind of entity the discrepancy points at, when it points at
+        a specific entity. Omitted when the gap is structural rather
+        than entity-scoped.
+    entityId:
+      type: string
+      description: >
+        Canonical id of the entity the discrepancy points at, paired
+        with `entityType`.
+    proposal:
+      type: string
+      description: >
+        Concrete remediation the agent proposes for this discrepancy,
+        when it has one in mind.
+
+PlanShapingValidationMode:
+  type: string
+  enum:
+    - "on"
+    - "off"
+  description: >
+    Toggle controlling whether the agent runs the post-creation
+    validation pass on its step proposals before submitting. `on`
+    enables the validation pass (the agent re-reads its proposals
+    and revises before terminating); `off` skips it so the agent
+    submits its first-pass proposals directly. Used by the
+    refine-stage node.
+
+# =============================================
+# Feature-sync payloads
+# =============================================
+
+FeatureSyncAnalyzePromptPayload:
+  type: object
+  required:
+    - taskId
+  description: >
+    Payload for the feature-sync analyze EXTERNAL_AGENT node
+    (promptType=feature_sync_analyze). The wire payload binds the task
+    id the analyze turn is anchored on — the task id is the seed for
+    the feature-tree walk and is delivered explicitly rather than
+    resolved server-side from contextMetadata.
+  properties:
+    taskId:
+      type: string
+      format: uuid
+      description: >
+        Canonical id of the task the analyze turn is anchored on. Seeds
+        the ancestor walk (`get_feature_sync_context`) and the
+        provenance check (`get_context`).
+    userMessage:
+      type: string
+      description: >
+        Optional free-form hint from the user (e.g. "focus on the auth
+        subtree"). The agent produces unstructured narrative; termination
+        is enforced by the submit_no_discrepancy / submit_discrepancies
+        submission tools, not by the payload.
+    launchPlanId:
+      type: string
+      minLength: 1
+      description: >
+        Plan that the analyze turn was launched from, when the task is
+        part of a plan stage. Threaded onto the wire payload from the
+        run's contextMetadata so the analyze prompt can branch on
+        plan-membership pre-prompt without re-reading session state.
+        Paired with `launchStepId` — both must be present for the
+        planned-task variant of the prompt to engage; either field
+        absent yields the free-task variant.
+    launchStepId:
+      type: string
+      minLength: 1
+      description: >
+        Plan step that the analyze turn was launched from. Paired with
+        `launchPlanId` to identify which step within the plan stage the
+        task is anchored to. Use `launchStageId` (not this field) when
+        calling `get_plan_stage` for the stage catch-up read.
+    launchStageId:
+      type: string
+      minLength: 1
+      description: >
+        Plan stage that contains `launchStepId`. Threaded onto the
+        wire payload from the run's contextMetadata so the agent can
+        call `get_plan_stage(stageId: launchStageId)` directly to
+        surface prior-step reports. Required by the planned-task
+        variant alongside `launchPlanId` and `launchStepId`; if any of
+        the three is absent the free-task variant runs.
+
+FeatureSyncIteratePromptPayload:
+  type: object
+  required:
+    - discrepancies
+  description: >
+    Payload for the feature-sync iterate EXTERNAL_AGENT node
+    (promptType=feature_sync_iterate). The wire payload carries the
+    outstanding discrepancies the previous analyze (or iterate) turn
+    surfaced — the iterate prompt renders them directly rather than
+    relying on conversation history.
+  properties:
+    discrepancies:
+      type: array
+      items:
+        $ref: "#/FeatureSyncDiscrepancy"
+      description: >
+        The outstanding discrepancies the previous turn surfaced.
+        Rendered into the iterate prompt as the "Outstanding items"
+        section so the agent reasons over them explicitly.
+    userMessage:
+      type: string
+      description: >
+        The user's change request on the previously-surfaced discrepancy
+        set. Termination is enforced by the submit_resolved /
+        submit_revised submission tools.
+
+# =============================================
+# Plan-shaping feature-sync payloads
+# =============================================
+
+PlanShapingFeatureSyncAnalyzePromptPayload:
+  type: object
+  required:
+    - planId
+    - designDocId
+  description: >
+    Payload for the plan-shaping feature-sync analyze EXTERNAL_AGENT node
+    (promptType=plan_shaping_feature_sync_analyze). Mirrors
+    `FeatureSyncAnalyzePromptPayload` but anchors the analyze turn on a
+    plan and its design doc rather than a task: the plan-shaping flow
+    walks the design-doc-declared structure instead of a task-seeded
+    feature-tree, so the wire payload binds the plan id and design doc id
+    explicitly rather than the task seed.
+  properties:
+    planId:
+      type: string
+      minLength: 1
+      description: >
+        Canonical id of the plan the analyze turn is anchored on. Seeds
+        the plan-shaping structure walk.
+    designDocId:
+      type: string
+      minLength: 1
+      description: >
+        Canonical id of the plan's design doc — the declared structure
+        the analyze turn compares against the observed plan shape.
+    userMessage:
+      type: string
+      description: >
+        Optional free-form hint from the user (e.g. "focus on the auth
+        stage"). The agent produces unstructured narrative; termination
+        is enforced by the submit_no_discrepancy / submit_discrepancies
+        submission tools, not by the payload.
+
+PlanShapingFeatureSyncIteratePromptPayload:
+  type: object
+  required:
+    - discrepancies
+    - decisions
+  description: >
+    Payload for the plan-shaping feature-sync iterate EXTERNAL_AGENT node
+    (promptType=plan_shaping_feature_sync_iterate). Every trigger carries
+    the outstanding flagged items in display order and the user's
+    per-item choices, so the turn never depends on provider session
+    history to know what the user is referring to.
+  properties:
+    discrepancies:
+      type: array
+      items:
+        $ref: "#/FeatureSyncDiscrepancy"
+      description: >
+        The outstanding flagged items, each with its stable `id`, in the
+        order the user saw them.
+    decisions:
+      type: array
+      items:
+        $ref: "./conversations.yaml#/PlanShapingFeatureSyncItemDecision"
+    userMessage:
+      type: string
+      description: >
+        The user's change request on the flagged items.
+        Termination is enforced by the submit_revised submission tool.
+
+# =============================================
+# Session-monitor payload
+# =============================================
+
+SessionMonitorReportGuidance:
+  type: object
+  required:
+    - actions
+  properties:
+    actions:
+      type: array
+      items:
+        type: string
+        minLength: 1
+      description: Server-resolved continuation vocabulary for legacy Report observers.
+
+SessionMonitorSettledTurnReport:
+  type: object
+  required:
+    - reportId
+    - reportType
+  additionalProperties: false
+  properties:
+    reportId:
+      type: string
+      format: uuid
+      description: Canonical Report id attached to the settled Turn.
+    reportType:
+      type: string
+      minLength: 1
+      description: Canonical Report discriminator read at Turn settlement.
+
+SessionMonitorCompletedAssistantMessage:
+  type: object
+  required:
+    - messageId
+    - content
+  additionalProperties: false
+  properties:
+    messageId:
+      type: string
+      format: uuid
+      description: Canonical id of the assistant Message that completed the Turn.
+    content:
+      type: string
+      minLength: 1
+      description: Canonical user-visible assistant Message content.
+
+SessionMonitorSettledTurnEvidence:
+  type: object
+  required:
+    - turnId
+    - promptType
+    - terminalOutcome
+    - completedAssistantMessage
+    - reports
+  additionalProperties: false
+  properties:
+    turnId:
+      type: string
+      minLength: 1
+      description: Stable identity of the settled local Turn.
+    promptType:
+      type: string
+      minLength: 1
+      description: Prompt or workflow phase evaluated by the settled Turn.
+    terminalOutcome:
+      type: string
+      enum:
+        - COMPLETED
+        - FAILED
+        - ABORTED
+      description: Terminal outcome recorded by the Turn lifecycle owner.
+    completedAssistantMessage:
+      allOf:
+        - $ref: "#/SessionMonitorCompletedAssistantMessage"
+      nullable: true
+      description: >
+        Completed assistant Message evidence. Null when no canonical assistant
+        Message was persisted, including report-only completed subagent Turns
+        and Turns that failed or aborted before message publication.
+    reports:
+      type: array
+      items:
+        $ref: "#/SessionMonitorSettledTurnReport"
+      description: Zero or more canonical Reports emitted by the settled Turn.
+
+SessionMonitorWorkflowContext:
+  type: object
+  required:
+    - state
+    - promptType
+    - nodeId
+    - triggerMessageId
+    - actions
+  additionalProperties: false
+  properties:
+    state:
+      type: string
+      enum:
+        - agent-pending
+        - live-non-agent
+        - terminal
+      description: Canonical current workflow state for the target conversation.
+    promptType:
+      type: string
+      nullable: true
+      description: Current or terminal workflow prompt type, when one exists.
+    nodeId:
+      type: string
+      nullable: true
+      description: Current EXTERNAL_AGENT node id in the agent-pending state.
+    triggerMessageId:
+      type: string
+      nullable: true
+      description: Current pending trigger Message id in the agent-pending state.
+    actions:
+      type: array
+      items:
+        type: string
+        minLength: 1
+      description: >
+        Canonical continuation vocabulary observed for the current workflow
+        boundary. Empty means continuation, when applicable, is response-only.
+SessionMonitorPromptPayload:
+  type: object
+  required:
+    - targetSessionId
+    - settledTurn
+    - workflowContext
+  description: >
+    Payload for the session-monitor EXTERNAL_AGENT node
+    (promptType=session_monitor). Body rides inside
+    `SignedConversationTriggerEnvelope` on the `trigger.conversation`
+    channel just like the other AgentTrigger variants. Carries the work
+    locator, one settled Turn's canonical evidence, and the target
+    conversation's current workflow state. The agent loads every referenced
+    Report via `get_report_body`, evaluates whether Agent Session work remains,
+    and emits one typed continue, defer, or release decision. The CLI owns the
+    selected durable effect and reports handled only after it succeeds.
+  properties:
+    targetSessionId:
+      type: string
+      format: uuid
+      description: >
+        Canonical id of the agent session being monitored — the session
+        whose newly-settled Turn this monitor invocation is reviewing.
+    settledTurn:
+      $ref: "#/SessionMonitorSettledTurnEvidence"
+    workflowContext:
+      $ref: "#/SessionMonitorWorkflowContext"
+
+# =============================================
+# Feature-tree-conversation payload
+# =============================================
+
+FeatureTreeConversationPromptPayload:
+  type: object
+  description: >
+    Payload for the feature-tree-conversation EXTERNAL_AGENT node
+    (promptType=feature_tree_conversation). The CLI fetches the project's
+    feature tree skeleton at session init via
+    `GET /projects/{projectId}/features/skeleton` and injects it into the
+    agent's system prompt, so the wire payload only carries the project
+    handle plus the optional user message that triggered the turn.
+  required:
+    - projectId
+  properties:
+    projectId:
+      type: string
+      format: uuid
+      description: >
+        Canonical id of the project whose feature tree the conversation
+        is anchored on. Seeds the skeleton fetch the CLI performs at
+        session init.
+    userMessage:
+      type: string
+      description: >
+        Optional free-form text from the user (e.g. the initial ask that
+        opened the conversation). Termination is conversational —
+        controlled by the user, not by the payload.
+
+# =============================================
+# Open Items triage payload
+# =============================================
+
+OpenItemsTriageRequestKind:
+  type: string
+  enum:
+    - freshPass
+    - followUp
+  description: >
+    Run Again and the first turn ask for a fresh suggestion pass from current
+    context; Send asks a follow-up about the existing suggestions.
+
+OpenItemsTriageMode:
+  type: string
+  enum:
+    - tidyUp
+    - springCleaning
+  description: >
+    tidyUp is the standard review. springCleaning adds a closing-focused pass
+    over a wider attention lookback and can produce additional removeOpenItems
+    suggestions.
+
+OpenItemsTriagePromptPayload:
+  type: object
+  description: >
+    Payload for one Open Items triage turn (promptType=open_items_triage).
+    The CLI reads current Open Items, attention and graph context itself on
+    every turn; the requesting user's collection revision is input context
+    only, never a guard on later suggestion application.
+  required:
+    - projectId
+    - requestKind
+    - mode
+  properties:
+    projectId:
+      type: string
+      format: uuid
+    requestKind:
+      $ref: "#/OpenItemsTriageRequestKind"
+    mode:
+      $ref: "#/OpenItemsTriageMode"
+    observedCollectionRevision:
+      $ref: "./open-items.yaml#/OpenItemRevision"
+    userMessage:
+      type: string
+      description: >
+        Optional user-authored text. For freshPass it is review guidance; for
+        followUp it is the user's conversational message.
+    guidance:
+      type: string
+      description: >
+        Optional review guidance to retain across turns. Send it with followUp
+        requests when userMessage contains the current conversational message.
+
+VerifyFeaturePromptPayload:
+  type: object
+  additionalProperties: false
+  description: >
+    Payload for one Verify Feature turn (promptType=verify_feature). The
+    session investigates only the flagged concern; the focal Feature is the
+    Run entity and the parent session is the evidence source it reads itself.
+  required:
+    - concern
+    - parentAgentSessionId
+    - userMessage
+  properties:
+    concern:
+      type: string
+      minLength: 1
+      description: The flagged discrepancy this session investigates, and nothing else.
+    parentAgentSessionId:
+      type: string
+      format: uuid
+      description: >
+        The session whose conversation, Project Assistant findings and Feature
+        Sync outcome the mode reads.
+    impactedEntities:
+      type: array
+      default: []
+      description: >
+        Possibly impacted entities named by the session that raised the
+        concern, in its order. Starting points for the investigation, not its
+        boundary. May be empty; launches from suggestions saved before the
+        field existed omit it and read as empty.
+      items:
+        $ref: ./conversations.yaml#/VerifyImpactedEntityReference
+    userMessage:
+      type: string
+      description: The opening message (or the user's follow-up) for this turn.
+
+# =============================================
+# Plan-shaping payloads
+# =============================================
+
+PlanShapingProposedStagesPromptPayload:
+  type: object
+  required:
+    - designDocId
+    - planId
+  description: >
+    Payload for the plan-shaping proposed-stages EXTERNAL_AGENT
+    node (promptType=plan_shaping_proposed_stages). The agent
+    produces the plan's stages at theme fidelity, each stage carrying
+    its step themes, as platform proposals via the plan-shaping MCP
+    tools. The wire payload carries the canonical handles for the
+    design doc and the plan being shaped — the agent reads their
+    current state in a single batched get_full_entity call
+    (passing both ids as `{ entities: [{ entityType, entityId }, ...] }`)
+    rather than relying on conversation history — plus the optional
+    user message that triggered the turn.
+  properties:
+    designDocId:
+      type: string
+      format: uuid
+      description: >
+        Canonical id of the plan's design document. Included in the
+        batched get_full_entity call to ground the proposed stages in
+        the approved design.
+    planId:
+      type: string
+      format: uuid
+      description: >
+        Canonical id of the plan being shaped. Included in the
+        batched get_full_entity call so the agent can read the plan
+        and its existing stage/step proposals to author or revise
+        stage proposals against the live plan state.
+    userMessage:
+      type: string
+      description: >
+        Optional free-form text from the user (e.g. feedback on the
+        proposed stages). Termination is enforced by the submit_ready
+        submission tool, not by the payload.
+
+# =============================================
+# User-journey plan-shaping types
+# =============================================
+
+ServiceNote:
+  type: object
+  required:
+    - text
+    - serviceIds
+    - serviceName
+  description: >
+    One implementation-note bullet attached to a JourneyStep. Names a
+    plain-language piece of implementation work and the platform service
+    that owns it. `serviceId` and `serviceName` are nullable to express
+    cross-cutting notes that no single service clearly owns; both fields
+    must be present (nullable) so consumers do not have to distinguish
+    "missing" from "intentionally null".
+  properties:
+    text:
+      type: string
+      minLength: 1
+      description: >
+        Plain-language implementation bullet attached to the parent
+        journey step.
+    serviceId:
+      type: string
+      format: uuid
+      nullable: true
+      description: >
+        Canonical id of the platform service clearly responsible for the
+        note, or null when the work is cross-cutting / no single service
+        is clearly responsible.
+    serviceName:
+      type: string
+      nullable: true
+      description: >
+        Human-readable name of the service identified by `serviceId`.
+        Null when `serviceId` is null.
+
+JourneyStep:
+  type: object
+  required:
+    - id
+    - stageId
+    - title
+    - description
+    - isUserInteractive
+    - implementationNotes
+  description: >
+    One ordered step in a user-journey plan view — one *phase* of the
+    journey. Describes what the user does or sees (not what the code
+    does), plus the implementation work required and the services
+    involved. `stageId` binds the step to the durable PlanStage whose
+    journey it belongs to: the journey-map agent emits one journey per
+    existing stage, so every step names its parent stage.
+    `isUserInteractive` is the validation anchor flag — steps marked
+    true are where ValidateIntegration checkpoints attach when
+    validation is enabled. Authored by the journey-map agent and
+    consumed downstream by each phase-breakdown agent turn.
+  properties:
+    id:
+      type: string
+      minLength: 1
+      description: >
+        Stable slug identifying this step within the JourneyMap
+        (e.g. `step-1-open-conversation`). Used as a join key when the
+        phase-breakdown agent reports against this step.
+    stageId:
+      type: string
+      format: uuid
+      description: >
+        UUID of the durable PlanStage this journey step (phase) belongs
+        under. Authored by proposed-stages before the journey-map turn
+        runs; the phase-breakdown agent binds every `PhaseBreakdownStep`
+        it emits for this phase to this same stage.
+    title:
+      type: string
+      minLength: 1
+      description: >
+        Short user-facing label naming what the user does or sees.
+    description:
+      type: string
+      minLength: 1
+      description: >
+        One- or two-sentence plain-language description of what the user
+        does or sees in this step. Implementation detail belongs in
+        `implementationNotes`, not here.
+    isUserInteractive:
+      type: boolean
+      description: >
+        True when the user submits a form, clicks a button, or receives a
+        direct UI response in this step. Used by ValidateIntegration as
+        the anchor flag for validation checkpoints.
+    implementationNotes:
+      type: array
+      items:
+        $ref: "#/ServiceNote"
+      description: >
+        Plain-language implementation bullets for this step, each
+        annotated with the platform service that owns the work (or null
+        for cross-cutting notes).
+
+JourneyMap:
+  type: object
+  required:
+    - steps
+  description: >
+    Submission output of the plan-shaping journey-map agent: a flat
+    ordered array of JourneyStep objects covering every durable stage.
+    The journey-map agent emits one journey per existing stage; the
+    journey for a stage is the run of steps sharing that stage's
+    `stageId`. Stored on the workflow's FlowContext at user approval and
+    consumed by each subsequent phase-breakdown turn. Not a persisted
+    platform entity — exists only on FlowContext.
+  properties:
+    steps:
+      type: array
+      items:
+        $ref: "#/JourneyStep"
+      description: >
+        Journey steps ordered as a real user experiences them (not in
+        implementation build order).
+
+PlanShapingVisualPreviewRelationship:
+  type: object
+  additionalProperties: false
+  required:
+    - kind
+    - proposalId
+  properties:
+    kind:
+      type: string
+      enum: [depends_on, refines]
+    proposalId:
+      type: string
+      minLength: 1
+
+PlanShapingVisualPreviewEntry:
+  type: object
+  additionalProperties: false
+  required:
+    - proposalId
+    - artifactFamily
+    - presentationOrder
+    - status
+  properties:
+    proposalId:
+      type: string
+      format: uuid
+    artifactFamily:
+      type: string
+      enum: [mockup, diagram]
+    presentationOrder:
+      type: integer
+      minimum: 0
+    status:
+      type: string
+      enum: [DRAFT, APPROVED, REJECTED]
+    relationship:
+      $ref: "#/PlanShapingVisualPreviewRelationship"
+    materializedEntity:
+      $ref: "#/PlanShapingVisualPreviewMaterializedEntity"
+
+PlanShapingVisualPreviewMaterializedEntity:
+  type: object
+  additionalProperties: false
+  required:
+    - entityId
+    - entityType
+  properties:
+    entityId:
+      type: string
+      format: uuid
+    entityType:
+      type: string
+      enum: [TASK]
+  description: >
+    The Mockup or Diagram work item an APPROVED visual proposal has been
+    enacted as. Present only when the proposal is APPROVED and its target
+    work item exists; such an unchanged reused visual is presented to the
+    user as its content rather than as a proposal card. Absent for DRAFT,
+    REJECTED, or unresolvable entries.
+
+PlanShapingApprovedVisual:
+  type: object
+  additionalProperties: false
+  required:
+    - proposalId
+    - entityId
+    - entityType
+    - title
+    - summary
+  description: >
+    One Mockup or Diagram from the approved visual set, resolved server-side
+    when the user approves the set. Approved visuals whose work item cannot
+    be resolved are not listed.
+  properties:
+    proposalId:
+      type: string
+      format: uuid
+    entityId:
+      type: string
+      format: uuid
+      description: The Mockup or Diagram work item the approved proposal was enacted as.
+    entityType:
+      type: string
+      enum: [MOCKUP, DIAGRAM]
+    title:
+      type: string
+      minLength: 1
+    summary:
+      type: string
+      description: >
+        First paragraph of the work item's description; empty when the
+        description is empty.
+
+PlanShapingVisualPreviewPromptPayload:
+  type: object
+  additionalProperties: false
+  required:
+    - designDocId
+    - planId
+    - featureId
+    - refinementRound
+    - entries
+  properties:
+    designDocId:
+      type: string
+      format: uuid
+    planId:
+      type: string
+      format: uuid
+    featureId:
+      type: string
+      format: uuid
+    refinementRound:
+      type: integer
+      minimum: 0
+    entries:
+      type: array
+      items:
+        $ref: "#/PlanShapingVisualPreviewEntry"
+    acceptedProposalIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+    feedback:
+      type: string
+    userMessage:
+      type: string
+      description: Optional user-authored refinement note for the current turn.
+  description: >-
+    Complete API-owned context for one visual-preview refinement turn. Proposal
+    status is a live snapshot supplied by the API; proposal identity,
+    presentation order, and same-family relationship metadata are carried
+    explicitly so the CLI can revise affected visuals and carry unchanged
+    proposals without reconstructing state from conversation text.
+
+PlanShapingPhaseBreakdownPromptPayload:
+  type: object
+  required:
+    - journeyStep
+    - stageIdx
+    - phaseIdx
+    - phasesInStage
+    - totalPhases
+    - designDocId
+    - planId
+    - approvedVisuals
+  description: >
+    Payload for the plan-shaping phase-breakdown EXTERNAL_AGENT node
+    (promptType=plan_shaping_phase_breakdown). Fires once per journey
+    step after the user approves the JourneyMap. Phase identity is the
+    2-D `(stageIdx, phaseIdx)` cursor — `stageIdx` indexes the plan's
+    durable stages, `phaseIdx` indexes the journey step within that
+    stage's journey — derived API-side from the already-accumulated
+    phases on FlowContext rather than from a separate counter. The
+    agent investigates the journey step (reading the design doc, the
+    parent feature hierarchy, and the relevant code) and emits a
+    steps-only `{ stageIdx, phaseIdx, plan: { steps } }` payload via
+    `submit_phase_breakdown`. The agent does NOT author PLAN_STEP
+    proposals during the turn and never authors stages — the stage
+    backbone is durable and pre-existing. The workflow accumulates each
+    phase's payload on FlowContext and materializes every phase's steps
+    in one transaction immediately before the FINALIZE transition fires.
+  properties:
+    journeyStep:
+      $ref: "#/JourneyStep"
+    stageIdx:
+      type: integer
+      minimum: 0
+      description: >
+        Zero-based index of the current stage within the plan's ordered
+        durable stages. The first half of the 2-D `(stageIdx, phaseIdx)`
+        cursor. The agent MUST echo this value back verbatim on its
+        `submit_phase_breakdown` payload so the API can detect cursor
+        divergence and synthesize an ERROR-class completion.
+    phaseIdx:
+      type: integer
+      minimum: 0
+      description: >
+        Zero-based index of `journeyStep` within stage `stageIdx`'s
+        journey. The second half of the 2-D `(stageIdx, phaseIdx)`
+        cursor. The agent MUST echo this value back verbatim on its
+        `submit_phase_breakdown` payload so the API can detect cursor
+        divergence and synthesize an ERROR-class completion.
+    phasesInStage:
+      type: integer
+      minimum: 1
+      description: >
+        Number of journey steps in stage `stageIdx`'s journey — the count
+        of phases that share this stage. Derived API-side by grouping
+        `FlowContext.journeySteps` by stage. Pairs with `phaseIdx` (which
+        is per-stage) so the prompt can render an honest "phase N of M in
+        this stage" header; `totalPhases` counts the whole map and would
+        mismatch a per-stage `phaseIdx`.
+    totalPhases:
+      type: integer
+      minimum: 1
+      description: >
+        Total number of journey steps in `FlowContext.journeySteps` across
+        every stage. Used for whole-map accounting, not the per-stage
+        position header (that pairs `phaseIdx` with `phasesInStage`).
+    designDocId:
+      type: string
+      format: uuid
+      description: >
+        Canonical id of the plan's design document. Read via
+        get_full_entity({ entities: [{ entityType: 'DESIGN_DOC', entityId: designDocId }] })
+        to keep stage/step proposals consistent with the approved design.
+    planId:
+      type: string
+      format: uuid
+      description: >
+        Canonical id of the plan being expanded. The agent creates stages
+        and steps against this plan.
+    priorPhases:
+      type: array
+      items:
+        $ref: "#/PhaseBreakdownPriorPhase"
+      description: >
+        Steps-only output of every earlier phase in this journey,
+        derived API-side from the entries in
+        `FlowContext.accumulatedPhases` whose `(stageIdx, phaseIdx)`
+        cursor precedes the trigger's. Sorted ascending by cursor.
+        Absent or empty on the first phase. Each entry carries the
+        actual steps the earlier phase emitted, so the current phase
+        agent can stay consistent with what is already in the
+        accumulating plan without re-reading prose summaries.
+    approvedVisuals:
+      type: array
+      items:
+        $ref: "#/PlanShapingApprovedVisual"
+      description: >
+        Every Mockup and Diagram the user approved as the visual set, in
+        presentation order. Binding planning context: the steps must
+        implement what these visuals show.
+    userMessage:
+      type: string
+      description: >
+        Optional free-form text from the user. Carried for wire-shape
+        symmetry; phase-breakdown does not accept user messages in v1.
+
+PhaseBreakdownPriorPhase:
+  type: object
+  required:
+    - stageIdx
+    - phaseIdx
+    - journeyStep
+    - plan
+  description: >
+    One entry in the `priorPhases` trigger-payload array — the
+    steps-only output an earlier phase-breakdown turn emitted, paired
+    with the journey step that earlier turn was expanding and its 2-D
+    `(stageIdx, phaseIdx)` cursor. The journey-step is included so the
+    current-phase prompt can render each prior phase under a
+    human-readable label without re-deriving it from `journeySteps` on
+    FlowContext (the trigger payload no longer carries `journeySteps`).
+  properties:
+    stageIdx:
+      type: integer
+      minimum: 0
+      description: >
+        Zero-based stage index of the prior phase. With `phaseIdx`,
+        the 2-D cursor that located the prior phase. Used only as a
+        label here; the current phase's expected cursor is the
+        top-level trigger field.
+    phaseIdx:
+      type: integer
+      minimum: 0
+      description: >
+        Zero-based index of the prior phase's journey step within
+        stage `stageIdx`'s journey. Used only as a label here; the
+        current phase's expected cursor is the top-level trigger field.
+    journeyStep:
+      $ref: "#/JourneyStep"
+    plan:
+      $ref: "#/PhaseBreakdownPlan"
+
+PhaseBreakdownStepType:
+  type: string
+  description: >
+    The step kind the phase-breakdown agent is asking the platform to
+    materialize. Every step is a `TASK` — an implementation unit on the
+    platform `PlanStepType` surface.
+  enum:
+    - TASK
+
+PhaseBreakdownStep:
+  type: object
+  required:
+    - id
+    - stageId
+    - title
+    - description
+    - type
+    - sequenceOrder
+    - implementation
+    - acceptanceCriteria
+    - designDocMotivation
+  description: >
+    One step the phase-breakdown agent asks the platform to materialize
+    under the durable PlanStage identified by `stageId`. `id` is a
+        stable UUID handle minted by the agent for the reviewed change set.
+        The platform materializes the step directly as a canonical STANDARD
+        Task; no PlanStep or duplicate backing entity is created.
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: >
+        Stable UUID handle for this step within the reviewed atomic change set.
+    dependsOnStepIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: >
+        Explicit prerequisite step handles, directed from this dependent step
+        to each prerequisite. Omission or an empty array declares no prerequisites;
+        sequenceOrder never implies a dependency. References must resolve within
+        the complete retained plan. Full-set review must preserve intended
+        prerequisites, redirect references from merged steps to retained handles,
+        and remove references only when the prerequisite is no longer intended.
+    stageId:
+      type: string
+      format: uuid
+      description: >
+        UUID of the durable PlanStage this step is materialized under —
+        the same `stageId` carried on the trigger's `journeyStep`. The
+        stage is authored by proposed-stages and already exists; this
+        phase emits no stages of its own. Materialization fails if this
+        id does not resolve to a stage on the plan.
+    title:
+      type: string
+      minLength: 1
+      pattern: "\\S"
+      description: >
+        Short product-language title for the step. Follows the same
+        title conventions `create_step` / `create_steps` document.
+    description:
+      type: string
+      minLength: 1
+      pattern: "\\S"
+      description: >
+        Product-language description of the step's intent and scope.
+        Acceptance criteria belong on `acceptanceCriteria`, not here.
+    implementation:
+      type: string
+      minLength: 1
+      pattern: "\\S"
+      description: >
+        Per-step prose description of the concrete change this step
+        delivers, bound to a file from the paired PHASE_GROUNDING
+        report's `touchPoints`. The submission tool cross-validates
+        that this string references at least one repo-relative path
+        the agent named in that report, so each step the platform
+        materializes points back at the touch point that motivated it.
+    type:
+      $ref: "#/PhaseBreakdownStepType"
+    acceptanceCriteria:
+      type: string
+      minLength: 1
+      pattern: "\\S"
+      description: >
+        Required acceptance-criteria body for the step's backing
+        entity. The value is one string containing newline-delimited
+        markdown bullets (for example, `- First condition\n- Second
+        condition`), never a JSON array of strings. Every step must
+        declare how its done-state will be verified; missing or empty
+        is rejected at the submission boundary.
+    sequenceOrder:
+      type: integer
+      minimum: 0
+      description: >
+        Zero-based ordering position of this step relative to its
+        siblings under the same `stageId`.
+    serviceIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: >
+        Optional complete known set of platform Services that own or are
+        modified by the work. Resolve every entry via `list_services` during
+        the investigation pass. When supplied, materialization associates the
+        backing task and PlanStep with every Service in the set. Omit only when
+        Service scope is genuinely unresolved; never guess. Cross-Service work
+        may remain one coherent step when its complete Service set is recorded.
+    designDocMotivation:
+      type: string
+      minLength: 1
+      pattern: "\\S"
+      description: >
+        A quoted excerpt or paraphrase of the design-doc passage that
+        motivated this step — used to record a derived influence on the
+        materialized proposal pointing back at the design doc. The agent
+        must supply a non-empty value for every step; empty string is
+        rejected at the submission boundary.
+
+PhaseBreakdownPlan:
+  type: object
+  required:
+    - steps
+  description: >
+    The structured plan the phase-breakdown agent emits for one journey
+    step — a flat list of steps, each bound by `stageId` to the durable
+    PlanStage the journey step belongs under. A phase emits steps only;
+    it never authors stages, because the stage backbone is already
+    durable from proposed-stages. Carried on the `DONE` completion's
+    payload and accumulated on
+    `PlanFromDesignDocFlowContext.accumulatedPhases` keyed by the
+    `(stageIdx, phaseIdx)` cursor. The platform materializes every
+    accumulated phase's steps in one transaction immediately before the
+    FINALIZE transition fires; nothing is materialized during the agent
+    loop.
+  properties:
+    steps:
+      type: array
+      items:
+        $ref: "#/PhaseBreakdownStep"
+      description: >
+        Steps to materialize under their durable stages. Each step's
+        `stageId` must resolve to an existing PlanStage on the plan.
+
+PhaseBreakdownCompletionPayload:
+  type: object
+  required:
+    - stageIdx
+    - phaseIdx
+    - plan
+  description: >
+    Wire payload for the `submit_phase_breakdown` submission tool.
+    `stageIdx` and `phaseIdx` are the 2-D cursor of the phase the
+    agent just expanded — both must echo back verbatim the cursor the
+    agent received on the trigger payload (which the API derived from
+    the already-accumulated phases). `plan` carries the steps-only
+    payload to materialize for that phase. The workflow engine
+    validates this payload at the wire boundary; malformed payloads
+    are rejected before `processUserResponse` runs, and a mismatch
+    between the echoed `(stageIdx, phaseIdx)` and the API's expected
+    cursor synthesizes an ERROR-class completion rather than mutating
+    accumulatedPhases.
+  properties:
+    stageIdx:
+      type: integer
+      minimum: 0
+      description: >
+        Zero-based stage index of the phase this payload expands.
+        With `phaseIdx`, the 2-D cursor used as the
+        `accumulatedPhases` key.
+    phaseIdx:
+      type: integer
+      minimum: 0
+      description: >
+        Zero-based index of the journey step this payload expands
+        within stage `stageIdx`'s journey. With `stageIdx`, the 2-D
+        cursor used as the `accumulatedPhases` key.
+    plan:
+      $ref: "#/PhaseBreakdownPlan"
+
+PlanShapingStepReviewPromptPayload:
+  type: object
+  required:
+    - steps
+    - stageIdx
+    - totalStages
+    - designDocId
+    - planId
+    - approvedVisuals
+  description: >
+    Payload for the plan-shaping step-review EXTERNAL_AGENT node
+    (promptType=plan_shaping_step_review). Fires once per stage after
+    every phase has been expanded by phase-breakdown and before any
+    step is saved. The agent reads the stage's full set of drafted
+    steps together with the design doc and returns the tightened
+    step set for the stage (replace-the-stage-set semantics: drop by
+    omission, merge by returning one in place of two, add with a
+    fresh UUID, rewrite by keeping the UUID and changing fields).
+    The drafted steps arrive on the trigger payload — flattened
+    across the stage's phases in phaseIdx order, each preserving its
+    durable `stageId` and `sequenceOrder` — not via the SDK
+    transcript, because the agent runs with a turn-lived provider
+    session per stage.
+  properties:
+    steps:
+      type: array
+      items:
+        $ref: "#/PhaseBreakdownStep"
+      description: >
+        The stage's drafted steps flattened from
+        `accumulatedPhases[stageIdx]` in phaseIdx order. Every step
+        carries its durable `stageId` and `sequenceOrder` from the
+        phase-breakdown turn that produced it; the agent's tightened
+        set must keep `stageId` unchanged and set `sequenceOrder` in
+        intended final order (materialization sorts by it within a
+        phase before re-numbering per stage).
+    stageIdx:
+      type: integer
+      minimum: 0
+      description: >
+        Zero-based index of the stage under review within the plan's
+        ordered durable stages. The agent MUST echo this value back
+        verbatim on its `submit_step_review` payload so the API can
+        detect cursor divergence and synthesize an ERROR-class
+        completion.
+    totalStages:
+      type: integer
+      minimum: 1
+      description: >
+        Total number of stages in the plan's ordered durable stages
+        (derived API-side from `buildStageJourneys(journeySteps).length`).
+        Used for the per-stage position header the prompt renders.
+    designDocId:
+      type: string
+      format: uuid
+      description: >
+        Canonical id of the plan's design document. The handler
+        fetches the design-doc body at `prepare()` and injects it
+        inline into the review prompt so the tightening pass can
+        ground the kept/dropped/rewritten steps in the approved
+        design.
+    planId:
+      type: string
+      format: uuid
+      description: >
+        Canonical id of the plan being reviewed. Carried for
+        symmetry with the phase-breakdown payload and surfaced in
+        the prompt for orientation; the agent does not author any
+        platform proposals during the step-review turn.
+    approvedVisuals:
+      type: array
+      items:
+        $ref: "#/PlanShapingApprovedVisual"
+      description: >
+        Every Mockup and Diagram the user approved as the visual set, in
+        presentation order. Binding review context: the tightened steps
+        must implement what these visuals show.
+    userMessage:
+      type: string
+      description: >
+        Optional free-form text from the user. Carried for wire-shape
+        symmetry with the other plan-shaping payloads; step-review
+        does not accept user messages in v1.
+
+StepReviewCompletionPayload:
+  type: object
+  required:
+    - stageIdx
+    - plan
+  description: >
+    Wire payload for the `submit_step_review` submission tool. The
+    agent emits the full tightened step set for one stage, echoing
+    back the `stageIdx` it received on the trigger so the API can
+    detect cursor divergence. The workflow engine validates this
+    payload at the wire boundary; a mismatch between the echoed
+    `stageIdx` and the API's expected stage cursor synthesizes an
+    ERROR-class completion rather than mutating
+    `accumulatedPhases`. On a valid completion the node overwrites
+    `accumulatedPhases[stageIdx]` with a single synthetic phase
+    `{ 0: { steps } }`, so `PhaseBreakdownMaterializationService` —
+    which already walks `[stageIdx][phaseIdx]` and groups by each
+    step's `stageId` — produces identical-shape output without a
+    materialization-service change.
+  properties:
+    stageIdx:
+      type: integer
+      minimum: 0
+      description: >
+        Zero-based index of the stage this payload reviews. Must
+        echo back verbatim the value the agent received on the
+        trigger payload.
+    plan:
+      $ref: "#/PhaseBreakdownPlan"
+
+PlanSubmissionAdmissionRequest:
+  oneOf:
+    - $ref: "#/PlanSubmissionAdmissionPhaseBreakdownRequest"
+    - $ref: "#/PlanSubmissionAdmissionStepReviewRequest"
+  discriminator:
+    propertyName: kind
+    mapping:
+      phase_breakdown: "#/PlanSubmissionAdmissionPhaseBreakdownRequest"
+      step_review: "#/PlanSubmissionAdmissionStepReviewRequest"
+
+PlanSubmissionAdmissionPhaseBreakdownRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - kind
+    - conversationId
+    - triggerMessageId
+    - submission
+  properties:
+    kind:
+      type: string
+      enum: [phase_breakdown]
+    conversationId:
+      type: string
+      format: uuid
+    triggerMessageId:
+      type: string
+      format: uuid
+      description: Active persisted EXTERNAL_AGENT trigger being answered.
+    submission:
+      $ref: "#/PhaseBreakdownCompletionPayload"
+
+PlanSubmissionAdmissionStepReviewRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - kind
+    - conversationId
+    - triggerMessageId
+    - submission
+  properties:
+    kind:
+      type: string
+      enum: [step_review]
+    conversationId:
+      type: string
+      format: uuid
+    triggerMessageId:
+      type: string
+      format: uuid
+      description: Active persisted EXTERNAL_AGENT trigger being answered.
+    submission:
+      $ref: "#/StepReviewCompletionPayload"
+
+PlanSubmissionAdmissionFinding:
+  type: object
+  additionalProperties: false
+  required:
+    - field
+    - code
+    - reason
+  properties:
+    field:
+      type: string
+    code:
+      type: string
+    reason:
+      type: string
+    correction:
+      type: string
+    metadata:
+      type: object
+      additionalProperties: true
+
+PlanSubmissionAdmissionAccepted:
+  type: object
+  additionalProperties: false
+  required:
+    - status
+    - submission
+    - advisories
+  properties:
+    status:
+      type: string
+      enum: [accepted]
+    submission:
+      oneOf:
+        - $ref: "#/PhaseBreakdownCompletionPayload"
+        - $ref: "#/StepReviewCompletionPayload"
+    advisories:
+      type: array
+      items:
+        $ref: "#/PlanSubmissionAdmissionFinding"
+
+PlanSubmissionAdmissionRejected:
+  type: object
+  additionalProperties: false
+  required:
+    - status
+    - findings
+    - advisories
+  properties:
+    status:
+      type: string
+      enum: [rejected]
+    findings:
+      type: array
+      items:
+        $ref: "#/PlanSubmissionAdmissionFinding"
+    advisories:
+      type: array
+      items:
+        $ref: "#/PlanSubmissionAdmissionFinding"
+
+PlanSubmissionAdmissionConflict:
+  type: object
+  additionalProperties: false
+  required:
+    - status
+    - findings
+  properties:
+    status:
+      type: string
+      enum: [conflict]
+    findings:
+      type: array
+      items:
+        $ref: "#/PlanSubmissionAdmissionFinding"
+
+PlanSubmissionAdmissionResponse:
+  oneOf:
+    - $ref: "#/PlanSubmissionAdmissionAccepted"
+    - $ref: "#/PlanSubmissionAdmissionRejected"
+    - $ref: "#/PlanSubmissionAdmissionConflict"
+  discriminator:
+    propertyName: status
+    mapping:
+      accepted: "#/PlanSubmissionAdmissionAccepted"
+      rejected: "#/PlanSubmissionAdmissionRejected"
+      conflict: "#/PlanSubmissionAdmissionConflict"
+
+PlanShapingRefineStagePromptPayload:
+  type: object
+  required:
+    - planId
+    - stageId
+    - validation
+  description: >
+    Payload for the plan-shaping refine-stage EXTERNAL_AGENT node
+    (promptType=plan_shaping_refine_stage). Fires when the user
+    opens a stage in REFINING status from the plan UI; the agent
+    reads the plan and stage in a single batched get_full_entity call
+    (passing both ids as `{ entities: [{ entityType, entityId }, ...] }`)
+    and expands the stage's theme rows into concrete step proposals via
+    the plan-shaping MCP tools. The wire payload carries the canonical
+    handles for the plan and the specific stage being refined, plus the
+    validation toggle and the optional user message that triggered
+    the turn.
+  properties:
+    planId:
+      type: string
+      format: uuid
+      description: >
+        Canonical id of the plan whose stage is being refined.
+        Included in the batched get_full_entity call to keep the
+        expanded steps consistent with the surrounding stages.
+    stageId:
+      type: string
+      format: uuid
+      description: >
+        Canonical id of the specific stage being refined. Included
+        in the batched get_full_entity call so the agent can read
+        the stage's existing theme rows and expand them into
+        concrete step proposals.
+    validation:
+      $ref: "#/PlanShapingValidationMode"
+    userMessage:
+      type: string
+      description: >
+        Optional free-form text from the user. Termination is
+        enforced by the submit_ready submission tool, not by the
+        payload.
+
+# =============================================
+# Startup-session payload and dependencies
+# =============================================
+
+LocalPromptTaskType:
+  type: string
+  enum:
+    - STANDARD
+    - BUG
+    - FEATURE
+    - GOAL
+    - EVAL
+
+LocalPromptWorkStatus:
+  type: string
+  enum:
+    - GENERATED
+    - BACKLOG
+    - READY
+    - REFINING
+    - BLOCKED
+    - REFINING_DESCRIPTION
+    - REFINING_DETAILS
+    - REFINING_ACCEPTANCE_CRITERIA
+    - GENERATING_DESCRIPTION
+    - GENERATING_DETAILS
+    - GENERATING_DESCRIPTION_AND_DETAILS
+    - GENERATING_ACCEPTANCE_CRITERIA
+    - GENERATING_ALL
+    - ACTIVE
+    - ON_HOLD
+    - VERIFYING
+    - COMPLETED
+    - CANCELLED
+    - ARCHIVED
+    - SUPERSEDED
+
+LocalPromptEvidenceItemType:
+  type: string
+  enum:
+    - initiative
+    - task
+    - design_doc
+    - plan
+    - message
+    - service
+    - artifact
+    - project
+
+LocalPromptEvidenceItem:
+  type: object
+  required:
+    - id
+    - type
+  properties:
+    id:
+      type: string
+    type:
+      $ref: "#/LocalPromptEvidenceItemType"
+    title:
+      type: string
+    content:
+      type: string
+    topologySummary:
+      type: string
+
+LocalPromptTaskInput:
+  type: object
+  required:
+    - taskType
+    - description
+  properties:
+    id:
+      type: string
+    title:
+      type: string
+    taskType:
+      $ref: "#/LocalPromptTaskType"
+    description:
+      type: string
+    acceptanceCriteria:
+      type: string
+
+LocalPromptDesignDocInput:
+  type: object
+  properties:
+    id:
+      type: string
+    title:
+      type: string
+    sections:
+      type: object
+      additionalProperties:
+        type: string
+
+LocalPromptPlanInput:
+  type: object
+  properties:
+    id:
+      type: string
+    title:
+      type: string
+    description:
+      type: string
+    outcome:
+      type: string
+
+LocalPromptInitiativeInput:
+  type: object
+  properties:
+    id:
+      type: string
+    title:
+      type: string
+    description:
+      type: string
+
+LocalPromptAdjacentScopeTaskInput:
+  type: object
+  required:
+    - title
+  properties:
+    id:
+      type: string
+    title:
+      type: string
+    taskType:
+      $ref: "#/LocalPromptTaskType"
+    description:
+      type: string
+    acceptanceCriteria:
+      type: string
+
+LocalPromptTaskNeighborhoodTaskInput:
+  type: object
+  required:
+    - id
+    - title
+    - description
+  properties:
+    id:
+      type: string
+    title:
+      type: string
+    taskType:
+      $ref: "#/LocalPromptTaskType"
+    description:
+      type: string
+    acceptanceCriteria:
+      type: string
+    status:
+      $ref: "#/LocalPromptWorkStatus"
+
+LocalPromptTaskNeighborhoodChildTaskInput:
+  allOf:
+    - $ref: "#/LocalPromptTaskNeighborhoodTaskInput"
+    - type: object
+      required:
+        - parentTaskIds
+        - incompleteParentTaskIds
+        - allParentTasksCompleted
+      properties:
+        parentTaskIds:
+          type: array
+          items:
+            type: string
+        incompleteParentTaskIds:
+          type: array
+          items:
+            type: string
+        allParentTasksCompleted:
+          type: boolean
+
+LocalPromptTaskNeighborhoodDesignDocInput:
+  type: object
+  required:
+    - id
+    - title
+    - summary
+  properties:
+    id:
+      type: string
+    title:
+      type: string
+    summary:
+      type: string
+    status:
+      type: string
+
+LocalPromptTaskNeighborhoodInput:
+  type: object
+  required:
+    - parentTasks
+    - childTasks
+    - ancestralDesignDocs
+  properties:
+    parentTasks:
+      type: array
+      items:
+        $ref: "#/LocalPromptTaskNeighborhoodTaskInput"
+    childTasks:
+      type: array
+      items:
+        $ref: "#/LocalPromptTaskNeighborhoodChildTaskInput"
+    ancestralDesignDocs:
+      type: array
+      items:
+        $ref: "#/LocalPromptTaskNeighborhoodDesignDocInput"
+
+LocalPromptStartupInput:
+  type: object
+  required:
+    - task
+    - adjacentScopeTasks
+    - evidenceItems
+  properties:
+    task:
+      $ref: "#/LocalPromptTaskInput"
+    focalEntity:
+      description: >
+        The Run's persisted entity identity, forwarded unchanged to Project
+        Assistant prompt preparation.
+      $ref: "./run-entity.yaml#/RunEntityReference"
+    designDoc:
+      $ref: "#/LocalPromptDesignDocInput"
+    plan:
+      $ref: "#/LocalPromptPlanInput"
+    planGuidance:
+      $ref: "#/TaskMonitorPlanGuidance"
+    initiative:
+      $ref: "#/LocalPromptInitiativeInput"
+    taskNeighborhood:
+      $ref: "#/LocalPromptTaskNeighborhoodInput"
+    adjacentScopeTasks:
+      type: array
+      items:
+        $ref: "#/LocalPromptAdjacentScopeTaskInput"
+    evidenceItems:
+      type: array
+      items:
+        $ref: "#/LocalPromptEvidenceItem"
+
+TaskMonitorPlanGuidance:
+  type: object
+  additionalProperties: false
+  required:
+    - plan
+    - stage
+    - step
+  properties:
+    plan:
+      type: object
+      additionalProperties: false
+      required: [id, title, outcome]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string, minLength: 1 }
+        description: { type: string }
+        outcome: { type: string, minLength: 1 }
+    designDoc:
+      type: object
+      additionalProperties: false
+      required: [id, title, sections]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string, minLength: 1 }
+        sections:
+          type: object
+          minProperties: 1
+          additionalProperties:
+            type: string
+            minLength: 1
+    stage:
+      type: object
+      additionalProperties: false
+      required: [id, title]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string, minLength: 1 }
+        description: { type: string }
+    step:
+      type: object
+      additionalProperties: false
+      required: [id, title]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string, minLength: 1 }
+        description: { type: string }
+LocalStartupSessionPromptPayload:
+  type: object
+  properties:
+    startupInput:
+      deprecated: true
+      description: >-
+        Deprecated compatibility input. Entity-scoped launches load canonical context from the persisted Run entity;
+        this field is ignored by the CLI and will be removed in a later schema revision.
+      allOf:
+        - $ref: "#/LocalPromptStartupInput"
+    userMessage:
+      type: string
+    launchPlanId:
+      type: string
+      minLength: 1
+      description: >
+        Plan that the coding-plan turn was launched from, when the
+        active task is part of a plan stage. Threaded onto the wire
+        payload from the run's contextMetadata so the coding-plan
+        prompt can branch on plan-membership pre-prompt without
+        re-reading session state. Paired with `launchStepId` — both
+        must be present for the planned-task variant of the prompt to
+        engage; either field absent yields the free-task variant.
+    launchStepId:
+      type: string
+      minLength: 1
+      description: >
+        Plan step that the coding-plan turn was launched from. Paired
+        with `launchPlanId` to identify which step within the plan
+        stage the task is anchored to. Use `launchStageId` (not this
+        field) when calling `get_plan_stage` for the stage catch-up
+        read.
+    launchStageId:
+      type: string
+      minLength: 1
+      description: >
+        Plan stage that contains `launchStepId`. Threaded onto the
+        wire payload from the run's contextMetadata so the agent can
+        call `get_plan_stage(stageId: launchStageId)` directly without
+        an extra lookup. Required by the planned-task variant alongside
+        `launchPlanId` and `launchStepId`; if any of the three is
+        absent the free-task variant runs.
+    implementationReadiness:
+      description: >-
+        The Feature Sync-owned implementation-readiness disposition that
+        was checked before this coding session was admitted. The CLI stores
+        it in shared session context; CLEAR and DISMISSED permanently satisfy
+        this one-time gate for subsequent planning and code-capable work.
+      allOf:
+        - $ref: "./flows.yaml#/ImplementationReadinessDisposition"
+
+# =============================================
+# Start-run envelope payload
+# =============================================
+
+StartRunWorktree:
+  type: object
+  additionalProperties: false
+  required:
+    - enabled
+  properties:
+    enabled:
+      type: boolean
+      enum:
+        - true
+    branch:
+      type: string
+      minLength: 1
+  description: >
+    Worktree materialization request forwarded to the Agent Bridge runtime.
+
+StartRunPromptPayload:
+  type: object
+  required:
+    - model
+    - provider
+    - contextMetadata
+    - agentSessionId
+  description: >
+    Payload for the start-run envelope variant
+    (AgentTriggerStartRun, sentinel promptType=`start_run`). Mirrors the
+    fields of the Agent Bridge runtime contract in
+    openapi/specs/agent-bridge/openapi.yaml
+    that the CLI needs to materialize a Run on the host side. The platform
+    start-run producer forwards this payload on the signed envelope so the
+    CLI can materialize the Run without re-deriving any field. Carried inside an
+    `AgentTriggerStartRun` whose discriminator value is the sentinel
+    literal `start_run`.
+
+    Two arms on the signed trigger envelope, distinguished by a
+    `handlerPromptType` (turn-firing) vs `workflowName` (materialize-only)
+    discriminator — exactly one discriminator is present on any given
+    envelope:
+
+    - **`handlerPromptType` + `payload` (turn-firing arm).** The
+      non-workflow case. The CLI materializes the Run and immediately
+      fires its first turn against `handlerPromptType`, driven by
+      `payload`. This is the only arm that drives turn one from the CLI.
+    - **`workflowName` (materialize-only arm).** The workflow-orchestrated
+      case (e.g. plan mode). `handlerPromptType` is absent. A bind-only launch
+      omits `payload`; a kickoff launch carries a `workflow_kickoff` payload
+      with the opening user message and optional canonical focal `entity`.
+      The CLI materializes the Run and binds `conversationId → runId` but
+      fires no turn — the Temporal workflow (already started server-side)
+      drives every turn via its own signed SYSTEM triggers. Skipping
+      `start_run` entirely for a workflow session would leave no
+      `conversationId → runId` binding and the workflow's triggers would be
+      dropped as `no_active_run`; the materialize-only arm is how a launch
+      turn is suppressed without dropping the envelope.
+
+    On the kickoff form, the API authors the workflow arm's USER opening row
+    from `payload.userMessage`, while the same payload supplies the CLI with
+    the optional focal `entity` needed for Run materialization. Bind-only
+    launches author no kickoff row and carry no payload.
+
+    Independently of the arm discriminator, `triggersAgent` (default `true`)
+    governs whether the turn-firing arm actually fires turn one. Setting it
+    `false` turns a `handlerPromptType` + `payload` envelope materialize-only:
+    the CLI materializes the Run and binds `conversationId → runId` but fires
+    no turn. This is the non-workflow way to seed a standing greeting that
+    waits for the user — the same launch-turn suppression the `workflowName`
+    arm achieves by routing dispatch to a Temporal workflow.
+  not:
+    anyOf:
+      # Exactly one arm discriminator must be present.
+      - required:
+          - handlerPromptType
+          - workflowName
+      - allOf:
+          - not:
+              required:
+                - handlerPromptType
+          - not:
+              required:
+                - workflowName
+      # The handler arm always carries its first-turn payload.
+      - allOf:
+          - required:
+              - handlerPromptType
+          - not:
+              required:
+                - payload
+      # A workflow payload is optional for bind-only launches. When present,
+      # it must be the workflow_kickoff variant.
+      - allOf:
+          - required:
+              - workflowName
+              - payload
+          - properties:
+              payload:
+                not:
+                  $ref: "../agent-bridge/openapi.yaml#/components/schemas/RunCreatePayloadWorkflowKickoff"
+  properties:
+    runId:
+      type: string
+      format: uuid
+      description: Explicit replacement Run identity; the owning Agent Session is unchanged.
+    attachments:
+      type: array
+      description: Optional file references for a handler launch. The CLI uses an empty list when omitted. Content stays on the host.
+      items:
+        $ref: "#/RunAttachmentReference"
+    stagedBrowserTab:
+      description: >
+        Shared Browser tab the user opened before the Run existed. The new Run
+        adopts it as its selected page and its first Turn is told the user
+        opened it and at which URL. Null when none. A reference whose tab no
+        longer exists rejects the start with STAGED_BROWSER_TAB_NOT_FOUND
+        before the first Turn. Turn-firing arm only.
+      allOf:
+        - $ref: "#/StagedBrowserTabReference"
+      nullable: true
+    triggersAgent:
+      type: boolean
+      default: true
+      description: >
+        Whether the turn-firing arm fires turn one. Defaults to `true`: a
+        `handlerPromptType` + `payload` envelope materializes the Run and
+        immediately dispatches its first turn, exactly as before. When
+        `false`, the CLI materializes the Run and binds
+        `conversationId → runId` but fires no turn even though
+        `handlerPromptType`/`payload` are present — the third,
+        non-dispatching bootstrap mode, used to seed a standing SYSTEM
+        greeting that simply waits for the user's first message. The
+        non-workflow analogue of the `workflowName` materialize-only arm.
+        Omit (or set `true`) on every existing turn-firing path.
+    handlerPromptType:
+      type: string
+      minLength: 1
+      description: >
+        The actual `LocalPromptType` routing key from the Agent Bridge
+        contract that the CLI should dispatch
+        the run against (e.g. `startup_session`, `feature_sync_analyze`,
+        `implement`). Distinct from the sentinel `promptType: 'start_run'`
+        on the parent trigger envelope. Carried as a plain string because
+        the `LocalPromptType` enum is owned by the transport-neutral Agent
+        Bridge contract; the CLI narrows this string against its own enum at the
+        dispatcher boundary. Present on the turn-firing arm only; absent
+        when `workflowName` is set.
+    payload:
+      allOf:
+        - $ref: "../agent-bridge/openapi.yaml#/components/schemas/RunCreatePayload"
+      description: >
+        Typed prompt payload discriminated by `handlerPromptType`, refs the
+        shared `RunCreatePayload` union in ./run-payloads.yaml — the same
+        union that the Agent Bridge runtime validates, so the platform
+        start-run envelope and CLI execution share one source of truth
+        instead of an unconstrained re-validated object.
+
+        Required with `handlerPromptType`, where it drives the first turn.
+        Optional with `workflowName`: omitted for a bind-only workflow launch,
+        or the `workflow_kickoff` variant for a kickoff launch. The API uses
+        `userMessage` to author the opening USER row, and the CLI uses the
+        optional canonical `entity` to materialize a scoped Run. Omitting
+        `entity` from a kickoff payload represents a genuinely unscoped
+        workflow launch.
+    workflowName:
+      type: string
+      minLength: 1
+      description: >
+        Name of the Temporal workflow that orchestrates this session
+        (e.g. `feature-sync`). Present on the materialize-only arm. When set,
+        the CLI materializes the Run and binds the conversation but fires
+        no first turn — the workflow drives every turn via its own SYSTEM
+        triggers. Value-set mirrors the `WorkflowName` enum; carried as a
+        plain string for the same independent-generation reason as
+        `handlerPromptType`.
+
+        `workflowName` is mutually exclusive with `handlerPromptType`.
+        `payload` is absent for bind-only launches or must be the
+        `workflow_kickoff` variant. For kickoff launches, the API authors the
+        USER opening row from `payload.userMessage`; the CLI uses
+        `payload.entity`, when present, as the Run's canonical focal identity.
+    model:
+      type: string
+      minLength: 1
+      description: >
+        Claude model id the CLI should use for the run (e.g.
+        `claude-opus-4-6`, `claude-sonnet-4-6`,
+        `claude-haiku-4-5-20251001`). Forwarded verbatim onto
+        the Agent Bridge runtime's model field.
+    reasoningEffort:
+      type: string
+      enum:
+        - none
+        - minimal
+        - low
+        - medium
+        - high
+        - xhigh
+        - max
+        - ultra
+        - default
+      description: >
+        Reasoning-effort level for the run. Value-set mirrors
+        the Agent Bridge runtime contract (the source of truth); additions
+        there require extending this enum in
+        lockstep.
+    config:
+      allOf:
+        - $ref: "./coding-sessions.yaml#/AgentSessionConfig"
+      nullable: true
+      description: >
+        Typed AgentSession launch config forwarded to the CLI. Project Assistant
+        proactive behavior and plan-combination aggressiveness are read from
+        this persisted config after the Run is materialized; absent config or
+        absent flags resolve at the consuming boundary.
+    provider:
+      type: string
+      enum:
+        - claude
+        - codex
+        - opencode
+      description: >
+        Agent provider the CLI should dispatch against. Value-set mirrors
+        the Agent Bridge runtime provider contract (the source of truth);
+        additions there require extending this enum in
+        lockstep.
+    skillSelection:
+      $ref: "./run-payloads.yaml#/AgentSkillSelection"
+      description: >-
+        Optional pathless Skill identity for the first turn. The provider
+        resolves it locally from the active Run workspace.
+    fastMode:
+      type: boolean
+      description: >
+        Optional provider-neutral Fast mode preference. `true`, `false`, and
+        omission are distinct; the provider runner decides how omission applies.
+        This field is accepted only when `provider` is `codex` or `claude` and
+        carries no provider-native value.
+    contextMetadata:
+      allOf:
+        - $ref: "./run-context.yaml#/RunContextMetadata"
+      description: >
+        Run context metadata, refs the shared `RunContextMetadata` in
+        the Agent Bridge-owned `RunContextMetadata` schema. The CLI
+        adopts `agentSessionId` verbatim as the local run's
+        `agentic_session_id` and stamps it on the `X-Agent-Session-ID`
+        header for every MCP request. Shared so the platform start-run
+        envelope and CLI execution validate against one source of truth
+        instead of an unconstrained re-validated object.
+    serviceIds:
+      type: array
+      items:
+        type: string
+        minLength: 1
+      description: >
+        Set of platform service ids the run executes against. Threaded through
+        so the CLI can resolve working directories and scope without extra
+        lookups. Optional: coding runs always carry it, but non-coding sessions
+        (task / feature refiners, entity conversations) operate on entity text
+        rather than a checked-out repo and omit it entirely.
+    launchServiceId:
+      type: string
+      minLength: 1
+      description: >
+        The service the CLI launches the session against. Required when
+        serviceIds is non-empty; must be a member of serviceIds. Threaded
+        through so the CLI can resolve the primary working directory without
+        an extra lookup. Omit the field rather than sending an empty string.
+    worktree:
+      $ref: "#/StartRunWorktree"
+      description: >
+        Worktree materialization request forwarded to the CLI-side
+        the Agent Bridge worktree field. Present only when the launch wizard
+        enabled worktree creation. `branch` carries the chosen branch name the
+        CLI should materialize for each selected service.
+    agentSessionId:
+      type: string
+      minLength: 1
+      description: >
+        Canonical id of the platform agent session that owns this run.
+        Mirrors `contextMetadata.agentSessionId` at the top level for
+        symmetry with the context metadata's canonical session id.
+
+RepositoryGroundingPromptPayload:
+  $ref: "./repository-grounding.yaml#/RepositoryGroundingRequest"
+  description: >-
+    Machine-addressed repository-grounding request carried by the existing
+    EXTERNAL_AGENT trigger rail. The selected machine resolves its own local
+    Service binding; the payload contains no directory path or source body.
+
+RepositoryFeatureEnrichmentPromptPayload:
+  $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentRequest"
+  description: >-
+    Complete-state Feature enrichment request. Every turn carries the latest
+    accepted repository analysis snapshot, accepted runtime configuration, and
+    all prior answers.
+
+RepositoryFirstWorkPromptPayload:
+  $ref: "./repository-grounding.yaml#/RepositoryFirstWorkRequest"
+  description: >-
+    Complete-state first-work request carried by the EXTERNAL_AGENT trigger
+    rail after imported Features are materialized.
+
+RepositoryPlacementPromptPayload:
+  $ref: "./repository-grounding.yaml#/RepositoryPlacementRequest"
+  description: >-
+    Existing-project-only immutable root-placement request carried by the
+    external-agent trigger rail.
+
+# =============================================
+# User-message follow-up payload
+# =============================================
+
+TaskMonitorLifecycleCause:
+  type: string
+  enum:
+    - START
+    - PAUSE
+    - RESUME
+    - STOP
+    - JUDGMENT_RESOLVED
+    - CONTINUE
+    - COMPLETE
+    - HALT
+  description: >
+    Lifecycle cause delivered to the Task Monitor handler through the signed
+    start-run or user-message dispatch rail.
+
+TaskMonitorLaunchConfig:
+  type: object
+  additionalProperties: false
+  required:
+    - taskId
+    - method
+    - provider
+    - model
+    - reasoningEffort
+  properties:
+    taskId:
+      type: string
+      format: uuid
+    method:
+      $ref: "./work-items.yaml#/TaskMonitorLaunchMethod"
+    provider:
+      $ref: "./work-items.yaml#/TaskMonitorLaunchProvider"
+    model:
+      $ref: "./work-items.yaml#/TaskMonitorLaunchModel"
+    reasoningEffort:
+      $ref: "./work-items.yaml#/TaskMonitorReasoningEffort"
+    fastMode:
+      type: boolean
+      description: Immutable catalog-supported Fast mode intent copied from the persisted cursor node; omit for unsupported selections.
+    worktree:
+      $ref: "#/StartRunWorktree"
+      description: Optional monitor-level worktree materialization request included in the immutable launch snapshot.
+
+TaskMonitorPromptPayload:
+  type: object
+  additionalProperties: false
+  required:
+    - monitorId
+    - cause
+    - correlationId
+  properties:
+    monitorId:
+      type: string
+      format: uuid
+    cause:
+      $ref: "#/TaskMonitorLifecycleCause"
+    correlationId:
+      type: string
+      format: uuid
+    coordinatorAttemptId:
+      type: string
+      format: uuid
+      description: Stable committed delivery identity; independent of released Turn correlation.
+    correction:
+      $ref: "#/TaskMonitorCoordinatorCorrection"
+    userMessage:
+      type: string
+      maxLength: 5000
+    launchConfig:
+      $ref: "#/TaskMonitorLaunchConfig"
+    judgment:
+      $ref: "./work-items.yaml#/TaskMonitorJudgmentResponse"
+    settledTurn:
+      $ref: "#/SessionMonitorSettledTurnEvidence"
+      description: >
+        Canonical settled-Turn evidence supplied for CONTINUE. The
+        correlationId is the same stable turnId; Reports are optional evidence
+        references and never select Task Monitor admission.
+  description: >
+    Complete typed Task Monitor lifecycle input. The UI authors this payload on
+    the platform API; the API preserves it inside the signed CLI dispatch
+    envelope. It is never posted to a browser-local CLI endpoint.
+
+UserMessageAdmittedServiceScope:
+  type: object
+  required:
+    - serviceIds
+    - launchServiceId
+  additionalProperties: false
+  description: >-
+    Complete ordered Service scope admitted by the authenticated USER-message
+    operation. The first Service becomes launchServiceId when the Agent Session
+    had no launch anchor; an existing anchor is preserved. The CLI reconciles
+    this durable grant into Run-owned workspace authority before the next Turn.
+    A non-null launchServiceId is a member of serviceIds.
+  properties:
+    serviceIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+    launchServiceId:
+      type: string
+      format: uuid
+      nullable: true
+
+UserMessageFeatureSyncIterateContext:
+  type: object
+  additionalProperties: false
+  required:
+    - discrepancies
+  description: >
+    The feature-sync iterate fields copied from the active flow context for
+    a follow-up turn. The handler is selected by the enclosing
+    `handlerPromptType`; its outstanding discrepancies are passed through in
+    their existing order. An empty array means the flow explicitly has no
+    outstanding discrepancies.
+  properties:
+    discrepancies:
+      type: array
+      items:
+        $ref: "#/FeatureSyncDiscrepancy"
+
+UserMessagePlanShapingFeatureSyncIterateContext:
+  type: object
+  additionalProperties: false
+  required:
+    - discrepancies
+    - decisions
+  description: >
+    The plan-shaping feature-sync iterate fields copied from the active flow
+    context for a follow-up turn. The handler is selected by the enclosing
+    `handlerPromptType`; outstanding discrepancies remain in their existing
+    order and every explicit decision is preserved. Empty arrays are valid
+    when the flow explicitly has no findings or pending choices.
+  properties:
+    discrepancies:
+      type: array
+      items:
+        $ref: "#/FeatureSyncDiscrepancy"
+    decisions:
+      type: array
+      items:
+        $ref: "./conversations.yaml#/PlanShapingFeatureSyncItemDecision"
+
+UserMessagePromptPayload:
+  type: object
+  required:
+    - handlerPromptType
+    - userMessage
+    - attachments
+  description: >
+    Payload for the user-message follow-up variant
+    (AgentTriggerUserMessage, sentinel promptType=`user_message`). Carried
+    on the SYSTEM trigger emitted when a USER message lands on a
+    conversation with an active AgentSession binding. The CLI dispatcher
+    routes off `handlerPromptType` (the actual LocalPromptType routing
+    key) rather than the sentinel `user_message` discriminator, and
+    forwards `userMessage` as the user's text body on the resulting
+    Agent Bridge prompt operation. Most follow-ups use the already-loaded
+    CLI run state; feature-sync iterate follow-ups also carry their typed
+    outstanding-item context so prompt reconstruction never depends on a
+    provider session retaining its original startup payload.
+  properties:
+    handlerPromptType:
+      type: string
+      minLength: 1
+      description: >
+        The actual LocalPromptType routing key from the Agent Bridge
+        contract that the CLI should dispatch
+        the follow-up turn against (e.g. `feature_sync_analyze`,
+        `feature_tree_conversation`, `implement`). The API resolves it
+        from the conversation's current node via
+        `FlowExecutionService.resolveConversationPromptType` so the
+        follow-up turn lands on the same handler the conversation is
+        already paused on. Carried as a plain string because the
+        LocalPromptType enum is owned by the transport-neutral Agent Bridge
+        contract; the CLI narrows
+        this string against its own enum at the dispatcher boundary.
+    userMessage:
+      type: string
+      description: >
+        Plain-text body of the USER message this trigger follows up on.
+        Extracted server-side via `UserMessageExtractor.extractContent`
+        so the field matches whatever the rest of the engine treats as
+        the user's text content (the extractor tries `message → comment
+        → feedback → message-keyword fields → first non-empty string`).
+    attachments:
+      type: array
+      items:
+        $ref: "#/RunAttachmentReference"
+      description: >
+        Files the user attached to this USER message, copied from
+        `UserMessageData.attachments`; empty when none. The CLI resolves
+        each reference to the file it stored for this Run and sends its contents
+        as separate provider input without changing userMessage. Supported files
+        are UTF-8 text/code files and PNG, JPEG or WebP images. Unsupported
+        formats are rejected; an unresolvable reference rejects the message.
+    skillSelection:
+      $ref: "./run-payloads.yaml#/AgentSkillSelection"
+      description: >
+        Optional pathless Skill identity for this follow-up turn. The
+        provider resolves it locally from the active Run workspace.
+    taskMonitorPayload:
+      $ref: "#/TaskMonitorPromptPayload"
+      description: >
+        Typed Task Monitor fields preserved from UserMessageData.agentInput
+        when handlerPromptType is task_monitor. Absent for every other handler.
+    featureSyncContext:
+      oneOf:
+        - $ref: "#/UserMessageFeatureSyncIterateContext"
+        - $ref: "#/UserMessagePlanShapingFeatureSyncIterateContext"
+      description: >
+        Typed iterate context preserved from UserMessageData.agentInput for
+        feature_sync_iterate and plan_shaping_feature_sync_iterate follow-ups.
+        Required for those two handlerPromptType values and absent otherwise.
+    runtime:
+      $ref: "./conversations.yaml#/ImplementRuntimeSelection"
+      description: >
+        The provider, model, reasoning effort and Fast mode the user picked for
+        this one `commit` or `code_review` follow-up, preserved from
+        UserMessageData.agentInput. The sub-agent for that Turn runs on exactly
+        this selection and the Run's stored runtime is left unchanged; an
+        omitted `reasoningEffort` or `fastMode` is not filled from the Run.
+        Absent when the user made no selection, in which case the sub-agent
+        uses the Run's current settings. Valid only for those two
+        handlerPromptType values.
+
+StagedBrowserTabReference:
+  type: object
+  additionalProperties: false
+  required: [stagedTabId]
+  description: >
+    Reference to a Shared Browser tab opened through the CLI loopback
+    pre-Run open-browser endpoint, owned by no Run until a start-run adopts
+    it. Carries only the identity returned at open.
+  properties:
+    stagedTabId:
+      type: string
+      format: uuid
+
+RunAttachmentReference:
+  type: object
+  additionalProperties: false
+  required: [attachmentId, fileName]
+  description: >
+    Reference to a file uploaded to a Run through the CLI loopback
+    attachment endpoint. Carries only the identity returned at upload,
+    never file bytes.
+  properties:
+    attachmentId:
+      type: string
+      format: uuid
+    fileName:
+      type: string
+      minLength: 1
+
+TaskMonitorCoordinatorValidationFailure:
+  type: object
+  additionalProperties: false
+  required: [code, message, issues]
+  properties:
+    code:
+      type: string
+    message:
+      type: string
+    issues:
+      type: array
+      items:
+        type: string
+
+TaskMonitorCoordinatorCorrection:
+  type: object
+  additionalProperties: false
+  required: [attempt, validationFailure]
+  properties:
+    attempt:
+      type: integer
+      minimum: 1
+      maximum: 2
+    validationFailure:
+      $ref: "#/TaskMonitorCoordinatorValidationFailure"

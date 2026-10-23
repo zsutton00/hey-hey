@@ -1,0 +1,608 @@
+{
+  "schemaVersion": "hey-hey.generation-targets.v1",
+  "state": "proposed-for-review; orchestration implemented by later assembly",
+  "packageBoundaries": "scripts/consolidation/package-boundaries.json",
+  "sourceIdentity": {
+    "id": "reviewed-openapi-source",
+    "sourceInputRef": {
+      "manifest": "scripts/consolidation/source-inputs.json",
+      "serviceId": "3ef90bdf-98c2-4010-a0bd-b1ca9001dc0a"
+    },
+    "state": "awaiting-complete-capture-and-review",
+    "requiredIdentity": [
+      "Capture identity",
+      "Exact Git revision",
+      "Included working-tree content digest",
+      "Specification and referenced schema/fixture/script closure digest"
+    ],
+    "combinedRoot": "openapi",
+    "rule": "Resolve identity fields from the capture manifest, never duplicate or modify captured facts here. A commit alone is insufficient when included working changes exist. Every internal target and external handoff references this one identity. Assembly must stop if it is unbound or incomplete."
+  },
+  "coordinator": {
+    "command": "pnpm generate:contracts",
+    "entrypoint": "scripts/generate-contracts.mjs",
+    "implemented": false,
+    "steps": [
+      "Read and validate both consolidation manifests and the reviewed capture identity.",
+      "Resolve the current combined checkout's openapi directory; verify its identity and validate all six specification surfaces plus their contract/operation-metadata checks.",
+      "Acquire a checkout-local generation lock; pass absolute HEY_HEY_OPENAPI_ROOT to every consumer and shared schema builder. An explicit invalid pin is an error, never a reason to fall back to another checkout.",
+      "Generate dependency-ordered targets with their pinned engine/options and full canonical outputs. Use unique run/target staging paths instead of fixed /tmp or shared .openapi-tmp directories.",
+      "Apply each target's postprocessors before comparison/promotion. Retain API's nested generation lock, cache and existing atomic generation behavior.",
+      "Generate compatible shared schema artifacts once and distribute exact output bytes to their declared destinations. Keep incompatible generator/postprocessor targets separate.",
+      "Verify the source closure did not change, promote successful targets with rollback at each output-group boundary, and record source identity, toolchain/options/postprocessor fingerprints and output digests.",
+      "Report failure per independent target and finish independent targets where possible. The overall command fails if a required target fails; consumers must not build from an incomplete generation result."
+    ],
+    "atomicity": "Per target/output group, not an assumed transaction across every app. UI Common currently writes API and multiple schema outputs in-place, CLI copies five generated files into live directories, and only API's primary generate:api pipeline stages its generated root. Later work must provide staging adapters for all outputs, including files outside src/generated, without deleting handwritten modules or unrelated outputs.",
+    "lockScope": "One root orchestration lock for coordinated runs plus API's existing reentrant model-generation lock shared with Prisma/model generation. Direct consumer commands must participate in their owner lock to avoid racing coordinated generation.",
+    "cachePolicy": "Preserve API's output-aware cache and force escape hatch. Reuse/cache identity includes the complete spec/ref closure, engine, wrapper, options, templates, builders, postprocessors and output digest; do not infer compatibility from a shared spec filename.",
+    "driftCheck": "A clean-checkout CI run regenerates each target and checks its declared outputs for changes. Keep generated files' current tracked/ignored policy until their owning assembly change explicitly accounts for it.",
+    "performanceCommitment": "none"
+  },
+  "toolchains": {
+    "api": {
+      "wrapper": "@openapitools/openapi-generator-cli",
+      "wrapperVersion": "2.25.0",
+      "observedManifestRange": "^2.7.0",
+      "versionEvidence": "api/pnpm-lock.yaml root importer",
+      "engineVersion": "7.13.0",
+      "engineConfig": "api/openapitools.json"
+    },
+    "ui-common": {
+      "wrapper": "@openapitools/openapi-generator-cli",
+      "wrapperVersion": "2.29.0",
+      "engineVersion": "7.13.0",
+      "engineConfig": "ui-common/openapitools.json"
+    },
+    "cli": {
+      "wrapper": "@openapitools/openapi-generator-cli",
+      "wrapperVersion": "2.29.0",
+      "engineVersion": "7.14.0",
+      "engineConfig": "cli/openapitools.json"
+    },
+    "openapi-examples": {
+      "wrapper": "@openapitools/openapi-generator-cli",
+      "wrapperVersion": "2.40.1",
+      "observedManifestRange": "^2.7.0",
+      "engineVersion": "7.14.0",
+      "role": "Existing sample/client generation, not the authoritative consumer recipes"
+    },
+    "graph-maven": {
+      "wrapper": "org.openapitools:openapi-generator-maven-plugin",
+      "engineVersion": "7.13.0",
+      "config": "graphs/pom.xml"
+    },
+    "embeddings": {
+      "wrapper": "@openapitools/openapi-generator-cli",
+      "wrapperVersion": "2.25.2",
+      "engineVersion": "7.17.0",
+      "config": "embeddings/scripts/generate_openapi_models.sh defaults",
+      "note": "Makefile passes optional overrides; actual handoff must record the resolved versions. Script default generator is python despite an older python-pydantic-v1 comment."
+    },
+    "schema-builders": {
+      "runtime": "Node",
+      "versions": "Use each owning package's locked Node-tool dependencies, including js-yaml, TypeScript, Ajv and formatting tools. Fingerprint builder scripts and shared OpenAPI scripts; do not add an independent schema source."
+    }
+  },
+  "profiles": {
+    "api-nest-models": {
+      "generator": "typescript-nestjs",
+      "globalProperties": { "models": "" },
+      "additionalProperties": {
+        "npmName": "@hey-hey/api",
+        "npmVersion": "1.0.0",
+        "supportsES6": true,
+        "interfaceOnly": true,
+        "useObjectParameters": true
+      }
+    },
+    "api-typescript-models": {
+      "generator": "typescript",
+      "globalProperties": { "models": "" },
+      "additionalProperties": {
+        "supportsES6": true,
+        "modelPropertyNaming": "original",
+        "enumPropertyNaming": "original"
+      }
+    },
+    "api-service-nest": {
+      "generator": "typescript-nestjs",
+      "globalProperties": {},
+      "additionalProperties": {
+        "npmVersion": "1.0.0",
+        "supportsES6": true,
+        "interfaceOnly": true,
+        "useObjectParameters": true
+      },
+      "note": "Existing Graph/Embeddings type scripts do not pass the primary API models-only global filter. Preserve their actual output until separately verified."
+    },
+    "axios-client": {
+      "generator": "typescript-axios",
+      "globalProperties": { "apiDocs": false, "modelDocs": false },
+      "additionalProperties": {
+        "supportsES6": true,
+        "withInterfaces": true,
+        "modelPropertyNaming": "camelCase",
+        "typescriptThreePlus": true,
+        "useSingleRequestParameter": true
+      }
+    }
+  },
+  "targets": [
+    {
+      "id": "api-server-models",
+      "sourceIdentityRef": "reviewed-openapi-source",
+      "spec": "specs/api/openapi.yaml",
+      "owner": "api",
+      "toolchain": "api",
+      "profile": "api-nest-models",
+      "existingRecipe": "api/package.json generate:api -> with-model-generation-lock.js -> generate-api-atomically.js",
+      "outputs": [
+        "apps/api/src/generated/model",
+        "apps/api/src/generated/index.ts",
+        "apps/api/src/generated/path-constants.ts",
+        "apps/api/src/generated/*.schema.ts",
+        "apps/api/src/generated/*.schemas.ts",
+        "apps/api/src/generated/*contract*.ts",
+        "apps/api/src/generated/entity-prompt-template-language.ts"
+      ],
+      "postprocessingOrder": [
+        "Run the runtime-schema builders listed in api-primary-runtime-schemas.",
+        "Format workflow-review, diagram and entity-prompt-template-language outputs.",
+        "scripts/post-process-message-events.js",
+        "scripts/generate-models-barrel.js",
+        "ts-node scripts/post-process-generated-types.ts: branded identifiers, generated pragmas and workflow-safe exports",
+        "openapi/scripts/postprocess-project-report-models.js on generated model directory",
+        "scripts/generate-path-constants.js",
+        "scripts/finalize-openapi-generation-cache.js"
+      ],
+      "existingAtomicity": "Stages a copy of src/generated under .tmp, regenerates/postprocesses there, compares fingerprints and renames with backup rollback. Existing schema builders and generated-root resolver honor HEY_HEY_GENERATED_ROOT.",
+      "reuse": "Do not reuse Axios output as NestJS server models."
+    },
+    {
+      "id": "api-agent-models",
+      "sourceIdentityRef": "reviewed-openapi-source",
+      "spec": "specs/agents/openapi.yaml",
+      "owner": "api",
+      "toolchain": "api",
+      "profile": "api-typescript-models",
+      "existingRecipe": "api/package.json generate:agents",
+      "outputs": ["apps/api/src/generated/agents"],
+      "postprocessingOrder": [
+        "scripts/post-process-agents-types.js: model/root barrels and HttpFile stub"
+      ],
+      "reuse": "Separate model profile and spec surface; no Axios output substitution."
+    },
+    {
+      "id": "api-agent-bridge-models",
+      "sourceIdentityRef": "reviewed-openapi-source",
+      "spec": "specs/agent-bridge/openapi.yaml",
+      "owner": "api",
+      "toolchain": "api",
+      "profile": "api-typescript-models",
+      "existingRecipe": "api/package.json generate:local",
+      "outputs": ["apps/api/src/generated/local"],
+      "postprocessingOrder": [
+        "scripts/post-process-local-types.js: model/root barrels and HttpFile stub"
+      ],
+      "alsoRequires": ["repository-feature-enrichment-runtime-schema"],
+      "reuse": "The API command named local actually consumes agent-bridge, not specs/local. Preserve that distinction."
+    },
+    {
+      "id": "api-embeddings-types",
+      "sourceIdentityRef": "reviewed-openapi-source",
+      "spec": "specs/embeddings/openapi.yaml",
+      "owner": "api",
+      "toolchain": "api",
+      "profile": "api-service-nest",
+      "additionalProperties": { "npmName": "@hey-hey/embeddings" },
+      "existingRecipe": "api/package.json generate:embeddings -> scripts/generate-embeddings-types.js",
+      "outputs": ["apps/api/src/generated/embeddings"],
+      "postprocessingOrder": [
+        "scripts/post-process-embeddings-types.ts when present, using ts-node/register/transpile-only"
+      ],
+      "reuse": "Not interchangeable with the separate service's Python models."
+    },
+    {
+      "id": "api-graph-types",
+      "sourceIdentityRef": "reviewed-openapi-source",
+      "spec": "specs/graphs/openapi.yaml",
+      "owner": "api",
+      "toolchain": "api",
+      "profile": "api-service-nest",
+      "additionalProperties": { "npmName": "@hey-hey/graphs" },
+      "existingRecipe": "api/package.json generate:graphs -> scripts/generate-graphs-types.js",
+      "outputs": ["apps/api/src/generated/graphs"],
+      "postprocessingOrder": [],
+      "reuse": "Not interchangeable with Graph's Java/Spring output."
+    },
+    {
+      "id": "browser-platform-client",
+      "sourceIdentityRef": "reviewed-openapi-source",
+      "spec": "specs/api/openapi.yaml",
+      "owner": "platform-client",
+      "toolchain": "ui-common",
+      "profile": "axios-client",
+      "additionalProperties": { "npmName": "hey-hey-api" },
+      "existingRecipe": "ui-common/package.json generate:api",
+      "sourceOutput": "ui-common/src/api",
+      "outputs": ["packages/platform-client/src/api"],
+      "postprocessingOrder": [
+        "openapi/scripts/postprocess-project-report-models.js on api.ts",
+        "Run ui-common-browser-runtime-schemas builders.",
+        "generate-activity-history-contract.cjs also changes historyFilter query serialization in api.ts to JSON.stringify. Retarget that write to the single extracted client owner."
+      ],
+      "reuse": "UI Common /api re-exports this output. Preserve the 7.13.0 browser generation profile separately from CLI's 7.14.0 profile until a reviewed compatibility change proves reuse safe.",
+      "manualOnlyTools": [
+        "ui-common/scripts/openapi-post.js (fix:api) is not in generate:api; do not silently add its ts-nocheck/package-rewrite behavior to the coordinated recipe."
+      ]
+    },
+    {
+      "id": "browser-local-client",
+      "sourceIdentityRef": "reviewed-openapi-source",
+      "spec": "specs/local/openapi.yaml",
+      "owner": "ui-common",
+      "toolchain": "ui-common",
+      "profile": "axios-client",
+      "existingRecipe": "ui-common/package.json generate:local",
+      "sourceOutput": "ui-common/src/local-agent-api/generated",
+      "outputs": ["packages/ui-common/src/local-agent-api/generated"],
+      "postprocessingOrder": [
+        "Copy api.ts, base.ts, common.ts, configuration.ts and index.ts from generator output.",
+        "scripts/clean-generated-api-imports.cjs removes unused named imports in api.ts.",
+        "Prettier formats generated directory."
+      ],
+      "existingAtomicity": "Fixed /tmp/ui-common-local-agent-api scratch directory and in-place file copy; no lock in this recipe.",
+      "reuse": "Keep separate from CLI local output: engine and postprocessing differ."
+    },
+    {
+      "id": "cli-platform-client",
+      "sourceIdentityRef": "reviewed-openapi-source",
+      "spec": "specs/api/openapi.yaml",
+      "owner": "cli",
+      "toolchain": "cli",
+      "profile": "axios-client",
+      "existingRecipe": "cli/package.json generate:api",
+      "outputs": ["apps/cli/src/shared/api/generated"],
+      "postprocessingOrder": [
+        "Copy five standard TypeScript/Axios files from .openapi-tmp/api.",
+        "scripts/postprocess-generated-api.sh: existing ts-nocheck, relative .js extensions, whitespace cleanup, JSON-array fixes for controller credential IDs, shared project-report model fixup.",
+        "scripts/generate-entity-prompt-template-language.cjs plus format generated language/index files.",
+        "scripts/generate-report-error-schemas.cjs"
+      ],
+      "reuse": "Preserve CLI's local generated output alongside platform-client's existing browser profile. Sharing a specification does not justify collapsing engine or wire-postprocessing differences."
+    },
+    {
+      "id": "cli-local-client",
+      "sourceIdentityRef": "reviewed-openapi-source",
+      "spec": "specs/local/openapi.yaml",
+      "owner": "cli",
+      "toolchain": "cli",
+      "profile": "axios-client",
+      "existingRecipe": "cli/package.json generate:local",
+      "outputs": ["apps/cli/src/shared/local-agent-api/generated"],
+      "postprocessingOrder": [
+        "Copy five standard TypeScript/Axios files from .openapi-tmp/local.",
+        "scripts/postprocess-generated-api.sh"
+      ],
+      "reuse": "Distinct browser-local target until engine/options/postprocessing are proven compatible."
+    },
+    {
+      "id": "cli-agent-bridge-client",
+      "sourceIdentityRef": "reviewed-openapi-source",
+      "spec": "specs/agent-bridge/openapi.yaml",
+      "owner": "cli",
+      "toolchain": "cli",
+      "profile": "axios-client",
+      "existingRecipe": "cli/package.json generate:agent-bridge",
+      "outputs": ["apps/cli/src/shared/agent-bridge-contract/generated"],
+      "postprocessingOrder": [
+        "Copy five standard TypeScript/Axios files from .openapi-tmp/agent-bridge.",
+        "scripts/postprocess-generated-api.sh"
+      ],
+      "alsoRequires": ["repository-feature-enrichment-runtime-schema"],
+      "reuse": "Separate from API's models-only bridge target."
+    }
+  ],
+  "runtimeSchemaTargets": [
+    {
+      "id": "api-primary-runtime-schemas",
+      "sourceIdentityRef": "reviewed-openapi-source",
+      "owner": "api",
+      "toolchain": "schema-builders",
+      "existingRecipe": "Ordered inside api/scripts/generate-api-atomically.js",
+      "builders": [
+        "generate-task-monitor-schema.js",
+        "generate-activity-history-contract.js",
+        "generate-project-report-schemas.js",
+        "generate-goal-pm-decision-schema.js",
+        "generate-project-mode-schema.js",
+        "generate-feature-requirements-schema.js",
+        "generate-private-beta-access-schema.js",
+        "generate-open-items-schemas.js",
+        "generate-workflow-review-schemas.js",
+        "generate-diagram-schemas.js",
+        "generate-entity-prompt-template-language.js"
+      ],
+      "sourceDirectory": "api/scripts",
+      "sourceClosure": [
+        "specs/schemas/**",
+        "shared/**",
+        "specs/fixtures/**",
+        "scripts/project-mode-contract.js"
+      ],
+      "outputOwner": "apps/api/src/generated",
+      "reuse": "API Task Monitor builder differs from the shared TypeScript builder consumed by UI Common/CLI; do not equate similarly named files. Preserve nullable/ref handling and runtime enum/schema semantics."
+    },
+    {
+      "id": "ui-common-browser-runtime-schemas",
+      "sourceIdentityRef": "reviewed-openapi-source",
+      "owner": "ui-common",
+      "toolchain": "schema-builders",
+      "sourceDirectory": "ui-common/scripts",
+      "builders": [
+        "generate-private-beta-access-contract.cjs",
+        "generate-browser-session-contract.cjs",
+        "generate-activity-history-contract.cjs",
+        "generate-open-items-contract.cjs",
+        "generate-entity-prompt-template-language.cjs"
+      ],
+      "sourceClosure": [
+        "specs/schemas/private-beta-access.yaml",
+        "specs/schemas/auth.yaml",
+        "specs/schemas/activity-correlation.yaml",
+        "specs/schemas/open-items.yaml",
+        "specs/fixtures/**",
+        "Referenced schemas"
+      ],
+      "outputs": [
+        "packages/ui-common/src/clients/private-beta-access-contract.generated.ts",
+        "packages/ui-common/src/generated/browser-session-contract.ts",
+        "packages/ui-common/src/generated/activity-history-contract.ts",
+        "packages/ui-common/src/generated/open-items-contract.ts",
+        "packages/ui-common/src/generated/entity-prompt-template-language.ts"
+      ],
+      "reuse": "Retain browser validators with their consumers. Activity-history builder also postprocesses platform-client API wire serialization, which must occur before promoting that output."
+    },
+    {
+      "id": "task-monitor-typescript-schema",
+      "sourceIdentityRef": "reviewed-openapi-source",
+      "owner": "openapi",
+      "toolchain": "schema-builders",
+      "builder": "openapi/scripts/task-monitor-contract.js --typescript-output <output>",
+      "sourceClosure": ["specs/schemas/work-items.yaml", "Referenced schemas"],
+      "outputs": [
+        "packages/ui-common/src/generated/task-monitor-contract.schema.ts",
+        "apps/cli/src/generated/task-monitor-contract.schema.ts"
+      ],
+      "reuse": "Generate once from the reviewed source and copy exact bytes to both destinations; same builder and options."
+    },
+    {
+      "id": "cli-project-mode-schema",
+      "sourceIdentityRef": "reviewed-openapi-source",
+      "owner": "cli",
+      "toolchain": "schema-builders",
+      "builder": "openapi/scripts/project-mode-contract.js --typescript-output <output>",
+      "sourceClosure": ["specs/schemas/**"],
+      "outputs": ["apps/cli/src/generated/project-mode-contract.schema.ts"],
+      "reuse": "API also calls this builder through its wrapper. Reuse a single builder result when output formatting/header/options are identical; keep consumer formatting as an explicit post-step."
+    },
+    {
+      "id": "repository-feature-enrichment-runtime-schema",
+      "sourceIdentityRef": "reviewed-openapi-source",
+      "owner": "openapi",
+      "toolchain": "schema-builders",
+      "builder": "openapi/scripts/generate-repository-feature-enrichment-runtime-schema.js",
+      "existingWrappers": [
+        "api/scripts/generate-repository-feature-enrichment-runtime-schema.js",
+        "cli/scripts/generate-agent-bridge-runtime-schema.cjs"
+      ],
+      "sourceClosure": [
+        "specs/agent-bridge/openapi.yaml",
+        "Referenced schemas"
+      ],
+      "outputs": [
+        "apps/api/src/contracts/repository-feature-enrichment-runtime-schema.ts",
+        "apps/cli/src/shared/agent-bridge-contract/generated/repository-feature-enrichment-runtime-schema.ts"
+      ],
+      "postprocessing": ["Preserve each owner's Prettier step."],
+      "reuse": "Both wrappers call the same generateRuntimeSchema builder with only destination differences. Generate once and distribute the result, then run declared formatting."
+    },
+    {
+      "id": "cli-report-error-schemas",
+      "sourceIdentityRef": "reviewed-openapi-source",
+      "owner": "cli",
+      "toolchain": "schema-builders",
+      "builder": "cli/scripts/generate-report-error-schemas.cjs",
+      "sourceClosure": [
+        "specs/local/openapi.yaml",
+        "specs/schemas/common.yaml",
+        "specs/schemas/reports.yaml",
+        "specs/schemas/entity-context.yaml",
+        "Referenced schemas"
+      ],
+      "outputs": ["apps/cli/src/shared/api/generated/report-error-schemas.ts"],
+      "reuse": "Consumer-specific runtime subset; preserve its ref and nullable transformations."
+    },
+    {
+      "id": "api-report-tool-schemas",
+      "sourceIdentityRef": "reviewed-openapi-source",
+      "owner": "api",
+      "toolchain": "schema-builders",
+      "builder": "api/scripts/generate-report-schemas.js",
+      "sourceClosure": [
+        "specs/schemas/reports.yaml",
+        "specs/schemas/proposals.yaml",
+        "Referenced schemas"
+      ],
+      "outputs": ["apps/api/src/mcp/tools/report-schemas.generated.ts"],
+      "reuse": "Included by existing API generate:all; stage this path outside src/generated explicitly."
+    },
+    {
+      "id": "api-event-json-schemas",
+      "sourceIdentityRef": "reviewed-openapi-source",
+      "owner": "api",
+      "toolchain": "schema-builders",
+      "builder": "api/scripts/generate-event-schemas.js",
+      "dependsOn": ["api-server-models"],
+      "sourceClosure": [
+        "api/src/core/events/types/domain-events.ts",
+        "api/tsconfig.json",
+        "ts-json-schema-generator when available"
+      ],
+      "outputs": ["apps/api/schemas/events/design-doc-events.schema.json"],
+      "selection": "Explicit supplemental target: present as generate:event-schemas but not invoked by the current generate:all. Preserve that distinction; do not silently broaden the default generation command."
+    }
+  ],
+  "supplementalRecipes": [
+    {
+      "owner": "cli",
+      "recipe": "scripts/generate-work-item-enums.cjs",
+      "selection": "Manual focused enum regeneration, not part of normal generate. Do not replace complete generated directories with this filtered pass."
+    },
+    {
+      "owner": "api",
+      "recipe": "db:generate / prisma generate plus scripts/post-process-generated-types.ts",
+      "selection": "Prisma schema is a separate source identity owned by API. Keep its generation and shared model lock; do not treat database models as reusable OpenAPI output."
+    },
+    {
+      "owner": "openapi",
+      "recipe": "package.json generate:typescript*, generate:python*, generate:java:graphs and scripts/generate-all.sh",
+      "selection": "Existing standalone/example targets have their own npm names, options and output roots. They are not replacements for consumer recipes. generate-all.sh currently calls a missing validate script; root coordination must use actual validate:all/individual validation commands."
+    }
+  ],
+  "defaultTargetOrder": [
+    "source-validation",
+    "task-monitor-typescript-schema",
+    "api-server-models",
+    "api-agent-models",
+    "api-agent-bridge-models",
+    "api-embeddings-types",
+    "api-graph-types",
+    "api-report-tool-schemas",
+    "browser-platform-client",
+    "browser-local-client",
+    "cli-project-mode-schema",
+    "cli-local-client",
+    "cli-agent-bridge-client",
+    "cli-platform-client",
+    "repository-feature-enrichment-runtime-schema"
+  ],
+  "orderNotes": "Runtime builders listed in target postprocessing run within that target. Shared builders run once even when legacy recipes invoke them repeatedly. Generate UI Common's additional schema-only outputs alongside browser-platform-client. Never promote a bridge target before its required runtime schema is ready.",
+  "compatibleOutputPolicy": {
+    "requiredMatch": [
+      "Reviewed source/ref closure",
+      "Engine and generator",
+      "All options and templates",
+      "Postprocessor semantics",
+      "Consumer module/runtime assumptions"
+    ],
+    "reuseNow": [
+      "task-monitor-typescript-schema",
+      "repository-feature-enrichment-runtime-schema"
+    ],
+    "reuseAfterExactRecipeComparison": ["project-mode schema builder result"],
+    "keepSeparate": [
+      "API NestJS versus Axios clients",
+      "API models-only versus CLI bridge clients",
+      "UI Common 7.13.0 versus CLI 7.14.0 Axios targets",
+      "Different entity-prompt-template-language builders",
+      "Java/Spring and Python outputs"
+    ],
+    "rule": "Reuse one compatible output through public package exports or exact byte distribution. Generator unification and generation speed work require their own reviewed change."
+  },
+  "externalConsumerHandoff": {
+    "repositoriesModifiedByThisTask": false,
+    "identityRef": "reviewed-openapi-source",
+    "requiredPayload": [
+      "Combined repository identity and exact reviewed revision",
+      "openapi/ subdirectory path",
+      "Source capture/closure digest and included working changes if any",
+      "Resolved tool versions/options/templates",
+      "Affected specs and regeneration/check commands"
+    ],
+    "graph": {
+      "rootInterfaces": [
+        "HEY_HEY_OPENAPI_ROOT",
+        "Maven -Dopenapi.root=<checkout>/openapi"
+      ],
+      "resolver": "graphs/scripts/openapi-root.sh",
+      "toolchain": "graph-maven",
+      "targets": [
+        {
+          "spec": "specs/api/openapi.yaml",
+          "generator": "java",
+          "library": "resttemplate",
+          "output": "target/generated-sources/openapi",
+          "modelPackage": "com.organization.graph.openapi.events.model",
+          "options": {
+            "dateLibrary": "java8",
+            "useJakartaEe": true,
+            "sourceFolder": ".",
+            "useBeanValidation": true,
+            "legacyDiscriminatorBehavior": false,
+            "disallowAdditionalPropertiesIfNotPresent": false,
+            "useOneOfInterfaces": true,
+            "containerDefaultToNull": true
+          },
+          "templates": "src/main/openapi-templates"
+        },
+        {
+          "spec": "specs/graphs/openapi.yaml",
+          "generator": "spring",
+          "library": "spring-boot",
+          "output": "target/generated-sources/openapi-graphs",
+          "modelPackage": "com.organization.graph.openapi.model",
+          "options": {
+            "dateLibrary": "java8",
+            "interfaceOnly": true,
+            "useSpringBoot3": true,
+            "useTags": true,
+            "useOneOfInterfaces": false,
+            "useBeanValidation": true,
+            "performBeanValidation": true,
+            "sourceFolder": "."
+          }
+        }
+      ],
+      "containerInterface": "Dockerfile copies build-context openapi/specs to /openapi/specs and passes -Dopenapi.root=/openapi.",
+      "currentPinningGap": "Image workflow checks out the OpenAPI repository with no immutable ref. The explicit root interface selects a checkout but does not itself pin its revision.",
+      "requiredLaterChange": "Checkout the reviewed combined revision, supply its openapi/ subtree at the existing build-context path, and pass the explicit root. Run Maven generation/verification and image build before changing deployment inputs."
+    },
+    "embeddings": {
+      "rootInterfaces": [
+        "HEY_HEY_OPENAPI_ROOT",
+        "make OPENAPI_ROOT=<checkout>/openapi",
+        "OPENAPI_SPEC or explicit script spec argument"
+      ],
+      "resolver": "embeddings/scripts/resolve_openapi_root.sh",
+      "toolchain": "embeddings",
+      "targets": [
+        {
+          "spec": "specs/embeddings/openapi.yaml",
+          "generator": "python",
+          "output": "generated/openapi-models",
+          "packageName": "hey_hey_embeddings_models",
+          "projectName": "hey-hey-embeddings-models"
+        },
+        {
+          "spec": "specs/api/openapi.yaml",
+          "generator": "python",
+          "output": "generated/openapi-events-models",
+          "packageName": "hey_hey_events_models",
+          "projectName": "hey-hey-events-models"
+        }
+      ],
+      "options": {
+        "packageVersion": "0.1.0",
+        "enumPropertyNaming": "original",
+        "useOneOfDiscriminatorLookup": true
+      },
+      "entrypoint": "make generate-embeddings-models generate-events-models",
+      "postprocessing": "Add future annotations to generated Python files; generated packages are installed by requirements.txt. Script uses temporary CLI configuration and supports local CLI/npx/Docker selection; Makefile disables local CLI discovery.",
+      "containerInterface": "Dockerfile consumes generated/ packages prepared before docker build; it does not regenerate against an arbitrary spec inside the image.",
+      "currentPinningGap": "Image workflow checks out OpenAPI ref master, a mutable branch.",
+      "requiredLaterChange": "Checkout an exact reviewed combined revision and pass its openapi/ subtree via the existing root interface before make generation. Record resolved generator overrides, run service verification and build its image."
+    },
+    "scope": "Record handoff only. Graph and Embeddings stay separate; no source or workflow changes in those repositories in this task."
+  }
+}

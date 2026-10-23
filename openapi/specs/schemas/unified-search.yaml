@@ -1,0 +1,806 @@
+UnifiedSearchIntent:
+  type: string
+  enum:
+    - relationship
+    - semantic
+    - hybrid
+  description: Explicit intent for unified search routing
+
+UnifiedGraphSearchOptions:
+  type: object
+  properties:
+    seedEntityIds:
+      type: array
+      minItems: 1
+      items:
+        type: string
+        format: uuid
+      description: Canonical entity identifiers to seed traversal.
+    seedNodeIds:
+      type: array
+      minItems: 1
+      items:
+        type: string
+      description: Graph node identifiers to seed traversal.
+    seedEntityIdsStrategy:
+      type: string
+      default: explicit
+      description: Strategy for graph seedEntityIds. Supported values are explicit and conversationRelated.
+    traversal:
+      $ref: "#/UnifiedTraversalOptions"
+    filters:
+      $ref: "#/UnifiedGraphSearchFilters"
+    scoring:
+      $ref: "#/UnifiedTraversalScoringConfig"
+    includeRelationships:
+      type: boolean
+      default: false
+    trackPathCount:
+      type: boolean
+      default: false
+    page:
+      type: integer
+      minimum: 0
+      default: 0
+    size:
+      type: integer
+      minimum: 1
+      maximum: 500
+      default: 20
+  additionalProperties: false
+  anyOf:
+    - required:
+        - seedEntityIds
+    - required:
+        - seedNodeIds
+
+UnifiedEmbeddingsSearchOptions:
+  type: object
+  properties:
+    filters:
+      $ref: "#/UnifiedEmbeddingsSearchFilters"
+      description: Filters forwarded to the embeddings service.
+    maxResults:
+      type: integer
+      minimum: 1
+      maximum: 100
+      default: 10
+    offset:
+      type: integer
+      minimum: 0
+      default: 0
+      description: Number of embedding results to skip for pagination.
+    similarityThreshold:
+      type: number
+      format: float
+      minimum: 0
+      maximum: 1
+      default: 0.15
+    queryMode:
+      type: string
+      enum:
+        - default
+        - title_fuzzy
+      default: default
+      description: Query behavior mode forwarded to embeddings as query_mode.
+    hybridResultStrategy:
+      type: string
+      default: merge
+      description: Hybrid result merge strategy. Supported values are merge and embeddingsRequired.
+  additionalProperties: false
+
+UnifiedEmbeddingsSearchFilters:
+  type: object
+  additionalProperties: false
+  description: Metadata filters forwarded to the embeddings service.
+  properties:
+    organizationId:
+      type: string
+    projectId:
+      type: string
+    category:
+      type: string
+    topologyCategory:
+      type: string
+    topologySubfacets:
+      type: array
+      items:
+        type: string
+    id:
+      type: string
+    conversationId:
+      type: string
+    designDocId:
+      type: string
+    sectionId:
+      type: string
+    parentSectionId:
+      type: string
+    parentId:
+      type: string
+    initiativeId:
+      type: string
+    serviceId:
+      type: string
+    serviceIds:
+      type: array
+      items:
+        type: string
+      description: Service identifiers to scope results to an authorized set of Services.
+    targetInitiativeId:
+      type: string
+    sectionTitle:
+      type: string
+    sourceId:
+      type: string
+    sourceType:
+      type: string
+    messageType:
+      type: string
+    type:
+      type: string
+    types:
+      type: array
+      items:
+        type: string
+    docTypes:
+      type: array
+      items:
+        type: string
+    contentType:
+      type: string
+    contentTypes:
+      type: array
+      items:
+        type: string
+    workflowId:
+      type: string
+    status:
+      type: string
+      description: Deprecated single-status filter; use statuses instead.
+    statuses:
+      type: array
+      items:
+        type: string
+    priority:
+      type: string
+    tags:
+      type: array
+      items:
+        type: string
+    taskTypes:
+      type: array
+      items:
+        $ref: "./tasks.yaml#/TaskType"
+      description: >-
+        Task type filter forwarded to the embeddings service.
+    created_after:
+      type: string
+    created_before:
+      type: string
+    updated_after:
+      type: string
+    updated_before:
+      type: string
+
+UnifiedSearchCommonFiltersUpdatedAtRange:
+  type: object
+  description: >-
+    Inclusive bounds on each entity's own updatedAt timestamp. Either bound
+    may be omitted.
+  properties:
+    from:
+      type: string
+      format: date-time
+    to:
+      type: string
+      format: date-time
+
+UnifiedSearchCommonFilters:
+  type: object
+  additionalProperties: false
+  description: >-
+    Filters applied across graph and embeddings searches. When provided, common filters
+    take precedence over backend-specific filter fields. For status filtering, entities
+    without canonical status support are excluded.
+  properties:
+    types:
+      type: array
+      items:
+        $ref: "./common.yaml#/EntityType"
+      description: Entity types to scope both graph and embeddings searches.
+    taskTypes:
+      type: array
+      items:
+        $ref: "./tasks.yaml#/TaskType"
+      description: >-
+        Sub-filter for TASK entities by task type. When provided, only tasks matching
+        the specified type(s) are returned. Non-TASK entities are unaffected.
+    statuses:
+      type: array
+      items:
+        type: string
+      description: Canonical statuses to apply across graph and embeddings searches.
+    dateRange:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+    updatedAtRange:
+      $ref: "#/UnifiedSearchCommonFiltersUpdatedAtRange"
+
+UnifiedSearchBoosts:
+  type: object
+  additionalProperties: false
+  properties:
+    entityIds:
+      type: array
+      description: Per-entity additive boosts, expressed as multipliers (e.g., 1.1 means +0.1).
+      items:
+        type: object
+        additionalProperties: false
+        required:
+          - id
+          - weight
+        properties:
+          id:
+            type: string
+            format: uuid
+          weight:
+            type: number
+            format: float
+            example: 1.1
+    entityTypes:
+      type: array
+      description: Per-entity-type additive boosts, expressed as multipliers (e.g., 1.05 means +0.05).
+      items:
+        type: object
+        additionalProperties: false
+        required:
+          - type
+          - weight
+        properties:
+          type:
+            $ref: "./common.yaml#/EntityType"
+          weight:
+            type: number
+            format: float
+            example: 1.05
+    planLineage:
+      $ref: "#/UnifiedSearchPlanLineageBoost"
+
+UnifiedSearchPlanLineageBoost:
+  type: object
+  additionalProperties: false
+  required:
+    - mode
+    - planId
+  properties:
+    mode:
+      $ref: "#/UnifiedSearchPlanLineageMode"
+    planId:
+      type: string
+      format: uuid
+    taskId:
+      type: string
+      format: uuid
+    designDocId:
+      type: string
+      format: uuid
+  oneOf:
+    - required:
+        - taskId
+    - required:
+        - designDocId
+
+UnifiedSearchPlanLineageMode:
+  type: string
+  enum:
+    - workItemDependencies
+
+UnifiedGraphSearchFilters:
+  type: object
+  properties:
+    entityTypes:
+      type: array
+      items:
+        $ref: "./common.yaml#/EntityType"
+    labels:
+      type: array
+      items:
+        type: string
+    statuses:
+      type: array
+      items:
+        type: string
+      description: Graph status filters used when common.statuses is not provided.
+    taskTypes:
+      type: array
+      items:
+        $ref: "./tasks.yaml#/TaskType"
+      description: >-
+        Task type filter forwarded to the graph service. When provided, only
+        task nodes whose type matches are returned.
+    dateRange:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+    updatedAtRange:
+      $ref: "#/UnifiedSearchCommonFiltersUpdatedAtRange"
+  additionalProperties: false
+
+UnifiedTraversalOptions:
+  type: object
+  properties:
+    direction:
+      type: string
+      enum:
+        - INCOMING
+        - OUTGOING
+        - BOTH
+    depth:
+      type: integer
+      minimum: 1
+      maximum: 3
+      default: 2
+    relationshipTypes:
+      type: array
+      items:
+        type: string
+  additionalProperties: false
+
+UnifiedTraversalScoringConfig:
+  type: object
+  properties:
+    depthPenalty:
+      type: number
+      format: float
+      minimum: 0.0
+    relationshipWeights:
+      type: array
+      items:
+        $ref: "#/UnifiedRelationshipWeight"
+  additionalProperties: false
+
+UnifiedRelationshipWeight:
+  type: object
+  required:
+    - type
+    - weight
+  properties:
+    type:
+      type: string
+    weight:
+      type: number
+      format: float
+      minimum: 0.0
+  additionalProperties: false
+
+UnifiedTraversalScoreBreakdown:
+  type: object
+  properties:
+    relationshipWeight:
+      type: number
+      format: float
+    depthPenalty:
+      type: number
+      format: float
+    totalScore:
+      type: number
+      format: float
+  additionalProperties: false
+
+UnifiedTraversalPath:
+  type: object
+  properties:
+    depth:
+      type: integer
+    nodeIds:
+      type: array
+      items:
+        type: string
+    segments:
+      type: array
+      items:
+        $ref: "#/UnifiedTraversalPathSegment"
+  additionalProperties: false
+
+UnifiedTraversalPathSegment:
+  type: object
+  required:
+    - type
+    - direction
+  properties:
+    type:
+      type: string
+    direction:
+      type: string
+      enum:
+        - INCOMING
+        - OUTGOING
+    sourceNodeId:
+      type: string
+    targetNodeId:
+      type: string
+  additionalProperties: false
+
+UnifiedSearchRequest:
+  type: object
+  required:
+    - intent
+  properties:
+    intent:
+      $ref: "#/UnifiedSearchIntent"
+    query:
+      type: string
+      minLength: 1
+      description: Required for semantic search and hybrid searches that use embeddings.
+    conversationId:
+      type: string
+      format: uuid
+    messageId:
+      type: string
+      format: uuid
+    requestId:
+      type: string
+    debug:
+      type: boolean
+      description: Include execution diagnostics for applied filters and status semantics.
+      default: false
+    excludeContentless:
+      type: boolean
+      description: >-
+        When true, hybrid search excludes graph-only entities that have no embeddings
+        semantic match for the current query.
+      default: true
+    downrankUnreviewed:
+      type: boolean
+      description: >-
+        When true, applies a score penalty to entities that were system-generated
+        and have not been reviewed by a human (e.g. tasks still in a refining state
+        with a system creator). Useful for evidence searches where human-reviewed
+        content should be preferred. When false or omitted, no penalty is applied
+        and results are ranked purely by relevance.
+      default: false
+    common:
+      $ref: "#/UnifiedSearchCommonFilters"
+    graph:
+      $ref: "#/UnifiedGraphSearchOptions"
+    embeddings:
+      $ref: "#/UnifiedEmbeddingsSearchOptions"
+    boosts:
+      $ref: "#/UnifiedSearchBoosts"
+  additionalProperties: false
+
+UnifiedGraphSearchResult:
+  type: object
+  properties:
+    node:
+      type: object
+      additionalProperties: true
+    entityId:
+      type: string
+      format: uuid
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    score:
+      type: number
+      format: float
+    scoreBreakdown:
+      $ref: "#/UnifiedTraversalScoreBreakdown"
+    path:
+      $ref: "#/UnifiedTraversalPath"
+    pathCount:
+      type: integer
+      format: int64
+  additionalProperties: false
+
+UnifiedGraphSearchResponse:
+  type: object
+  properties:
+    results:
+      type: array
+      items:
+        $ref: "#/UnifiedGraphSearchResult"
+    totalElements:
+      type: integer
+      format: int64
+    totalPages:
+      type: integer
+    page:
+      type: integer
+    size:
+      type: integer
+    relationships:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+  additionalProperties: false
+
+UnifiedEmbeddingsSearchResult:
+  type: object
+  properties:
+    id:
+      type: string
+    similarity:
+      type: number
+      format: float
+    metadata:
+      $ref: "../embeddings/openapi.yaml#/components/schemas/EmbeddingMetadata"
+    chunkIndex:
+      type: integer
+    matchType:
+      type: string
+  additionalProperties: false
+
+UnifiedEmbeddingsSearchResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+    query:
+      type: string
+    results:
+      type: integer
+    data:
+      type: array
+      items:
+        $ref: "#/UnifiedEmbeddingsSearchResult"
+  additionalProperties: false
+
+UnifiedSearchAppliedFiltersDiagnostics:
+  type: object
+  additionalProperties: false
+  properties:
+    common:
+      $ref: "#/UnifiedSearchCommonFilters"
+    graph:
+      $ref: "#/UnifiedGraphSearchFilters"
+    embeddings:
+      $ref: "#/UnifiedEmbeddingsSearchFilters"
+
+UnifiedSearchStatusSemanticsDiagnostics:
+  type: object
+  additionalProperties: false
+  properties:
+    requestedStatuses:
+      type: array
+      items:
+        type: string
+    entityTypesWithCanonicalStatus:
+      type: array
+      items:
+        $ref: "./common.yaml#/EntityType"
+    entitiesWithoutStatusBehavior:
+      type: string
+      enum:
+        - exclude
+
+UnifiedSearchDiagnostics:
+  type: object
+  additionalProperties: false
+  properties:
+    filters:
+      $ref: "#/UnifiedSearchAppliedFiltersDiagnostics"
+    statusSemantics:
+      $ref: "#/UnifiedSearchStatusSemanticsDiagnostics"
+
+UnifiedSearchExecution:
+  type: object
+  required:
+    - totalMs
+  properties:
+    totalMs:
+      type: integer
+    graphMs:
+      type: integer
+    embeddingsMs:
+      type: integer
+    diagnostics:
+      $ref: "#/UnifiedSearchDiagnostics"
+  additionalProperties: false
+
+UnifiedSearchResponse:
+  type: object
+  required:
+    - intent
+    - query
+    - organizationId
+    - projectId
+    - execution
+  properties:
+    intent:
+      $ref: "#/UnifiedSearchIntent"
+    query:
+      type: string
+    organizationId:
+      type: string
+      format: uuid
+    projectId:
+      type: string
+      format: uuid
+    graph:
+      $ref: "#/UnifiedGraphSearchResponse"
+    embeddings:
+      $ref: "#/UnifiedEmbeddingsSearchResponse"
+    results:
+      type: array
+      items:
+        $ref: "#/UnifiedSearchResult"
+    subfacets:
+      type: array
+      items:
+        type: string
+      description: Unique subfacet matches extracted from embeddings metadata.
+    execution:
+      $ref: "#/UnifiedSearchExecution"
+  additionalProperties: false
+
+UnifiedSearchResult:
+  type: object
+  properties:
+    entityId:
+      type: string
+      format: uuid
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    score:
+      type: number
+      format: float
+    graphScore:
+      type: number
+      format: float
+    semanticScore:
+      type: number
+      format: float
+    title:
+      type: string
+      description: Title for the entity when available.
+    topologySummary:
+      type: string
+      description: Topology summary for the entity when available.
+    content:
+      type: string
+      description: Materialized content for the result when available.
+    status:
+      type: string
+      description: Workflow status for the entity when available.
+    sources:
+      type: array
+      items:
+        type: string
+        enum:
+          - graph
+          - embeddings
+    graph:
+      $ref: "#/UnifiedGraphSearchResult"
+    embeddings:
+      $ref: "#/UnifiedEmbeddingsSearchResult"
+  additionalProperties: false
+
+UnifiedBatchGraphSearchOptions:
+  type: object
+  properties:
+    seedEntityIds:
+      type: array
+      minItems: 1
+      items:
+        type: string
+        format: uuid
+      description: Canonical entity identifiers to seed traversal.
+    seedNodeIds:
+      type: array
+      minItems: 1
+      items:
+        type: string
+      description: Graph node identifiers to seed traversal.
+    traversal:
+      $ref: "#/UnifiedTraversalOptions"
+    filters:
+      $ref: "#/UnifiedGraphSearchFilters"
+    scoring:
+      $ref: "#/UnifiedTraversalScoringConfig"
+    includeRelationships:
+      type: boolean
+      default: false
+    trackPathCount:
+      type: boolean
+      default: false
+    page:
+      type: integer
+      minimum: 0
+      default: 0
+    size:
+      type: integer
+      minimum: 1
+      default: 20
+  additionalProperties: false
+
+UnifiedBatchSearchGlobalOptions:
+  type: object
+  properties:
+    common:
+      $ref: "#/UnifiedSearchCommonFilters"
+    graph:
+      $ref: "#/UnifiedBatchGraphSearchOptions"
+    embeddings:
+      $ref: "#/UnifiedEmbeddingsSearchOptions"
+    boosts:
+      $ref: "#/UnifiedSearchBoosts"
+    downrankUnreviewed:
+      type: boolean
+      description: >-
+        When true, applies a score penalty to system-generated entities that
+        have not been reviewed. Applied after merging batch results.
+      default: false
+    page:
+      type: integer
+      minimum: 0
+      default: 0
+    size:
+      type: integer
+      minimum: 1
+      default: 50
+  additionalProperties: false
+
+UnifiedBatchSearchRequest:
+  type: object
+  required:
+    - queries
+  properties:
+    queries:
+      type: array
+      minItems: 1
+      items:
+        $ref: "#/UnifiedSearchRequest"
+    globalOptions:
+      $ref: "#/UnifiedBatchSearchGlobalOptions"
+  additionalProperties: false
+
+UnifiedBatchSearchResponse:
+  type: object
+  required:
+    - organizationId
+    - projectId
+    - results
+    - execution
+    - totalElements
+    - totalPages
+    - page
+    - size
+    - queryCount
+  properties:
+    organizationId:
+      type: string
+      format: uuid
+    projectId:
+      type: string
+      format: uuid
+    results:
+      type: array
+      items:
+        $ref: "#/UnifiedSearchResult"
+    totalElements:
+      type: integer
+      format: int64
+    totalPages:
+      type: integer
+    page:
+      type: integer
+    size:
+      type: integer
+    queryCount:
+      type: integer
+    execution:
+      $ref: "#/UnifiedSearchExecution"
+  additionalProperties: false

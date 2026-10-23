@@ -1,0 +1,2 @@
+-- Add ROLLUP_PROPOSAL value to ReportType enum
+ALTER TYPE "ReportType" ADD VALUE IF NOT EXISTS 'ROLLUP_PROPOSAL';

@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": "src/api",
+    "outDir": ".tsbuild/api",
+    "declarationDir": ".tsbuild/api",
+    "tsBuildInfoFile": ".tsbuild/api/.tsbuildinfo",
+    "noEmit": false,
+    "allowImportingTsExtensions": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
+  },
+  "include": ["src/api/**/*"],
+  "exclude": ["src/api/tsconfig.json", "src/api/tsconfig.esm.json"],
+  "references": []
+}

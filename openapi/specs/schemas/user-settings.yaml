@@ -1,0 +1,262 @@
+# =============================================
+# User Settings Schema Definitions
+# =============================================
+
+UserSettingsFamily:
+  type: string
+  enum:
+    - daily_session
+  description: >-
+    Discriminator for the typed settings family. New settings families extend
+    this union with a new family-specific resource and value variant.
+
+UserSettingsScope:
+  type: object
+  additionalProperties: false
+  required:
+    - type
+    - projectId
+  properties:
+    type:
+      type: string
+      enum:
+        - project
+      description: Explicit scope kind for the settings resource.
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+      description: Project that owns the settings resource.
+  description: >-
+    Explicit ownership identity for the settings resource. Scope is carried in
+    the resource rather than inferred from an untyped settings key.
+
+UserSettingsEffectiveValueSource:
+  type: string
+  enum:
+    - persisted
+    - default
+  description: >-
+    Whether the returned effective values came from a persisted replacement or
+    from the resolver's applied defaults.
+
+UserSettingsProvider:
+  type: string
+  enum:
+    - claude
+    - codex
+    - opencode
+  description: Provider used for the Daily Session run.
+
+UserSettingsReasoningEffort:
+  type: string
+  enum:
+    - none
+    - minimal
+    - low
+    - medium
+    - high
+    - xhigh
+    - max
+    - ultra
+    - default
+  description: Reasoning-effort level used by the selected provider/model.
+
+DailySessionUserSettingsValueV1:
+  type: object
+  additionalProperties: false
+  required:
+    - enabled
+    - provider
+    - model
+    - reasoningEffort
+    - countThreshold
+    - eventTypes
+  properties:
+    enabled:
+      type: boolean
+      description: Whether Daily Session monitoring is enabled for the project.
+    provider:
+      $ref: "#/UserSettingsProvider"
+    model:
+      type: string
+      minLength: 1
+      description: Model used when the Daily Session monitor runs.
+    reasoningEffort:
+      $ref: "#/UserSettingsReasoningEffort"
+    countThreshold:
+      type: integer
+      minimum: 1
+      description: Number of qualifying events required before a monitor run.
+    eventTypes:
+      type: array
+      minItems: 1
+      items:
+        type: string
+        minLength: 1
+      description: Event types that contribute to the Daily Session threshold.
+  description: >-
+    Fully resolved Daily Session settings. The six fields are always present,
+    including when the effective value source is `default`.
+
+UserSettingsValue:
+  oneOf:
+    - $ref: "#/DailySessionUserSettingsValueV1"
+  description: >-
+    Closed typed union of family-specific settings values. Future settings
+    families add a typed value variant here rather than accepting an arbitrary
+    JSON object.
+
+UserSettingsDailySessionResourceV1:
+  type: object
+  additionalProperties: false
+  required:
+    - settingsFamily
+    - schemaVersion
+    - scope
+    - persistenceRevision
+    - effectiveValueSource
+    - value
+  properties:
+    settingsFamily:
+      type: string
+      enum:
+        - daily_session
+      description: Settings-family discriminator.
+    schemaVersion:
+      type: integer
+      enum:
+        - 1
+      description: Version of the Daily Session settings value schema.
+    scope:
+      $ref: "#/UserSettingsScope"
+    persistenceRevision:
+      type: integer
+      minimum: 0
+      description: Monotonic revision of the persisted settings family.
+    effectiveValueSource:
+      $ref: "#/UserSettingsEffectiveValueSource"
+    value:
+      $ref: "#/UserSettingsValue"
+  description: Version 1 project-scoped Daily Session settings resource.
+
+UserSettingsResource:
+  oneOf:
+    - $ref: "#/UserSettingsDailySessionResourceV1"
+  discriminator:
+    propertyName: settingsFamily
+    mapping:
+      daily_session: "#/UserSettingsDailySessionResourceV1"
+  description: >-
+    Versioned User Settings resource. The settings-family discriminator selects
+    a closed, typed value variant; future families extend this union.
+
+UserSettingsDailySessionReplacementRequestV1:
+  type: object
+  additionalProperties: false
+  required:
+    - settingsFamily
+    - schemaVersion
+    - scope
+    - expectedPersistenceRevision
+    - value
+  properties:
+    settingsFamily:
+      type: string
+      enum:
+        - daily_session
+      description: Settings-family discriminator.
+    schemaVersion:
+      type: integer
+      enum:
+        - 1
+      description: Version of the Daily Session settings value schema.
+    scope:
+      $ref: "#/UserSettingsScope"
+    expectedPersistenceRevision:
+      type: integer
+      minimum: 0
+      description: >-
+        Revision read by the caller before this full-family replacement. The
+        replacement is rejected if the persisted revision has changed.
+    value:
+      $ref: "#/DailySessionUserSettingsValueV1"
+  description: Full replacement payload for project-scoped Daily Session settings.
+
+UserSettingsReplacementRequest:
+  oneOf:
+    - $ref: "#/UserSettingsDailySessionReplacementRequestV1"
+  discriminator:
+    propertyName: settingsFamily
+    mapping:
+      daily_session: "#/UserSettingsDailySessionReplacementRequestV1"
+  description: >-
+    Full-family replacement payload. New settings families add a versioned,
+    typed request arm instead of widening this payload to arbitrary JSON.
+
+UserSettingsResponse:
+  allOf:
+    - $ref: "./common.yaml#/ApiResponse"
+    - type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: "#/UserSettingsResource"
+
+UserSettingsValidationIssue:
+  type: object
+  additionalProperties: false
+  required:
+    - path
+    - message
+  properties:
+    path:
+      type: string
+      minLength: 1
+      description: JSON path of the invalid settings field.
+    message:
+      type: string
+      minLength: 1
+      description: Stable validation explanation for the field.
+
+UserSettingsValidationErrorResponse:
+  allOf:
+    - $ref: "./common.yaml#/ApiErrorResponse"
+    - type: object
+      required:
+        - code
+        - issues
+      properties:
+        code:
+          type: string
+          enum:
+            - USER_SETTINGS_VALIDATION_FAILED
+        issues:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/UserSettingsValidationIssue"
+          description: Field-level validation failures for the replacement.
+  description: Explicit validation failure for a User Settings request.
+
+UserSettingsRevisionConflictResponse:
+  allOf:
+    - $ref: "./common.yaml#/ApiErrorResponse"
+    - type: object
+      required:
+        - code
+        - expectedPersistenceRevision
+        - currentPersistenceRevision
+      properties:
+        code:
+          type: string
+          enum:
+            - USER_SETTINGS_REVISION_CONFLICT
+        expectedPersistenceRevision:
+          type: integer
+          minimum: 0
+          description: Revision supplied by the stale replacement request.
+        currentPersistenceRevision:
+          type: integer
+          minimum: 0
+          description: Current persisted revision for the settings family.
+  description: Explicit stale-writer conflict for a User Settings replacement.

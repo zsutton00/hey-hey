@@ -1,0 +1,4 @@
+interface:
+  display_name: "Entity Source-of-Truth Update"
+  short_description: "Align Prisma, OpenAPI, generated models, and app layers"
+  default_prompt: "Use $entity-source-of-truth-update to apply an entity change end-to-end across DB, contract, generated types, services/controllers, and tests."
