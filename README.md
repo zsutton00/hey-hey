@@ -1,6 +1,10 @@
-<p align="center">
-  <img src="docs/logo.svg" alt="Hey Hey" />
-</p>
+```text
+ _   _   _____  __   __      _   _   _____  __   __
+| | | | | ____| \ \ / /     | | | | | ____| \ \ / /
+| |_| | |  _|    \ V /      | |_| | |  _|    \ V /
+|  _  | | |___    | |       |  _  | | |___    | |
+|_| |_| |_____|   |_|       |_| |_| |_____|   |_|
+```
 
 Hey Hey is a shared place for you and your team to shape a project and build it together. Features, designs, mockups, decisions and tasks live in one workspace and stay connected as the project changes. Coding agents work from the same context you do.
 
