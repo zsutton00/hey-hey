@@ -131,7 +131,7 @@ const FeedbackActionRegistrar: React.FC<{
 
 const buildFeedback = (
   reason: string,
-  failureIdentity: string
+  failureIdentity: string,
 ): CapsuleActionUnavailableFeedback => ({
   status: "unavailable",
   presentationScope: "action",
@@ -150,7 +150,7 @@ const renderCapsule = () =>
         <ExpandableActionRegistrar />
         <ActionsCapsule />
       </ActionsCapsuleProvider>
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 
 const renderCapsuleWithOrdinaryActions = () =>
@@ -160,7 +160,7 @@ const renderCapsuleWithOrdinaryActions = () =>
         <OrdinaryActionRegistrar />
         <ActionsCapsule />
       </ActionsCapsuleProvider>
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 
 const originalMatchMedia = window.matchMedia;
@@ -213,22 +213,22 @@ describe("ActionsCapsule", () => {
             isAnyExpanded={false}
             onClick={vi.fn()}
           />
-        </ThemeProvider>
+        </ThemeProvider>,
       );
 
       const button = screen.getByTestId("capsule-action-discuss");
       const iconChip = button.querySelector(
-        ".MuiButton-startIcon"
+        ".MuiButton-startIcon",
       ) as HTMLElement;
       const icon = button.querySelector(
-        ".MuiButton-startIcon .MuiSvgIcon-root"
+        ".MuiButton-startIcon .MuiSvgIcon-root",
       ) as HTMLElement;
 
       expect(window.getComputedStyle(iconChip).backgroundColor).toBe(
-        "rgb(60, 114, 160)"
+        "rgb(60, 114, 160)",
       );
       expect(window.getComputedStyle(icon).color).toBe("rgb(255, 255, 255)");
-    }
+    },
   );
 
   it("uses theme text color for backgroundless icons in light mode", () => {
@@ -254,7 +254,7 @@ describe("ActionsCapsule", () => {
           isAnyExpanded={false}
           onClick={vi.fn()}
         />
-      </ThemeProvider>
+      </ThemeProvider>,
     );
 
     const icon = screen
@@ -263,7 +263,7 @@ describe("ActionsCapsule", () => {
 
     expect(icon).not.toBeNull();
     expect(window.getComputedStyle(icon as Element).color).toBe(
-      theme.palette.text.primary
+      theme.palette.text.primary,
     );
   });
 
@@ -289,7 +289,7 @@ describe("ActionsCapsule", () => {
           isAnyExpanded={false}
           onClick={vi.fn()}
         />
-      </ThemeProvider>
+      </ThemeProvider>,
     );
 
     const icon = screen
@@ -298,7 +298,7 @@ describe("ActionsCapsule", () => {
 
     expect(icon).not.toBeNull();
     expect(window.getComputedStyle(icon as Element).color).toBe(
-      "rgb(255, 255, 255)"
+      "rgb(255, 255, 255)",
     );
   });
 
@@ -317,90 +317,105 @@ describe("ActionsCapsule", () => {
     expect(screen.queryByTestId("expandable-content")).not.toBeInTheDocument();
   });
 
-  it("uses a compact 48 px mobile toolbar while retaining expansion behavior", () => {
+  it("shows only the corner button on mobile until it is opened", () => {
     setViewport(true);
     renderCapsule();
 
-    const toolbar = screen.getByTestId("actions-capsule-toolbar");
-    expect(window.getComputedStyle(toolbar).height).toBe("48px");
-
-    const actionButton = screen.getByTestId("capsule-action-test-expand");
-    const actionButtonStyle = window.getComputedStyle(actionButton);
-    expect(actionButtonStyle.minHeight).toBe("48px");
-    expect(actionButtonStyle.minWidth).toBe("48px");
-    expect(actionButtonStyle.whiteSpace).toBe("nowrap");
-    expect(actionButton).toHaveAttribute("aria-label", "Test");
-    expect(actionButton).not.toHaveTextContent("Test");
-    const actionIconChip = actionButton.querySelector(
-      ".MuiButton-startIcon"
-    ) as HTMLElement;
-    const actionIconChipStyle = window.getComputedStyle(actionIconChip);
-    expect(actionIconChipStyle.width).toBe("40px");
-    expect(actionIconChipStyle.height).toBe("40px");
-    expect(actionIconChipStyle.padding).toBe("0px");
-    expect(actionIconChipStyle.borderRadius).toBe("50%");
     expect(
-      screen.queryByTestId("capsule-position-button")
+      screen.queryByTestId("actions-capsule-toolbar"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId(/^capsule-action-/)).not.toBeInTheDocument();
+    const toggle = screen.getByTestId("capsule-toggle");
+    expect(toggle).toHaveAttribute("aria-label", "Open actions");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(
+      screen.queryByTestId("capsule-position-button"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId("capsule-minimize-button")
+      screen.queryByTestId("capsule-minimize-button"),
     ).not.toBeInTheDocument();
-    expect(screen.getByTestId("capsule-action-search")).toBeInTheDocument();
-
-    fireEvent.click(actionButton);
-    const expandedContent = screen.getByTestId("capsule-expanded-content");
-    expect(
-      expandedContent.compareDocumentPosition(toolbar) &
-        Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy();
-
-    fireEvent.click(actionButton);
-    expect(screen.queryByTestId("expandable-content")).not.toBeInTheDocument();
   });
 
-  it("keeps Discuss at the leading edge of mobile ordinary actions and Search pinned", () => {
+  it("opens every action with its label in a wrapping grid, Discuss first", () => {
     setViewport(true);
     renderCapsuleWithOrdinaryActions();
 
+    fireEvent.click(screen.getByTestId("capsule-toggle"));
+
+    const grid = screen.getByTestId("capsule-mobile-grid");
+    expect(window.getComputedStyle(grid).display).toBe("grid");
     const actionButtons = screen.getAllByTestId(/^capsule-action-/);
     expect(
-      actionButtons.map((button) => button.getAttribute("data-testid"))
+      actionButtons.map((button) => button.getAttribute("data-testid")),
     ).toEqual([
       "capsule-action-discuss",
       "capsule-action-tab-action",
       "capsule-action-page-action",
       "capsule-action-search",
     ]);
+    const discuss = screen.getByTestId("capsule-action-discuss");
+    expect(discuss).toHaveTextContent("Discuss");
+    expect(window.getComputedStyle(discuss).whiteSpace).toBe("nowrap");
+    expect(window.getComputedStyle(discuss).textOverflow).not.toBe("ellipsis");
+    const chip = discuss.querySelector(".MuiButton-startIcon") as HTMLElement;
+    expect(window.getComputedStyle(chip).width).toBe("44px");
+    expect(window.getComputedStyle(chip).borderRadius).toBe("50%");
+    expect(screen.getByTestId("capsule-toggle")).toHaveAttribute(
+      "aria-label",
+      "Close actions",
+    );
 
-    const discussButton = screen.getByTestId("capsule-action-discuss");
-    expect(discussButton).toHaveAttribute("aria-label", "Discuss");
-    expect(
-      window.getComputedStyle(
-        discussButton.querySelector(
-          ".MuiButton-startIcon .MuiSvgIcon-root"
-        ) as HTMLElement
-      ).fontSize
-    ).toBe("18px");
-    expect(window.getComputedStyle(discussButton).minWidth).toBe("48px");
-    const discussIconChip = discussButton.querySelector(
-      ".MuiButton-startIcon"
-    ) as HTMLElement;
-    const discussIconChipStyle = window.getComputedStyle(discussIconChip);
-    expect(discussIconChipStyle.width).toBe("40px");
-    expect(discussIconChipStyle.height).toBe("40px");
-    fireEvent.click(discussButton);
+    fireEvent.click(discuss);
     expect(discussClick).toHaveBeenCalledOnce();
+    expect(screen.queryByTestId("capsule-mobile-grid")).not.toBeInTheDocument();
+  });
 
-    const toolbar = screen.getByTestId("actions-capsule-toolbar");
-    expect(window.getComputedStyle(toolbar).overflow).toBe("hidden");
-    expect(
-      window.getComputedStyle(toolbar.firstElementChild as HTMLElement)
-        .overflowX
-    ).toBe("auto");
-    expect(
-      window.getComputedStyle(toolbar.lastElementChild as HTMLElement)
-        .flexShrink
-    ).toBe("0");
+  it.each([
+    ["the toggle", () => fireEvent.click(screen.getByTestId("capsule-toggle"))],
+    ["outside", () => fireEvent.click(screen.getByTestId("capsule-scrim"))],
+    ["Escape", () => fireEvent.keyDown(window, { key: "Escape" })],
+  ])("closes the mobile capsule via %s", (_label, close) => {
+    setViewport(true);
+    renderCapsuleWithOrdinaryActions();
+
+    fireEvent.click(screen.getByTestId("capsule-toggle"));
+    expect(screen.getByTestId("capsule-mobile-grid")).toBeInTheDocument();
+    close();
+    expect(screen.queryByTestId("capsule-mobile-grid")).not.toBeInTheDocument();
+    expect(screen.getByTestId("capsule-toggle")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
+  it("closes the grid and opens an expand action as a bottom sheet", async () => {
+    setViewport(true);
+    renderCapsule();
+
+    fireEvent.click(screen.getByTestId("capsule-toggle"));
+    fireEvent.click(screen.getByTestId("capsule-action-test-expand"));
+
+    expect(screen.queryByTestId("capsule-mobile-grid")).not.toBeInTheDocument();
+    expect(screen.getByTestId("expandable-content")).toBeInTheDocument();
+
+    fireEvent.keyDown(screen.getByTestId("capsule-expanded-content"), {
+      key: "Escape",
+    });
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("expandable-content"),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("places the mobile button on the saved anchor side", () => {
+    setViewport(true);
+    localStorage.setItem("capsule-anchor", "bottom-left");
+    renderCapsule();
+
+    const capsule = screen.getByTestId("actions-capsule");
+    expect(window.getComputedStyle(capsule).left).toBe("16px");
+    localStorage.removeItem("capsule-anchor");
   });
 
   it("keeps the desktop toolbar at its existing height and controls", () => {
@@ -409,7 +424,7 @@ describe("ActionsCapsule", () => {
 
     expect(
       window.getComputedStyle(screen.getByTestId("actions-capsule-toolbar"))
-        .height
+        .height,
     ).toBe("82px");
     expect(screen.getByTestId("capsule-position-button")).toBeInTheDocument();
     expect(screen.getByTestId("capsule-minimize-button")).toBeInTheDocument();
@@ -423,12 +438,12 @@ describe("ActionsCapsule", () => {
           <FeedbackActionRegistrar
             feedback={buildFeedback(
               "The selected machine is unavailable.",
-              "failure-1"
+              "failure-1",
             )}
           />
           <ActionsCapsule />
         </ActionsCapsuleProvider>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const action = screen.getByTestId("capsule-action-feedback-action");
@@ -436,10 +451,10 @@ describe("ActionsCapsule", () => {
     fireEvent.click(action);
 
     expect(
-      screen.getByTestId("capsule-action-feedback-surface")
+      screen.getByTestId("capsule-action-feedback-surface"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("The selected machine is unavailable.")
+      screen.getByText("The selected machine is unavailable."),
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("capsule-action-feedback-retry"));
@@ -448,8 +463,8 @@ describe("ActionsCapsule", () => {
     fireEvent.click(screen.getByTestId("capsule-action-feedback-hide"));
     await waitFor(() =>
       expect(
-        screen.queryByTestId("capsule-action-feedback-surface")
-      ).not.toBeInTheDocument()
+        screen.queryByTestId("capsule-action-feedback-surface"),
+      ).not.toBeInTheDocument(),
     );
   });
 
@@ -461,27 +476,28 @@ describe("ActionsCapsule", () => {
           <FeedbackActionRegistrar
             feedback={buildFeedback(
               "The protected read timed out.",
-              "failure-1"
+              "failure-1",
             )}
           />
           <ActionsCapsule />
         </ActionsCapsuleProvider>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
+    fireEvent.click(screen.getByTestId("capsule-toggle"));
     fireEvent.click(screen.getByTestId("capsule-action-feedback-action"));
     expect(
-      screen.getByTestId("capsule-action-feedback-surface")
+      screen.getByTestId("capsule-action-feedback-surface"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("The protected read timed out.")
+      screen.getByText("The protected read timed out."),
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("capsule-action-feedback-hide"));
     await waitFor(() =>
       expect(
-        screen.queryByTestId("capsule-action-feedback-surface")
-      ).not.toBeInTheDocument()
+        screen.queryByTestId("capsule-action-feedback-surface"),
+      ).not.toBeInTheDocument(),
     );
   });
 
@@ -495,15 +511,15 @@ describe("ActionsCapsule", () => {
           />
           <ActionsCapsule />
         </ActionsCapsuleProvider>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     fireEvent.click(screen.getByTestId("capsule-action-feedback-action"));
     fireEvent.click(screen.getByTestId("capsule-action-feedback-hide"));
     await waitFor(() =>
       expect(
-        screen.queryByTestId("capsule-action-feedback-surface")
-      ).not.toBeInTheDocument()
+        screen.queryByTestId("capsule-action-feedback-surface"),
+      ).not.toBeInTheDocument(),
     );
 
     rendered.rerender(
@@ -512,19 +528,19 @@ describe("ActionsCapsule", () => {
           <FeedbackActionRegistrar
             feedback={buildFeedback(
               "The retry failed differently.",
-              "failure-2"
+              "failure-2",
             )}
           />
           <ActionsCapsule />
         </ActionsCapsuleProvider>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(
-      screen.getByTestId("capsule-action-feedback-surface")
+      screen.getByTestId("capsule-action-feedback-surface"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("The retry failed differently.")
+      screen.getByText("The retry failed differently."),
     ).toBeInTheDocument();
   });
 });

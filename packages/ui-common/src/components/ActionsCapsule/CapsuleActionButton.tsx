@@ -38,9 +38,8 @@ const actionIconStylesById: Record<string, React.CSSProperties> = {
   },
 };
 
-const COMPACT_BUTTON_MIN_WIDTH = 48;
-const COMPACT_ICON_CHIP_SIZE = 40;
-const COMPACT_DISCUSS_ICON_SIZE = 18;
+const GRID_CELL_MIN_WIDTH = 72;
+const GRID_ICON_CHIP_SIZE = 44;
 
 export interface CapsuleActionButtonProps {
   /** Action data to display */
@@ -53,8 +52,8 @@ export interface CapsuleActionButtonProps {
   /** Callback when button is clicked (for actions without menu items) */
   onClick: () => void;
   inProgress?: boolean;
-  /** Use the compact sizing required by the mobile toolbar row. */
-  compact?: boolean;
+  /** Mobile grid cell: round icon with a single-line label beneath it. */
+  gridCell?: boolean;
 }
 
 /**
@@ -67,7 +66,7 @@ export const CapsuleActionButton: React.FC<CapsuleActionButtonProps> = ({
   isAnyExpanded,
   onClick,
   inProgress,
-  compact = false,
+  gridCell = false,
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -130,15 +129,9 @@ export const CapsuleActionButton: React.FC<CapsuleActionButtonProps> = ({
     colorStyle.color ??
     (hasIconBackground ? theme.palette.common.white : defaultTextColor);
   const actionTextColor = action.textColor ?? defaultTextColor;
-  const isCompactDiscuss = compact && action.id === "discuss";
 
   const Icon = action.icon ? (
-    <action.icon
-      sx={{
-        color: iconColor,
-        ...(isCompactDiscuss && { fontSize: COMPACT_DISCUSS_ICON_SIZE }),
-      }}
-    />
+    <action.icon sx={{ color: iconColor }} />
   ) : undefined;
 
   const button = (
@@ -147,18 +140,17 @@ export const CapsuleActionButton: React.FC<CapsuleActionButtonProps> = ({
       variant="outlined"
       size="medium"
       startIcon={Icon}
-      aria-label={compact ? action.label : undefined}
       onClick={handleButtonClick}
       disabled={isDisabled || isGreyedOut}
       aria-busy={feedback?.isRetrying || undefined}
       sx={{
         textTransform: "none",
         flexDirection: "column",
-        ...(compact
+        ...(gridCell
           ? {
-              minWidth: COMPACT_BUTTON_MIN_WIDTH,
-              minHeight: 48,
-              padding: 0,
+              minWidth: GRID_CELL_MIN_WIDTH,
+              padding: "4px 2px",
+              gap: 0.5,
             }
           : {
               padding: "8px 10px",
@@ -169,9 +161,9 @@ export const CapsuleActionButton: React.FC<CapsuleActionButtonProps> = ({
         outline: "none",
         fontSize: "12px",
         whiteSpace: "nowrap",
-        maxWidth: 80,
-        overflow: "hidden",
-        textOverflow: "ellipsis",
+        ...(gridCell
+          ? { overflow: "visible" }
+          : { maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis" }),
         "&.Mui-disabled": {
           color: disabledTextColor,
           ...(preserveIconChipWhenDisabled && { opacity: 1 }),
@@ -185,11 +177,11 @@ export const CapsuleActionButton: React.FC<CapsuleActionButtonProps> = ({
           lineHeight: 0,
           marginLeft: "0px",
           marginRight: "0px",
-          padding: compact ? 0 : "8px",
+          padding: gridCell ? 0 : "8px",
           borderRadius: "50%",
-          ...(compact && {
-            width: COMPACT_ICON_CHIP_SIZE,
-            height: COMPACT_ICON_CHIP_SIZE,
+          ...(gridCell && {
+            width: GRID_ICON_CHIP_SIZE,
+            height: GRID_ICON_CHIP_SIZE,
           }),
           ...colorStyle,
           ...(preserveIconChipWhenDisabled && {
@@ -225,7 +217,7 @@ export const CapsuleActionButton: React.FC<CapsuleActionButtonProps> = ({
           }}
         />
       )}
-      {!compact && action.label}
+      {action.label}
     </Button>
   );
 

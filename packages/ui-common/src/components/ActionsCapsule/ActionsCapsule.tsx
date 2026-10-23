@@ -5,11 +5,12 @@ import CloseFullscreenIcon from "@mui/icons-material/CloseFullscreen";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardDoubleArrowLeftIcon from "@mui/icons-material/KeyboardDoubleArrowLeft";
 import KeyboardDoubleArrowRightIcon from "@mui/icons-material/KeyboardDoubleArrowRight";
+import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import RemoveIcon from "@mui/icons-material/Remove";
 import {
   Box,
+  Drawer,
   IconButton,
-  Slide,
   Typography,
   useMediaQuery,
   useTheme,
@@ -35,7 +36,7 @@ const getCapsuleSx = (
   isExpanded: boolean,
   isFullSize: boolean,
   anchor: CapsuleAnchor,
-  hasTopContent: boolean
+  hasTopContent: boolean,
 ): SxProps<Theme> => ({
   position: "fixed",
   bottom: 32,
@@ -44,10 +45,10 @@ const getCapsuleSx = (
   maxHeight: isFullSize
     ? "calc(100vh - 150px)"
     : isExpanded
-    ? 620
-    : hasTopContent
-    ? 200
-    : 82,
+      ? 620
+      : hasTopContent
+        ? 200
+        : 82,
   bgcolor: "background.paper",
   border: 1,
   borderColor: (theme) =>
@@ -65,6 +66,19 @@ const getCapsuleSx = (
   transformOrigin: anchor === "bottom-right" ? "bottom right" : "bottom left",
   zIndex: (theme) => theme.zIndex.drawer + 1,
 });
+
+const mobileCapsuleSurfaceSx: SxProps<Theme> = {
+  bgcolor: "background.paper",
+  border: 1,
+  borderColor: (theme) =>
+    theme.palette.mode === "dark"
+      ? "rgba(255, 255, 255, 0.24)"
+      : theme.palette.divider,
+  boxShadow: (theme) =>
+    theme.palette.mode === "dark"
+      ? "0 0 0 1px rgba(255, 255, 255, 0.08), 0 12px 28px rgba(0, 0, 0, 0.6)"
+      : theme.shadows[3],
+};
 
 const dividerSx = {
   width: "1px",
@@ -101,6 +115,7 @@ export const ActionsCapsule: React.FC = () => {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [inactiveWidth, setInactiveWidth] = useState<number | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [anchor, setAnchor] = useState<CapsuleAnchor>(() => {
     const stored = localStorage.getItem("capsule-anchor");
     return stored === "bottom-left" ? "bottom-left" : "bottom-right";
@@ -142,7 +157,7 @@ export const ActionsCapsule: React.FC = () => {
         expandAction(action.id);
       }
     },
-    [activeActionId, collapseAction, expandAction]
+    [activeActionId, collapseAction, expandAction],
   );
 
   useEffect(() => {
@@ -156,6 +171,19 @@ export const ActionsCapsule: React.FC = () => {
     observer.observe(containerRef.current);
     return () => observer.disconnect();
   }, [isExpanded]);
+
+  useEffect(() => {
+    if (!isMobile || !isMobileMenuOpen) return;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isMobile, isMobileMenuOpen]);
 
   useEffect(() => {
     if (!isExpanded) return;
@@ -213,32 +241,118 @@ export const ActionsCapsule: React.FC = () => {
   }
 
   if (isMobile) {
+    const closeMobileMenu = () => setIsMobileMenuOpen(false);
     return (
-      <Box
-        ref={containerRef}
-        sx={{
-          position: "fixed",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          paddingBottom: "env(safe-area-inset-bottom)",
-          bgcolor: "background.paper",
-          borderTop: 1,
-          borderColor: "divider",
-          zIndex: (theme) => theme.zIndex.drawer + 1,
-        }}
-        data-testid="actions-capsule"
-      >
-        <Slide direction="up" in={isExpanded} mountOnEnter unmountOnExit>
+      <>
+        {isMobileMenuOpen && (
           <Box
+            data-testid="capsule-scrim"
+            onClick={closeMobileMenu}
             sx={{
+              position: "fixed",
+              inset: 0,
+              bgcolor: "rgba(0, 0, 0, 0.12)",
+              zIndex: (theme) => theme.zIndex.drawer,
+            }}
+          />
+        )}
+        <Box
+          ref={containerRef}
+          component={motion.div}
+          layout
+          transition={{ type: "spring", stiffness: 420, damping: 36 }}
+          style={{ borderRadius: isMobileMenuOpen ? 24 : 28 }}
+          sx={{
+            ...mobileCapsuleSurfaceSx,
+            position: "fixed",
+            bottom: "calc(16px + env(safe-area-inset-bottom))",
+            ...(isBottomRightAnchor ? { right: 16 } : { left: 16 }),
+            maxWidth: "calc(100vw - 32px)",
+            overflow: "hidden",
+            zIndex: (theme) => theme.zIndex.drawer + 1,
+          }}
+          data-testid="actions-capsule"
+        >
+          {isMobileMenuOpen ? (
+            <Box
+              data-testid="capsule-mobile-grid"
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, minmax(72px, auto))",
+                justifyItems: "center",
+                alignItems: "start",
+                gap: 1,
+                p: 1.5,
+              }}
+            >
+              {sortedActions.map((action, idx) => (
+                <CapsuleActionButton
+                  key={action.id}
+                  action={action}
+                  idx={idx}
+                  isActive={action.id === activeActionId}
+                  inProgress={action.inProgress}
+                  isAnyExpanded={false}
+                  gridCell
+                  onClick={() => {
+                    closeMobileMenu();
+                    handleActionClick(action);
+                  }}
+                />
+              ))}
+              <IconButton
+                onClick={closeMobileMenu}
+                data-testid="capsule-toggle"
+                aria-label="Close actions"
+                aria-expanded
+                sx={{
+                  gridColumn: isBottomRightAnchor ? 3 : 1,
+                  alignSelf: "end",
+                  width: 44,
+                  height: 44,
+                }}
+              >
+                <CloseIcon />
+              </IconButton>
+            </Box>
+          ) : (
+            <IconButton
+              onClick={() => {
+                collapseAction();
+                setIsMobileMenuOpen(true);
+              }}
+              data-testid="capsule-toggle"
+              aria-label="Open actions"
+              aria-expanded={false}
+              sx={{ width: 56, height: 56 }}
+            >
+              <MoreHorizIcon />
+            </IconButton>
+          )}
+        </Box>
+
+        <Drawer
+          anchor="bottom"
+          open={isExpanded}
+          onClose={collapseAction}
+          PaperProps={{
+            sx: {
+              maxHeight: "80vh",
               overflowX: "hidden",
               overflowY: "auto",
               p: 3,
-              maxHeight: 400,
-            }}
-            data-testid="capsule-expanded-content"
-          >
+              pb: "calc(24px + env(safe-area-inset-bottom))",
+              borderTopLeftRadius: 16,
+              borderTopRightRadius: 16,
+            },
+          }}
+        >
+          <Box data-testid="capsule-expanded-content">
+            {activeExpandableAction?.title && (
+              <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
+                {activeExpandableAction.title}
+              </Typography>
+            )}
             {activeExpandableAction?.menuItems &&
             activeExpandableAction.menuItems.length > 0 &&
             !activeMenuItemId ? (
@@ -246,7 +360,7 @@ export const ActionsCapsule: React.FC = () => {
                 menuItems={activeExpandableAction.menuItems}
                 onItemClick={(itemId) => setActiveMenuItem(itemId)}
                 colorIndex={sortedActions.findIndex(
-                  (a) => a.id === activeActionId
+                  (a) => a.id === activeActionId,
                 )}
                 inactiveWidth={inactiveWidth}
               />
@@ -254,100 +368,8 @@ export const ActionsCapsule: React.FC = () => {
               activeExpandableAction?.renderContent()
             )}
           </Box>
-        </Slide>
-
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1,
-            px: 1,
-            height: 48,
-            flexShrink: 0,
-            overflow: "hidden",
-          }}
-          data-testid="actions-capsule-toolbar"
-        >
-          <Box
-            sx={{
-              flex: 1,
-              overflowX: "auto",
-              display: "flex",
-              alignItems: "center",
-              gap: 1,
-              position: "relative",
-            }}
-          >
-            {scrollableActions.map((action, localIdx) => {
-              const globalIdx = sortedActions.findIndex(
-                (a) => a.id === action.id
-              );
-              const previousAction =
-                localIdx > 0 ? scrollableActions[localIdx - 1] : null;
-              const showDivider =
-                previousAction !== null && previousAction.tier !== action.tier;
-
-              return (
-                <React.Fragment key={action.id}>
-                  {showDivider && <Box sx={dividerSx} />}
-                  <Box sx={{ flexShrink: 0 }}>
-                    <CapsuleActionButton
-                      action={action}
-                      idx={globalIdx}
-                      isActive={action.id === activeActionId}
-                      inProgress={action.inProgress}
-                      isAnyExpanded={isExpanded}
-                      onClick={() => handleActionClick(action)}
-                      compact
-                    />
-                  </Box>
-                </React.Fragment>
-              );
-            })}
-          </Box>
-
-          {scrollableActions.length > 0 && pinnedActions.length > 0 && (
-            <Box sx={dividerSx} />
-          )}
-
-          <Box
-            sx={{
-              flexShrink: 0,
-              display: "flex",
-              alignItems: "center",
-              gap: 1,
-            }}
-          >
-            {pinnedActions.map((action) => {
-              const globalIdx = sortedActions.findIndex(
-                (a) => a.id === action.id
-              );
-              return (
-                <CapsuleActionButton
-                  key={action.id}
-                  action={action}
-                  idx={globalIdx}
-                  isActive={action.id === activeActionId}
-                  inProgress={action.inProgress}
-                  isAnyExpanded={isExpanded}
-                  onClick={() => handleActionClick(action)}
-                  compact
-                />
-              );
-            })}
-          </Box>
-
-          {isExpanded && (
-            <IconButton
-              size="small"
-              onClick={collapseAction}
-              data-testid="capsule-close-button"
-            >
-              <CloseIcon />
-            </IconButton>
-          )}
-        </Box>
-      </Box>
+        </Drawer>
+      </>
     );
   }
 
@@ -363,8 +385,8 @@ export const ActionsCapsule: React.FC = () => {
             ? "full-size"
             : "active"
           : isDragging
-          ? "drag"
-          : "inactive"
+            ? "drag"
+            : "inactive"
       }
       sx={getCapsuleSx(isExpanded, isFullSize, anchor, hasTopContent)}
       data-testid="actions-capsule"
@@ -404,7 +426,7 @@ export const ActionsCapsule: React.FC = () => {
               menuItems={activeExpandableAction.menuItems}
               onItemClick={(itemId) => setActiveMenuItem(itemId)}
               colorIndex={sortedActions.findIndex(
-                (a) => a.id === activeActionId
+                (a) => a.id === activeActionId,
               )}
               inactiveWidth={inactiveWidth}
             />
@@ -442,7 +464,7 @@ export const ActionsCapsule: React.FC = () => {
         >
           {scrollableActions.map((action, localIdx) => {
             const globalIdx = sortedActions.findIndex(
-              (a) => a.id === action.id
+              (a) => a.id === action.id,
             );
             const previousAction =
               localIdx > 0 ? scrollableActions[localIdx - 1] : null;
@@ -497,7 +519,7 @@ export const ActionsCapsule: React.FC = () => {
         >
           {pinnedActions.map((action) => {
             const globalIdx = sortedActions.findIndex(
-              (a) => a.id === action.id
+              (a) => a.id === action.id,
             );
             return (
               <CapsuleActionButton
