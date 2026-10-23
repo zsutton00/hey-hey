@@ -313,6 +313,16 @@ export class RunChangedFilesReader {
           );
         }
         const workspace = await inspectGitWorkspace(resolvedWorkspace);
+        if (workspace.workspace.gitRootDetected === false) {
+          this.logger.info('local.run_changed_files.inventory_skipped_not_a_repository', {
+            runId: run.agentic_session_id,
+            serviceId,
+            workspaceIdentifier: workspace.workspace.workspaceIdentifier,
+            workspaceSource: workspace.workspace.workspaceSource,
+            membershipCount: paths.size,
+          });
+          return [];
+        }
         try {
           const entries = await getGitChangedFilesInventory({
             repoPath: workspace.repoPath,

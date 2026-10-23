@@ -177,9 +177,10 @@ export const InterstitialField: React.FC<FieldComponentProps> = ({
     ({ text }) => text.length > 0,
   );
   const isActive = !isSubmitted && context.isLastInTimeline !== false;
-  const toolCalls: LatestTurnToolCallsState = context.latestTurnToolCalls ?? {
-    status: "idle",
-  };
+  const toolCalls: LatestTurnToolCallsState =
+    context.isLastInTimeline === false
+      ? { status: "idle" }
+      : (context.latestTurnToolCalls ?? { status: "idle" });
 
   if (segments.length === 0) {
     return null;
