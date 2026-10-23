@@ -76,6 +76,9 @@ export const GOAL_PM_NEW_CONVERSATION_SURFACE_ID = "goal-pm-new-conversation";
 /** Stable memory id for project-report request launches. */
 export const PROJECT_REPORT_SURFACE_ID = "project-report";
 
+/** Stable memory id for the runtime chosen when starting Agent fix on a proposal. */
+export const PROPOSAL_AGENT_FIX_SURFACE_ID = "proposal-agent-fix";
+
 /** Stable memory id shared by fresh Service Import onboarding setup. */
 export const SERVICE_IMPORT_SURFACE_ID = "service-import";
 

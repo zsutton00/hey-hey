@@ -31,3 +31,8 @@ it('carries authoritative generated context through the refiner prompt and scope
   expect(submitted.expectedCurrentBases).toEqual(state.currentBases);
   expect(submitted.proposedResult).toEqual({ name: 'Reviewed' });
 });
+
+it('starts without a repository because Agent fix launches it from a proposal', () => {
+  expect(proposalRefinerHandler.service).toBe('optional');
+  expect(proposalRefinerHandler.launchEntity).toBe('required');
+});

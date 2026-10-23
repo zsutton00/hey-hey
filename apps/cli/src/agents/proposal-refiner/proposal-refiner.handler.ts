@@ -24,7 +24,8 @@ const reconciliationSubmission = new ProposalReconciliationSubmission();
 export const proposalRefinerHandler: PromptTypeHandler<LocalProposalRefinerPromptPayload> = {
   id: 'proposal_refiner',
   promptType: 'proposal_refiner',
-  service: 'required',
+  // Agent fix starts the refiner from a proposal, which has no repository.
+  service: 'optional',
   launchEntity: 'required',
   implementationReadiness: 'none',
   runnerKind: 'provider_session',

@@ -27,7 +27,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { OrganizationId, ProjectId } from 'src/types';
+import { OrganizationId, ProjectId, UserId } from 'src/types';
 import {
   AuthToken,
   CurrentOrganization,
@@ -65,8 +65,10 @@ import { buildUserRequestorContext } from '../services/proposal/user-requestor-c
 import { ProposalReconciliationCandidatePipe } from '../pipes/proposal-reconciliation-candidate.pipe';
 import type {
   CreateProposalReconciliationCandidate,
+  ProposalAgentFixRequest,
   ProposalReconciliationState,
 } from '../generated';
+import { ProposalAgentFixService } from '../services/proposal/proposal-agent-fix.service';
 
 @ApiTags('Proposals')
 @ApiBearerAuth()
@@ -79,7 +81,25 @@ export class ProposalController {
   constructor(
     private readonly proposalService: ProposalService,
     private readonly approvalService: ProposalApprovalService,
+    private readonly agentFix: ProposalAgentFixService,
   ) {}
+
+  /** Records an Agent fix request; the app starts it. Never dispatches a run. */
+  @Post(':id/reconciliation/agent-fix-request')
+  @HttpCode(HttpStatus.OK)
+  async createAgentFixRequest(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @CurrentOrganization() organizationId: OrganizationId,
+    @Param('projectId') projectId: ProjectId,
+  ): Promise<ProposalAgentFixRequest> {
+    return this.agentFix.record(
+      organizationId,
+      projectId,
+      user.userId as UserId,
+      id,
+    );
+  }
 
   @Get(':id/reconciliation')
   async reconciliation(

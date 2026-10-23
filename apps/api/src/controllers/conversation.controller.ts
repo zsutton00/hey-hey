@@ -84,6 +84,7 @@ import {
 } from '../generated';
 import { AgentSessionService } from '../services/agent-session.service';
 import { EvalRunService } from '../services/eval-runs/eval-run.service';
+import { ProposalAgentFixService } from '../services/proposal/proposal-agent-fix.service';
 import { ProjectReportLaunchService } from '../services/project-reports/project-report-launch.service';
 import {
   ExecutionGrantService,
@@ -283,6 +284,7 @@ export class ConversationController implements IConversationControllerSpec {
     private readonly triggerEmitter: TriggerEmitter,
     private readonly projectReportLaunchService: ProjectReportLaunchService,
     private readonly evalRunService: EvalRunService,
+    private readonly proposalAgentFixService: ProposalAgentFixService,
     @Optional()
     private readonly agentOperationSubmission?: AgentOperationSubmissionService,
     @Optional()
@@ -1130,6 +1132,14 @@ export class ConversationController implements IConversationControllerSpec {
       });
 
     await this.evalRunService.assertStartRun({
+      organizationId,
+      projectId,
+      userId: callerUserId,
+      conversationId,
+      requestDto,
+    });
+
+    await this.proposalAgentFixService.assertStartRun({
       organizationId,
       projectId,
       userId: callerUserId,

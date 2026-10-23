@@ -23437,6 +23437,49 @@ export type CreateProjectReportRequestDtoNotAnyOf1NotKindEnum = typeof CreatePro
 /**
  *
  * @export
+ * @interface CreateProposalAgentFixRequest200Response
+ */
+export interface CreateProposalAgentFixRequest200Response {
+    /**
+     * Indicates if the request was successful
+     * @type {boolean}
+     * @memberof CreateProposalAgentFixRequest200Response
+     */
+    'success': boolean;
+    /**
+     * Human-readable message about the operation
+     * @type {string}
+     * @memberof CreateProposalAgentFixRequest200Response
+     */
+    'message': string;
+    /**
+     *
+     * @type {ProposalAgentFixRequest}
+     * @memberof CreateProposalAgentFixRequest200Response
+     */
+    'data': ProposalAgentFixRequest;
+    /**
+     * ISO timestamp of when the response was generated
+     * @type {string}
+     * @memberof CreateProposalAgentFixRequest200Response
+     */
+    'timestamp': string;
+    /**
+     * HTTP status code
+     * @type {number}
+     * @memberof CreateProposalAgentFixRequest200Response
+     */
+    'statusCode': number;
+    /**
+     * Request path
+     * @type {string}
+     * @memberof CreateProposalAgentFixRequest200Response
+     */
+    'path'?: string;
+}
+/**
+ *
+ * @export
  * @interface CreateProposalDto
  */
 export interface CreateProposalDto {
@@ -69520,6 +69563,55 @@ export type ProposalAction = typeof ProposalAction[keyof typeof ProposalAction];
 
 
 /**
+ * A recorded Agent fix request: the proposal-refiner Agent Session and Conversation prepared for one out-of-date proposal, and the exact run input the app must start it with. Recording never starts an agent; the app starts it with the user\'s machine and authorization.
+ * @export
+ * @interface ProposalAgentFixRequest
+ */
+export interface ProposalAgentFixRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalAgentFixRequest
+     */
+    'proposalId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalAgentFixRequest
+     */
+    'organizationId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalAgentFixRequest
+     */
+    'projectId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalAgentFixRequest
+     */
+    'agentSessionId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalAgentFixRequest
+     */
+    'conversationId': string;
+    /**
+     *
+     * @type {RunCreatePayloadProposalRefiner}
+     * @memberof ProposalAgentFixRequest
+     */
+    'payload': RunCreatePayloadProposalRefiner;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalAgentFixRequest
+     */
+    'createdAt': string;
+}
+/**
  *
  * @export
  * @interface ProposalApprovalDto
@@ -70900,6 +70992,55 @@ export type ProposalReconciliationBasisEntityTypeEnum = typeof ProposalReconcili
 /**
  *
  * @export
+ * @interface ProposalReconciliationIntervening
+ */
+export interface ProposalReconciliationIntervening {
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationIntervening
+     */
+    'proposalId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationIntervening
+     */
+    'title': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationIntervening
+     */
+    'approvedById': string | null;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationIntervening
+     */
+    'approvedByName': string | null;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationIntervening
+     */
+    'approvedAt': string;
+    /**
+     * Fields this intervening proposal changed, e.g. `name` or `sections.description`.
+     * @type {Array<string>}
+     * @memberof ProposalReconciliationIntervening
+     */
+    'changedPaths': Array<string>;
+    /**
+     * Fields of `changedPaths` that overlap this proposal and could not be merged.
+     * @type {Array<string>}
+     * @memberof ProposalReconciliationIntervening
+     */
+    'overlappingPaths': Array<string>;
+}
+/**
+ *
+ * @export
  * @interface ProposalReconciliationMergeRequest
  */
 export interface ProposalReconciliationMergeRequest {
@@ -70917,6 +71058,37 @@ export const ProposalReconciliationMergeRequestMethodEnum = {
 
 export type ProposalReconciliationMergeRequestMethodEnum = typeof ProposalReconciliationMergeRequestMethodEnum[keyof typeof ProposalReconciliationMergeRequestMethodEnum];
 
+/**
+ *
+ * @export
+ * @interface ProposalReconciliationOverlap
+ */
+export interface ProposalReconciliationOverlap {
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationOverlap
+     */
+    'path': string;
+    /**
+     * This proposal\'s value for the field.
+     * @type {any}
+     * @memberof ProposalReconciliationOverlap
+     */
+    'proposedValue'?: any;
+    /**
+     * The field\'s current value after intervening changes.
+     * @type {any}
+     * @memberof ProposalReconciliationOverlap
+     */
+    'currentValue'?: any;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationOverlap
+     */
+    'interveningProposalId': string | null;
+}
 /**
  *
  * @export
@@ -70993,6 +71165,24 @@ export interface ProposalReconciliationState {
      * @memberof ProposalReconciliationState
      */
     'status': ProposalReconciliationStateStatusEnum;
+    /**
+     * When the change under review was originally written; for a merged replacement, when the proposal it reconciles was written.
+     * @type {string}
+     * @memberof ProposalReconciliationState
+     */
+    'writtenAt'?: string;
+    /**
+     * Proposals approved on the same target after this change was written, oldest first. Empty when the proposal is approved or rejected.
+     * @type {Array<ProposalReconciliationIntervening>}
+     * @memberof ProposalReconciliationState
+     */
+    'interveningProposals': Array<ProposalReconciliationIntervening>;
+    /**
+     * Fields an intervening change and this proposal both changed in ways that cannot be combined automatically. Approval stays unavailable until they are resolved.
+     * @type {Array<ProposalReconciliationOverlap>}
+     * @memberof ProposalReconciliationState
+     */
+    'overlaps': Array<ProposalReconciliationOverlap>;
     /**
      *
      * @type {Array<ProposalReconciliationBasis>}
@@ -158950,6 +159140,52 @@ export const ProposalsApiAxiosParamCreator = function (configuration?: Configura
             };
         },
         /**
+         * Records (or returns the caller\'s still-unstarted) proposal-refiner Agent Session and Conversation for an out-of-date proposal, with the exact run input the app must start it with. Accepts no machine or authorization and never dispatches a run.
+         * @summary Record an Agent fix request without starting anything
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {string} proposalId
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        createProposalAgentFixRequest: async (organizationId: string, projectId: string, proposalId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('createProposalAgentFixRequest', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('createProposalAgentFixRequest', 'projectId', projectId)
+            // verify required parameter 'proposalId' is not null or undefined
+            assertParamExists('createProposalAgentFixRequest', 'proposalId', proposalId)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/reconciliation/agent-fix-request`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)))
+                .replace(`{${"proposalId"}}`, encodeURIComponent(String(proposalId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          *
          * @summary Prepare a complete replacement for fresh review without applying it
          * @param {string} organizationId
@@ -159925,6 +160161,21 @@ export const ProposalsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Records (or returns the caller\'s still-unstarted) proposal-refiner Agent Session and Conversation for an out-of-date proposal, with the exact run input the app must start it with. Accepts no machine or authorization and never dispatches a run.
+         * @summary Record an Agent fix request without starting anything
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {string} proposalId
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async createProposalAgentFixRequest(organizationId: string, projectId: string, proposalId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<CreateProposalAgentFixRequest200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.createProposalAgentFixRequest(organizationId, projectId, proposalId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['ProposalsApi.createProposalAgentFixRequest']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          *
          * @summary Prepare a complete replacement for fresh review without applying it
          * @param {string} organizationId
@@ -160252,6 +160503,16 @@ export const ProposalsApiFactory = function (configuration?: Configuration, base
             return localVarFp.createProposal(requestParameters.organizationId, requestParameters.projectId, requestParameters.createProposalRequestDto, options).then((request) => request(axios, basePath));
         },
         /**
+         * Records (or returns the caller\'s still-unstarted) proposal-refiner Agent Session and Conversation for an out-of-date proposal, with the exact run input the app must start it with. Accepts no machine or authorization and never dispatches a run.
+         * @summary Record an Agent fix request without starting anything
+         * @param {ProposalsApiCreateProposalAgentFixRequestRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        createProposalAgentFixRequest(requestParameters: ProposalsApiCreateProposalAgentFixRequestRequest, options?: RawAxiosRequestConfig): AxiosPromise<CreateProposalAgentFixRequest200Response> {
+            return localVarFp.createProposalAgentFixRequest(requestParameters.organizationId, requestParameters.projectId, requestParameters.proposalId, options).then((request) => request(axios, basePath));
+        },
+        /**
          *
          * @summary Prepare a complete replacement for fresh review without applying it
          * @param {ProposalsApiCreateProposalReconciliationCandidateRequest} requestParameters Request parameters.
@@ -160469,6 +160730,16 @@ export interface ProposalsApiInterface {
      * @memberof ProposalsApiInterface
      */
     createProposal(requestParameters: ProposalsApiCreateProposalRequest, options?: RawAxiosRequestConfig): AxiosPromise<OrganizationsOrganizationIdProjectsProjectIdWorkItemTypesPost201Response>;
+
+    /**
+     * Records (or returns the caller\'s still-unstarted) proposal-refiner Agent Session and Conversation for an out-of-date proposal, with the exact run input the app must start it with. Accepts no machine or authorization and never dispatches a run.
+     * @summary Record an Agent fix request without starting anything
+     * @param {ProposalsApiCreateProposalAgentFixRequestRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ProposalsApiInterface
+     */
+    createProposalAgentFixRequest(requestParameters: ProposalsApiCreateProposalAgentFixRequestRequest, options?: RawAxiosRequestConfig): AxiosPromise<CreateProposalAgentFixRequest200Response>;
 
     /**
      *
@@ -160766,6 +161037,34 @@ export interface ProposalsApiCreateProposalRequest {
      * @memberof ProposalsApiCreateProposal
      */
     readonly createProposalRequestDto: CreateProposalRequestDto
+}
+
+/**
+ * Request parameters for createProposalAgentFixRequest operation in ProposalsApi.
+ * @export
+ * @interface ProposalsApiCreateProposalAgentFixRequestRequest
+ */
+export interface ProposalsApiCreateProposalAgentFixRequestRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalsApiCreateProposalAgentFixRequest
+     */
+    readonly organizationId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalsApiCreateProposalAgentFixRequest
+     */
+    readonly projectId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalsApiCreateProposalAgentFixRequest
+     */
+    readonly proposalId: string
 }
 
 /**
@@ -161451,6 +161750,18 @@ export class ProposalsApi extends BaseAPI implements ProposalsApiInterface {
      */
     public createProposal(requestParameters: ProposalsApiCreateProposalRequest, options?: RawAxiosRequestConfig) {
         return ProposalsApiFp(this.configuration).createProposal(requestParameters.organizationId, requestParameters.projectId, requestParameters.createProposalRequestDto, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Records (or returns the caller\'s still-unstarted) proposal-refiner Agent Session and Conversation for an out-of-date proposal, with the exact run input the app must start it with. Accepts no machine or authorization and never dispatches a run.
+     * @summary Record an Agent fix request without starting anything
+     * @param {ProposalsApiCreateProposalAgentFixRequestRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ProposalsApi
+     */
+    public createProposalAgentFixRequest(requestParameters: ProposalsApiCreateProposalAgentFixRequestRequest, options?: RawAxiosRequestConfig) {
+        return ProposalsApiFp(this.configuration).createProposalAgentFixRequest(requestParameters.organizationId, requestParameters.projectId, requestParameters.proposalId, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

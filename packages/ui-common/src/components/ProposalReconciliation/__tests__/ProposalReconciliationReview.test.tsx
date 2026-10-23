@@ -23,6 +23,20 @@ vi.mock("../../../clients/serviceClients", () => ({
     createProposalReconciliationCandidate: vi.fn(),
   },
 }));
+vi.mock("../AgentFixConfirmDialog", () => ({
+  AgentFixConfirmDialog: ({
+    proposal,
+    onClose,
+  }: {
+    proposal: ProposalResponseDto;
+    onClose: () => void;
+  }) => (
+    <div data-testid="proposal-agent-fix-confirm">
+      Agent fix starts an agent session for {proposal.id}
+      <button onClick={onClose}>Cancel</button>
+    </div>
+  ),
+}));
 vi.mock("../../SuggestedContent/DiffRenderer", () => ({
   DiffRenderer: ({
     oldContent,
@@ -42,6 +56,7 @@ const proposal = {
   organizationId: "org",
   projectId: "project",
   updates: {},
+  status: "DRAFT",
   updatedAt: "2026-09-28T00:00:00Z",
 } as ProposalResponseDto;
 const basis = {
@@ -55,6 +70,9 @@ const ready: ProposalReconciliationState = {
   currentBases: [basis],
   candidateRevisionId: "revision",
   conflictingPaths: [],
+  writtenAt: "2026-09-27T00:00:00Z",
+  interveningProposals: [],
+  overlaps: [],
   revisions: [
     {
       id: "revision",
@@ -95,8 +113,9 @@ describe("complete reconciliation review", () => {
       expect(screen.getByText("Approve displayed revision")).toBeEnabled(),
     );
     expect(
-      screen.getByTestId("proposal-reconciliation-comparison"),
-    ).toHaveTextContent("Intervening work");
+      screen.getByTestId("proposal-reconciliation-merged-result"),
+    ).toBeVisible();
+    expect(screen.queryByText(/"preserved"/)).toBeNull();
     fireEvent.click(screen.getByText("Approve displayed revision"));
     expect(apply).toHaveBeenCalledWith({
       reviewedReconciliationRevisionId: "revision",
@@ -152,5 +171,117 @@ describe("complete reconciliation review", () => {
       screen.getByTestId("proposal-reconciliation-agent-fix"),
     ).toBeVisible();
     expect(screen.getByText("Approve displayed revision")).toBeDisabled();
+  });
+  it("warns that Agent fix starts a session instead of linking to the proposal page", async () => {
+    const apply = mount({ ...ready, status: "AGENT_FIX_REQUIRED" });
+    const button = await screen.findByTestId(
+      "proposal-reconciliation-agent-fix",
+    );
+    expect(button).not.toHaveAttribute("href");
+    expect(screen.queryByTestId("proposal-agent-fix-confirm")).toBeNull();
+    fireEvent.click(button);
+    expect(screen.getByTestId("proposal-agent-fix-confirm")).toHaveTextContent(
+      "Agent fix starts an agent session for proposal",
+    );
+    fireEvent.click(screen.getByText("Cancel"));
+    expect(screen.queryByTestId("proposal-agent-fix-confirm")).toBeNull();
+    expect(screen.getByText("Approve displayed revision")).toBeDisabled();
+    expect(apply).not.toHaveBeenCalled();
+  });
+});
+
+const intervening = {
+  proposalId: "dessert",
+  title: "Change the dessert",
+  approvedById: "user",
+  approvedByName: "Zac",
+  approvedAt: "2026-09-27T12:00:00Z",
+  changedPaths: ["sections.description"],
+  overlappingPaths: [],
+  changes: [{ path: "sections.description", before: "Cake", after: "Sorbet" }],
+};
+
+describe("out-of-date review", () => {
+  it("lists what changed since the proposal was written and expands each change's own diff", async () => {
+    mount({
+      ...ready,
+      status: "RECONCILIATION_REQUIRED",
+      interveningProposals: [intervening],
+    });
+    expect(
+      await screen.findByTestId("proposal-reconciliation-heads-up"),
+    ).toHaveTextContent("1 change was approved on this item since");
+    expect(
+      screen.getByTestId("proposal-reconciliation-changed-since"),
+    ).toHaveTextContent("Change the dessert");
+    expect(screen.getByText(/Approved by Zac/)).toBeVisible();
+    fireEvent.click(screen.getByText("Show its changes"));
+    expect(
+      screen.getByTestId("proposal-reconciliation-intervening-diff"),
+    ).toHaveTextContent("Sorbet");
+    expect(screen.getByTestId("proposal-reconciliation-merge")).toBeEnabled();
+    expect(screen.getByText("Approve displayed revision")).toBeDisabled();
+  });
+
+  it("says when no other changes were approved since", async () => {
+    mount({ ...ready, status: "RECONCILIATION_REQUIRED" });
+    expect(
+      await screen.findByTestId("proposal-reconciliation-heads-up"),
+    ).toHaveTextContent("No other changes were approved on this item since");
+    expect(
+      screen.queryByTestId("proposal-reconciliation-changed-since"),
+    ).toBeNull();
+  });
+
+  it("shows overlapping values side by side and keeps Approve and Merge unavailable", async () => {
+    mount({
+      ...ready,
+      status: "RECONCILIATION_REQUIRED",
+      conflictingPaths: ["status"],
+      interveningProposals: [
+        {
+          ...intervening,
+          changedPaths: ["status"],
+          overlappingPaths: ["status"],
+        },
+      ],
+      overlaps: [
+        {
+          path: "status",
+          currentValue: "ACTIVE",
+          proposedValue: "COMPLETED",
+          interveningProposalId: "dessert",
+        },
+      ],
+    });
+    const overlap = await screen.findByTestId(
+      "proposal-reconciliation-overlap",
+    );
+    expect(overlap).toHaveTextContent("ACTIVE");
+    expect(overlap).toHaveTextContent("COMPLETED");
+    expect(screen.getByText("Overlaps: status")).toBeVisible();
+    expect(
+      screen.getByTestId("proposal-reconciliation-edit-by-hand"),
+    ).toBeVisible();
+    expect(screen.queryByTestId("proposal-reconciliation-merge")).toBeNull();
+    expect(
+      screen.queryByTestId("proposal-reconciliation-merged-result"),
+    ).toBeNull();
+    expect(screen.getByText("Approve displayed revision")).toBeDisabled();
+  });
+
+  it("shows no out-of-date review on an approved proposal", async () => {
+    const apply = vi.fn();
+    render(
+      <ProposalReconciliationReview
+        proposal={{ ...proposal, status: "APPROVED" } as ProposalResponseDto}
+        onApply={apply}
+      >
+        <div>Approved content</div>
+      </ProposalReconciliationReview>,
+    );
+    expect(screen.getByText("Approved content")).toBeVisible();
+    expect(screen.queryByTestId("proposal-reconciliation-review")).toBeNull();
+    expect(proposalsClient.getProposalReconciliation).not.toHaveBeenCalled();
   });
 });

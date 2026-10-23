@@ -15,7 +15,7 @@ import { buildEntityConversationPath } from "./entityConversationRoute";
  * - ENTITY_CONVERSATION → entity-conversation route with entity params
  * - TASK_REFINING → task or feature page with ?editing=true
  * - DESIGN_DOC_REFINING → design doc page with ?editing=true
- * - PROPOSAL_REFINING → proposal detail page
+ * - PROPOSAL_REFINING (Agent fix) → its conversation, like other session types
  * - DAILY_SESSION → project page with the Daily Session view selected
  * - PROJECT_CONVERSATION → project conversation session page
  */
@@ -118,21 +118,6 @@ export const AgentSessionByIdResolver: React.FC = () => {
             `/projects/${projectId}/design-docs/${designDocId}?editing=true`,
             { replace: true },
           );
-        } else {
-          navigate(`/projects/${projectId}`, { replace: true });
-        }
-        return;
-      }
-
-      case AgentSessionType.ProposalRefining: {
-        const proposalId =
-          agentSession.entityType === EntityType.Proposal
-            ? agentSession.entityId
-            : undefined;
-        if (proposalId) {
-          navigate(`/projects/${projectId}/proposals/${proposalId}`, {
-            replace: true,
-          });
         } else {
           navigate(`/projects/${projectId}`, { replace: true });
         }
