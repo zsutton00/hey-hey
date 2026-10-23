@@ -23,8 +23,15 @@ const context = (bindingSecret?: string) => ({
 const hash = (secret: string) =>
   createHash('sha256').update(secret).digest('hex');
 
+const deployment = process.env.DEPLOYMENT_ENVIRONMENT;
+beforeEach(() => {
+  process.env.DEPLOYMENT_ENVIRONMENT = 'staging';
+});
+afterAll(() => {
+  process.env.DEPLOYMENT_ENVIRONMENT = deployment;
+});
+
 const openProgram = {
-  enabled: true,
   activeCap: 10,
   perIpLimit: 3,
   perIpWindowSeconds: 3600,
@@ -314,11 +321,9 @@ describe('DemoSandboxAdmissionService', () => {
 
   describe('refusals, in order', () => {
     const failing = {
-      off: (t: ReturnType<typeof setup>) =>
-        t.db.demoSandboxProgramState.findUniqueOrThrow.mockResolvedValue({
-          ...openProgram,
-          enabled: false,
-        }),
+      off: () => {
+        process.env.DEPLOYMENT_ENVIRONMENT = 'production';
+      },
       full: (t: ReturnType<typeof setup>) =>
         t.db.demoSandbox.count.mockResolvedValueOnce(openProgram.activeCap),
       limited: (t: ReturnType<typeof setup>) =>

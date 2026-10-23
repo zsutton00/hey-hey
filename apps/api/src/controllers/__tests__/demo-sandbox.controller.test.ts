@@ -36,11 +36,7 @@ describe('DemoSandboxController', () => {
     resume: jest.fn(),
     current: jest.fn(),
   };
-  const program = { isAvailable: jest.fn() };
-  const controller = new DemoSandboxController(
-    admission as never,
-    program as never,
-  );
+  const controller = new DemoSandboxController(admission as never);
   const body = {
     botCheckToken: 't',
     demoTermsVersion: 'demo-1.0',
@@ -65,12 +61,22 @@ describe('DemoSandboxController', () => {
     ]);
   });
 
-  it('reports whether the demo is offered', async () => {
-    program.isAvailable.mockResolvedValue(false);
-    await expect(controller.availability()).resolves.toEqual({
-      available: false,
-    });
-  });
+  it.each([
+    ['staging', true],
+    ['development', true],
+    ['production', false],
+  ])(
+    'offers the demo by deployment environment alone (%s)',
+    (environment, available) => {
+      const previous = process.env.DEPLOYMENT_ENVIRONMENT;
+      process.env.DEPLOYMENT_ENVIRONMENT = environment;
+      try {
+        expect(controller.availability()).toEqual({ available });
+      } finally {
+        process.env.DEPLOYMENT_ENVIRONMENT = previous;
+      }
+    },
+  );
 
   it('passes the browser-binding cookie, address and session metadata to admission', async () => {
     admission.provision.mockResolvedValue({ sandbox, session });
@@ -183,7 +189,6 @@ describe('demo sandbox request validation', () => {
   it('accepts the OpenAPI shapes', () => {
     expect(provision.transform(valid)).toBe(valid);
     const settings = {
-      enabled: true,
       activeCap: 0,
       perIpLimit: 1,
       perIpWindowSeconds: 60,
@@ -202,33 +207,28 @@ describe('demo sandbox request validation', () => {
 
   it.each([
     {
-      enabled: true,
       creationMode: 'OPEN',
       activeCap: 1,
       perIpLimit: 1,
       perIpWindowSeconds: 1,
     },
     {
-      enabled: true,
       activeCap: -1,
       perIpLimit: 1,
       perIpWindowSeconds: 1,
     },
     {
-      enabled: true,
       activeCap: 1,
       perIpLimit: 0,
       perIpWindowSeconds: 1,
     },
     {
-      enabled: true,
       activeCap: 1,
       perIpLimit: 1,
       perIpWindowSeconds: 0,
     },
-    { enabled: true, activeCap: 1, perIpLimit: 1 },
-    { activeCap: 1, perIpLimit: 1, perIpWindowSeconds: 1 },
-    { enabled: 'yes', activeCap: 1, perIpLimit: 1, perIpWindowSeconds: 1 },
+    { activeCap: 1, perIpLimit: 1 },
+    { enabled: true, activeCap: 1, perIpLimit: 1, perIpWindowSeconds: 1 },
   ])('rejects out-of-contract program settings', (value) => {
     expect(() => program.transform(value)).toThrow(BadRequestException);
   });

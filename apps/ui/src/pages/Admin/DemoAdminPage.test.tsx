@@ -23,7 +23,6 @@ vi.mock("react-i18next", () => ({
 }));
 
 const program = {
-  enabled: true,
   activeCap: 10,
   perIpLimit: 2,
   perIpWindowSeconds: 3600,
@@ -55,10 +54,10 @@ describe("DemoAdminPage", () => {
     withOverview({ program, template, activeCount: 3 });
   });
 
-  it("shows the demo switch, counts, limits and template", () => {
+  it("shows counts, limits and template without any on/off switch", () => {
     render(<DemoAdminPage />);
 
-    expect(screen.getByTestId("demo-admin-enabled")).toBeChecked();
+    expect(screen.queryByTestId("demo-admin-enabled")).toBeNull();
     expect(screen.getByTestId("demo-admin-active-count")).toHaveTextContent(
       "3 / 10",
     );
@@ -81,41 +80,6 @@ describe("DemoAdminPage", () => {
     expect(screen.getByTestId("demo-admin-template-current")).toHaveTextContent(
       "admin.demo.template.none",
     );
-  });
-
-  it("switches the demo off and on through the program update", async () => {
-    mocks.updateProgram.mockResolvedValue(program);
-    const view = render(<DemoAdminPage />);
-
-    fireEvent.click(screen.getByTestId("demo-admin-enabled"));
-    await waitFor(() =>
-      expect(mocks.updateProgram).toHaveBeenCalledWith({
-        ...program,
-        enabled: false,
-      }),
-    );
-
-    withOverview({
-      program: { ...program, enabled: false },
-      template,
-      activeCount: 3,
-    });
-    view.rerender(<DemoAdminPage />);
-    fireEvent.click(screen.getByTestId("demo-admin-enabled"));
-    await waitFor(() =>
-      expect(mocks.updateProgram).toHaveBeenLastCalledWith(program),
-    );
-  });
-
-  it("won't switch the demo on without a template", () => {
-    withOverview({
-      program: { ...program, enabled: false },
-      template: null,
-      activeCount: 0,
-    });
-    render(<DemoAdminPage />);
-
-    expect(screen.getByTestId("demo-admin-enabled")).toBeDisabled();
   });
 
   it("saves the limits through the program update", async () => {

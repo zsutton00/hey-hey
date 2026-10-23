@@ -1,16 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { DemoSandboxStatus } from '@prisma/client';
+import { getDeploymentEnvironment } from '../../deployment-environment';
 import type { DemoSandboxProgramDto } from '../../generated';
 import { PrismaService } from '../../prisma/prisma.service';
-import { DemoTemplateService } from './demo-template.service';
 import { PROGRAM_STATE_ID } from './demo-sandbox.constants';
+
+/**
+ * The one value that decides whether the demo exists in this deployment: it
+ * both shows View demo (via the availability endpoint) and lets a start
+ * through admission. On everywhere except production.
+ */
+export function isDemoSandboxEnabled(): boolean {
+  return getDeploymentEnvironment() !== 'production';
+}
 
 @Injectable()
 export class DemoSandboxProgramService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly templates: DemoTemplateService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async get(): Promise<DemoSandboxProgramDto> {
     const state =
@@ -18,20 +24,10 @@ export class DemoSandboxProgramService {
         where: { id: PROGRAM_STATE_ID },
       });
     return {
-      enabled: state.enabled,
       activeCap: state.activeCap,
       perIpLimit: state.perIpLimit,
       perIpWindowSeconds: state.perIpWindowSeconds,
     };
-  }
-
-  /** Offered only when switched on and there is a template to copy; otherwise a start would fail. */
-  async isAvailable(): Promise<boolean> {
-    const [program, template] = await Promise.all([
-      this.get(),
-      this.templates.getActive(),
-    ]);
-    return program.enabled && template !== null;
   }
 
   /** ACTIVE only; admission's capacity check also counts PROVISIONING reservations. */
@@ -47,7 +43,6 @@ export class DemoSandboxProgramService {
       data: program,
     });
     return {
-      enabled: saved.enabled,
       activeCap: saved.activeCap,
       perIpLimit: saved.perIpLimit,
       perIpWindowSeconds: saved.perIpWindowSeconds,

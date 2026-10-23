@@ -30,7 +30,7 @@ import {
   DemoSandboxAdmissionService,
   DemoSandboxRequestContext,
 } from '../services/demo-sandbox/demo-sandbox-admission.service';
-import { DemoSandboxProgramService } from '../services/demo-sandbox/demo-sandbox-program.service';
+import { isDemoSandboxEnabled } from '../services/demo-sandbox/demo-sandbox-program.service';
 import {
   DEMO_BINDING_COOKIE_MAX_AGE_MILLISECONDS,
   DEMO_BINDING_COOKIE_NAME,
@@ -40,15 +40,12 @@ import { ProvisionDemoSandboxPipe } from './demo-sandbox.validation';
 @ApiTags('DemoSandboxes')
 @Controller('api/v1/demo-sandboxes')
 export class DemoSandboxController {
-  constructor(
-    private readonly admission: DemoSandboxAdmissionService,
-    private readonly program: DemoSandboxProgramService,
-  ) {}
+  constructor(private readonly admission: DemoSandboxAdmissionService) {}
 
   @Public()
   @Get('availability')
-  async availability(): Promise<DemoSandboxAvailabilityDto> {
-    return { available: await this.program.isAvailable() };
+  availability(): DemoSandboxAvailabilityDto {
+    return { available: isDemoSandboxEnabled() };
   }
 
   @Public()

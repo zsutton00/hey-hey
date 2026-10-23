@@ -43,6 +43,7 @@ import type { OrganizationId, ProjectId, UserId } from '../../types';
 import { BotCheckService } from './bot-check.service';
 import { DemoSandboxDiscardService } from './demo-sandbox-discard.service';
 import { DemoSandboxReadinessService } from './demo-sandbox-readiness.service';
+import { isDemoSandboxEnabled } from './demo-sandbox-program.service';
 import { ProjectTemplateCloneService } from './project-template-clone.service';
 import {
   DEFAULT_PROVISIONING_DEADLINE_SECONDS,
@@ -229,22 +230,22 @@ export class DemoSandboxAdmissionService {
     });
   }
 
-  /** The switch, capacity and per-address checks of admission, in order. */
+  /** The deployment value, capacity and per-address checks of admission, in order. */
   private async assertAdmissible(
     client: AnyTransactionClient,
     creatorIpHash: string,
     now: Date,
   ): Promise<void> {
-    const program = await client.demoSandboxProgramState.findUniqueOrThrow({
-      where: { id: PROGRAM_STATE_ID },
-    });
-    if (!program.enabled) {
+    if (!isDemoSandboxEnabled()) {
       throw this.refusal(
         HttpStatus.SERVICE_UNAVAILABLE,
         DemoSandboxUnavailableCode.Disabled,
-        'Demo sandboxes are switched off',
+        'Demo sandboxes are not available in this deployment',
       );
     }
+    const program = await client.demoSandboxProgramState.findUniqueOrThrow({
+      where: { id: PROGRAM_STATE_ID },
+    });
     const occupied = await client.demoSandbox.count({
       where: {
         status: {

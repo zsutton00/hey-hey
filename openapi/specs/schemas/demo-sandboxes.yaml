@@ -114,11 +114,8 @@ DemoSandboxResumeMissDto:
 DemoSandboxProgramDto:
   type: object
   additionalProperties: false
-  required: [enabled, activeCap, perIpLimit, perIpWindowSeconds]
+  required: [activeCap, perIpLimit, perIpWindowSeconds]
   properties:
-    enabled:
-      type: boolean
-      description: The single switch for the demo; off hides View demo and refuses new sandboxes.
     activeCap:
       type: integer
       minimum: 0
@@ -154,4 +151,4 @@ DemoSandboxAvailabilityDto:
   properties:
     available:
       type: boolean
-      description: True when the demo is switched on and a template is designated.
+      description: True in every deployment except production. The same value decides whether View demo is shown and whether starting a demo is attempted.

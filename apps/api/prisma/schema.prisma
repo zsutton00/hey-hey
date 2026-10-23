@@ -977,7 +977,6 @@ model DemoSandbox {
 
 model DemoSandboxProgramState {
   id                 String                  @id @default("singleton")
-  enabled            Boolean
   activeCap          Int                     @map("active_cap")
   perIpLimit         Int                     @map("per_ip_limit")
   perIpWindowSeconds Int                     @map("per_ip_window_seconds")

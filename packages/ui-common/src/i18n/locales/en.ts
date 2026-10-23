@@ -1458,11 +1458,8 @@ export const en = {
   "admin.tabs.demo": "Demo",
   "admin.demo.title": "Demo sandbox",
   "admin.demo.loadError": "The demo settings couldn't be loaded.",
-  "admin.demo.enabled.label": "Demo switched on",
-  "admin.demo.enabled.help":
-    "When on, visitors see View demo and can start a demo. When off, the button is hidden and no new demos start; visitors with a running demo keep it.",
   "admin.demo.noTemplate":
-    "The demo can't start until a template is set, so View demo stays hidden.",
+    "No template is set, so starting a demo will fail until one is.",
   "admin.demo.activeNow": "Active now",
   "admin.demo.activeNowNote":
     "Counts active sandboxes only. Sandboxes still being set up also count toward the cap.",

@@ -10,23 +10,18 @@ describe('demo sandbox admin reads', () => {
     demoTemplate: { findFirst: jest.fn() },
   };
   const prisma = { db } as unknown as PrismaService;
-  const service = new DemoSandboxProgramService(
-    prisma,
-    new DemoTemplateService(prisma),
-  );
+  const service = new DemoSandboxProgramService(prisma);
 
   beforeEach(() => jest.resetAllMocks());
 
   it('reads the singleton program state', async () => {
     db.demoSandboxProgramState.findUniqueOrThrow.mockResolvedValue({
       id: PROGRAM_STATE_ID,
-      enabled: true,
       activeCap: 5,
       perIpLimit: 1,
       perIpWindowSeconds: 600,
     });
     await expect(service.get()).resolves.toEqual({
-      enabled: true,
       activeCap: 5,
       perIpLimit: 1,
       perIpWindowSeconds: 600,
@@ -43,35 +38,6 @@ describe('demo sandbox admin reads', () => {
       where: { status: 'ACTIVE' },
     });
   });
-
-  it.each([
-    [true, true, true],
-    [true, false, false],
-    [false, true, false],
-  ])(
-    'offers the demo only when switched on and a template exists (enabled=%s, template=%s)',
-    async (enabled, hasTemplate, expected) => {
-      db.demoSandboxProgramState.findUniqueOrThrow.mockResolvedValue({
-        id: PROGRAM_STATE_ID,
-        enabled,
-        activeCap: 5,
-        perIpLimit: 1,
-        perIpWindowSeconds: 600,
-      });
-      db.demoTemplate.findFirst.mockResolvedValue(
-        hasTemplate
-          ? {
-              id: 't',
-              projectId: 'p',
-              repositoryUrl: 'https://github.com/example/template',
-              active: true,
-              createdAt: new Date('2026-10-16T00:00:00Z'),
-            }
-          : null,
-      );
-      await expect(service.isAvailable()).resolves.toBe(expected);
-    },
-  );
 
   it('returns the active template or null', async () => {
     const createdAt = new Date('2026-10-16T00:00:00Z');

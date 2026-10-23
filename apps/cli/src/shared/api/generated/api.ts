@@ -1559,6 +1559,50 @@ export interface AdminOrganizationWorkItemTypeTotalDto {
     'count': number;
 }
 /**
+ * Every implementation hint in a project grouped by Service, including Services that have been archived. Read-only debug view for platform admins.
+ * @export
+ * @interface AdminProjectImplementationHintsDto
+ */
+export interface AdminProjectImplementationHintsDto {
+    /**
+     *
+     * @type {Array<AdminProjectServiceImplementationHintsDto>}
+     * @memberof AdminProjectImplementationHintsDto
+     */
+    'services': Array<AdminProjectServiceImplementationHintsDto>;
+}
+/**
+ *
+ * @export
+ * @interface AdminProjectServiceImplementationHintsDto
+ */
+export interface AdminProjectServiceImplementationHintsDto {
+    /**
+     *
+     * @type {string}
+     * @memberof AdminProjectServiceImplementationHintsDto
+     */
+    'serviceId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof AdminProjectServiceImplementationHintsDto
+     */
+    'serviceName': string;
+    /**
+     * Set when the Service is archived.
+     * @type {string}
+     * @memberof AdminProjectServiceImplementationHintsDto
+     */
+    'archivedAt'?: string | null;
+    /**
+     *
+     * @type {Array<ImplementationHintDto>}
+     * @memberof AdminProjectServiceImplementationHintsDto
+     */
+    'hints': Array<ImplementationHintDto>;
+}
+/**
  * @type AdmissionEnvelopeAuthorization
  * Closed API-admission union. A browser submits fresh assertion evidence without a grant identifier, or references an already active bounded grant. The API constructs the distinct executable activation arm after admission.
  * @export
@@ -27119,7 +27163,7 @@ export interface DemoSandboxAdminOverviewDto {
  */
 export interface DemoSandboxAvailabilityDto {
     /**
-     * True when the demo is switched on and a template is designated.
+     * True in every deployment except production. The same value decides whether View demo is shown and whether starting a demo is attempted.
      * @type {boolean}
      * @memberof DemoSandboxAvailabilityDto
      */
@@ -27131,12 +27175,6 @@ export interface DemoSandboxAvailabilityDto {
  * @interface DemoSandboxProgramDto
  */
 export interface DemoSandboxProgramDto {
-    /**
-     * The single switch for the demo; off hides View demo and refuses new sandboxes.
-     * @type {boolean}
-     * @memberof DemoSandboxProgramDto
-     */
-    'enabled': boolean;
     /**
      * Maximum ACTIVE sandboxes plus provisioning attempts.
      * @type {number}
@@ -38675,6 +38713,49 @@ export interface GetAdminOrganizationDetail200Response {
      * Request path
      * @type {string}
      * @memberof GetAdminOrganizationDetail200Response
+     */
+    'path'?: string;
+}
+/**
+ *
+ * @export
+ * @interface GetAdminProjectImplementationHints200Response
+ */
+export interface GetAdminProjectImplementationHints200Response {
+    /**
+     * Indicates if the request was successful
+     * @type {boolean}
+     * @memberof GetAdminProjectImplementationHints200Response
+     */
+    'success': boolean;
+    /**
+     * Human-readable message about the operation
+     * @type {string}
+     * @memberof GetAdminProjectImplementationHints200Response
+     */
+    'message': string;
+    /**
+     *
+     * @type {AdminProjectImplementationHintsDto}
+     * @memberof GetAdminProjectImplementationHints200Response
+     */
+    'data': AdminProjectImplementationHintsDto;
+    /**
+     * ISO timestamp of when the response was generated
+     * @type {string}
+     * @memberof GetAdminProjectImplementationHints200Response
+     */
+    'timestamp': string;
+    /**
+     * HTTP status code
+     * @type {number}
+     * @memberof GetAdminProjectImplementationHints200Response
+     */
+    'statusCode': number;
+    /**
+     * Request path
+     * @type {string}
+     * @memberof GetAdminProjectImplementationHints200Response
      */
     'path'?: string;
 }
@@ -70992,6 +71073,31 @@ export type ProposalReconciliationBasisEntityTypeEnum = typeof ProposalReconcili
 /**
  *
  * @export
+ * @interface ProposalReconciliationFieldChange
+ */
+export interface ProposalReconciliationFieldChange {
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationFieldChange
+     */
+    'path': string;
+    /**
+     *
+     * @type {any}
+     * @memberof ProposalReconciliationFieldChange
+     */
+    'before'?: any;
+    /**
+     *
+     * @type {any}
+     * @memberof ProposalReconciliationFieldChange
+     */
+    'after'?: any;
+}
+/**
+ *
+ * @export
  * @interface ProposalReconciliationIntervening
  */
 export interface ProposalReconciliationIntervening {
@@ -71037,6 +71143,12 @@ export interface ProposalReconciliationIntervening {
      * @memberof ProposalReconciliationIntervening
      */
     'overlappingPaths': Array<string>;
+    /**
+     * The intervening proposal\'s own change per field, from the content it was reviewed against to the result it applied. Empty when that record is unavailable.
+     * @type {Array<ProposalReconciliationFieldChange>}
+     * @memberof ProposalReconciliationIntervening
+     */
+    'changes': Array<ProposalReconciliationFieldChange>;
 }
 /**
  *
@@ -132274,6 +132386,44 @@ export const DebugAdminApiAxiosParamCreator = function (configuration?: Configur
             };
         },
         /**
+         * Platform admins only. Returns every implementation hint of every Service in the project, archived Services included, which agent search can no longer reach.
+         * @summary List a project\'s implementation hints grouped by Service
+         * @param {string} projectId
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getAdminProjectImplementationHints: async (projectId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('getAdminProjectImplementationHints', 'projectId', projectId)
+            const localVarPath = `/admin/projects/{projectId}/implementation-hints`
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Returns stored embeddings for a given entity type and source ID
          * @summary Get debug info for an entity from the embeddings service
          * @param {string} type Entity content type (e.g. task, initiative, message)
@@ -133604,6 +133754,19 @@ export const DebugAdminApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Platform admins only. Returns every implementation hint of every Service in the project, archived Services included, which agent search can no longer reach.
+         * @summary List a project\'s implementation hints grouped by Service
+         * @param {string} projectId
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async getAdminProjectImplementationHints(projectId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetAdminProjectImplementationHints200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getAdminProjectImplementationHints(projectId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DebugAdminApi.getAdminProjectImplementationHints']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Returns stored embeddings for a given entity type and source ID
          * @summary Get debug info for an entity from the embeddings service
          * @param {string} type Entity content type (e.g. task, initiative, message)
@@ -134031,6 +134194,16 @@ export const DebugAdminApiFactory = function (configuration?: Configuration, bas
             return localVarFp.deleteOrganization(requestParameters.organizationId, requestParameters.hard, options).then((request) => request(axios, basePath));
         },
         /**
+         * Platform admins only. Returns every implementation hint of every Service in the project, archived Services included, which agent search can no longer reach.
+         * @summary List a project\'s implementation hints grouped by Service
+         * @param {DebugAdminApiGetAdminProjectImplementationHintsRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getAdminProjectImplementationHints(requestParameters: DebugAdminApiGetAdminProjectImplementationHintsRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetAdminProjectImplementationHints200Response> {
+            return localVarFp.getAdminProjectImplementationHints(requestParameters.projectId, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Returns stored embeddings for a given entity type and source ID
          * @summary Get debug info for an entity from the embeddings service
          * @param {DebugAdminApiGetDebugEmbeddingsEntityRequest} requestParameters Request parameters.
@@ -134333,6 +134506,16 @@ export interface DebugAdminApiInterface {
      * @memberof DebugAdminApiInterface
      */
     deleteOrganization(requestParameters: DebugAdminApiDeleteOrganizationRequest, options?: RawAxiosRequestConfig): AxiosPromise<void>;
+
+    /**
+     * Platform admins only. Returns every implementation hint of every Service in the project, archived Services included, which agent search can no longer reach.
+     * @summary List a project\'s implementation hints grouped by Service
+     * @param {DebugAdminApiGetAdminProjectImplementationHintsRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DebugAdminApiInterface
+     */
+    getAdminProjectImplementationHints(requestParameters: DebugAdminApiGetAdminProjectImplementationHintsRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetAdminProjectImplementationHints200Response>;
 
     /**
      * Returns stored embeddings for a given entity type and source ID
@@ -134640,6 +134823,20 @@ export interface DebugAdminApiDeleteOrganizationRequest {
      * @memberof DebugAdminApiDeleteOrganization
      */
     readonly hard?: boolean
+}
+
+/**
+ * Request parameters for getAdminProjectImplementationHints operation in DebugAdminApi.
+ * @export
+ * @interface DebugAdminApiGetAdminProjectImplementationHintsRequest
+ */
+export interface DebugAdminApiGetAdminProjectImplementationHintsRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof DebugAdminApiGetAdminProjectImplementationHints
+     */
+    readonly projectId: string
 }
 
 /**
@@ -135240,6 +135437,18 @@ export class DebugAdminApi extends BaseAPI implements DebugAdminApiInterface {
      */
     public deleteOrganization(requestParameters: DebugAdminApiDeleteOrganizationRequest, options?: RawAxiosRequestConfig) {
         return DebugAdminApiFp(this.configuration).deleteOrganization(requestParameters.organizationId, requestParameters.hard, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Platform admins only. Returns every implementation hint of every Service in the project, archived Services included, which agent search can no longer reach.
+     * @summary List a project\'s implementation hints grouped by Service
+     * @param {DebugAdminApiGetAdminProjectImplementationHintsRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DebugAdminApi
+     */
+    public getAdminProjectImplementationHints(requestParameters: DebugAdminApiGetAdminProjectImplementationHintsRequest, options?: RawAxiosRequestConfig) {
+        return DebugAdminApiFp(this.configuration).getAdminProjectImplementationHints(requestParameters.projectId, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

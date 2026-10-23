@@ -8,13 +8,11 @@ import {
   CircularProgress,
   Container,
   FormControl,
-  FormControlLabel,
   InputLabel,
   MenuItem,
   Paper,
   Select,
   Stack,
-  Switch,
   TextField,
   Typography,
 } from "@mui/material";
@@ -32,9 +30,7 @@ const toDraft = (program: DemoSandboxProgramDto): LimitsDraft => ({
   perIpWindowSeconds: String(program.perIpWindowSeconds),
 });
 
-type Limits = Omit<DemoSandboxProgramDto, "enabled">;
-
-const parseLimits = (draft: LimitsDraft): Limits | null => {
+const parseLimits = (draft: LimitsDraft): DemoSandboxProgramDto | null => {
   const [activeCap, perIpLimit, perIpWindowSeconds] = [
     draft.activeCap,
     draft.perIpLimit,
@@ -106,8 +102,7 @@ export const DemoAdminPage: React.FC = () => {
       setError(serverMessage(caught) ?? t("admin.demo.saveError"));
     }
   };
-  const saveLimits = () =>
-    parsedLimits && saveProgram({ ...program, ...parsedLimits });
+  const saveLimits = () => parsedLimits && saveProgram(parsedLimits);
   const saveTemplate = async () => {
     setError(null);
     try {
@@ -149,30 +144,6 @@ export const DemoAdminPage: React.FC = () => {
 
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Stack spacing={2}>
-            <FormControlLabel
-              label={t("admin.demo.enabled.label")}
-              control={
-                <Switch
-                  checked={program.enabled}
-                  disabled={saving || (!program.enabled && !template)}
-                  onChange={(event) =>
-                    void saveProgram({
-                      ...program,
-                      enabled: event.target.checked,
-                    })
-                  }
-                  slotProps={{
-                    input: {
-                      "data-testid": "demo-admin-enabled",
-                    } as React.InputHTMLAttributes<HTMLInputElement>,
-                  }}
-                />
-              }
-            />
-            <Typography variant="body2" color="text.secondary">
-              {t("admin.demo.enabled.help")}
-            </Typography>
-
             <Stack direction="row" spacing={1} alignItems="center">
               <Typography sx={{ minWidth: 240 }}>
                 {t("admin.demo.activeNow")}
