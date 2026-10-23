@@ -435,7 +435,7 @@ describe('triage input and handler', () => {
     expect(input.collection.groups).toHaveLength(TRIAGE_CAPS.groups);
     expect(input.goals).toHaveLength(TRIAGE_CAPS.goals);
     expect(
-      input.goals.every((goal) => goal.trackedItems.length === TRIAGE_CAPS.trackedPerGoal),
+      input.goals.every((goal) => goal.trackedItems.length <= TRIAGE_CAPS.trackedPerGoal),
     ).toBe(true);
     expect(input.connections).toHaveLength(TRIAGE_CAPS.connections);
     expect(input.truncated).toBe(true);
@@ -547,23 +547,18 @@ describe('triage input and handler', () => {
     expect(Buffer.byteLength(buildTriagePrompt(prepared.payload), 'utf8')).toBeLessThan(200 * 1024);
   });
 
-  it('trims timeline then connections to fit the input budget and discloses each trim', async () => {
+  it('trims timeline then Goal-tracked items to fit the input budget and discloses each trim', async () => {
     const dependencies = deps(maximumFetch(400));
     const info = vi.spyOn(dependencies.logger, 'info');
-    const input = await new TriageInputOwner(
-      dependencies,
-      id(91),
-      id(92),
-      token,
-      now,
-    ).build();
+    const input = await new TriageInputOwner(dependencies, id(91), id(92), token, now).build();
     const bytes = Buffer.byteLength(JSON.stringify(input), 'utf8');
     expect(bytes).toBeLessThanOrEqual(TRIAGE_INPUT_BUDGET_BYTES);
     expect(input.attention.timeline).toEqual([]);
     expect(input.attention.truncated.timeline).toBe(true);
-    expect(input.connections.length).toBeLessThan(TRIAGE_CAPS.connections);
-    expect(input.truncated).toBe(true);
-    for (const scope of ['budget:timeline', 'budget:connections'])
+    expect(input.goals.some((goal) => goal.trackedItems.length < TRIAGE_CAPS.trackedPerGoal)).toBe(
+      true,
+    );
+    for (const scope of ['budget:timeline', 'budget:trackedItems'])
       expect(input.limits.find((limit) => limit.scope === scope)?.truncated).toBe(true);
     expect(info).toHaveBeenCalledWith(
       'open_items_triage.input.ready',

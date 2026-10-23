@@ -484,9 +484,11 @@ export class TriageInputOwner {
     return input;
   }
 
-  // Lowest-value evidence goes first: the oldest timeline spans, then the lowest-ranked connections.
+  // Lowest-value evidence goes first: the oldest timeline spans, then tracked items from the
+  // last Goals, then the lowest-ranked connections.
   private fitBudget(input: {
     attention: { timeline: unknown[]; truncated: { timeline: boolean } };
+    goals: { trackedItems: unknown[] }[];
     connections: unknown[];
     truncated: boolean;
     limits: EvidenceLimit[];
@@ -503,6 +505,18 @@ export class TriageInputOwner {
       input.attention.truncated.timeline = true;
       timelineLimit.truncated = true;
       bytes = finalize();
+    }
+    if (bytes <= TRIAGE_INPUT_BUDGET_BYTES) return bytes;
+    const trackedLimit = this.limit('budget:trackedItems');
+    for (let g = input.goals.length - 1; g >= 0 && bytes > TRIAGE_INPUT_BUDGET_BYTES; g--) {
+      const tracked = input.goals[g]!.trackedItems;
+      while (bytes > TRIAGE_INPUT_BUDGET_BYTES && tracked.length > 0) {
+        // Remove roughly the excess in one step; re-measuring after every item is quadratic.
+        const perItem = inputBytes(tracked) / tracked.length;
+        tracked.splice(-Math.ceil((bytes - TRIAGE_INPUT_BUDGET_BYTES) / perItem));
+        trackedLimit.truncated = true;
+        bytes = finalize();
+      }
     }
     if (bytes <= TRIAGE_INPUT_BUDGET_BYTES) return bytes;
     const connectionLimit = this.limit('budget:connections');
