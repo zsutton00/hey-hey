@@ -4,7 +4,7 @@ import * as path from 'path';
 import { WorkflowTimelineService } from '../workflow-timeline.service';
 
 describe('WorkflowTimelineService', () => {
-  const fixturePath = path.resolve(__dirname, 'fixtures', 'test_workflow.logs');
+  const fixturePath = path.resolve(__dirname, 'fixtures', 'test_workflow.txt');
 
   it('builds a timeline with node coverage from the workflow log fixture', () => {
     const logContents = fs.readFileSync(fixturePath, 'utf8').trim();
