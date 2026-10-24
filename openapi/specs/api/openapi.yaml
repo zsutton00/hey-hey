@@ -1730,6 +1730,37 @@ paths:
         "401":
           description: Authentication required.
 
+  /admin/organizations/{organizationId}/projects/{projectId}/hints:
+    get:
+      operationId: getAdminProjectHints
+      tags: [DebugAdmin]
+      summary: List live graph Hints for platform admins
+      description: Read-only project listing. Returns no hints when the deployment Hints switch is off. Separate from agent connected-item retrieval and legacy implementation hints.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: projectId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        "200":
+          description: Live project hints with connections and strengths.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "../schemas/hints.yaml#/ListProjectHintsResponse"
+        "403":
+          description: Admin access required.
+
   /admin/projects/{projectId}/implementation-hints:
     get:
       operationId: getAdminProjectImplementationHints
@@ -6451,6 +6482,8 @@ paths:
         returns type identity and available type-owned maintenance advice only;
         focalTypeKey does not select maintenance contexts. A complete project override
         wins even when it omits advice. Never synthesize advice from other fields.
+        Purpose role requires an explicit sessionRole query parameter (no mode-settings
+        default); returns identity, selected role and optional advice, ignoring focalTypeKey.
       parameters:
         - name: focalTypeKey
           in: query
@@ -6458,6 +6491,12 @@ paths:
           schema:
             type: string
             minLength: 1
+        - name: sessionRole
+          in: query
+          required: false
+          description: Required when purpose is role. No default is applied.
+          schema:
+            $ref: "#/components/schemas/SessionRole"
         - name: purpose
           in: query
           required: false
@@ -6477,6 +6516,7 @@ paths:
                         oneOf:
                           - $ref: "#/components/schemas/WorkItemTypeGuidanceDto"
                           - $ref: "#/components/schemas/WorkItemTypeMaintenanceGuidanceDto"
+                          - $ref: "#/components/schemas/WorkItemTypeRoleGuidanceDto"
         "400":
           description: Invalid query.
         "401":
@@ -28181,6 +28221,10 @@ components:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeGuidanceDto"
     WorkItemTypeGuidancePurpose:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeGuidancePurpose"
+    WorkItemTypeSessionRoleGuidance:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeSessionRoleGuidance"
+    WorkItemTypeRoleGuidanceDto:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeRoleGuidanceDto"
     WorkItemTypeMaintenanceGuidanceDto:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeMaintenanceGuidanceDto"
     WorkItemTypeGuidanceBatchRequestDto:

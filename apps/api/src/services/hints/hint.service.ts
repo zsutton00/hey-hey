@@ -80,6 +80,17 @@ export class HintService {
     return this.hintsConfig.enabled;
   }
 
+  // Only the platform-admin controller exposes this project-wide read.
+  async listProjectHints(requestor: HintRequestor) {
+    if (!this.enabled) return { hints: [] };
+    await this.assertProjectAccess(requestor);
+    return this.graphsClient.listProjectHints(
+      requestor.organizationId,
+      requestor.projectId,
+      requestor.token,
+    );
+  }
+
   async createHint(
     requestor: HintRequestor,
     input: {

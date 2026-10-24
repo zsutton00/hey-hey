@@ -63,6 +63,7 @@ export * from './inferredBy';
 export * from './influenceCategory';
 export * from './initiativeTraversalNode';
 export * from './initiativeTraversalNodeProperties';
+export * from './listProjectHintsResponse';
 export * from './messageTraversalNode';
 export * from './messageTraversalNodeProperties';
 export * from './nodeResponse';

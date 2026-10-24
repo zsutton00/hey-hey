@@ -79,6 +79,7 @@ model/inferredBy.ts
 model/influenceCategory.ts
 model/initiativeTraversalNode.ts
 model/initiativeTraversalNodeProperties.ts
+model/listProjectHintsResponse.ts
 model/messageTraversalNode.ts
 model/messageTraversalNodeProperties.ts
 model/models.ts

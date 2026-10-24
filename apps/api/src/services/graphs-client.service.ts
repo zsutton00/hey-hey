@@ -52,6 +52,21 @@ export class GraphsClientService {
     };
   }
 
+  async listProjectHints(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    userToken: string,
+  ) {
+    const response = await firstValueFrom(
+      this.hintsService.listProjectHints(
+        organizationId,
+        projectId,
+        this.userAuthConfig(userToken),
+      ),
+    );
+    return response.data;
+  }
+
   async createHint(
     organizationId: OrganizationId,
     projectId: ProjectId,

@@ -821,6 +821,23 @@ paths:
           $ref: "#/components/responses/Unauthorized"
 
   /organizations/{organizationId}/projects/{projectId}/hints:
+    get:
+      tags: [Hints]
+      operationId: listProjectHints
+      summary: List live hints in a project for administrative review
+      description: Returns live hints with all connections and strengths, independently of connected-item retrieval. Callers enforce administrative access.
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+      responses:
+        "200":
+          description: Live project hints
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/hints.yaml#/ListProjectHintsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
     post:
       tags:
         - Hints

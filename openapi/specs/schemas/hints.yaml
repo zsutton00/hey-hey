@@ -221,3 +221,12 @@ FindHintsByConnectedItemsResponse:
         by item visibility.
       items:
         $ref: "#/Hint"
+
+ListProjectHintsResponse:
+  type: object
+  required: [hints]
+  properties:
+    hints:
+      type: array
+      items:
+        $ref: "#/Hint"

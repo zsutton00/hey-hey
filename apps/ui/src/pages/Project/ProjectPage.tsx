@@ -339,7 +339,10 @@ export const ProjectPage: React.FC = () => {
               animate="visible"
               exit="exit"
             >
-              <ProjectAdminDestination projectId={projectId!} />
+              <ProjectAdminDestination
+                projectId={projectId!}
+                organizationId={currentOrgId!}
+              />
             </motion.div>
           )}
 
