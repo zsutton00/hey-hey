@@ -1,10 +1,11 @@
 name: Build images
-run-name: Staging candidates — ${{ github.ref_name }}
+run-name: Build ${{ inputs.target || 'Both' }} images
 
-# Release pushes and release-only manual retries publish the same verified build.
+# Verify release images automatically; publication is an explicit manual choice.
 on:
   push:
-    branches: ["release/**"]
+    branches:
+      - 'release/**'
   workflow_dispatch:
     inputs:
       target:
@@ -16,70 +17,38 @@ on:
           - UI
           - API
           - Both
+      publish:
+        description: Publish verified images to GHCR
+        type: boolean
+        required: true
+        default: false
+
+concurrency:
+  group: images-${{ github.ref }}-${{ inputs.publish && 'publish' || 'verify' }}
+  cancel-in-progress: ${{ github.event_name == 'push' || !inputs.publish }}
 
 permissions:
   contents: read
-
-concurrency:
-  group: staging-images-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   select:
     runs-on: ubuntu-latest
     outputs:
       images: ${{ steps.select.outputs.images }}
-      checks: ${{ steps.select.outputs.checks }}
     steps:
-      - name: Require a release branch
-        env:
-          REF: ${{ github.ref }}
-        run: '[[ "$REF" == refs/heads/release/?* ]]'
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 0
       - id: select
         env:
-          TARGET: ${{ inputs.target }}
-          BEFORE: ${{ github.event.before }}
-        run: node scripts/image-candidate-selection.mjs
-
-  checks:
-    needs: select
-    if: needs.select.outputs.checks != '[]'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(needs.select.outputs.checks) }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10.18.1
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-      - run: pnpm install --frozen-lockfile
-      - name: Build shared package prerequisite
-        if: matrix.target == 'ui' || matrix.target == 'ui-common'
-        run: pnpm --filter @hey-hey/ui-common build
-      - name: Selected verification
-        env:
-          CHECK_COMMAND: ${{ matrix.command }}
-        run: bash -e -o pipefail -c "$CHECK_COMMAND"
+          TARGET: ${{ inputs.target || 'Both' }}
+        run: |
+          case "$TARGET" in
+            UI) echo 'images=["ui"]' >> "$GITHUB_OUTPUT" ;;
+            API) echo 'images=["api"]' >> "$GITHUB_OUTPUT" ;;
+            Both) echo 'images=["ui","api"]' >> "$GITHUB_OUTPUT" ;;
+            *) echo "Unknown image selection" >&2; exit 1 ;;
+          esac
 
   build:
-    needs: [select, checks]
-    if: ${{ !cancelled() && needs.select.result == 'success' && (needs.checks.result == 'success' || needs.checks.result == 'skipped') && needs.select.outputs.images != '[]' && startsWith(github.ref, 'refs/heads/release/') }}
+    needs: select
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -91,8 +60,6 @@ jobs:
     name: Build ${{ matrix.image }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
       - uses: docker/setup-buildx-action@v3
 
       - name: Image name and version
@@ -116,8 +83,8 @@ jobs:
           file: apps/${{ matrix.image }}/Dockerfile
           push: false
           load: true
-          cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+          cache-from: type=gha,scope=image-${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=image-${{ matrix.image }}
           build-args: |
             APP_VERSION=${{ steps.meta.outputs.version }}
             SOURCE_REVISION=${{ github.sha }}
@@ -157,37 +124,19 @@ jobs:
             "
           '
 
-      - name: Record verified build
-        env:
-          IMAGE: ${{ matrix.image }}
-          IMAGE_TAG: ${{ steps.meta.outputs.repository }}:candidate-${{ github.sha }}
-        run: |
-          node scripts/image-build-evidence.mjs --image "$IMAGE" --image-id "$(docker image inspect --format '{{.Id}}' "$IMAGE_TAG")" --tag "$IMAGE_TAG" > "$RUNNER_TEMP/build-evidence.json"
-          node scripts/image-publication-evidence.mjs verified "$RUNNER_TEMP/build-evidence.json"
-
       - uses: docker/login-action@v3
+        if: github.event_name == 'workflow_dispatch' && inputs.publish
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish image
+        if: github.event_name == 'workflow_dispatch' && inputs.publish
         env:
           REPOSITORY: ${{ steps.meta.outputs.repository }}
           VERSION: ${{ steps.meta.outputs.version }}
         run: |
-          set -euo pipefail
-          docker push "$REPOSITORY:candidate-$GITHUB_SHA" | tee "$RUNNER_TEMP/push.log"
-          DIGEST="$(sed -nE 's/.*digest: (sha256:[a-f0-9]{64}).*/\1/p' "$RUNNER_TEMP/push.log" | tail -1)"
-          node scripts/image-publication-evidence.mjs published "$RUNNER_TEMP/build-evidence.json" "$DIGEST"
+          docker push "$REPOSITORY:candidate-$GITHUB_SHA"
           docker push "$REPOSITORY:$VERSION"
-
-      - name: Upload candidate evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: candidate-${{ matrix.image }}-${{ github.sha }}
-          path: |
-            ${{ runner.temp }}/build-evidence.json
-            ${{ runner.temp }}/push.log
-          if-no-files-found: ignore
+          echo "Built and published: \`$REPOSITORY:$VERSION\`" >> "$GITHUB_STEP_SUMMARY"
