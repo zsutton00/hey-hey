@@ -21,7 +21,7 @@ import type { AgentRunResult, RunPromptArgs } from '../agents/providers/session-
 import type { RunWorkspaceWriteBoundary } from '../agents/workspace-write-boundary';
 import { RunStore } from '../run-store/run-store';
 import { LocalAgentEndpoint } from '../server/local-base-url';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType, SessionRole } from '../shared/agent-bridge-contract/generated/api';
 import type { InternalRunPromptRequest } from '../shared/agent-bridge-contract/contract';
 import { Run, type RunCollaborators } from './run';
 import { RunnerPicker } from './runners/pick-runner';
@@ -142,10 +142,16 @@ const completionJson = (response: string): string => JSON.stringify({ response, 
 
 interface ProviderTurn {
   prompt: string;
+  effectiveRole: SessionRole;
+  handlerId: string;
   boundary: RunWorkspaceWriteBoundary | undefined;
 }
 
-const makeHarness = async (options: { skipProjectAssistant: boolean }) => {
+const makeHarness = async (options: {
+  skipProjectAssistant: boolean;
+  sessionRole?: SessionRole;
+  restoreBeforeFirst?: boolean;
+}) => {
   const baseDir = await mkdtemp(path.join(os.tmpdir(), 'heyhey-mode-boundary-'));
   tempDirs.push(baseDir);
   vi.spyOn(os, 'homedir').mockReturnValue(baseDir);
@@ -171,7 +177,15 @@ const makeHarness = async (options: { skipProjectAssistant: boolean }) => {
     provider_session_id: null,
     provider_conversation_id: null,
     conversationId: 'conversation-1',
-    config: modeConfig,
+    config: {
+      ...modeConfig,
+      projectModeSnapshot: {
+        ...modeConfig.projectModeSnapshot,
+        schemaVersion: 'project-mode-snapshot.v3',
+        projectAssistant: { enabled: true },
+        sessionRole: options.sessionRole ?? SessionRole.Implementation,
+      },
+    },
     contextMetadata: {
       organizationId: 'org-1',
       projectId: 'project-1',
@@ -197,7 +211,13 @@ const makeHarness = async (options: { skipProjectAssistant: boolean }) => {
 
   const turns: ProviderTurn[] = [];
   const runTurn = async (args: RunPromptArgs): Promise<AgentRunResult> => {
-    turns.push({ prompt: args.prompt, boundary: args.workspaceWriteBoundary });
+    if (!live.run?.activeTurn) throw new Error('Expected an executing handler.');
+    turns.push({
+      prompt: args.prompt,
+      boundary: args.workspaceWriteBoundary,
+      effectiveRole: live.run.activeTurn.effectiveRole,
+      handlerId: live.run.activeTurn.handler.id,
+    });
     if (!live.run) throw new Error('The Run is not constructed.');
     live.run.onAgentOutput({
       event: {
@@ -269,36 +289,47 @@ const makeHarness = async (options: { skipProjectAssistant: boolean }) => {
     localAgentEndpoint: new LocalAgentEndpoint(),
   });
 
-  const run = new Run(
-    {
-      runId: RUN_ID,
-      organizationId: 'org-1',
-      projectId: 'project-1',
-      conversationId: 'conversation-1',
-      provider: 'claude',
-      session,
-      skipProjectAssistant: options.skipProjectAssistant,
-    },
-    {
-      runStore,
-      repoStore: createTestRepoMappingStore(),
-      poster,
-      broadcaster: createTestRunEventPublisher(),
-      ...ownership,
-      handlerDeps,
-      onCompleteDeps: createOnCompleteTestDeps({
-        fetchImpl: platformFetch,
-        logger,
-        poster,
+  const createRun = (currentSession = session) =>
+    new Run(
+      {
+        runId: RUN_ID,
+        organizationId: 'org-1',
+        projectId: 'project-1',
+        conversationId: 'conversation-1',
+        provider: 'claude',
+        session: currentSession,
+        skipProjectAssistant:
+          options.skipProjectAssistant || currentSession.projectAssistantDone === true,
+      },
+      {
         runStore,
-      }),
-      runnerPicker,
-      // Default runtime root: under os.tmpdir(), which is a symlink on macOS.
-      projectModeBundleMaterializer: new ProjectModeBundleMaterializer(),
-      logger,
-    },
-  );
+        repoStore: createTestRepoMappingStore(),
+        poster,
+        broadcaster: createTestRunEventPublisher(),
+        ...ownership,
+        handlerDeps,
+        onCompleteDeps: createOnCompleteTestDeps({
+          fetchImpl: platformFetch,
+          logger,
+          poster,
+          runStore,
+        }),
+        runnerPicker,
+        // Default runtime root: under os.tmpdir(), which is a symlink on macOS.
+        projectModeBundleMaterializer: new ProjectModeBundleMaterializer(),
+        logger,
+      },
+    );
+  let run = createRun();
   live.run = run;
+  const restore = async () => {
+    run.cleanup();
+    const persisted = await runStore.getRun(RUN_ID);
+    if (!persisted) throw new Error('Expected persisted session');
+    run = createRun(persisted);
+    live.run = run;
+  };
+  if (options.restoreBeforeFirst) await restore();
 
   const send = async (input: InternalRunPromptRequest): Promise<void> => {
     await run.handleMessage(input);
@@ -322,7 +353,19 @@ const makeHarness = async (options: { skipProjectAssistant: boolean }) => {
   const errorEvents = () =>
     (logger.error as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[0] as string);
 
-  return { run, turns, send, projectModeMessage, freeformMessage, errorEvents, poster, repoDir };
+  return {
+    get run() {
+      return run;
+    },
+    restore,
+    turns,
+    send,
+    projectModeMessage,
+    freeformMessage,
+    errorEvents,
+    poster,
+    repoDir,
+  };
 };
 
 /** Every provider turn ran inside one boundary that reads, but cannot write, the mode files. */
@@ -344,6 +387,38 @@ const expectOneModeBoundary = async (
 };
 
 describe('write boundary across turn types in a mode-backed Run', () => {
+  it.each(
+    Object.values(SessionRole).flatMap((sessionRole) =>
+      [false, true].map((restoreBeforeFirst) => ({ sessionRole, restoreBeforeFirst })),
+    ),
+  )(
+    'keeps research separate from $sessionRole after restore=$restoreBeforeFirst',
+    async (options) => {
+      const h = await makeHarness({ ...options, skipProjectAssistant: false });
+      try {
+        await h.send(h.projectModeMessage('Start the captured work.'));
+        await h.restore();
+        await h.send(h.projectModeMessage('Follow up after resuming.'));
+        expect(h.turns.map((t) => t.effectiveRole)).toEqual([
+          'research',
+          options.sessionRole,
+          options.sessionRole,
+        ]);
+        expect(h.turns.map((t) => t.handlerId)).toEqual([
+          'project_assistant',
+          'project_mode',
+          'project_mode',
+        ]);
+        await h.send(h.freeformMessage('Use a separate handler.'));
+        expect(h.turns.at(-1)?.effectiveRole).toBe('implementation');
+        expect(h.errorEvents()).not.toContain('local.run.drain.failed');
+        await expectOneModeBoundary(h.turns.slice(0, 2), h.repoDir);
+        await expectOneModeBoundary(h.turns.slice(2), h.repoDir);
+      } finally {
+        h.run.cleanup();
+      }
+    },
+  );
   it('runs the Project Assistant research turn, then project_mode turns, in one boundary', async () => {
     const h = await makeHarness({ skipProjectAssistant: false });
     try {

@@ -1,3 +1,4 @@
+import { SessionRole } from '../../generated/model/sessionRole';
 import Ajv from 'ajv';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -1040,6 +1041,46 @@ describe('semantic guidance definition schema', () => {
     $ref: '#/WorkItemTypeAgentGuidance',
   });
 
+  it('defines an explicit role selector in the shared batch contract without applying the mode default', () => {
+    const shared = load(
+      readFileSync(join(openapiRoot, 'specs/schemas/work-items.yaml'), 'utf8'),
+    ) as object;
+    const validate = new Ajv({ strict: false })
+      .addSchema(shared, 'work-items.yaml')
+      .compile({ ...schemas, $ref: '#/WorkItemTypeGuidanceBatchRequestDto' });
+    expect(validate({ typeKeys: ['BUG'] })).toBe(true);
+    expect(validate({ typeKeys: ['BUG'], purpose: 'maintenance' })).toBe(true);
+    expect(validate({ typeKeys: ['BUG'], purpose: 'role' })).toBe(false);
+    for (const sessionRole of Object.values(SessionRole)) {
+      expect(
+        validate({ typeKeys: ['BUG'], purpose: 'role', sessionRole }),
+      ).toBe(true);
+    }
+    expect(
+      validate({ typeKeys: ['BUG'], purpose: 'role', sessionRole: 'unknown' }),
+    ).toBe(false);
+  });
+
+  it('keeps the closed role object aligned with the shared catalog', () => {
+    const schema = schemas.WorkItemTypeSessionRoleGuidance as {
+      properties: Record<string, object>;
+      additionalProperties: boolean;
+      required?: string[];
+    };
+    expect(Object.keys(schema.properties).sort()).toEqual(
+      Object.values(SessionRole).sort(),
+    );
+    expect(schema.additionalProperties).toBe(false);
+    const validate = new Ajv({ strict: false }).compile({
+      ...schemas,
+      $ref: '#/WorkItemTypeSessionRoleGuidance',
+    });
+    expect(validate({})).toBe(true);
+    for (const role of Object.values(SessionRole))
+      expect(validate({ [role]: '  Advice  ' })).toBe(true);
+    expect(validate({ unexpected: 'Advice' })).toBe(false);
+  });
+
   const agentGuidance = {
     overview: 'Meaning',
     examples: [{ title: 'Example', guidance: 'Use it here' }],
@@ -1063,6 +1104,34 @@ describe('semantic guidance definition schema', () => {
       createWorkItemTypeParameters.parse(MARKETING_DEFINITION),
     ).not.toHaveProperty('agentGuidance');
   });
+  it.each([
+    {},
+    { implementation: '  Build advice  ' },
+    { research: '', planning: 'Plan', review: 'Check' },
+  ])(
+    'preserves independent optional role entries: %j',
+    (sessionRoleGuidance) => {
+      const definition = { ...MARKETING_DEFINITION, sessionRoleGuidance };
+      expect(createWorkItemTypeParameters.parse(definition)).toEqual(
+        definition,
+      );
+      expect(
+        editWorkItemTypeParameters.parse({
+          typeKey: definition.key,
+          definition,
+        }).definition,
+      ).toEqual(definition);
+      expect(
+        createWorkItemTypeParameters.parse(MARKETING_DEFINITION),
+      ).not.toHaveProperty('sessionRoleGuidance');
+      expect(
+        createWorkItemTypeParameters.safeParse({
+          ...definition,
+          sessionRoleGuidance: { unknown: 'Advice' },
+        }).success,
+      ).toBe(false);
+    },
+  );
   it('preserves optional maintenance advice in create and administrative edit schemas', () => {
     const definition = {
       ...MARKETING_DEFINITION,

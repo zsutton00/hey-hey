@@ -74,6 +74,7 @@ const build = (overrides?: {
   vi.spyOn(owner, 'onTurnEnded').mockImplementation(onEnd);
 
   const args: TurnArgs = {
+    effectiveRole: 'implementation',
     turnId: 'turn-1',
     runId: 'run-1',
     resolvedPrompt: 'resolved',
@@ -94,6 +95,11 @@ const build = (overrides?: {
 };
 
 describe('Turn constructor', () => {
+  it('retains the resolved role beside the fixed handler', () => {
+    const { turn } = build({ args: { effectiveRole: 'research' } });
+    expect(turn.effectiveRole).toBe('research');
+    expect(turn.handler.id).toBe('entity_conversation');
+  });
   it('snapshots reference metadata without retaining a mutable caller array', () => {
     const attachments = [{ attachmentId: 'attachment-id', fileName: 'notes.md' }];
     const { turn } = build({ args: { attachments } });

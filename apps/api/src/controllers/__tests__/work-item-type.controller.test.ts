@@ -1,3 +1,4 @@
+import { SessionRole } from '../../generated/model/sessionRole';
 import { ProjectAccessGuard } from '../../auth/guards/project-access.guard';
 import { ProjectService } from '../../services/project.service';
 import {
@@ -188,6 +189,7 @@ describe('WorkItemTypeController', () => {
         'MARKETING',
         'FEATURE',
         undefined,
+        undefined,
       );
     });
 
@@ -205,8 +207,44 @@ describe('WorkItemTypeController', () => {
         'MARKETING',
         undefined,
         WorkItemTypeGuidancePurpose.Maintenance,
+        undefined,
       );
     });
+
+    it.each(Object.values(SessionRole))(
+      'accepts and forwards explicit role %s',
+      async (sessionRole) => {
+        const query = {
+          purpose: WorkItemTypeGuidancePurpose.Role,
+          sessionRole,
+        };
+        for (const [type, metatype, input] of [
+          ['query', WorkItemTypeGuidanceQueryDto, query],
+          [
+            'body',
+            WorkItemTypeGuidanceBatchRequestDto,
+            { ...query, typeKeys: ['MARKETING'] },
+          ],
+        ] as const) {
+          await expect(
+            new ValidationPipe({
+              transform: true,
+              whitelist: true,
+              forbidNonWhitelisted: true,
+            }).transform(input, { type, metatype }),
+          ).resolves.toMatchObject(query);
+        }
+        projectService.findOne.mockResolvedValue({ id: PROJECT_ID });
+        await controller.getGuidance(ORG_ID, PROJECT_ID, 'MARKETING', query);
+        expect(registry.getGuidance).toHaveBeenCalledWith(
+          PROJECT_ID,
+          'MARKETING',
+          undefined,
+          WorkItemTypeGuidancePurpose.Role,
+          sessionRole,
+        );
+      },
+    );
 
     it('denies a project outside the authorized organization without reading guidance', async () => {
       projectService.findOne.mockResolvedValue(null);
@@ -231,6 +269,8 @@ describe('WorkItemTypeController', () => {
       { focalTypeKey: ['FEATURE'] },
       { focalTypeKey: 1 },
       { purpose: 'unknown' },
+      { purpose: 'role' },
+      { purpose: 'role', sessionRole: 'unknown' },
       { extra: true },
     ])('rejects malformed query %j', async (query) => {
       const pipe = new ValidationPipe({
@@ -310,6 +350,8 @@ describe('WorkItemTypeController', () => {
         { typeKeys: Array.from({ length: 11 }, (_, i) => `TYPE_${i}`) },
         { typeKeys: ['BUG', 'BUG'] },
         { typeKeys: ['BUG'], extra: true },
+        { typeKeys: ['BUG'], purpose: 'role' },
+        { typeKeys: ['BUG'], purpose: 'role', sessionRole: 'unknown' },
       ]) {
         await expect(transform(body)).rejects.toThrow(BadRequestException);
       }

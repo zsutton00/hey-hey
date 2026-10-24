@@ -72,6 +72,7 @@ export const DEMO_SANDBOXES_AVAILABILITY_PATH = '/demo-sandboxes/availability';
 export const DEMO_SANDBOXES_RESUME_PATH = '/demo-sandboxes/resume';
 export const DEMO_SANDBOXES_CURRENT_PATH = '/demo-sandboxes/current';
 export const ADMIN_PLATFORM_ACCESS_PATH = '/admin/platform-access';
+export const ADMIN_ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_HINTS_PATH = '/admin/organizations/{organizationId}/projects/{projectId}/hints';
 export const ADMIN_PROJECTS_PROJECTID_IMPLEMENTATION_HINTS_PATH = '/admin/projects/{projectId}/implementation-hints';
 export const ADMIN_ONBOARD_BETA_USER_PATH = '/admin/onboard-beta-user';
 export const ADMIN_ORGANIZATIONS_ORGANIZATIONID_PATH = '/admin/organizations/{organizationId}';

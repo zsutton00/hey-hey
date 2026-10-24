@@ -264,8 +264,11 @@ describe("ProposalStateIndicator out-of-date approval state", () => {
     } as never);
     const onApply = renderOutOfDateReview(ProposalOutOfDateStatus.Current);
     expect(
-      await screen.findByTestId("proposal-reconciliation-merge"),
+      await screen.findByTestId("proposal-reconciliation-agent-fix"),
     ).toBeVisible();
+    expect(
+      screen.queryByTestId("proposal-reconciliation-merge"),
+    ).not.toBeInTheDocument();
     expect(screen.getByTestId("proposal-approve")).toBeDisabled();
     expect(
       screen.queryByTestId("proposal-out-of-date-acknowledgement"),

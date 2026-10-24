@@ -1,6 +1,6 @@
 import { HINT_READ_MCP_TOOLS } from '../mcp-server-config';
 import type { AgenticSession } from '../../session/types';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType, SessionRole } from '../../shared/agent-bridge-contract/generated/api';
 import type { RunCreatePayloadResearch } from '../../shared/agent-bridge-contract/generated/api';
 import { ReportAudience, ReportType } from '../../shared/api/index';
 import type {
@@ -48,6 +48,7 @@ type EnrichedPayload = ProjectAssistantPromptPayload & {
 
 export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssistantPromptPayload> {
   public readonly id = 'project_assistant';
+  public readonly sessionRole = SessionRole.Research;
   public readonly promptType = LocalPromptType.ProjectAssistant;
   public readonly service = 'required';
   public readonly launchEntity = 'none';

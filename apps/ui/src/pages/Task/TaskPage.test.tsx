@@ -27,7 +27,11 @@ const {
   mockCreateTask,
   mockInteractionComponent,
   mockNewTaskModal,
+  mockUseTaskHierarchy,
+  mockUseWorkItem,
 } = vi.hoisted(() => ({
+  mockUseTaskHierarchy: vi.fn(),
+  mockUseWorkItem: vi.fn(),
   mockChildTabsLogInfo: vi.fn(),
   mockChildTabsLogWarn: vi.fn(),
   mockCreateTask: vi.fn(),
@@ -287,19 +291,25 @@ vi.mock("@hey-hey/ui-common/data", () => ({
   useProject: () => ({
     data: { id: "project-1", name: "Project" },
   }),
-  useTaskHierarchy: () => ({
-    hierarchy: {
-      task: mockHierarchyTask,
-      parent: mockHierarchyParent,
-      children: [],
-    },
-    isLoading: false,
-    error: null,
-  }),
-  useWorkItem: () => ({
-    workItem: mockWorkItemTask,
-    refetch: vi.fn(),
-  }),
+  useTaskHierarchy: (...args: unknown[]) => {
+    mockUseTaskHierarchy(...args);
+    return {
+      hierarchy: {
+        task: mockHierarchyTask,
+        parent: mockHierarchyParent,
+        children: [],
+      },
+      isLoading: false,
+      error: null,
+    };
+  },
+  useWorkItem: (...args: unknown[]) => {
+    mockUseWorkItem(...args);
+    return {
+      workItem: mockWorkItemTask,
+      refetch: vi.fn(),
+    };
+  },
   useWorkItemTypeByKey: () => ({
     workItemTypeDefinition: mockWorkItemTypeDefinition,
     isLoading: false,
@@ -660,6 +670,23 @@ describe("TaskPage data debug tab", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Hide Context" }));
     expect(screen.queryByTestId("task-detail-sidebar")).not.toBeInTheDocument();
+  });
+
+  it("re-reads its own task and hierarchy each time the page opens", () => {
+    renderTaskPage("/projects/project-1/initiatives/initiative-1/tasks/task-1");
+
+    expect(mockUseTaskHierarchy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      "task-1",
+      expect.objectContaining({ refetchOnMount: true }),
+    );
+    expect(mockUseWorkItem).toHaveBeenCalledWith(
+      expect.anything(),
+      "task",
+      "task-1",
+      expect.objectContaining({ refetchOnMount: true }),
+    );
   });
 
   it("keeps ordinary work-item context expanded initially", () => {

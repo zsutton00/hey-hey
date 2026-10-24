@@ -1,3 +1,4 @@
+import { QueryClient } from "@tanstack/react-query";
 import { createStore } from "jotai";
 import { describe, expect, it } from "vitest";
 import { ConversationPhase } from "../../../api";
@@ -7,7 +8,7 @@ import { conversationPhaseByIdAtom } from "../conversationPhase";
 describe("WebSocketHandler conversation phases", () => {
   it("caches the latest phase observation for room joins and live events", () => {
     const store = createStore();
-    const handler = new WebSocketHandler(store);
+    const handler = new WebSocketHandler(store, undefined, new QueryClient());
 
     handler.handleEvent({
       type: "conversation.phase_changed",

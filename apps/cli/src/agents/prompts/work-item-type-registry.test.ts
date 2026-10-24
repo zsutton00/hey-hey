@@ -237,6 +237,29 @@ describe('readActiveWorkItemTypeDefinitions', () => {
     await expect(readActiveWorkItemTypeDefinitions(TOKEN, PROJECT_ID)).rejects.toThrow();
   });
 
+  it.each([
+    undefined,
+    {},
+    { implementation: '  Build advice  ', research: '', planning: 'Plan' },
+    { review: 'Review' },
+  ])('preserves role advice as optional registry data: %j', async (sessionRoleGuidance) => {
+    listMock.mockResolvedValue({
+      data: {
+        data: [
+          summary({
+            ...taskDefinition,
+            ...(sessionRoleGuidance === undefined ? {} : { sessionRoleGuidance }),
+          }),
+        ],
+      },
+    });
+    const definitions = await readActiveWorkItemTypeDefinitions(TOKEN, PROJECT_ID);
+    expect(definitions[0]?.sessionRoleGuidance).toEqual(sessionRoleGuidance);
+    expect(Object.hasOwn(definitions[0]!, 'sessionRoleGuidance')).toBe(
+      sessionRoleGuidance !== undefined,
+    );
+  });
+
   it('preserves overview-only guidance without synthesizing optional arrays', async () => {
     listMock.mockResolvedValue({
       data: { data: [summary({ ...taskDefinition, agentGuidance: { overview: 'Guide' } })] },

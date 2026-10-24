@@ -269,7 +269,13 @@ const ToolCallRow: React.FC<{ call: CliReadToolCall; isNewest: boolean }> = ({
           {call.summary}
         </Typography>
       </ButtonBase>
-      <Collapse in={expanded} timeout="auto" unmountOnExit>
+      {/* Only deliberate viewer changes animate. Animating the automatic
+          handoff temporarily shrinks the list and can clamp the scroll owner. */}
+      <Collapse
+        in={expanded}
+        timeout={preference.expanded === null ? 0 : "auto"}
+        unmountOnExit
+      >
         <Box sx={{ pl: 3, pt: 0.5 }}>
           <Collapse
             in={showAll}
@@ -367,7 +373,10 @@ export const LatestTurnToolCalls: React.FC<{
   return (
     <Box
       data-testid="latest-turn-tool-calls"
-      sx={{ pl: { xs: 4, sm: 4.5 }, pb: 1 }}
+      // Calls are a sliding, transient window. Anchoring to a surviving row
+      // follows its relocation when an earlier row is evicted. Let native
+      // anchoring retain surrounding conversation content instead.
+      sx={{ pl: { xs: 4, sm: 4.5 }, pb: 1, overflowAnchor: "none" }}
     >
       {hiddenCount > 0 ? (
         <Typography

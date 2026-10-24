@@ -1,3 +1,5 @@
+import { http, HttpResponse } from "msw";
+import { renderWithQueryClient as render } from "../../test/renderWithQueryClient";
 import { createEntityActivation } from "@hey-hey/ui-common/context";
 import {
   installOpenItemsTestRuntime,
@@ -38,13 +40,7 @@ import {
 } from "@hey-hey/ui-common/context";
 import { usePermissions } from "@hey-hey/ui-common/hooks";
 import { usePlatformAdminAccess } from "@hey-hey/ui-common/data";
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import {
@@ -94,6 +90,7 @@ vi.mock("@hey-hey/ui-common/context", async (importOriginal) => {
 });
 
 vi.mock("@hey-hey/ui-common/hooks", () => ({
+  useCanHover: () => true,
   usePermissions: vi.fn(),
 }));
 
@@ -652,6 +649,11 @@ describe("ExplorerSidebar", () => {
     ).toBe(false);
   });
   beforeEach(() => {
+    globalThis.mswServer.use(
+      http.get("*/api/v1/organizations/org-1/stars", () =>
+        HttpResponse.json({ success: true, data: [] }),
+      ),
+    );
     localStorage.clear();
     installOpenItemsTestRuntime();
     explorerSearchState.value = "";

@@ -707,83 +707,83 @@ describe("ConversationViewer agent session current state", () => {
       screen.queryByTestId("agent-session-current-state-indicator"),
     ).not.toBeInTheDocument();
   });
-});
 
-describe("live tool calls before narration exists", () => {
-  const availableCalls = {
-    status: "available" as const,
-    result: {
-      state: "available" as const,
-      runId: "agent-session-state",
-      turnId: "turn-1",
-      omittedEarlierCount: 0,
-      evictedCount: 0,
-      toolCalls: [
-        {
-          entryId: "entry-1",
-          toolUseId: "use-1",
-          toolName: "Read",
-          summary: "src/early.ts",
-          status: "running" as const,
-          exitCode: null,
-          lane: {
-            subagentTurnId: null,
-            providerThreadId: null,
-            parentToolUseId: null,
+  describe("live tool calls before narration exists", () => {
+    const availableCalls = {
+      status: "available" as const,
+      result: {
+        state: "available" as const,
+        runId: "agent-session-state",
+        turnId: "turn-1",
+        omittedEarlierCount: 0,
+        evictedCount: 0,
+        toolCalls: [
+          {
+            entryId: "entry-1",
+            toolUseId: "use-1",
+            toolName: "Read",
+            summary: "src/early.ts",
+            status: "running" as const,
+            exitCode: null,
+            lane: {
+              subagentTurnId: null,
+              providerThreadId: null,
+              parentToolUseId: null,
+            },
+            createdAt: "2026-10-20T00:00:00.000Z",
+            updatedAt: "2026-10-20T00:00:00.000Z",
+            detail: { input: null, output: null, result: null },
           },
-          createdAt: "2026-10-20T00:00:00.000Z",
-          updatedAt: "2026-10-20T00:00:00.000Z",
-          detail: { input: null, output: null, result: null },
-        },
-      ],
-    },
-  };
-  const renderState = (currentState: AgentSessionCurrentState) =>
-    render(
-      <ConversationViewer
-        conversation={conversation}
-        project={project}
-        showNavigation={false}
-        agentSessionId="agent-session-state"
-        agentSessionCurrentState={currentState}
-        showAgentSessionCurrentStateIndicator
-      />,
-      { wrapper: createTestWrapper() },
-    );
-  afterEach(() => {
-    liveToolCalls.current = { status: "idle" };
-  });
+        ],
+      },
+    };
+    const renderState = (currentState: AgentSessionCurrentState) =>
+      render(
+        <ConversationViewer
+          conversation={conversation}
+          project={project}
+          showNavigation={false}
+          agentSessionId="agent-session-state"
+          agentSessionCurrentState={currentState}
+          showAgentSessionCurrentStateIndicator
+        />,
+        { wrapper: createTestWrapper() },
+      );
+    afterEach(() => {
+      liveToolCalls.current = { status: "idle" };
+    });
 
-  it("shows the polled tool calls under the timeline while the Turn is active", () => {
-    liveToolCalls.current = availableCalls;
-    renderState(AgentSessionCurrentState.Writing);
+    it("shows the polled tool calls under the timeline while the Turn is active", () => {
+      liveToolCalls.current = availableCalls;
+      renderState(AgentSessionCurrentState.Writing);
 
-    expect(screen.getByTestId("latest-turn-tool-calls")).toHaveTextContent(
-      "src/early.ts",
-    );
-  });
+      expect(screen.getByTestId("latest-turn-tool-calls")).toHaveTextContent(
+        "src/early.ts",
+      );
+    });
 
-  it("shows nothing once the Turn is no longer active", () => {
-    liveToolCalls.current = availableCalls;
-    renderState(AgentSessionCurrentState.Idle);
+    it("shows nothing once the Turn is no longer active", () => {
+      liveToolCalls.current = availableCalls;
+      renderState(AgentSessionCurrentState.Idle);
 
-    expect(
-      screen.queryByTestId("latest-turn-tool-calls"),
-    ).not.toBeInTheDocument();
-  });
+      expect(
+        screen.queryByTestId("latest-turn-tool-calls"),
+      ).not.toBeInTheDocument();
+    });
 
-  it.each([
-    { status: "idle" } as const,
-    { status: "disabled" } as const,
-    { status: "unavailable", error: "boom" } as const,
-  ])("shows nothing for the $status outcome", (state) => {
-    liveToolCalls.current = state;
-    renderState(AgentSessionCurrentState.Writing);
+    it.each([
+      { status: "idle" } as const,
+      { status: "disabled" } as const,
+      { status: "unavailable", error: "boom" } as const,
+    ])("shows nothing for the $status outcome", (state) => {
+      liveToolCalls.current = state;
+      renderState(AgentSessionCurrentState.Writing);
 
-    expect(
-      screen.queryByTestId("latest-turn-tool-calls"),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText("boom")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("latest-turn-tool-calls"),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText("boom")).not.toBeInTheDocument();
+    });
   });
 });
 

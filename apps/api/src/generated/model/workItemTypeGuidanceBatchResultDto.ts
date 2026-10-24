@@ -12,18 +12,20 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { WorkItemTypeGuidanceExample } from './workItemTypeGuidanceExample';
+import { WorkItemTypeRoleGuidanceDto } from './workItemTypeRoleGuidanceDto';
 import { WorkItemTypeGuidanceDto } from './workItemTypeGuidanceDto';
 import { WorkItemTypeMaintenanceGuidanceDto } from './workItemTypeMaintenanceGuidanceDto';
 import { WorkItemTypeContextualGuidanceDto } from './workItemTypeContextualGuidanceDto';
+import { SessionRole } from './sessionRole';
 
 
 /**
- * One requested type\'s semantic or maintenance projection; typeKey identifies the request represented by this result.
+ * One requested type\'s semantic, maintenance or role projection; typeKey identifies the request represented by this result.
  */
 /**
  * @type WorkItemTypeGuidanceBatchResultDto
- * One requested type\'s semantic or maintenance projection; typeKey identifies the request represented by this result.
+ * One requested type\'s semantic, maintenance or role projection; typeKey identifies the request represented by this result.
  * @export
  */
-export type WorkItemTypeGuidanceBatchResultDto = WorkItemTypeGuidanceDto | WorkItemTypeMaintenanceGuidanceDto;
+export type WorkItemTypeGuidanceBatchResultDto = WorkItemTypeGuidanceDto | WorkItemTypeMaintenanceGuidanceDto | WorkItemTypeRoleGuidanceDto;
 

@@ -13,10 +13,7 @@ import {
   useOptionalWebSocketService,
   useWebSocketService,
 } from "../../contexts/WebSocketContext";
-import {
-  getDefaultWebSocketService,
-  type WebSocketService,
-} from "../../services/webSocketService";
+import type { WebSocketService } from "../../services/webSocketService";
 import { logger } from "../../utils/logger";
 import { initiativeKeys } from "../collections/initiatives";
 
@@ -31,9 +28,8 @@ export interface WebSocketEvent {
     success: boolean;
     duration?: number;
     error?: string;
-    collectionName?: string;
-    queryKey?: string;
-    actionType?: string;
+    dataset?: string;
+    target?: string;
     subscriptionId?: string;
   };
 }
@@ -80,7 +76,7 @@ export interface WebSocketEventFilter {
     end?: Date;
   };
   search?: string;
-  collectionName?: string;
+  dataset?: string;
   showErrorsOnly?: boolean;
 }
 
@@ -200,9 +196,9 @@ class DebugEventStore {
       );
     }
 
-    if (filter.collectionName) {
+    if (filter.dataset) {
       filtered = filtered.filter(
-        (event) => event.metadata?.collectionName === filter.collectionName
+        (event) => event.metadata?.dataset === filter.dataset
       );
     }
 
@@ -623,34 +619,11 @@ export class WebSocketDebugger {
    * Get current WebSocket and collection statistics.
    */
   getStats(): {
-    connectionState: ReturnType<WebSocketService["getState"]>;
+    connectionState: ReturnType<WebSocketService["getState"]> | null;
     eventCounts: Record<string, number>;
     recentErrors: WebSocketEvent[];
-    collectionsHealth: Array<{
-      name: string;
-      healthy: boolean;
-      totalItems: number;
-      activeQueries: number;
-      errorCount: number;
-      staleCount: number;
-    }>;
   } {
     const events = debugEventStore.getEvents();
-
-    // Use injected service or fallback to singleton for backward compatibility
-    let connectionState;
-    if (this.webSocketService) {
-      connectionState = this.webSocketService.getState();
-    } else {
-      // Fallback to singleton service for backward compatibility
-      const singletonService = getDefaultWebSocketService();
-      connectionState = singletonService.getState();
-      logger.warn(
-        "data_websockets",
-        "[getConnectionState] WebSocketDebugger using singleton service. Consider passing service instance to constructor."
-      );
-    }
-
     const statistics = debugEventStore.getStatistics();
 
     // Find recent errors (events with error metadata)
@@ -663,23 +636,10 @@ export class WebSocketDebugger {
       )
       .slice(-10); // Last 10 errors
 
-    // Mock collections health - in a real implementation, this would check all collections
-    const collectionsHealth = [
-      {
-        name: "initiatives",
-        healthy: true, // Would check error rates, response times, etc.
-        totalItems: 0, // Would get from actual collection state
-        activeQueries: 0,
-        errorCount: 0,
-        staleCount: 0,
-      },
-    ];
-
     return {
-      connectionState,
+      connectionState: this.webSocketService?.getState() ?? null,
       eventCounts: statistics.eventsByType,
       recentErrors,
-      collectionsHealth,
     };
   }
 
@@ -694,23 +654,19 @@ export class WebSocketDebugger {
       timestamp: new Date().toISOString(),
       summary: {
         connectionHealthy:
-          stats.connectionState.isConnected &&
-          stats.connectionState.isAuthenticated,
+          !!stats.connectionState?.isConnected &&
+          !!stats.connectionState?.isAuthenticated,
         totalEvents: statistics.totalEvents,
         recentErrorCount: stats.recentErrors.length,
-        collectionsHealthy: stats.collectionsHealth.every((c) => c.healthy),
-        systemType: "jotai-collections", // Distinguish from old system
       },
       connectionState: stats.connectionState,
       statistics,
       eventCounts: stats.eventCounts,
       recentErrors: stats.recentErrors,
-      collectionsHealth: stats.collectionsHealth,
       systemInfo: {
         userAgent: navigator.userAgent,
         url: window.location.href,
         timestamp: new Date().toISOString(),
-        architecture: "jotai-collection-system",
       },
     };
 
@@ -728,23 +684,21 @@ export class WebSocketDebugger {
   }
 
   /**
-   * Log a collection action for debugging.
+   * Log a realtime-driven query invalidation for debugging.
    */
-  logCollectionAction(
-    collectionName: string,
-    actionType: string,
-    queryKey: string,
+  logQueryInvalidation(
+    dataset: string,
+    target: string,
     metadata?: Record<string, unknown>
   ) {
     this.logEvent({
-      type: "collection.action",
-      source: `collection:${collectionName}`,
-      data: { actionType, queryKey, metadata },
+      type: "query.invalidation",
+      source: `query:${dataset}`,
+      data: { target, metadata },
       metadata: {
         success: true,
-        collectionName,
-        queryKey,
-        actionType,
+        dataset,
+        target,
       },
     });
   }

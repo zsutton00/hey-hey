@@ -1099,7 +1099,7 @@ describe('AgentSessionService', () => {
           modeId,
         },
         projectModeSnapshot: {
-          schemaVersion: 'project-mode-snapshot.v2',
+          schemaVersion: 'project-mode-snapshot.v3',
           modeId,
           catalogDescription: 'Use a proof-first review discipline.',
           applicableWorkItemTypeKeys: ['STANDARD'],
@@ -1175,7 +1175,7 @@ describe('AgentSessionService', () => {
         );
       };
 
-      it('defaults a MODE without settings to Project Assistant on in a v2 snapshot', async () => {
+      it('defaults a MODE without settings to Project Assistant on in a v3 snapshot', async () => {
         const result = await service.create(
           'org-1' as any,
           'proj-1' as any,
@@ -1185,11 +1185,64 @@ describe('AgentSessionService', () => {
 
         expect(result.config).toMatchObject({
           projectModeSnapshot: {
-            schemaVersion: 'project-mode-snapshot.v2',
+            schemaVersion: 'project-mode-snapshot.v3',
+            sessionRole: 'implementation',
             projectAssistant: { enabled: true },
           },
         });
       });
+
+      it.each(['implementation', 'research', 'planning', 'review'] as const)(
+        'captures %s and preserves it on readback while detecting role tampering',
+        async (sessionRole) => {
+          withSettings(
+            JSON.stringify({
+              schemaVersion: 'project-mode-settings.v1',
+              projectAssistant: { enabled: true },
+              sessionRole,
+            }),
+          );
+          const result = await service.create(
+            'org-1' as any,
+            'proj-1' as any,
+            'user-1' as any,
+            createDto(),
+          );
+          const captured = (result.config as AgentSessionConfigV2)
+            .projectModeSnapshot!;
+          expect(captured).toMatchObject({
+            schemaVersion: 'project-mode-snapshot.v3',
+            sessionRole,
+          });
+          withSettings(
+            JSON.stringify({
+              schemaVersion: 'project-mode-settings.v1',
+              projectAssistant: { enabled: false },
+              sessionRole: sessionRole === 'review' ? 'research' : 'review',
+            }),
+          );
+          prisma.db.agentSession.findFirst.mockResolvedValue({
+            ...buildAgentSession({ id: result.id }),
+            config: result.config,
+          });
+          const readback = await service.findOne('org-1' as any, result.id);
+          expect(
+            (readback.config as AgentSessionConfigV2).projectModeSnapshot,
+          ).toEqual(captured);
+          const tampered = {
+            ...captured,
+            sessionRole: sessionRole === 'review' ? 'research' : 'review',
+          };
+          prisma.db.agentSession.findFirst.mockResolvedValue({
+            ...buildAgentSession({ id: result.id }),
+            config: { ...result.config, projectModeSnapshot: tampered },
+          });
+          const invalid = await service.findOne('org-1' as any, result.id);
+          expect(
+            (invalid.config as AgentSessionConfigV2)?.projectModeSnapshot,
+          ).toBeUndefined();
+        },
+      );
 
       it.each([true, false])(
         'captures the authored setting enabled=%s and binds it into the hash',
@@ -1211,7 +1264,7 @@ describe('AgentSessionService', () => {
             .projectModeSnapshot!;
 
           expect(snapshot).toMatchObject({
-            schemaVersion: 'project-mode-snapshot.v2',
+            schemaVersion: 'project-mode-snapshot.v3',
             projectAssistant: { enabled },
           });
           const otherHash = createHash('sha256')

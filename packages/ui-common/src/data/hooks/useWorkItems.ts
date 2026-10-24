@@ -47,7 +47,6 @@ import {
 import { useDataLayerQuery } from "../query/useDataLayerQuery";
 import { useRelationshipMutationInvalidation } from "./relationshipMutationInvalidation";
 import { useWebsocketSubscriptions } from "./useWebsocketSubscriptions";
-import { useWorkItemAuthoritativeMount } from "./useWorkItemMountPolicy";
 
 export const ENTITY_TYPE = "Task";
 
@@ -167,7 +166,6 @@ export function useWorkItems(
   const invalidateRelationships = useRelationshipMutationInvalidation();
   const queryClient = useQueryClient();
   const futureOffers = useFutureOffers();
-  const authoritativeMount = useWorkItemAuthoritativeMount();
 
   const isEnabled = enabledOption !== false && !!organizationId;
   // Array params are joined so the memoised options follow their contents.
@@ -230,7 +228,6 @@ export function useWorkItems(
     refetchOnWindowFocus: collectionOptions.refetchOnWindowFocus,
     staleTimeMs: collectionOptions.staleTimeMs,
     maxCacheAgeMs: collectionOptions.maxCacheAgeMs,
-    authoritativeMount,
   });
   const data = result.data ?? null;
 

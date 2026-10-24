@@ -410,7 +410,7 @@ describe("eval progress events", () => {
   const debuggerInstance = () => {
     const instance = new WebSocketDebugger();
     vi.spyOn(instance, "logEvent").mockImplementation(() => {});
-    vi.spyOn(instance, "logCollectionAction").mockImplementation(() => {});
+    vi.spyOn(instance, "logQueryInvalidation").mockImplementation(() => {});
     return instance;
   };
   const context = {

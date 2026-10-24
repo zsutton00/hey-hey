@@ -68,9 +68,10 @@ ProjectModeSnapshot:
       enum:
         - project-mode-snapshot.v1
         - project-mode-snapshot.v2
+        - project-mode-snapshot.v3
       description: |
-        v2 adds `projectAssistant`. v1 is kept so snapshots captured before the
-        setting existed still verify against their original hash.
+        v3 adds the resolved `sessionRole`. v2 adds `projectAssistant`.
+        v1/v2 retain their original hash inputs for resume compatibility.
     modeId:
       type: string
       format: uuid
@@ -88,9 +89,11 @@ ProjectModeSnapshot:
       $ref: "./work-items.yaml#/ProjectModeFiles"
     projectAssistant:
       $ref: "./work-items.yaml#/ProjectModeProjectAssistantSetting"
+    sessionRole:
+      $ref: "./work-items.yaml#/SessionRole"
     snapshotHash:
       type: string
-      pattern: '^[a-f0-9]{64}$'
+      pattern: "^[a-f0-9]{64}$"
       description: |
         Lowercase hexadecimal SHA-256 digest of the platform-canonicalized
         snapshot content. Consumers preserve and compare this value; they do
@@ -99,6 +102,8 @@ ProjectModeSnapshot:
     Platform-captured immutable MODE configuration persisted with a coding
     session. The repeated mode identity lets admission verify that the snapshot
     matches `ProjectModeSelection` before constructing a Run or Turn.
+    v3 requires sessionRole and projectAssistant; v2 requires projectAssistant
+    and excludes sessionRole; v1 excludes both fields.
 
 AgentSessionConfigV1:
   type: object

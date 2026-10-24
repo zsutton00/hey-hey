@@ -91,7 +91,11 @@ export const resolveProjectDestination = (
 export const getProjectNavigationItemKey = (
   item: ProjectNavigationItem,
 ): string =>
-  item.kind === "registry-work-item" ? item.typeKey : item.entityType;
+  item.kind === "registry-work-item"
+    ? item.typeKey
+    : item.kind === "plan"
+      ? "PLAN"
+      : item.entityType;
 
 export const getProjectNavigationItemLabel = (
   item: ProjectNavigationItem,

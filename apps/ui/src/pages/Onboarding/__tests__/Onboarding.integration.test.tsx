@@ -290,17 +290,19 @@ vi.mock("@hey-hey/ui-common/hooks", async () => {
   };
 });
 
-// Create test wrapper
-const createTestWrapper = (
-  initialEntry = "/projects/5528269f-ab34-48ca-95f4-dd46e8a3393f/onboarding",
-  store = createStore(),
-) => {
-  const queryClient = new QueryClient({
+const createTestQueryClient = () =>
+  new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: 0 },
     },
   });
 
+// Create test wrapper
+const createTestWrapper = (
+  initialEntry = "/projects/5528269f-ab34-48ca-95f4-dd46e8a3393f/onboarding",
+  store = createStore(),
+  queryClient = createTestQueryClient(),
+) => {
   const theme = createTheme({
     palette: {
       heyhey: { main: "#087e8b", light: "#5ab1bb", dark: "#04545d" },
@@ -621,6 +623,10 @@ describe("Onboarding Page Integration Tests", () => {
     // Set up MSW handlers
     globalThis.mswServer.use(
       http.get(
+        "http://localhost:3000/api/v1/organizations/:organizationId/projects/:projectId/conversations/:conversationId/queued-inputs",
+        () => HttpResponse.json({ success: true, data: [] }),
+      ),
+      http.get(
         "http://localhost:3000/api/v1/organizations/:organizationId/projects/:projectId/conversations/:conversationId/version",
         () => HttpResponse.json({ success: true, data: { version: 33 } }),
       ),
@@ -818,15 +824,16 @@ describe("Onboarding Page Integration Tests", () => {
       ),
     );
     const store = createStore();
+    const queryClient = createTestQueryClient();
     render(<OnboardingPage />, {
-      wrapper: createTestWrapper(undefined, store),
+      wrapper: createTestWrapper(undefined, store, queryClient),
     });
     await screen.findByTestId("textarea-field-project_concept");
     currentMessages = mockReplyMessages.map((message) => ({
       ...message,
       awaitingResponse: false,
     }));
-    const handler = new WebSocketHandler(store);
+    const handler = new WebSocketHandler(store, undefined, queryClient);
     const completion = {
       type: "conversation.updated" as const,
       conversationId: mockConversation.id,

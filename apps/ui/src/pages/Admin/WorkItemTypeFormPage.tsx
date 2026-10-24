@@ -25,6 +25,7 @@ import {
 } from "@hey-hey/ui-common/hooks";
 import {
   AgentEdgeType,
+  SessionRole,
   EntityType,
   ReportType,
   WorkItemTypeEffectiveSource,
@@ -45,6 +46,7 @@ import type {
   WorkItemTypeSummaryDto,
   WorkItemTypeTracking,
   WorkItemTypeWritingStandards,
+  WorkItemTypeSessionRoleGuidance,
 } from "@hey-hey/ui-common/api";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -376,6 +378,9 @@ export const WorkItemTypeFormPage: React.FC = () => {
   const [writingStandardCreate, setWritingStandardCreate] = useState("");
   const [writingStandardEdit, setWritingStandardEdit] = useState("");
   const [maintenanceGuidance, setMaintenanceGuidance] = useState("");
+  const [sessionRoleGuidance, setSessionRoleGuidance] = useState<
+    WorkItemTypeSessionRoleGuidance | undefined
+  >();
 
   const [failureDiagnostic, setFailureDiagnostic] =
     useState<ProposalApprovalFailureDiagnostic>();
@@ -463,6 +468,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
     setWritingStandardCreate(definition.writingStandards?.create ?? "");
     setWritingStandardEdit(definition.writingStandards?.edit ?? "");
     setMaintenanceGuidance(definition.maintenanceGuidance ?? "");
+    setSessionRoleGuidance(definition.sessionRoleGuidance);
     setCapabilities(
       Object.entries(definition.capabilities ?? {}).flatMap(
         ([capabilityKey, value]) =>
@@ -572,7 +578,15 @@ export const WorkItemTypeFormPage: React.FC = () => {
   const handleMutationError = (err: Error) => {
     setCreatedProposal(null);
     setError(getErrorMessage(err, "Failed to submit the type definition."));
-    setFailureDiagnostic(extractProposalApprovalFailureDiagnostic(err));
+    const diagnostic = extractProposalApprovalFailureDiagnostic(err);
+    setFailureDiagnostic(diagnostic);
+    if (
+      diagnostic?.issues.some((issue) =>
+        issue.field.includes("sessionRoleGuidance"),
+      )
+    ) {
+      setActiveTab("Agent guidance");
+    }
   };
 
   const createMutation = useCreateWorkItemType({
@@ -744,6 +758,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
       ...(maintenanceGuidance.trim()
         ? { maintenanceGuidance: maintenanceGuidance.trim() }
         : {}),
+      ...(sessionRoleGuidance === undefined ? {} : { sessionRoleGuidance }),
       capabilities: authoredCapabilities,
     };
 
@@ -755,6 +770,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
     const sourceWithoutIconKey = { ...source };
     delete sourceWithoutIconKey.iconKey;
     delete sourceWithoutIconKey.colorKey;
+    delete sourceWithoutIconKey.sessionRoleGuidance;
     const sourceDescription = source.description ?? "";
     const sourceCreateStandard = source.writingStandards?.create ?? "";
     const sourceEditStandard = source.writingStandards?.edit ?? "";
@@ -769,6 +785,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
     };
     return {
       ...sourceWithoutIconKey,
+      ...(sessionRoleGuidance === undefined ? {} : { sessionRoleGuidance }),
       key: resolvedKey,
       name: name === source.name ? source.name : name.trim(),
       role,
@@ -844,6 +861,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
     isEditMode,
     name,
     maintenanceGuidance,
+    sessionRoleGuidance,
     resolvedKey,
     role,
     scalarMembership,
@@ -2487,6 +2505,59 @@ export const WorkItemTypeFormPage: React.FC = () => {
             </Paper>
 
             <Divider sx={{ my: 2 }} />
+            <WorkItemTypeGuidanceFields
+              key={typeKey ?? "create"}
+              ref={guidanceEditorRef}
+              definition={workItemTypeSummary?.definition}
+              disabled={isReadOnly || isPending}
+              options={workItemTypes.map(({ definition }) => ({
+                key: definition.key,
+                name: definition.name,
+              }))}
+            />
+            <Paper
+              variant="outlined"
+              sx={{ p: 2, mb: 2.5 }}
+              data-testid="wit-form-session-role-guidance"
+            >
+              <Typography variant="subtitle2" gutterBottom>
+                {WORK_ITEM_TYPE_FIELD_PRESENTATION.sessionRoleGuidance.label}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                {WORK_ITEM_TYPE_FIELD_PRESENTATION.sessionRoleGuidance.help}
+              </Typography>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                  gap: 2,
+                }}
+              >
+                {Object.values(SessionRole).map((sessionRole) => (
+                  <TextField
+                    key={sessionRole}
+                    label={`${sessionRole[0].toUpperCase()}${sessionRole.slice(1)} guidance`}
+                    value={sessionRoleGuidance?.[sessionRole] ?? ""}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setSessionRoleGuidance((current) => {
+                        const next = { ...current };
+                        if (value.trim()) next[sessionRole] = value;
+                        else delete next[sessionRole];
+                        return Object.keys(next).length ? next : undefined;
+                      });
+                    }}
+                    multiline
+                    minRows={3}
+                    size="small"
+                    fullWidth
+                    data-testid="wit-form-role-guidance-entry"
+                    data-session-role={sessionRole}
+                    helperText="Optional. Leave empty to provide no advice for this session role."
+                  />
+                ))}
+              </Box>
+            </Paper>
             <TextField
               label={
                 WORK_ITEM_TYPE_FIELD_PRESENTATION.maintenanceGuidance.label
@@ -2502,16 +2573,6 @@ export const WorkItemTypeFormPage: React.FC = () => {
               helperText={
                 WORK_ITEM_TYPE_FIELD_PRESENTATION.maintenanceGuidance.help
               }
-            />
-            <WorkItemTypeGuidanceFields
-              key={typeKey ?? "create"}
-              ref={guidanceEditorRef}
-              definition={workItemTypeSummary?.definition}
-              disabled={isReadOnly || isPending}
-              options={workItemTypes.map(({ definition }) => ({
-                key: definition.key,
-                name: definition.name,
-              }))}
             />
           </Box>
         </fieldset>

@@ -11,6 +11,7 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
+import { WorkItemTypeSessionRoleGuidance } from './workItemTypeSessionRoleGuidance';
 import { WorkItemColorKey } from './workItemColorKey';
 import { WorkItemTypeSectionDefinition } from './workItemTypeSectionDefinition';
 import { WorkItemTypeAgentGuidance } from './workItemTypeAgentGuidance';
@@ -40,6 +41,7 @@ export interface WorkItemTypeDefinitionDto {
      */
     name: string;
     agentGuidance?: WorkItemTypeAgentGuidance;
+    sessionRoleGuidance?: WorkItemTypeSessionRoleGuidance;
     /**
      * Optional type-owned advice for maintaining items of this type.
      */

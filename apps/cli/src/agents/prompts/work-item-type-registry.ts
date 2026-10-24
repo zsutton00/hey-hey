@@ -31,6 +31,7 @@ import {
 } from '../../shared/api/index';
 import type {
   WorkItemTypeAgentGuidance,
+  WorkItemTypeSessionRoleGuidance,
   WorkItemTypeGuidanceContext,
   WorkItemTypeGuidanceExample,
   WorkItemTypeCapabilities,
@@ -423,11 +424,31 @@ const agentGuidanceSchema = z
     }),
   );
 
+// Representation only: session guidance selection/application belongs to CLI integration.
+const sessionRoleGuidanceShape = {
+  implementation: z.string().optional(),
+  research: z.string().optional(),
+  planning: z.string().optional(),
+  review: z.string().optional(),
+} satisfies ZodShapeFor<WorkItemTypeSessionRoleGuidance>;
+const sessionRoleGuidanceSchema = z
+  .object(sessionRoleGuidanceShape)
+  .strict()
+  .transform(
+    (value): WorkItemTypeSessionRoleGuidance => ({
+      ...(value.implementation !== undefined ? { implementation: value.implementation } : {}),
+      ...(value.research !== undefined ? { research: value.research } : {}),
+      ...(value.planning !== undefined ? { planning: value.planning } : {}),
+      ...(value.review !== undefined ? { review: value.review } : {}),
+    }),
+  );
+
 const definitionShape = {
   key: z.string(),
   name: z.string(),
   agentGuidance: agentGuidanceSchema.optional(),
   maintenanceGuidance: z.string().optional(),
+  sessionRoleGuidance: sessionRoleGuidanceSchema.optional(),
   role: z.nativeEnum(WorkItemTypeRole),
   acceptedConfigKinds: z.array(z.nativeEnum(WorkItemConfigKind)).optional(),
   iconKey: z.nativeEnum(WorkItemIconKey).optional(),
@@ -453,6 +474,9 @@ const definitionSchema = z
     (value): WorkItemTypeDefinitionDto => ({
       key: value.key,
       name: value.name,
+      ...(value.sessionRoleGuidance !== undefined
+        ? { sessionRoleGuidance: value.sessionRoleGuidance }
+        : {}),
       ...(value.agentGuidance !== undefined ? { agentGuidance: value.agentGuidance } : {}),
       ...(value.maintenanceGuidance !== undefined
         ? { maintenanceGuidance: value.maintenanceGuidance }

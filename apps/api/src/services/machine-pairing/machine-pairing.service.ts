@@ -1,4 +1,10 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  forwardRef,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   MachineEnrollmentOsFamily,
@@ -145,6 +151,7 @@ export class MachinePairingService {
     private readonly domainEventPublisher: DomainEventPublisher,
     private readonly configService: ConfigService,
     private readonly triggerEnvelopeSigner: TriggerEnvelopeSigner,
+    @Inject(forwardRef(() => WebsocketGateway))
     private readonly websocketGateway: WebsocketGateway,
     private readonly demoSandboxActivity: DemoSandboxActivityService,
   ) {

@@ -16,6 +16,7 @@ import { FutureRevisionUpdate } from './futureRevisionUpdate';
 import { FutureRevisionCancellation } from './futureRevisionCancellation';
 import { FutureCompletionDependency } from './futureCompletionDependency';
 import { FutureRevisionBaseline } from './futureRevisionBaseline';
+import { WorkItemChangeSetValidationRequest } from './workItemChangeSetValidationRequest';
 
 
 /**

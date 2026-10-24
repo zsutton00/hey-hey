@@ -1,7 +1,10 @@
 import { z } from 'zod';
 import { WorkflowReviewAction } from 'src/generated';
 import type { ImplementationReadinessDisposition } from 'src/generated';
-import { CodingPlanReviewAnswerPayloadSchema } from 'src/generated/workflow-review.schemas';
+import {
+  CodingPlanApprovalPayloadSchema,
+  CodingPlanReviewAnswerPayloadSchema,
+} from 'src/generated/workflow-review.schemas';
 import { ExternalAgentActionSchemas } from 'src/types/flow-internal.types';
 
 /**
@@ -197,7 +200,7 @@ export const featureSyncCodingPlanActions: ExternalAgentActionSchemas = {
     waitForUser: false,
   },
   [WorkflowReviewAction.Approved]: {
-    schema: CodingPlanReviewAnswerPayloadSchema,
+    schema: CodingPlanApprovalPayloadSchema,
     waitForUser: false,
   },
 };

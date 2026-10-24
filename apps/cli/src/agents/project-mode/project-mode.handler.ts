@@ -1,3 +1,5 @@
+import { projectModeSettingsJsonSchema } from '../../generated/project-mode-contract.schema';
+import type { SessionRole } from '../../shared/agent-bridge-contract/generated/api';
 import type { AgenticSession } from '../../session/types';
 import type { RunCreatePayloadProjectMode } from '../../shared/agent-bridge-contract/generated/api';
 import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
@@ -43,6 +45,7 @@ const PROJECT_MODE_PROJECT_ASSISTANT_POLICY: Readonly<ProjectAssistantPolicy> = 
  */
 const handlerDefinition: UserLaunchablePromptTypeHandler<RunCreatePayloadProjectMode> = {
   id: 'project_mode',
+  resolveSessionRole: resolveProjectModeHandlerSessionRole,
   promptType: LocalPromptType.ProjectMode,
   service: 'required',
   launchEntity: 'required',
@@ -130,3 +133,14 @@ const handlerDefinition: UserLaunchablePromptTypeHandler<RunCreatePayloadProject
 };
 
 export const projectModeHandler = Object.freeze(handlerDefinition);
+
+export function resolveProjectModeHandlerSessionRole(session: AgenticSession): SessionRole {
+  const captured = validateProjectModeConfig(session.config);
+  if (!captured.ok) {
+    throw new Error(`project_mode captured config is invalid: ${captured.issues.join('; ')}`);
+  }
+  return (
+    captured.value.snapshot.sessionRole ??
+    projectModeSettingsJsonSchema.properties.sessionRole.default
+  );
+}

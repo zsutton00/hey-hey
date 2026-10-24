@@ -12,8 +12,8 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { CodingPlanRefineWorkflowAnswer } from './codingPlanRefineWorkflowAnswer';
-import { CodingPlanReviewAnswerPayload } from './codingPlanReviewAnswerPayload';
 import { CodingPlanApprovedWorkflowAnswer } from './codingPlanApprovedWorkflowAnswer';
+import { CodingPlanApprovalPayload } from './codingPlanApprovalPayload';
 
 
 /**

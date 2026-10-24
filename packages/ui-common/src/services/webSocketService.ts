@@ -51,10 +51,7 @@ import {
 import { debugEventStore } from "../data/websockets/debug";
 import type { WebSocketEvent as DebugWebSocketEvent } from "../data/websockets/debug";
 
-import {
-  WebSocketHandler,
-  getDefaultWebSocketHandler,
-} from "../data/websockets/handler";
+import type { WebSocketHandler } from "../data/websockets/handler";
 import { logger } from "../utils/logger";
 import { ToastService } from "./toastService";
 import { refreshAuthToken } from "./authService";
@@ -198,17 +195,8 @@ export class WebSocketService {
     subscriptionCounts: new Map<string, number>(),
   };
 
-  constructor(handler?: WebSocketHandler) {
-    if (!handler) {
-      logger.warn(
-        "services_websockets",
-        "[DEPRECATED] Creating WebSocketService without handler. This will be required in next version.",
-      );
-      // Temporary: use default handler for backward compatibility
-      this.handler = getDefaultWebSocketHandler();
-    } else {
-      this.handler = handler;
-    }
+  constructor(handler: WebSocketHandler) {
+    this.handler = handler;
   }
 
   private logDebugEvent(
@@ -1910,18 +1898,4 @@ export class WebSocketService {
       this.socket.emit("ping");
     }
   }
-}
-
-// Temporary singleton for backward compatibility
-let defaultServiceInstance: WebSocketService | null = null;
-
-export function getDefaultWebSocketService(): WebSocketService {
-  if (!defaultServiceInstance) {
-    logger.warn(
-      "services_websockets",
-      "[DEPRECATED] Using default WebSocket service. This will be removed in next version.",
-    );
-    defaultServiceInstance = new WebSocketService();
-  }
-  return defaultServiceInstance;
 }

@@ -114,6 +114,7 @@ import {
   DEFAULT_PROJECT_MODE_PROJECT_ASSISTANT_ENABLED,
   PROJECT_MODE_SETTINGS_SCHEMA_REF,
   PROJECT_MODE_SETTINGS_SECTION_KEY,
+  resolveProjectModeSessionRole,
 } from './tasks/project-mode-settings.validator';
 import { TaskSectionSchemaValidatorRegistry } from './tasks/task-section-schema-validator.registry';
 import { WorkItemTypeRegistryService } from './tasks/work-item-type-registry.service';
@@ -4220,12 +4221,13 @@ export class AgentSessionService {
     };
     const snapshotWithoutHash: Omit<ProjectModeSnapshot, 'snapshotHash'> = {
       schemaVersion:
-        ProjectModeSnapshot.SchemaVersionEnum.ProjectModeSnapshotV2,
+        ProjectModeSnapshot.SchemaVersionEnum.ProjectModeSnapshotV3,
       modeId: selection.modeId,
       catalogDescription: description,
       applicableWorkItemTypeKeys,
       files,
       projectAssistant: { enabled: projectAssistantEnabled },
+      sessionRole: resolveProjectModeSessionRole(modeSettings),
     };
     const snapshot: ProjectModeSnapshot = {
       ...snapshotWithoutHash,
@@ -4235,6 +4237,7 @@ export class AgentSessionService {
       modeId: snapshot.modeId,
       schemaVersion: snapshot.schemaVersion,
       projectAssistantEnabled,
+      sessionRole: snapshot.sessionRole,
       snapshotHash: snapshot.snapshotHash,
     });
     return {
@@ -4308,8 +4311,8 @@ export class AgentSessionService {
     ) as ProjectModeSettings;
   }
 
-  // v1 hashes must stay byte-identical so snapshots captured before the
-  // Project Assistant setting existed still verify on readback and resume.
+  // v1/v2 hash inputs must stay byte-identical for readback and resume.
+  // Only v3 binds the resolved role into snapshot integrity.
   private buildProjectModeSnapshotHash(
     snapshot: Omit<ProjectModeSnapshot, 'snapshotHash'> | ProjectModeSnapshot,
   ): string {
@@ -4322,11 +4325,19 @@ export class AgentSessionService {
     };
     if (
       snapshot.schemaVersion ===
-      ProjectModeSnapshot.SchemaVersionEnum.ProjectModeSnapshotV2
+        ProjectModeSnapshot.SchemaVersionEnum.ProjectModeSnapshotV2 ||
+      snapshot.schemaVersion ===
+        ProjectModeSnapshot.SchemaVersionEnum.ProjectModeSnapshotV3
     ) {
       content.projectAssistant = {
         enabled: snapshot.projectAssistant?.enabled,
       };
+    }
+    if (
+      snapshot.schemaVersion ===
+      ProjectModeSnapshot.SchemaVersionEnum.ProjectModeSnapshotV3
+    ) {
+      content.sessionRole = snapshot.sessionRole;
     }
     return createHash('sha256').update(JSON.stringify(content)).digest('hex');
   }

@@ -232,7 +232,25 @@ const validateSchemas = (schemas) => {
     );
   }
 
+  for (const sessionRole of schemas.ProjectModeSettings.properties.sessionRole
+    .allOf[0].enum) {
+    if (
+      !validateSnapshot({
+        ...validSnapshotV2,
+        schemaVersion: "project-mode-snapshot.v3",
+        sessionRole,
+      })
+    ) {
+      throw new Error(`Valid v3 snapshot role rejected: ${sessionRole}`);
+    }
+  }
+
   for (const snapshot of [
+    {
+      ...validSnapshotV2,
+      schemaVersion: "project-mode-snapshot.v3",
+      sessionRole: "invalid",
+    },
     { ...validSnapshot, snapshotHash: "not-a-sha256" },
     { ...validSnapshot, untrustedRuntimeHook: "node install.js" },
     { ...validSnapshotV2, projectAssistant: { enabled: "no" } },

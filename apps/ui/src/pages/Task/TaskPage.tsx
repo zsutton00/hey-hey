@@ -139,6 +139,7 @@ export const TaskPage: React.FC<TaskPageProps> = ({
     error: taskError,
   } = useTaskHierarchy(organizationId, projectId, taskId, {
     enabled: !!organizationId && !!taskId,
+    refetchOnMount: true,
     includeDesignDocCounts: true,
     includeAgentSessionCounts: true,
   });
@@ -292,6 +293,7 @@ export const TaskPage: React.FC<TaskPageProps> = ({
       includeServiceRelations: true,
       projectId,
       enabled: !!organizationId && !!taskId,
+      refetchOnMount: true,
     },
   );
 

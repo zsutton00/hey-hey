@@ -408,6 +408,12 @@ describe("WorkflowStepPage", () => {
     } as ReturnType<typeof useTaskHierarchy>);
     page.rerender(<WorkflowStepPage />);
     expect(viewProps.latest?.isTreeVisible).toBe(true);
+    expect(mockUseTaskHierarchy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.any(String),
+      expect.objectContaining({ refetchOnMount: true }),
+    );
     expect(mockUseWorkItemGraph).toHaveBeenCalledWith(
       "org-1",
       "project-1",

@@ -5,7 +5,6 @@ import { workItemHierarchyQueryOptions } from "../collections/workItemLists";
 import type { CollectionHookOptions, DataHookReturn } from "../core/types";
 import { useDataLayerQuery } from "../query/useDataLayerQuery";
 import { useWebsocketSubscriptions } from "./useWebsocketSubscriptions";
-import { useWorkItemAuthoritativeMount } from "./useWorkItemMountPolicy";
 
 export type UseTaskHierarchyOptions =
   CollectionHookOptions<WorkItemResponseDto> & {
@@ -30,7 +29,6 @@ export function useTaskHierarchy(
   options: UseTaskHierarchyOptions = {}
 ): UseTaskHierarchyReturn {
   const { includeDesignDocCounts, includeAgentSessionCounts } = options;
-  const authoritativeMount = useWorkItemAuthoritativeMount();
   const queryOptions = useMemo(
     () =>
       workItemHierarchyQueryOptions(organizationId, projectId, taskId, {
@@ -53,7 +51,6 @@ export function useTaskHierarchy(
     refetchOnWindowFocus: options.refetchOnWindowFocus,
     staleTimeMs: options.staleTimeMs,
     maxCacheAgeMs: options.maxCacheAgeMs,
-    authoritativeMount,
   });
 
   useWebsocketSubscriptions(

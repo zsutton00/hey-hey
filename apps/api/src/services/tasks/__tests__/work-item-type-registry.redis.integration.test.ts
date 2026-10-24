@@ -20,7 +20,9 @@ describe('Registry Redis broadcast and recovery', () => {
   });
 
   it('broadcasts repeated changes and recovers a peer that misses a notification', async () => {
-    server = new RedisMemoryServer();
+    server = new RedisMemoryServer({
+      spawn: { env: { ...process.env, LC_ALL: 'C' } },
+    });
     const url = `redis://${await server.getHost()}:${await server.getPort()}`;
     let committedRows = buildBuiltInWorkItemTypeRows(projectId);
     const findMany = jest.fn(async () =>

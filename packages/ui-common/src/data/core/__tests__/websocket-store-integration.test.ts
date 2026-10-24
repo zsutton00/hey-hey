@@ -66,7 +66,7 @@ describe("WebSocket Store Integration", () => {
   beforeEach(() => {
     mockDebugger = new WebSocketDebugger();
     vi.spyOn(mockDebugger, "logEvent").mockImplementation(() => {});
-    vi.spyOn(mockDebugger, "logCollectionAction").mockImplementation(
+    vi.spyOn(mockDebugger, "logQueryInvalidation").mockImplementation(
       () => {}
     );
   });
@@ -133,33 +133,6 @@ describe("WebSocket Store Integration", () => {
     expect(isInvalidated(reactQueryClient, listKey)).toBe(false);
     expect(isInvalidated(reactQueryClient, singleKey)).toBe(false);
     expect(handlerQueryClient.getQueryCache().getAll()).toHaveLength(0);
-  });
-
-  it("warns instead of silently dropping conversation invalidation without a QueryClient", () => {
-    const wsHandler = new WebSocketHandler(createStore(), mockDebugger);
-    const loggerSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
-
-    for (const id of ["conv-1", "conv-2", "conv-3"]) {
-      wsHandler.handleEvent({
-        type: "conversation.status_changed",
-        conversationId: id,
-        organizationId: "org-789",
-        projectId: "proj-1",
-        timestamp: new Date().toISOString(),
-        previousStatus: "ACTIVE",
-        newStatus: "COMPLETED",
-      } as any);
-    }
-
-    for (const id of ["conv-1", "conv-2", "conv-3"]) {
-      expect(loggerSpy).toHaveBeenCalledWith(
-        "data_websockets",
-        expect.stringContaining("No QueryClient"),
-        { conversationId: id }
-      );
-    }
-
-    loggerSpy.mockRestore();
   });
 
   it("invalidates only the shared client's matching conversations across projects", () => {

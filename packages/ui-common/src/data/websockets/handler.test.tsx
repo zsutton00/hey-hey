@@ -135,8 +135,6 @@ describe("WebSocketHandler conversation.updated boundary", () => {
     expect(platformClient.getMessage).not.toHaveBeenCalled();
   });
 });
-import { CollectionMap } from "../core/CollectionMap";
-import { ListQueryMap } from "../core/ListQueryMap";
 
 import { loadConfig, resetConfig } from "../relationships";
 import { designDocKeys } from "../collections/designDocs";

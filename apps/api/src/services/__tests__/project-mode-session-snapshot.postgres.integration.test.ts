@@ -3,6 +3,7 @@ import { EntityType } from '@prisma/client';
 import {
   AgentSessionConfigV2,
   AgentSessionType,
+  SessionRole,
   type ProjectModeSnapshot,
 } from '../../generated';
 import { InMemoryMessageBus } from '../../core/events/in-memory-message-bus.service';
@@ -36,7 +37,11 @@ const launchFiles = {
     'references/checklist.md': 'Verify the stored snapshot before acting.\n',
   },
 };
-const settings = (enabled: boolean) => ({
+const settings = (
+  enabled: boolean,
+  sessionRole: SessionRole = SessionRole.Implementation,
+) => ({
+  sessionRole,
   schemaVersion: 'project-mode-settings.v1' as const,
   projectAssistant: { enabled },
 });
@@ -264,46 +269,52 @@ describeDatabase(
       return created.config as AgentSessionConfigV2;
     }
 
-    it('keeps the launch-time Project Assistant setting after the MODE is edited', async () => {
-      const fixture = await createFixture(settings(false));
+    it.each(Object.values(SessionRole))(
+      'keeps captured role %s and participation after the MODE is edited',
+      async (sessionRole) => {
+        const fixture = await createFixture(settings(false, sessionRole));
 
-      try {
-        const launchConfig = await launch(fixture);
-        const launchSnapshot = launchConfig.projectModeSnapshot;
-        expect(launchSnapshot).toMatchObject({
-          schemaVersion: 'project-mode-snapshot.v2',
-          projectAssistant: { enabled: false },
-        });
+        try {
+          const launchConfig = await launch(fixture);
+          const launchSnapshot = launchConfig.projectModeSnapshot;
+          expect(launchSnapshot).toMatchObject({
+            schemaVersion: 'project-mode-snapshot.v3',
+            sessionRole,
+            projectAssistant: { enabled: false },
+          });
 
-        await editModeThroughMaterializationBoundary(
-          fixture,
-          launchDescription,
-          launchFiles,
-          settings(true),
-        );
-        const canonicalSettings = await prisma.db.taskSection.findFirstOrThrow({
-          where: { taskId: fixture.modeId, key: 'settings' },
-          select: { materializedMarkdown: true },
-        });
-        expect(canonicalSettings.materializedMarkdown).toBe(
-          JSON.stringify(settings(true)),
-        );
+          await editModeThroughMaterializationBoundary(
+            fixture,
+            launchDescription,
+            launchFiles,
+            settings(true),
+          );
+          const canonicalSettings =
+            await prisma.db.taskSection.findFirstOrThrow({
+              where: { taskId: fixture.modeId, key: 'settings' },
+              select: { materializedMarkdown: true },
+            });
+          expect(canonicalSettings.materializedMarkdown).toBe(
+            JSON.stringify(settings(true)),
+          );
 
-        const readback = await agentSessionService.findOne(
-          fixture.organizationId,
-          fixture.agentSessionId!,
-        );
-        const readbackSnapshot = (readback.config as AgentSessionConfigV2)
-          .projectModeSnapshot as ProjectModeSnapshot;
-        expect(readbackSnapshot.projectAssistant).toEqual({ enabled: false });
-        expect(JSON.stringify(readbackSnapshot)).toBe(
-          JSON.stringify(launchSnapshot),
-        );
-      } finally {
-        await cleanupFixture(fixture);
-        fixtures.splice(fixtures.indexOf(fixture), 1);
-      }
-    });
+          const readback = await agentSessionService.findOne(
+            fixture.organizationId,
+            fixture.agentSessionId!,
+          );
+          const readbackSnapshot = (readback.config as AgentSessionConfigV2)
+            .projectModeSnapshot as ProjectModeSnapshot;
+          expect(readbackSnapshot.projectAssistant).toEqual({ enabled: false });
+          expect(readbackSnapshot.sessionRole).toBe(sessionRole);
+          expect(JSON.stringify(readbackSnapshot)).toBe(
+            JSON.stringify(launchSnapshot),
+          );
+        } finally {
+          await cleanupFixture(fixture);
+          fixtures.splice(fixtures.indexOf(fixture), 1);
+        }
+      },
+    );
 
     it('still reads and verifies a snapshot captured before the setting existed', async () => {
       const fixture = await createFixture();

@@ -1,3 +1,5 @@
+import type { SessionRole } from '../../generated/model/sessionRole';
+import type { WorkItemTypeRoleGuidanceDto } from '../../generated/model/workItemTypeRoleGuidanceDto';
 import type { WorkItemTypeGuidanceDto } from '../../generated/model/workItemTypeGuidanceDto';
 import type { WorkItemTypeGuidanceBatchDto } from '../../generated/model/workItemTypeGuidanceBatchDto';
 import type { WorkItemTypeGuidanceBatchRequestDto } from '../../generated/model/workItemTypeGuidanceBatchRequestDto';
@@ -7,7 +9,10 @@ import {
   diagramElementPolicySchema,
   DIAGRAM_ELEMENT_METADATA_SCHEMA_REF,
 } from './diagram-metadata';
-import { workItemTypeAgentGuidanceSchema } from './work-item-type-agent-guidance.schema';
+import {
+  workItemTypeAgentGuidanceSchema,
+  workItemTypeSessionRoleGuidanceSchema,
+} from './work-item-type-agent-guidance.schema';
 import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
@@ -859,6 +864,12 @@ export class WorkItemTypeRegistryService
             : (workItemTypeAgentGuidanceSchema.parse(
                 definition.agentGuidance,
               ) as Prisma.InputJsonValue),
+        sessionRoleGuidance:
+          definition.sessionRoleGuidance === undefined
+            ? Prisma.DbNull
+            : workItemTypeSessionRoleGuidanceSchema.parse(
+                definition.sessionRoleGuidance,
+              ),
         maintenanceGuidance: definition.maintenanceGuidance ?? null,
         writingStandards: (definition.writingStandards ??
           EMPTY_WRITING_STANDARDS) as unknown as Prisma.InputJsonValue,
@@ -1148,6 +1159,12 @@ export class WorkItemTypeRegistryService
           : (workItemTypeAgentGuidanceSchema.parse(
               definition.agentGuidance,
             ) as Prisma.InputJsonValue),
+      sessionRoleGuidance:
+        definition.sessionRoleGuidance === undefined
+          ? Prisma.DbNull
+          : workItemTypeSessionRoleGuidanceSchema.parse(
+              definition.sessionRoleGuidance,
+            ),
       maintenanceGuidance: definition.maintenanceGuidance ?? null,
       writingStandards: (definition.writingStandards ??
         EMPTY_WRITING_STANDARDS) as unknown as Prisma.InputJsonValue,
@@ -1191,6 +1208,13 @@ export class WorkItemTypeRegistryService
         : {
             agentGuidance: workItemTypeAgentGuidanceSchema.parse(
               template.agentGuidance,
+            ),
+          }),
+      ...(template.sessionRoleGuidance == null
+        ? {}
+        : {
+            sessionRoleGuidance: workItemTypeSessionRoleGuidanceSchema.parse(
+              template.sessionRoleGuidance,
             ),
           }),
       ...(template.maintenanceGuidance == null
@@ -1259,6 +1283,13 @@ export class WorkItemTypeRegistryService
         : {
             agentGuidance: workItemTypeAgentGuidanceSchema.parse(
               row.agentGuidance,
+            ),
+          }),
+      ...(row.sessionRoleGuidance == null
+        ? {}
+        : {
+            sessionRoleGuidance: workItemTypeSessionRoleGuidanceSchema.parse(
+              row.sessionRoleGuidance,
             ),
           }),
       ...(row.maintenanceGuidance == null
@@ -1790,16 +1821,37 @@ export class WorkItemTypeRegistryService
     projectId: string,
     typeKey: string,
     focalTypeKey: string | undefined,
+    purpose: typeof WorkItemTypeGuidancePurpose.Role,
+    sessionRole: SessionRole,
+  ): WorkItemTypeRoleGuidanceDto;
+  getGuidance(
+    projectId: string,
+    typeKey: string,
+    focalTypeKey: string | undefined,
     purpose: WorkItemTypeGuidancePurpose | undefined,
-  ): WorkItemTypeGuidanceDto | WorkItemTypeMaintenanceGuidanceDto;
+    sessionRole?: SessionRole,
+  ):
+    | WorkItemTypeGuidanceDto
+    | WorkItemTypeMaintenanceGuidanceDto
+    | WorkItemTypeRoleGuidanceDto;
   getGuidance(
     projectId: string,
     typeKey: string,
     focalTypeKey?: string,
     purpose: WorkItemTypeGuidancePurpose = WorkItemTypeGuidancePurpose.Semantic,
-  ): WorkItemTypeGuidanceDto | WorkItemTypeMaintenanceGuidanceDto {
+    sessionRole?: SessionRole,
+  ):
+    | WorkItemTypeGuidanceDto
+    | WorkItemTypeMaintenanceGuidanceDto
+    | WorkItemTypeRoleGuidanceDto {
     const summaries = this.snapshot.projectSummaries.get(projectId) ?? [];
-    return this.projectGuidance(summaries, typeKey, focalTypeKey, purpose);
+    return this.projectGuidance(
+      summaries,
+      typeKey,
+      focalTypeKey,
+      purpose,
+      sessionRole,
+    );
   }
 
   /** Resolve the complete bounded request against one captured snapshot. */
@@ -1816,6 +1868,7 @@ export class WorkItemTypeRegistryService
           typeKey,
           request.focalTypeKey,
           request.purpose,
+          request.sessionRole,
         ),
       ),
     };
@@ -1826,7 +1879,11 @@ export class WorkItemTypeRegistryService
     typeKey: string,
     focalTypeKey?: string,
     purpose: WorkItemTypeGuidancePurpose = WorkItemTypeGuidancePurpose.Semantic,
-  ): WorkItemTypeGuidanceDto | WorkItemTypeMaintenanceGuidanceDto {
+    sessionRole?: SessionRole,
+  ):
+    | WorkItemTypeGuidanceDto
+    | WorkItemTypeMaintenanceGuidanceDto
+    | WorkItemTypeRoleGuidanceDto {
     const requireActive = (key: string) => {
       const summary = summaries.find((entry) => entry.definition.key === key);
       if (!summary || summary.status !== WorkItemTypeLifecycleStatus.Active) {
@@ -1837,6 +1894,20 @@ export class WorkItemTypeRegistryService
       return summary.definition;
     };
     const definition = requireActive(typeKey);
+    if (purpose === WorkItemTypeGuidancePurpose.Role) {
+      if (sessionRole === undefined) {
+        throw new BadRequestException(
+          'sessionRole is required when purpose is role.',
+        );
+      }
+      const guidance = definition.sessionRoleGuidance?.[sessionRole];
+      return {
+        typeKey: definition.key,
+        name: definition.name,
+        sessionRole,
+        ...(guidance === undefined ? {} : { guidance }),
+      };
+    }
     if (purpose === WorkItemTypeGuidancePurpose.Maintenance) {
       return {
         typeKey: definition.key,

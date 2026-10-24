@@ -65,6 +65,7 @@ export type {
   UserMessageData,
   WorkItemTypeDefinitionDto,
   WorkItemTypeAgentGuidance,
+  WorkItemTypeSessionRoleGuidance,
   WorkItemTypeGuidanceContext,
   WorkItemTypeGuidanceExample,
   WorkItemTypeCapabilities,

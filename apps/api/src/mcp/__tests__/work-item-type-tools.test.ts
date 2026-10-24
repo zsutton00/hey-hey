@@ -1,3 +1,4 @@
+import { SessionRole } from '../../generated/model/sessionRole';
 import { NotFoundException } from '@nestjs/common';
 import {
   getWorkItemTypeGuidanceBatchOutput,
@@ -312,6 +313,41 @@ describe('get_work_item_type_guidance_batch', () => {
       maintenance,
     );
   });
+
+  it.each(Object.values(SessionRole))(
+    'requires an explicit selector and serves role %s',
+    async (sessionRole) => {
+      const { provider, getGuidanceBatch } = setup();
+      const missing = await provider.getWorkItemTypeGuidanceBatch(
+        { typeKeys: ['BUG'], purpose: WorkItemTypeGuidancePurpose.Role },
+        {} as any,
+        makeRequest(),
+      );
+      expect(missing).toMatchObject({ isError: true });
+      expect(getGuidanceBatch).not.toHaveBeenCalled();
+      const params = getWorkItemTypeGuidanceBatchParameters.parse({
+        typeKeys: ['BUG', 'STANDARD'],
+        purpose: 'role',
+        sessionRole,
+      });
+      const result = {
+        results: [
+          { typeKey: 'BUG', name: 'Bug', sessionRole, guidance: 'Advice' },
+          { typeKey: 'STANDARD', name: 'Task', sessionRole },
+        ],
+      };
+      getGuidanceBatch.mockReturnValue(result);
+      expect(
+        await provider.getWorkItemTypeGuidanceBatch(
+          params,
+          {} as any,
+          makeRequest(),
+        ),
+      ).toEqual(result);
+      expect(getWorkItemTypeGuidanceBatchOutput.parse(result)).toEqual(result);
+      expect(getGuidanceBatch).toHaveBeenCalledWith(PROJECT_ID, params);
+    },
+  );
 
   it('rejects empty, oversized, duplicate, or extra-field requests', () => {
     expect(

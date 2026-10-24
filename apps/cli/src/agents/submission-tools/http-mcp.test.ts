@@ -63,6 +63,7 @@ const setActiveTurn = (
 ): void => {
   run.setActiveTurn(
     new Turn({
+    effectiveRole: 'implementation',
       turnId: 'test-turn-id',
       runId: run.runId,
       resolvedPrompt: '',

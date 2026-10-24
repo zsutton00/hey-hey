@@ -215,8 +215,11 @@ describe.each(["help", "daily"] as const)(
             ).toBeInTheDocument();
           } else {
             expect(
-              screen.getByRole("link", { name: "Add a service" }),
-            ).toHaveAttribute("href", "/projects/project?tab=services");
+              screen.getByRole("link", { name: "Read Your First Project" }),
+            ).toHaveAttribute(
+              "href",
+              "/projects/project?tab=help&helpSubTab=first-project",
+            );
             expect(
               screen.queryByRole("button", { name: "Show me how" }),
             ).not.toBeInTheDocument();

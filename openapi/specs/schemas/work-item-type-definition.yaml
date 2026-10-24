@@ -147,6 +147,8 @@ WorkItemTypeDefinitionDto:
       example: "Marketing"
     agentGuidance:
       $ref: "#/WorkItemTypeAgentGuidance"
+    sessionRoleGuidance:
+      $ref: "#/WorkItemTypeSessionRoleGuidance"
     maintenanceGuidance:
       type: string
       description: Optional type-owned advice for maintaining items of this type.
@@ -2274,8 +2276,8 @@ WorkItemTypeGuidanceDto:
 
 WorkItemTypeGuidancePurpose:
   type: string
-  enum: [semantic, maintenance]
-  description: Selects the compact semantic or type-owned maintenance projection.
+  enum: [semantic, maintenance, role]
+  description: Selects semantic, maintenance or explicitly selected session-role guidance.
 
 WorkItemTypeMaintenanceGuidanceDto:
   type: object
@@ -2290,11 +2292,48 @@ WorkItemTypeMaintenanceGuidanceDto:
     maintenanceGuidance:
       type: string
 
+WorkItemTypeSessionRoleGuidance:
+  type: object
+  additionalProperties: false
+  description: Optional type-owned prose keyed by the shared SessionRole catalog. Each entry is independent; omitted entries provide no advice.
+  properties:
+    implementation:
+      type: string
+    research:
+      type: string
+    planning:
+      type: string
+    review:
+      type: string
+
+WorkItemTypeRoleGuidanceDto:
+  type: object
+  additionalProperties: false
+  required: [typeKey, name, sessionRole]
+  properties:
+    typeKey:
+      type: string
+      minLength: 1
+    name:
+      type: string
+    sessionRole:
+      $ref: "./work-items.yaml#/SessionRole"
+    guidance:
+      type: string
+
 WorkItemTypeGuidanceBatchRequestDto:
   type: object
   additionalProperties: false
   required: [typeKeys]
-  description: A bounded batch of project-scoped guidance reads sharing one purpose and optional focal type.
+  anyOf:
+    - properties:
+        purpose:
+          enum: [semantic, maintenance]
+    - required: [purpose, sessionRole]
+      properties:
+        purpose:
+          enum: [role]
+  description: A bounded batch sharing one purpose and optional semantic focal type. Purpose role requires sessionRole explicitly; the mode-settings default does not apply. Role reads ignore focalTypeKey.
   properties:
     typeKeys:
       type: array
@@ -2305,6 +2344,8 @@ WorkItemTypeGuidanceBatchRequestDto:
         type: string
     purpose:
       $ref: "#/WorkItemTypeGuidancePurpose"
+    sessionRole:
+      $ref: "./work-items.yaml#/SessionRole"
     focalTypeKey:
       type: string
 
@@ -2312,7 +2353,8 @@ WorkItemTypeGuidanceBatchResultDto:
   oneOf:
     - $ref: "#/WorkItemTypeGuidanceDto"
     - $ref: "#/WorkItemTypeMaintenanceGuidanceDto"
-  description: One requested type's semantic or maintenance projection; typeKey identifies the request represented by this result.
+    - $ref: "#/WorkItemTypeRoleGuidanceDto"
+  description: One requested type's semantic, maintenance or role projection; typeKey identifies the request represented by this result.
 
 WorkItemTypeGuidanceBatchDto:
   type: object

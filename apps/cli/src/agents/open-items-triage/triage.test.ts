@@ -1,4 +1,7 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
+import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { AgenticSession } from '../../session/types';
 import type { AssistantCompleteEvent } from '../../run/types';
 import type { OpenItemsTriagePromptPayload } from '../../shared/agent-bridge-contract/generated';
@@ -18,6 +21,7 @@ import {
   type AttentionSession,
 } from './attention';
 import { TRIAGE_INPUT_BUDGET_BYTES, TriageInputOwner } from './input-owner';
+import { TriageInputDiagnostics } from './input-diagnostics';
 import { trackedSchema } from './input-schemas';
 import { OpenItemsTriageHandler } from './open-items-triage.handler';
 import { buildTriagePrompt } from './prompts/triage-prompt';
@@ -100,7 +104,103 @@ const fetchFixture = () =>
   });
 const deps = (fetchImpl = fetchFixture()) =>
   createPromptTypeHandlerTestDeps({ fetchImpl, auth: createPromptTypeHandlerTestAuth(token) });
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
+
+describe('triage input dumps', () => {
+  const metadata = {
+    runId: id(90),
+    projectId: id(92),
+    requestKind: 'freshPass',
+    mode: 'tidyUp',
+  };
+
+  it('keeps fetched attention across types alongside the exact prepared input in separate private files', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'triage-dump-'));
+    try {
+      const diagnostics = new TriageInputDiagnostics();
+      const fetchImpl = fetchFixture();
+      const original = fetchImpl.getMockImplementation()!;
+      const events = [
+        session(1, 1, now - 60_000),
+        {
+          ...session(2, 2, now - 30_000),
+          entityType: EntityType.AgentSession,
+        },
+        { entityType: 'TASK', id: 'invalid' },
+      ];
+      fetchImpl.mockImplementation(async (url, init) => {
+        if (new URL(String(url)).pathname.endsWith('/attention'))
+          return response({ events, pagination: { limit: 50, offset: 0, total: 3 } });
+        return original(url, init);
+      });
+      const input = await new TriageInputOwner(
+        deps(fetchImpl),
+        id(91),
+        id(92),
+        token,
+        now,
+        diagnostics,
+      ).build();
+      await diagnostics.write(metadata, input, NOOP_LOGGER, directory);
+      await diagnostics.write(
+        { ...metadata, requestKind: 'followUp' },
+        input,
+        NOOP_LOGGER,
+        directory,
+      );
+      const files = await readdir(directory);
+      expect(files).toHaveLength(2);
+      const path = join(directory, files[0]!);
+      const contents = await readFile(path, 'utf8');
+      const dump = JSON.parse(contents);
+      expect(dump.input).toEqual(input);
+      expect(
+        dump.reads.find((read: { path: string }) => read.path.endsWith('/attention')),
+      ).toMatchObject({
+        data: { events },
+        status: 200,
+      });
+      expect(
+        dump.reads.find((read: { path: string }) => read.path.endsWith('/attention')).query,
+      ).toContain('since=');
+      expect(dump.outcome).toBe('input_ready');
+      expect(contents).not.toContain(token);
+      expect(contents).not.toContain('Authorization');
+      expect((await stat(path)).mode & 0o777).toBe(0o600);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('records failed reads and does not let an unwritable dump block the review', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'triage-dump-'));
+    try {
+      const diagnostics = new TriageInputDiagnostics();
+      const fetchImpl = fetchFixture().mockResolvedValueOnce(new Response('', { status: 503 }));
+      await expect(
+        new TriageInputOwner(deps(fetchImpl), id(91), id(92), token, now, diagnostics).build(),
+      ).rejects.toThrow('required collection');
+      await diagnostics.write(metadata, null, NOOP_LOGGER, directory);
+      const [file] = await readdir(directory);
+      expect(JSON.parse(await readFile(join(directory, file!), 'utf8'))).toMatchObject({
+        outcome: 'input_failed',
+        input: null,
+        reads: [{ status: 503 }],
+      });
+      const blocked = join(directory, 'file');
+      await writeFile(blocked, '');
+      const logger = NOOP_LOGGER;
+      vi.spyOn(logger, 'warn');
+      await expect(diagnostics.write(metadata, null, logger, blocked)).resolves.toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith('open_items_triage.input.dump_failed', metadata);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+});
 
 describe('attention reducers', () => {
   it('counts distinct focus-session starts rather than duration ticks, deduplicating returned rows', () => {
@@ -822,6 +922,7 @@ describe('triage input and handler', () => {
   });
 
   it('refreshes initial, Send and Run Again input using GET only and snapshots the full prompt', async () => {
+    const dump = vi.spyOn(TriageInputDiagnostics.prototype, 'write').mockResolvedValue();
     vi.useFakeTimers();
     vi.setSystemTime(now);
     const handler = new OpenItemsTriageHandler(),
@@ -847,6 +948,8 @@ describe('triage input and handler', () => {
     expect(second.payload.guidance).toBe('Focus on unfinished work.');
     expect(buildTriagePrompt(second.payload)).toMatchSnapshot();
     await handler.prepare(run, first.payload, dependencies);
+    expect(dump).toHaveBeenCalledTimes(3);
+    expect(dump.mock.calls[0]?.[1]).toEqual(first.payload.triageInput);
     expect(
       fetchImpl.mock.calls.filter(([url]) => String(url).endsWith('/open-items')),
     ).toHaveLength(3);
@@ -894,6 +997,7 @@ describe('triage input and handler', () => {
   });
 
   it('frames fresh-pass guidance as review focus and snapshots both modes with and without guidance', async () => {
+    vi.spyOn(TriageInputDiagnostics.prototype, 'write').mockResolvedValue();
     vi.useFakeTimers();
     vi.setSystemTime(now);
     const handler = new OpenItemsTriageHandler();

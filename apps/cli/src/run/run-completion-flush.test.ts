@@ -352,6 +352,7 @@ describe('Run.flushPendingCompletion', () => {
       }),
     };
     const turn = new Turn({
+    effectiveRole: 'implementation',
       turnId: 'turn-runner-failure',
       runId: 'run-1',
       resolvedPrompt: 'resolved',
@@ -771,6 +772,7 @@ describe('Run terminal output attention', () => {
     );
     const run = new Run(makeRunArgs(), collaborators);
     const turn = new Turn({
+    effectiveRole: 'implementation',
       turnId: 'turn-aborted',
       runId: 'run-1',
       resolvedPrompt: 'resolved',

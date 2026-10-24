@@ -1,4 +1,7 @@
-import { workItemTypeAgentGuidanceSchema } from '../../services/tasks/work-item-type-agent-guidance.schema';
+import {
+  workItemTypeAgentGuidanceSchema,
+  workItemTypeSessionRoleGuidanceSchema,
+} from '../../services/tasks/work-item-type-agent-guidance.schema';
 import { diagramElementPolicySchema } from '../../services/tasks/diagram-metadata';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import {
@@ -438,6 +441,7 @@ export const createWorkItemTypeParameters = z
       .describe('Report types that may be anchored to an item of this type.'),
     agentGuidance: workItemTypeAgentGuidanceSchema.optional(),
     maintenanceGuidance: z.string().optional(),
+    sessionRoleGuidance: workItemTypeSessionRoleGuidanceSchema.optional(),
     writingStandards: z
       .object({
         create: z.string(),

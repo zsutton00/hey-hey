@@ -80,11 +80,6 @@ const createTabConfigs = (
       label: t("debug.chatMessages", "Chat"),
       icon: ChatIcon,
     },
-    querykeys: {
-      id: "querykeys",
-      label: t("debug.queryKeys", "Query Keys"),
-      icon: EventsIcon, // Using EventsIcon as placeholder
-    },
     "advanced-analytics": {
       id: "advanced-analytics",
       label: t("debug.advancedAnalytics", "Advanced Analytics"),

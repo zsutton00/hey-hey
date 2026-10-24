@@ -31,6 +31,7 @@ vi.mock("@hey-hey/ui-common/hooks", () => ({
 }));
 
 vi.mock("@hey-hey/ui-common/data", () => ({
+  FutureOfferProvider: ({ children }: { children: ReactNode }) => children,
   useUserPairedMachines: () => ({
     machines: [],
     isLoading: false,
@@ -45,7 +46,10 @@ vi.mock("../../hooks/useOrganizationProjectShellVisibility", () => ({
 // pulls in jotai/useProject providers unrelated to the header layout under test.
 vi.mock("@hey-hey/ui-common/components", () => ({
   DemoSandboxBanner: ({ enabled }: { enabled?: boolean }) => (
-    <div data-testid="demo-sandbox-banner-slot" data-enabled={String(enabled)} />
+    <div
+      data-testid="demo-sandbox-banner-slot"
+      data-enabled={String(enabled)}
+    />
   ),
   Breadcrumbs: ({ items }: { items: { label: string }[] }) => (
     <nav data-testid="breadcrumbs">
@@ -250,30 +254,15 @@ describe("Layout", () => {
     );
 
     const layoutMain = screen.getByTestId("layout-main");
-    const mainScrollToMock = vi.fn(({ top }: ScrollToOptions) => {
-      layoutMain.scrollTop = top ?? 0;
-    });
-
-    Object.defineProperty(layoutMain, "scrollTo", {
-      configurable: true,
-      value: mainScrollToMock,
-      writable: true,
-    });
-
     layoutMain.scrollTop = 240;
 
     fireEvent.click(screen.getByRole("button", { name: "Go to second page" }));
 
     await waitFor(() => {
       expect(screen.getByText("Second page")).toBeInTheDocument();
-      expect(layoutMain.scrollTop).toBe(0);
+      expect(screen.getByTestId("layout-main").scrollTop).toBe(0);
     });
 
-    expect(mainScrollToMock).toHaveBeenCalledWith({
-      behavior: "auto",
-      left: 0,
-      top: 0,
-    });
     expect(windowScrollToMock).toHaveBeenCalledWith({
       behavior: "auto",
       left: 0,
@@ -305,8 +294,13 @@ describe("Layout", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Second page")).toBeInTheDocument();
-      expect(window.getComputedStyle(layoutMain).paddingBottom).toBe("100px");
-      expect(window.getComputedStyle(layoutMain).overflowY).toBe("auto");
+      expect(
+        window.getComputedStyle(screen.getByTestId("layout-main"))
+          .paddingBottom,
+      ).toBe("100px");
+      expect(
+        window.getComputedStyle(screen.getByTestId("layout-main")).overflowY,
+      ).toBe("auto");
     });
   });
 

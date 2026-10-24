@@ -288,7 +288,7 @@ describe("RepositoryGroundingField", () => {
       ).toBeInTheDocument();
       if (status === "error")
         expect(
-          screen.getByText(/Request failed with status 503/),
+          screen.getByText(/Could not reach the local CLI on this computer/),
         ).toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: "Link directory" }));
       await waitFor(() =>

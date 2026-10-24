@@ -1,5 +1,4 @@
 import React from "react";
-import { QueryMountPolicyProvider } from "@hey-hey/ui-common/data";
 import {
   Box,
   Paper,
@@ -57,9 +56,7 @@ export const DetailPageContainer = React.forwardRef<
         elevation={0}
         sx={resolvedPaperSx}
       >
-        <QueryMountPolicyProvider policy="always-refetch">
-          {children}
-        </QueryMountPolicyProvider>
+        {children}
       </Paper>
     </Box>
   );

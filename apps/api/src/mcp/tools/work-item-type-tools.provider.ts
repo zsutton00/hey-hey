@@ -1,3 +1,4 @@
+import { SessionRole } from '../../generated/model/sessionRole';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Context, Tool } from '@rekog/mcp-nest';
@@ -21,6 +22,8 @@ import type { WorkItemTypeGuidanceBatchRequestDto } from '../../generated/model/
 import { WorkItemTypeGuidancePurpose } from '../../generated/model/workItemTypeGuidancePurpose';
 import { workItemTypeGuidanceResponseSchema } from '../../services/tasks/work-item-type-agent-guidance.schema';
 
+// MCP schema generation requires a plain ZodObject; the handler enforces
+// the conditional sessionRole requirement instead of a top-level refinement.
 export const getWorkItemTypeGuidanceBatchParameters = z
   .object({
     typeKeys: z
@@ -31,6 +34,7 @@ export const getWorkItemTypeGuidanceBatchParameters = z
         message: 'typeKeys must contain distinct values',
       }),
     purpose: z.nativeEnum(WorkItemTypeGuidancePurpose).optional(),
+    sessionRole: z.nativeEnum(SessionRole).optional(),
     focalTypeKey: z.string().optional(),
   })
   .strict() satisfies z.ZodType<WorkItemTypeGuidanceBatchRequestDto>;
@@ -72,7 +76,7 @@ export class WorkItemTypeToolsProvider {
   @Tool({
     name: 'get_work_item_type_guidance_batch',
     description:
-      'Read project-effective guidance for 1–10 distinct work-item type keys from one snapshot, returning one shared-purpose projection per key in request order. Use the optional focal type key for semantic context; maintenance advice is type-owned and may be absent.',
+      'Read project-effective guidance for 1–10 distinct work-item type keys from one snapshot, returning one shared-purpose projection per key in request order. Use the optional focal type key for semantic context; maintenance advice is type-owned and may be absent. Purpose role requires explicit sessionRole (no default), ignores focalTypeKey and returns identity with optional advice.',
     parameters: getWorkItemTypeGuidanceBatchParameters,
     outputSchema: getWorkItemTypeGuidanceBatchOutput,
   })
@@ -87,6 +91,12 @@ export class WorkItemTypeToolsProvider {
     if (!isProjectId(projectId)) return projectId;
     if (!(await this.projectService.findOne(projectId, auth.organizationId))) {
       return mcpError('Project not found or not accessible.');
+    }
+    if (
+      params.purpose === WorkItemTypeGuidancePurpose.Role &&
+      params.sessionRole === undefined
+    ) {
+      return mcpError('sessionRole is required when purpose is role.');
     }
     try {
       return this.workItemTypeRegistry.getGuidanceBatch(projectId, params);

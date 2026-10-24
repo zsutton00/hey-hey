@@ -25,14 +25,19 @@ minimumReleaseAgeExclude:
 overrides:
   react: 19.2.4
   react-dom: 19.2.4
+  "@types/react": 19.3.0
+  "@types/react-dom": 19.2.2
+  csstype: 3.2.3
+  # Vite and its Rollup plugins must share the same plugin type contract.
+  rollup: 4.60.4
 
 # Native builds run only where an owning package already allowed them.
 onlyBuiltDependencies:
-  - '@openapitools/openapi-generator-cli' # api, cli
-  - '@prisma/client' # api
-  - '@prisma/engines' # api
-  - '@swc/core' # ui, api
-  - '@temporalio/core-bridge' # api
+  - "@openapitools/openapi-generator-cli" # api, cli
+  - "@prisma/client" # api
+  - "@prisma/engines" # api
+  - "@swc/core" # ui, api
+  - "@temporalio/core-bridge" # api
   - bcrypt # api
   - esbuild # ui, ui-common, cli
   - msw # ui, ui-common
@@ -41,13 +46,13 @@ onlyBuiltDependencies:
   - vue-demi # ui, ui-common
 
 allowBuilds:
-  '@nestjs/core': false
-  '@openapitools/openapi-generator-cli': true
-  '@prisma/client': true
-  '@prisma/engines': true
-  '@scarf/scarf': false
-  '@swc/core': true
-  '@temporalio/core-bridge': true
+  "@nestjs/core": false
+  "@openapitools/openapi-generator-cli": true
+  "@prisma/client": true
+  "@prisma/engines": true
+  "@scarf/scarf": false
+  "@swc/core": true
+  "@temporalio/core-bridge": true
   bcrypt: true
   core-js: false
   esbuild: true

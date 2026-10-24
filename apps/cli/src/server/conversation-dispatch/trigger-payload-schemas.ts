@@ -1,3 +1,4 @@
+import { ImplementPromptPayloadSchema } from '../../generated/coding-plan.schemas';
 /**
  * Zod schemas mirroring the `triggersAgent.payload` wire shapes the platform
  * sends per `promptType`. Validated at the trigger-dispatch and message-service
@@ -216,13 +217,7 @@ const runtimeSelectionSchema = z
   })
   .strict();
 
-const implementPromptPayloadSchema = z
-  .object({
-    userMessage: z.string().optional(),
-    runtime: runtimeSelectionSchema.optional(),
-  })
-  .strict()
-  .optional();
+const implementPromptPayloadSchema = ImplementPromptPayloadSchema.optional();
 
 const repositoryGroundingBoundsSchema = z
   .object({

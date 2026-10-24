@@ -1830,6 +1830,112 @@ describe("WorkItemTypeFormPage", () => {
     });
   });
 
+  it("keeps role advice across tabs and a failed submission in one complete create draft", async () => {
+    renderForm();
+    fillField("wit-form-key", "CUSTOM");
+    fillField("wit-form-name", "Custom work");
+    selectTab("Agent guidance");
+    fireEvent.change(screen.getByLabelText("Implementation guidance"), {
+      target: { value: "  Build from reviewed intent.  " },
+    });
+    fireEvent.change(screen.getByLabelText("Planning guidance"), {
+      target: { value: "Plan with evidence." },
+    });
+    selectTab("Overview");
+    mockCreateMutate.mockImplementationOnce(async () => {
+      const failure = Object.assign(new Error("Submission failed"), {
+        response: {
+          data: {
+            message: "Submission failed",
+            diagnostic: {
+              issues: [
+                {
+                  field: "updates.sessionRoleGuidance.implementation",
+                  code: "INVALID_FIELD",
+                  reason: "Role advice requires correction.",
+                  layer: "structural",
+                },
+              ],
+              issueCount: 1,
+              truncated: false,
+              correlationId: "role-guidance-test",
+            },
+          },
+        },
+      });
+      capturedCreateOptions?.onError?.(failure);
+      throw failure;
+    });
+    fireEvent.click(screen.getByTestId("wit-form-submit"));
+    await screen.findByText("Submission failed");
+    expect(screen.getByRole("tab", { name: "Agent guidance" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    selectTab("Agent guidance");
+    expect(screen.getByLabelText("Implementation guidance")).toHaveValue(
+      "  Build from reviewed intent.  ",
+    );
+    expect(screen.getByLabelText("Review guidance")).toHaveValue("");
+    fireEvent.click(screen.getByTestId("wit-form-submit"));
+    expect(mockCreateMutate).toHaveBeenCalledTimes(2);
+    expect(
+      mockCreateMutate.mock.calls[1][0].definition.sessionRoleGuidance,
+    ).toEqual({
+      implementation: "  Build from reviewed intent.  ",
+      planning: "Plan with evidence.",
+    });
+  });
+
+  it.each([
+    undefined,
+    {},
+    { implementation: "  Preserve prose  ", review: "Review" },
+  ])(
+    "preserves unvisited role fields and allows explicit clearing: %j",
+    (sessionRoleGuidance) => {
+      mockTypeKey = "CUSTOM";
+      const definition = {
+        key: "CUSTOM",
+        name: "Custom work",
+        role: "work-item" as const,
+        sections: [],
+        allowedStatuses: [],
+        ...(sessionRoleGuidance === undefined ? {} : { sessionRoleGuidance }),
+      };
+      const summary = activeCustomSummary(definition);
+      mockUseWorkItemTypeByKey.mockReturnValue({
+        workItemTypeSummary: summary,
+        isLoading: false,
+        error: null,
+      });
+      mockUseWorkItemTypes.mockReturnValue({
+        workItemTypes: [summary],
+        isLoading: false,
+      });
+      renderForm();
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+      const submitted = mockEditMutate.mock.calls[0][0].definition;
+      expect(Object.hasOwn(submitted, "sessionRoleGuidance")).toBe(
+        sessionRoleGuidance !== undefined,
+      );
+      expect(submitted.sessionRoleGuidance).toEqual(sessionRoleGuidance);
+      selectTab("Agent guidance");
+      fireEvent.change(screen.getByLabelText("Implementation guidance"), {
+        target: { value: "New" },
+      });
+      fireEvent.change(screen.getByLabelText("Implementation guidance"), {
+        target: { value: "" },
+      });
+      selectTab("Content");
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+      const cleared = mockEditMutate.mock.calls[1][0].definition;
+      expect(cleared.sessionRoleGuidance).toEqual(
+        sessionRoleGuidance?.review ? { review: "Review" } : undefined,
+      );
+    },
+  );
+
   it("submits maintenance advice as its own optional definition field", () => {
     renderForm();
     fillField("wit-form-key", "marketing");

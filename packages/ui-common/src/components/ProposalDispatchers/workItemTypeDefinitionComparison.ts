@@ -1,3 +1,4 @@
+import { SessionRole } from "../../api";
 import type {
   WorkItemTypeDefinitionDto,
   WorkItemTypeSectionDefinition,
@@ -84,6 +85,12 @@ function definitionFields(
           }),
     },
     "Maintenance guidance": d.maintenanceGuidance ?? "",
+    ...Object.fromEntries(
+      Object.values(SessionRole).map((role) => [
+        `Session-role guidance — ${role}`,
+        d.sessionRoleGuidance?.[role] ?? "",
+      ]),
+    ),
     "Required scalars": d.requiredScalars ?? [],
     "Forbidden scalars": d.forbiddenScalars ?? [],
     "Allowed statuses": d.allowedStatuses,

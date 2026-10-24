@@ -27,8 +27,6 @@ export {
   invalidateProjectWorkItemQueries,
 } from "./query/dataLayerInvalidation";
 export { DataHooksProvider } from "./DataHooksProvider";
-export { QueryMountPolicyProvider } from "./core/queryMountPolicy";
-export type { QueryMountPolicy } from "./core/queryMountPolicyContext";
 export {
   buildCrossProjectActivityRequest,
   activityKeys,

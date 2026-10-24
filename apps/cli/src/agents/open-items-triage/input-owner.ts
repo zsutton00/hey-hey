@@ -30,6 +30,7 @@ import {
   trackedSchema,
 } from './input-schemas';
 import { reduceConnections, type Connection } from './relationships';
+import type { TriageInputDiagnostics } from './input-diagnostics';
 
 export interface EvidenceLimit {
   scope: string;
@@ -75,6 +76,7 @@ export class TriageInputOwner {
     private readonly projectId: string,
     private readonly accessToken: string,
     private readonly now: number,
+    private readonly diagnostics?: TriageInputDiagnostics,
   ) {
     this.base = `${deps.apiBaseUrl}/organizations/${encodeURIComponent(organizationId)}/projects/${encodeURIComponent(projectId)}`;
   }
@@ -86,6 +88,7 @@ export class TriageInputOwner {
       headers: { Authorization: `Bearer ${this.accessToken}` },
     });
     if (!response.ok) {
+      this.diagnostics?.record(url, response.status);
       this.deps.logger.debug('open_items_triage.read.http_failed', {
         path: new URL(url).pathname,
         status: response.status,
@@ -93,6 +96,7 @@ export class TriageInputOwner {
       throw new Error(`Read failed (${response.status}).`);
     }
     const data = envelopeSchema.parse(await response.json()).data;
+    this.diagnostics?.record(url, response.status, data);
     this.deps.logger.debug('open_items_triage.read.completed', { path: new URL(url).pathname });
     return data;
   }

@@ -21,6 +21,7 @@ vi.mock("@hey-hey/ui-common/components", async () => {
   >("@hey-hey/ui-common/components");
   return {
     Card: actual.Card,
+    isWorkflowFlowRelationship: actual.isWorkflowFlowRelationship,
     EntityIcon: ({ entityType }: { entityType: string }) => (
       <span data-testid="entity-icon" data-entity-type={entityType}>
         {entityType}
@@ -96,7 +97,7 @@ const buildRelated = (
   displayName: string,
   relationship = "RELATED_TO",
   source?: EdgeSource,
-  taskType?: string
+  taskType?: string,
 ): ContextRelatedEntityDto => ({
   entityId,
   entityType,
@@ -110,7 +111,7 @@ const buildInfluence = (
   entityId: string,
   entityType: string,
   entityTitle: string | null = null,
-  reasonType = "explicit_mention"
+  reasonType = "explicit_mention",
 ): Influence => ({
   entityId,
   entityType: entityType as Influence["entityType"],
@@ -120,7 +121,7 @@ const buildInfluence = (
 });
 
 const buildProposal = (
-  overrides: Partial<ProposalResponseDto> = {}
+  overrides: Partial<ProposalResponseDto> = {},
 ): ProposalResponseDto =>
   ({
     id: overrides.id ?? "proposal-1",
@@ -138,10 +139,10 @@ const buildProposal = (
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
     ...overrides,
-  } as unknown as ProposalResponseDto);
+  }) as unknown as ProposalResponseDto;
 
 const buildProposalSummary = (
-  overrides: Partial<ContextProposalSummaryDto> = {}
+  overrides: Partial<ContextProposalSummaryDto> = {},
 ): ContextProposalSummaryDto =>
   ({
     id: overrides.id ?? "proposal-summary-1",
@@ -160,7 +161,7 @@ const buildProposalSummary = (
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
     ...overrides,
-  } as unknown as ContextProposalSummaryDto);
+  }) as unknown as ContextProposalSummaryDto;
 
 const conversationPathForId = (conversationId: string): string =>
   WebPathService.conversation({ projectId: "project-1", conversationId });
@@ -184,7 +185,7 @@ const renderCard = ({
         conversationPathForId={conversationPathForId}
         dataTestId={dataTestId}
       />
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 };
 
@@ -217,7 +218,7 @@ describe("HistoryCard", () => {
 
       expect(screen.getByTestId("history-card-origin")).toHaveAttribute(
         "href",
-        "/projects/project-1/resolve-agent-session/conv-summary-origin"
+        "/projects/project-1/resolve-agent-session/conv-summary-origin",
       );
     });
 
@@ -232,12 +233,12 @@ describe("HistoryCard", () => {
       renderCard({ proposals: [proposal] });
 
       expect(
-        screen.getByTestId("history-card-section-origin")
+        screen.getByTestId("history-card-section-origin"),
       ).toBeInTheDocument();
       const row = screen.getByTestId("history-card-origin");
       expect(row).toHaveAttribute(
         "href",
-        "/projects/project-1/resolve-agent-session/conv-origin"
+        "/projects/project-1/resolve-agent-session/conv-origin",
       );
     });
 
@@ -257,7 +258,7 @@ describe("HistoryCard", () => {
       const label = screen.getByTestId("history-card-origin-label");
       expect(label).toHaveTextContent("Conversation about Tasks UI");
       expect(screen.getByTestId("history-card-origin-about")).toHaveTextContent(
-        "Tasks UI"
+        "Tasks UI",
       );
     });
 
@@ -272,7 +273,7 @@ describe("HistoryCard", () => {
       renderCard({ proposals: [proposal] });
 
       expect(screen.getByTestId("history-card-origin-label")).toHaveTextContent(
-        `Conversation about ${TERMS.Task}`
+        `Conversation about ${TERMS.Task}`,
       );
     });
 
@@ -290,7 +291,7 @@ describe("HistoryCard", () => {
       expect(label).toHaveTextContent("Conversation");
       expect(label).not.toHaveTextContent("about");
       expect(
-        screen.queryByTestId("history-card-origin-about")
+        screen.queryByTestId("history-card-origin-about"),
       ).not.toBeInTheDocument();
     });
 
@@ -304,7 +305,7 @@ describe("HistoryCard", () => {
       renderCard({ proposals: [proposal] });
 
       expect(
-        screen.queryByTestId("history-card-section-origin")
+        screen.queryByTestId("history-card-section-origin"),
       ).not.toBeInTheDocument();
     });
   });
@@ -335,7 +336,7 @@ describe("HistoryCard", () => {
       const row = screen.getByTestId("history-card-last-updated");
       expect(row).toHaveAttribute(
         "href",
-        "/projects/project-1/resolve-agent-session/conv-update-latest"
+        "/projects/project-1/resolve-agent-session/conv-update-latest",
       );
     });
 
@@ -359,7 +360,7 @@ describe("HistoryCard", () => {
             "initiative-source",
             "INITIATIVE",
             "Onboarding",
-            "origin"
+            "origin",
           ),
         ],
       });
@@ -367,10 +368,10 @@ describe("HistoryCard", () => {
       renderCard({ proposals: [create, latestUpdate] });
 
       expect(
-        screen.getByTestId("history-card-last-updated-label")
+        screen.getByTestId("history-card-last-updated-label"),
       ).toHaveTextContent("Conversation about Onboarding");
       expect(screen.getByTestId("history-card-origin-label")).toHaveTextContent(
-        "Conversation about Feature Page"
+        "Conversation about Feature Page",
       );
     });
 
@@ -391,7 +392,7 @@ describe("HistoryCard", () => {
       renderCard({ proposals: [create, update] });
 
       expect(
-        screen.queryByTestId("history-card-section-last-updated")
+        screen.queryByTestId("history-card-section-last-updated"),
       ).not.toBeInTheDocument();
     });
 
@@ -405,7 +406,7 @@ describe("HistoryCard", () => {
       renderCard({ proposals: [create] });
 
       expect(
-        screen.queryByTestId("history-card-section-last-updated")
+        screen.queryByTestId("history-card-section-last-updated"),
       ).not.toBeInTheDocument();
     });
   });
@@ -418,13 +419,13 @@ describe("HistoryCard", () => {
             "task-pt",
             "TASK",
             "Co-Proposed Task",
-            "proposed-together"
+            "proposed-together",
           ),
         ],
       });
 
       const section = screen.getByTestId(
-        "history-card-section-proposed-together"
+        "history-card-section-proposed-together",
       );
       expect(within(section).getByText("Co-Proposed Task")).toBeInTheDocument();
     });
@@ -437,7 +438,7 @@ describe("HistoryCard", () => {
       });
 
       expect(
-        screen.queryByTestId("history-card-section-proposed-together")
+        screen.queryByTestId("history-card-section-proposed-together"),
       ).not.toBeInTheDocument();
       expect(screen.queryByText("Task One")).not.toBeInTheDocument();
     });
@@ -451,7 +452,7 @@ describe("HistoryCard", () => {
       });
 
       const section = screen.getByTestId(
-        "history-card-section-proposed-together"
+        "history-card-section-proposed-together",
       );
       const row = within(section).getByTestId("history-card-row-task-multi");
       expect(row).toBeInTheDocument();
@@ -460,13 +461,13 @@ describe("HistoryCard", () => {
       expect(chips[0]).toHaveTextContent("Created together");
       expect(chips[1]).toHaveTextContent("Depends on");
       expect(chips[0].closest(".MuiChip-root")).toHaveClass(
-        "MuiChip-colorDefault"
+        "MuiChip-colorDefault",
       );
       expect(chips[1].closest(".MuiChip-root")).toHaveClass(
-        "MuiChip-colorWarning"
+        "MuiChip-colorWarning",
       );
       expect(screen.getAllByTestId("history-card-row-task-multi")).toHaveLength(
-        1
+        1,
       );
     });
 
@@ -477,22 +478,22 @@ describe("HistoryCard", () => {
             "task-sib",
             "TASK",
             "Sibling Task",
-            "sibling-via-parent"
+            "sibling-via-parent",
           ),
           buildRelated(
             "task-pt",
             "TASK",
             "Co-Proposed Task",
-            "proposed-together"
+            "proposed-together",
           ),
         ],
       });
 
       const ptSection = screen.getByTestId(
-        "history-card-section-proposed-together"
+        "history-card-section-proposed-together",
       );
       expect(
-        within(ptSection).getByText("Co-Proposed Task")
+        within(ptSection).getByText("Co-Proposed Task"),
       ).toBeInTheDocument();
       expect(screen.queryByText("Sibling Task")).not.toBeInTheDocument();
     });

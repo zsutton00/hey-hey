@@ -4978,6 +4978,25 @@ describe('ProposalValidationEngine', () => {
           ),
         ).toEqual([]);
       });
+      it.each([
+        {},
+        { review: '  Review advice  ' },
+        { implementation: 'Build', research: 'Learn', planning: 'Plan' },
+      ])(
+        'accepts optional role advice on definition proposals: %j',
+        async (sessionRoleGuidance) => {
+          const result = await engine.validate({
+            proposals: [makeCreateWorkItemTypeDto({ sessionRoleGuidance })],
+            context: makeContext(),
+          });
+          expect(
+            result.proposals[0]!.errors.filter(
+              (error) => error.layer === 'structural',
+            ),
+          ).toEqual([]);
+        },
+      );
+
       it('accepts maintenance advice on definition proposals', async () => {
         const result = await engine.validate({
           proposals: [

@@ -565,6 +565,7 @@ export const GoalPage: React.FC<GoalPageProps> = ({
     error: taskError,
   } = useTaskHierarchy(organizationId, projectId ?? "", taskId ?? "", {
     enabled: !!organizationId && !!projectId && !!taskId,
+    refetchOnMount: true,
   });
 
   const { workItem: goalWorkItem, refetch: refetchGoalWorkItem } = useWorkItem(
@@ -574,6 +575,7 @@ export const GoalPage: React.FC<GoalPageProps> = ({
     {
       projectId,
       enabled: !!organizationId && !!projectId && !!taskId,
+      refetchOnMount: true,
       preferStale: true,
     },
   );

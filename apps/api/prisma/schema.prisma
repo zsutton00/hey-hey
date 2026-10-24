@@ -4570,6 +4570,7 @@ model WorkItemType {
   anchorableReportTypes Json    @map("anchorable_report_types")
   writingStandards      Json    @map("writing_standards")
   agentGuidance         Json?   @map("agent_guidance")
+  sessionRoleGuidance   Json?   @map("session_role_guidance")
   maintenanceGuidance   String? @map("maintenance_guidance")
   acceptedConfigKinds   Json    @map("accepted_config_kinds")
 
@@ -4607,6 +4608,7 @@ model WorkItemTypeTemplate {
   anchorableReportTypes Json     @map("anchorable_report_types")
   writingStandards      Json     @map("writing_standards")
   agentGuidance         Json?    @map("agent_guidance")
+  sessionRoleGuidance   Json?    @map("session_role_guidance")
   maintenanceGuidance   String?  @map("maintenance_guidance")
   acceptedConfigKinds   Json     @map("accepted_config_kinds")
   capabilities          Json     @map("capabilities")

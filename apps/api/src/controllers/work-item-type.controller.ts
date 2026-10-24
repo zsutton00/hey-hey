@@ -1,3 +1,5 @@
+import { SessionRole } from '../generated/model/sessionRole';
+import type { WorkItemTypeRoleGuidanceDto } from '../generated/model/workItemTypeRoleGuidanceDto';
 import { ProjectAccessGuard } from '../auth/guards/project-access.guard';
 import {
   BadRequestException,
@@ -43,6 +45,7 @@ import {
   IsOptional,
   IsString,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import type { Request } from 'express';
 import { WorkItemTypeLifecycleStatus } from '../generated/model/workItemTypeLifecycleStatus';
@@ -89,6 +92,18 @@ export class WorkItemTypeGuidanceQueryDto {
   @IsEnum(WorkItemTypeGuidancePurpose)
   purpose?: WorkItemTypeGuidancePurpose;
 
+  @ApiPropertyOptional({
+    enum: SessionRole,
+    description: 'Required for purpose role; no default.',
+  })
+  @ValidateIf(
+    (request: WorkItemTypeGuidanceQueryDto) =>
+      request.purpose === WorkItemTypeGuidancePurpose.Role ||
+      request.sessionRole !== undefined,
+  )
+  @IsEnum(SessionRole)
+  sessionRole?: SessionRole;
+
   @IsOptional()
   @IsString()
   @IsNotEmpty()
@@ -116,6 +131,18 @@ export class WorkItemTypeGuidanceBatchRequestDto
   @IsOptional()
   @IsEnum(WorkItemTypeGuidancePurpose)
   purpose?: WorkItemTypeGuidancePurpose;
+
+  @ApiPropertyOptional({
+    enum: SessionRole,
+    description: 'Required for purpose role; no default.',
+  })
+  @ValidateIf(
+    (request: WorkItemTypeGuidanceQueryDto) =>
+      request.purpose === WorkItemTypeGuidancePurpose.Role ||
+      request.sessionRole !== undefined,
+  )
+  @IsEnum(SessionRole)
+  sessionRole?: SessionRole;
 
   @ApiPropertyOptional({ type: String })
   @IsOptional()
@@ -281,6 +308,12 @@ export class WorkItemTypeController {
 
   @Get(':typeKey/guidance')
   @ApiOperation({ summary: 'Read contextual work-item type guidance' })
+  @ApiQuery({
+    name: 'sessionRole',
+    required: false,
+    enum: SessionRole,
+    description: 'Required when purpose is role; no default.',
+  })
   @ApiQuery({ name: 'focalTypeKey', required: false, type: String })
   @ApiQuery({
     name: 'purpose',
@@ -303,7 +336,11 @@ export class WorkItemTypeController {
       }),
     )
     query: WorkItemTypeGuidanceQueryDto,
-  ): Promise<WorkItemTypeGuidanceDto | WorkItemTypeMaintenanceGuidanceDto> {
+  ): Promise<
+    | WorkItemTypeGuidanceDto
+    | WorkItemTypeMaintenanceGuidanceDto
+    | WorkItemTypeRoleGuidanceDto
+  > {
     if (!(await this.projectService.findOne(projectId, organizationId))) {
       throw new NotFoundException('Project not found or not accessible.');
     }
@@ -312,6 +349,7 @@ export class WorkItemTypeController {
       typeKey,
       query.focalTypeKey,
       query.purpose,
+      query.sessionRole,
     );
   }
 

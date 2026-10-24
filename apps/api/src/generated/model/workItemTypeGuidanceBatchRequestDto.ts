@@ -11,11 +11,14 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
+import { WorkItemTypeGuidanceBatchRequestDtoAnyOf1 } from './workItemTypeGuidanceBatchRequestDtoAnyOf1';
 import { WorkItemTypeGuidancePurpose } from './workItemTypeGuidancePurpose';
+import { WorkItemTypeGuidanceBatchRequestDtoAnyOf } from './workItemTypeGuidanceBatchRequestDtoAnyOf';
+import { SessionRole } from './sessionRole';
 
 
 /**
- * A bounded batch of project-scoped guidance reads sharing one purpose and optional focal type.
+ * A bounded batch sharing one purpose and optional semantic focal type. Purpose role requires sessionRole explicitly; the mode-settings default does not apply. Role reads ignore focalTypeKey.
  */
 export interface WorkItemTypeGuidanceBatchRequestDto { 
     /**
@@ -23,6 +26,7 @@ export interface WorkItemTypeGuidanceBatchRequestDto {
      */
     typeKeys: Array<string>;
     purpose?: WorkItemTypeGuidancePurpose;
+    sessionRole?: SessionRole;
     focalTypeKey?: string;
 }
 export namespace WorkItemTypeGuidanceBatchRequestDto {

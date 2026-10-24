@@ -236,6 +236,31 @@ export function installOpenItemsTestRuntime() {
       );
     },
   );
+  vi.spyOn(api, "removeOpenItems").mockImplementation(
+    async ({ projectId, removeOpenItemsRequest: request }) => {
+      const value = collection(projectId);
+      const roots = new Set(request.items.map(refKey));
+      const affected = value.items.filter(
+        (item) =>
+          roots.has(refKey(item)) ||
+          (request.includeDescendants &&
+            !item.pinned &&
+            !item.groupId &&
+            item.lineage.some((entry) => roots.has(refKey(entry)))),
+      );
+      value.items = value.items.filter((item) => !affected.includes(item));
+      return response(
+        result(
+          projectId,
+          affected.map((item) => ({
+            ...item,
+            removedAt: now,
+            revision: item.revision + 1,
+          })),
+        ),
+      );
+    },
+  );
   const assign = (
     projectId: string,
     ids: readonly Pick<OpenItem, "entityType" | "entityId">[],

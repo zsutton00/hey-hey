@@ -275,6 +275,7 @@ export const makeTestTurn = (
 ): Turn => {
   const owner = makeTestRun();
   const turn = new Turn({
+    effectiveRole: 'implementation',
     turnId,
     runId: owner.runId,
     resolvedPrompt: '',

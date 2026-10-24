@@ -1,3 +1,4 @@
+import { SessionRole } from "../../api";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import {
   Accordion,
@@ -160,7 +161,7 @@ export const WorkItemTypeCreateRenderer: React.FC<{
   const { updates } = proposal;
   const { manageWorkItemTypes } = useProjectCapabilities(
     proposal.organizationId,
-    proposal.projectId
+    proposal.projectId,
   );
   const isRestoration =
     !isPlaceholderEntityId(proposal.targetEntityId) &&
@@ -175,7 +176,7 @@ export const WorkItemTypeCreateRenderer: React.FC<{
   const anchorableReportTypes = updates.anchorableReportTypes ?? [];
   const edgeTargets = updates.edgeTargets ?? [];
   const capabilities = Object.entries(updates.capabilities ?? {}).filter(
-    ([, value]) => value !== undefined
+    ([, value]) => value !== undefined,
   );
   const { tracking, writingStandards } = updates;
 
@@ -205,7 +206,7 @@ export const WorkItemTypeCreateRenderer: React.FC<{
           typePresentation={staticProposalTypePresentation(
             "Work Item Type",
             undefined,
-            resolveWorkItemTypeColors(updates.key, updates, "PROJECT_CUSTOM")
+            resolveWorkItemTypeColors(updates.key, updates, "PROJECT_CUSTOM"),
           )}
           hideTypeChip={overrides?.hideTypeChip}
           titleSx={
@@ -403,6 +404,27 @@ export const WorkItemTypeCreateRenderer: React.FC<{
               </Group>
             )}
 
+            {updates.sessionRoleGuidance && (
+              <Box data-testid="work-item-type-create-role-guidance">
+                <Typography variant="subtitle2">
+                  Session-role guidance
+                </Typography>
+                {Object.values(SessionRole).map(
+                  (role) =>
+                    updates.sessionRoleGuidance?.[role] !== undefined && (
+                      <Box key={role} sx={{ mt: 1 }}>
+                        <Typography variant="subtitle2">{role}</Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{ whiteSpace: "pre-wrap" }}
+                        >
+                          {updates.sessionRoleGuidance[role]}
+                        </Typography>
+                      </Box>
+                    ),
+                )}
+              </Box>
+            )}
             {updates.agentGuidance && (
               <Group
                 title="Semantic guidance"
@@ -431,7 +453,7 @@ export const WorkItemTypeCreateRenderer: React.FC<{
                                   {example.guidance}
                                 </MarkdownRenderer>
                               </Box>
-                            )
+                            ),
                           )}
                         </Stack>
                       </AxisBlock>
@@ -465,13 +487,13 @@ export const WorkItemTypeCreateRenderer: React.FC<{
                                                 {example.guidance}
                                               </MarkdownRenderer>
                                             </Box>
-                                          )
+                                          ),
                                         )}
                                       </Stack>
                                     </AxisBlock>
                                   )}
                               </Box>
-                            )
+                            ),
                           )}
                         </Stack>
                       </AxisBlock>
@@ -489,7 +511,7 @@ export const WorkItemTypeCreateRenderer: React.FC<{
                   <AxisBlock label="Allowed Source Entity Types">
                     <ChipRow
                       values={tracking.allowedSourceEntityTypes.map(
-                        humanizeKey
+                        humanizeKey,
                       )}
                     />
                   </AxisBlock>

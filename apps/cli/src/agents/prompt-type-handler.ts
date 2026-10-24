@@ -1,3 +1,5 @@
+import { projectModeSettingsJsonSchema } from '../generated/project-mode-contract.schema';
+import type { SessionRole } from '../shared/agent-bridge-contract/generated/api';
 import type { LocalPromptType } from '../shared/agent-bridge-contract/generated';
 import type { AgenticSession } from '../session/types';
 import type { RunStore } from '../run-store/run-store';
@@ -416,6 +418,8 @@ export interface ReportSpec {
 }
 
 export interface PromptTypeHandler<TPayload> {
+  readonly sessionRole?: SessionRole;
+  resolveSessionRole?(session: AgenticSession): SessionRole;
   /**
    * Stable identity of this logical agent. A Run persists this value as the
    * owner of its current provider session; promptType is routing metadata and
@@ -854,4 +858,16 @@ export interface UserLaunchablePromptTypeHandler<
   TPayload extends { userMessage?: string },
 > extends PromptTypeHandler<TPayload> {
   addUserMessage(payload: TPayload): string | null;
+}
+
+/** Resolve only the executing handler; selected modes never set a Run-wide role. */
+export function resolveHandlerSessionRole<TPayload>(
+  handler: PromptTypeHandler<TPayload>,
+  session: AgenticSession,
+): SessionRole {
+  return (
+    handler.resolveSessionRole?.(session) ??
+    handler.sessionRole ??
+    projectModeSettingsJsonSchema.properties.sessionRole.default
+  );
 }

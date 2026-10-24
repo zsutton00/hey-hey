@@ -123,10 +123,22 @@ const materializedRequirements = (
 
 const existingRecords = [
   requirement(id("1"), "One", "Access", {
-    fulfilledBy: [{ entityType: "TASK", entityId: id("2"), entityTitle: `Title ${id("2")}` }],
+    fulfilledBy: [
+      {
+        entityType: "TASK",
+        entityId: id("2"),
+        entityTitle: `Title ${id("2")}`,
+      },
+    ],
   }),
   requirement(id("3"), "Two", "Billing", {
-    fulfilledBy: [{ entityType: "TASK", entityId: id("4"), entityTitle: `Title ${id("4")}` }],
+    fulfilledBy: [
+      {
+        entityType: "TASK",
+        entityId: id("4"),
+        entityTitle: `Title ${id("4")}`,
+      },
+    ],
   }),
 ];
 
@@ -184,7 +196,13 @@ describe("TaskUpdateRenderer structured requirements", () => {
     renderProposal(
       makeProposal([
         requirement(id("1"), "One updated", "Identity", {
-          fulfilledBy: [{ entityType: "PLAN", entityId: id("5"), entityTitle: `Title ${id("5")}` }],
+          fulfilledBy: [
+            {
+              entityType: "PLAN",
+              entityId: id("5"),
+              entityTitle: `Title ${id("5")}`,
+            },
+          ],
         }),
         existingRecords[1],
       ]),
@@ -208,14 +226,18 @@ describe("TaskUpdateRenderer structured requirements", () => {
 
   it("uses stored UUIDs for added, removed, and reordered records", () => {
     const added = requirement(id("a"), "Three added", "Billing");
-    renderProposal(makeProposal([existingRecords[1], added, existingRecords[0]]));
+    renderProposal(
+      makeProposal([existingRecords[1], added, existingRecords[0]]),
+    );
 
     const diff = screen.getByTestId("structured-requirements-diff");
     expect(
       diff.querySelector(`[data-requirement-id="${added.id}"]`),
     ).toHaveAttribute("data-requirement-change", "added");
 
-    fireEvent.click(screen.getByTestId("structured-requirements-diff-show-all"));
+    fireEvent.click(
+      screen.getByTestId("structured-requirements-diff-show-all"),
+    );
     expect(
       diff.querySelector(`[data-requirement-id="${existingRecords[0].id}"]`),
     ).toHaveAttribute("data-requirement-change", "unchanged");
@@ -233,11 +255,13 @@ describe("TaskUpdateRenderer structured requirements", () => {
     omitted.unmount();
 
     renderProposal(makeProposal([]));
-    expect(screen.getByTestId("structured-requirements-diff")).toBeInTheDocument();
     expect(
-      screen.getByTestId("structured-requirements-proposed").querySelector(
-        '[data-testid="structured-requirements"]',
-      ),
+      screen.getByTestId("structured-requirements-diff"),
+    ).toBeInTheDocument();
+    expect(
+      screen
+        .getByTestId("structured-requirements-proposed")
+        .querySelector('[data-testid="structured-requirements"]'),
     ).toHaveAttribute("data-requirement-count", "0");
   });
 
@@ -248,7 +272,9 @@ describe("TaskUpdateRenderer structured requirements", () => {
     ];
     renderProposal(proposal);
 
-    expect(screen.getByTestId("feature-requirements-invalid")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("feature-requirements-invalid"),
+    ).toBeInTheDocument();
     expect(screen.queryByText("legacy markdown")).not.toBeInTheDocument();
   });
 
@@ -364,7 +390,9 @@ describe("TaskUpdateRenderer structured requirements", () => {
         ]),
       );
 
-      const toggle = screen.getByTestId("structured-requirements-diff-show-all");
+      const toggle = screen.getByTestId(
+        "structured-requirements-diff-show-all",
+      );
       expect(toggle).toHaveTextContent("Show all");
       expect(
         screen.getByTestId("structured-requirements-diff").lastElementChild,
@@ -378,7 +406,9 @@ describe("TaskUpdateRenderer structured requirements", () => {
 
       fireEvent.click(toggle);
       expect(proposed).not.toHaveTextContent("Two");
-      expect(hiddenCounts(proposed)).toEqual(["1 unchanged requirement hidden"]);
+      expect(hiddenCounts(proposed)).toEqual([
+        "1 unchanged requirement hidden",
+      ]);
     });
 
     it("shows no count or control when nothing is unchanged", () => {
@@ -408,7 +438,9 @@ describe("TaskUpdateRenderer structured requirements", () => {
       ];
       renderProposal(proposal);
 
-      expect(screen.getByTestId("feature-requirements-invalid")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("feature-requirements-invalid"),
+      ).toBeInTheDocument();
       expect(
         screen.queryByTestId("structured-requirements-diff-show-all"),
       ).not.toBeInTheDocument();

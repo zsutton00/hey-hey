@@ -18,6 +18,25 @@ const current: WorkItemTypeDefinitionDto = {
 };
 
 describe("complete type definition comparison", () => {
+  it("shows independent role additions, edits and removals", () => {
+    const before = {
+      ...current,
+      sessionRoleGuidance: { implementation: "Old", review: "Check" },
+    };
+    const after = {
+      ...current,
+      sessionRoleGuidance: { implementation: "New", research: "Learn" },
+    };
+    expect(compareWorkItemTypeDefinitions(before, after).fields).toEqual([
+      {
+        label: "Session-role guidance — implementation",
+        before: "Old",
+        after: "New",
+      },
+      { label: "Session-role guidance — research", before: "", after: "Learn" },
+      { label: "Session-role guidance — review", before: "Check", after: "" },
+    ]);
+  });
   it("shows maintenance advice separately from semantic and authoring guidance", () => {
     const addition = compareWorkItemTypeDefinitions(current, {
       ...current,
@@ -34,8 +53,8 @@ describe("complete type definition comparison", () => {
     expect(
       compareWorkItemTypeDefinitions(
         { ...current, maintenanceGuidance: "Old advice" },
-        current
-      ).fields
+        current,
+      ).fields,
     ).toEqual([
       { label: "Maintenance guidance", before: "Old advice", after: "" },
     ]);
@@ -73,7 +92,7 @@ describe("complete type definition comparison", () => {
     };
     const source = { ...current, agentGuidance: guidance };
     expect(
-      compareWorkItemTypeDefinitions(source, structuredClone(source)).fields
+      compareWorkItemTypeDefinitions(source, structuredClone(source)).fields,
     ).toEqual([]);
     expect(
       compareWorkItemTypeDefinitions(source, {
@@ -82,7 +101,7 @@ describe("complete type definition comparison", () => {
           ...guidance,
           contexts: [{ ...guidance.contexts[0], focalTypeKeys: ["B", "A"] }],
         },
-      }).fields
+      }).fields,
     ).toEqual([]);
     const addition = compareWorkItemTypeDefinitions(current, source).fields[0];
     expect(addition.label).toBe("Semantic guidance");
@@ -180,7 +199,10 @@ describe("complete type definition comparison", () => {
         ...current,
         capabilities: { planEligible: true, requiresParent: true },
       },
-      { ...current, capabilities: { requiresParent: true, planEligible: true } }
+      {
+        ...current,
+        capabilities: { requiresParent: true, planEligible: true },
+      },
     );
     expect(result.fields).toEqual([]);
   });
@@ -215,10 +237,10 @@ describe("complete type definition comparison", () => {
       compareWorkItemTypeDefinitions(current, {
         ...current,
         sections: [current.sections[0], current.sections[0]],
-      })
+      }),
     ).toThrow();
     expect(() =>
-      compareWorkItemTypeDefinitions(current, { ...current, key: "OTHER" })
+      compareWorkItemTypeDefinitions(current, { ...current, key: "OTHER" }),
     ).toThrow();
   });
 });

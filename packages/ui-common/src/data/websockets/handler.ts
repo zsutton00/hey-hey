@@ -4,7 +4,7 @@ import type {
   QueryClient,
   QueryKey as TanStackQueryKey,
 } from "@tanstack/react-query";
-import { createStore, getDefaultStore } from "jotai/vanilla";
+import { createStore } from "jotai/vanilla";
 import {
   WebSocketSubscriptionRequestEventTypesEnum,
   type EvalAttemptUpdatedEvent,
@@ -218,13 +218,13 @@ type WebSocketEventUnion =
 export class WebSocketHandler {
   private store: Store;
   private debuggerInstance?: typeof webSocketDebugger;
-  private queryClient?: QueryClient;
+  private queryClient: QueryClient;
   private authUnsubscribe?: () => void;
 
   constructor(
     store: Store, // REQUIRED - no default
-    debuggerInstance?: typeof webSocketDebugger,
-    queryClient?: QueryClient,
+    debuggerInstance: typeof webSocketDebugger | undefined,
+    queryClient: QueryClient,
   ) {
     if (!store) {
       throw new Error("WebSocketHandler requires a store instance");
@@ -278,76 +278,24 @@ export class WebSocketHandler {
     projectId: string,
     dataset: "currentState" | "outputAttention",
   ): Promise<void> {
-    const queryClient = this.requireQueryClient("agent session live state");
-    if (!queryClient) return Promise.resolve();
     // Keys are [root, org, project, "session", id, dataset].
-    return invalidateWithFollowUpRead(queryClient, {
+    return invalidateWithFollowUpRead(this.queryClient, {
       queryKey: agentSessionKeys.project(organizationId, projectId),
       predicate: ({ queryKey }) => queryKey[5] === dataset,
     });
   }
 
-  private requireQueryClient(dataset: string): QueryClient | undefined {
-    if (!this.queryClient) {
-      logger.warn(
-        "data_websockets",
-        "[WebSocketHandler] No QueryClient; TanStack-backed data was not updated",
-        { dataset },
-      );
-    }
-    return this.queryClient;
-  }
-
   /** Conversation envelopes and the lists holding the conversation. */
   private invalidateConversation = (conversationId: string): void => {
-    if (!this.queryClient) {
-      logger.warn(
-        "data_websockets",
-        "[WebSocketHandler] No QueryClient; conversation was not invalidated",
-        { conversationId },
-      );
-      return;
-    }
     void invalidateConversation(this.queryClient, conversationId);
   };
 
   /** Invalidates a TanStack key prefix; only mounted queries re-read. */
   private invalidateQueryKey = (queryKey: TanStackQueryKey): void => {
-    if (!this.queryClient) {
-      logger.warn(
-        "data_websockets",
-        "[WebSocketHandler] No QueryClient; TanStack-backed data was not invalidated",
-        { queryKey },
-      );
-      return;
-    }
     void this.queryClient.invalidateQueries({ queryKey });
   };
 
-  private withQueryClient(
-    eventType: string,
-    apply: (queryClient: QueryClient) => Promise<void>,
-  ): void {
-    if (!this.queryClient) {
-      logger.warn(
-        "data_websockets",
-        "[WebSocketHandler] No QueryClient; event was not applied",
-        { eventType },
-      );
-      return;
-    }
-    void apply(this.queryClient);
-  }
-
   private invalidateQueryFilters = (filters: InvalidateQueryFilters): void => {
-    if (!this.queryClient) {
-      logger.warn(
-        "data_websockets",
-        "[WebSocketHandler] No QueryClient; TanStack-backed data was not invalidated",
-        { queryKey: filters.queryKey },
-      );
-      return;
-    }
     void invalidateWithFollowUpRead(this.queryClient, filters);
   };
 
@@ -359,14 +307,6 @@ export class WebSocketHandler {
     organizationId: string,
     taskId: string,
   ): void => {
-    if (!this.queryClient) {
-      logger.warn(
-        "data_websockets",
-        "[WebSocketHandler] No QueryClient; work item was not invalidated",
-        { organizationId, taskId },
-      );
-      return;
-    }
     void invalidateWorkItemHolders(this.queryClient, organizationId, taskId);
   };
 
@@ -376,25 +316,14 @@ export class WebSocketHandler {
     eventType: string,
     taskId: string,
   ): void {
-    if (this.queryClient) {
-      void invalidateProjectWorkItemQueries(
-        this.queryClient,
-        organizationId,
-        projectId,
-        taskId || undefined,
-      );
-    } else {
-      logger.warn(
-        "data_websockets",
-        "[WebSocketHandler] No QueryClient; work-item references, feature content and lists were not invalidated",
-        { eventType, organizationId, projectId, taskId },
-      );
-    }
+    void invalidateProjectWorkItemQueries(
+      this.queryClient,
+      organizationId,
+      projectId,
+      taskId || undefined,
+    );
 
-    this.debugger.logCollectionAction(
-      "workItemReferences",
-      "MARK_STALE_BY_KEY_STRINGS",
-      `${eventType}:${taskId}`,
+    this.debugger.logQueryInvalidation("workItemReferences", `${eventType}:${taskId}`,
       {
         eventType,
         reason:
@@ -514,7 +443,6 @@ export class WebSocketHandler {
       data: event,
       metadata: {
         success: true, // Will be updated if there's an error
-        collectionName: "initiatives",
       },
     });
 
@@ -631,14 +559,10 @@ export class WebSocketHandler {
           this.handleSystemNotification(event);
           break;
         case WebSocketSubscriptionRequestEventTypesEnum.EvalRunUpdated:
-          this.withQueryClient(event.type, (queryClient) =>
-            applyEvalRunUpdated(queryClient, event),
-          );
+          void applyEvalRunUpdated(this.queryClient, event);
           break;
         case WebSocketSubscriptionRequestEventTypesEnum.EvalAttemptUpdated:
-          this.withQueryClient(event.type, (queryClient) =>
-            applyEvalAttemptUpdated(queryClient, event),
-          );
+          void applyEvalAttemptUpdated(this.queryClient, event);
           break;
       }
 
@@ -651,7 +575,6 @@ export class WebSocketHandler {
         metadata: {
           success: true,
           duration,
-          collectionName: "initiatives",
         },
       });
     } catch (error) {
@@ -665,7 +588,6 @@ export class WebSocketHandler {
           success: false,
           duration,
           error: error instanceof Error ? error.message : "Unknown error",
-          collectionName: "initiatives",
         },
       });
 
@@ -681,16 +603,14 @@ export class WebSocketHandler {
       { initiativeId: event.initiativeId },
     );
 
-    const client = this.requireQueryClient("initiatives");
-    if (client)
-      void invalidateInitiativeChange(
-        client,
-        event.organizationId,
-        event.projectId,
-        event.initiativeId,
-      );
+    void invalidateInitiativeChange(
+      this.queryClient,
+      event.organizationId,
+      event.projectId,
+      event.initiativeId,
+    );
 
-    this.debugger.logCollectionAction("initiatives", "NEW_ITEM", "new-item", {
+    this.debugger.logQueryInvalidation("initiatives", "new-item", {
       eventType: "initiative.created",
       reason: "New initiative created, invalidating list scopes",
       organizationId: event.organizationId,
@@ -723,14 +643,12 @@ export class WebSocketHandler {
     }
 
     const changedFields = event.changedFields || [];
-    const client = this.requireQueryClient("initiatives");
-    if (client)
-      void invalidateInitiativeChange(
-        client,
-        event.organizationId,
-        event.projectId,
-        event.initiativeId,
-      );
+    void invalidateInitiativeChange(
+      this.queryClient,
+      event.organizationId,
+      event.projectId,
+      event.initiativeId,
+    );
     this.dispatchRelationshipInvalidations("Initiative", "update", {
       id: event.initiativeId,
       organizationId: event.organizationId,
@@ -748,19 +666,16 @@ export class WebSocketHandler {
   }) {
     if (!event.id) return;
 
-    const client = this.requireQueryClient("initiatives");
-    if (client) {
-      client.setQueryData(
-        initiativeKeys.detail(event.organizationId, event.id),
-        null,
-      );
-      void invalidateInitiativeChange(
-        client,
-        event.organizationId,
-        event.projectId,
-        event.id,
-      );
-    }
+    this.queryClient.setQueryData(
+      initiativeKeys.detail(event.organizationId, event.id),
+      null,
+    );
+    void invalidateInitiativeChange(
+      this.queryClient,
+      event.organizationId,
+      event.projectId,
+      event.id,
+    );
   }
 
   private handleTaskCreated(event: {
@@ -783,7 +698,7 @@ export class WebSocketHandler {
       event.taskId,
     );
 
-    this.debugger.logCollectionAction("workItems", "INVALIDATE", "new-item", {
+    this.debugger.logQueryInvalidation("workItems", "new-item", {
       eventType: "task.created",
       reason: "New task created, invalidating project work-item lists",
       taskId: event.taskId,
@@ -831,10 +746,7 @@ export class WebSocketHandler {
       return;
     }
 
-    this.debugger.logCollectionAction(
-      "workItems",
-      "INVALIDATE",
-      `item:${event.taskId}`,
+    this.debugger.logQueryInvalidation("workItems", `item:${event.taskId}`,
       {
         eventType: "task.updated",
         reason: "Task updated, invalidating its reads and project lists",
@@ -871,7 +783,7 @@ export class WebSocketHandler {
     });
 
     // Drop the item before invalidating so no read of it is restarted.
-    if (this.queryClient && event.projectId) {
+    if (event.projectId) {
       removeWorkItem(
         this.queryClient,
         event.organizationId,
@@ -887,10 +799,7 @@ export class WebSocketHandler {
       event.taskId,
     );
 
-    this.debugger.logCollectionAction(
-      "workItems",
-      "DELETE_ITEM",
-      `deleted:${event.taskId}`,
+    this.debugger.logQueryInvalidation("workItems", `deleted:${event.taskId}`,
       {
         eventType: "task.deleted",
         reason: "Task deleted, removing it from cached work-item reads",
@@ -930,10 +839,7 @@ export class WebSocketHandler {
       event.taskId,
     );
 
-    this.debugger.logCollectionAction(
-      "workItems",
-      "INVALIDATE",
-      `item:${event.taskId}`,
+    this.debugger.logQueryInvalidation("workItems", `item:${event.taskId}`,
       {
         eventType: "task.status_changed",
         reason: "Task status changed, invalidating its reads and project lists",
@@ -954,8 +860,7 @@ export class WebSocketHandler {
   }) {
     if (!event.initiativeId) return;
 
-    const queryClient = this.requireQueryClient("editHistory");
-    if (queryClient) void invalidateEditHistoryUpdated(queryClient, event);
+    void invalidateEditHistoryUpdated(this.queryClient, event);
   }
 
   private handleConversationCreated(event: WebSocketConversationCreatedEvent) {
@@ -967,15 +872,13 @@ export class WebSocketHandler {
       { conversationId: event.conversationId },
     );
 
-    if (this.queryClient) {
-      void invalidateConversationLists(
-        this.queryClient,
-        event.organizationId,
-        event.projectId,
-      );
-    }
+    void invalidateConversationLists(
+      this.queryClient,
+      event.organizationId,
+      event.projectId,
+    );
 
-    this.debugger.logCollectionAction("conversations", "NEW_ITEM", "new-item", {
+    this.debugger.logQueryInvalidation("conversations", "new-item", {
       eventType: "conversation.created",
       reason: "New conversation created, invalidating list scopes",
       conversationId: event.conversationId,
@@ -986,8 +889,7 @@ export class WebSocketHandler {
   private handleAgentSessionCurrentStateChanged(
     event: WebSocketAgentSessionCurrentStateChangedEvent,
   ) {
-    const queryClient = this.requireQueryClient("agent session current state");
-    if (!queryClient) return;
+    const queryClient = this.queryClient;
     writeAgentSessionCurrentState(
       queryClient,
       event.organizationId,
@@ -999,8 +901,7 @@ export class WebSocketHandler {
   private handleAgentSessionContextSizeChanged(
     event: WebSocketAgentSessionContextSizeChangedEvent,
   ) {
-    const queryClient = this.requireQueryClient("agent session context size");
-    if (!queryClient) return;
+    const queryClient = this.queryClient;
     writeAgentSessionContextSize(
       queryClient,
       event.organizationId,
@@ -1013,10 +914,7 @@ export class WebSocketHandler {
   private handleAgentSessionOutputAttentionChanged(
     event: WebSocketAgentSessionOutputAttentionChangedEvent,
   ) {
-    const queryClient = this.requireQueryClient(
-      "agent session output attention",
-    );
-    if (!queryClient) return;
+    const queryClient = this.queryClient;
     writeAgentSessionOutputAttention(
       queryClient,
       event.organizationId,
@@ -1047,8 +945,7 @@ export class WebSocketHandler {
    * and ordering beyond the loaded page settle on the server's answer.
    */
   private handleSystemNotification(event: WebSocketSystemNotificationEvent) {
-    const queryClient = this.requireQueryClient("notifications");
-    if (!queryClient) return;
+    const queryClient = this.queryClient;
     writeNotificationRecords(
       queryClient,
       event.organizationId,
@@ -1079,8 +976,7 @@ export class WebSocketHandler {
   private handleAgentSessionCreated(
     event: WebSocketAgentSessionCreatedEvent,
   ): void {
-    const queryClient = this.requireQueryClient("agent sessions");
-    if (!queryClient) return;
+    const queryClient = this.queryClient;
     void invalidateAgentSessionDetail(
       queryClient,
       event.organizationId,
@@ -1093,10 +989,7 @@ export class WebSocketHandler {
       event.projectId,
     );
 
-    this.debugger.logCollectionAction(
-      "agentSessions",
-      "INVALIDATE",
-      `agent_session.created:${event.agentSessionId}`,
+    this.debugger.logQueryInvalidation("agentSessions", `agent_session.created:${event.agentSessionId}`,
       {
         eventType: event.type,
         reason: "New agent session created, re-reading loaded lists and feeds",
@@ -1113,16 +1006,12 @@ export class WebSocketHandler {
     projectId: string;
     sessionId: string;
   }): void {
-    const queryClient = this.requireQueryClient("agent sessions");
-    if (!queryClient) return;
+    const queryClient = this.queryClient;
     void invalidateWithFollowUpRead(queryClient, {
       queryKey: agentSessionKeys.lists(event.organizationId, event.projectId),
     });
 
-    this.debugger.logCollectionAction(
-      "agentSessions",
-      "INVALIDATE",
-      `daily_session.updated:${event.sessionId}`,
+    this.debugger.logQueryInvalidation("agentSessions", `daily_session.updated:${event.sessionId}`,
       {
         eventType: event.type,
         reason:
@@ -1136,8 +1025,7 @@ export class WebSocketHandler {
   private handleAgentSessionDeleted(
     event: WebSocketAgentSessionDeletedEvent,
   ): void {
-    const queryClient = this.requireQueryClient("agent sessions");
-    if (!queryClient) return;
+    const queryClient = this.queryClient;
     void removeAgentSession(
       queryClient,
       event.organizationId,
@@ -1145,10 +1033,7 @@ export class WebSocketHandler {
       event.agentSessionId,
     );
 
-    this.debugger.logCollectionAction(
-      "agentSessions",
-      "DELETE_ITEM",
-      `item:${event.agentSessionId}`,
+    this.debugger.logQueryInvalidation("agentSessions", `item:${event.agentSessionId}`,
       {
         eventType: event.type,
         reason:
@@ -1161,8 +1046,7 @@ export class WebSocketHandler {
   private handleAgentSessionStatusChanged(
     event: WebSocketAgentSessionStatusChangedEvent,
   ): void {
-    const queryClient = this.requireQueryClient("agent sessions");
-    if (!queryClient) return;
+    const queryClient = this.queryClient;
     void invalidateAgentSessionDetail(
       queryClient,
       event.organizationId,
@@ -1175,10 +1059,7 @@ export class WebSocketHandler {
       event.projectId,
     );
 
-    this.debugger.logCollectionAction(
-      "agentSessions",
-      "INVALIDATE",
-      `item:${event.agentSessionId}`,
+    this.debugger.logQueryInvalidation("agentSessions", `item:${event.agentSessionId}`,
       {
         eventType: event.type,
         reason:
@@ -1220,10 +1101,7 @@ export class WebSocketHandler {
       },
     );
 
-    this.debugger.logCollectionAction(
-      "conversations",
-      "MARK_ITEM_STALE",
-      `item:${event.conversationId}`,
+    this.debugger.logQueryInvalidation("conversations", `item:${event.conversationId}`,
       {
         eventType: event.type,
         reason:
@@ -1246,14 +1124,6 @@ export class WebSocketHandler {
   ) {
     const { conversationId, organizationId, projectId } = event;
     if (!conversationId || !organizationId || !projectId) return;
-    if (!this.queryClient) {
-      logger.warn(
-        "data_websockets",
-        "[WebSocketHandler] No QueryClient; conversation messages were not invalidated",
-        { conversationId },
-      );
-      return;
-    }
 
     logger.info(
       "data_websockets",
@@ -1316,10 +1186,7 @@ export class WebSocketHandler {
         },
       );
 
-      this.debugger.logCollectionAction(
-        "conversations",
-        "MARK_ITEM_STALE",
-        `item:${event.conversationId}`,
+      this.debugger.logQueryInvalidation("conversations", `item:${event.conversationId}`,
         {
           eventType: event.type,
           reason:
@@ -1337,12 +1204,11 @@ export class WebSocketHandler {
       projectId: event.projectId,
     });
 
-    if (this.queryClient)
-      void invalidateProjectQueries(
-        this.queryClient,
-        event.organizationId,
-        event.projectId,
-      );
+    void invalidateProjectQueries(
+      this.queryClient,
+      event.organizationId,
+      event.projectId,
+    );
     this.debugger.logEvent({
       type: "project.created",
       source: "websocket-handler",
@@ -1353,7 +1219,6 @@ export class WebSocketHandler {
       },
       metadata: {
         success: true,
-        collectionName: "projects",
       },
     });
   }
@@ -1367,12 +1232,11 @@ export class WebSocketHandler {
       timestamp: event.timestamp,
     });
 
-    if (this.queryClient)
-      void invalidateProjectQueries(
-        this.queryClient,
-        event.organizationId,
-        event.projectId,
-      );
+    void invalidateProjectQueries(
+      this.queryClient,
+      event.organizationId,
+      event.projectId,
+    );
     this.debugger.logEvent({
       type: "project.updated",
       source: "websocket-handler",
@@ -1384,7 +1248,6 @@ export class WebSocketHandler {
       },
       metadata: {
         success: true,
-        collectionName: "projects",
       },
     });
   }
@@ -1404,12 +1267,11 @@ export class WebSocketHandler {
       },
     );
 
-    if (this.queryClient)
-      void invalidateProjectQueries(
-        this.queryClient,
-        event.organizationId,
-        event.projectId,
-      );
+    void invalidateProjectQueries(
+      this.queryClient,
+      event.organizationId,
+      event.projectId,
+    );
     this.debugger.logEvent({
       type: "project.status_changed",
       source: "websocket-handler",
@@ -1422,13 +1284,11 @@ export class WebSocketHandler {
       },
       metadata: {
         success: true,
-        collectionName: "projects",
       },
     });
   }
 
   private handleDesignDocCreated(event: WebSocketDesignDocCreatedEvent) {
-    if (!this.queryClient) return;
     void invalidateDesignDocQueries(
       this.queryClient,
       event.organizationId,
@@ -1443,7 +1303,7 @@ export class WebSocketHandler {
     designDocId: string;
     changedFields?: string[];
   }) {
-    if (!this.queryClient || !event.designDocId) return;
+    if (!event.designDocId) return;
     void invalidateDesignDocQueries(
       this.queryClient,
       event.organizationId,
@@ -1458,102 +1318,12 @@ export class WebSocketHandler {
     });
   }
 
-  // Method to mark all data as stale (e.g., on reconnect)
+  /** Reconnects and forced refreshes: only mounted queries re-read. */
   markAllStale() {
-    // Collections already on TanStack Query: only mounted queries refetch.
-    if (this.queryClient) {
-      void invalidateAllDataLayerQueries(this.queryClient);
-    } else {
-      logger.warn(
-        "data_websockets",
-        "[WebSocketHandler] No QueryClient; TanStack-backed collections were not invalidated on reconnect",
-      );
-    }
+    void invalidateAllDataLayerQueries(this.queryClient);
 
-    this.debugger.logCollectionAction(
-      "initiatives",
-      "MARK_ALL_STALE",
-      "all-queries",
-      {
-        reason:
-          "WebSocket reconnected or forced refresh, marking all queries as stale",
-      },
-    );
-
-    this.debugger.logCollectionAction(
-      "editHistory",
-      "MARK_ALL_STALE",
-      "all-queries",
-      {
-        reason:
-          "WebSocket reconnected or forced refresh, marking all edit history queries as stale",
-      },
-    );
-
-    this.debugger.logCollectionAction(
-      "conversations",
-      "MARK_ALL_STALE",
-      "all-queries",
-      {
-        reason:
-          "WebSocket reconnected or forced refresh, marking all conversation queries as stale",
-      },
-    );
-
-    this.debugger.logCollectionAction(
-      "designDocs",
-      "MARK_ALL_STALE",
-      "all-queries",
-      {
-        reason:
-          "WebSocket reconnected or forced refresh, marking all design doc queries as stale",
-      },
-    );
-
-    this.debugger.logCollectionAction(
-      "workItems",
-      "MARK_ALL_STALE",
-      "all-queries",
-      {
-        reason:
-          "WebSocket reconnected or forced refresh, marking all work item queries as stale",
-      },
-    );
-
-    this.debugger.logCollectionAction(
-      "workItemReferences",
-      "MARK_ALL_STALE",
-      "all-queries",
-      {
-        reason:
-          "WebSocket reconnected or forced refresh, marking all work-item reference queries as stale",
-      },
-    );
-
-    this.debugger.logEvent({
-      type: "websocket.connected",
-      source: "websocket-handler",
-      data: { action: "mark-all-stale" },
-      metadata: {
-        success: true,
-        collectionName: "initiatives",
-        actionType: "MARK_ALL_STALE",
-      },
+    this.debugger.logQueryInvalidation("all", "all-queries", {
+      reason: "WebSocket reconnected or forced refresh",
     });
   }
-}
-
-// Temporary factory for backward compatibility
-// Will be removed in Phase 4
-let defaultHandlerInstance: WebSocketHandler | null = null;
-
-export function getDefaultWebSocketHandler(): WebSocketHandler {
-  if (!defaultHandlerInstance) {
-    logger.warn(
-      "data_websockets",
-      "[getDefaultWebSocketHandler] Using default WebSocket handler. This will be removed in next version.",
-    );
-    defaultHandlerInstance = new WebSocketHandler(getDefaultStore());
-  }
-  return defaultHandlerInstance;
 }

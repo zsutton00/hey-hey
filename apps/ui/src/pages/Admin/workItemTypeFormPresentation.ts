@@ -25,6 +25,7 @@ export type WorkItemTypeFormField =
       | "writingStandards"
       | "agentGuidance"
       | "maintenanceGuidance"
+      | "sessionRoleGuidance"
       | "capabilities"
     >
   | "sections.key"
@@ -136,6 +137,10 @@ export const WORK_ITEM_TYPE_FIELD_PRESENTATION = {
   agentGuidance: {
     label: "Semantic guidance",
     help: "Optional meaning, recognition examples, and focal context guidance. Separate from the type purpose and creation or editing writing standards.",
+  },
+  sessionRoleGuidance: {
+    label: "Session-role guidance",
+    help: "Optional instructions for implementation, research, planning and review sessions. Session role describes the work being performed, separately from the type’s classification role, create/edit writing standards, semantic meaning and maintenance advice.",
   },
   maintenanceGuidance: {
     label: "Maintenance guidance",

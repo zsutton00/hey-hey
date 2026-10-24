@@ -1,3 +1,4 @@
+import { workflowsClient } from "../../clients/serviceClients";
 import type { Stable } from "../../types";
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 import { type SessionMethodContext } from "../../agents/prompts";
@@ -82,11 +83,24 @@ export function useSubmitFollowupByText({
         // Workflow-bound methods leave continuation selection with the active
         // workflow. Every ordinary coding-session follow-up is deliberately
         // mode-agnostic, regardless of the handler used to start the run.
-        const followupLocalPromptType: LocalPromptType = sessionMethod
+        let followupLocalPromptType: LocalPromptType = sessionMethod
           ? getMethodConfig(sessionMethod.method).dispatch.kind === "workflow"
             ? LocalPromptType.WorkflowDefined
             : LocalPromptType.CodingFreeform
           : LocalPromptType.CodingFreeform;
+
+        if (followupLocalPromptType === LocalPromptType.WorkflowDefined) {
+          const node = (
+            await workflowsClient.getConversationWorkflowNode({
+              organizationId,
+              projectId,
+              conversationId,
+            })
+          ).data.data;
+          if (node?.currentNodeId === "feature-sync-coding-plan") {
+            followupLocalPromptType = LocalPromptType.StartupSession;
+          }
+        }
 
         const result = await submitFreeformViaPlatform({
           interactions: interactionAccess.interactions,
@@ -107,7 +121,7 @@ export function useSubmitFollowupByText({
             result.error,
             {
               runId,
-            }
+            },
           );
           throw new Error(result.error);
         }
@@ -134,6 +148,6 @@ export function useSubmitFollowupByText({
       setSubmissionError,
       setSubmittingPrompt,
       setSubmittingFollowupAction,
-    ]
+    ],
   );
 }

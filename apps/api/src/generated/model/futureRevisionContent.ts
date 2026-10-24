@@ -24,15 +24,16 @@ import { TaskResponseDtoChildCounts } from './taskResponseDtoChildCounts';
 import { FutureRevisionContentOneOf } from './futureRevisionContentOneOf';
 import { AgentEdgeResponseDto } from './agentEdgeResponseDto';
 import { FutureRevisionContentOneOf1 } from './futureRevisionContentOneOf1';
+import { ProjectedWorkItemChangeSetResponse } from './projectedWorkItemChangeSetResponse';
 import { TaskSource } from './taskSource';
 
 
 /**
- * Complete selected entity projection including all unchanged sections; never a patch or an overlay of independent futures.
+ * Complete selected entity projection including all unchanged sections and, for graph-capable work items, the complete generic graph projection. Never a patch or an overlay of independent futures.
  */
 /**
  * @type FutureRevisionContent
- * Complete selected entity projection including all unchanged sections; never a patch or an overlay of independent futures.
+ * Complete selected entity projection including all unchanged sections and, for graph-capable work items, the complete generic graph projection. Never a patch or an overlay of independent futures.
  * @export
  */
 export type FutureRevisionContent = FutureRevisionContentOneOf | FutureRevisionContentOneOf1;

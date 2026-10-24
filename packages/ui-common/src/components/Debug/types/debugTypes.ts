@@ -23,7 +23,6 @@ export type DebugTab =
   | "workflow"
   | "websocket-events"
   | "websocket-stats"
-  | "querykeys"
   | "chat-messages"
   | "advanced-analytics";
 export type PanelPosition =
@@ -93,75 +92,6 @@ export interface WebSocketConnectionState {
 }
 
 // CollectionDebugState is imported from data/websockets/debug
-
-// ========================
-// QueryKeys Domain Types
-// ========================
-
-export interface CollectionValidationResult {
-  isValid: boolean;
-  errors: string[];
-}
-
-export interface CollectionMigrationInspection {
-  totalItems: number;
-  itemsWithQueryKeys: number;
-  itemsNeedingMigration: number;
-  queryKeyDistribution: Record<string, number>;
-  orphanedItems: string[];
-  missingItems: string[];
-}
-
-export interface QueryKeysCollectionState {
-  name: string;
-  totalItems: number;
-  itemsWithQueryKeys: number;
-  itemsNeedingMigration: number;
-  queryKeyDistribution: Record<string, number>;
-  orphanedItems: string[];
-  missingItems: string[];
-  avgQueryKeysPerItem: number;
-  memoryUsage: {
-    itemsSize: number;
-    queryKeysSize: number;
-    totalSize: number;
-  };
-  validationResult: CollectionValidationResult;
-  migrationInspection: CollectionMigrationInspection;
-}
-
-export interface QueryKeysDebugState {
-  collections: QueryKeysCollectionState[];
-  isLoading: boolean;
-  lastUpdated: Date | null;
-  autoRefresh: boolean;
-  refreshInterval: number;
-  globalStats: {
-    totalCollections: number;
-    totalItems: number;
-    totalQueryKeys: number;
-    migrationProgress: number; // percentage
-    memoryUsage: number; // bytes
-    validationErrors: number;
-  };
-}
-
-export interface QueryKeysEvent {
-  id: string;
-  timestamp: string;
-  type: "item_access" | "query_invalidation" | "migration" | "validation_error";
-  collection: string;
-  itemId?: string;
-  queryKey?: string;
-  details: {
-    operation: string;
-    duration?: number;
-    before?: unknown;
-    after?: unknown;
-    error?: string;
-    metadata?: Record<string, unknown>;
-  };
-}
 
 export interface WebSocketStatistics {
   totalEvents: number;
@@ -250,7 +180,6 @@ export interface UnifiedDebugState {
   // Domain States
   workflow: WorkflowDomainState;
   websocket: WebSocketDomainState;
-  querykeys: QueryKeysDebugState;
 
   // Cross-Domain State
   aggregatedErrors: AggregatedErrorState;
@@ -312,19 +241,6 @@ export interface WebSocketStatsTabProps {
     };
   }>;
   onRefreshStats?: () => void;
-}
-
-export interface QueryKeysTabProps {
-  queryKeysState: QueryKeysDebugState;
-  events: QueryKeysEvent[];
-  onRefresh: () => void;
-  onToggleAutoRefresh: () => void;
-  onClearEvents: () => void;
-  onValidateCollections: () => void;
-  onMigrateCollection: (collectionName: string) => Promise<void>;
-  onExportDebugData: () => void;
-  showAdvancedMetrics?: boolean;
-  maxEventsToShow?: number;
 }
 
 export interface ChatMessagesTabProps {

@@ -5,7 +5,6 @@ import {
   workItemReferenceKeys,
   type WorkItemReferenceScope,
 } from "../../collections/workItemReferences";
-import logger from "../../../utils/logger";
 import { WebSocketHandler } from "../handler";
 
 const timestamp = "2026-08-29T00:00:00.000Z";
@@ -103,20 +102,4 @@ describe("WebSocketHandler work-item reference invalidation", () => {
     expect(otherProject).toHaveBeenCalledTimes(2);
   });
 
-  it("logs and does not throw without a QueryClient", () => {
-    const warn = vi.spyOn(logger, "warn").mockImplementation(() => {});
-    const bare = new WebSocketHandler(createStore());
-
-    expect(() => bare.handleEvent(taskEvents[0][1])).not.toThrow();
-    expect(() => bare.markAllStale()).not.toThrow();
-    expect(warn).toHaveBeenCalledWith(
-      "data_websockets",
-      expect.stringContaining("No QueryClient"),
-      expect.objectContaining({ eventType: "task.created" }),
-    );
-    expect(warn).toHaveBeenCalledWith(
-      "data_websockets",
-      expect.stringContaining("not invalidated on reconnect"),
-    );
-  });
 });

@@ -18,7 +18,6 @@ import {
 import { workItemReferenceKeys } from "../../collections/workItemReferences";
 import { DataEventType } from "../../relationships/dataEvents";
 import { emitDataEvent } from "../../relationships/relationshipRules";
-import { QueryMountPolicyProvider } from "../../core/queryMountPolicy";
 import { useConversation } from "../../hooks/useConversation";
 import { useTaskHierarchy } from "../../hooks/useTaskHierarchy";
 import { useWorkItem } from "../../hooks/useWorkItem";
@@ -93,20 +92,10 @@ function deferred<T = unknown>() {
 const createClient = () =>
   new QueryClient({ defaultOptions: { queries: { retryDelay: 0 } } });
 
-type WrapperOptions = { tabPolicy?: boolean; strict?: boolean };
+type WrapperOptions = { strict?: boolean };
 const clientWrapper =
-  (
-    client: QueryClient,
-    { tabPolicy = false, strict = false }: WrapperOptions = {},
-  ) =>
+  (client: QueryClient, { strict = false }: WrapperOptions = {}) =>
   ({ children }: { children: React.ReactNode }) => {
-    const policed = tabPolicy ? (
-      <QueryMountPolicyProvider policy="always-refetch">
-        {children}
-      </QueryMountPolicyProvider>
-    ) : (
-      children
-    );
     const tree = (
       <QueryClientProvider client={client}>
         <Provider store={createStore()}>
@@ -115,7 +104,7 @@ const clientWrapper =
               checkTask: mocks.checkTask,
             }}
           >
-            {policed}
+            {children}
           </FutureOfferContext.Provider>
         </Provider>
       </QueryClientProvider>
@@ -126,6 +115,9 @@ const clientWrapper =
 /** The mention badge and inline renderer read the same item this way. */
 const useMention = (id: string, enabled = true) =>
   useWorkItem(ORG, "task", id, { projectId: PROJECT, enabled });
+// A detail page's own entity read, which re-reads each time it mounts.
+const usePageItem = (id: string) =>
+  useWorkItem(ORG, "task", id, { projectId: PROJECT, refetchOnMount: true });
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -143,8 +135,7 @@ describe("shared work-item reads", () => {
       }),
       {
         initialProps: { inlineReady: false },
-        // Detail pages request authoritative mount reads.
-        wrapper: clientWrapper(client, { tabPolicy: true }),
+        wrapper: clientWrapper(client),
       },
     );
     await waitFor(() => expect(result.current.badge.isReady).toBe(true));
@@ -197,15 +188,15 @@ describe("shared work-item reads", () => {
   });
 });
 
-describe("tab-open reads", () => {
-  it("re-reads a fresh work item when a tab mounts it, keeping cached data visible", async () => {
+describe("per-query mount reads", () => {
+  it("re-reads a fresh work item when a page mounts its own read, keeping cached data visible", async () => {
     const client = createClient();
     client.setQueryData(workItemKeys.detail(ORG, PROJECT, "t1"), task("t1"));
     const read = deferred<unknown>();
     mocks.getTask.mockReturnValue(read.promise);
 
-    const { result } = renderHook(() => useMention("t1"), {
-      wrapper: clientWrapper(client, { tabPolicy: true }),
+    const { result } = renderHook(() => usePageItem("t1"), {
+      wrapper: clientWrapper(client),
     });
 
     expect(mocks.getTask).toHaveBeenCalledTimes(1);
@@ -219,7 +210,7 @@ describe("tab-open reads", () => {
     await waitFor(() => expect(result.current.workItem?.name).toBe("Renamed"));
   });
 
-  it("reads fresh work items only when stale outside a detail page", () => {
+  it("reads fresh work items only when stale without a per-query mount read", () => {
     const client = createClient();
     client.setQueryData(workItemKeys.detail(ORG, PROJECT, "t1"), task("t1"));
 
@@ -228,24 +219,24 @@ describe("tab-open reads", () => {
     expect(mocks.getTask).not.toHaveBeenCalled();
   });
 
-  it("reads once per tab open, including under Strict Mode", async () => {
+  it("reads once per page mount, including under Strict Mode", async () => {
     const client = createClient();
     client.setQueryData(workItemKeys.detail(ORG, PROJECT, "t1"), task("t1"));
     mocks.getTask.mockResolvedValue(ok(task("t1")));
-    const wrapper = clientWrapper(client, { tabPolicy: true, strict: true });
+    const wrapper = clientWrapper(client, { strict: true });
 
-    const first = renderHook(() => useMention("t1"), { wrapper });
+    const first = renderHook(() => usePageItem("t1"), { wrapper });
     await waitFor(() => expect(first.result.current.isFetching).toBe(false));
     expect(mocks.getTask).toHaveBeenCalledTimes(1);
     first.unmount();
 
-    // Reopening the tab reads again even though the data is fresh.
-    const second = renderHook(() => useMention("t1"), { wrapper });
+    // Reopening the page reads again even though the data is fresh.
+    const second = renderHook(() => usePageItem("t1"), { wrapper });
     await waitFor(() => expect(second.result.current.isFetching).toBe(false));
     expect(mocks.getTask).toHaveBeenCalledTimes(2);
   });
 
-  it("re-reads lists and hierarchies on tab open too", async () => {
+  it("re-reads lists and hierarchies that request a mount read", async () => {
     const client = createClient();
     client.setQueryData(
       workItemKeys.list(ORG, PROJECT, { parentTaskId: "p" }),
@@ -262,24 +253,29 @@ describe("tab-open reads", () => {
       () => ({
         list: useWorkItems(ORG, "task", PROJECT, undefined, {
           parentTaskId: "p",
+          refetchOnMount: true,
         }),
-        hierarchy: useTaskHierarchy(ORG, PROJECT, "p"),
+        hierarchy: useTaskHierarchy(ORG, PROJECT, "p", {
+          refetchOnMount: true,
+        }),
       }),
-      { wrapper: clientWrapper(client, { tabPolicy: true }) },
+      { wrapper: clientWrapper(client) },
     );
 
     await waitFor(() => expect(mocks.getHierarchy).toHaveBeenCalledTimes(1));
     expect(mocks.getTasks).toHaveBeenCalledTimes(1);
   });
 
-  it("does not re-read fresh work-item types or conversations on tab open", async () => {
+  it("does not re-read fresh shared datasets alongside a page mount read", async () => {
     const client = createClient();
     mocks.dataRequest.mockResolvedValue({ data: { data: [] } });
     mocks.getConversation.mockResolvedValue(
       ok({ id: "c1", createdAt: "2026-01-01T00:00:00.000Z" }),
     );
-    const wrapper = clientWrapper(client, { tabPolicy: true });
+    mocks.getTask.mockResolvedValue(ok(task("t1")));
+    const wrapper = clientWrapper(client);
     const useShared = () => ({
+      page: usePageItem("t1"),
       types: useWorkItemTypes(ORG, { projectId: PROJECT }),
       conversation: useConversation(ORG, PROJECT, { conversationId: "c1" }),
     });

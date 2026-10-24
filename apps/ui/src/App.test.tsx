@@ -21,6 +21,7 @@ vi.mock("@hey-hey/ui-common/context", () => ({
   EntityActivationProvider: ({ children }: { children: ReactNode }) => (
     <>{children}</>
   ),
+  OpenItemLocatorProvider: ({ children }: { children: ReactNode }) => children,
   ModalProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
   OrganizationProvider: ({ children }: { children: ReactNode }) => (
     <>{children}</>
@@ -98,6 +99,7 @@ vi.mock("./contexts/OpenItemsContext", () => ({
     return <>{children}</>;
   },
   useOpenItemsActivationSink: () => vi.fn(),
+  useOpenItemLocatorHandler: () => vi.fn(),
 }));
 
 vi.mock("./components/OpenItemsPreviewHost", () => ({

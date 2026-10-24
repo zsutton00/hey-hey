@@ -1,3 +1,4 @@
+import { SessionRole } from '../../../generated/model/sessionRole';
 import type { WorkItemType } from '@prisma/client';
 import { InMemoryMessageBus } from '../../../core/events/in-memory-message-bus.service';
 import type { PrismaService } from '../../../prisma/prisma.service';
@@ -818,6 +819,58 @@ describe('contextual semantic guidance', () => {
       expect(service.getGuidance(PROJECT_A, key).examples).toEqual(
         guide.examples,
       );
+    },
+  );
+
+  it.each(Object.values(SessionRole))(
+    'uses only effective role advice for %s, including missing advice',
+    async (sessionRole) => {
+      const service = makeService(
+        [
+          { ...projectRow('GUIDED', PROJECT_B), sessionRoleGuidance: null },
+          projectRow('archived', PROJECT_A, { lifecycleStatus: 'archived' }),
+        ],
+        [
+          {
+            ...projectRow('GUIDED', PROJECT_A),
+            sessionRoleGuidance: { [sessionRole]: '  Canonical advice  ' },
+          },
+        ],
+        [PROJECT_A, PROJECT_B],
+      );
+      await service.refresh();
+      expect(
+        service.getGuidance(
+          PROJECT_A,
+          'GUIDED',
+          'unknown-focal',
+          WorkItemTypeGuidancePurpose.Role,
+          sessionRole,
+        ),
+      ).toEqual({
+        typeKey: 'GUIDED',
+        name: 'GUIDED name',
+        sessionRole,
+        guidance: '  Canonical advice  ',
+      });
+      expect(
+        service.getGuidance(
+          PROJECT_B,
+          'GUIDED',
+          undefined,
+          WorkItemTypeGuidancePurpose.Role,
+          sessionRole,
+        ),
+      ).toEqual({ typeKey: 'GUIDED', name: 'GUIDED name', sessionRole });
+      expect(() =>
+        service.getGuidance(
+          PROJECT_A,
+          'archived',
+          undefined,
+          WorkItemTypeGuidancePurpose.Role,
+          sessionRole,
+        ),
+      ).toThrow('archived');
     },
   );
 

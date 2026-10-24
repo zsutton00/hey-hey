@@ -52,7 +52,7 @@ describe("WebSocket handler with queryKeys", () => {
   let queryClient: QueryClient;
   let mockDebugger: WebSocketDebugger;
   let logEventSpy: ReturnType<typeof vi.spyOn>;
-  let logCollectionActionSpy: ReturnType<typeof vi.spyOn>;
+  let logQueryInvalidationSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     store = createStore();
@@ -62,8 +62,8 @@ describe("WebSocket handler with queryKeys", () => {
     logEventSpy = vi
       .spyOn(mockDebugger, "logEvent")
       .mockImplementation(() => {});
-    logCollectionActionSpy = vi
-      .spyOn(mockDebugger, "logCollectionAction")
+    logQueryInvalidationSpy = vi
+      .spyOn(mockDebugger, "logQueryInvalidation")
       .mockImplementation(() => {});
 
     queryClient = new QueryClient({
@@ -73,7 +73,7 @@ describe("WebSocket handler with queryKeys", () => {
 
     // Clear mock calls
     logEventSpy.mockClear();
-    logCollectionActionSpy.mockClear();
+    logQueryInvalidationSpy.mockClear();
   });
 
   afterEach(() => {
@@ -335,9 +335,8 @@ describe("WebSocket handler with queryKeys", () => {
       handler.handleEvent(event);
 
       // Should log the collection action
-      expect(logCollectionActionSpy).toHaveBeenCalledWith(
+      expect(logQueryInvalidationSpy).toHaveBeenCalledWith(
         "conversations",
-        "MARK_ITEM_STALE",
         "item:conv-debug-test",
         expect.objectContaining({
           eventType: "conversation.status_changed",

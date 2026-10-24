@@ -205,6 +205,8 @@
     "typescript-eslint": "^8.20.0"
   },
   "jest": {
+    "globalSetup": "<rootDir>/../scripts/jest-model-generation-setup.js",
+    "globalTeardown": "<rootDir>/../scripts/jest-model-generation-teardown.js",
     "moduleFileExtensions": [
       "js",
       "json",

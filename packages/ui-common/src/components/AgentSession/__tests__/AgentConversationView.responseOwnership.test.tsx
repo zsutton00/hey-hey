@@ -86,7 +86,7 @@ vi.mock(
       typeof import("../../../data/hooks/useAgentSessionCurrentState")
     >()),
     useAgentSessionCurrentState: () => ({ currentState: state.currentState }),
-  })
+  }),
 );
 vi.mock("../runtime/hooks/useCliRequired", () => ({
   useCliRequired: () => ({ type: "ready", machine: { machineId: "machine" } }),
@@ -159,9 +159,8 @@ vi.mock("../../SmarterTextAreaCard/SmarterTextAreaEditor", () => ({
   ),
 }));
 vi.mock("../../LlmForms/DynamicForm", async () => {
-  const { ImplementationReadinessSecondaryAction } = await import(
-    "../../LlmForms/Registry/ImplementationReadinessSecondaryAction"
-  );
+  const { ImplementationReadinessSecondaryAction } =
+    await import("../../LlmForms/Registry/ImplementationReadinessSecondaryAction");
   return {
     DynamicForm: ({
       disabled,
@@ -182,7 +181,7 @@ vi.mock("../../LlmForms/DynamicForm", async () => {
           Embedded response
         </button>
         {uiElements.some(
-          ({ type }) => type === ExtendedUIFieldType.ImplementationReadiness
+          ({ type }) => type === ExtendedUIFieldType.ImplementationReadiness,
         ) ? (
           <ImplementationReadinessSecondaryAction
             action={{
@@ -205,7 +204,7 @@ vi.mock("../../LlmForms/DynamicForm", async () => {
 
 const source = (
   id = "source",
-  fieldType: UIElement["type"] = ExtendedUIFieldType.Textarea
+  fieldType: UIElement["type"] = ExtendedUIFieldType.Textarea,
 ): MessageResponseDto => {
   const fieldId =
     fieldType === ExtendedUIFieldType.ImplementationReadiness
@@ -258,7 +257,7 @@ const surface = (
   resolver?: ConversationFormResolver,
   conversationId = "conversation",
   readOnly = false,
-  composerPolicy?: ReplyComposerPolicy
+  composerPolicy?: ReplyComposerPolicy,
 ) => (
   <AgentConversationView
     organizationId="organization"
@@ -307,22 +306,22 @@ describe("real viewer to composer response ownership", () => {
       render(surface(), { wrapper });
       const preview = screen.getByTestId("submission-preview");
       const indicator = screen.getByTestId(
-        "agent-session-current-state-indicator"
+        "agent-session-current-state-indicator",
       );
       expect(preview).toHaveTextContent("Pending reply");
       expect(preview).toHaveAttribute("data-delivery-state", "sending");
       expect(screen.getByTestId("agent-conversation-viewer")).toContainElement(
-        preview
+        preview,
       );
       expect(screen.getByTestId("conversation-timeline")).not.toContainElement(
-        preview
+        preview,
       );
       expect(
-        screen.queryByTestId("agent-conversation-pending-inputs")
+        screen.queryByTestId("agent-conversation-pending-inputs"),
       ).toBeNull();
       expect(
         preview.compareDocumentPosition(indicator) &
-          Node.DOCUMENT_POSITION_FOLLOWING
+          Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy();
     } finally {
       act(() => removeOptimisticInput("placement-test"));
@@ -338,22 +337,22 @@ describe("real viewer to composer response ownership", () => {
     const view = render(surface(), { wrapper });
     await waitFor(() =>
       expect(
-        screen.getByRole("textbox", { name: "Ordinary reply" })
-      ).toBeVisible()
+        screen.getByRole("textbox", { name: "Ordinary reply" }),
+      ).toBeVisible(),
     );
     expect(screen.getByTestId("agent-session-metadata")).toHaveAttribute(
       "data-placement",
-      "below-composer"
+      "below-composer",
     );
     view.rerender(surface(undefined, "conversation", true));
     await waitFor(() =>
       expect(
-        screen.queryByRole("textbox", { name: "Ordinary reply" })
-      ).toBeNull()
+        screen.queryByRole("textbox", { name: "Ordinary reply" }),
+      ).toBeNull(),
     );
     expect(screen.getByTestId("agent-session-metadata")).toHaveAttribute(
       "data-placement",
-      "below-conversation"
+      "below-conversation",
     );
     expect(state.submit).not.toHaveBeenCalled();
   });
@@ -365,7 +364,7 @@ describe("real viewer to composer response ownership", () => {
     render(surface(), { wrapper });
 
     const clarify = await screen.findByTestId(
-      "implementation-readiness-clarify-action"
+      "implementation-readiness-clarify-action",
     );
     const composer = screen.getByTestId("run-stream-external-reply-composer");
     const reply = screen.getByRole("textbox", { name: "Ordinary reply" });
@@ -377,7 +376,7 @@ describe("real viewer to composer response ownership", () => {
     fireEvent.click(clarify);
 
     await waitFor(() =>
-      expect(reply).toHaveAttribute("data-focus-signal", "1")
+      expect(reply).toHaveAttribute("data-focus-signal", "1"),
     );
     expect(composer).toBeVisible();
     expect(reply).toBeEnabled();
@@ -386,7 +385,7 @@ describe("real viewer to composer response ownership", () => {
   const exclusive =
     (
       disabled: boolean,
-      submit = vi.fn().mockResolvedValue(undefined)
+      submit = vi.fn().mockResolvedValue(undefined),
     ): ConversationFormResolver =>
     () => ({
       uiElements: [{ id: "judgment", type: "textarea" }],
@@ -416,11 +415,11 @@ describe("real viewer to composer response ownership", () => {
     expect(reply()).toBeEnabled();
     expect(screen.getByTestId("agent-session-metadata")).toHaveAttribute(
       "data-placement",
-      "below-composer"
+      "below-composer",
     );
     fireEvent.click(embedded);
     await waitFor(() =>
-      expect(embeddedSubmit).toHaveBeenCalledWith({ judgment: "Proceed" })
+      expect(embeddedSubmit).toHaveBeenCalledWith({ judgment: "Proceed" }),
     );
     expect(state.submit).not.toHaveBeenCalled();
   });
@@ -437,15 +436,15 @@ describe("real viewer to composer response ownership", () => {
     const resolver = exclusive(false);
     const view = render(
       surface(resolver, "conversation", false, "when-no-usable-response"),
-      { wrapper }
+      { wrapper },
     );
     expect(
-      await screen.findByRole("button", { name: "Embedded response" })
+      await screen.findByRole("button", { name: "Embedded response" }),
     ).toBeEnabled();
     await waitFor(() => expect(hiddenReply()).not.toBeVisible());
     expect(screen.getByTestId("agent-session-metadata")).toHaveAttribute(
       "data-placement",
-      "below-conversation"
+      "below-conversation",
     );
     fireEvent.change(hiddenReply(), { target: { value: "Keep this draft" } });
     state.messages = [
@@ -465,7 +464,7 @@ describe("real viewer to composer response ownership", () => {
       },
     ];
     view.rerender(
-      surface(resolver, "conversation", false, "when-no-usable-response")
+      surface(resolver, "conversation", false, "when-no-usable-response"),
     );
     await waitFor(() => expect(reply()).toBeVisible());
     expect(reply()).toHaveValue("Keep this draft");
@@ -477,12 +476,12 @@ describe("real viewer to composer response ownership", () => {
         exclusive(true),
         "conversation",
         false,
-        "when-no-usable-response"
+        "when-no-usable-response",
       ),
-      { wrapper }
+      { wrapper },
     );
     expect(
-      await screen.findByRole("button", { name: "Embedded response" })
+      await screen.findByRole("button", { name: "Embedded response" }),
     ).toBeDisabled();
     await waitFor(() => expect(reply()).toBeVisible());
     expect(reply()).toBeEnabled();
@@ -492,21 +491,21 @@ describe("real viewer to composer response ownership", () => {
       () =>
         new Promise<void>((_, reject) => {
           rejectPost = reject;
-        })
+        }),
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Send ordinary reply" })
+      screen.getByRole("button", { name: "Send ordinary reply" }),
     );
     await waitFor(() =>
       expect(state.submit).toHaveBeenCalledWith(
         "Keep this draft",
         undefined,
-        []
-      )
+        [],
+      ),
     );
     rejectPost(new Error("Try again"));
     expect(
-      await screen.findByTestId("run-stream-external-reply-error")
+      await screen.findByTestId("run-stream-external-reply-error"),
     ).toHaveTextContent("Try again");
     expect(reply()).toHaveValue("Keep this draft");
   });
@@ -516,13 +515,13 @@ describe("real viewer to composer response ownership", () => {
     state.ready = false;
     const view = render(
       surface(undefined, "conversation", false, "when-no-usable-response"),
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() => expect(hiddenReply()).not.toBeVisible());
     state.ready = true;
     state.session = null;
     view.rerender(
-      surface(undefined, "conversation", false, "when-no-usable-response")
+      surface(undefined, "conversation", false, "when-no-usable-response"),
     );
     await waitFor(() => expect(reply()).toBeVisible());
     expect(reply()).toBeEnabled();
@@ -567,11 +566,15 @@ describe("attachment wiring through the shared conversation surface", () => {
     };
     vi.stubGlobal(
       "fetch",
-      vi
-        .fn()
-        .mockResolvedValueOnce(json({ machineId: "machine", bindings: [] }))
-        .mockResolvedValueOnce(
-          json({
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(
+          input instanceof Request ? input.url : String(input),
+        );
+        if (url.pathname === "/api/local/repos") {
+          return json({ machineId: "machine", bindings: [] });
+        }
+        if (url.pathname === "/api/local/runs/session/attachments") {
+          return json({
             requestId: reference.attachmentId,
             operation: "run.attachments.upload",
             status: "success",
@@ -579,8 +582,10 @@ describe("attachment wiring through the shared conversation surface", () => {
               runId: "session",
               attachment: { ...reference, sizeBytes: 4 },
             },
-          })
-        )
+          });
+        }
+        throw new Error(`Unexpected attachment request: ${url.pathname}`);
+      }),
     );
   });
 
@@ -596,7 +601,7 @@ describe("attachment wiring through the shared conversation surface", () => {
           composerPolicy="always"
           {...(path === "custom" ? { onSubmitReply: state.submit } : {})}
         />,
-        { wrapper }
+        { wrapper },
       );
       await act(async () => {});
       fireEvent.drop(screen.getByTestId("run-stream-external-reply-composer"), {
@@ -608,15 +613,15 @@ describe("attachment wiring through the shared conversation surface", () => {
       await waitFor(() =>
         expect(screen.getByTestId("run-attachment-chip")).toHaveAttribute(
           "data-upload-status",
-          "ready"
-        )
+          "ready",
+        ),
       );
       fireEvent.change(
         screen.getByRole("textbox", { name: "Ordinary reply" }),
-        { target: { value: "Read the file" } }
+        { target: { value: "Read the file" } },
       );
       fireEvent.click(
-        screen.getByRole("button", { name: "Send ordinary reply" })
+        screen.getByRole("button", { name: "Send ordinary reply" }),
       );
       await waitFor(() => expect(state.submit).toHaveBeenCalledTimes(1));
       if (path === "custom")
@@ -628,8 +633,8 @@ describe("attachment wiring through the shared conversation surface", () => {
           reference,
         ]);
       await waitFor(() =>
-        expect(screen.queryByTestId("run-attachment-chip")).toBeNull()
+        expect(screen.queryByTestId("run-attachment-chip")).toBeNull(),
       );
-    }
+    },
   );
 });

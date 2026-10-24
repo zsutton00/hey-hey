@@ -1,3 +1,4 @@
+import { SessionRole } from '../../../generated/model/sessionRole';
 import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
@@ -1156,6 +1157,7 @@ describe('WorkItemTypeRegistryService', () => {
       const standardTemplate = {
         ...buildTemplate('STANDARD', 1),
         maintenanceGuidance: 'Canonical maintenance advice',
+        sessionRoleGuidance: { implementation: 'Canonical implementation' },
         agentGuidance: { overview: 'Canonical task meaning' },
       } as unknown as WorkItemTypeTemplate;
       const standardOverride = buildProjectOwnedRow('STANDARD', PROJECT, {
@@ -1184,6 +1186,12 @@ describe('WorkItemTypeRegistryService', () => {
           ],
         },
         maintenanceGuidance: 'Project bug maintenance advice',
+        sessionRoleGuidance: Object.fromEntries(
+          Object.values(SessionRole).map((role) => [
+            role,
+            `  ${role} advice  `,
+          ]),
+        ),
       });
       const { registry } = buildRegistry(
         [standardOverride, bugOverride],
@@ -1193,6 +1201,58 @@ describe('WorkItemTypeRegistryService', () => {
       await registry.onModuleInit();
       return registry;
     }
+
+    it.each(Object.values(SessionRole))(
+      'returns ordered role projections for %s without inheriting omitted advice',
+      async (sessionRole) => {
+        const registry = await createGuidanceRegistry();
+        const request = {
+          typeKeys: ['BUG', 'STANDARD'],
+          purpose: WorkItemTypeGuidancePurpose.Role,
+          sessionRole,
+          focalTypeKey: 'UNKNOWN',
+        };
+        expect(registry.getGuidanceBatch(PROJECT, request)).toEqual({
+          results: [
+            {
+              typeKey: 'BUG',
+              name: 'Project bug meaning',
+              sessionRole,
+              guidance: `  ${sessionRole} advice  `,
+            },
+            { typeKey: 'STANDARD', name: 'Project task meaning', sessionRole },
+          ],
+        });
+        expect(
+          registry.getGuidance(
+            PROJECT,
+            'BUG',
+            'UNKNOWN',
+            WorkItemTypeGuidancePurpose.Role,
+            sessionRole,
+          ),
+        ).toEqual(registry.getGuidanceBatch(PROJECT, request).results[0]);
+        expect(() =>
+          registry.getGuidance(
+            PROJECT,
+            'BUG',
+            undefined,
+            WorkItemTypeGuidancePurpose.Role,
+          ),
+        ).toThrow('sessionRole is required');
+        for (const key of ['UNKNOWN']) {
+          expect(() =>
+            registry.getGuidance(
+              PROJECT,
+              key,
+              undefined,
+              WorkItemTypeGuidancePurpose.Role,
+              sessionRole,
+            ),
+          ).toThrow(key);
+        }
+      },
+    );
 
     it('returns purpose projections in request order with focal contexts', async () => {
       const registry = await createGuidanceRegistry();
@@ -1246,6 +1306,50 @@ describe('WorkItemTypeRegistryService', () => {
           },
         ],
       });
+    });
+
+    it('keeps role batches on the captured snapshot when the published snapshot changes', async () => {
+      const registry = await createGuidanceRegistry();
+      const original = (registry as any).snapshot;
+      const definition = registry.getDefinition(PROJECT, 'BUG')!.definition;
+      const advice = definition.sessionRoleGuidance;
+      Object.defineProperty(definition, 'sessionRoleGuidance', {
+        configurable: true,
+        get: () => {
+          (registry as any).snapshot = {
+            ...original,
+            projectSummaries: new Map([[PROJECT, []]]),
+          };
+          return advice;
+        },
+      });
+      expect(
+        registry.getGuidanceBatch(PROJECT, {
+          typeKeys: ['BUG', 'STANDARD'],
+          purpose: WorkItemTypeGuidancePurpose.Role,
+          sessionRole: SessionRole.Review,
+        }).results,
+      ).toEqual([
+        {
+          typeKey: 'BUG',
+          name: 'Project bug meaning',
+          sessionRole: SessionRole.Review,
+          guidance: '  review advice  ',
+        },
+        {
+          typeKey: 'STANDARD',
+          name: 'Project task meaning',
+          sessionRole: SessionRole.Review,
+        },
+      ]);
+      expect(() =>
+        registry.getGuidanceBatch(PROJECT, {
+          typeKeys: ['STANDARD'],
+          purpose: WorkItemTypeGuidancePurpose.Role,
+          sessionRole: SessionRole.Review,
+        }),
+      ).toThrow('STANDARD');
+      (registry as any).snapshot = original;
     });
 
     it('names an unavailable requested type in the batch error', async () => {
@@ -2802,7 +2906,12 @@ describe('WorkItemTypeRegistryService', () => {
         examples: [{ title: 'T', guidance: 'B' }],
         contexts: [{ focalTypeKeys: ['custom'], guidance: 'Context' }],
       };
-      const accepted = { ...definition, agentGuidance };
+      const accepted = {
+        ...definition,
+        agentGuidance,
+        sessionRoleGuidance: { research: '  Keep evidence verbatim.  ' },
+      };
+
       await registry.insertAcceptedDefinitionInTransaction(
         tx,
         accepted,
@@ -2811,6 +2920,7 @@ describe('WorkItemTypeRegistryService', () => {
       );
       const data = create.mock.calls[0]![0].data;
       expect(data.agentGuidance).toEqual(agentGuidance);
+      expect(data.sessionRoleGuidance).toEqual(accepted.sessionRoleGuidance);
       const reloaded = buildRegistry([{ ...data, graphConfiguration: null }]);
       await reloaded.registry.refresh();
       expect(
@@ -2858,6 +2968,9 @@ describe('WorkItemTypeRegistryService', () => {
         ORG,
       );
       expect(create.mock.calls[0]![0].data.agentGuidance).toBe(Prisma.DbNull);
+      expect(create.mock.calls[0]![0].data.sessionRoleGuidance).toBe(
+        Prisma.DbNull,
+      );
     });
 
     it('persists an explicit identity reserved by grouped enactment', async () => {
@@ -3082,6 +3195,26 @@ describe('WorkItemTypeRegistryService', () => {
         );
         expect(updateMany.mock.calls[0]![0].data.agentGuidance).toEqual(
           agentGuidance ?? Prisma.DbNull,
+        );
+      },
+    );
+
+    it.each([undefined, {}, { implementation: '  New advice  ' }])(
+      'preserves or removes role entries through approved edits: %j',
+      async (sessionRoleGuidance) => {
+        const { registry } = buildRegistry([]);
+        const { tx, updateMany } = buildLifecycleTx([
+          { ...storedRow, sessionRoleGuidance: { review: 'Old advice' } },
+        ]);
+        await registry.updateAcceptedDefinitionInTransaction(
+          tx,
+          'MARKETING',
+          { ...editedDefinition, sessionRoleGuidance },
+          PROJECT,
+          ORG,
+        );
+        expect(updateMany.mock.calls[0]![0].data.sessionRoleGuidance).toEqual(
+          sessionRoleGuidance ?? Prisma.DbNull,
         );
       },
     );

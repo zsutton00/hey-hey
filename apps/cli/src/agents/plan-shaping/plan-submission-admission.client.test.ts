@@ -18,6 +18,7 @@ function fixture(
   run.session.entity = null;
   run.setActiveTurn(
     new Turn({
+    effectiveRole: 'implementation',
       turnId: 'turn',
       runId: run.runId,
       resolvedPrompt: '',
