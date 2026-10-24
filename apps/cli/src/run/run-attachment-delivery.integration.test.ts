@@ -198,6 +198,7 @@ it.each(['claude', 'codex', 'opencode'] as const)(
       owner,
       {
         materializeAdmittedRun: vi.fn().mockResolvedValue({ status: 'started' }),
+        adoptStagedBrowserTab: vi.fn().mockResolvedValue(undefined),
         sendSystemMessage: async (
           _id: string,
           request: LocalRunPromptRequest,
