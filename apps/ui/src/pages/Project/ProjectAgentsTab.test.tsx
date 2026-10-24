@@ -4,6 +4,22 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectAgentsTab } from "./ProjectAgentsTab";
 
+const mockRegistry = vi.hoisted(() => ({
+  workItemTypes: [] as unknown[],
+  isReady: true,
+  error: null as Error | null,
+}));
+const mockEvalList = vi.fn();
+vi.mock("@hey-hey/ui-common/data", () => ({
+  useWorkItemTypes: () => mockRegistry,
+}));
+vi.mock("../../components/Tabs/ProjectWorkItemsTab", () => ({
+  ProjectWorkItemsTab: (props: unknown) => {
+    mockEvalList(props);
+    return <div>Evaluations list</div>;
+  },
+}));
+
 const mockQueryState: Record<string, string> = {};
 const mockSetQueryState = vi.fn();
 const mockSegmentedToggle = vi.fn();
@@ -60,6 +76,9 @@ vi.mock("./views", () => ({
 describe("ProjectAgentsTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRegistry.workItemTypes = [];
+    mockRegistry.isReady = true;
+    mockRegistry.error = null;
     delete mockQueryState.agentsSubTab;
   });
 
@@ -73,6 +92,69 @@ describe("ProjectAgentsTab", () => {
         />
       </MemoryRouter>,
     );
+
+  const evalType = {
+    id: "type-eval",
+    projectId: "project-1",
+    status: "ACTIVE",
+    definition: { key: "EVAL", name: "Evaluations", role: "monitor" },
+  };
+
+  it("discovers the registry-named monitor under Agents with project identity", () => {
+    mockRegistry.workItemTypes = [evalType];
+    mockQueryState.agentsSubTab = "evals";
+    renderTab();
+    expect(
+      mockSegmentedToggle.mock.calls
+        .at(-1)?.[0]
+        .segments.map((s: { value: string }) => s.value),
+    ).toEqual([
+      "agent-sessions",
+      "conversations",
+      "automation",
+      "evals",
+      "costs",
+      "usage",
+    ]);
+    expect(mockEvalList).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-1",
+        projectId: "project-1",
+        taskType: "EVAL",
+        title: "Evaluations",
+      }),
+    );
+  });
+
+  it.each(["loading", "error", "absent", "inactive", "wrong-project"])(
+    "retains a requested Eval URL while %s",
+    (state) => {
+      mockQueryState.agentsSubTab = "evals";
+      mockRegistry.workItemTypes =
+        state === "absent"
+          ? []
+          : [
+              {
+                ...evalType,
+                status: state === "inactive" ? "ARCHIVED" : "ACTIVE",
+                projectId:
+                  state === "wrong-project" ? "project-2" : "project-1",
+              },
+            ];
+      mockRegistry.isReady = state !== "loading" && state !== "error";
+      mockRegistry.error = state === "error" ? new Error("Unavailable") : null;
+      renderTab();
+      expect(
+        screen.getByText(
+          state === "loading"
+            ? "Loading evaluations…"
+            : "Evaluations are unavailable for this project.",
+        ),
+      ).toBeInTheDocument();
+      expect(mockEvalList).not.toHaveBeenCalled();
+      expect(mockSetQueryState).not.toHaveBeenCalled();
+    },
+  );
 
   it("defaults to Agent Sessions with an ordered responsive selector", () => {
     renderTab();
