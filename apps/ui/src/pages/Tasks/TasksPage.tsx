@@ -31,7 +31,10 @@ import { KEYS, TERMS } from "@hey-hey/ui-common/i18n";
 
 import { apiClient } from "@hey-hey/ui-common/clients";
 import { TaskList } from "@hey-hey/ui-common/components";
-import type { WorkItemResponseDto } from "@hey-hey/ui-common/data";
+import {
+  useWorkItems,
+  type WorkItemResponseDto,
+} from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import { contentToSectionInputs } from "@hey-hey/ui-common/utils";
 interface TaskFormData {
@@ -53,6 +56,14 @@ export const TasksPage: React.FC = () => {
     initiativeId: string;
   }>();
   const { currentOrgId } = useUserIdentity() || {};
+
+  const { updateTask } = useWorkItems(
+    currentOrgId ?? "",
+    "task",
+    projectId ?? "",
+    undefined,
+    { enabled: false },
+  );
 
   const [initiative, setInitiative] = useState<InitiativeResponseDto | null>(
     null,
@@ -187,11 +198,8 @@ export const TasksPage: React.FC = () => {
         ),
       };
 
-      await apiClient.updateTask({
-        organizationId: currentOrgId,
-        taskId: editingTask?.id || "",
-        updateTaskDto: updateDto,
-        projectId,
+      await updateTask(editingTask.id, updateDto, {
+        authoritativeTask: editingTask,
       });
 
       setEditDialogOpen(false);

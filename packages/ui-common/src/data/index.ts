@@ -189,3 +189,5 @@ export type {
   TriageTarget,
   TriagePromotionIntent,
 } from "./triage/application";
+
+export { FutureOfferProvider } from "./futureOffers/FutureOfferProvider";

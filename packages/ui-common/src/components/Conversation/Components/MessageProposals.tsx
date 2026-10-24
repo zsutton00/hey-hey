@@ -1,3 +1,4 @@
+import { useFutureOfferCheck } from "../../../data/hooks/useFutureOfferCheck";
 import { Stack } from "@mui/material";
 import React, { useCallback, useMemo, useRef } from "react";
 import {
@@ -55,6 +56,7 @@ export const useMessageProposalActions = (
   const { proposalDiffDefaultViewMode, onProposalsAccepted } =
     useConversationContext();
   const invalidateConversation = useInvalidateConversation();
+  const checkAppliedProposal = useFutureOfferCheck();
 
   const onProposalsAcceptedRef = useRef(onProposalsAccepted);
   onProposalsAcceptedRef.current = onProposalsAccepted;
@@ -100,6 +102,7 @@ export const useMessageProposalActions = (
         );
       }
 
+      checkAppliedProposal(approvedProposal);
       invalidateConversation(conversationId);
 
       const materializationStatus =
@@ -148,6 +151,7 @@ export const useMessageProposalActions = (
       return approvedProposal;
     },
     [
+      checkAppliedProposal,
       conversationId,
       invalidateConversation,
       triggeringMessage,

@@ -53,6 +53,7 @@ const mockWorkItemFilesTab = vi.fn();
 const mockWorkItemMetadata = vi.fn();
 const mockWorkItemReadView = vi.fn();
 const mockWorkItemEditor = vi.fn();
+const mockStatusActionUnmount = vi.fn();
 const mockSetActiveTab = vi.fn();
 const mockSetActiveType = vi.fn();
 let mockActiveTab = "data-debug";
@@ -528,7 +529,10 @@ vi.mock("../../utils/logger", () => ({
 }));
 
 vi.mock("./SetReadyActionCapsule", () => ({
-  SetReadyActionCapsule: () => null,
+  SetReadyActionCapsule: () => {
+    React.useEffect(() => () => mockStatusActionUnmount(), []);
+    return <div data-testid="status-action-owner" />;
+  },
 }));
 
 vi.mock("./TaskAgentSessionsTab", () => ({
@@ -606,6 +610,31 @@ describe("TaskPage data debug tab", () => {
     mockWorkItemTypesFetched = true;
     mockVisibleChildren = [];
     mockWorkItemFilesTab.mockReset();
+  });
+
+  it("keeps the capsule mutation owner alive through optimistic completion until the page closes", () => {
+    mockActiveTab = "task";
+    mockHierarchyTask = createTask({ status: WorkStatus.Active });
+    mockWorkItemTask = mockHierarchyTask;
+    const page = () => (
+      <MemoryRouter>
+        <TaskPage
+          organizationId="org-1"
+          projectId="project-1"
+          initiativeId="initiative-1"
+          taskId="task-1"
+        />
+      </MemoryRouter>
+    );
+    const view = render(page());
+    expect(screen.getByTestId("status-action-owner")).toBeInTheDocument();
+    mockHierarchyTask = { ...mockHierarchyTask, status: WorkStatus.Completed };
+    mockWorkItemTask = mockHierarchyTask;
+    view.rerender(page());
+    expect(mockStatusActionUnmount).not.toHaveBeenCalled();
+    expect(screen.getByTestId("status-action-owner")).toBeInTheDocument();
+    view.unmount();
+    expect(mockStatusActionUnmount).toHaveBeenCalledTimes(1);
   });
 
   it("starts Mockup context collapsed and lets users reopen and close both cards", () => {

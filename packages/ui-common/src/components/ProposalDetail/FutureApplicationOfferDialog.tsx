@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import { reviewedUnappliedOffers } from "../../data/futureOffers/futureOfferCoordinator";
 import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
@@ -39,12 +41,30 @@ export function FutureApplicationOfferDialog({
         projectId,
         dependencyTaskId: taskId,
       });
-      return result.data.data ?? [];
+      if (!result.data.data)
+        throw new Error("Future offer response is missing");
+      return reviewedUnappliedOffers(result.data.data);
     },
     enabled: open,
     staleTime: 0,
   });
-  if (!open || !offers.data?.length) return null;
+  useEffect(() => {
+    if (
+      open &&
+      offers.isSuccess &&
+      !offers.isFetching &&
+      offers.data.length === 0
+    )
+      onClose();
+  }, [open, offers.isSuccess, offers.isFetching, offers.data, onClose]);
+  if (!open) return null;
+  if (offers.error)
+    return (
+      <Alert severity="warning" onClose={onClose}>
+        Linked future revisions could not be loaded.
+      </Alert>
+    );
+  if (!offers.data?.length) return null;
   return (
     <Dialog
       open
@@ -60,8 +80,8 @@ export function FutureApplicationOfferDialog({
       <DialogContent>
         <Stack spacing={2}>
           <Typography variant="body2">
-            This work has reached a point where its reviewed knowledge changes
-            can be applied. Nothing is applied unless you choose Apply.
+            Review the linked future revisions below. Each one shows whether it
+            is ready to apply. Nothing changes until you choose Apply.
           </Typography>
           {offers.data.map((offer) => (
             <OfferedFuture

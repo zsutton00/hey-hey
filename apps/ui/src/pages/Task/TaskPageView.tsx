@@ -390,11 +390,9 @@ export const TaskPageView: React.FC<TaskPageViewProps> = ({
     onTabChange(`children:${typeKey}`);
   };
 
-  const showStatusActionCapsule =
-    surfacesLifecycleScalars &&
-    (isRefining ||
-      task.status === WorkStatus.Backlog ||
-      task.status === WorkStatus.Active);
+  // Keep the mutation owner mounted through optimistic completion and its
+  // response. The capsule itself hides when no action is available.
+  const showStatusActionCapsule = surfacesLifecycleScalars;
   const adminMetadataItems = buildAdminMetadataItems({
     createdAt: task?.createdAt,
     updatedAt: task?.updatedAt,

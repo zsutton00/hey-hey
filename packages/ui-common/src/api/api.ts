@@ -4633,7 +4633,7 @@ export interface AgentSessionExistingWorkflowBinding {
     'workflowId': string;
 }
 /**
- * Closed selector for a non-revisioned Agent Session action. Agent Session authorization is bound to target identity and the immutable operation fingerprint instead of a mutable conversation counter.
+ * Preparation for a non-revisioned Agent Session action. Direct actions bind target identity and complete semantic inputs, independently of delivery framing and mutable conversation counters.
  * @export
  * @interface AgentSessionHostActionPreparation
  */
@@ -4668,6 +4668,12 @@ export interface AgentSessionHostActionPreparation {
      * @memberof AgentSessionHostActionPreparation
      */
     'targetId': string;
+    /**
+     * 
+     * @type {ControllerActionInputs}
+     * @memberof AgentSessionHostActionPreparation
+     */
+    'inputs'?: ControllerActionInputs;
 }
 
 export const AgentSessionHostActionPreparationTargetKindEnum = {
@@ -16696,6 +16702,7 @@ export const ConfirmMachineEnrollmentResponseDtoAuthorizationProtocolVersionEnum
 
 export type ConfirmMachineEnrollmentResponseDtoAuthorizationProtocolVersionEnum = typeof ConfirmMachineEnrollmentResponseDtoAuthorizationProtocolVersionEnum[keyof typeof ConfirmMachineEnrollmentResponseDtoAuthorizationProtocolVersionEnum];
 
+
 /**
  * 
  * @export
@@ -17888,6 +17895,13 @@ export interface ContextVersionDtoMetadata {
     'parentVersion'?: string;
 }
 /**
+ * @type ControllerActionInputs
+ * Complete typed semantic inputs for a direct action. Approval and local admission use the same definition. Authorization and platform signatures are never inputs. Correlation-only fields are removed by the shared canonicalizer; operation parameters and ordered arrays remain bound.
+ * @export
+ */
+export type ControllerActionInputs = { kind: 'CLI_READ' } & ControllerReadInputs | { kind: 'CONTROL' } & ControllerControlInputs | { kind: 'START_RUN' } & ControllerStartInputs | { kind: 'TASK_MONITOR' } & ControllerMonitorInputs | { kind: 'USER_MESSAGE' } & ControllerMessageInputs;
+
+/**
  * Fresh browser-submitted controller proof. It carries no server grant identifier. The API verifies and consumes this evidence before deriving or resolving any reusable grant and constructing executable activation evidence.
  * @export
  * @interface ControllerAssertionEvidence
@@ -18552,6 +18566,32 @@ export type ControllerAuthorizedSignedMonitorCommandEnvelopeProtocolVersionEnum 
 /**
  * 
  * @export
+ * @interface ControllerControlInputs
+ */
+export interface ControllerControlInputs {
+    /**
+     * 
+     * @type {string}
+     * @memberof ControllerControlInputs
+     */
+    'kind': ControllerControlInputsKindEnum;
+    /**
+     * 
+     * @type {ConversationAuthorityIncreasingControlBody}
+     * @memberof ControllerControlInputs
+     */
+    'body': ConversationAuthorityIncreasingControlBody;
+}
+
+export const ControllerControlInputsKindEnum = {
+    Control: 'CONTROL'
+} as const;
+
+export type ControllerControlInputsKindEnum = typeof ControllerControlInputsKindEnum[keyof typeof ControllerControlInputsKindEnum];
+
+/**
+ * 
+ * @export
  * @interface ControllerCredentialPublicKey
  */
 export interface ControllerCredentialPublicKey {
@@ -18920,6 +18960,90 @@ export type ControllerManagementProtocolVersion = typeof ControllerManagementPro
 /**
  * 
  * @export
+ * @interface ControllerMessageInputs
+ */
+export interface ControllerMessageInputs {
+    /**
+     * 
+     * @type {string}
+     * @memberof ControllerMessageInputs
+     */
+    'kind': ControllerMessageInputsKindEnum;
+    /**
+     * 
+     * @type {UserMessagePromptPayload}
+     * @memberof ControllerMessageInputs
+     */
+    'payload': UserMessagePromptPayload;
+    /**
+     * 
+     * @type {UserMessageAdmittedServiceScope}
+     * @memberof ControllerMessageInputs
+     */
+    'admittedServiceScope'?: UserMessageAdmittedServiceScope;
+}
+
+export const ControllerMessageInputsKindEnum = {
+    UserMessage: 'USER_MESSAGE'
+} as const;
+
+export type ControllerMessageInputsKindEnum = typeof ControllerMessageInputsKindEnum[keyof typeof ControllerMessageInputsKindEnum];
+
+/**
+ * 
+ * @export
+ * @interface ControllerMonitorInputs
+ */
+export interface ControllerMonitorInputs {
+    /**
+     * 
+     * @type {string}
+     * @memberof ControllerMonitorInputs
+     */
+    'kind': ControllerMonitorInputsKindEnum;
+    /**
+     * 
+     * @type {TaskMonitorExternalCommand}
+     * @memberof ControllerMonitorInputs
+     */
+    'command': TaskMonitorExternalCommand;
+}
+
+export const ControllerMonitorInputsKindEnum = {
+    TaskMonitor: 'TASK_MONITOR'
+} as const;
+
+export type ControllerMonitorInputsKindEnum = typeof ControllerMonitorInputsKindEnum[keyof typeof ControllerMonitorInputsKindEnum];
+
+/**
+ * 
+ * @export
+ * @interface ControllerReadInputs
+ */
+export interface ControllerReadInputs {
+    /**
+     * 
+     * @type {string}
+     * @memberof ControllerReadInputs
+     */
+    'kind': ControllerReadInputsKindEnum;
+    /**
+     * 
+     * @type {CliReadEnvelopeBody}
+     * @memberof ControllerReadInputs
+     */
+    'body': CliReadEnvelopeBody;
+}
+
+export const ControllerReadInputsKindEnum = {
+    CliRead: 'CLI_READ'
+} as const;
+
+export type ControllerReadInputsKindEnum = typeof ControllerReadInputsKindEnum[keyof typeof ControllerReadInputsKindEnum];
+
+/**
+ * 
+ * @export
  * @interface ControllerReconciliationResponseDto
  */
 export interface ControllerReconciliationResponseDto {
@@ -19099,6 +19223,38 @@ export const ControllerRevocationResponseDtoOutcomeEnum = {
 } as const;
 
 export type ControllerRevocationResponseDtoOutcomeEnum = typeof ControllerRevocationResponseDtoOutcomeEnum[keyof typeof ControllerRevocationResponseDtoOutcomeEnum];
+
+/**
+ * 
+ * @export
+ * @interface ControllerStartInputs
+ */
+export interface ControllerStartInputs {
+    /**
+     * 
+     * @type {string}
+     * @memberof ControllerStartInputs
+     */
+    'kind': ControllerStartInputsKindEnum;
+    /**
+     * 
+     * @type {StartRunPromptPayload}
+     * @memberof ControllerStartInputs
+     */
+    'payload': StartRunPromptPayload;
+    /**
+     * 
+     * @type {UserMessageAdmittedServiceScope}
+     * @memberof ControllerStartInputs
+     */
+    'admittedServiceScope'?: UserMessageAdmittedServiceScope;
+}
+
+export const ControllerStartInputsKindEnum = {
+    StartRun: 'START_RUN'
+} as const;
+
+export type ControllerStartInputsKindEnum = typeof ControllerStartInputsKindEnum[keyof typeof ControllerStartInputsKindEnum];
 
 /**
  * @type ConversationAuthorityIncreasingControlBody
@@ -19652,6 +19808,12 @@ export interface ConversationHostActionPreparation {
      * @memberof ConversationHostActionPreparation
      */
     'targetId': string;
+    /**
+     * 
+     * @type {ControllerActionInputs}
+     * @memberof ConversationHostActionPreparation
+     */
+    'inputs'?: ControllerActionInputs;
 }
 
 export const ConversationHostActionPreparationTargetKindEnum = {
@@ -44507,7 +44669,7 @@ export type HostActionCategory = typeof HostActionCategory[keyof typeof HostActi
 
 /**
  * @type HostActionPreparation
- * Closed selector for a persisted domain action. It contains no account, organization, project, payload, hash, authorization ID, nonce, or lifetime.
+ * Preparation for a server-resolved action. Direct actions carry complete typed execution or disclosure inputs. Account, organization, project, payload hash, authorization ID, nonce, and lifetime remain server-owned.
  * @export
  */
 export type HostActionPreparation = { targetKind: 'AGENT_SESSION' } & AgentSessionHostActionPreparation | { targetKind: 'CLI_READ' } & CliReadHostActionPreparation | { targetKind: 'CONVERSATION' } & ConversationHostActionPreparation | { targetKind: 'TASK_MONITOR' } & TaskMonitorHostActionPreparation;
@@ -51539,6 +51701,7 @@ export interface LocalDesignDocRefinerPromptPayload {
      */
     'userMessage': string;
 }
+
 /**
  * 
  * @export
@@ -67409,6 +67572,12 @@ export interface ProjectModeSettings {
      * @memberof ProjectModeSettings
      */
     'projectAssistant': ProjectModeProjectAssistantSetting;
+    /**
+     * Session role declared by this Agent Mode. Omission, including omission of the settings section, resolves to implementation.
+     * @type {SessionRole}
+     * @memberof ProjectModeSettings
+     */
+    'sessionRole'?: SessionRole;
     /**
      * Stable effective work-item type keys this MODE may launch against, chosen per MODE. Keys must be unique (enforced by the platform validator rather than `uniqueItems`, which generators map to sets). Each key must resolve to an active type in the project\'s effective registry snapshot. Launch eligibility is this list intersected with the MODE\'s Feature `DEPENDS_ON` scope. When absent, the MODE keeps its legacy eligibility derived from the shared MODE type\'s agent-guidance contexts; consumers must not widen access for an absent list. 
      * @type {Array<string>}
@@ -83591,6 +83760,22 @@ export interface SessionReviewNeededPayload {
     'reportId': string;
 }
 /**
+ * Kind of work performed by a mode session, independent of mode identity and work-item-type registry role.
+ * @export
+ * @enum {string}
+ */
+
+export const SessionRole = {
+    Implementation: 'implementation',
+    Research: 'research',
+    Planning: 'planning',
+    Review: 'review'
+} as const;
+
+export type SessionRole = typeof SessionRole[keyof typeof SessionRole];
+
+
+/**
  * Payload for SESSION_SUMMARY reports.
  * @export
  * @interface SessionSummaryReportPayload
@@ -90904,7 +91089,7 @@ export const TaskMonitorHaltedSystemMessageDataOutcomeEnum = {
 export type TaskMonitorHaltedSystemMessageDataOutcomeEnum = typeof TaskMonitorHaltedSystemMessageDataOutcomeEnum[keyof typeof TaskMonitorHaltedSystemMessageDataOutcomeEnum];
 
 /**
- * Closed selector for a Task Monitor machine action. Authorization binds the exact action and Task Monitor identity; the CLI machine evaluates the command against its own durable snapshot and internal revision.
+ * Preparation for a Task Monitor machine action. Authorization binds the complete typed command and Task Monitor identity; the CLI evaluates the command against its own durable snapshot and internal revision.
  * @export
  * @interface TaskMonitorHostActionPreparation
  */
@@ -90939,6 +91124,12 @@ export interface TaskMonitorHostActionPreparation {
      * @memberof TaskMonitorHostActionPreparation
      */
     'targetId': string;
+    /**
+     * 
+     * @type {ControllerActionInputs}
+     * @memberof TaskMonitorHostActionPreparation
+     */
+    'inputs'?: ControllerActionInputs;
 }
 
 export const TaskMonitorHostActionPreparationTargetKindEnum = {

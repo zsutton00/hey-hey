@@ -1,3 +1,7 @@
+import { useFutureOffers } from "../futureOffers/FutureOfferContext";
+import { futureOfferTaskIds } from "../futureOffers/futureOfferCoordinator";
+import { proposalGroupQueryOptions } from "../collections/proposalGroups";
+import { useFutureOfferCheck } from "./useFutureOfferCheck";
 import { useQueryClient } from "@tanstack/react-query";
 import { proposalKeys } from "../collections/proposals";
 import { invalidateProposalReconciliation } from "../../components/ProposalReconciliation/reconciliationInvalidation";
@@ -49,6 +53,8 @@ export const useProposalGroupDecisions = ({
   groupId,
 }: UseProposalGroupDecisionsOptions): UseProposalGroupDecisionsReturn => {
   const queryClient = useQueryClient();
+  const checkAppliedProposal = useFutureOfferCheck();
+  const futureOffers = useFutureOffers();
   const invalidateReview = useInvalidateProposalReview();
   const [decidingProposalIds, setDecidingProposalIds] = useState<Set<string>>(
     () => new Set(),
@@ -104,14 +110,16 @@ export const useProposalGroupDecisions = ({
           proposalId,
           updateProposalDto: { status: ProposalStatus.Approved },
         });
-        return requireResult(response.data.data, "Proposal approval");
+        const approved = requireResult(response.data.data, "Proposal approval");
+        checkAppliedProposal(approved);
+        return approved;
       });
       setDecisionProposals((current) =>
         new Map(current).set(proposalId, proposal),
       );
       return proposal;
     },
-    [organizationId, projectId, runMemberDecision],
+    [organizationId, projectId, runMemberDecision, checkAppliedProposal],
   );
 
   const rejectMember = useCallback(
@@ -134,6 +142,9 @@ export const useProposalGroupDecisions = ({
   );
 
   const approveAll = useCallback(async () => {
+    const group = queryClient.getQueryData(
+      proposalGroupQueryOptions(organizationId, projectId, groupId).queryKey,
+    );
     setError(null);
     setIsApprovingAll(true);
     try {
@@ -143,6 +154,15 @@ export const useProposalGroupDecisions = ({
         groupId,
       });
       const result = requireResult(response.data.data, "Approve all");
+      for (const member of result.results) {
+        if (member.executionState !== "APPLIED") continue;
+        const proposal = group?.members.find(
+          (candidate) => candidate.proposal.id === member.proposalId,
+        )?.proposal;
+        if (proposal)
+          for (const taskId of futureOfferTaskIds(proposal))
+            futureOffers?.checkTask(taskId);
+      }
       setApproveAllResult(result);
       return result;
     } catch (caught) {
@@ -156,7 +176,14 @@ export const useProposalGroupDecisions = ({
       await invalidateReview(organizationId, projectId).catch(() => null);
       setIsApprovingAll(false);
     }
-  }, [groupId, organizationId, projectId, invalidateReview]);
+  }, [
+    groupId,
+    organizationId,
+    projectId,
+    invalidateReview,
+    queryClient,
+    futureOffers,
+  ]);
 
   const clearApproveAllResult = useCallback(
     () => setApproveAllResult(null),

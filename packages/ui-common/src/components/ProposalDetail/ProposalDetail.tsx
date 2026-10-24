@@ -1,3 +1,4 @@
+import { useFutureOfferCheck } from "../../data/hooks/useFutureOfferCheck";
 import {
   Alert,
   Box,
@@ -188,6 +189,8 @@ const ProposalDetailLoaded: React.FC<ProposalDetailLoadedProps> = ({
 
   const { isExpanded } = useConversationPanel();
 
+  const checkAppliedProposal = useFutureOfferCheck();
+
   const handleApply = useCallback(
     async (
       id: string,
@@ -220,6 +223,7 @@ const ProposalDetailLoaded: React.FC<ProposalDetailLoadedProps> = ({
           );
         }
         approvedProposal = response.data.data;
+        checkAppliedProposal(approvedProposal);
       } finally {
         invalidateReview(proposal.organizationId, proposal.projectId);
         await refetch().catch(() => null);
@@ -230,7 +234,13 @@ const ProposalDetailLoaded: React.FC<ProposalDetailLoadedProps> = ({
       }
       return approvedProposal;
     },
-    [proposal, refetch, invalidateConversation, invalidateReview],
+    [
+      proposal,
+      refetch,
+      invalidateConversation,
+      invalidateReview,
+      checkAppliedProposal,
+    ],
   );
 
   useEffect(() => {

@@ -1,3 +1,4 @@
+import { useFutureOffers } from "../futureOffers/FutureOfferContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 import {
@@ -50,8 +51,8 @@ import { useWorkItemAuthoritativeMount } from "./useWorkItemMountPolicy";
 
 export const ENTITY_TYPE = "Task";
 
-export interface UpdateTaskMutationCallbacks
-  extends MutationCallbacks<TaskResponseDto> {
+export interface UpdateTaskMutationCallbacks extends MutationCallbacks<TaskResponseDto> {
+  authoritativeTask?: TaskResponseDto;
   sectionSelection?: WorkItemSectionSelection;
   /**
    * Fired when the server staged the PATCH behind a pending proposal instead
@@ -60,12 +61,11 @@ export interface UpdateTaskMutationCallbacks
    */
   onPendingProposal?: (
     proposal: ProposalResponseDto,
-    task: TaskResponseDto
+    task: TaskResponseDto,
   ) => void;
 }
 
-export interface WorkItemHookOptions
-  extends CollectionHookOptions<WorkItemResponseDto> {
+export interface WorkItemHookOptions extends CollectionHookOptions<WorkItemResponseDto> {
   parentTaskId?: string | null;
   parentTaskIds?: string[];
   includeSectionKeys?: string[];
@@ -90,28 +90,30 @@ export interface WorkItemHookOptions
   sortDir?: TaskSortDir;
 }
 
-export interface UseWorkItemsReturn
-  extends Omit<DataCollectionHookReturn<WorkItemResponseDto>, "data"> {
+export interface UseWorkItemsReturn extends Omit<
+  DataCollectionHookReturn<WorkItemResponseDto>,
+  "data"
+> {
   workItems: WorkItemResponseDto[];
   createTask: (
     newTask: CreateTaskDto,
-    callbacks?: MutationCallbacks<TaskResponseDto>
+    callbacks?: MutationCallbacks<TaskResponseDto>,
   ) => Promise<TaskResponseDto>;
   /** @deprecated Initiatives removed. Creates a feature task instead. */
   createInitiative: (
     newInitiative: CreateInitiativeDto,
-    callbacks?: MutationCallbacks<InitiativeResponseDto>
+    callbacks?: MutationCallbacks<InitiativeResponseDto>,
   ) => Promise<InitiativeResponseDto>;
   updateTask: (
     id: string,
     updates: UpdateTaskDto,
-    callbacks?: UpdateTaskMutationCallbacks
+    callbacks?: UpdateTaskMutationCallbacks,
   ) => Promise<TaskResponseDto>;
   /** @deprecated Initiatives removed. Updates a task instead. */
   updateInitiative: (
     id: string,
     updates: UpdateInitiativeDto,
-    callbacks?: MutationCallbacks<InitiativeResponseDto>
+    callbacks?: MutationCallbacks<InitiativeResponseDto>,
   ) => Promise<InitiativeResponseDto>;
   remove: (id: string, callbacks?: MutationCallbacks<void>) => Promise<void>;
 }
@@ -134,7 +136,7 @@ export function useWorkItems(
   _entityType: "initiative" | "task",
   projectId: string,
   _conversationId?: string,
-  options: WorkItemHookOptions = {}
+  options: WorkItemHookOptions = {},
 ): UseWorkItemsReturn {
   const {
     parentTaskId,
@@ -164,6 +166,7 @@ export function useWorkItems(
   const normalizedSectionKeys = normalizeSectionKeys(includeSectionKeys);
   const invalidateRelationships = useRelationshipMutationInvalidation();
   const queryClient = useQueryClient();
+  const futureOffers = useFutureOffers();
   const authoritativeMount = useWorkItemAuthoritativeMount();
 
   const isEnabled = enabledOption !== false && !!organizationId;
@@ -234,19 +237,19 @@ export function useWorkItems(
   const snapshot = useCallback(
     (taskId?: string): WorkItemCacheSnapshot =>
       snapshotWorkItemCaches(queryClient, organizationId, projectId, taskId),
-    [queryClient, organizationId, projectId]
+    [queryClient, organizationId, projectId],
   );
   const restore = useCallback(
     (cacheSnapshot: WorkItemCacheSnapshot) =>
       restoreWorkItemCaches(queryClient, cacheSnapshot),
-    [queryClient]
+    [queryClient],
   );
 
   // Create task function with optimistic updates
   const createTask = useCallback(
     async (
       newTask: CreateTaskDto,
-      callbacks?: MutationCallbacks<TaskResponseDto>
+      callbacks?: MutationCallbacks<TaskResponseDto>,
     ): Promise<TaskResponseDto> => {
       const tempId = `temp-${Date.now()}-${Math.random()}`;
       const { sections: sectionInputs, ...rest } = newTask;
@@ -257,7 +260,7 @@ export function useWorkItems(
         type: newTask.type ?? STANDARD_TASK_TYPE,
         sections: applyTaskSectionInputsToMaterialized(
           undefined,
-          sectionInputs
+          sectionInputs,
         ),
         organizationId,
         projectId,
@@ -271,7 +274,7 @@ export function useWorkItems(
       const cacheSnapshot = snapshot();
       queryClient.setQueryData<WorkItemResponseDto[]>(
         listOptions.queryKey,
-        (items) => (items ? [...items, optimisticDto] : items)
+        (items) => (items ? [...items, optimisticDto] : items),
       );
 
       try {
@@ -287,7 +290,7 @@ export function useWorkItems(
         }
 
         updateWorkItemLists(queryClient, organizationId, projectId, (items) =>
-          items.map((item) => (item.id === tempId ? createdData : item))
+          items.map((item) => (item.id === tempId ? createdData : item)),
         );
 
         invalidateRelationships({
@@ -317,7 +320,7 @@ export function useWorkItems(
       queryClient,
       restore,
       snapshot,
-    ]
+    ],
   );
 
   // Update task function
@@ -325,14 +328,11 @@ export function useWorkItems(
     async (
       id: string,
       updates: UpdateTaskDto,
-      callbacks?: UpdateTaskMutationCallbacks
+      callbacks?: UpdateTaskMutationCallbacks,
     ): Promise<TaskResponseDto> => {
-      const currentTask = findCachedWorkItem(
-        queryClient,
-        organizationId,
-        projectId,
-        id
-      );
+      const currentTask =
+        callbacks?.authoritativeTask ??
+        findCachedWorkItem(queryClient, organizationId, projectId, id);
 
       if (!currentTask) {
         throw new Error(`Task ${id} not found in collection state`);
@@ -353,7 +353,7 @@ export function useWorkItems(
               queryClient,
               organizationId,
               projectId,
-              [currentTask.parentTaskId, updates.parentTaskId, id]
+              [currentTask.parentTaskId, updates.parentTaskId, id],
             )
           : undefined;
 
@@ -364,7 +364,7 @@ export function useWorkItems(
         sections: applyTaskSectionInputsToMaterialized(
           currentTask.sections,
           sectionUpdates,
-          callbacks?.sectionSelection
+          callbacks?.sectionSelection,
         ),
         dueDate: updates.dueDate ?? currentTask.dueDate,
         assigneeId: updates.assigneeId ?? currentTask.assigneeId,
@@ -394,8 +394,7 @@ export function useWorkItems(
         }
 
         const serverTask = updatedData.task;
-        const isPending =
-          updatedData.status === UpdateTaskResultStatus.Pending;
+        const isPending = updatedData.status === UpdateTaskResultStatus.Pending;
 
         if (isPending) {
           // Server staged the PATCH behind a proposal — drop the optimistic
@@ -419,6 +418,14 @@ export function useWorkItems(
           callbacks?.onPendingProposal?.(updatedData.proposal, serverTask);
         }
 
+        if (
+          !isPending &&
+          (updates.status === WorkStatus.Verifying ||
+            updates.status === WorkStatus.Completed) &&
+          serverTask.status === updates.status
+        ) {
+          futureOffers?.checkTask(id);
+        }
         callbacks?.onSuccess?.(serverTask);
         return serverTask;
       } catch (error) {
@@ -435,12 +442,13 @@ export function useWorkItems(
     },
     [
       invalidateRelationships,
+      futureOffers,
       organizationId,
       projectId,
       queryClient,
       restore,
       snapshot,
-    ]
+    ],
   );
 
   // Remove function
@@ -450,7 +458,7 @@ export function useWorkItems(
         queryClient,
         organizationId,
         projectId,
-        id
+        id,
       );
 
       if (!itemToDelete) {
@@ -491,7 +499,7 @@ export function useWorkItems(
       queryClient,
       restore,
       snapshot,
-    ]
+    ],
   );
 
   useWebsocketSubscriptions(
@@ -501,7 +509,7 @@ export function useWorkItems(
     },
     {
       enabled: websocketsEnabled && (enabledOption ?? true),
-    }
+    },
   );
 
   const { refetch, markStale } = query;
@@ -510,7 +518,7 @@ export function useWorkItems(
   const createInitiative = useDeepCompareCallback(
     async (
       newInitiative: CreateInitiativeDto,
-      callbacks?: MutationCallbacks<InitiativeResponseDto>
+      callbacks?: MutationCallbacks<InitiativeResponseDto>,
     ): Promise<InitiativeResponseDto> => {
       const taskDto: CreateTaskDto = {
         name: newInitiative.name ?? "",
@@ -522,18 +530,18 @@ export function useWorkItems(
       };
       const result = await createTask(
         taskDto,
-        callbacks as unknown as MutationCallbacks<TaskResponseDto>
+        callbacks as unknown as MutationCallbacks<TaskResponseDto>,
       );
       return result as unknown as InitiativeResponseDto;
     },
-    [createTask]
+    [createTask],
   );
 
   const updateInitiative = useCallback(
     async (
       id: string,
       updates: UpdateInitiativeDto,
-      callbacks?: MutationCallbacks<InitiativeResponseDto>
+      callbacks?: MutationCallbacks<InitiativeResponseDto>,
     ): Promise<InitiativeResponseDto> => {
       const taskUpdates: UpdateTaskDto = {
         name: updates.name,
@@ -546,11 +554,11 @@ export function useWorkItems(
       const result = await updateTask(
         id,
         taskUpdates,
-        callbacks as unknown as MutationCallbacks<TaskResponseDto>
+        callbacks as unknown as MutationCallbacks<TaskResponseDto>,
       );
       return result as unknown as InitiativeResponseDto;
     },
-    [updateTask]
+    [updateTask],
   );
 
   return {
