@@ -60,9 +60,10 @@ let capturedHardDeleteOptions: UseCreateWorkItemTypeOptions | undefined;
 let capturedCreateOptions: UseCreateWorkItemTypeOptions | undefined;
 
 vi.mock("react-router-dom", async () => {
-  const actual = await vi.importActual<typeof import("react-router-dom")>(
-    "react-router-dom",
-  );
+  const actual =
+    await vi.importActual<typeof import("react-router-dom")>(
+      "react-router-dom",
+    );
   return {
     ...actual,
     useNavigate: () => mockNavigate,
@@ -530,7 +531,6 @@ describe("WorkItemTypeFormPage", () => {
     });
   });
 
-
   it("preserves the color draft while submission is pending and after rejection", async () => {
     const user = userEvent.setup();
     renderForm();
@@ -539,26 +539,47 @@ describe("WorkItemTypeFormPage", () => {
     fireEvent.mouseDown(screen.getByRole("combobox", { name: "Color" }));
     await user.click(screen.getByRole("option", { name: "Green" }));
     let rejectSubmission: ((reason: Error) => void) | undefined;
-    mockCreateMutate.mockImplementation(() => new Promise((_resolve, reject) => { rejectSubmission = reject; }));
+    mockCreateMutate.mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectSubmission = reject;
+        }),
+    );
     await user.click(screen.getByTestId("wit-form-submit"));
-    expect(mockCreateMutate.mock.calls[0][0].definition.colorKey).toBe("success");
-    expect(screen.queryByTestId("wit-form-proposal-link")).not.toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Color" })).toHaveTextContent("Green");
+    expect(mockCreateMutate.mock.calls[0][0].definition.colorKey).toBe(
+      "success",
+    );
+    expect(
+      screen.queryByTestId("wit-form-proposal-link"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Color" })).toHaveTextContent(
+      "Green",
+    );
     const failure = new Error("Color proposal rejected");
     await act(async () => {
       capturedCreateOptions?.onError?.(failure);
       rejectSubmission?.(failure);
     });
     expect(screen.getByText("Color proposal rejected")).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Color" })).toHaveTextContent("Green");
+    expect(screen.getByRole("combobox", { name: "Color" })).toHaveTextContent(
+      "Green",
+    );
     mockCreateMutate.mockImplementation(async (vars) => {
-      const proposal = { id: "retry-proposal", projectId: vars.projectId } as ProposalResponseDto;
+      const proposal = {
+        id: "retry-proposal",
+        projectId: vars.projectId,
+      } as ProposalResponseDto;
       capturedCreateOptions?.onSuccess?.(proposal);
       return proposal;
     });
     await user.click(screen.getByTestId("wit-form-submit"));
-    expect(screen.getByTestId("wit-form-proposal-link")).toHaveAttribute("href", "/projects/proj-1/proposals/retry-proposal");
-    expect(mockCreateMutate.mock.calls[1][0].definition.colorKey).toBe("success");
+    expect(screen.getByTestId("wit-form-proposal-link")).toHaveAttribute(
+      "href",
+      "/projects/proj-1/proposals/retry-proposal",
+    );
+    expect(mockCreateMutate.mock.calls[1][0].definition.colorKey).toBe(
+      "success",
+    );
   });
 
   it.each(["unchanged", "change", "clear"] as const)(
@@ -3347,6 +3368,116 @@ describe("WorkItemTypeFormPage", () => {
     expect(mockRefetchWorkItemTypes).toHaveBeenCalledTimes(2);
     expect(mockRefetchWorkItemType).toHaveBeenCalledTimes(1);
   });
+
+  it.each([
+    [
+      "diagnostic",
+      Object.assign(new Error("Request failed with status code 409"), {
+        response: {
+          data: {
+            message:
+              "Proposal content changed after review. Reconciliation is required.",
+            diagnostic: {
+              issues: [
+                {
+                  field: "definition.name",
+                  code: "PROPOSAL_RECONCILIATION_REQUIRED",
+                  reason: "This field changed after review.",
+                  layer: "referential",
+                  suggestion: "Review a reconciled result before applying.",
+                },
+              ],
+              issueCount: 1,
+              truncated: false,
+              correlationId: "type-save-correlation",
+            },
+          },
+        },
+      }),
+      "Proposal content changed after review. Reconciliation is required.",
+    ],
+    [
+      "message only",
+      Object.assign(new Error("Request failed with status code 400"), {
+        response: {
+          data: { message: "The definition cannot be saved right now." },
+        },
+      }),
+      "The definition cannot be saved right now.",
+    ],
+    ["network", new Error("Network Error"), "Network Error"],
+  ])(
+    "shows %s failure and retains the entire draft and selected tab for retry",
+    async (_kind, failure, message) => {
+      mockTypeKey = "CUSTOM";
+      const summary = activeCustomSummary({
+        key: "CUSTOM",
+        name: "Custom work",
+        role: "work-item",
+        sections: [],
+        allowedStatuses: [],
+      });
+      mockUseWorkItemTypeByKey.mockReturnValue({
+        workItemTypeSummary: summary,
+        isLoading: false,
+        error: null,
+      });
+      mockUseWorkItemTypes.mockReturnValue({
+        workItemTypes: [summary],
+        isLoading: false,
+      });
+      mockEditMutate.mockImplementationOnce(async () => {
+        capturedEditOptions?.onError?.(failure);
+        throw failure;
+      });
+      renderForm();
+      fillField("wit-form-name", "My unsaved name");
+      fillField("wit-form-description", "My unsaved purpose");
+      selectTab("Agent guidance");
+      fillField(
+        "wit-form-writing-standard-create",
+        "My unsaved writing guidance",
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Add semantic guidance" }),
+      );
+      fireEvent.change(screen.getByRole("textbox", { name: /Overview/ }), {
+        target: { value: "My unsaved semantic overview" },
+      });
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+      await waitFor(() =>
+        expect(screen.getByTestId("wit-form-error")).toHaveTextContent(message),
+      );
+      expect(
+        screen.getByRole("tab", { name: "Agent guidance" }),
+      ).toHaveAttribute("aria-selected", "true");
+      if (_kind === "diagnostic") {
+        expect(screen.getByTestId("proposal-failure-issue")).toHaveTextContent(
+          "definition.name",
+        );
+        expect(
+          screen.getByTestId("proposal-failure-correlation"),
+        ).toHaveTextContent("type-save-correlation");
+      }
+      const submitted = mockEditMutate.mock.calls[0][0];
+      selectTab("Overview");
+      expect(
+        within(screen.getByTestId("wit-form-name")).getByRole("textbox"),
+      ).toHaveValue("My unsaved name");
+      selectTab("Agent guidance");
+      expect(
+        within(
+          screen.getByTestId("wit-form-writing-standard-create"),
+        ).getByRole("textbox"),
+      ).toHaveValue("My unsaved writing guidance");
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+      expect(submitted.definition.agentGuidance).toMatchObject({
+        overview: "My unsaved semantic overview",
+      });
+      expect(mockEditMutate.mock.calls[1][0]).toEqual(submitted);
+      expect(mockNavigate).not.toHaveBeenCalled();
+    },
+  );
 
   it("preserves whitespace in untouched text fields on a no-op submission", () => {
     mockTypeKey = "CUSTOM";

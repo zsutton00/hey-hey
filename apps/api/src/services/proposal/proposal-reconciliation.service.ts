@@ -1345,14 +1345,35 @@ const versionIsMeaningful = (basis: ProposalReconciliationBasis): boolean =>
   basis.version === 'absent' ||
   String(basis.version).startsWith('reserved:');
 
-const NESTED_KEYS = new Set(['sections', 'sectionOrder']);
+// JSON persistence omits unset optional object fields. Their absence does not
+// change reviewed content; null, array membership and order remain meaningful.
+const sameReviewedContent = (left: unknown, right: unknown): boolean => {
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right)) return false;
+    return (
+      left.length === right.length &&
+      left.every((value, index) => sameReviewedContent(value, right[index]))
+    );
+  }
+  if (isPlainObject(left) || isPlainObject(right)) {
+    if (!isPlainObject(left) || !isPlainObject(right)) return false;
+    const a = left as Record<string, unknown>;
+    const b = right as Record<string, unknown>;
+    return [...new Set([...Object.keys(a), ...Object.keys(b)])].every((key) =>
+      sameReviewedContent(a[key], b[key]),
+    );
+  }
+  return left === right;
+};
+
+const NESTED_KEYS = new Set(['sections', 'sectionOrder', 'definition']);
 
 const differingContentKeys = (
   left: unknown,
   right: unknown,
   prefix = '',
 ): string[] => {
-  if (isEqual(left, right)) return [];
+  if (sameReviewedContent(left, right)) return [];
   if (!isPlainObject(left) || !isPlainObject(right))
     return [prefix ? prefix.slice(0, -1) : '(root)'];
   const a = left as Record<string, unknown>;
@@ -1360,7 +1381,7 @@ const differingContentKeys = (
   return [...new Set([...Object.keys(a), ...Object.keys(b)])].flatMap((key) =>
     prefix === '' && NESTED_KEYS.has(key)
       ? differingContentKeys(a[key], b[key], `${key}.`)
-      : isEqual(a[key], b[key])
+      : sameReviewedContent(a[key], b[key])
         ? []
         : [`${prefix}${key}`],
   );

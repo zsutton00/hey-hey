@@ -17,6 +17,7 @@ import { ProposalUpdates } from './proposalUpdates';
 import { FutureRevisionResponse } from './futureRevisionResponse';
 import { ContextProposalSummaryDto } from './contextProposalSummaryDto';
 import { WorkItemChangeSetMaterializationProgress } from './workItemChangeSetMaterializationProgress';
+import { LocalEnactmentConfirmation } from './localEnactmentConfirmation';
 import { TargetEntityType } from './targetEntityType';
 import { ProposalAction } from './proposalAction';
 import { ProposalOutOfDateStatus } from './proposalOutOfDateStatus';

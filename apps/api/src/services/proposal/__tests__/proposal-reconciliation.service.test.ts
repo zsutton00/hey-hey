@@ -76,6 +76,39 @@ describe('proposal reconciliation owner', () => {
     ).toThrow(ConflictException);
   });
 
+  it('accepts omitted and undefined optional fields recursively after JSON persistence', () => {
+    const live = {
+      definition: {
+        name: 'Mockup',
+        iconKey: undefined,
+        colorKey: undefined,
+        nested: [{ optional: undefined, keep: true }],
+      },
+    };
+    const stored = JSON.parse(JSON.stringify(live));
+    expect(() =>
+      service.assertReviewedBasisCurrent([basis(stored)], [basis(live)]),
+    ).not.toThrow();
+    expect(() =>
+      service.assertReviewedBasisCurrent([basis(live)], [basis(stored)]),
+    ).not.toThrow();
+  });
+
+  it.each([
+    [{}, { optional: null }],
+    [{ optional: null }, {}],
+    [{ values: [1] }, { values: [1, 2] }],
+    [{ values: [1, 2] }, { values: [2, 1] }],
+    [{ name: 'Before' }, { name: 'After' }],
+  ])('rejects meaningful definition changes: %j -> %j', (reviewed, current) => {
+    expect(() =>
+      service.assertReviewedBasisCurrent(
+        [basis({ definition: reviewed })],
+        [basis({ definition: current })],
+      ),
+    ).toThrow(ConflictException);
+  });
+
   it('never merges content across entity identities', () => {
     expect(() =>
       service.merge(basis({}), { ...basis({}), entityId: 'different' }, {}),

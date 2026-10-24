@@ -1474,6 +1474,56 @@ export const AgentSessionConfigV2VersionEnum = {
 export type AgentSessionConfigV2VersionEnum = typeof AgentSessionConfigV2VersionEnum[keyof typeof AgentSessionConfigV2VersionEnum];
 
 /**
+ * Preparation for a non-revisioned Agent Session action. Direct actions bind target identity and complete semantic inputs, independently of delivery framing and mutable conversation counters.
+ * @export
+ * @interface AgentSessionHostActionPreparation
+ */
+export interface AgentSessionHostActionPreparation {
+    /**
+     * Retry identity only; it conveys no execution authority.
+     * @type {string}
+     * @memberof AgentSessionHostActionPreparation
+     */
+    'requestId': string;
+    /**
+     *
+     * @type {HostActionCategory}
+     * @memberof AgentSessionHostActionPreparation
+     */
+    'actionCategory': HostActionCategory;
+    /**
+     *
+     * @type {HostAffectingActionType}
+     * @memberof AgentSessionHostActionPreparation
+     */
+    'actionType': HostAffectingActionType;
+    /**
+     *
+     * @type {string}
+     * @memberof AgentSessionHostActionPreparation
+     */
+    'targetKind': AgentSessionHostActionPreparationTargetKindEnum;
+    /**
+     * Selection hint only. The server resolves and authorizes the canonical target instead of copying browser scope into the intent.
+     * @type {string}
+     * @memberof AgentSessionHostActionPreparation
+     */
+    'targetId': string;
+    /**
+     *
+     * @type {ControllerActionInputs}
+     * @memberof AgentSessionHostActionPreparation
+     */
+    'inputs'?: ControllerActionInputs;
+}
+
+export const AgentSessionHostActionPreparationTargetKindEnum = {
+    AgentSession: 'AGENT_SESSION'
+} as const;
+
+export type AgentSessionHostActionPreparationTargetKindEnum = typeof AgentSessionHostActionPreparationTargetKindEnum[keyof typeof AgentSessionHostActionPreparationTargetKindEnum];
+
+/**
  *
  * @export
  * @interface AgentSkillCatalog
@@ -3312,6 +3362,12 @@ export interface CliReadChangedFilesInventoryResult {
 export type CliReadEnvelopeBody = { operation: 'project.session_costs.list' } & CliReadProjectSessionCostsListEnvelopeBody | { operation: 'provider.usage.get' } & CliReadProviderUsageGetEnvelopeBody | { operation: 'run.changed_files.count' } & CliReadRunChangedFilesCountEnvelopeBody | { operation: 'run.changed_files.detail' } & CliReadRunChangedFileDetailEnvelopeBody | { operation: 'run.changed_files.inventory' } & CliReadRunChangedFilesInventoryEnvelopeBody | { operation: 'run.context_usage.get' } & CliReadRunContextUsageGetEnvelopeBody | { operation: 'run.skills.list' } & CliReadRunSkillsListEnvelopeBody | { operation: 'run.tool_calls.latest_turn' } & CliReadRunToolCallsLatestTurnEnvelopeBody | { operation: 'runtime.model_catalog.get' } & CliReadRuntimeModelCatalogGetEnvelopeBody | { operation: 'workspace.skills.list' } & CliReadWorkspaceSkillsListEnvelopeBody;
 
 /**
+ * @type CliReadEnvelopeBody1
+ * @export
+ */
+export type CliReadEnvelopeBody1 = { operation: 'project.session_costs.list' } & CliReadProjectSessionCostsListEnvelopeBody | { operation: 'provider.usage.get' } & CliReadProviderUsageGetEnvelopeBody1 | { operation: 'run.changed_files.count' } & CliReadRunChangedFilesCountEnvelopeBody | { operation: 'run.changed_files.detail' } & CliReadRunChangedFileDetailEnvelopeBody1 | { operation: 'run.changed_files.inventory' } & CliReadRunChangedFilesInventoryEnvelopeBody1 | { operation: 'run.context_usage.get' } & CliReadRunContextUsageGetEnvelopeBody1 | { operation: 'run.skills.list' } & CliReadRunSkillsListEnvelopeBody1 | { operation: 'run.tool_calls.latest_turn' } & CliReadRunToolCallsLatestTurnEnvelopeBody1 | { operation: 'runtime.model_catalog.get' } & CliReadRuntimeModelCatalogGetEnvelopeBody1 | { operation: 'workspace.skills.list' } & CliReadWorkspaceSkillsListEnvelopeBody1;
+
+/**
  *
  * @export
  * @interface CliReadError
@@ -3371,6 +3427,13 @@ export type CliReadErrorCode = typeof CliReadErrorCode[keyof typeof CliReadError
  * @export
  */
 export type CliReadErrorResponseDto = { operation: 'project.session_costs.list' } & CliReadProjectSessionCostsListErrorResponseDto | { operation: 'provider.usage.get' } & CliReadProviderUsageGetErrorResponseDto | { operation: 'run.changed_files.count' } & CliReadRunChangedFilesCountErrorResponseDto | { operation: 'run.changed_files.detail' } & CliReadRunChangedFileDetailErrorResponseDto | { operation: 'run.changed_files.inventory' } & CliReadRunChangedFilesInventoryErrorResponseDto | { operation: 'run.context_usage.get' } & CliReadRunContextUsageGetErrorResponseDto | { operation: 'run.skills.list' } & CliReadRunSkillsListErrorResponseDto | { operation: 'run.tool_calls.latest_turn' } & CliReadRunToolCallsLatestTurnErrorResponseDto | { operation: 'runtime.model_catalog.get' } & CliReadRuntimeModelCatalogGetErrorResponseDto | { operation: 'workspace.skills.list' } & CliReadWorkspaceSkillsListErrorResponseDto;
+
+/**
+ * @type CliReadHostActionPreparation
+ * Closed selector for a machine-addressed CLI read under existing CLI_READ authority.
+ * @export
+ */
+export type CliReadHostActionPreparation = RuntimeModelCatalogHostActionPreparation | WorkspaceSkillsHostActionPreparation;
 
 /**
  *
@@ -4157,6 +4220,50 @@ export const CliReadRunChangedFileDetailEnvelopeBodyOperationEnum = {
 } as const;
 
 export type CliReadRunChangedFileDetailEnvelopeBodyOperationEnum = typeof CliReadRunChangedFileDetailEnvelopeBodyOperationEnum[keyof typeof CliReadRunChangedFileDetailEnvelopeBodyOperationEnum];
+
+/**
+ *
+ * @export
+ * @interface CliReadRunChangedFileDetailEnvelopeBody1
+ */
+export interface CliReadRunChangedFileDetailEnvelopeBody1 {
+    /**
+     * Correlation identity minted by the platform for this read.
+     * @type {string}
+     * @memberof CliReadRunChangedFileDetailEnvelopeBody1
+     */
+    'requestId': string;
+    /**
+     * Canonical Agent Session authorization target.
+     * @type {string}
+     * @memberof CliReadRunChangedFileDetailEnvelopeBody1
+     */
+    'agentSessionId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CliReadRunChangedFileDetailEnvelopeBody1
+     */
+    'operation': CliReadRunChangedFileDetailEnvelopeBody1OperationEnum;
+    /**
+     * Persisted CLI Run identity whose selected changed file is requested.
+     * @type {string}
+     * @memberof CliReadRunChangedFileDetailEnvelopeBody1
+     */
+    'runId': string;
+    /**
+     *
+     * @type {CliReadChangedFileIdentity}
+     * @memberof CliReadRunChangedFileDetailEnvelopeBody1
+     */
+    'file': CliReadChangedFileIdentity;
+}
+
+export const CliReadRunChangedFileDetailEnvelopeBody1OperationEnum = {
+    RunChangedFilesDetail: 'run.changed_files.detail'
+} as const;
+
+export type CliReadRunChangedFileDetailEnvelopeBody1OperationEnum = typeof CliReadRunChangedFileDetailEnvelopeBody1OperationEnum[keyof typeof CliReadRunChangedFileDetailEnvelopeBody1OperationEnum];
 
 /**
  *
@@ -5722,6 +5829,68 @@ export type CliReadWorkspaceSkillsListEnvelopeBodyOperationEnum = typeof CliRead
 /**
  *
  * @export
+ * @interface CliReadWorkspaceSkillsListEnvelopeBody1
+ */
+export interface CliReadWorkspaceSkillsListEnvelopeBody1 {
+    /**
+     * Correlation identity minted by the platform for this read.
+     * @type {string}
+     * @memberof CliReadWorkspaceSkillsListEnvelopeBody1
+     */
+    'requestId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CliReadWorkspaceSkillsListEnvelopeBody1
+     */
+    'operation': CliReadWorkspaceSkillsListEnvelopeBody1OperationEnum;
+    /**
+     *
+     * @type {AgentSkillProvider}
+     * @memberof CliReadWorkspaceSkillsListEnvelopeBody1
+     */
+    'provider': AgentSkillProvider;
+    /**
+     *
+     * @type {AgentSkillCatalogContext}
+     * @memberof CliReadWorkspaceSkillsListEnvelopeBody1
+     */
+    'catalogContext': AgentSkillCatalogContext;
+    /**
+     *
+     * @type {string}
+     * @memberof CliReadWorkspaceSkillsListEnvelopeBody1
+     */
+    'organizationId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CliReadWorkspaceSkillsListEnvelopeBody1
+     */
+    'projectId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CliReadWorkspaceSkillsListEnvelopeBody1
+     */
+    'machineId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CliReadWorkspaceSkillsListEnvelopeBody1
+     */
+    'authorizationRequestId': string;
+}
+
+export const CliReadWorkspaceSkillsListEnvelopeBody1OperationEnum = {
+    WorkspaceSkillsList: 'workspace.skills.list'
+} as const;
+
+export type CliReadWorkspaceSkillsListEnvelopeBody1OperationEnum = typeof CliReadWorkspaceSkillsListEnvelopeBody1OperationEnum[keyof typeof CliReadWorkspaceSkillsListEnvelopeBody1OperationEnum];
+
+/**
+ *
+ * @export
  * @interface CliReadWorkspaceSkillsListErrorResponseDto
  */
 export interface CliReadWorkspaceSkillsListErrorResponseDto {
@@ -6479,6 +6648,13 @@ export interface ContextToolDetail {
     'isLoaded'?: boolean;
 }
 /**
+ * @type ControllerActionInputs
+ * Complete typed semantic inputs for a direct action. Approval and local admission use the same definition. Authorization and platform signatures are never inputs. Correlation-only fields are removed by the shared canonicalizer; operation parameters and ordered arrays remain bound.
+ * @export
+ */
+export type ControllerActionInputs = { kind: 'CLI_READ' } & ControllerReadInputs | { kind: 'CONTROL' } & ControllerControlInputs | { kind: 'START_RUN' } & ControllerStartInputs | { kind: 'TASK_MONITOR' } & ControllerMonitorInputs | { kind: 'USER_MESSAGE' } & ControllerMessageInputs;
+
+/**
  * Fresh browser-submitted controller proof. It carries no server grant identifier. The API verifies and consumes this evidence before deriving or resolving any reusable grant and constructing executable activation evidence.
  * @export
  * @interface ControllerAssertionEvidence
@@ -6806,6 +6982,32 @@ export const ControllerAuthorizedSignedMonitorCommandEnvelopeProtocolVersionEnum
 export type ControllerAuthorizedSignedMonitorCommandEnvelopeProtocolVersionEnum = typeof ControllerAuthorizedSignedMonitorCommandEnvelopeProtocolVersionEnum[keyof typeof ControllerAuthorizedSignedMonitorCommandEnvelopeProtocolVersionEnum];
 
 /**
+ *
+ * @export
+ * @interface ControllerControlInputs
+ */
+export interface ControllerControlInputs {
+    /**
+     *
+     * @type {string}
+     * @memberof ControllerControlInputs
+     */
+    'kind': ControllerControlInputsKindEnum;
+    /**
+     *
+     * @type {ConversationAuthorityIncreasingControlBody1}
+     * @memberof ControllerControlInputs
+     */
+    'body': ConversationAuthorityIncreasingControlBody1;
+}
+
+export const ControllerControlInputsKindEnum = {
+    Control: 'CONTROL'
+} as const;
+
+export type ControllerControlInputsKindEnum = typeof ControllerControlInputsKindEnum[keyof typeof ControllerControlInputsKindEnum];
+
+/**
  * Immutable descriptor hashed by CanonicalControllerAuthorizationIntent.grantDescriptorHash. Every cadence creates one reusable controller-device window with this effective expiry.
  * @export
  * @interface ControllerDeviceGrantDescriptor
@@ -6900,10 +7102,132 @@ export type ControllerDeviceGrantScope = typeof ControllerDeviceGrantScope[keyof
 
 
 /**
+ *
+ * @export
+ * @interface ControllerMessageInputs
+ */
+export interface ControllerMessageInputs {
+    /**
+     *
+     * @type {string}
+     * @memberof ControllerMessageInputs
+     */
+    'kind': ControllerMessageInputsKindEnum;
+    /**
+     *
+     * @type {UserMessagePromptPayload}
+     * @memberof ControllerMessageInputs
+     */
+    'payload': UserMessagePromptPayload;
+    /**
+     *
+     * @type {UserMessageAdmittedServiceScope}
+     * @memberof ControllerMessageInputs
+     */
+    'admittedServiceScope'?: UserMessageAdmittedServiceScope;
+}
+
+export const ControllerMessageInputsKindEnum = {
+    UserMessage: 'USER_MESSAGE'
+} as const;
+
+export type ControllerMessageInputsKindEnum = typeof ControllerMessageInputsKindEnum[keyof typeof ControllerMessageInputsKindEnum];
+
+/**
+ *
+ * @export
+ * @interface ControllerMonitorInputs
+ */
+export interface ControllerMonitorInputs {
+    /**
+     *
+     * @type {string}
+     * @memberof ControllerMonitorInputs
+     */
+    'kind': ControllerMonitorInputsKindEnum;
+    /**
+     *
+     * @type {TaskMonitorExternalCommand1}
+     * @memberof ControllerMonitorInputs
+     */
+    'command': TaskMonitorExternalCommand1;
+}
+
+export const ControllerMonitorInputsKindEnum = {
+    TaskMonitor: 'TASK_MONITOR'
+} as const;
+
+export type ControllerMonitorInputsKindEnum = typeof ControllerMonitorInputsKindEnum[keyof typeof ControllerMonitorInputsKindEnum];
+
+/**
+ *
+ * @export
+ * @interface ControllerReadInputs
+ */
+export interface ControllerReadInputs {
+    /**
+     *
+     * @type {string}
+     * @memberof ControllerReadInputs
+     */
+    'kind': ControllerReadInputsKindEnum;
+    /**
+     *
+     * @type {CliReadEnvelopeBody1}
+     * @memberof ControllerReadInputs
+     */
+    'body': CliReadEnvelopeBody1;
+}
+
+export const ControllerReadInputsKindEnum = {
+    CliRead: 'CLI_READ'
+} as const;
+
+export type ControllerReadInputsKindEnum = typeof ControllerReadInputsKindEnum[keyof typeof ControllerReadInputsKindEnum];
+
+/**
+ *
+ * @export
+ * @interface ControllerStartInputs
+ */
+export interface ControllerStartInputs {
+    /**
+     *
+     * @type {string}
+     * @memberof ControllerStartInputs
+     */
+    'kind': ControllerStartInputsKindEnum;
+    /**
+     *
+     * @type {StartRunPromptPayload}
+     * @memberof ControllerStartInputs
+     */
+    'payload': StartRunPromptPayload;
+    /**
+     *
+     * @type {UserMessageAdmittedServiceScope}
+     * @memberof ControllerStartInputs
+     */
+    'admittedServiceScope'?: UserMessageAdmittedServiceScope;
+}
+
+export const ControllerStartInputsKindEnum = {
+    StartRun: 'START_RUN'
+} as const;
+
+export type ControllerStartInputsKindEnum = typeof ControllerStartInputsKindEnum[keyof typeof ControllerStartInputsKindEnum];
+
+/**
  * @type ConversationAuthorityIncreasingControlBody
  * @export
  */
 export type ConversationAuthorityIncreasingControlBody = { kind: 'compact_run' } & ConversationControlCompactRun | { kind: 'permission_decision' } & ConversationControlPermissionDecision | { kind: 'question_answer' } & ConversationControlQuestionAnswer;
+
+/**
+ * @type ConversationAuthorityIncreasingControlBody1
+ * @export
+ */
+export type ConversationAuthorityIncreasingControlBody1 = { kind: 'compact_run' } & ConversationControlCompactRun1 | { kind: 'permission_decision' } & ConversationControlPermissionDecision | { kind: 'question_answer' } & ConversationControlQuestionAnswer;
 
 /**
  * @type ConversationControlBody
@@ -6999,6 +7323,44 @@ export const ConversationControlCompactRunKindEnum = {
 } as const;
 
 export type ConversationControlCompactRunKindEnum = typeof ConversationControlCompactRunKindEnum[keyof typeof ConversationControlCompactRunKindEnum];
+
+/**
+ * Structural control body for compacting a CLI Run owned by the conversation. Carries entity IDs only: no free-form text, prompt fragment, or `payload` escape hatch. The CLI dispatcher resolves the Run via `conversationId` and invokes the compaction path on the addressed Run.
+ * @export
+ * @interface ConversationControlCompactRun1
+ */
+export interface ConversationControlCompactRun1 {
+    /**
+     * Discriminator for the compact-run control. Selects the dispatcher branch that compacts the conversation history of the addressed Run.
+     * @type {string}
+     * @memberof ConversationControlCompactRun1
+     */
+    'kind': ConversationControlCompactRun1KindEnum;
+    /**
+     * Canonical Agent Session authorization target.
+     * @type {string}
+     * @memberof ConversationControlCompactRun1
+     */
+    'agentSessionId': string;
+    /**
+     * Unique identifier for a conversation (branded type)
+     * @type {string}
+     * @memberof ConversationControlCompactRun1
+     */
+    'conversationId': string;
+    /**
+     * Agentic-session id of the live CLI Run to compact. The dispatcher uses the `conversationId` to locate the active Run binding and verifies the binding\'s runId matches before invoking the compaction path.
+     * @type {string}
+     * @memberof ConversationControlCompactRun1
+     */
+    'runId': string;
+}
+
+export const ConversationControlCompactRun1KindEnum = {
+    CompactRun: 'compact_run'
+} as const;
+
+export type ConversationControlCompactRun1KindEnum = typeof ConversationControlCompactRun1KindEnum[keyof typeof ConversationControlCompactRun1KindEnum];
 
 /**
  * Structural control body for delivering a user permission decision to a live CLI runner awaiting a permission gate. Carries the decision payload and matching identifiers only: no free-form prompt fragment or `payload` escape hatch. The CLI dispatcher matches the frame to the awaiting runner via `requestId`, `sessionId`, and `agentType`, then unblocks the gate with the received `decision`.
@@ -7171,6 +7533,56 @@ export const ConversationControlStopRunKindEnum = {
 } as const;
 
 export type ConversationControlStopRunKindEnum = typeof ConversationControlStopRunKindEnum[keyof typeof ConversationControlStopRunKindEnum];
+
+/**
+ * Closed selector for a non-revisioned conversation action. Conversation authorization is bound to target identity and the immutable operation fingerprint instead of a mutable conversation counter.
+ * @export
+ * @interface ConversationHostActionPreparation
+ */
+export interface ConversationHostActionPreparation {
+    /**
+     * Retry identity only; it conveys no execution authority.
+     * @type {string}
+     * @memberof ConversationHostActionPreparation
+     */
+    'requestId': string;
+    /**
+     *
+     * @type {HostActionCategory}
+     * @memberof ConversationHostActionPreparation
+     */
+    'actionCategory': HostActionCategory;
+    /**
+     *
+     * @type {HostAffectingActionType}
+     * @memberof ConversationHostActionPreparation
+     */
+    'actionType': HostAffectingActionType;
+    /**
+     *
+     * @type {string}
+     * @memberof ConversationHostActionPreparation
+     */
+    'targetKind': ConversationHostActionPreparationTargetKindEnum;
+    /**
+     * Selection hint only. The server resolves and authorizes the canonical target instead of copying browser scope into the intent.
+     * @type {string}
+     * @memberof ConversationHostActionPreparation
+     */
+    'targetId': string;
+    /**
+     *
+     * @type {ControllerActionInputs}
+     * @memberof ConversationHostActionPreparation
+     */
+    'inputs'?: ControllerActionInputs;
+}
+
+export const ConversationHostActionPreparationTargetKindEnum = {
+    Conversation: 'CONVERSATION'
+} as const;
+
+export type ConversationHostActionPreparationTargetKindEnum = typeof ConversationHostActionPreparationTargetKindEnum[keyof typeof ConversationHostActionPreparationTargetKindEnum];
 
 /**
  * Closed bundle of host-affecting operations supported by the current controller-authorization protocol. Adding a HostAffectingActionType does not add it to an existing grant; this bundle must be revised deliberately.
@@ -8157,6 +8569,13 @@ export const HostActionCategory = {
 
 export type HostActionCategory = typeof HostActionCategory[keyof typeof HostActionCategory];
 
+
+/**
+ * @type HostActionPreparation
+ * Preparation for a server-resolved action. Direct actions carry complete typed execution or disclosure inputs. Account, organization, project, payload hash, authorization ID, nonce, and lifetime remain server-owned.
+ * @export
+ */
+export type HostActionPreparation = { targetKind: 'AGENT_SESSION' } & AgentSessionHostActionPreparation | { targetKind: 'CLI_READ' } & CliReadHostActionPreparation | { targetKind: 'CONVERSATION' } & ConversationHostActionPreparation | { targetKind: 'TASK_MONITOR' } & TaskMonitorHostActionPreparation;
 
 /**
  *
@@ -15670,6 +16089,12 @@ export interface ProjectModeSettings {
      */
     'projectAssistant': ProjectModeProjectAssistantSetting;
     /**
+     * Session role declared by this Agent Mode. Omission, including omission of the settings section, resolves to implementation.
+     * @type {SessionRole}
+     * @memberof ProjectModeSettings
+     */
+    'sessionRole'?: SessionRole;
+    /**
      * Stable effective work-item type keys this MODE may launch against, chosen per MODE. Keys must be unique (enforced by the platform validator rather than `uniqueItems`, which generators map to sets). Each key must resolve to an active type in the project\'s effective registry snapshot. Launch eligibility is this list intersected with the MODE\'s Feature `DEPENDS_ON` scope. When absent, the MODE keeps its legacy eligibility derived from the shared MODE type\'s agent-guidance contexts; consumers must not widen access for an absent list.
      * @type {Array<string>}
      * @memberof ProjectModeSettings
@@ -20994,6 +21419,60 @@ export interface RunReferences {
     'unresolved': Array<string>;
 }
 /**
+ * Exact machine-addressed model catalog read under existing CLI_READ authority.
+ * @export
+ * @interface RuntimeModelCatalogHostActionPreparation
+ */
+export interface RuntimeModelCatalogHostActionPreparation {
+    /**
+     *
+     * @type {string}
+     * @memberof RuntimeModelCatalogHostActionPreparation
+     */
+    'requestId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof RuntimeModelCatalogHostActionPreparation
+     */
+    'actionCategory': RuntimeModelCatalogHostActionPreparationActionCategoryEnum;
+    /**
+     *
+     * @type {string}
+     * @memberof RuntimeModelCatalogHostActionPreparation
+     */
+    'actionType': RuntimeModelCatalogHostActionPreparationActionTypeEnum;
+    /**
+     *
+     * @type {string}
+     * @memberof RuntimeModelCatalogHostActionPreparation
+     */
+    'targetKind': RuntimeModelCatalogHostActionPreparationTargetKindEnum;
+    /**
+     * Durable selected machine identity, never a request correlation identity.
+     * @type {string}
+     * @memberof RuntimeModelCatalogHostActionPreparation
+     */
+    'targetId': string;
+}
+
+export const RuntimeModelCatalogHostActionPreparationActionCategoryEnum = {
+    CliRead: 'CLI_READ'
+} as const;
+
+export type RuntimeModelCatalogHostActionPreparationActionCategoryEnum = typeof RuntimeModelCatalogHostActionPreparationActionCategoryEnum[keyof typeof RuntimeModelCatalogHostActionPreparationActionCategoryEnum];
+export const RuntimeModelCatalogHostActionPreparationActionTypeEnum = {
+    CliRead: 'CLI_READ'
+} as const;
+
+export type RuntimeModelCatalogHostActionPreparationActionTypeEnum = typeof RuntimeModelCatalogHostActionPreparationActionTypeEnum[keyof typeof RuntimeModelCatalogHostActionPreparationActionTypeEnum];
+export const RuntimeModelCatalogHostActionPreparationTargetKindEnum = {
+    CliRead: 'CLI_READ'
+} as const;
+
+export type RuntimeModelCatalogHostActionPreparationTargetKindEnum = typeof RuntimeModelCatalogHostActionPreparationTargetKindEnum[keyof typeof RuntimeModelCatalogHostActionPreparationTargetKindEnum];
+
+/**
  * One implementation-note bullet attached to a JourneyStep. Names a plain-language piece of implementation work and the platform service that owns it. `serviceId` and `serviceName` are nullable to express cross-cutting notes that no single service clearly owns; both fields must be present (nullable) so consumers do not have to distinguish \"missing\" from \"intentionally null\".
  * @export
  * @interface ServiceNote
@@ -21373,6 +21852,22 @@ export const SessionMonitorWorkflowContextStateEnum = {
 } as const;
 
 export type SessionMonitorWorkflowContextStateEnum = typeof SessionMonitorWorkflowContextStateEnum[keyof typeof SessionMonitorWorkflowContextStateEnum];
+
+/**
+ * Kind of work performed by a mode session, independent of mode identity and work-item-type registry role.
+ * @export
+ * @enum {string}
+ */
+
+export const SessionRole = {
+    Implementation: 'implementation',
+    Research: 'research',
+    Planning: 'planning',
+    Review: 'review'
+} as const;
+
+export type SessionRole = typeof SessionRole[keyof typeof SessionRole];
+
 
 /**
  * Server-signed envelope wrapping a closed, operation-discriminated CLI read body. Carried by the `cli.read.request` frame and verified under the same signature, machine/user binding, freshness, and replay rules as trigger envelopes.
@@ -22144,6 +22639,56 @@ export const TaskMonitorHaltCommandCauseEnum = {
 } as const;
 
 export type TaskMonitorHaltCommandCauseEnum = typeof TaskMonitorHaltCommandCauseEnum[keyof typeof TaskMonitorHaltCommandCauseEnum];
+
+/**
+ * Preparation for a Task Monitor machine action. Authorization binds the complete typed command and Task Monitor identity; the CLI evaluates the command against its own durable snapshot and internal revision.
+ * @export
+ * @interface TaskMonitorHostActionPreparation
+ */
+export interface TaskMonitorHostActionPreparation {
+    /**
+     * Retry identity only; it conveys no execution authority.
+     * @type {string}
+     * @memberof TaskMonitorHostActionPreparation
+     */
+    'requestId': string;
+    /**
+     *
+     * @type {HostActionCategory}
+     * @memberof TaskMonitorHostActionPreparation
+     */
+    'actionCategory': HostActionCategory;
+    /**
+     *
+     * @type {HostAffectingActionType}
+     * @memberof TaskMonitorHostActionPreparation
+     */
+    'actionType': HostAffectingActionType;
+    /**
+     *
+     * @type {string}
+     * @memberof TaskMonitorHostActionPreparation
+     */
+    'targetKind': TaskMonitorHostActionPreparationTargetKindEnum;
+    /**
+     * Selection hint only. The server resolves and authorizes the canonical target instead of copying browser scope into the intent.
+     * @type {string}
+     * @memberof TaskMonitorHostActionPreparation
+     */
+    'targetId': string;
+    /**
+     *
+     * @type {ControllerActionInputs}
+     * @memberof TaskMonitorHostActionPreparation
+     */
+    'inputs'?: ControllerActionInputs;
+}
+
+export const TaskMonitorHostActionPreparationTargetKindEnum = {
+    TaskMonitor: 'TASK_MONITOR'
+} as const;
+
+export type TaskMonitorHostActionPreparationTargetKindEnum = typeof TaskMonitorHostActionPreparationTargetKindEnum[keyof typeof TaskMonitorHostActionPreparationTargetKindEnum];
 
 /**
  *
@@ -23705,3 +24250,70 @@ export const WorkflowName = {
 } as const;
 
 export type WorkflowName = typeof WorkflowName[keyof typeof WorkflowName];
+
+
+/**
+ * Exact machine-addressed workspace Skill catalog read under existing CLI_READ authority.
+ * @export
+ * @interface WorkspaceSkillsHostActionPreparation
+ */
+export interface WorkspaceSkillsHostActionPreparation {
+    /**
+     *
+     * @type {string}
+     * @memberof WorkspaceSkillsHostActionPreparation
+     */
+    'requestId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof WorkspaceSkillsHostActionPreparation
+     */
+    'actionCategory': WorkspaceSkillsHostActionPreparationActionCategoryEnum;
+    /**
+     *
+     * @type {string}
+     * @memberof WorkspaceSkillsHostActionPreparation
+     */
+    'actionType': WorkspaceSkillsHostActionPreparationActionTypeEnum;
+    /**
+     *
+     * @type {string}
+     * @memberof WorkspaceSkillsHostActionPreparation
+     */
+    'targetKind': WorkspaceSkillsHostActionPreparationTargetKindEnum;
+    /**
+     * Durable selected machine identity, never a request correlation identity.
+     * @type {string}
+     * @memberof WorkspaceSkillsHostActionPreparation
+     */
+    'targetId': string;
+    /**
+     *
+     * @type {AgentSkillProvider}
+     * @memberof WorkspaceSkillsHostActionPreparation
+     */
+    'provider': AgentSkillProvider;
+    /**
+     *
+     * @type {AgentSkillCatalogContext}
+     * @memberof WorkspaceSkillsHostActionPreparation
+     */
+    'catalogContext': AgentSkillCatalogContext;
+}
+
+export const WorkspaceSkillsHostActionPreparationActionCategoryEnum = {
+    CliRead: 'CLI_READ'
+} as const;
+
+export type WorkspaceSkillsHostActionPreparationActionCategoryEnum = typeof WorkspaceSkillsHostActionPreparationActionCategoryEnum[keyof typeof WorkspaceSkillsHostActionPreparationActionCategoryEnum];
+export const WorkspaceSkillsHostActionPreparationActionTypeEnum = {
+    CliRead: 'CLI_READ'
+} as const;
+
+export type WorkspaceSkillsHostActionPreparationActionTypeEnum = typeof WorkspaceSkillsHostActionPreparationActionTypeEnum[keyof typeof WorkspaceSkillsHostActionPreparationActionTypeEnum];
+export const WorkspaceSkillsHostActionPreparationTargetKindEnum = {
+    CliRead: 'CLI_READ'
+} as const;
+
+export type WorkspaceSkillsHostActionPreparationTargetKindEnum = typeof WorkspaceSkillsHostActionPreparationTargetKindEnum[keyof typeof WorkspaceSkillsHostActionPreparationTargetKindEnum];

@@ -1,4 +1,8 @@
 import {
+  extractProposalApprovalFailureDiagnostic,
+  ProposalFailureDiagnostic,
+} from "@hey-hey/ui-common/components/ProposalDispatchers/ProposalFailureDiagnostic";
+import {
   analyzeWorkItemTypeEdit,
   getCascadeImpactConflict,
   resolveWorkItemTypeKey,
@@ -30,6 +34,7 @@ import {
   WorkStatus,
 } from "@hey-hey/ui-common/api";
 import type {
+  ProposalApprovalFailureDiagnostic,
   ProposalResponseDto,
   WorkItemIconKey,
   WorkItemColorKey,
@@ -73,6 +78,7 @@ import {
 } from "@mui/material";
 import type { SelectChangeEvent } from "@mui/material";
 import {
+  getErrorMessage,
   resolveWorkItemIcon,
   resolveWorkItemIconPresentation,
 } from "@hey-hey/ui-common/utils";
@@ -371,6 +377,8 @@ export const WorkItemTypeFormPage: React.FC = () => {
   const [writingStandardEdit, setWritingStandardEdit] = useState("");
   const [maintenanceGuidance, setMaintenanceGuidance] = useState("");
 
+  const [failureDiagnostic, setFailureDiagnostic] =
+    useState<ProposalApprovalFailureDiagnostic>();
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<FormTab>("Overview");
   const [errorTarget, setErrorTarget] = useState<{
@@ -515,29 +523,29 @@ export const WorkItemTypeFormPage: React.FC = () => {
 
   const hasProjectOwnership = Boolean(
     isEditMode &&
-      projectId?.trim() &&
-      workItemTypeSummary?.projectId === projectId,
+    projectId?.trim() &&
+    workItemTypeSummary?.projectId === projectId,
   );
   const isArchived = Boolean(
     hasProjectOwnership &&
-      workItemTypeSummary?.status === WorkItemTypeLifecycleStatus.Archived,
+    workItemTypeSummary?.status === WorkItemTypeLifecycleStatus.Archived,
   );
   const canEditDefinition = Boolean(
     hasProjectOwnership &&
-      workItemTypeSummary?.status === WorkItemTypeLifecycleStatus.Active,
+    workItemTypeSummary?.status === WorkItemTypeLifecycleStatus.Active,
   );
   const canResetToCanonical = Boolean(
     hasProjectOwnership &&
-      (workItemTypeSummary?.status === WorkItemTypeLifecycleStatus.Active ||
-        workItemTypeSummary?.status === WorkItemTypeLifecycleStatus.Archived) &&
-      hasCanonicalOverride(workItemTypeSummary),
+    (workItemTypeSummary?.status === WorkItemTypeLifecycleStatus.Active ||
+      workItemTypeSummary?.status === WorkItemTypeLifecycleStatus.Archived) &&
+    hasCanonicalOverride(workItemTypeSummary),
   );
   const templateMetadata = getWorkItemTypeTemplateMetadata(workItemTypeSummary);
   const canReviewTemplateUpdate = Boolean(
     hasProjectOwnership &&
-      (workItemTypeSummary?.status === WorkItemTypeLifecycleStatus.Active ||
-        workItemTypeSummary?.status === WorkItemTypeLifecycleStatus.Archived) &&
-      hasNewerCanonicalRevision(templateMetadata),
+    (workItemTypeSummary?.status === WorkItemTypeLifecycleStatus.Active ||
+      workItemTypeSummary?.status === WorkItemTypeLifecycleStatus.Archived) &&
+    hasNewerCanonicalRevision(templateMetadata),
   );
   const { manageWorkItemTypes } = projectCapabilitiesForRole(
     project?.currentUserRole ?? null,
@@ -563,7 +571,8 @@ export const WorkItemTypeFormPage: React.FC = () => {
   };
   const handleMutationError = (err: Error) => {
     setCreatedProposal(null);
-    setError(err.message || "Failed to submit the type definition.");
+    setError(getErrorMessage(err, "Failed to submit the type definition."));
+    setFailureDiagnostic(extractProposalApprovalFailureDiagnostic(err));
   };
 
   const createMutation = useCreateWorkItemType({
@@ -619,9 +628,9 @@ export const WorkItemTypeFormPage: React.FC = () => {
   );
   const canHardDelete = Boolean(
     isArchived &&
-      (workItemTypeSummary?.effectiveSource ===
-        WorkItemTypeEffectiveSource.ProjectCustom ||
-        templateMetadata?.canonicalTemplateKey === null),
+    (workItemTypeSummary?.effectiveSource ===
+      WorkItemTypeEffectiveSource.ProjectCustom ||
+      templateMetadata?.canonicalTemplateKey === null),
   );
   const hardDeleteUnavailable =
     !hardDeleteHasContext || !canHardDelete || isPending;
@@ -951,6 +960,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
   const handleSubmit = (event: React.FormEvent): void => {
     event.preventDefault();
     setError(null);
+    setFailureDiagnostic(undefined);
     setErrorTarget(null);
     setCreatedProposal(null);
 
@@ -1069,6 +1079,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
 
   const handleArchive = (): void => {
     setError(null);
+    setFailureDiagnostic(undefined);
     if (!currentOrgId || !projectId || !resolvedKey || !canEditDefinition) {
       return;
     }
@@ -1085,6 +1096,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
 
   const handleRestore = (): void => {
     setError(null);
+    setFailureDiagnostic(undefined);
     setCreatedProposal(null);
     if (!currentOrgId || !projectId || !isArchived || !workItemTypeSummary) {
       return;
@@ -1105,6 +1117,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
 
   const handleResetToCanonical = (): void => {
     setError(null);
+    setFailureDiagnostic(undefined);
     if (!currentOrgId || !projectId || !resolvedKey || !canResetToCanonical) {
       return;
     }
@@ -1123,6 +1136,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
   const handleOpenHardDelete = (): void => {
     if (hardDeleteUnavailable) return;
     setError(null);
+    setFailureDiagnostic(undefined);
     setHardDeleteConfirmation("");
     setCascadeImpactOverride(null);
     setHardDeleteOpen(true);
@@ -1136,6 +1150,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
 
   const handleHardDelete = (): void => {
     setError(null);
+    setFailureDiagnostic(undefined);
     if (
       hardDeleteUnavailable ||
       hardDeleteImpactUnavailable ||
@@ -1400,8 +1415,8 @@ export const WorkItemTypeFormPage: React.FC = () => {
         {isArchived
           ? "This archived type is definition-read-only. Restore it to return it to new-work choices; existing items and history are preserved."
           : isReadOnly
-          ? "This work-item type is readable but cannot be edited or archived."
-          : "Fill in the type-definition axes and submit. You’ll be taken to the proposal to review and approve it."}
+            ? "This work-item type is readable but cannot be edited or archived."
+            : "Fill in the type-definition axes and submit. You’ll be taken to the proposal to review and approve it."}
       </Typography>
 
       {isEditMode &&
@@ -1486,8 +1501,16 @@ export const WorkItemTypeFormPage: React.FC = () => {
             ) : undefined
           }
         >
+          <AlertTitle>Your changes couldn’t be saved</AlertTitle>
           {error}
+          <Typography variant="body2" sx={{ mt: 1 }}>
+            Your edits are still here across all tabs.
+          </Typography>
         </Alert>
+      ) : null}
+
+      {error ? (
+        <ProposalFailureDiagnostic diagnostic={failureDiagnostic} />
       ) : null}
 
       {createdProposal ? (

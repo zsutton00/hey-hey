@@ -52,11 +52,13 @@ function toDiagnosticIssue(value: unknown): DiagnosticIssue | undefined {
 
 function responsePayload(error: unknown): unknown {
   if (!isRecord(error)) return error;
-  const response = error.response;
-  if (isRecord(response) && 'data' in response) return response.data;
+  // Nest exceptions also expose response.data; unwrap the owned HTTP payload
+  // before considering the Axios transport shape.
   if (typeof error.getResponse === 'function') {
     return error.getResponse();
   }
+  const response = error.response;
+  if (isRecord(response) && 'data' in response) return response.data;
   return error;
 }
 
@@ -141,6 +143,16 @@ export function toProposalApprovalFailureDiagnostic(
   const existing = findDiagnosticRecord(error);
   if (existing) return diagnosticFromRecord(existing, correlationId);
 
+  // The reconciliation guard owns the originating correlation identifier.
+  // Preserve it ahead of transport headers supplied as the fallback.
+  const payload = responsePayload(error);
+  if (
+    isRecord(payload) &&
+    typeof payload.correlationId === 'string' &&
+    payload.correlationId.length > 0
+  ) {
+    correlationId = boundedText(payload.correlationId);
+  }
   const rawIssues = findIssueValues(error);
   const issues = rawIssues
     .map(toDiagnosticIssue)

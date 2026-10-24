@@ -12,6 +12,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { CliReadHostActionPreparation } from './cliReadHostActionPreparation';
+import { ControllerActionInputs } from './controllerActionInputs';
 import { ConversationHostActionPreparation } from './conversationHostActionPreparation';
 import { AgentSkillCatalogContext } from './agentSkillCatalogContext';
 import { TaskMonitorHostActionPreparation } from './taskMonitorHostActionPreparation';
@@ -20,11 +21,11 @@ import { AgentSessionHostActionPreparation } from './agentSessionHostActionPrepa
 
 
 /**
- * Closed selector for a persisted domain action. It contains no account, organization, project, payload, hash, authorization ID, nonce, or lifetime.
+ * Preparation for a server-resolved action. Direct actions carry complete typed execution or disclosure inputs. Account, organization, project, payload hash, authorization ID, nonce, and lifetime remain server-owned.
  */
 /**
  * @type HostActionPreparation
- * Closed selector for a persisted domain action. It contains no account, organization, project, payload, hash, authorization ID, nonce, or lifetime.
+ * Preparation for a server-resolved action. Direct actions carry complete typed execution or disclosure inputs. Account, organization, project, payload hash, authorization ID, nonce, and lifetime remain server-owned.
  * @export
  */
 export type HostActionPreparation = AgentSessionHostActionPreparation | CliReadHostActionPreparation | ConversationHostActionPreparation | TaskMonitorHostActionPreparation;

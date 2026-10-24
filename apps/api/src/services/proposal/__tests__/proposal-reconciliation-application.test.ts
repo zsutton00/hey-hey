@@ -106,6 +106,55 @@ function fixture() {
 }
 
 describe('reviewed reconciliation application', () => {
+  it('applies persisted type content with unset optionals but names genuine definition drift', async () => {
+    const f = fixture();
+    const live = {
+      entityType: 'WORK_ITEM_TYPE' as const,
+      entityId: 'mockup',
+      version: 'project:v1',
+      content: {
+        definition: { name: 'Mockup', iconKey: undefined, colorKey: undefined },
+        lifecycleStatus: 'active',
+      },
+    };
+    f.revision.bases = [JSON.parse(JSON.stringify(live))];
+    const typeProposal = {
+      ...proposal,
+      targetEntityType: 'WORK_ITEM_TYPE' as const,
+      targetEntityId: 'mockup',
+    };
+    const adapter = { workItemType: jest.fn(async () => live) };
+    const owner = new ProposalReconciliationService(
+      adapter as never,
+      {} as never,
+      jest.fn(),
+    );
+    await expect(
+      owner.assertApplicable(f.tx, typeProposal),
+    ).resolves.toBeUndefined();
+    live.content.definition.name = 'Intervening name';
+    const error = await owner
+      .assertApplicable(f.tx, typeProposal)
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ConflictException);
+    expect((error as ConflictException).getResponse()).toMatchObject({
+      issues: [
+        {
+          field: 'WORK_ITEM_TYPE:mockup.definition.name',
+          code: 'PROPOSAL_RECONCILIATION_REQUIRED',
+          layer: 'referential',
+        },
+      ],
+    });
+    expect(live.content.definition.name).toBe('Intervening name');
+    f.db.proposalReconciliationRevision.findFirst.mockResolvedValueOnce(
+      null as never,
+    );
+    await expect(owner.assertApplicable(f.tx, typeProposal)).rejects.toThrow(
+      'Original proposal content is unavailable',
+    );
+  });
+
   it('uses completed-effect receipts for retry classification without refreshing the original revision', async () => {
     const f = fixture();
     f.db.workItemChangeSetMaterialization.findUnique.mockResolvedValue({
