@@ -10,7 +10,10 @@ import {
 } from './authoring-guidance';
 import { guidanceTokenForType } from './work-item-guidance-token';
 import { WorkItemTypeRegistryService } from '../../services/tasks/work-item-type-registry.service';
-import { createWarmWorkItemTypeRegistry } from '../../../test/setup/work-item-type-registry.fixture';
+import {
+  STANDARD_WRITING_GUIDANCE,
+  createWarmWorkItemTypeRegistry,
+} from '../../../test/setup/work-item-type-registry.fixture';
 
 function getText(result: unknown): string {
   const r = result as {
@@ -132,6 +135,26 @@ describe('GetToolGuidanceToolsProvider', () => {
       expect(getText(result)).toContain(STANDARD_TASK_DEPENDENCY_GUIDANCE);
     },
   );
+
+  it('shares the approved STANDARD writing block and proof across create, single edit, and batch edit', async () => {
+    for (const toolName of ['create_work_item', 'edit_work_item'] as const) {
+      const result = await provider.getToolGuidance(
+        {
+          toolName,
+          workItemType: 'STANDARD',
+          authoringRootProof: AUTHORING_ROOT_PROOF,
+        },
+        {} as any,
+        { headers: { 'x-project-id': PROJECT_ID } } as any,
+      );
+      const text = getText(result);
+      expect(text.split(STANDARD_WRITING_GUIDANCE)).toHaveLength(2);
+      expect(text).toContain(guidanceTokenForType('STANDARD', PROJECT_ID));
+      expect(text).toContain(
+        '`create_work_item`, `edit_work_item`, and `edit_tasks` require this',
+      );
+    }
+  });
 
   describe.each(['create_work_item', 'edit_work_item'] as const)(
     'work-item-type body selection for %s',

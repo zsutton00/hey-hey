@@ -9,6 +9,7 @@ import { TaskSectionKey } from '../../generated/model/taskSectionKey';
 import { EntityType } from '../../generated/model/entityType';
 import { WorkStatus } from '../../generated/model/workStatus';
 import {
+  STANDARD_WRITING_GUIDANCE,
   createWarmWorkItemTypeRegistry,
   createWarmWorkItemTypeRegistryWithCustomTypes,
   createRegistryWithArchivedSystemType,
@@ -26,11 +27,6 @@ const GENERIC_TOOLS = ['create_work_item', 'edit_work_item'] as const;
 const GRAPH_TYPE = 'GUIDANCE_GRAPH';
 const DEFAULT_PROJECT_ID = '123e4567-e89b-42d3-a456-426614174003';
 const GRAPH_PROJECT_ID = '22222222-2222-4222-8222-222222222222';
-const STANDARD_RESOLVED_CONTEXT = `## Preserve resolved context
-
-Preserve every grounded, user-assented system-design and implementation decision required for a future agent to continue without the source conversation. This includes consequential choices about ownership, interfaces and boundary agreements, state representations, algorithms, constraints, and the rationale for those choices. Do not compress resolved work into vague outcome prose or reopen settled decisions.
-
-Grounded context preservation takes precedence over ordinary concision, paragraph-count, and acceptance-criterion-count guidance when the detail is material. The evidence-backed scope rule still applies: preserve only content established by the user's request or authoritative, non-archived project context, and never invent behavior or detail.`;
 const BUG_RESOLVED_CONTEXT = `## Preserve resolved investigation context
 
 Preserve every grounded investigation result required for a future agent to continue without the source conversation. This includes reproduction evidence, observed behavior and conditions, debugging observations, investigation results, an established root cause or narrowed hypotheses, materially useful rejected explanations, affected components and boundaries, and the agreed fix direction. Do not summarize away evidence or erase rejected explanations that materially narrow the remaining work.
@@ -568,25 +564,38 @@ describe('get_tool_guidance per-work-item-type contract', () => {
   });
 
   describe.each(GENERIC_TOOLS)('%s STANDARD scope authority', (toolName) => {
-    it('serves the evidence boundary and support audit from the registry', async () => {
+    it('serves the approved reviewable-change wording exactly once', async () => {
       const text = await guidanceFor(provider, toolName, 'STANDARD');
 
-      expect(text).toContain('## Evidence-backed scope');
-      expect(text).toContain("basis in the user's request");
-      expect(text).toContain('authoritative, non-archived project context');
-      expect(text).toContain(
-        'Plausibility, completeness,\nconvention, likely edge cases, and general engineering practice',
-      );
-      expect(text).toContain(
-        'Engineering standards constrain authorized implementation but do not\ncreate product behavior',
-      );
-      expect(text).toContain('Remove unsupported claims');
-      expect(text).toContain(
-        'surface genuinely necessary\nunresolved decisions',
-      );
-      expect(text).toContain(
-        'keep acceptance criteria within established scope',
-      );
+      expect(text.split(STANDARD_WRITING_GUIDANCE)).toHaveLength(2);
+      expect(text).not.toMatch(/@\[\w+:[0-9a-f-]{36}\|/i);
+      for (const obsolete of [
+        '## Evidence-backed scope',
+        '## Preserve resolved context',
+        'Tasks are ready to implement when written',
+        'expose the chosen shape',
+        '3–4 bullets',
+        'no decision archaeology',
+        'Task Tools',
+      ]) {
+        expect(text).not.toContain(obsolete);
+      }
+    });
+
+    it('retains field folding and structured relationship mechanics', async () => {
+      const text = await guidanceFor(provider, toolName, 'STANDARD');
+
+      expect(text).toContain('dedicated `implementation` parameter');
+      expect(text).toContain('trailing `## Implementation` block');
+      expect(text).toContain("proposal's structured `edges` parameter");
+      expect(text).toContain('approval performs the atomic transition');
+      expect(text).toContain('`DEPENDS_ON` edge in `edges`');
+      if (toolName === 'edit_work_item') {
+        expect(text).toContain('preserves the existing description');
+        expect(text).toContain(
+          'no replacement description section is supplied',
+        );
+      }
     });
 
     it('serves the complete known service-set contract from the registry', async () => {
@@ -615,19 +624,16 @@ describe('get_tool_guidance per-work-item-type contract', () => {
   describe.each(GENERIC_TOOLS)(
     '%s resolved-context preservation',
     (toolName) => {
-      it('preserves the complete grounded STANDARD design context', async () => {
+      it('preserves established STANDARD decisions and necessary rationale', async () => {
         const text = await guidanceFor(provider, toolName, 'STANDARD');
 
-        expect(text).toContain(STANDARD_RESOLVED_CONTEXT);
-        expect(text).toContain('user-assented system-design');
-        expect(text).toContain('ownership, interfaces and boundary agreements');
         expect(text).toContain(
-          'state representations, algorithms, constraints',
+          'Preserve established decisions, constraints, and necessary rationale',
         );
         expect(text).toContain(
-          'takes precedence over ordinary concision, paragraph-count, and acceptance-criterion-count guidance',
+          'Do not reopen settled choices or reconstruct unrelated history',
         );
-        expect(text).toContain('The evidence-backed scope rule still applies');
+        expect(text).toContain('remove repetition and speculative detail');
       });
 
       it('preserves the complete grounded BUG investigation context', async () => {
