@@ -72,6 +72,23 @@ export const projectModeSettingsJsonSchema = {
       },
       "description": "Project Assistant participation chosen by the MODE author. It is the\nproject-mode handler's participation baseline rather than a\nsession-configuration override, which is why it may turn participation on.\n"
     },
+    "sessionRole": {
+      "allOf": [
+        {
+          "type": "string",
+          "description": "Kind of work performed by a mode session, independent of mode identity and work-item-type registry role.",
+          "enum": [
+            "implementation",
+            "research",
+            "planning",
+            "review"
+          ],
+          "default": "implementation"
+        }
+      ],
+      "description": "Session role declared by this Agent Mode. Omission, including omission of the settings section, resolves to implementation.",
+      "default": "implementation"
+    },
     "eligibleWorkItemTypeKeys": {
       "type": "array",
       "minItems": 1,

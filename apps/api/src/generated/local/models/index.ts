@@ -598,6 +598,7 @@ export * from './SessionMonitorSettledTurnReport';
 export * from './SessionMonitorTerminalPolicy';
 export * from './SessionMonitorTerminalPolicyAction';
 export * from './SessionMonitorWorkflowContext';
+export * from './SessionRole';
 export * from './SignedCliReadEnvelope';
 export * from './SignedConversationControlEnvelope';
 export * from './SignedConversationTriggerEnvelope';
