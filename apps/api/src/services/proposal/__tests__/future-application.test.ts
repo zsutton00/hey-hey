@@ -217,6 +217,136 @@ describe('manual future application', () => {
       userId as any,
       request,
     );
+  function graphScenario() {
+    const nodeId = randomUUID();
+    const graph = {
+      valid: true,
+      projectedRoot: {
+        identity: { refType: 'existing', id: targetId },
+        label: state.target.name,
+        name: state.target.name,
+        type: 'DIAGRAM',
+        sections: [],
+        deleted: false,
+      },
+      children: [
+        {
+          identity: { refType: 'existing', id: nodeId },
+          label: 'Element',
+          name: 'Element',
+          type: 'DIAGRAM_ELEMENT',
+          parent: { refType: 'existing', id: targetId },
+          sections: [],
+          deleted: false,
+        },
+      ],
+      sections: [],
+      incidentRelationships: [],
+      identityLabels: {},
+      issues: [],
+      warnings: [],
+    };
+    state.future.baseline.content.graph = structuredClone(graph);
+    state.future.result.graph = structuredClone(graph);
+    state.future.result.graph.projectedRoot.name = state.future.result.name;
+    state.future.result.graph.children[0]!.name = 'Reviewed element';
+    const adapter = (reconciliation as any).adapter;
+    adapter.readFutureGraph = jest.fn(async () => graph);
+    db.proposalGroupMember = { findUnique: jest.fn().mockResolvedValue(null) };
+    db.workItemChangeSetMaterialization = {
+      findUnique: jest.fn(async () => state.intent ?? null),
+    };
+    const materializer = {
+      projectPreparation: jest.fn(async ({ request }) => ({
+        operationSet: request,
+        validationRevision: 'graph-validation',
+        snapshots: { target: state.future.result.graph },
+      })),
+      enqueuePreparedIntent: jest.fn(async (_tx, input) => {
+        state.intent = { id: randomUUID(), status: 'PREPARED', ...input };
+      }),
+      materializeApprovedChangeSet: jest.fn(async () => {
+        state.future.outcome = 'APPLIED';
+        state.future.appliedRevision = state.future.revision;
+        state.target.name = state.future.result.name;
+        return { enacted: true };
+      }),
+    };
+    Object.assign(service, { workItemChangeSetMaterializer: materializer });
+    return { graph, materializer };
+  }
+
+  it('routes an explicitly applied reviewed graph through the durable generic intent, preserving the non-live approval', async () => {
+    const { materializer } = graphScenario();
+    expect(state.future.outcome).toBe('STAGED');
+    const response = await apply();
+    expect(response.status).toBe('APPLIED');
+    expect(response.future.outcome).toBe('APPLIED');
+    expect(materializer.enqueuePreparedIntent).toHaveBeenCalledWith(
+      db,
+      expect.objectContaining({
+        proposalId,
+        futureApplication: expect.objectContaining({
+          futureId,
+          revision: 1,
+          refinementIds: [],
+        }),
+      }),
+    );
+    expect(
+      materializer.projectPreparation.mock.calls[0]![0].request.operations,
+    ).toContainEqual(
+      expect.objectContaining({
+        op: 'workItem.update',
+        name: 'Reviewed element',
+      }),
+    );
+    expect(enact).not.toHaveBeenCalled();
+    expect(state.proposal.action).toBe('VERSIONED_UPDATE');
+  });
+
+  it('blocks graph application when linked work is incomplete without creating an intent', async () => {
+    const { materializer } = graphScenario();
+    dependent();
+    state.work.status = 'ACTIVE';
+    expect(await apply()).toMatchObject({
+      status: 'BLOCKED',
+      blocker: 'COMPLETION_INCOMPLETE',
+    });
+    expect(materializer.enqueuePreparedIntent).not.toHaveBeenCalled();
+    expect(materializer.materializeApprovedChangeSet).not.toHaveBeenCalled();
+    expect(state.future.outcome).toBe('STAGED');
+  });
+
+  it('detects element-only drift even when the Diagram root and its sections did not change', async () => {
+    const { graph, materializer } = graphScenario();
+    graph.children[0]!.name = 'Concurrent live edit';
+    expect(await apply()).toMatchObject({
+      status: 'BLOCKED',
+      blocker: 'BASELINE_CHANGED',
+    });
+    expect(materializer.enqueuePreparedIntent).not.toHaveBeenCalled();
+    expect(materializer.materializeApprovedChangeSet).not.toHaveBeenCalled();
+  });
+
+  it('leaves a failed graph application staged and resumes its stored intent on explicit retry', async () => {
+    const { materializer } = graphScenario();
+    materializer.materializeApprovedChangeSet.mockRejectedValueOnce(
+      new Error('Graph unavailable'),
+    );
+    await expect(apply()).rejects.toThrow('Graph unavailable');
+    expect(state.future.outcome).toBe('STAGED');
+    expect(state.target.name).toBe('Current');
+    const intent = state.intent;
+    expect(await apply()).toMatchObject({
+      status: 'APPLIED',
+      future: { outcome: 'APPLIED' },
+    });
+    expect(state.intent).toBe(intent);
+    expect(materializer.enqueuePreparedIntent).toHaveBeenCalledTimes(1);
+    expect(materializer.projectPreparation).toHaveBeenCalledTimes(1);
+  });
+
   function pending() {
     state.refinements.push({
       id: randomUUID(),
@@ -880,7 +1010,11 @@ describe('manual future application', () => {
     const boundary = {
       applyFuture: jest.fn().mockResolvedValue({ status: 'APPLIED' }),
     };
-    const controller = new ProposalController({} as any, boundary as any);
+    const controller = new ProposalController(
+      {} as any,
+      boundary as any,
+      {} as never,
+    );
     await controller.applyFuture(
       organizationId as any,
       projectId as any,

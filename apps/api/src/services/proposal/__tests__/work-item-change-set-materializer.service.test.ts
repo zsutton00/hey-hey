@@ -2283,126 +2283,184 @@ describe('WorkItemChangeSetMaterializerService', () => {
     expect(query.values).toEqual(['organization-1:project-1']);
   });
 
-  it('publishes the complete target without emitting a second approval event', async () => {
-    const targetProjection = projectionFor('task-1');
-    const intent = {
-      id: 'materialization-1',
-      rootWorkItemId: 'task-1',
-      status: WorkItemChangeSetMaterializationStatus.APPLYING,
-      claimToken: 'claim-1',
-      validationRevision: 'revision-1',
-      operationSet: {
-        root: { refType: 'existing', id: 'task-1' },
-        operations: [],
-      },
-      workItemIdMappings: { 'existing:task-1': 'task-1' },
-      relationshipIdMappings: {},
-      priorProjection: {
-        schemaVersion: 'work-item-change-set-projection.v1',
-        projection: {},
-      },
-      targetProjection: {
-        schemaVersion: 'work-item-change-set-projection.v1',
-        projection: targetProjection,
-      },
-      affectedWorkItemIds: ['task-1'],
-      affectedRelationshipIds: [],
-      proposal: { status: 'APPROVED' },
-      checkpoints: [
-        {
-          status: WorkItemChangeSetCheckpointStatus.COMPLETED,
-          validationRevision: 'revision-1',
+  it.each(['ordinary', 'future', 'drift'] as const)(
+    'publishes %s through the same durable transaction without emitting a second approval event',
+    async (kind) => {
+      const targetProjection = projectionFor('task-1');
+      const intent = {
+        id: 'materialization-1',
+        rootWorkItemId: 'task-1',
+        status: WorkItemChangeSetMaterializationStatus.APPLYING,
+        claimToken: 'claim-1',
+        validationRevision: 'revision-1',
+        operationSet: {
+          root: { refType: 'existing', id: 'task-1' },
+          operations: [],
         },
-      ],
-    };
-    const tx = {
-      proposalGroupMember: { findUnique: jest.fn().mockResolvedValue(null) },
-      proposalReconciliationReplacement: {
-        findFirst: jest.fn().mockResolvedValue(null),
-      },
-      workItemChangeSetMaterialization: {
-        findFirst: jest.fn().mockResolvedValue({ id: 'materialization-1' }),
-        findUniqueOrThrow: jest.fn().mockResolvedValue(intent),
-        update: jest.fn().mockResolvedValue({}),
-      },
-      proposal: {
-        update: jest.fn().mockResolvedValue({
+        workItemIdMappings: { 'existing:task-1': 'task-1' },
+        relationshipIdMappings: {},
+        priorProjection: {
+          schemaVersion: 'work-item-change-set-projection.v1',
+          projection: {},
+        },
+        targetProjection: {
+          schemaVersion: 'work-item-change-set-projection.v1',
+          projection: targetProjection,
+          ...(kind !== 'ordinary'
+            ? {
+                futureApplication: {
+                  futureId: 'future-1',
+                  revision: 1,
+                  refinementIds: [],
+                },
+              }
+            : {}),
+        },
+        affectedWorkItemIds: ['task-1'],
+        affectedRelationshipIds: [],
+        proposal: {
           id: 'proposal-1',
           organizationId: 'organization-1',
           projectId: 'project-1',
-          targetEntityId: 'task-1',
-          targetEntityType: 'TASK',
-          action: 'UPDATE',
-          requestorId: 'user-1',
-          requestorContext: null,
-          influences: null,
-          generatedWithVersion: null,
-          conversationId: null,
-          messageId: null,
-          createdAt: new Date('2026-07-13T00:00:00.000Z'),
-        }),
-      },
-      task: {
-        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
-      },
-    };
-    const prisma = {
-      db: {
-        workItemChangeSetMaterialization: {
-          findUnique: jest.fn().mockResolvedValue(intent),
+          status: 'APPROVED',
         },
-        $transaction: jest.fn(
-          async (callback: (transaction: typeof tx) => unknown) => callback(tx),
-        ),
-      },
-    };
-    const eventPublisher = {
-      publishInTransaction: jest.fn().mockResolvedValue(undefined),
-    };
-    const projector = {
-      rehydrateCurrentProjection: jest.fn().mockResolvedValue(targetProjection),
-    };
-    const service = new WorkItemChangeSetMaterializerService(
-      prisma as any,
-      projector as any,
-      {} as any,
-      {} as any,
-      eventPublisher as any,
-      jest.fn(),
-      reconciliationStub(),
-      {} as any,
-      {} as any,
-      {} as any,
-    );
-    jest.spyOn(service as any, 'assertRecoverableIntent').mockImplementation();
+        checkpoints: [
+          {
+            status: WorkItemChangeSetCheckpointStatus.COMPLETED,
+            validationRevision: 'revision-1',
+          },
+        ],
+      };
+      const tx = {
+        proposalGroupMember: { findUnique: jest.fn().mockResolvedValue(null) },
+        proposalReconciliationReplacement: {
+          findFirst: jest.fn().mockResolvedValue(null),
+        },
+        workItemChangeSetMaterialization: {
+          findFirst: jest.fn().mockResolvedValue({ id: 'materialization-1' }),
+          findUniqueOrThrow: jest.fn().mockResolvedValue(intent),
+          update: jest.fn().mockResolvedValue({}),
+        },
+        proposalFuture: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: 'future-1',
+            outcome: 'STAGED',
+            revision: 1,
+            latestProposalId: 'proposal-1',
+            dependencies: [],
+            history: [],
+          }),
+          update: jest.fn().mockResolvedValue({}),
+        },
+        proposal: {
+          findMany: jest.fn().mockResolvedValue([]),
+          update: jest.fn().mockResolvedValue({
+            id: 'proposal-1',
+            organizationId: 'organization-1',
+            projectId: 'project-1',
+            targetEntityId: 'task-1',
+            targetEntityType: 'TASK',
+            action: 'UPDATE',
+            requestorId: 'user-1',
+            requestorContext: null,
+            influences: null,
+            generatedWithVersion: null,
+            conversationId: null,
+            messageId: null,
+            createdAt: new Date('2026-07-13T00:00:00.000Z'),
+          }),
+        },
+        task: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+      };
+      const prisma = {
+        db: {
+          workItemChangeSetMaterialization: {
+            findUnique: jest.fn().mockResolvedValue(intent),
+          },
+          $transaction: jest.fn(
+            async (callback: (transaction: typeof tx) => unknown) =>
+              callback(tx),
+          ),
+        },
+      };
+      const eventPublisher = {
+        publishInTransaction: jest.fn().mockResolvedValue(undefined),
+      };
+      const projector = {
+        rehydrateCurrentProjection: jest
+          .fn()
+          .mockResolvedValue(
+            kind === 'drift'
+              ? projectionFor('task-1', 'Unreviewed value')
+              : targetProjection,
+          ),
+      };
+      const service = new WorkItemChangeSetMaterializerService(
+        prisma as any,
+        projector as any,
+        {} as any,
+        {} as any,
+        eventPublisher as any,
+        jest.fn(),
+        reconciliationStub(),
+        {} as any,
+        {} as any,
+        {} as any,
+      );
+      jest
+        .spyOn(service as any, 'assertRecoverableIntent')
+        .mockImplementation();
 
-    await (service as any).publishPreparedIntent(
-      {
-        proposalId: 'proposal-1',
-        organizationId: 'organization-1',
-        projectId: 'project-1',
-      },
-      'materialization-1',
-      'claim-1',
-    );
+      const publish = () =>
+        (service as any).publishPreparedIntent(
+          {
+            proposalId: 'proposal-1',
+            organizationId: 'organization-1',
+            projectId: 'project-1',
+          },
+          'materialization-1',
+          'claim-1',
+        );
 
-    expect(eventPublisher.publishInTransaction).not.toHaveBeenCalled();
-    expect(projector.rehydrateCurrentProjection).not.toHaveBeenCalled();
-    expect(tx.workItemChangeSetMaterialization.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'materialization-1', claimToken: 'claim-1' },
-        data: expect.objectContaining({ status: 'PUBLISHED' }),
-      }),
-    );
-    expect(tx.task.updateMany).toHaveBeenCalledWith({
-      where: {
-        id: { in: ['task-1'] },
-        organizationId: 'organization-1',
-        projectId: 'project-1',
-      },
-      data: { lastAppliedProposalId: 'proposal-1' },
-    });
-  });
+      if (kind === 'drift') {
+        await expect(publish()).rejects.toThrow('complete reviewed result');
+        expect(tx.proposalFuture.update).not.toHaveBeenCalled();
+        expect(
+          tx.workItemChangeSetMaterialization.update,
+        ).not.toHaveBeenCalled();
+        return;
+      }
+      await publish();
+      if (kind === 'future')
+        expect(tx.proposalFuture.update).toHaveBeenCalledWith({
+          where: { id: 'future-1' },
+          data: expect.objectContaining({
+            outcome: 'APPLIED',
+            appliedRevision: 1,
+          }),
+        });
+      expect(eventPublisher.publishInTransaction).not.toHaveBeenCalled();
+      expect(projector.rehydrateCurrentProjection).toHaveBeenCalledTimes(
+        kind === 'ordinary' ? 0 : 1,
+      );
+      expect(tx.workItemChangeSetMaterialization.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'materialization-1', claimToken: 'claim-1' },
+          data: expect.objectContaining({ status: 'PUBLISHED' }),
+        }),
+      );
+      expect(tx.task.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: { in: ['task-1'] },
+          organizationId: 'organization-1',
+          projectId: 'project-1',
+        },
+        data: { lastAppliedProposalId: 'proposal-1' },
+      });
+    },
+  );
 
   describe('change-set body mentions', () => {
     const descriptionDefinition = { key: 'description', label: 'Description' };

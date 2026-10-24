@@ -20,6 +20,42 @@ const mocks = vi.hoisted(() => ({
   workItems: new Map<string, TaskResponseDto>(),
 }));
 
+vi.mock(
+  "../../shared/WorkflowMentionInlineRenderer",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("../../shared/WorkflowMentionInlineRenderer")
+    >()),
+    WorkflowGraphSurface: ({
+      projection,
+    }: {
+      projection: {
+        projectedRoot: { name: string };
+        children: Array<{ name: string; deleted: boolean }>;
+      };
+    }) => (
+      <div data-testid="captured-graph">
+        {projection.projectedRoot.name}:{" "}
+        {projection.children
+          .filter((node) => !node.deleted)
+          .map((node) => node.name)
+          .join(", ")}
+      </div>
+    ),
+  }),
+);
+vi.mock("../WorkItemGraphChangeSummary", () => ({
+  WorkItemGraphChangeSummary: ({
+    operations,
+  }: {
+    operations: Array<{ op: string }>;
+  }) => (
+    <div data-testid="graph-change-summary">
+      {operations.map((operation) => operation.op).join(", ")}
+    </div>
+  ),
+}));
+
 vi.mock("../useEntityData", () => ({
   useEntityData: () => ({
     entities: mocks.entities,
@@ -308,6 +344,77 @@ beforeEach(() => {
 });
 
 describe("UpdateProposal future revisions", () => {
+  it("renders a graph-only future from its captured baseline and complete result while live content has drifted", () => {
+    const graph = {
+      valid: true,
+      projectedRoot: {
+        identity: { refType: "existing", id: "feature" },
+        type: "DIAGRAM",
+        name: "Captured Diagram",
+        label: "Captured Diagram",
+        sections: [],
+        deleted: false,
+      },
+      children: [
+        {
+          identity: { refType: "existing", id: "element" },
+          type: "DIAGRAM_ELEMENT",
+          name: "Before element",
+          label: "Before element",
+          parent: { refType: "existing", id: "feature" },
+          sections: [],
+          deleted: false,
+        },
+      ],
+      sections: [],
+      incidentRelationships: [],
+      identityLabels: {},
+      issues: [],
+      warnings: [],
+    };
+    const after = {
+      ...graph,
+      children: [{ ...graph.children[0], name: "After element" }],
+    };
+    const proposal = futureProposal({
+      updates: {
+        operation: "REVISE",
+        futureId: "future",
+        expectedRevision: 0,
+        baseline: { kind: "LIVE", revision: "r1", content: { ...live, graph } },
+        result: { ...live, graph: after },
+        dependencies: [],
+        graphChangeSet: {
+          root: graph.projectedRoot.identity,
+          operations: [
+            {
+              op: "workItem.update",
+              ref: graph.children[0].identity,
+              name: "After element",
+            },
+          ],
+        },
+      },
+    });
+    mocks.entities.feature = {
+      type: "task",
+      data: { ...live, name: "Concurrent live Diagram" },
+    };
+    mount(proposal);
+    const review = screen.getByTestId("future-graph-review");
+    expect(
+      within(review).getAllByTestId("captured-graph")[0],
+    ).toHaveTextContent("Before element");
+    expect(
+      within(review).getAllByTestId("captured-graph")[1],
+    ).toHaveTextContent("After element");
+    expect(
+      within(review).getByTestId("graph-change-summary"),
+    ).toHaveTextContent("workItem.update");
+    expect(review).not.toHaveTextContent("Concurrent live Diagram");
+    expect(screen.getByTestId("proposal-state")).toBeInTheDocument();
+  });
+
   it("renders a pending future as an ordinary Feature update card", () => {
     mount(futureProposal());
 

@@ -24,6 +24,7 @@ import type { WorkItemTypeRegistryService } from '../tasks/work-item-type-regist
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 addFormats(ajv);
+ajv.addFormat('branded-ServiceId', true);
 const validate = ajv.compile<FutureRevisionMutation>(
   futureRevisionMutationSchema,
 );
@@ -58,7 +59,12 @@ export async function lockFutureForMutation(
     tx as Prisma.TransactionClient
   ).proposalFuture.findFirst({
     where: { id: mutation.futureId, organizationId, projectId },
-    select: { outcome: true, revision: true },
+    select: {
+      outcome: true,
+      revision: true,
+      result: true,
+      latestProposalId: true,
+    },
   });
   if (
     !future ||
@@ -68,6 +74,18 @@ export async function lockFutureForMutation(
     throw new ConflictException(
       'Future target, reviewed revision or outcome changed; submit a newly reviewed refinement.',
     );
+  }
+  if (future && (future.result as unknown as { graph?: unknown }).graph) {
+    const intent = await (
+      tx as Prisma.TransactionClient
+    ).workItemChangeSetMaterialization.findUnique({
+      where: { proposalId: future.latestProposalId },
+      select: { status: true },
+    });
+    if (intent && intent.status !== 'PUBLISHED')
+      throw new ConflictException(
+        'This future is being applied; resume Apply before refining or cancelling it.',
+      );
   }
 }
 

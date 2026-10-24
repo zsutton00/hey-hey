@@ -34,6 +34,11 @@ import {
   remapReconciliationIdentity,
 } from './proposal-reconciliation-content';
 import { AgentEdgeClientService } from '../agent-edge-client.service';
+import {
+  futureGraph,
+  graphContentBasis,
+  type FutureGraphApplication,
+} from './future-graph';
 import { parseFutureRevisionMutation } from './future-revision';
 import type { FutureRevisionMaterializerPorts } from './future-revision-materializer';
 import {
@@ -119,9 +124,27 @@ export class ProposalReconciliationService {
     }
     if (proposal.action === 'CREATE') return [];
     if (proposal.targetEntityType === 'TASK') {
-      return [
-        await this.taskBasis(tx, proposal, proposal.targetEntityId, lock),
-      ];
+      const basis = await this.taskBasis(
+        tx,
+        proposal,
+        proposal.targetEntityId,
+        lock,
+      );
+      if (proposal.action === 'VERSIONED_UPDATE') {
+        const mutation = parseFutureRevisionMutation(proposal.updates);
+        if (mutation.operation === 'REVISE' && futureGraph(mutation.result)) {
+          const graph = await this.adapter.readFutureGraph(
+            proposal.organizationId,
+            proposal.projectId,
+            proposal.targetEntityId,
+            tx,
+          );
+          basis.content.graph = graphContentBasis(
+            graph,
+          ) as unknown as Prisma.JsonObject;
+        }
+      }
+      return [basis];
     }
     if (proposal.targetEntityType === 'DESIGN_DOC') {
       return [
@@ -159,6 +182,17 @@ export class ProposalReconciliationService {
             target.targetEntityId,
             false,
           );
+    const graph = futureGraph(baseline.content);
+    if (graph) {
+      const currentGraph = await this.adapter.readFutureGraph(
+        target.organizationId,
+        target.projectId,
+        target.targetEntityId,
+        tx,
+      );
+      if (!isEqual(graphContentBasis(graph), graphContentBasis(currentGraph)))
+        return true;
+    }
     return !isEqual(
       this.adapter.futureContentBasis(
         target.targetEntityType,
@@ -185,6 +219,13 @@ export class ProposalReconciliationService {
 
   futureMaterializationPorts(): FutureRevisionMaterializerPorts {
     return {
+      projectGraph: (target, basis, request) =>
+        this.adapter.projectFutureGraph(
+          target.organizationId,
+          target.projectId,
+          basis,
+          request,
+        ),
       readLiveContent: (target) => this.currentFutureContent(target),
       readLiveRevision: (tx, target) =>
         this.adapter.liveFutureRevision(
@@ -253,6 +294,7 @@ export class ProposalReconciliationService {
       expected.entityType !== targetEntityType ||
       actual.entityType !== targetEntityType ||
       expected.entityId !== actual.entityId ||
+      !isEqual(expected.content.graph ?? null, actual.content.graph ?? null) ||
       !isEqual(
         this.adapter.currentFutureBasisContent(targetEntityType, expected),
         this.adapter.currentFutureBasisContent(targetEntityType, actual),
@@ -1073,15 +1115,23 @@ export class ProposalReconciliationService {
         where: { proposalId: proposal.id },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       });
+      const appliedBasis = await this.futureApplicationBasis(
+        tx,
+        proposal,
+        materializationId,
+        'TASK',
+        taskId,
+      );
       const expected = receipt
         ? (receipt.basis as unknown as ProposalReconciliationBasis)
-        : (
+        : (appliedBasis ??
+          (
             revision?.bases as unknown as
               | ProposalReconciliationBasis[]
               | undefined
           )?.find(
             (basis) => basis.entityType === 'TASK' && basis.entityId === taskId,
-          );
+          ));
       if (!expected)
         throw new ConflictException(
           'Original target content is unavailable. Reconciliation is required.',
@@ -1110,6 +1160,25 @@ export class ProposalReconciliationService {
     return result;
   }
 
+  private async futureApplicationBasis(
+    tx: AnyTransactionClient,
+    proposal: Proposal,
+    materializationId: string,
+    entityType: 'TASK' | 'EDGE',
+    entityId: string,
+  ): Promise<ProposalReconciliationBasis | undefined> {
+    if (proposal.action !== 'VERSIONED_UPDATE') return undefined;
+    const intent = await tx.workItemChangeSetMaterialization.findUnique({
+      where: { id: materializationId, proposalId: proposal.id },
+    });
+    const stored = intent?.targetProjection as unknown as
+      | { futureApplication?: FutureGraphApplication }
+      | undefined;
+    return stored?.futureApplication?.reviewedBases.find(
+      (basis) => basis.entityType === entityType && basis.entityId === entityId,
+    );
+  }
+
   async reviewedEdgeBasis(
     tx: AnyTransactionClient,
     proposal: Proposal,
@@ -1130,15 +1199,23 @@ export class ProposalReconciliationService {
       where: { proposalId: proposal.id },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
+    const appliedBasis = await this.futureApplicationBasis(
+      tx,
+      proposal,
+      materializationId,
+      'EDGE',
+      edgeId,
+    );
     const expected = receipt
       ? (receipt.basis as unknown as ProposalReconciliationBasis)
-      : (
+      : (appliedBasis ??
+        (
           revision?.bases as unknown as
             | ProposalReconciliationBasis[]
             | undefined
         )?.find(
           (basis) => basis.entityType === 'EDGE' && basis.entityId === edgeId,
-        );
+        ));
     if (!expected)
       throw new ConflictException(
         'Original relationship content is unavailable. Reconciliation is required.',

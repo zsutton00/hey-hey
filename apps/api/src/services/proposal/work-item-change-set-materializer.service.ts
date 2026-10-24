@@ -1,3 +1,16 @@
+import type { FutureGraphApplication } from './future-graph';
+import { ModuleRef } from '@nestjs/core';
+import { ProposalGroupDecisionService } from './proposal-group-decision.service';
+import { isEqual } from 'lodash';
+import {
+  graphContentBasis,
+  remapGraphProjection,
+  serializableGraphProjection,
+} from './future-graph';
+import {
+  readFutureRevision,
+  parseFutureRevisionMutation,
+} from './future-revision';
 import { assertProposalApplicationEligible } from './proposal-application-eligibility';
 import {
   isWorkItemChangeSetValidationRequest,
@@ -17,6 +30,7 @@ import {
   HttpException,
   InternalServerErrorException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import {
   Prisma,
@@ -119,6 +133,7 @@ import {
 } from './pending-edge.service';
 import {
   WorkItemChangeSetProjectionSnapshots,
+  type ProjectionView,
   WorkItemChangeSetProjectorService,
 } from './work-item-change-set-projector.service';
 import {
@@ -198,6 +213,7 @@ type TaskProposalMaterializationPayload = {
 };
 
 type StoredProjection = {
+  futureApplication?: FutureGraphApplication;
   schemaVersion: 'work-item-change-set-projection.v1';
   projection: Awaited<ReturnType<WorkItemChangeSetProjectorService['project']>>;
   workItems?: Record<string, PriorSectionSnapshot>;
@@ -243,6 +259,7 @@ export class WorkItemChangeSetMaterializerService {
     private readonly workItemTypeRegistry: WorkItemTypeRegistryService,
     private readonly pendingEdgeService: PendingEdgeService,
     private readonly mentionProcessingService: MentionProcessingService,
+    @Optional() private readonly modules?: ModuleRef,
   ) {}
 
   async hasNonterminalIntent(
@@ -303,6 +320,23 @@ export class WorkItemChangeSetMaterializerService {
       materializationId: prepared.id,
       status: prepared.status,
     });
+    const futureApplication = (
+      prepared.targetProjection as unknown as StoredProjection
+    ).futureApplication;
+    if (
+      futureApplication &&
+      prepared.status !== WorkItemChangeSetMaterializationStatus.PUBLISHED
+    ) {
+      const proposal = await this.findProposalForPreparation(
+        this.prisma.db,
+        params,
+      );
+      await this.assertFutureApplicationCurrent(
+        this.prisma.db,
+        proposal,
+        futureApplication,
+      );
+    }
     const targetProjection =
       prepared.targetProjection as unknown as StoredProjection;
     if (!targetProjection.projection.valid) {
@@ -583,6 +617,7 @@ export class WorkItemChangeSetMaterializerService {
       projectId: ProjectId;
       reservedRootWorkItemId?: TaskId;
       prepared: PreparedChangeSetProjection;
+      futureApplication?: FutureGraphApplication;
     },
   ): Promise<MaterializationWithCheckpoints> {
     return this.prepareIntentInTransaction(tx, params);
@@ -594,6 +629,7 @@ export class WorkItemChangeSetMaterializerService {
     organizationId: OrganizationId;
     projectId: ProjectId;
     request: WorkItemChangeSetValidationRequest;
+    view?: ProjectionView;
   }): Promise<PreparedChangeSetProjection> {
     const operationSet = normalizeDiagramChangeSet(params.request);
     const validationRevision = this.validationRevision(operationSet);
@@ -601,6 +637,7 @@ export class WorkItemChangeSetMaterializerService {
       organizationId: params.organizationId,
       projectId: params.projectId,
       request: operationSet,
+      view: params.view,
     });
     this.logger.debug('Projected generic change-set preparation', {
       organizationId: params.organizationId,
@@ -1025,6 +1062,10 @@ export class WorkItemChangeSetMaterializerService {
     const proposal = await this.findProposalForPreparation(db, params);
     assertProposalApplicationEligible(proposal, 'materializeApprovedChangeSet');
     const existing = await this.findExistingIntent(db, proposal.id);
+    if (proposal.action === 'VERSIONED_UPDATE' && !existing)
+      throw new ConflictException(
+        'Future graph materialization requires an explicit, checked Apply intent.',
+      );
     if (existing) {
       return this.resumeExistingIntent(
         db,
@@ -1078,6 +1119,7 @@ export class WorkItemChangeSetMaterializerService {
       projectId: ProjectId;
       reservedRootWorkItemId?: TaskId;
       prepared: PreparedChangeSetProjection;
+      futureApplication?: FutureGraphApplication;
     },
   ): Promise<MaterializationWithCheckpoints> {
     const proposal = await this.findProposalForPreparation(tx, params);
@@ -1200,6 +1242,7 @@ export class WorkItemChangeSetMaterializerService {
       organizationId: OrganizationId;
       projectId: ProjectId;
       reservedRootWorkItemId?: TaskId;
+      futureApplication?: FutureGraphApplication;
     },
     proposal: Proposal,
     prepared: PreparedChangeSetProjection,
@@ -1306,7 +1349,14 @@ export class WorkItemChangeSetMaterializerService {
           priorWorkItems,
           requirementCitationEdges,
         ),
-        targetProjection: this.storedProjection(projections.target),
+        targetProjection: {
+          ...(this.storedProjection(
+            projections.target,
+          ) as Prisma.InputJsonObject),
+          ...(params.futureApplication
+            ? { futureApplication: params.futureApplication }
+            : {}),
+        } as unknown as Prisma.InputJsonValue,
         ...(projectionFailure
           ? {
               lastError: serializeProposalApprovalFailure(
@@ -1483,7 +1533,19 @@ export class WorkItemChangeSetMaterializerService {
     return db.workItemChangeSetMaterialization.update({
       where: { id: existing.id },
       data: {
-        targetProjection: this.storedProjection(projections.target),
+        targetProjection: {
+          ...(this.storedProjection(
+            projections.target,
+          ) as Prisma.InputJsonObject),
+          ...((existing.targetProjection as unknown as StoredProjection)
+            .futureApplication
+            ? {
+                futureApplication: (
+                  existing.targetProjection as unknown as StoredProjection
+                ).futureApplication,
+              }
+            : {}),
+        } as unknown as Prisma.InputJsonValue,
         affectedWorkItemIds: projectionFootprintIds(
           projections.workItemKeys,
           mappings.workItems,
@@ -3418,6 +3480,29 @@ export class WorkItemChangeSetMaterializerService {
     };
   }
 
+  private async assertFutureApplicationCurrent(
+    tx: AnyTransactionClient,
+    proposal: Proposal,
+    application: FutureGraphApplication,
+  ): Promise<void> {
+    const future = await readFutureRevision(
+      tx,
+      this.workItemTypeRegistry,
+      application.futureId,
+      proposal.organizationId as OrganizationId,
+      proposal.projectId as ProjectId,
+    );
+    if (
+      future.outcome !== 'STAGED' ||
+      future.revision !== application.revision ||
+      future.latestProposalId !== proposal.id ||
+      !future.completionEligibility.eligible
+    )
+      throw new ConflictException(
+        'Future revision or implementation readiness changed; graph application cannot proceed.',
+      );
+  }
+
   private async publishPreparedIntent(
     params: {
       proposalId: string;
@@ -3497,6 +3582,25 @@ export class WorkItemChangeSetMaterializerService {
       );
     }
 
+    if (
+      (intent.targetProjection as unknown as StoredProjection).futureApplication
+    ) {
+      const current = await this.projector.rehydrateCurrentProjection({
+        organizationId: params.organizationId,
+        projectId: params.projectId,
+        rootWorkItemId: intent.rootWorkItemId!,
+      });
+      const expected = remapGraphProjection(
+        (intent.targetProjection as unknown as StoredProjection).projection,
+        mappings.workItems,
+        mappings.relationships,
+      );
+      if (!isEqual(graphContentBasis(current), graphContentBasis(expected)))
+        throw new ConflictException(
+          'Materialized future graph does not match its complete reviewed result; publication remains pending.',
+        );
+    }
+
     return this.prisma.db.$transaction(async (tx) => {
       await this.assertClaimOwned(tx, materializationId, claimToken);
       const ownedIntent =
@@ -3534,6 +3638,45 @@ export class WorkItemChangeSetMaterializerService {
           });
         },
       );
+      const futureApplication = (
+        ownedIntent.targetProjection as unknown as StoredProjection
+      ).futureApplication;
+      if (futureApplication) {
+        await this.assertFutureApplicationCurrent(
+          tx,
+          ownedIntent.proposal,
+          futureApplication,
+        );
+        if (futureApplication.refinementIds.length) {
+          await tx.proposal.updateMany({
+            where: {
+              id: { in: futureApplication.refinementIds },
+              status: 'DRAFT',
+            },
+            data: { status: 'REJECTED' },
+          });
+          for (const id of futureApplication.refinementIds)
+            await this.pendingEdgeService.cleanupForProposal(tx, id);
+          if (!this.modules)
+            throw new Error('Proposal group invalidation is not configured.');
+          await this.modules
+            .get(ProposalGroupDecisionService, { strict: false })
+            .invalidateFutureRefinementsInTransaction(
+              tx,
+              params.organizationId,
+              params.projectId,
+              futureApplication.refinementIds,
+            );
+        }
+        await tx.proposalFuture.update({
+          where: { id: futureApplication.futureId },
+          data: {
+            outcome: 'APPLIED',
+            appliedRevision: futureApplication.revision,
+            appliedAt: new Date(),
+          },
+        });
+      }
       await tx.workItemChangeSetMaterialization.update({
         where: { id: ownedIntent.id, claimToken },
         data: {
@@ -3984,7 +4127,7 @@ export class WorkItemChangeSetMaterializerService {
   ): Prisma.InputJsonValue {
     return {
       schemaVersion: 'work-item-change-set-projection.v1',
-      projection,
+      projection: serializableGraphProjection(projection),
       ...(workItems ? { workItems } : {}),
       ...(requirementCitationEdges ? { requirementCitationEdges } : {}),
     } as unknown as Prisma.InputJsonValue;
@@ -4252,14 +4395,38 @@ export class WorkItemChangeSetMaterializerService {
   ): Promise<TaskProposalMaterializationPayload | null> {
     const proposal = await this.prisma.db.proposal.findUnique({
       where: { id: proposalId },
-      select: { action: true, targetEntityType: true, updates: true },
+      select: {
+        action: true,
+        targetEntityType: true,
+        updates: true,
+        targetEntityId: true,
+        projectId: true,
+      },
     });
     if (
       !proposal ||
       proposal.targetEntityType !== 'TASK' ||
-      !['CREATE', 'UPDATE'].includes(proposal.action)
+      !['CREATE', 'UPDATE', 'VERSIONED_UPDATE'].includes(proposal.action)
     ) {
       return null;
+    }
+    if (proposal.action === 'VERSIONED_UPDATE') {
+      if (
+        operation.ref.refType !== 'existing' ||
+        operation.ref.id !== proposal.targetEntityId
+      )
+        return null;
+      const mutation = parseFutureRevisionMutation(proposal.updates);
+      if (mutation.operation !== 'REVISE') return null;
+      return {
+        action: 'UPDATE',
+        updates: {
+          initiativeId:
+            'type' in mutation.result
+              ? mutation.result.initiativeId
+              : undefined,
+        },
+      };
     }
     const updates = this.requireTaskProposalPayload(proposal.updates);
     if (proposal.action === 'UPDATE') {

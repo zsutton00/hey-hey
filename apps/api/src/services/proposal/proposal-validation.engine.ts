@@ -1,9 +1,21 @@
+import { sectionContent } from './future-application';
+import { rootChildrenView } from './work-item-change-set-projector.service';
+import { isEqual } from 'lodash';
+import {
+  assertFutureGraphBoundary,
+  futureGraph,
+  graphChangeSet,
+  graphContentBasis,
+} from './future-graph';
 import type { ProjectModeSettings } from '../../generated';
 import {
   findIneligibleProjectModeTypeKeys,
   PROJECT_MODE_SETTINGS_SCHEMA_REF,
 } from '../tasks/project-mode-settings.validator';
-import { workItemTypeAgentGuidanceSchema } from '../tasks/work-item-type-agent-guidance.schema';
+import {
+  workItemTypeAgentGuidanceSchema,
+  workItemTypeSessionRoleGuidanceSchema,
+} from '../tasks/work-item-type-agent-guidance.schema';
 import {
   parseFutureRevisionMutation,
   lockFutureForMutation,
@@ -616,6 +628,7 @@ const createWorkItemTypeUpdatesSchema = z
     anchorableReportTypes: z.array(z.nativeEnum(ReportType)).optional(),
     agentGuidance: workItemTypeAgentGuidanceSchema.optional(),
     maintenanceGuidance: z.string().optional(),
+    sessionRoleGuidance: workItemTypeSessionRoleGuidanceSchema.optional(),
     writingStandards: workItemTypeWritingStandardsSchema.nullable().optional(),
     capabilities: workItemTypeCapabilitiesSchema.optional(),
   })
@@ -1927,6 +1940,7 @@ export class ProposalValidationEngine {
           projectId,
         );
       }
+      await this.validateFutureGraph(dto, organizationId, projectId);
       return;
     }
     if (
@@ -2185,6 +2199,7 @@ export class ProposalValidationEngine {
           ctx.projectId,
           ctx.group?.reservedEntities,
         );
+        await this.validateFutureGraph(dto, ctx.organizationId, ctx.projectId);
       } catch (error) {
         issues.push({
           field: `${prefix}.updates`,
@@ -3530,5 +3545,90 @@ export class ProposalValidationEngine {
     }
 
     return issues;
+  }
+  private async validateFutureGraph(
+    dto: CreateProposalDto,
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+  ): Promise<void> {
+    const mutation =
+      dto.updates as import('src/generated').FutureRevisionMutation;
+    if (mutation.operation !== 'REVISE') return;
+    const before = futureGraph(mutation.baseline.content);
+    const after = futureGraph(mutation.result);
+    if (!before && !after && !mutation.graphChangeSet) return;
+    if (!before || !after || !this.workItemChangeSetProjector)
+      throw new BadRequestException(
+        'A graph future requires complete baseline and result graphs.',
+      );
+    for (const projection of [before, after]) {
+      if (
+        projection.projectedRoot.identity.refType !== 'existing' ||
+        projection.projectedRoot.identity.id !== dto.targetEntityId
+      )
+        throw new BadRequestException(
+          'Future graph roots must match the proposal target.',
+        );
+    }
+    if (!('type' in mutation.result))
+      throw new BadRequestException(
+        'Graph content requires a work-item target.',
+      );
+    for (const field of [
+      'name',
+      'status',
+      'priority',
+      'tag',
+      'dueDate',
+      'assigneeId',
+    ] as const) {
+      if (
+        !isEqual(
+          mutation.result[field] ?? null,
+          after.projectedRoot[field] ?? null,
+        )
+      )
+        throw new BadRequestException(
+          `Future root field ${field} must match its graph projection.`,
+        );
+    }
+    for (const section of mutation.result.sections) {
+      const graphValue =
+        after.projectedRoot.sections.find(
+          (candidate) => candidate.key === section.key,
+        )?.content ?? '';
+      const value = sectionContent(
+        section.materializedMarkdown,
+        section.key,
+        { result: mutation.result, projectId },
+        this.workItemTypeRegistry,
+      );
+      if (!isEqual(value, graphValue === null ? '' : graphValue))
+        throw new BadRequestException(
+          `Future root section ${section.key} must match its graph projection.`,
+        );
+    }
+    const request = graphChangeSet(before, after);
+    assertFutureGraphBoundary(before, request);
+    if (!isEqual(request, mutation.graphChangeSet))
+      throw new BadRequestException(
+        'Future graph operations must match the complete reviewed graph.',
+      );
+    const projected = await this.workItemChangeSetProjector.project({
+      organizationId,
+      projectId,
+      request,
+      basis: before,
+      view: rootChildrenView,
+    });
+    if (
+      !projected.valid ||
+      !isEqual(graphContentBasis(projected), graphContentBasis(after))
+    )
+      throw new BadRequestException({
+        message:
+          'Future graph does not match its validated complete projection.',
+        issues: projected.issues,
+      });
   }
 }

@@ -19,6 +19,7 @@ import { TaskPriority } from './taskPriority';
 import { WorkStatus } from './workStatus';
 import { WorkItemConfigV1 } from './workItemConfigV1';
 import { AgentEdgeResponseDto } from './agentEdgeResponseDto';
+import { ProjectedWorkItemChangeSetResponse } from './projectedWorkItemChangeSetResponse';
 import { ServiceTaskRelation } from './serviceTaskRelation';
 import { MaterializedWorkItemSection } from './materializedWorkItemSection';
 import { TaskSource } from './taskSource';
@@ -116,6 +117,7 @@ export interface FutureRevisionContentOneOf {
      */
     trackedEntities?: Array<TrackedEntitySnapshot>;
     trackedWorkSummary?: GoalTrackedWorkSummary;
+    graph?: ProjectedWorkItemChangeSetResponse;
 }
 export namespace FutureRevisionContentOneOf {
 }

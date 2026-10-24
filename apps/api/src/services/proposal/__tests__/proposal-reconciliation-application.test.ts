@@ -330,6 +330,77 @@ describe('reviewed reconciliation application', () => {
     },
   );
 
+  it('uses the checked future Apply basis for element writes and then its own receipt, without rewriting proposal review history', async () => {
+    const f = fixture();
+    f.revision.bases = [];
+    f.db.workItemChangeSetMaterialization.findUnique.mockResolvedValue({
+      targetProjection: {
+        futureApplication: { reviewedBases: [structuredClone(original)] },
+      },
+    } as never);
+    const future = { ...proposal, action: 'VERSIONED_UPDATE' } as Proposal;
+    const write = jest.fn(async () =>
+      f.change({ ...original.content, name: 'Reviewed element' }, 'effect'),
+    );
+    await f.owner.guardTaskEffect(
+      f.tx,
+      future,
+      'materialization',
+      'target',
+      0,
+      false,
+      write,
+    );
+    await f.owner.guardTaskEffect(
+      f.tx,
+      future,
+      'materialization',
+      'target',
+      0,
+      false,
+      write,
+    );
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(f.revision.bases).toEqual([]);
+    expect(f.db.proposalReconciliationRevision.create).not.toHaveBeenCalled();
+    f.change({ ...original.content, name: 'External change' }, 'external');
+    await expect(
+      f.owner.guardTaskEffect(
+        f.tx,
+        future,
+        'materialization',
+        'target',
+        1,
+        false,
+        write,
+      ),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it('supplies the captured relationship token to a future graph operation and rejects subsequent graph drift', async () => {
+    const f = fixture();
+    const edge: ProposalReconciliationBasis = {
+      entityType: 'EDGE',
+      entityId: 'edge',
+      version: 'reviewed-edge-version',
+      content: { type: 'RELATED_TO' },
+    };
+    f.revision.bases = [];
+    f.db.workItemChangeSetMaterialization.findUnique.mockResolvedValue({
+      targetProjection: { futureApplication: { reviewedBases: [edge] } },
+    } as never);
+    const read = jest.spyOn(f.owner, 'edgeBasis').mockResolvedValue(edge);
+    const future = { ...proposal, action: 'VERSIONED_UPDATE' } as Proposal;
+    expect(
+      await f.owner.reviewedEdgeBasis(f.tx, future, 'materialization', 'edge'),
+    ).toEqual(edge);
+    read.mockResolvedValue({ ...edge, version: 'concurrent-edge-version' });
+    await expect(
+      f.owner.reviewedEdgeBasis(f.tx, future, 'materialization', 'edge'),
+    ).rejects.toThrow(ConflictException);
+    expect(f.revision.bases).toEqual([]);
+  });
+
   it('records its own effect, skips replay, and rejects a later external write', async () => {
     const f = fixture();
     const write = jest.fn(async () => {

@@ -14381,6 +14381,13 @@ export const CodingPlanActionSchemasREFINEActionEnum = {
 export type CodingPlanActionSchemasREFINEActionEnum = typeof CodingPlanActionSchemasREFINEActionEnum[keyof typeof CodingPlanActionSchemasREFINEActionEnum];
 
 /**
+ * @type CodingPlanApprovalPayload
+ * Conversational approval, with explicit compatibility for historical structured sessions.
+ * @export
+ */
+export type CodingPlanApprovalPayload = CodingPlanReviewAnswerPayload | CodingPlanVersionApproval;
+
+/**
  *
  * @export
  * @interface CodingPlanApprovedWorkflowAnswer
@@ -14394,10 +14401,10 @@ export interface CodingPlanApprovedWorkflowAnswer {
     'action': CodingPlanApprovedWorkflowAnswerActionEnum;
     /**
      *
-     * @type {CodingPlanReviewAnswerPayload}
+     * @type {CodingPlanApprovalPayload}
      * @memberof CodingPlanApprovedWorkflowAnswer
      */
-    'payload': CodingPlanReviewAnswerPayload;
+    'payload': CodingPlanApprovalPayload;
 }
 
 export const CodingPlanApprovedWorkflowAnswerActionEnum = {
@@ -14406,6 +14413,157 @@ export const CodingPlanApprovedWorkflowAnswerActionEnum = {
 
 export type CodingPlanApprovedWorkflowAnswerActionEnum = typeof CodingPlanApprovedWorkflowAnswerActionEnum[keyof typeof CodingPlanApprovedWorkflowAnswerActionEnum];
 
+/**
+ *
+ * @export
+ * @interface CodingPlanContext
+ */
+export interface CodingPlanContext {
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanContext
+     */
+    'responseType': CodingPlanContextResponseTypeEnum;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanContext
+     */
+    'sessionTitle': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanContext
+     */
+    'intent': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanContext
+     */
+    'technicalContext': string;
+    /**
+     *
+     * @type {Array<CodingPlanIssueResolution>}
+     * @memberof CodingPlanContext
+     */
+    'issues': Array<CodingPlanIssueResolution>;
+    /**
+     *
+     * @type {Array<string>}
+     * @memberof CodingPlanContext
+     */
+    'requiredServiceIds': Array<string>;
+}
+
+export const CodingPlanContextResponseTypeEnum = {
+    CodingPlanContextV1: 'coding_plan_context_v1'
+} as const;
+
+export type CodingPlanContextResponseTypeEnum = typeof CodingPlanContextResponseTypeEnum[keyof typeof CodingPlanContextResponseTypeEnum];
+
+/**
+ *
+ * @export
+ * @interface CodingPlanContextElement
+ */
+export interface CodingPlanContextElement extends UIElement {
+    /**
+     *
+     * @type {CodingPlanContext}
+     * @memberof CodingPlanContextElement
+     */
+    'payload'?: CodingPlanContext;
+}
+
+
+/**
+ * One evidence-bearing, individually replyable planning issue.
+ * @export
+ * @interface CodingPlanDiscrepancy
+ */
+export interface CodingPlanDiscrepancy {
+    /**
+     *
+     * @type {CodingPromptStartupSourceRef}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'sourceRef': CodingPromptStartupSourceRef;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'sourceField': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'sourceExcerpt': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'reasoning': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'discrepancyText': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'severity': CodingPlanDiscrepancySeverityEnum;
+}
+
+export const CodingPlanDiscrepancySeverityEnum = {
+    Low: 'low',
+    Medium: 'medium',
+    High: 'high'
+} as const;
+
+export type CodingPlanDiscrepancySeverityEnum = typeof CodingPlanDiscrepancySeverityEnum[keyof typeof CodingPlanDiscrepancySeverityEnum];
+
+/**
+ *
+ * @export
+ * @interface CodingPlanDiscrepancyElement
+ */
+export interface CodingPlanDiscrepancyElement extends UIElement {
+    /**
+     *
+     * @type {CodingPlanDiscrepancy}
+     * @memberof CodingPlanDiscrepancyElement
+     */
+    'payload'?: CodingPlanDiscrepancy;
+}
+
+
+/**
+ *
+ * @export
+ * @interface CodingPlanIssueResolution
+ */
+export interface CodingPlanIssueResolution {
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanIssueResolution
+     */
+    'messageId': string;
+    /**
+     * Current resolution, or the remaining question when unresolved.
+     * @type {string}
+     * @memberof CodingPlanIssueResolution
+     */
+    'resolution': string;
+}
 /**
  *
  * @export
@@ -14613,6 +14771,91 @@ export interface CodingPlanReviewStepFeedbackEntry {
      */
     'note': string;
 }
+/**
+ *
+ * @export
+ * @interface CodingPlanVersion
+ */
+export interface CodingPlanVersion {
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanVersion
+     */
+    'responseType': CodingPlanVersionResponseTypeEnum;
+    /**
+     * Complete visible plan. Preserve this exact text through approval and implementation.
+     * @type {string}
+     * @memberof CodingPlanVersion
+     */
+    'markdown': string;
+    /**
+     *
+     * @type {Array<string>}
+     * @memberof CodingPlanVersion
+     */
+    'requiredServiceIds': Array<string>;
+}
+
+export const CodingPlanVersionResponseTypeEnum = {
+    CodingPlanVersionV1: 'coding_plan_version_v1'
+} as const;
+
+export type CodingPlanVersionResponseTypeEnum = typeof CodingPlanVersionResponseTypeEnum[keyof typeof CodingPlanVersionResponseTypeEnum];
+
+/**
+ *
+ * @export
+ * @interface CodingPlanVersionApproval
+ */
+export interface CodingPlanVersionApproval {
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanVersionApproval
+     */
+    'responseType': CodingPlanVersionApprovalResponseTypeEnum;
+    /**
+     * Message containing the current complete emitted plan in the bound conversation.
+     * @type {string}
+     * @memberof CodingPlanVersionApproval
+     */
+    'versionMessageId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanVersionApproval
+     */
+    'feedback'?: string;
+    /**
+     *
+     * @type {ImplementRuntimeSelection}
+     * @memberof CodingPlanVersionApproval
+     */
+    'runtime'?: ImplementRuntimeSelection;
+}
+
+export const CodingPlanVersionApprovalResponseTypeEnum = {
+    CodingPlanVersionApprovalV1: 'coding_plan_version_approval_v1'
+} as const;
+
+export type CodingPlanVersionApprovalResponseTypeEnum = typeof CodingPlanVersionApprovalResponseTypeEnum[keyof typeof CodingPlanVersionApprovalResponseTypeEnum];
+
+/**
+ *
+ * @export
+ * @interface CodingPlanVersionElement
+ */
+export interface CodingPlanVersionElement extends UIElement {
+    /**
+     *
+     * @type {CodingPlanVersion}
+     * @memberof CodingPlanVersionElement
+     */
+    'payload': CodingPlanVersion;
+}
+
+
 /**
  * @type CodingPlanWorkflowAnswer
  * Action-specific coding-plan workflow answer. The payload is the startup plan itself, never a field-keyed form envelope or a generic UI decision.
@@ -33241,6 +33484,9 @@ export const ExtendedUIFieldType = {
     PlanGapsDesignDocs: 'plan_gaps_design_docs',
     PlanGapsTasks: 'plan_gaps_tasks',
     PlanDocumentView: 'plan_document_view',
+    CodingPlanContext: 'coding_plan_context',
+    CodingPlanVersion: 'coding_plan_version',
+    CodingPlanDiscrepancy: 'coding_plan_discrepancy',
     CodingPromptStartupPlan: 'coding_prompt_startup_plan',
     CodingPromptFinalAssessment: 'coding_prompt_final_assessment',
     VerifyFeature: 'verify_feature',
@@ -37951,6 +38197,12 @@ export interface FutureRevisionChangeChanges {
      */
     'sections'?: Array<FutureDesignDocSectionChange>;
     /**
+     * Generic graph edits within the target root, its children and incident relationships. The root cannot be deleted or change type or status. Applied to the selected non-live graph, including during refinement.
+     * @type {Array<WorkItemChangeSetOperation>}
+     * @memberof FutureRevisionChangeChanges
+     */
+    'operations'?: Array<WorkItemChangeSetOperation>;
+    /**
      *
      * @type {Array<FeatureRequirementOperation>}
      * @memberof FutureRevisionChangeChanges
@@ -37991,7 +38243,7 @@ export interface FutureRevisionChangeChanges {
 
 /**
  * @type FutureRevisionContent
- * Complete selected entity projection including all unchanged sections; never a patch or an overlay of independent futures.
+ * Complete selected entity projection including all unchanged sections and, for graph-capable work items, the complete generic graph projection. Never a patch or an overlay of independent futures.
  * @export
  */
 export type FutureRevisionContent = FutureRevisionContentOneOf | FutureRevisionContentOneOf1;
@@ -38170,6 +38422,12 @@ export interface FutureRevisionContentOneOf {
      * @memberof FutureRevisionContentOneOf
      */
     'trackedWorkSummary'?: GoalTrackedWorkSummary;
+    /**
+     *
+     * @type {ProjectedWorkItemChangeSetResponse}
+     * @memberof FutureRevisionContentOneOf
+     */
+    'graph'?: ProjectedWorkItemChangeSetResponse;
 }
 
 
@@ -38468,6 +38726,12 @@ export interface FutureRevisionUpdate {
     'baseline': FutureRevisionBaseline;
     /**
      *
+     * @type {WorkItemChangeSetValidationRequest}
+     * @memberof FutureRevisionUpdate
+     */
+    'graphChangeSet'?: WorkItemChangeSetValidationRequest;
+    /**
+     *
      * @type {FutureRevisionContent}
      * @memberof FutureRevisionUpdate
      */
@@ -38540,6 +38804,12 @@ export interface FutureWorkItemChanges {
      * @memberof FutureWorkItemChanges
      */
     'sections'?: Array<TaskSectionInput>;
+    /**
+     * Generic graph edits within the target root, its children and incident relationships. The root cannot be deleted or change type or status. Applied to the selected non-live graph, including during refinement.
+     * @type {Array<WorkItemChangeSetOperation>}
+     * @memberof FutureWorkItemChanges
+     */
+    'operations'?: Array<WorkItemChangeSetOperation>;
     /**
      *
      * @type {Array<FeatureRequirementOperation>}
@@ -38874,6 +39144,49 @@ export interface GetAdminOrganizationDetail200Response {
      * Request path
      * @type {string}
      * @memberof GetAdminOrganizationDetail200Response
+     */
+    'path'?: string;
+}
+/**
+ *
+ * @export
+ * @interface GetAdminProjectHints200Response
+ */
+export interface GetAdminProjectHints200Response {
+    /**
+     * Indicates if the request was successful
+     * @type {boolean}
+     * @memberof GetAdminProjectHints200Response
+     */
+    'success': boolean;
+    /**
+     * Human-readable message about the operation
+     * @type {string}
+     * @memberof GetAdminProjectHints200Response
+     */
+    'message': string;
+    /**
+     *
+     * @type {ListProjectHintsResponse}
+     * @memberof GetAdminProjectHints200Response
+     */
+    'data': ListProjectHintsResponse;
+    /**
+     * ISO timestamp of when the response was generated
+     * @type {string}
+     * @memberof GetAdminProjectHints200Response
+     */
+    'timestamp': string;
+    /**
+     * HTTP status code
+     * @type {number}
+     * @memberof GetAdminProjectHints200Response
+     */
+    'statusCode': number;
+    /**
+     * Request path
+     * @type {string}
+     * @memberof GetAdminProjectHints200Response
      */
     'path'?: string;
 }
@@ -42538,7 +42851,7 @@ export interface GetWorkItemTypeGuidance200Response {
  * @type GetWorkItemTypeGuidance200ResponseAllOfData
  * @export
  */
-export type GetWorkItemTypeGuidance200ResponseAllOfData = WorkItemTypeGuidanceDto | WorkItemTypeMaintenanceGuidanceDto;
+export type GetWorkItemTypeGuidance200ResponseAllOfData = WorkItemTypeGuidanceDto | WorkItemTypeMaintenanceGuidanceDto | WorkItemTypeRoleGuidanceDto;
 
 /**
  *
@@ -44651,6 +44964,167 @@ export interface HelpTreeResponse {
 /**
  *
  * @export
+ * @interface Hint
+ */
+export interface Hint {
+    /**
+     *
+     * @type {string}
+     * @memberof Hint
+     */
+    'id': string;
+    /**
+     *
+     * @type {string}
+     * @memberof Hint
+     */
+    'projectId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof Hint
+     */
+    'text': string;
+    /**
+     *
+     * @type {HintOrigin}
+     * @memberof Hint
+     */
+    'origin': HintOrigin;
+    /**
+     * Retrieval connections only. Origin is never listed here. Empty once a hint is retired.
+     * @type {Array<HintConnection>}
+     * @memberof Hint
+     */
+    'connections': Array<HintConnection>;
+    /**
+     *
+     * @type {string}
+     * @memberof Hint
+     */
+    'createdAt': string;
+    /**
+     *
+     * @type {string}
+     * @memberof Hint
+     */
+    'updatedAt': string;
+    /**
+     * Set once the hint is retired. Retired hints are never returned by connection reads.
+     * @type {string}
+     * @memberof Hint
+     */
+    'retiredAt'?: string | null;
+}
+/**
+ * One connected-to link from a hint to an item. The endpoint identity and type are always present so callers can filter by item visibility.
+ * @export
+ * @interface HintConnection
+ */
+export interface HintConnection {
+    /**
+     * Connection identifier, stable for the life of the connection
+     * @type {string}
+     * @memberof HintConnection
+     */
+    'id': string;
+    /**
+     * Identifier of the connected item
+     * @type {string}
+     * @memberof HintConnection
+     */
+    'targetNodeId': string;
+    /**
+     *
+     * @type {HintConnectionEndpointEntityType}
+     * @memberof HintConnection
+     */
+    'targetEntityType': HintConnectionEndpointEntityType;
+    /**
+     * Non-negative strength of one connection. The graph service stores and returns it as given; step sizes, ceilings and removal thresholds belong to the firing logic. Time never changes it.
+     * @type {number}
+     * @memberof HintConnection
+     */
+    'strength': number;
+    /**
+     *
+     * @type {string}
+     * @memberof HintConnection
+     */
+    'createdAt': string;
+    /**
+     *
+     * @type {string}
+     * @memberof HintConnection
+     */
+    'updatedAt': string;
+}
+
+
+/**
+ * Canonical entity type of a connected item. The graph service maps each value to a closed set of Neo4j node labels when resolving the endpoint, so a connection never lands on a generic stub. Features, tasks, diagrams, Decisions and every other work item are TASK. HINT lets a hint connect to another hint. `USER` is excluded because users are not stored as graph nodes.
+ * @export
+ * @enum {string}
+ */
+
+export const HintConnectionEndpointEntityType = {
+    Artifact: 'ARTIFACT',
+    Initiative: 'INITIATIVE',
+    Project: 'PROJECT',
+    Task: 'TASK',
+    Message: 'MESSAGE',
+    Conversation: 'CONVERSATION',
+    DesignDoc: 'DESIGN_DOC',
+    AgentSession: 'AGENT_SESSION',
+    ValidationSession: 'VALIDATION_SESSION',
+    Service: 'SERVICE',
+    Report: 'REPORT',
+    Proposal: 'PROPOSAL',
+    ImplementationHint: 'IMPLEMENTATION_HINT',
+    Hint: 'HINT'
+} as const;
+
+export type HintConnectionEndpointEntityType = typeof HintConnectionEndpointEntityType[keyof typeof HintConnectionEndpointEntityType];
+
+
+/**
+ * The message or session a hint came from. Evidence only: it is never a connection and is never used to find hints.
+ * @export
+ * @interface HintOrigin
+ */
+export interface HintOrigin {
+    /**
+     *
+     * @type {HintOriginEntityType}
+     * @memberof HintOrigin
+     */
+    'entityType': HintOriginEntityType;
+    /**
+     * Identifier of the originating message or agent session
+     * @type {string}
+     * @memberof HintOrigin
+     */
+    'entityId': string;
+}
+
+
+/**
+ * Kind of record a hint came from.
+ * @export
+ * @enum {string}
+ */
+
+export const HintOriginEntityType = {
+    Message: 'MESSAGE',
+    AgentSession: 'AGENT_SESSION'
+} as const;
+
+export type HintOriginEntityType = typeof HintOriginEntityType[keyof typeof HintOriginEntityType];
+
+
+/**
+ *
+ * @export
  * @enum {string}
  */
 
@@ -44823,6 +45297,30 @@ export type ImplementActionSchemasDONEActionEnum = typeof ImplementActionSchemas
  * @interface ImplementPromptPayload
  */
 export interface ImplementPromptPayload {
+    /**
+     *
+     * @type {CodingPlanVersion}
+     * @memberof ImplementPromptPayload
+     */
+    'approvedVersion'?: CodingPlanVersion;
+    /**
+     *
+     * @type {string}
+     * @memberof ImplementPromptPayload
+     */
+    'versionMessageId'?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof ImplementPromptPayload
+     */
+    'approvalFeedback'?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof ImplementPromptPayload
+     */
+    'planningDiscussion'?: string;
     /**
      *
      * @type {ImplementRuntimeSelection}
@@ -49803,6 +50301,19 @@ export interface ListProjectFeatures200Response {
      * @memberof ListProjectFeatures200Response
      */
     'path'?: string;
+}
+/**
+ *
+ * @export
+ * @interface ListProjectHintsResponse
+ */
+export interface ListProjectHintsResponse {
+    /**
+     *
+     * @type {Array<Hint>}
+     * @memberof ListProjectHintsResponse
+     */
+    'hints': Array<Hint>;
 }
 /**
  *
@@ -67592,13 +68103,13 @@ export const ProjectModeSettingsSchemaVersionEnum = {
 export type ProjectModeSettingsSchemaVersionEnum = typeof ProjectModeSettingsSchemaVersionEnum[keyof typeof ProjectModeSettingsSchemaVersionEnum];
 
 /**
- * Platform-captured immutable MODE configuration persisted with a coding session. The repeated mode identity lets admission verify that the snapshot matches `ProjectModeSelection` before constructing a Run or Turn.
+ * Platform-captured immutable MODE configuration persisted with a coding session. The repeated mode identity lets admission verify that the snapshot matches `ProjectModeSelection` before constructing a Run or Turn. v3 requires sessionRole and projectAssistant; v2 requires projectAssistant and excludes sessionRole; v1 excludes both fields.
  * @export
  * @interface ProjectModeSnapshot
  */
 export interface ProjectModeSnapshot {
     /**
-     * v2 adds `projectAssistant`. v1 is kept so snapshots captured before the setting existed still verify against their original hash.
+     * v3 adds the resolved `sessionRole`. v2 adds `projectAssistant`. v1/v2 retain their original hash inputs for resume compatibility.
      * @type {string}
      * @memberof ProjectModeSnapshot
      */
@@ -67634,6 +68145,12 @@ export interface ProjectModeSnapshot {
      */
     'projectAssistant'?: ProjectModeProjectAssistantSetting;
     /**
+     *
+     * @type {SessionRole}
+     * @memberof ProjectModeSnapshot
+     */
+    'sessionRole'?: SessionRole;
+    /**
      * Lowercase hexadecimal SHA-256 digest of the platform-canonicalized snapshot content. Consumers preserve and compare this value; they do not refresh the snapshot from the live MODE.
      * @type {string}
      * @memberof ProjectModeSnapshot
@@ -67643,7 +68160,8 @@ export interface ProjectModeSnapshot {
 
 export const ProjectModeSnapshotSchemaVersionEnum = {
     ProjectModeSnapshotV1: 'project-mode-snapshot.v1',
-    ProjectModeSnapshotV2: 'project-mode-snapshot.v2'
+    ProjectModeSnapshotV2: 'project-mode-snapshot.v2',
+    ProjectModeSnapshotV3: 'project-mode-snapshot.v3'
 } as const;
 
 export type ProjectModeSnapshotSchemaVersionEnum = typeof ProjectModeSnapshotSchemaVersionEnum[keyof typeof ProjectModeSnapshotSchemaVersionEnum];
@@ -96468,7 +96986,7 @@ export interface UIElement {
  * Optional payload for custom UI elements
  * @export
  */
-export type UIElementPayload = AgentQuestionPayload | AgentRequestPermissionPayload | AgentRequestReviewFileScopePayload | AgentRequestServiceScopePayload | CodingPromptFinalAssessmentPayload | CodingPromptMergedFinalAssessmentPayload | CodingPromptStartupPlanPayload | FileDiffPayload | GoalPmRoutingPayload | ImplementationReadinessPayload | MultipleChoicePayload | OnboardingPlanCandidateReviewPayload | OpenItemsTriagePayload | PlanApprovalPayload | PlanDocumentViewPayload | PlanGapDiscoveryPayload | PlanGenerationFinalizePayload | PlanGenerationJourneyReviewPayload | PlanGenerationStageReviewPayload | PlanGenerationVisualPreviewPayload | QuestionsGroupPayload | RepositoryGroundingFieldPayload | RepositoryPlacementReviewPayload | RepositoryPlacementStrategyPayload | VerifyFeaturePayload;
+export type UIElementPayload = AgentQuestionPayload | AgentRequestPermissionPayload | AgentRequestReviewFileScopePayload | AgentRequestServiceScopePayload | CodingPlanContext | CodingPlanDiscrepancy | CodingPlanVersion | CodingPromptFinalAssessmentPayload | CodingPromptMergedFinalAssessmentPayload | CodingPromptStartupPlanPayload | FileDiffPayload | GoalPmRoutingPayload | ImplementationReadinessPayload | MultipleChoicePayload | OnboardingPlanCandidateReviewPayload | OpenItemsTriagePayload | PlanApprovalPayload | PlanDocumentViewPayload | PlanGapDiscoveryPayload | PlanGenerationFinalizePayload | PlanGenerationJourneyReviewPayload | PlanGenerationStageReviewPayload | PlanGenerationVisualPreviewPayload | QuestionsGroupPayload | RepositoryGroundingFieldPayload | RepositoryPlacementReviewPayload | RepositoryPlacementStrategyPayload | VerifyFeaturePayload;
 
 /**
  * Hint about expected UI elements for loading skeleton
@@ -112515,6 +113033,12 @@ export interface WorkItemTypeDefinitionDto {
      */
     'agentGuidance'?: WorkItemTypeAgentGuidance;
     /**
+     *
+     * @type {WorkItemTypeSessionRoleGuidance}
+     * @memberof WorkItemTypeDefinitionDto
+     */
+    'sessionRoleGuidance'?: WorkItemTypeSessionRoleGuidance;
+    /**
      * Optional type-owned advice for maintaining items of this type.
      * @type {string}
      * @memberof WorkItemTypeDefinitionDto
@@ -113113,7 +113637,7 @@ export interface WorkItemTypeGuidanceBatchDto {
     'results': Array<WorkItemTypeGuidanceBatchResultDto>;
 }
 /**
- * A bounded batch of project-scoped guidance reads sharing one purpose and optional focal type.
+ * A bounded batch sharing one purpose and optional semantic focal type. Purpose role requires sessionRole explicitly; the mode-settings default does not apply. Role reads ignore focalTypeKey.
  * @export
  * @interface WorkItemTypeGuidanceBatchRequestDto
  */
@@ -113132,6 +113656,12 @@ export interface WorkItemTypeGuidanceBatchRequestDto {
     'purpose'?: WorkItemTypeGuidancePurpose;
     /**
      *
+     * @type {SessionRole}
+     * @memberof WorkItemTypeGuidanceBatchRequestDto
+     */
+    'sessionRole'?: SessionRole;
+    /**
+     *
      * @type {string}
      * @memberof WorkItemTypeGuidanceBatchRequestDto
      */
@@ -113140,11 +113670,52 @@ export interface WorkItemTypeGuidanceBatchRequestDto {
 
 
 /**
+ *
+ * @export
+ * @interface WorkItemTypeGuidanceBatchRequestDtoAnyOf
+ */
+export interface WorkItemTypeGuidanceBatchRequestDtoAnyOf {
+    /**
+     *
+     * @type {string}
+     * @memberof WorkItemTypeGuidanceBatchRequestDtoAnyOf
+     */
+    'purpose'?: WorkItemTypeGuidanceBatchRequestDtoAnyOfPurposeEnum;
+}
+
+export const WorkItemTypeGuidanceBatchRequestDtoAnyOfPurposeEnum = {
+    Semantic: 'semantic',
+    Maintenance: 'maintenance'
+} as const;
+
+export type WorkItemTypeGuidanceBatchRequestDtoAnyOfPurposeEnum = typeof WorkItemTypeGuidanceBatchRequestDtoAnyOfPurposeEnum[keyof typeof WorkItemTypeGuidanceBatchRequestDtoAnyOfPurposeEnum];
+
+/**
+ *
+ * @export
+ * @interface WorkItemTypeGuidanceBatchRequestDtoAnyOf1
+ */
+export interface WorkItemTypeGuidanceBatchRequestDtoAnyOf1 {
+    /**
+     *
+     * @type {string}
+     * @memberof WorkItemTypeGuidanceBatchRequestDtoAnyOf1
+     */
+    'purpose': WorkItemTypeGuidanceBatchRequestDtoAnyOf1PurposeEnum;
+}
+
+export const WorkItemTypeGuidanceBatchRequestDtoAnyOf1PurposeEnum = {
+    Role: 'role'
+} as const;
+
+export type WorkItemTypeGuidanceBatchRequestDtoAnyOf1PurposeEnum = typeof WorkItemTypeGuidanceBatchRequestDtoAnyOf1PurposeEnum[keyof typeof WorkItemTypeGuidanceBatchRequestDtoAnyOf1PurposeEnum];
+
+/**
  * @type WorkItemTypeGuidanceBatchResultDto
- * One requested type\'s semantic or maintenance projection; typeKey identifies the request represented by this result.
+ * One requested type\'s semantic, maintenance or role projection; typeKey identifies the request represented by this result.
  * @export
  */
-export type WorkItemTypeGuidanceBatchResultDto = WorkItemTypeGuidanceDto | WorkItemTypeMaintenanceGuidanceDto;
+export type WorkItemTypeGuidanceBatchResultDto = WorkItemTypeGuidanceDto | WorkItemTypeMaintenanceGuidanceDto | WorkItemTypeRoleGuidanceDto;
 
 /**
  *
@@ -113228,14 +113799,15 @@ export interface WorkItemTypeGuidanceExample {
     'guidance': string;
 }
 /**
- * Selects the compact semantic or type-owned maintenance projection.
+ * Selects semantic, maintenance or explicitly selected session-role guidance.
  * @export
  * @enum {string}
  */
 
 export const WorkItemTypeGuidancePurpose = {
     Semantic: 'semantic',
-    Maintenance: 'maintenance'
+    Maintenance: 'maintenance',
+    Role: 'role'
 } as const;
 
 export type WorkItemTypeGuidancePurpose = typeof WorkItemTypeGuidancePurpose[keyof typeof WorkItemTypeGuidancePurpose];
@@ -113343,6 +113915,39 @@ export const WorkItemTypeRole = {
 } as const;
 
 export type WorkItemTypeRole = typeof WorkItemTypeRole[keyof typeof WorkItemTypeRole];
+
+
+/**
+ *
+ * @export
+ * @interface WorkItemTypeRoleGuidanceDto
+ */
+export interface WorkItemTypeRoleGuidanceDto {
+    /**
+     *
+     * @type {string}
+     * @memberof WorkItemTypeRoleGuidanceDto
+     */
+    'typeKey': string;
+    /**
+     *
+     * @type {string}
+     * @memberof WorkItemTypeRoleGuidanceDto
+     */
+    'name': string;
+    /**
+     *
+     * @type {SessionRole}
+     * @memberof WorkItemTypeRoleGuidanceDto
+     */
+    'sessionRole': SessionRole;
+    /**
+     *
+     * @type {string}
+     * @memberof WorkItemTypeRoleGuidanceDto
+     */
+    'guidance'?: string;
+}
 
 
 /**
@@ -113468,6 +114073,37 @@ export const WorkItemTypeSectionDefinitionKindEnum = {
 
 export type WorkItemTypeSectionDefinitionKindEnum = typeof WorkItemTypeSectionDefinitionKindEnum[keyof typeof WorkItemTypeSectionDefinitionKindEnum];
 
+/**
+ * Optional type-owned prose keyed by the shared SessionRole catalog. Each entry is independent; omitted entries provide no advice.
+ * @export
+ * @interface WorkItemTypeSessionRoleGuidance
+ */
+export interface WorkItemTypeSessionRoleGuidance {
+    /**
+     *
+     * @type {string}
+     * @memberof WorkItemTypeSessionRoleGuidance
+     */
+    'implementation'?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof WorkItemTypeSessionRoleGuidance
+     */
+    'research'?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof WorkItemTypeSessionRoleGuidance
+     */
+    'planning'?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof WorkItemTypeSessionRoleGuidance
+     */
+    'review'?: string;
+}
 /**
  * A centrally resolved project-effective definition. Canonical definitions are overlaid by complete project overrides; custom definitions are supplied only by project rows. Consumers do not merge sources locally.
  * @export
@@ -132293,6 +132929,48 @@ export const DebugAdminApiAxiosParamCreator = function (configuration?: Configur
             };
         },
         /**
+         * Read-only project listing. Returns no hints when the deployment Hints switch is off. Separate from agent connected-item retrieval and legacy implementation hints.
+         * @summary List live graph Hints for platform admins
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getAdminProjectHints: async (organizationId: string, projectId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('getAdminProjectHints', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('getAdminProjectHints', 'projectId', projectId)
+            const localVarPath = `/admin/organizations/{organizationId}/projects/{projectId}/hints`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Platform admins only. Returns every implementation hint of every Service in the project, archived Services included, which agent search can no longer reach.
          * @summary List a project\'s implementation hints grouped by Service
          * @param {string} projectId
@@ -133540,6 +134218,20 @@ export const DebugAdminApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Read-only project listing. Returns no hints when the deployment Hints switch is off. Separate from agent connected-item retrieval and legacy implementation hints.
+         * @summary List live graph Hints for platform admins
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async getAdminProjectHints(organizationId: string, projectId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetAdminProjectHints200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getAdminProjectHints(organizationId, projectId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DebugAdminApi.getAdminProjectHints']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Platform admins only. Returns every implementation hint of every Service in the project, archived Services included, which agent search can no longer reach.
          * @summary List a project\'s implementation hints grouped by Service
          * @param {string} projectId
@@ -133945,6 +134637,16 @@ export const DebugAdminApiFactory = function (configuration?: Configuration, bas
             return localVarFp.deleteOrganization(requestParameters.organizationId, requestParameters.hard, options).then((request) => request(axios, basePath));
         },
         /**
+         * Read-only project listing. Returns no hints when the deployment Hints switch is off. Separate from agent connected-item retrieval and legacy implementation hints.
+         * @summary List live graph Hints for platform admins
+         * @param {DebugAdminApiGetAdminProjectHintsRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getAdminProjectHints(requestParameters: DebugAdminApiGetAdminProjectHintsRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetAdminProjectHints200Response> {
+            return localVarFp.getAdminProjectHints(requestParameters.organizationId, requestParameters.projectId, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Platform admins only. Returns every implementation hint of every Service in the project, archived Services included, which agent search can no longer reach.
          * @summary List a project\'s implementation hints grouped by Service
          * @param {DebugAdminApiGetAdminProjectImplementationHintsRequest} requestParameters Request parameters.
@@ -134237,6 +134939,16 @@ export interface DebugAdminApiInterface {
      * @memberof DebugAdminApiInterface
      */
     deleteOrganization(requestParameters: DebugAdminApiDeleteOrganizationRequest, options?: RawAxiosRequestConfig): AxiosPromise<void>;
+
+    /**
+     * Read-only project listing. Returns no hints when the deployment Hints switch is off. Separate from agent connected-item retrieval and legacy implementation hints.
+     * @summary List live graph Hints for platform admins
+     * @param {DebugAdminApiGetAdminProjectHintsRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DebugAdminApiInterface
+     */
+    getAdminProjectHints(requestParameters: DebugAdminApiGetAdminProjectHintsRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetAdminProjectHints200Response>;
 
     /**
      * Platform admins only. Returns every implementation hint of every Service in the project, archived Services included, which agent search can no longer reach.
@@ -134534,6 +135246,27 @@ export interface DebugAdminApiDeleteOrganizationRequest {
      * @memberof DebugAdminApiDeleteOrganization
      */
     readonly hard?: boolean
+}
+
+/**
+ * Request parameters for getAdminProjectHints operation in DebugAdminApi.
+ * @export
+ * @interface DebugAdminApiGetAdminProjectHintsRequest
+ */
+export interface DebugAdminApiGetAdminProjectHintsRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof DebugAdminApiGetAdminProjectHints
+     */
+    readonly organizationId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof DebugAdminApiGetAdminProjectHints
+     */
+    readonly projectId: string
 }
 
 /**
@@ -135057,6 +135790,18 @@ export class DebugAdminApi extends BaseAPI implements DebugAdminApiInterface {
      */
     public deleteOrganization(requestParameters: DebugAdminApiDeleteOrganizationRequest, options?: RawAxiosRequestConfig) {
         return DebugAdminApiFp(this.configuration).deleteOrganization(requestParameters.organizationId, requestParameters.hard, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Read-only project listing. Returns no hints when the deployment Hints switch is off. Separate from agent connected-item retrieval and legacy implementation hints.
+     * @summary List live graph Hints for platform admins
+     * @param {DebugAdminApiGetAdminProjectHintsRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DebugAdminApi
+     */
+    public getAdminProjectHints(requestParameters: DebugAdminApiGetAdminProjectHintsRequest, options?: RawAxiosRequestConfig) {
+        return DebugAdminApiFp(this.configuration).getAdminProjectHints(requestParameters.organizationId, requestParameters.projectId, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -174535,17 +175280,18 @@ export type UpdateWorkItemContentEntityTypeEnum = typeof UpdateWorkItemContentEn
 export const WorkItemTypesApiAxiosParamCreator = function (configuration?: Configuration) {
     return {
         /**
-         * Project-authorized purpose-scoped read from one effective project snapshot. Omitted purpose defaults to semantic: return the existing compact semantic guide with only matching focal contexts in declared order. Explicit maintenance returns type identity and available type-owned maintenance advice only; focalTypeKey does not select maintenance contexts. A complete project override wins even when it omits advice. Never synthesize advice from other fields.
+         * Project-authorized purpose-scoped read from one effective project snapshot. Omitted purpose defaults to semantic: return the existing compact semantic guide with only matching focal contexts in declared order. Explicit maintenance returns type identity and available type-owned maintenance advice only; focalTypeKey does not select maintenance contexts. A complete project override wins even when it omits advice. Never synthesize advice from other fields. Purpose role requires an explicit sessionRole query parameter (no mode-settings default); returns identity, selected role and optional advice, ignoring focalTypeKey.
          * @summary Read work-item type guidance by purpose
          * @param {string} organizationId The ID of the organization that owns the project.
          * @param {string} projectId The ID of the project the work-item type belongs to.
          * @param {string} typeKey The stable uppercase key of the work-item type (e.g. \&quot;MARKETING\&quot;).
          * @param {string} [focalTypeKey]
+         * @param {SessionRole} [sessionRole] Required when purpose is role. No default is applied.
          * @param {WorkItemTypeGuidancePurpose} [purpose]
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        getWorkItemTypeGuidance: async (organizationId: string, projectId: string, typeKey: string, focalTypeKey?: string, purpose?: WorkItemTypeGuidancePurpose, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        getWorkItemTypeGuidance: async (organizationId: string, projectId: string, typeKey: string, focalTypeKey?: string, sessionRole?: SessionRole, purpose?: WorkItemTypeGuidancePurpose, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'organizationId' is not null or undefined
             assertParamExists('getWorkItemTypeGuidance', 'organizationId', organizationId)
             // verify required parameter 'projectId' is not null or undefined
@@ -174573,6 +175319,10 @@ export const WorkItemTypesApiAxiosParamCreator = function (configuration?: Confi
 
             if (focalTypeKey !== undefined) {
                 localVarQueryParameter['focalTypeKey'] = focalTypeKey;
+            }
+
+            if (sessionRole !== undefined) {
+                localVarQueryParameter['sessionRole'] = sessionRole;
             }
 
             if (purpose !== undefined) {
@@ -175105,18 +175855,19 @@ export const WorkItemTypesApiFp = function(configuration?: Configuration) {
     const localVarAxiosParamCreator = WorkItemTypesApiAxiosParamCreator(configuration)
     return {
         /**
-         * Project-authorized purpose-scoped read from one effective project snapshot. Omitted purpose defaults to semantic: return the existing compact semantic guide with only matching focal contexts in declared order. Explicit maintenance returns type identity and available type-owned maintenance advice only; focalTypeKey does not select maintenance contexts. A complete project override wins even when it omits advice. Never synthesize advice from other fields.
+         * Project-authorized purpose-scoped read from one effective project snapshot. Omitted purpose defaults to semantic: return the existing compact semantic guide with only matching focal contexts in declared order. Explicit maintenance returns type identity and available type-owned maintenance advice only; focalTypeKey does not select maintenance contexts. A complete project override wins even when it omits advice. Never synthesize advice from other fields. Purpose role requires an explicit sessionRole query parameter (no mode-settings default); returns identity, selected role and optional advice, ignoring focalTypeKey.
          * @summary Read work-item type guidance by purpose
          * @param {string} organizationId The ID of the organization that owns the project.
          * @param {string} projectId The ID of the project the work-item type belongs to.
          * @param {string} typeKey The stable uppercase key of the work-item type (e.g. \&quot;MARKETING\&quot;).
          * @param {string} [focalTypeKey]
+         * @param {SessionRole} [sessionRole] Required when purpose is role. No default is applied.
          * @param {WorkItemTypeGuidancePurpose} [purpose]
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async getWorkItemTypeGuidance(organizationId: string, projectId: string, typeKey: string, focalTypeKey?: string, purpose?: WorkItemTypeGuidancePurpose, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetWorkItemTypeGuidance200Response>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.getWorkItemTypeGuidance(organizationId, projectId, typeKey, focalTypeKey, purpose, options);
+        async getWorkItemTypeGuidance(organizationId: string, projectId: string, typeKey: string, focalTypeKey?: string, sessionRole?: SessionRole, purpose?: WorkItemTypeGuidancePurpose, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetWorkItemTypeGuidance200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getWorkItemTypeGuidance(organizationId, projectId, typeKey, focalTypeKey, sessionRole, purpose, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['WorkItemTypesApi.getWorkItemTypeGuidance']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
@@ -175289,14 +176040,14 @@ export const WorkItemTypesApiFactory = function (configuration?: Configuration, 
     const localVarFp = WorkItemTypesApiFp(configuration)
     return {
         /**
-         * Project-authorized purpose-scoped read from one effective project snapshot. Omitted purpose defaults to semantic: return the existing compact semantic guide with only matching focal contexts in declared order. Explicit maintenance returns type identity and available type-owned maintenance advice only; focalTypeKey does not select maintenance contexts. A complete project override wins even when it omits advice. Never synthesize advice from other fields.
+         * Project-authorized purpose-scoped read from one effective project snapshot. Omitted purpose defaults to semantic: return the existing compact semantic guide with only matching focal contexts in declared order. Explicit maintenance returns type identity and available type-owned maintenance advice only; focalTypeKey does not select maintenance contexts. A complete project override wins even when it omits advice. Never synthesize advice from other fields. Purpose role requires an explicit sessionRole query parameter (no mode-settings default); returns identity, selected role and optional advice, ignoring focalTypeKey.
          * @summary Read work-item type guidance by purpose
          * @param {WorkItemTypesApiGetWorkItemTypeGuidanceRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
         getWorkItemTypeGuidance(requestParameters: WorkItemTypesApiGetWorkItemTypeGuidanceRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetWorkItemTypeGuidance200Response> {
-            return localVarFp.getWorkItemTypeGuidance(requestParameters.organizationId, requestParameters.projectId, requestParameters.typeKey, requestParameters.focalTypeKey, requestParameters.purpose, options).then((request) => request(axios, basePath));
+            return localVarFp.getWorkItemTypeGuidance(requestParameters.organizationId, requestParameters.projectId, requestParameters.typeKey, requestParameters.focalTypeKey, requestParameters.sessionRole, requestParameters.purpose, options).then((request) => request(axios, basePath));
         },
         /**
          * Project-authorized batch read of 1–10 distinct type keys from one effective project snapshot. Every result uses the same optional purpose and focal type key as the single-type read and appears in request order. Omitted purpose defaults to semantic. An unknown requested or focal key fails clearly. Complete project overrides remain authoritative, including when they omit guidance. The existing single-type operation is unchanged.
@@ -175408,7 +176159,7 @@ export const WorkItemTypesApiFactory = function (configuration?: Configuration, 
  */
 export interface WorkItemTypesApiInterface {
     /**
-     * Project-authorized purpose-scoped read from one effective project snapshot. Omitted purpose defaults to semantic: return the existing compact semantic guide with only matching focal contexts in declared order. Explicit maintenance returns type identity and available type-owned maintenance advice only; focalTypeKey does not select maintenance contexts. A complete project override wins even when it omits advice. Never synthesize advice from other fields.
+     * Project-authorized purpose-scoped read from one effective project snapshot. Omitted purpose defaults to semantic: return the existing compact semantic guide with only matching focal contexts in declared order. Explicit maintenance returns type identity and available type-owned maintenance advice only; focalTypeKey does not select maintenance contexts. A complete project override wins even when it omits advice. Never synthesize advice from other fields. Purpose role requires an explicit sessionRole query parameter (no mode-settings default); returns identity, selected role and optional advice, ignoring focalTypeKey.
      * @summary Read work-item type guidance by purpose
      * @param {WorkItemTypesApiGetWorkItemTypeGuidanceRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -175552,6 +176303,13 @@ export interface WorkItemTypesApiGetWorkItemTypeGuidanceRequest {
      * @memberof WorkItemTypesApiGetWorkItemTypeGuidance
      */
     readonly focalTypeKey?: string
+
+    /**
+     * Required when purpose is role. No default is applied.
+     * @type {SessionRole}
+     * @memberof WorkItemTypesApiGetWorkItemTypeGuidance
+     */
+    readonly sessionRole?: SessionRole
 
     /**
      *
@@ -175898,7 +176656,7 @@ export interface WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWor
  */
 export class WorkItemTypesApi extends BaseAPI implements WorkItemTypesApiInterface {
     /**
-     * Project-authorized purpose-scoped read from one effective project snapshot. Omitted purpose defaults to semantic: return the existing compact semantic guide with only matching focal contexts in declared order. Explicit maintenance returns type identity and available type-owned maintenance advice only; focalTypeKey does not select maintenance contexts. A complete project override wins even when it omits advice. Never synthesize advice from other fields.
+     * Project-authorized purpose-scoped read from one effective project snapshot. Omitted purpose defaults to semantic: return the existing compact semantic guide with only matching focal contexts in declared order. Explicit maintenance returns type identity and available type-owned maintenance advice only; focalTypeKey does not select maintenance contexts. A complete project override wins even when it omits advice. Never synthesize advice from other fields. Purpose role requires an explicit sessionRole query parameter (no mode-settings default); returns identity, selected role and optional advice, ignoring focalTypeKey.
      * @summary Read work-item type guidance by purpose
      * @param {WorkItemTypesApiGetWorkItemTypeGuidanceRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -175906,7 +176664,7 @@ export class WorkItemTypesApi extends BaseAPI implements WorkItemTypesApiInterfa
      * @memberof WorkItemTypesApi
      */
     public getWorkItemTypeGuidance(requestParameters: WorkItemTypesApiGetWorkItemTypeGuidanceRequest, options?: RawAxiosRequestConfig) {
-        return WorkItemTypesApiFp(this.configuration).getWorkItemTypeGuidance(requestParameters.organizationId, requestParameters.projectId, requestParameters.typeKey, requestParameters.focalTypeKey, requestParameters.purpose, options).then((request) => request(this.axios, this.basePath));
+        return WorkItemTypesApiFp(this.configuration).getWorkItemTypeGuidance(requestParameters.organizationId, requestParameters.projectId, requestParameters.typeKey, requestParameters.focalTypeKey, requestParameters.sessionRole, requestParameters.purpose, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

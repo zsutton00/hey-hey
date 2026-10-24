@@ -131,6 +131,7 @@ export class ProjectionLoader {
   async loadRootNeighbourhood(
     root: NodeKey,
     edgeTypes: readonly GraphAgentEdgeTypeValue[],
+    includeExternalRelationships = false,
   ): Promise<{ nodes: number; edges: number }> {
     const rootId = existingId(root);
     if (!rootId) return { nodes: 0, edges: 0 };
@@ -150,8 +151,9 @@ export class ProjectionLoader {
     const neighbourhoodEdges = edges.filter(
       (edge) =>
         isWorkItemEdge(edge) &&
-        this.params.state.nodes.has(`existing:${edge.sourceNodeId}`) &&
-        this.params.state.nodes.has(`existing:${edge.targetNodeId}`),
+        (includeExternalRelationships ||
+          (this.params.state.nodes.has(`existing:${edge.sourceNodeId}`) &&
+            this.params.state.nodes.has(`existing:${edge.targetNodeId}`))),
     );
     neighbourhoodEdges.forEach((edge) => this.params.writer.writeEdge(edge));
     return { nodes: children.nodes, edges: neighbourhoodEdges.length };

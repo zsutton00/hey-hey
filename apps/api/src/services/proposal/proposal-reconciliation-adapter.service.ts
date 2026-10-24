@@ -1,3 +1,4 @@
+import { serializableGraphProjection } from './future-graph';
 import {
   BadRequestException,
   Injectable,
@@ -18,7 +19,12 @@ import { DesignDocService } from '../design-doc/design-doc.service';
 import { EntityPromptTemplateService } from '../entity-prompt-template.service';
 import { projectReconciliationContent } from './proposal-reconciliation-content';
 import type { FeatureRequirementsSection, UpdateTaskDto } from 'src/generated';
-import type { OrganizationId, TaskId } from 'src/types';
+import type { OrganizationId, ProjectId, TaskId } from 'src/types';
+import { WorkItemChangeSetProjectorService } from './work-item-change-set-projector.service';
+import type {
+  ProjectedWorkItemChangeSetResponse,
+  WorkItemChangeSetValidationRequest,
+} from 'src/generated';
 
 const sections = {
   orderBy: [{ order: 'asc' }, { key: 'asc' }],
@@ -65,7 +71,10 @@ export class ProposalReconciliationAdapterService {
         throw new Error(
           'Future target content is missing its required sections.',
         );
-      return { ...task, sections };
+      const graph = this.registry.getGraphCapability(task.type, projectId)
+        ? await this.readFutureGraph(organizationId, projectId, targetEntityId)
+        : undefined;
+      return { ...task, sections, ...(graph ? { graph } : {}) };
     }
 
     const doc = await this.modules
@@ -79,6 +88,45 @@ export class ProposalReconciliationAdapterService {
         'Future target content is missing its required sections.',
       );
     return { ...doc, sections };
+  }
+
+  async readFutureGraph(
+    organizationId: string,
+    projectId: string,
+    targetEntityId: string,
+    db?: AnyTransactionClient,
+  ): Promise<ProjectedWorkItemChangeSetResponse> {
+    return serializableGraphProjection(
+      await this.modules
+        .get(WorkItemChangeSetProjectorService, { strict: false })
+        .project({
+          organizationId: organizationId as OrganizationId,
+          projectId: projectId as ProjectId,
+          request: {
+            root: { refType: 'existing', id: targetEntityId },
+            operations: [],
+          },
+          view: { kind: 'rootChildren', includeExternalRelationships: true },
+          db,
+        }),
+    );
+  }
+
+  projectFutureGraph(
+    organizationId: string,
+    projectId: string,
+    basis: ProjectedWorkItemChangeSetResponse,
+    request: WorkItemChangeSetValidationRequest,
+  ): Promise<ProjectedWorkItemChangeSetResponse> {
+    return this.modules
+      .get(WorkItemChangeSetProjectorService, { strict: false })
+      .project({
+        organizationId: organizationId as OrganizationId,
+        projectId: projectId as ProjectId,
+        request,
+        basis,
+        view: { kind: 'rootChildren', includeExternalRelationships: true },
+      });
   }
 
   /** The LIVE baseline token reconciliation records; content currency is still compared by basis. */

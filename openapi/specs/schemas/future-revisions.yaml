@@ -31,12 +31,15 @@ FutureApplicationOffer:
       $ref: "#/FutureApplicability"
 
 FutureRevisionContent:
-  description: Complete selected entity projection including all unchanged sections; never a patch or an overlay of independent futures.
+  description: Complete selected entity projection including all unchanged sections and, for graph-capable work items, the complete generic graph projection. Never a patch or an overlay of independent futures.
   oneOf:
     - allOf:
         - $ref: "../schemas/tasks.yaml#/TaskResponseDto"
         - type: object
           required: [sections]
+          properties:
+            graph:
+              $ref: "../schemas/proposals.yaml#/ProjectedWorkItemChangeSetResponse"
     - allOf:
         - $ref: "../schemas/design-docs.yaml#/DesignDocResponseDto"
         - type: object
@@ -99,6 +102,9 @@ FutureRevisionUpdate:
       description: Zero creates a future; refinements name the current reviewed revision.
     baseline:
       $ref: "#/FutureRevisionBaseline"
+    graphChangeSet:
+      description: Server-built generic operations from the captured graph baseline to the complete result, including prior reviewed refinements. Used for complete review and the existing materializer on explicit Apply.
+      $ref: "../schemas/proposals.yaml#/WorkItemChangeSetValidationRequest"
     result:
       $ref: "#/FutureRevisionContent"
     dependencies:
@@ -184,6 +190,11 @@ FutureWorkItemChanges:
       type: array
       items:
         $ref: "../schemas/tasks.yaml#/TaskSectionInput"
+    operations:
+      type: array
+      description: Generic graph edits within the target root, its children and incident relationships. The root cannot be deleted or change type or status. Applied to the selected non-live graph, including during refinement.
+      items:
+        $ref: "../schemas/proposals.yaml#/WorkItemChangeSetOperation"
     requirementOps:
       type: array
       items:

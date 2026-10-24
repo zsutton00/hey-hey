@@ -14,6 +14,7 @@
 import { FutureRevisionContent } from './futureRevisionContent';
 import { FutureCompletionDependency } from './futureCompletionDependency';
 import { FutureRevisionBaseline } from './futureRevisionBaseline';
+import { WorkItemChangeSetValidationRequest } from './workItemChangeSetValidationRequest';
 
 
 /**
@@ -30,6 +31,7 @@ export interface FutureRevisionUpdate {
      */
     expectedRevision: number;
     baseline: FutureRevisionBaseline;
+    graphChangeSet?: WorkItemChangeSetValidationRequest;
     result: FutureRevisionContent;
     /**
      * Complete reviewed dependency set owned by this future, separate from generic links and group enactment order.

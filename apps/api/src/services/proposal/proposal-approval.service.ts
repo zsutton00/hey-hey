@@ -1,3 +1,10 @@
+import { isEqual } from 'lodash';
+import {
+  futureGraph,
+  graphChangeSet,
+  graphContentBasis,
+  remapGraphProjection,
+} from './future-graph';
 import { assertProposalApplicationEligible } from './proposal-application-eligibility';
 import { readFutureRevision, stageFutureRevision } from './future-revision';
 import {
@@ -568,6 +575,76 @@ export class ProposalApprovalService {
     userId: UserId,
     request: FutureApplyRequest,
   ): Promise<FutureApplyResponse> {
+    const selected = await this.prisma.db.$transaction((tx) =>
+      readFutureRevision(
+        tx,
+        this.workItemTypeRegistry,
+        futureId,
+        organizationId,
+        projectId,
+      ),
+    );
+    let graph = futureGraph(selected.result);
+    let graphBaseline = futureGraph(selected.baseline.content);
+    if (graph && graphBaseline && selected.baseline.kind === 'FUTURE') {
+      const parent = await this.prisma.db.proposalFuture.findFirst({
+        where: { id: selected.baseline.futureId, organizationId, projectId },
+      });
+      const parentIntent = parent
+        ? await this.prisma.db.workItemChangeSetMaterialization.findUnique({
+            where: { proposalId: parent.latestProposalId },
+          })
+        : null;
+      if (parentIntent?.status === 'PUBLISHED') {
+        const items = parentIntent.workItemIdMappings as Record<string, string>;
+        const relationships = parentIntent.relationshipIdMappings as Record<
+          string,
+          string
+        >;
+        graphBaseline = remapGraphProjection(
+          graphBaseline,
+          items,
+          relationships,
+        );
+        graph = remapGraphProjection(graph, items, relationships, true);
+      }
+    }
+    const existingIntent = graph
+      ? await this.prisma.db.workItemChangeSetMaterialization.findUnique({
+          where: { proposalId: selected.latestProposalId },
+        })
+      : null;
+    const graphRequest =
+      graph && graphBaseline ? graphChangeSet(graphBaseline, graph) : undefined;
+    if (
+      graphRequest &&
+      'type' in selected.result &&
+      'type' in selected.baseline.content &&
+      !isEqual(
+        selected.result.initiativeId ?? null,
+        selected.baseline.content.initiativeId ?? null,
+      ) &&
+      !graphRequest.operations.some(
+        (op) =>
+          op.op === 'workItem.update' &&
+          op.ref.refType === 'existing' &&
+          op.ref.id === selected.targetEntityId,
+      )
+    ) {
+      graphRequest.operations.unshift({
+        op: 'workItem.update',
+        ref: graphRequest.root,
+      });
+    }
+    const preparedGraph =
+      graphRequest && !existingIntent
+        ? await this.workItemChangeSetMaterializer.projectPreparation({
+            organizationId,
+            projectId,
+            request: graphRequest,
+            view: { kind: 'rootChildren', includeExternalRelationships: true },
+          })
+        : undefined;
     const result = await this.prisma.db.$transaction(
       async (tx) => {
         const db = tx as unknown as Prisma.TransactionClient;
@@ -620,11 +697,18 @@ export class ProposalApprovalService {
         } else {
           await tx.$queryRaw`SELECT id FROM design_docs WHERE id = ${future.targetEntityId} FOR UPDATE`;
         }
-        const baselineBlocker = await futureBaselineBlocker(
-          db,
-          future,
-          this.reconciliation,
-        );
+        if (graphBaseline) {
+          const ids = [graphBaseline.projectedRoot, ...graphBaseline.children]
+            .flatMap((node) =>
+              node.identity.refType === 'existing' ? [node.identity.id] : [],
+            )
+            .sort();
+          if (ids.length)
+            await tx.$queryRaw`SELECT id FROM tasks WHERE organization_id = ${organizationId} AND project_id = ${projectId} AND id IN (${Prisma.join(ids)}) ORDER BY id FOR UPDATE`;
+        }
+        const baselineBlocker = existingIntent
+          ? undefined
+          : await futureBaselineBlocker(db, future, this.reconciliation);
         if (baselineBlocker) return blocked(baselineBlocker);
         await tx.$queryRaw`SELECT id FROM proposals WHERE organization_id = ${organizationId} AND project_id = ${projectId} AND action = 'VERSIONED_UPDATE' AND status = 'DRAFT' AND updates->>'futureId' = ${futureId} ORDER BY id FOR UPDATE`;
         const confirmation = await readFutureApplyConfirmation(db, future);
@@ -637,6 +721,55 @@ export class ProposalApprovalService {
               status: 'CONFIRMATION_REQUIRED',
               future,
               confirmation,
+            } satisfies FutureApplyResponse,
+          };
+        }
+
+        if (graph) {
+          if (
+            !graphBaseline ||
+            future.revision !== selected.revision ||
+            future.latestProposalId !== selected.latestProposalId
+          )
+            return blocked('REVISION_CHANGED');
+          if (preparedGraph) {
+            if (
+              !preparedGraph.snapshots.target.valid ||
+              !isEqual(
+                graphContentBasis(preparedGraph.snapshots.target),
+                graphContentBasis(graph),
+              )
+            )
+              return blocked('BASELINE_CHANGED');
+            await this.workItemChangeSetMaterializer.enqueuePreparedIntent(tx, {
+              proposalId: proposal.id,
+              organizationId,
+              projectId,
+              prepared: preparedGraph,
+              futureApplication: {
+                futureId,
+                revision: future.revision,
+                reviewedBases: await this.reconciliation.currentBases(
+                  tx,
+                  {
+                    ...proposal,
+                    action: 'UPDATE',
+                    updates:
+                      preparedGraph.operationSet as unknown as Prisma.JsonObject,
+                  },
+                  true,
+                ),
+                refinementIds: confirmation.refinements.map(
+                  (entry) => entry.proposalId,
+                ),
+              },
+            });
+          }
+          return {
+            graphApplication: true as const,
+            response: {
+              status: 'APPLIED',
+              future,
             } satisfies FutureApplyResponse,
           };
         }
@@ -717,6 +850,28 @@ export class ProposalApprovalService {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       },
     );
+    if ('graphApplication' in result) {
+      const materialized =
+        await this.workItemChangeSetMaterializer.materializeApprovedChangeSet({
+          proposalId: selected.latestProposalId,
+          organizationId,
+          projectId,
+        });
+      if (!materialized.enacted)
+        throw new ConflictException(
+          'Future graph application is incomplete; retry Apply to resume.',
+        );
+      const future = await this.prisma.db.$transaction((tx) =>
+        readFutureRevision(
+          tx,
+          this.workItemTypeRegistry,
+          futureId,
+          organizationId,
+          projectId,
+        ),
+      );
+      return { status: 'APPLIED', future };
+    }
     if ('enactment' in result && result.enactment) {
       await this.pendingEdgeService.materializeEdges(
         organizationId,

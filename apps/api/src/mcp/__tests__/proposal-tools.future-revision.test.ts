@@ -116,6 +116,7 @@ function createProvider(create = jest.fn()) {
   // The real materializer runs against a live read so the test sees the
   // complete mutation that persistence receives.
   const ports: FutureRevisionMaterializerPorts = {
+    projectGraph: jest.fn(),
     readLiveContent: jest.fn().mockResolvedValue(liveContent),
     readLiveRevision: jest.fn().mockResolvedValue('live-1'),
     renderTaskSections: (_projectId, _type, sections) =>

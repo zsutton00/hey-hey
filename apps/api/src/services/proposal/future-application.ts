@@ -1,3 +1,4 @@
+import { futureGraph, remapGraphProjection } from './future-graph';
 import { BadRequestException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import Ajv from 'ajv';
@@ -103,6 +104,7 @@ export async function futureBaselineBlocker(
   future: FutureRevisionResponse,
   reconciliation: ProposalReconciliationService,
 ): Promise<FutureApplyResponse['blocker'] | undefined> {
+  let baseline = future.baseline;
   if (future.baseline.kind === 'FUTURE') {
     const parent = await db.proposalFuture.findFirst({
       where: {
@@ -119,6 +121,25 @@ export async function futureBaselineBlocker(
       String(parent.appliedRevision) !== future.baseline.revision
     )
       return 'BASELINE_UNAVAILABLE';
+    const graph = futureGraph(baseline.content);
+    if (graph && 'type' in baseline.content) {
+      const intent = await db.workItemChangeSetMaterialization.findUnique({
+        where: { proposalId: parent.latestProposalId },
+      });
+      if (!intent || intent.status !== 'PUBLISHED')
+        return 'BASELINE_UNAVAILABLE';
+      baseline = {
+        ...baseline,
+        content: {
+          ...baseline.content,
+          graph: remapGraphProjection(
+            graph,
+            intent.workItemIdMappings as Record<string, string>,
+            intent.relationshipIdMappings as Record<string, string>,
+          ),
+        },
+      };
+    }
   }
   const where = {
     id: future.targetEntityId,
@@ -127,7 +148,10 @@ export async function futureBaselineBlocker(
   };
   const target =
     future.targetEntityType === 'TASK'
-      ? await db.task.findFirst({ where, select: { id: true, archivedAt: true } })
+      ? await db.task.findFirst({
+          where,
+          select: { id: true, archivedAt: true },
+        })
       : await db.designDoc.findFirst({
           where,
           select: { id: true, archivedAt: true },
@@ -141,7 +165,7 @@ export async function futureBaselineBlocker(
       targetEntityType: future.targetEntityType,
       targetEntityId: future.targetEntityId,
     },
-    future.baseline,
+    baseline,
   ))
     ? 'BASELINE_CHANGED'
     : undefined;
@@ -149,7 +173,7 @@ export async function futureBaselineBlocker(
 
 /** Adapt the reviewed result to the existing generated target update contract. */
 export function futureTargetUpdates(
-  future: FutureRevisionResponse,
+  future: Pick<FutureRevisionResponse, 'result' | 'baseline' | 'projectId'>,
   registry: WorkItemTypeRegistryService,
 ): UpdateTaskDto | UpdateDesignDocDto {
   const result = future.result;

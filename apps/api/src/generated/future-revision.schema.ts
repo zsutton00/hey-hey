@@ -59,7 +59,7 @@ export const futureRevisionMutationSchema = {
               "description": "Required only for FUTURE; identifies one selected parent."
             },
             "content": {
-              "description": "Complete selected entity projection including all unchanged sections; never a patch or an overlay of independent futures.",
+              "description": "Complete selected entity projection including all unchanged sections and, for graph-capable work items, the complete generic graph projection. Never a patch or an overlay of independent futures.",
               "oneOf": [
                 {
                   "allOf": [
@@ -798,7 +798,950 @@ export const futureRevisionMutationSchema = {
                       "type": "object",
                       "required": [
                         "sections"
-                      ]
+                      ],
+                      "properties": {
+                        "graph": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "valid",
+                            "projectedRoot",
+                            "children",
+                            "sections",
+                            "incidentRelationships",
+                            "identityLabels",
+                            "issues",
+                            "warnings"
+                          ],
+                          "properties": {
+                            "valid": {
+                              "type": "boolean"
+                            },
+                            "projectedRoot": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "identity",
+                                    "label",
+                                    "type",
+                                    "name",
+                                    "sections",
+                                    "deleted"
+                                  ],
+                                  "properties": {
+                                    "identity": {
+                                      "oneOf": [
+                                        {
+                                          "type": "object",
+                                          "additionalProperties": false,
+                                          "required": [
+                                            "refType",
+                                            "id"
+                                          ],
+                                          "properties": {
+                                            "refType": {
+                                              "type": "string",
+                                              "enum": [
+                                                "existing"
+                                              ]
+                                            },
+                                            "id": {
+                                              "type": "string",
+                                              "format": "uuid"
+                                            }
+                                          }
+                                        },
+                                        {
+                                          "type": "object",
+                                          "additionalProperties": false,
+                                          "required": [
+                                            "refType",
+                                            "tempId"
+                                          ],
+                                          "properties": {
+                                            "refType": {
+                                              "type": "string",
+                                              "enum": [
+                                                "temporary"
+                                              ]
+                                            },
+                                            "tempId": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                            }
+                                          }
+                                        }
+                                      ],
+                                      "discriminator": {
+                                        "propertyName": "refType",
+                                        "mapping": {
+                                          "existing": "#/ExistingWorkItemIdentity",
+                                          "temporary": "#/TemporaryWorkItemIdentity"
+                                        }
+                                      },
+                                      "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                                    },
+                                    "label": {
+                                      "type": "string"
+                                    },
+                                    "type": {
+                                      "type": "string",
+                                      "description": "An open work-item type key — either one of the system values (STANDARD, FEATURE, GOAL, BUG, PLAN, PLAN_STAGE, CONTRACT, DIAGRAM, DIAGRAM_ELEMENT, TASK_MONITOR) or a project-scoped custom key (e.g. \"MARKETING\"). Used wherever a type filter or type reference must accept custom types registered via the work-item type registry.\n",
+                                      "example": "STANDARD"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "parent": {
+                                      "anyOf": [
+                                        {
+                                          "oneOf": [
+                                            {
+                                              "type": "object",
+                                              "additionalProperties": false,
+                                              "required": [
+                                                "refType",
+                                                "id"
+                                              ],
+                                              "properties": {
+                                                "refType": {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "existing"
+                                                  ]
+                                                },
+                                                "id": {
+                                                  "type": "string",
+                                                  "format": "uuid"
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "type": "object",
+                                              "additionalProperties": false,
+                                              "required": [
+                                                "refType",
+                                                "tempId"
+                                              ],
+                                              "properties": {
+                                                "refType": {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "temporary"
+                                                  ]
+                                                },
+                                                "tempId": {
+                                                  "type": "string",
+                                                  "minLength": 1,
+                                                  "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                                }
+                                              }
+                                            }
+                                          ],
+                                          "discriminator": {
+                                            "propertyName": "refType",
+                                            "mapping": {
+                                              "existing": "#/ExistingWorkItemIdentity",
+                                              "temporary": "#/TemporaryWorkItemIdentity"
+                                            }
+                                          },
+                                          "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "status": {
+                                      "type": "string",
+                                      "enum": [
+                                        "GENERATED",
+                                        "BACKLOG",
+                                        "READY",
+                                        "REFINING",
+                                        "BLOCKED",
+                                        "REFINING_DESCRIPTION",
+                                        "REFINING_DETAILS",
+                                        "REFINING_ACCEPTANCE_CRITERIA",
+                                        "GENERATING_DESCRIPTION",
+                                        "GENERATING_DETAILS",
+                                        "GENERATING_DESCRIPTION_AND_DETAILS",
+                                        "GENERATING_ACCEPTANCE_CRITERIA",
+                                        "GENERATING_ALL",
+                                        "ACTIVE",
+                                        "ON_HOLD",
+                                        "VERIFYING",
+                                        "COMPLETED",
+                                        "CANCELLED",
+                                        "ARCHIVED",
+                                        "SUPERSEDED"
+                                      ],
+                                      "description": "Unified work status for initiatives and tasks"
+                                    },
+                                    "priority": {
+                                      "type": "string",
+                                      "enum": [
+                                        "LOW",
+                                        "MEDIUM",
+                                        "HIGH",
+                                        "CRITICAL"
+                                      ],
+                                      "description": "The priority level of an item.",
+                                      "example": "HIGH"
+                                    },
+                                    "dueDate": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "assigneeId": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "format": "uuid"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "tag": {
+                                      "type": "string",
+                                      "enum": [
+                                        "product",
+                                        "frontend",
+                                        "backend",
+                                        "infra",
+                                        "design",
+                                        "AI"
+                                      ],
+                                      "description": "Coarse-grained classification of what kind of work a FEATURE task\nrepresents. Single source of truth — every Feature-shaped DTO that\nsurfaces the tag references this enum.\n\nValues:\n  * `product` — user-facing product capabilities and outcomes.\n  * `frontend` — client/UI-shaped delivery (web, mobile, surfaces).\n  * `backend` — server/API/data-shaped delivery.\n  * `infra` — platform, deployment, observability, build, runtime.\n  * `design` — design-system, visual, or UX research deliverables.\n  * `AI` — AI/agent-shaped delivery: prompts, agent orchestration, runners.\n\nSet on every FEATURE task at creation time. Other task types\n(STANDARD, BUG, GOAL) do not carry a tag.\n",
+                                      "example": "backend"
+                                    },
+                                    "serviceIds": {
+                                      "type": "array",
+                                      "uniqueItems": true,
+                                      "items": {
+                                        "type": "string",
+                                        "format": "branded-ServiceId",
+                                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                                        "description": "Unique identifier for a service (branded type)",
+                                        "example": "550e8400-e29b-41d4-a716-446655440015",
+                                        "x-typescript-type": "ServiceId",
+                                        "x-brand": "ServiceId",
+                                        "x-semantic-type": "resource-identifier"
+                                      }
+                                    },
+                                    "sections": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "key",
+                                          "content"
+                                        ],
+                                        "properties": {
+                                          "key": {
+                                            "type": "string"
+                                          },
+                                          "content": {
+                                            "anyOf": [
+                                              {
+                                                "description": "Any JSON value. Markdown sections use strings; schema-backed JSON sections may use objects, arrays, numbers, booleans, or null; html/css sections use the strict WorkItemHtmlCssSectionContent object; structured-mockup sections use the versioned WorkItemStructuredMockupSectionContent object. This envelope remains intentionally broad so validation can dispatch by the resolved section definition.\n"
+                                              },
+                                              {
+                                                "type": "null"
+                                              }
+                                            ]
+                                          }
+                                        }
+                                      }
+                                    },
+                                    "deleted": {
+                                      "type": "boolean"
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "children": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "identity",
+                                  "label",
+                                  "type",
+                                  "name",
+                                  "sections",
+                                  "deleted"
+                                ],
+                                "properties": {
+                                  "identity": {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "refType",
+                                          "id"
+                                        ],
+                                        "properties": {
+                                          "refType": {
+                                            "type": "string",
+                                            "enum": [
+                                              "existing"
+                                            ]
+                                          },
+                                          "id": {
+                                            "type": "string",
+                                            "format": "uuid"
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "refType",
+                                          "tempId"
+                                        ],
+                                        "properties": {
+                                          "refType": {
+                                            "type": "string",
+                                            "enum": [
+                                              "temporary"
+                                            ]
+                                          },
+                                          "tempId": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                          }
+                                        }
+                                      }
+                                    ],
+                                    "discriminator": {
+                                      "propertyName": "refType",
+                                      "mapping": {
+                                        "existing": "#/ExistingWorkItemIdentity",
+                                        "temporary": "#/TemporaryWorkItemIdentity"
+                                      }
+                                    },
+                                    "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                                  },
+                                  "label": {
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "type": "string",
+                                    "description": "An open work-item type key — either one of the system values (STANDARD, FEATURE, GOAL, BUG, PLAN, PLAN_STAGE, CONTRACT, DIAGRAM, DIAGRAM_ELEMENT, TASK_MONITOR) or a project-scoped custom key (e.g. \"MARKETING\"). Used wherever a type filter or type reference must accept custom types registered via the work-item type registry.\n",
+                                    "example": "STANDARD"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "parent": {
+                                    "anyOf": [
+                                      {
+                                        "oneOf": [
+                                          {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "required": [
+                                              "refType",
+                                              "id"
+                                            ],
+                                            "properties": {
+                                              "refType": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "existing"
+                                                ]
+                                              },
+                                              "id": {
+                                                "type": "string",
+                                                "format": "uuid"
+                                              }
+                                            }
+                                          },
+                                          {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "required": [
+                                              "refType",
+                                              "tempId"
+                                            ],
+                                            "properties": {
+                                              "refType": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "temporary"
+                                                ]
+                                              },
+                                              "tempId": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                              }
+                                            }
+                                          }
+                                        ],
+                                        "discriminator": {
+                                          "propertyName": "refType",
+                                          "mapping": {
+                                            "existing": "#/ExistingWorkItemIdentity",
+                                            "temporary": "#/TemporaryWorkItemIdentity"
+                                          }
+                                        },
+                                        "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "GENERATED",
+                                      "BACKLOG",
+                                      "READY",
+                                      "REFINING",
+                                      "BLOCKED",
+                                      "REFINING_DESCRIPTION",
+                                      "REFINING_DETAILS",
+                                      "REFINING_ACCEPTANCE_CRITERIA",
+                                      "GENERATING_DESCRIPTION",
+                                      "GENERATING_DETAILS",
+                                      "GENERATING_DESCRIPTION_AND_DETAILS",
+                                      "GENERATING_ACCEPTANCE_CRITERIA",
+                                      "GENERATING_ALL",
+                                      "ACTIVE",
+                                      "ON_HOLD",
+                                      "VERIFYING",
+                                      "COMPLETED",
+                                      "CANCELLED",
+                                      "ARCHIVED",
+                                      "SUPERSEDED"
+                                    ],
+                                    "description": "Unified work status for initiatives and tasks"
+                                  },
+                                  "priority": {
+                                    "type": "string",
+                                    "enum": [
+                                      "LOW",
+                                      "MEDIUM",
+                                      "HIGH",
+                                      "CRITICAL"
+                                    ],
+                                    "description": "The priority level of an item.",
+                                    "example": "HIGH"
+                                  },
+                                  "dueDate": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "format": "date-time"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "assigneeId": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "format": "uuid"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "tag": {
+                                    "type": "string",
+                                    "enum": [
+                                      "product",
+                                      "frontend",
+                                      "backend",
+                                      "infra",
+                                      "design",
+                                      "AI"
+                                    ],
+                                    "description": "Coarse-grained classification of what kind of work a FEATURE task\nrepresents. Single source of truth — every Feature-shaped DTO that\nsurfaces the tag references this enum.\n\nValues:\n  * `product` — user-facing product capabilities and outcomes.\n  * `frontend` — client/UI-shaped delivery (web, mobile, surfaces).\n  * `backend` — server/API/data-shaped delivery.\n  * `infra` — platform, deployment, observability, build, runtime.\n  * `design` — design-system, visual, or UX research deliverables.\n  * `AI` — AI/agent-shaped delivery: prompts, agent orchestration, runners.\n\nSet on every FEATURE task at creation time. Other task types\n(STANDARD, BUG, GOAL) do not carry a tag.\n",
+                                    "example": "backend"
+                                  },
+                                  "serviceIds": {
+                                    "type": "array",
+                                    "uniqueItems": true,
+                                    "items": {
+                                      "type": "string",
+                                      "format": "branded-ServiceId",
+                                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                                      "description": "Unique identifier for a service (branded type)",
+                                      "example": "550e8400-e29b-41d4-a716-446655440015",
+                                      "x-typescript-type": "ServiceId",
+                                      "x-brand": "ServiceId",
+                                      "x-semantic-type": "resource-identifier"
+                                    }
+                                  },
+                                  "sections": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "key",
+                                        "content"
+                                      ],
+                                      "properties": {
+                                        "key": {
+                                          "type": "string"
+                                        },
+                                        "content": {
+                                          "anyOf": [
+                                            {
+                                              "description": "Any JSON value. Markdown sections use strings; schema-backed JSON sections may use objects, arrays, numbers, booleans, or null; html/css sections use the strict WorkItemHtmlCssSectionContent object; structured-mockup sections use the versioned WorkItemStructuredMockupSectionContent object. This envelope remains intentionally broad so validation can dispatch by the resolved section definition.\n"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "deleted": {
+                                    "type": "boolean"
+                                  }
+                                }
+                              }
+                            },
+                            "sections": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "key",
+                                  "content"
+                                ],
+                                "properties": {
+                                  "key": {
+                                    "type": "string"
+                                  },
+                                  "content": {
+                                    "anyOf": [
+                                      {
+                                        "description": "Any JSON value. Markdown sections use strings; schema-backed JSON sections may use objects, arrays, numbers, booleans, or null; html/css sections use the strict WorkItemHtmlCssSectionContent object; structured-mockup sections use the versioned WorkItemStructuredMockupSectionContent object. This envelope remains intentionally broad so validation can dispatch by the resolved section definition.\n"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            },
+                            "incidentRelationships": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "identity",
+                                  "label",
+                                  "source",
+                                  "target",
+                                  "edgeType",
+                                  "deleted"
+                                ],
+                                "properties": {
+                                  "identity": {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "refType",
+                                          "id"
+                                        ],
+                                        "properties": {
+                                          "refType": {
+                                            "type": "string",
+                                            "enum": [
+                                              "existing"
+                                            ]
+                                          },
+                                          "id": {
+                                            "type": "string",
+                                            "format": "uuid"
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "refType",
+                                          "tempId"
+                                        ],
+                                        "properties": {
+                                          "refType": {
+                                            "type": "string",
+                                            "enum": [
+                                              "temporary"
+                                            ]
+                                          },
+                                          "tempId": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          }
+                                        }
+                                      }
+                                    ],
+                                    "discriminator": {
+                                      "propertyName": "refType",
+                                      "mapping": {
+                                        "existing": "#/ExistingRelationshipIdentity",
+                                        "temporary": "#/TemporaryRelationshipIdentity"
+                                      }
+                                    }
+                                  },
+                                  "label": {
+                                    "type": "string"
+                                  },
+                                  "source": {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "refType",
+                                          "id"
+                                        ],
+                                        "properties": {
+                                          "refType": {
+                                            "type": "string",
+                                            "enum": [
+                                              "existing"
+                                            ]
+                                          },
+                                          "id": {
+                                            "type": "string",
+                                            "format": "uuid"
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "refType",
+                                          "tempId"
+                                        ],
+                                        "properties": {
+                                          "refType": {
+                                            "type": "string",
+                                            "enum": [
+                                              "temporary"
+                                            ]
+                                          },
+                                          "tempId": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                          }
+                                        }
+                                      }
+                                    ],
+                                    "discriminator": {
+                                      "propertyName": "refType",
+                                      "mapping": {
+                                        "existing": "#/ExistingWorkItemIdentity",
+                                        "temporary": "#/TemporaryWorkItemIdentity"
+                                      }
+                                    },
+                                    "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                                  },
+                                  "sourceEntityType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ARTIFACT",
+                                      "INITIATIVE",
+                                      "PROJECT",
+                                      "TASK",
+                                      "MESSAGE",
+                                      "CONVERSATION",
+                                      "DESIGN_DOC",
+                                      "AGENT_SESSION",
+                                      "VALIDATION_SESSION",
+                                      "SERVICE",
+                                      "REPORT",
+                                      "PROPOSAL",
+                                      "IMPLEMENTATION_HINT"
+                                    ],
+                                    "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
+                                  },
+                                  "target": {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "refType",
+                                          "id"
+                                        ],
+                                        "properties": {
+                                          "refType": {
+                                            "type": "string",
+                                            "enum": [
+                                              "existing"
+                                            ]
+                                          },
+                                          "id": {
+                                            "type": "string",
+                                            "format": "uuid"
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "refType",
+                                          "tempId"
+                                        ],
+                                        "properties": {
+                                          "refType": {
+                                            "type": "string",
+                                            "enum": [
+                                              "temporary"
+                                            ]
+                                          },
+                                          "tempId": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                          }
+                                        }
+                                      }
+                                    ],
+                                    "discriminator": {
+                                      "propertyName": "refType",
+                                      "mapping": {
+                                        "existing": "#/ExistingWorkItemIdentity",
+                                        "temporary": "#/TemporaryWorkItemIdentity"
+                                      }
+                                    },
+                                    "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                                  },
+                                  "targetEntityType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ARTIFACT",
+                                      "INITIATIVE",
+                                      "PROJECT",
+                                      "TASK",
+                                      "MESSAGE",
+                                      "CONVERSATION",
+                                      "DESIGN_DOC",
+                                      "AGENT_SESSION",
+                                      "VALIDATION_SESSION",
+                                      "SERVICE",
+                                      "REPORT",
+                                      "PROPOSAL",
+                                      "IMPLEMENTATION_HINT"
+                                    ],
+                                    "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
+                                  },
+                                  "edgeType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "RELATED_TO",
+                                      "DEPENDS_ON",
+                                      "DERIVES_FROM",
+                                      "SUPERSEDES",
+                                      "CONTRADICTS",
+                                      "EVOLVES",
+                                      "TRACKS",
+                                      "PROPOSED_TOGETHER",
+                                      "FULFILLED_BY",
+                                      "GUARANTEES",
+                                      "IMPLEMENTS",
+                                      "CONSUMES",
+                                      "STANDARD",
+                                      "CONDITIONAL",
+                                      "LOOP"
+                                    ],
+                                    "description": "Relationship type for agent-authored topology edges between two entities. Each value carries a distinct semantic:\n- RELATED_TO: source and target share context but have no directional\n  dependency, derivation, or replacement relationship.\n- DEPENDS_ON: source entity requires the target entity to be in place\n  (functionally or temporally) before it is meaningful or completable.\n- DERIVES_FROM: target entity is the origin or basis from which the\n  source entity was produced; the target remains canonical and the\n  source is a downstream artifact.\n- SUPERSEDES: source entity replaces the target entity; the target is\n  displaced and should no longer be treated as canonical.\n- CONTRADICTS: source entity disagrees with the target entity; both\n  remain visible so the conflict can be resolved by an authoring agent.\n- EVOLVES: source entity refines, extends, or iterates on the target\n  entity, which remains canonical. Distinct from SUPERSEDES (target is\n  displaced) and DERIVES_FROM (target is origin only and the source\n  stands apart).\n- TRACKS: source references the target as a tracked deliverable. The\n  meaning is composed with source and target type — the canonical\n  use is a GOAL-typed task referencing a FEATURE / STANDARD / BUG task\n  or a PLAN it expects to ship. DESIGN_DOC and other GOAL targets are\n  rejected at the attach boundary (track the parent feature or plan\n  instead). Validation lives in the boundary handler, not the edge\n  service.\n- PROPOSED_TOGETHER: source and target were created or modified by the\n  same proposal, making them co-authored siblings. Symmetric (the edge\n  carries no direction beyond the storage tuple) and system-emitted\n  (derived by the Graph service from a proposal-approved event rather\n  than authored by a user or agent). Carries no semantic claim about\n  dependency, derivation, or replacement — only that the two entities\n  share a proposal origin. Always paired with source `system`.\n- FULFILLED_BY: meta edge from a WORKFLOW_STEP work item to the work item\n  where that step's implementation lives. It remains visible in generic\n  meta-edge surfaces and is never categorized as flow.\n- STANDARD: flow edge from one WORKFLOW_STEP to the next ordinary step in\n  the same workflow graph. Carries category `flow` and requires direction.\n- CONDITIONAL: flow edge from a WORKFLOW_STEP to the next branch selected\n  by a predicate. Carries category `flow` and requires both direction and\n  predicate.\n- LOOP: flow edge representing a self-loop or return loop in a workflow\n  graph. Carries category `flow`, does not carry direction, and may carry\n  a predicate when the return is conditional.\n"
+                                  },
+                                  "category": {
+                                    "type": "string",
+                                    "enum": [
+                                      "meta",
+                                      "flow"
+                                    ],
+                                    "default": "meta",
+                                    "description": "Rendering and traversal category for an edge. Existing edge records and callers that omit this field default to `meta`. Flow-category edges (`STANDARD`, `CONDITIONAL`, `LOOP`) are workflow structure and must stay out of generic related-entity, supersede/evolves, task-list, and link-discovery surfaces. Meta-category edges remain the regular topology and fulfillment surface.\n"
+                                  },
+                                  "direction": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "forward",
+                                          "backward"
+                                        ],
+                                        "description": "Direction declared on workflow flow edges where the direction matters to rendering or validation. `STANDARD` and `CONDITIONAL` edges require this field. `LOOP` edges do not carry it because the source step is also the return point.\n"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "predicate": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "reasoning": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "metadata": {
+                                    "anyOf": [
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": true
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "deleted": {
+                                    "type": "boolean"
+                                  }
+                                }
+                              }
+                            },
+                            "identityLabels": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              }
+                            },
+                            "issues": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "field",
+                                  "code",
+                                  "reason",
+                                  "layer"
+                                ],
+                                "properties": {
+                                  "field": {
+                                    "type": "string"
+                                  },
+                                  "code": {
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "type": "string"
+                                  },
+                                  "layer": {
+                                    "type": "string",
+                                    "enum": [
+                                      "structural",
+                                      "referential",
+                                      "permission"
+                                    ]
+                                  },
+                                  "suggestion": {
+                                    "type": "string"
+                                  },
+                                  "metadata": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "description": "Machine-readable identities and counts that locate the projected topology involved in this finding. Identity values use the same existing:/temporary: labels as the projected change-set response."
+                                  }
+                                }
+                              }
+                            },
+                            "warnings": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "field",
+                                  "code",
+                                  "reason",
+                                  "layer"
+                                ],
+                                "properties": {
+                                  "field": {
+                                    "type": "string"
+                                  },
+                                  "code": {
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "type": "string"
+                                  },
+                                  "layer": {
+                                    "type": "string",
+                                    "enum": [
+                                      "structural",
+                                      "referential",
+                                      "permission"
+                                    ]
+                                  },
+                                  "suggestion": {
+                                    "type": "string"
+                                  },
+                                  "metadata": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "description": "Machine-readable identities and counts that locate the projected topology involved in this finding. Identity values use the same existing:/temporary: labels as the projected change-set response."
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
                     }
                   ]
                 },
@@ -975,8 +1918,2184 @@ export const futureRevisionMutationSchema = {
             }
           }
         },
+        "graphChangeSet": {
+          "description": "Server-built generic operations from the captured graph baseline to the complete result, including prior reviewed refinements. Used for complete review and the existing materializer on explicit Apply.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "root",
+            "operations"
+          ],
+          "properties": {
+            "root": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "refType",
+                    "id"
+                  ],
+                  "properties": {
+                    "refType": {
+                      "type": "string",
+                      "enum": [
+                        "existing"
+                      ]
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "refType",
+                    "tempId"
+                  ],
+                  "properties": {
+                    "refType": {
+                      "type": "string",
+                      "enum": [
+                        "temporary"
+                      ]
+                    },
+                    "tempId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                    }
+                  }
+                }
+              ],
+              "discriminator": {
+                "propertyName": "refType",
+                "mapping": {
+                  "existing": "#/ExistingWorkItemIdentity",
+                  "temporary": "#/TemporaryWorkItemIdentity"
+                }
+              },
+              "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+            },
+            "operations": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "op",
+                      "ref",
+                      "name"
+                    ],
+                    "properties": {
+                      "op": {
+                        "type": "string",
+                        "enum": [
+                          "workItem.create"
+                        ]
+                      },
+                      "ref": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "refType",
+                          "tempId"
+                        ],
+                        "properties": {
+                          "refType": {
+                            "type": "string",
+                            "enum": [
+                              "temporary"
+                            ]
+                          },
+                          "tempId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                          }
+                        }
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "type": {
+                        "type": "string",
+                        "description": "An open work-item type key — either one of the system values (STANDARD, FEATURE, GOAL, BUG, PLAN, PLAN_STAGE, CONTRACT, DIAGRAM, DIAGRAM_ELEMENT, TASK_MONITOR) or a project-scoped custom key (e.g. \"MARKETING\"). Used wherever a type filter or type reference must accept custom types registered via the work-item type registry.\n",
+                        "example": "STANDARD"
+                      },
+                      "parent": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "id"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "existing"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "tempId"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "temporary"
+                                ]
+                              },
+                              "tempId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                              }
+                            }
+                          }
+                        ],
+                        "discriminator": {
+                          "propertyName": "refType",
+                          "mapping": {
+                            "existing": "#/ExistingWorkItemIdentity",
+                            "temporary": "#/TemporaryWorkItemIdentity"
+                          }
+                        },
+                        "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "GENERATED",
+                          "BACKLOG",
+                          "READY",
+                          "REFINING",
+                          "BLOCKED",
+                          "REFINING_DESCRIPTION",
+                          "REFINING_DETAILS",
+                          "REFINING_ACCEPTANCE_CRITERIA",
+                          "GENERATING_DESCRIPTION",
+                          "GENERATING_DETAILS",
+                          "GENERATING_DESCRIPTION_AND_DETAILS",
+                          "GENERATING_ACCEPTANCE_CRITERIA",
+                          "GENERATING_ALL",
+                          "ACTIVE",
+                          "ON_HOLD",
+                          "VERIFYING",
+                          "COMPLETED",
+                          "CANCELLED",
+                          "ARCHIVED",
+                          "SUPERSEDED"
+                        ],
+                        "description": "Unified work status for initiatives and tasks"
+                      },
+                      "priority": {
+                        "type": "string",
+                        "enum": [
+                          "LOW",
+                          "MEDIUM",
+                          "HIGH",
+                          "CRITICAL"
+                        ],
+                        "description": "The priority level of an item.",
+                        "example": "HIGH"
+                      },
+                      "dueDate": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "assigneeId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "tag": {
+                        "type": "string",
+                        "enum": [
+                          "product",
+                          "frontend",
+                          "backend",
+                          "infra",
+                          "design",
+                          "AI"
+                        ],
+                        "description": "Coarse-grained classification of what kind of work a FEATURE task\nrepresents. Single source of truth — every Feature-shaped DTO that\nsurfaces the tag references this enum.\n\nValues:\n  * `product` — user-facing product capabilities and outcomes.\n  * `frontend` — client/UI-shaped delivery (web, mobile, surfaces).\n  * `backend` — server/API/data-shaped delivery.\n  * `infra` — platform, deployment, observability, build, runtime.\n  * `design` — design-system, visual, or UX research deliverables.\n  * `AI` — AI/agent-shaped delivery: prompts, agent orchestration, runners.\n\nSet on every FEATURE task at creation time. Other task types\n(STANDARD, BUG, GOAL) do not carry a tag.\n",
+                        "example": "backend"
+                      },
+                      "serviceIds": {
+                        "type": "array",
+                        "description": "Optional complete known Service assignment array for a work-item type whose project-effective registry role is work-item. Preserve this value as a JSON array. Repeated IDs are accepted with an advisory finding and produce one assignment per unique valid ID. Generic work-item authoring continues to require project-valid references, and the field is rejected for other registry roles. For plan-materialized STANDARD children of PLAN_STAGE, omitted or empty Service coverage remains admissible after plan-specific advisory normalization; invalid project Service IDs are omitted before persistence.",
+                        "items": {
+                          "type": "string",
+                          "format": "branded-ServiceId",
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          "description": "Unique identifier for a service (branded type)",
+                          "example": "550e8400-e29b-41d4-a716-446655440015",
+                          "x-typescript-type": "ServiceId",
+                          "x-brand": "ServiceId",
+                          "x-semantic-type": "resource-identifier"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "op",
+                      "ref"
+                    ],
+                    "properties": {
+                      "op": {
+                        "type": "string",
+                        "enum": [
+                          "workItem.update"
+                        ]
+                      },
+                      "ref": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "id"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "existing"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "tempId"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "temporary"
+                                ]
+                              },
+                              "tempId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                              }
+                            }
+                          }
+                        ],
+                        "discriminator": {
+                          "propertyName": "refType",
+                          "mapping": {
+                            "existing": "#/ExistingWorkItemIdentity",
+                            "temporary": "#/TemporaryWorkItemIdentity"
+                          }
+                        },
+                        "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "parent": {
+                        "anyOf": [
+                          {
+                            "allOf": [
+                              {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "id"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "existing"
+                                        ]
+                                      },
+                                      "id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "tempId"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "temporary"
+                                        ]
+                                      },
+                                      "tempId": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                      }
+                                    }
+                                  }
+                                ],
+                                "discriminator": {
+                                  "propertyName": "refType",
+                                  "mapping": {
+                                    "existing": "#/ExistingWorkItemIdentity",
+                                    "temporary": "#/TemporaryWorkItemIdentity"
+                                  }
+                                },
+                                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                              }
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "GENERATED",
+                          "BACKLOG",
+                          "READY",
+                          "REFINING",
+                          "BLOCKED",
+                          "REFINING_DESCRIPTION",
+                          "REFINING_DETAILS",
+                          "REFINING_ACCEPTANCE_CRITERIA",
+                          "GENERATING_DESCRIPTION",
+                          "GENERATING_DETAILS",
+                          "GENERATING_DESCRIPTION_AND_DETAILS",
+                          "GENERATING_ACCEPTANCE_CRITERIA",
+                          "GENERATING_ALL",
+                          "ACTIVE",
+                          "ON_HOLD",
+                          "VERIFYING",
+                          "COMPLETED",
+                          "CANCELLED",
+                          "ARCHIVED",
+                          "SUPERSEDED"
+                        ],
+                        "description": "Unified work status for initiatives and tasks"
+                      },
+                      "priority": {
+                        "type": "string",
+                        "enum": [
+                          "LOW",
+                          "MEDIUM",
+                          "HIGH",
+                          "CRITICAL"
+                        ],
+                        "description": "The priority level of an item.",
+                        "example": "HIGH"
+                      },
+                      "dueDate": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "assigneeId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "tag": {
+                        "type": "string",
+                        "enum": [
+                          "product",
+                          "frontend",
+                          "backend",
+                          "infra",
+                          "design",
+                          "AI"
+                        ],
+                        "description": "Coarse-grained classification of what kind of work a FEATURE task\nrepresents. Single source of truth — every Feature-shaped DTO that\nsurfaces the tag references this enum.\n\nValues:\n  * `product` — user-facing product capabilities and outcomes.\n  * `frontend` — client/UI-shaped delivery (web, mobile, surfaces).\n  * `backend` — server/API/data-shaped delivery.\n  * `infra` — platform, deployment, observability, build, runtime.\n  * `design` — design-system, visual, or UX research deliverables.\n  * `AI` — AI/agent-shaped delivery: prompts, agent orchestration, runners.\n\nSet on every FEATURE task at creation time. Other task types\n(STANDARD, BUG, GOAL) do not carry a tag.\n",
+                        "example": "backend"
+                      },
+                      "serviceIds": {
+                        "type": "array",
+                        "description": "Optional complete known replacement Service assignment array for a work-item type whose project-effective registry role is work-item. Preserve this value as a JSON array. Repeated IDs are accepted with an advisory finding and produce one assignment per unique valid ID. Generic work-item authoring continues to require project-valid references, and the field is rejected for other registry roles. For plan-materialized STANDARD children of PLAN_STAGE, omitted or empty Service coverage remains admissible after plan-specific advisory normalization; invalid project Service IDs are omitted before persistence.",
+                        "items": {
+                          "type": "string",
+                          "format": "branded-ServiceId",
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          "description": "Unique identifier for a service (branded type)",
+                          "example": "550e8400-e29b-41d4-a716-446655440015",
+                          "x-typescript-type": "ServiceId",
+                          "x-brand": "ServiceId",
+                          "x-semantic-type": "resource-identifier"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "op",
+                      "ref"
+                    ],
+                    "properties": {
+                      "op": {
+                        "type": "string",
+                        "enum": [
+                          "workItem.delete"
+                        ]
+                      },
+                      "ref": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "id"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "existing"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "tempId"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "temporary"
+                                ]
+                              },
+                              "tempId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                              }
+                            }
+                          }
+                        ],
+                        "discriminator": {
+                          "propertyName": "refType",
+                          "mapping": {
+                            "existing": "#/ExistingWorkItemIdentity",
+                            "temporary": "#/TemporaryWorkItemIdentity"
+                          }
+                        },
+                        "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "op",
+                      "ref",
+                      "key",
+                      "content"
+                    ],
+                    "properties": {
+                      "op": {
+                        "type": "string",
+                        "enum": [
+                          "section.replace"
+                        ]
+                      },
+                      "ref": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "id"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "existing"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "tempId"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "temporary"
+                                ]
+                              },
+                              "tempId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                              }
+                            }
+                          }
+                        ],
+                        "discriminator": {
+                          "propertyName": "refType",
+                          "mapping": {
+                            "existing": "#/ExistingWorkItemIdentity",
+                            "temporary": "#/TemporaryWorkItemIdentity"
+                          }
+                        },
+                        "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                      },
+                      "key": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "content": {
+                        "anyOf": [
+                          {
+                            "description": "Any JSON value. Markdown sections use strings; schema-backed JSON sections may use objects, arrays, numbers, booleans, or null; html/css sections use the strict WorkItemHtmlCssSectionContent object; structured-mockup sections use the versioned WorkItemStructuredMockupSectionContent object. This envelope remains intentionally broad so validation can dispatch by the resolved section definition.\n"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "op",
+                      "ref",
+                      "key"
+                    ],
+                    "properties": {
+                      "op": {
+                        "type": "string",
+                        "enum": [
+                          "section.clear"
+                        ]
+                      },
+                      "ref": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "id"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "existing"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "tempId"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "temporary"
+                                ]
+                              },
+                              "tempId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                              }
+                            }
+                          }
+                        ],
+                        "discriminator": {
+                          "propertyName": "refType",
+                          "mapping": {
+                            "existing": "#/ExistingWorkItemIdentity",
+                            "temporary": "#/TemporaryWorkItemIdentity"
+                          }
+                        },
+                        "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                      },
+                      "key": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  },
+                  {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "op",
+                          "ref",
+                          "source",
+                          "target",
+                          "edgeType"
+                        ],
+                        "properties": {
+                          "op": {
+                            "type": "string",
+                            "enum": [
+                              "relationship.create"
+                            ]
+                          },
+                          "ref": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "tempId"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "temporary"
+                                ]
+                              },
+                              "tempId": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            }
+                          },
+                          "source": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "existing"
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                  }
+                                }
+                              }
+                            ],
+                            "discriminator": {
+                              "propertyName": "refType",
+                              "mapping": {
+                                "existing": "#/ExistingWorkItemIdentity",
+                                "temporary": "#/TemporaryWorkItemIdentity"
+                              }
+                            },
+                            "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                          },
+                          "target": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "existing"
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                  }
+                                }
+                              }
+                            ],
+                            "discriminator": {
+                              "propertyName": "refType",
+                              "mapping": {
+                                "existing": "#/ExistingWorkItemIdentity",
+                                "temporary": "#/TemporaryWorkItemIdentity"
+                              }
+                            },
+                            "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                          },
+                          "edgeType": {
+                            "type": "string",
+                            "enum": [
+                              "RELATED_TO",
+                              "DEPENDS_ON",
+                              "DERIVES_FROM",
+                              "SUPERSEDES",
+                              "CONTRADICTS",
+                              "EVOLVES",
+                              "TRACKS",
+                              "PROPOSED_TOGETHER",
+                              "FULFILLED_BY",
+                              "GUARANTEES",
+                              "IMPLEMENTS",
+                              "CONSUMES"
+                            ],
+                            "description": "Agent-authored relationship types in the meta category. GUARANTEES, IMPLEMENTS and CONSUMES connect TASK DIAGRAM_ELEMENT sources to TASK CONTRACT targets."
+                          },
+                          "category": {
+                            "type": "string",
+                            "enum": [
+                              "meta"
+                            ]
+                          },
+                          "direction": {
+                            "anyOf": [
+                              {
+                                "allOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "forward",
+                                      "backward"
+                                    ],
+                                    "description": "Direction declared on workflow flow edges where the direction matters to rendering or validation. `STANDARD` and `CONDITIONAL` edges require this field. `LOOP` edges do not carry it because the source step is also the return point.\n"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "predicate": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "reasoning": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "metadata": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": true
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "op",
+                          "ref",
+                          "source",
+                          "target",
+                          "edgeType",
+                          "category",
+                          "direction"
+                        ],
+                        "properties": {
+                          "op": {
+                            "type": "string",
+                            "enum": [
+                              "relationship.create"
+                            ]
+                          },
+                          "ref": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "tempId"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "temporary"
+                                ]
+                              },
+                              "tempId": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            }
+                          },
+                          "source": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "existing"
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                  }
+                                }
+                              }
+                            ],
+                            "discriminator": {
+                              "propertyName": "refType",
+                              "mapping": {
+                                "existing": "#/ExistingWorkItemIdentity",
+                                "temporary": "#/TemporaryWorkItemIdentity"
+                              }
+                            },
+                            "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                          },
+                          "target": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "existing"
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                  }
+                                }
+                              }
+                            ],
+                            "discriminator": {
+                              "propertyName": "refType",
+                              "mapping": {
+                                "existing": "#/ExistingWorkItemIdentity",
+                                "temporary": "#/TemporaryWorkItemIdentity"
+                              }
+                            },
+                            "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                          },
+                          "edgeType": {
+                            "type": "string",
+                            "enum": [
+                              "STANDARD"
+                            ]
+                          },
+                          "category": {
+                            "type": "string",
+                            "enum": [
+                              "flow"
+                            ]
+                          },
+                          "direction": {
+                            "type": "string",
+                            "enum": [
+                              "forward",
+                              "backward"
+                            ],
+                            "description": "Direction declared on workflow flow edges where the direction matters to rendering or validation. `STANDARD` and `CONDITIONAL` edges require this field. `LOOP` edges do not carry it because the source step is also the return point.\n"
+                          },
+                          "reasoning": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "metadata": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": true
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "op",
+                          "ref",
+                          "source",
+                          "target",
+                          "edgeType",
+                          "category",
+                          "direction",
+                          "predicate"
+                        ],
+                        "properties": {
+                          "op": {
+                            "type": "string",
+                            "enum": [
+                              "relationship.create"
+                            ]
+                          },
+                          "ref": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "tempId"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "temporary"
+                                ]
+                              },
+                              "tempId": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            }
+                          },
+                          "source": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "existing"
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                  }
+                                }
+                              }
+                            ],
+                            "discriminator": {
+                              "propertyName": "refType",
+                              "mapping": {
+                                "existing": "#/ExistingWorkItemIdentity",
+                                "temporary": "#/TemporaryWorkItemIdentity"
+                              }
+                            },
+                            "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                          },
+                          "target": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "existing"
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                  }
+                                }
+                              }
+                            ],
+                            "discriminator": {
+                              "propertyName": "refType",
+                              "mapping": {
+                                "existing": "#/ExistingWorkItemIdentity",
+                                "temporary": "#/TemporaryWorkItemIdentity"
+                              }
+                            },
+                            "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                          },
+                          "edgeType": {
+                            "type": "string",
+                            "enum": [
+                              "CONDITIONAL"
+                            ]
+                          },
+                          "category": {
+                            "type": "string",
+                            "enum": [
+                              "flow"
+                            ]
+                          },
+                          "direction": {
+                            "type": "string",
+                            "enum": [
+                              "forward",
+                              "backward"
+                            ],
+                            "description": "Direction declared on workflow flow edges where the direction matters to rendering or validation. `STANDARD` and `CONDITIONAL` edges require this field. `LOOP` edges do not carry it because the source step is also the return point.\n"
+                          },
+                          "predicate": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200,
+                            "pattern": "^(?=.*[A-Za-z0-9_\\.:/=()!<>&|+\\-])[A-Za-z0-9_ .:/=()!<>&|+\\-]+$",
+                            "description": "Non-blank branch label or predicate carried by a CONDITIONAL workflow edge or an optionally conditional LOOP workflow edge. Values are limited to printable ASCII identifier, comparison, boolean, grouping, path, and arithmetic characters so every service applies the same portable predicate syntax.\n"
+                          },
+                          "reasoning": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "metadata": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": true
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "op",
+                          "ref",
+                          "source",
+                          "target",
+                          "edgeType",
+                          "category"
+                        ],
+                        "properties": {
+                          "op": {
+                            "type": "string",
+                            "enum": [
+                              "relationship.create"
+                            ]
+                          },
+                          "ref": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "tempId"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "temporary"
+                                ]
+                              },
+                              "tempId": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            }
+                          },
+                          "source": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "existing"
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                  }
+                                }
+                              }
+                            ],
+                            "discriminator": {
+                              "propertyName": "refType",
+                              "mapping": {
+                                "existing": "#/ExistingWorkItemIdentity",
+                                "temporary": "#/TemporaryWorkItemIdentity"
+                              }
+                            },
+                            "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                          },
+                          "target": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "existing"
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                  }
+                                }
+                              }
+                            ],
+                            "discriminator": {
+                              "propertyName": "refType",
+                              "mapping": {
+                                "existing": "#/ExistingWorkItemIdentity",
+                                "temporary": "#/TemporaryWorkItemIdentity"
+                              }
+                            },
+                            "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                          },
+                          "edgeType": {
+                            "type": "string",
+                            "enum": [
+                              "LOOP"
+                            ]
+                          },
+                          "category": {
+                            "type": "string",
+                            "enum": [
+                              "flow"
+                            ]
+                          },
+                          "predicate": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200,
+                            "pattern": "^(?=.*[A-Za-z0-9_\\.:/=()!<>&|+\\-])[A-Za-z0-9_ .:/=()!<>&|+\\-]+$",
+                            "description": "Non-blank branch label or predicate carried by a CONDITIONAL workflow edge or an optionally conditional LOOP workflow edge. Values are limited to printable ASCII identifier, comparison, boolean, grouping, path, and arithmetic characters so every service applies the same portable predicate syntax.\n"
+                          },
+                          "reasoning": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "metadata": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": true
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "edgeType",
+                      "mapping": {
+                        "RELATED_TO": "#/WorkItemMetaRelationshipCreateOperation",
+                        "DEPENDS_ON": "#/WorkItemMetaRelationshipCreateOperation",
+                        "DERIVES_FROM": "#/WorkItemMetaRelationshipCreateOperation",
+                        "SUPERSEDES": "#/WorkItemMetaRelationshipCreateOperation",
+                        "CONTRADICTS": "#/WorkItemMetaRelationshipCreateOperation",
+                        "EVOLVES": "#/WorkItemMetaRelationshipCreateOperation",
+                        "TRACKS": "#/WorkItemMetaRelationshipCreateOperation",
+                        "PROPOSED_TOGETHER": "#/WorkItemMetaRelationshipCreateOperation",
+                        "FULFILLED_BY": "#/WorkItemMetaRelationshipCreateOperation",
+                        "GUARANTEES": "#/WorkItemMetaRelationshipCreateOperation",
+                        "IMPLEMENTS": "#/WorkItemMetaRelationshipCreateOperation",
+                        "CONSUMES": "#/WorkItemMetaRelationshipCreateOperation",
+                        "STANDARD": "#/WorkItemStandardRelationshipCreateOperation",
+                        "CONDITIONAL": "#/WorkItemConditionalRelationshipCreateOperation",
+                        "LOOP": "#/WorkItemLoopRelationshipCreateOperation"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "op",
+                      "ref"
+                    ],
+                    "properties": {
+                      "op": {
+                        "type": "string",
+                        "enum": [
+                          "relationship.update"
+                        ]
+                      },
+                      "ref": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "id"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "existing"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "tempId"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "temporary"
+                                ]
+                              },
+                              "tempId": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            }
+                          }
+                        ],
+                        "discriminator": {
+                          "propertyName": "refType",
+                          "mapping": {
+                            "existing": "#/ExistingRelationshipIdentity",
+                            "temporary": "#/TemporaryRelationshipIdentity"
+                          }
+                        }
+                      },
+                      "source": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "id"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "existing"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "tempId"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "temporary"
+                                ]
+                              },
+                              "tempId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                              }
+                            }
+                          }
+                        ],
+                        "discriminator": {
+                          "propertyName": "refType",
+                          "mapping": {
+                            "existing": "#/ExistingWorkItemIdentity",
+                            "temporary": "#/TemporaryWorkItemIdentity"
+                          }
+                        },
+                        "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                      },
+                      "sourceEntityType": {
+                        "type": "string",
+                        "enum": [
+                          "ARTIFACT",
+                          "INITIATIVE",
+                          "PROJECT",
+                          "TASK",
+                          "MESSAGE",
+                          "CONVERSATION",
+                          "DESIGN_DOC",
+                          "AGENT_SESSION",
+                          "VALIDATION_SESSION",
+                          "SERVICE",
+                          "REPORT",
+                          "PROPOSAL",
+                          "IMPLEMENTATION_HINT"
+                        ],
+                        "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
+                      },
+                      "target": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "id"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "existing"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "tempId"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "temporary"
+                                ]
+                              },
+                              "tempId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                              }
+                            }
+                          }
+                        ],
+                        "discriminator": {
+                          "propertyName": "refType",
+                          "mapping": {
+                            "existing": "#/ExistingWorkItemIdentity",
+                            "temporary": "#/TemporaryWorkItemIdentity"
+                          }
+                        },
+                        "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                      },
+                      "targetEntityType": {
+                        "type": "string",
+                        "enum": [
+                          "ARTIFACT",
+                          "INITIATIVE",
+                          "PROJECT",
+                          "TASK",
+                          "MESSAGE",
+                          "CONVERSATION",
+                          "DESIGN_DOC",
+                          "AGENT_SESSION",
+                          "VALIDATION_SESSION",
+                          "SERVICE",
+                          "REPORT",
+                          "PROPOSAL",
+                          "IMPLEMENTATION_HINT"
+                        ],
+                        "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
+                      },
+                      "edgeType": {
+                        "type": "string",
+                        "enum": [
+                          "RELATED_TO",
+                          "DEPENDS_ON",
+                          "DERIVES_FROM",
+                          "SUPERSEDES",
+                          "CONTRADICTS",
+                          "EVOLVES",
+                          "TRACKS",
+                          "PROPOSED_TOGETHER",
+                          "FULFILLED_BY",
+                          "GUARANTEES",
+                          "IMPLEMENTS",
+                          "CONSUMES",
+                          "STANDARD",
+                          "CONDITIONAL",
+                          "LOOP"
+                        ],
+                        "description": "Relationship type for agent-authored topology edges between two entities. Each value carries a distinct semantic:\n- RELATED_TO: source and target share context but have no directional\n  dependency, derivation, or replacement relationship.\n- DEPENDS_ON: source entity requires the target entity to be in place\n  (functionally or temporally) before it is meaningful or completable.\n- DERIVES_FROM: target entity is the origin or basis from which the\n  source entity was produced; the target remains canonical and the\n  source is a downstream artifact.\n- SUPERSEDES: source entity replaces the target entity; the target is\n  displaced and should no longer be treated as canonical.\n- CONTRADICTS: source entity disagrees with the target entity; both\n  remain visible so the conflict can be resolved by an authoring agent.\n- EVOLVES: source entity refines, extends, or iterates on the target\n  entity, which remains canonical. Distinct from SUPERSEDES (target is\n  displaced) and DERIVES_FROM (target is origin only and the source\n  stands apart).\n- TRACKS: source references the target as a tracked deliverable. The\n  meaning is composed with source and target type — the canonical\n  use is a GOAL-typed task referencing a FEATURE / STANDARD / BUG task\n  or a PLAN it expects to ship. DESIGN_DOC and other GOAL targets are\n  rejected at the attach boundary (track the parent feature or plan\n  instead). Validation lives in the boundary handler, not the edge\n  service.\n- PROPOSED_TOGETHER: source and target were created or modified by the\n  same proposal, making them co-authored siblings. Symmetric (the edge\n  carries no direction beyond the storage tuple) and system-emitted\n  (derived by the Graph service from a proposal-approved event rather\n  than authored by a user or agent). Carries no semantic claim about\n  dependency, derivation, or replacement — only that the two entities\n  share a proposal origin. Always paired with source `system`.\n- FULFILLED_BY: meta edge from a WORKFLOW_STEP work item to the work item\n  where that step's implementation lives. It remains visible in generic\n  meta-edge surfaces and is never categorized as flow.\n- STANDARD: flow edge from one WORKFLOW_STEP to the next ordinary step in\n  the same workflow graph. Carries category `flow` and requires direction.\n- CONDITIONAL: flow edge from a WORKFLOW_STEP to the next branch selected\n  by a predicate. Carries category `flow` and requires both direction and\n  predicate.\n- LOOP: flow edge representing a self-loop or return loop in a workflow\n  graph. Carries category `flow`, does not carry direction, and may carry\n  a predicate when the return is conditional.\n"
+                      },
+                      "category": {
+                        "type": "string",
+                        "enum": [
+                          "meta",
+                          "flow"
+                        ],
+                        "default": "meta",
+                        "description": "Rendering and traversal category for an edge. Existing edge records and callers that omit this field default to `meta`. Flow-category edges (`STANDARD`, `CONDITIONAL`, `LOOP`) are workflow structure and must stay out of generic related-entity, supersede/evolves, task-list, and link-discovery surfaces. Meta-category edges remain the regular topology and fulfillment surface.\n"
+                      },
+                      "direction": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "forward",
+                              "backward"
+                            ],
+                            "description": "Direction declared on workflow flow edges where the direction matters to rendering or validation. `STANDARD` and `CONDITIONAL` edges require this field. `LOOP` edges do not carry it because the source step is also the return point.\n"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "predicate": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "reasoning": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "metadata": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": true
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "op",
+                      "ref"
+                    ],
+                    "properties": {
+                      "op": {
+                        "type": "string",
+                        "enum": [
+                          "relationship.delete"
+                        ]
+                      },
+                      "ref": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "id"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "existing"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "tempId"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "temporary"
+                                ]
+                              },
+                              "tempId": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            }
+                          }
+                        ],
+                        "discriminator": {
+                          "propertyName": "refType",
+                          "mapping": {
+                            "existing": "#/ExistingRelationshipIdentity",
+                            "temporary": "#/TemporaryRelationshipIdentity"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "op",
+                      "root",
+                      "sectionKey",
+                      "entries"
+                    ],
+                    "properties": {
+                      "op": {
+                        "type": "string",
+                        "enum": [
+                          "layout.replace"
+                        ]
+                      },
+                      "root": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "id"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "existing"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "tempId"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "temporary"
+                                ]
+                              },
+                              "tempId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                              }
+                            }
+                          }
+                        ],
+                        "discriminator": {
+                          "propertyName": "refType",
+                          "mapping": {
+                            "existing": "#/ExistingWorkItemIdentity",
+                            "temporary": "#/TemporaryWorkItemIdentity"
+                          }
+                        },
+                        "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                      },
+                      "sectionKey": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "entries": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "node",
+                            "position"
+                          ],
+                          "properties": {
+                            "node": {
+                              "oneOf": [
+                                {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "refType",
+                                    "id"
+                                  ],
+                                  "properties": {
+                                    "refType": {
+                                      "type": "string",
+                                      "enum": [
+                                        "existing"
+                                      ]
+                                    },
+                                    "id": {
+                                      "type": "string",
+                                      "format": "uuid"
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "refType",
+                                    "tempId"
+                                  ],
+                                  "properties": {
+                                    "refType": {
+                                      "type": "string",
+                                      "enum": [
+                                        "temporary"
+                                      ]
+                                    },
+                                    "tempId": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                    }
+                                  }
+                                }
+                              ],
+                              "discriminator": {
+                                "propertyName": "refType",
+                                "mapping": {
+                                  "existing": "#/ExistingWorkItemIdentity",
+                                  "temporary": "#/TemporaryWorkItemIdentity"
+                                }
+                              }
+                            },
+                            "position": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "x",
+                                "y"
+                              ],
+                              "properties": {
+                                "x": {
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "type": "number"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "op",
+                      "root",
+                      "sectionKey"
+                    ],
+                    "properties": {
+                      "op": {
+                        "type": "string",
+                        "enum": [
+                          "layout.clear"
+                        ]
+                      },
+                      "root": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "id"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "existing"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "tempId"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "temporary"
+                                ]
+                              },
+                              "tempId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                              }
+                            }
+                          }
+                        ],
+                        "discriminator": {
+                          "propertyName": "refType",
+                          "mapping": {
+                            "existing": "#/ExistingWorkItemIdentity",
+                            "temporary": "#/TemporaryWorkItemIdentity"
+                          }
+                        },
+                        "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                      },
+                      "sectionKey": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "op",
+                  "mapping": {
+                    "workItem.create": "#/WorkItemCreateOperation",
+                    "workItem.update": "#/WorkItemUpdateOperation",
+                    "workItem.delete": "#/WorkItemDeleteOperation",
+                    "section.replace": "#/WorkItemSectionReplaceOperation",
+                    "section.clear": "#/WorkItemSectionClearOperation",
+                    "relationship.create": "#/WorkItemRelationshipCreateOperation",
+                    "relationship.update": "#/WorkItemRelationshipUpdateOperation",
+                    "relationship.delete": "#/WorkItemRelationshipDeleteOperation",
+                    "layout.replace": "#/WorkItemLayoutReplaceOperation",
+                    "layout.clear": "#/WorkItemLayoutClearOperation"
+                  }
+                }
+              }
+            },
+            "layoutBoundary": {
+              "type": "array",
+              "description": "Complete set of work-item identities expected in the root graph layout boundary.",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "id"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "existing"
+                        ]
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "tempId"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "temporary"
+                        ]
+                      },
+                      "tempId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                      }
+                    }
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "refType",
+                  "mapping": {
+                    "existing": "#/ExistingWorkItemIdentity",
+                    "temporary": "#/TemporaryWorkItemIdentity"
+                  }
+                }
+              }
+            }
+          }
+        },
         "result": {
-          "description": "Complete selected entity projection including all unchanged sections; never a patch or an overlay of independent futures.",
+          "description": "Complete selected entity projection including all unchanged sections and, for graph-capable work items, the complete generic graph projection. Never a patch or an overlay of independent futures.",
           "oneOf": [
             {
               "allOf": [
@@ -1715,7 +4834,950 @@ export const futureRevisionMutationSchema = {
                   "type": "object",
                   "required": [
                     "sections"
-                  ]
+                  ],
+                  "properties": {
+                    "graph": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "valid",
+                        "projectedRoot",
+                        "children",
+                        "sections",
+                        "incidentRelationships",
+                        "identityLabels",
+                        "issues",
+                        "warnings"
+                      ],
+                      "properties": {
+                        "valid": {
+                          "type": "boolean"
+                        },
+                        "projectedRoot": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "identity",
+                                "label",
+                                "type",
+                                "name",
+                                "sections",
+                                "deleted"
+                              ],
+                              "properties": {
+                                "identity": {
+                                  "oneOf": [
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "refType",
+                                        "id"
+                                      ],
+                                      "properties": {
+                                        "refType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "existing"
+                                          ]
+                                        },
+                                        "id": {
+                                          "type": "string",
+                                          "format": "uuid"
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "refType",
+                                        "tempId"
+                                      ],
+                                      "properties": {
+                                        "refType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "temporary"
+                                          ]
+                                        },
+                                        "tempId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                        }
+                                      }
+                                    }
+                                  ],
+                                  "discriminator": {
+                                    "propertyName": "refType",
+                                    "mapping": {
+                                      "existing": "#/ExistingWorkItemIdentity",
+                                      "temporary": "#/TemporaryWorkItemIdentity"
+                                    }
+                                  },
+                                  "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                                },
+                                "label": {
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "type": "string",
+                                  "description": "An open work-item type key — either one of the system values (STANDARD, FEATURE, GOAL, BUG, PLAN, PLAN_STAGE, CONTRACT, DIAGRAM, DIAGRAM_ELEMENT, TASK_MONITOR) or a project-scoped custom key (e.g. \"MARKETING\"). Used wherever a type filter or type reference must accept custom types registered via the work-item type registry.\n",
+                                  "example": "STANDARD"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "parent": {
+                                  "anyOf": [
+                                    {
+                                      "oneOf": [
+                                        {
+                                          "type": "object",
+                                          "additionalProperties": false,
+                                          "required": [
+                                            "refType",
+                                            "id"
+                                          ],
+                                          "properties": {
+                                            "refType": {
+                                              "type": "string",
+                                              "enum": [
+                                                "existing"
+                                              ]
+                                            },
+                                            "id": {
+                                              "type": "string",
+                                              "format": "uuid"
+                                            }
+                                          }
+                                        },
+                                        {
+                                          "type": "object",
+                                          "additionalProperties": false,
+                                          "required": [
+                                            "refType",
+                                            "tempId"
+                                          ],
+                                          "properties": {
+                                            "refType": {
+                                              "type": "string",
+                                              "enum": [
+                                                "temporary"
+                                              ]
+                                            },
+                                            "tempId": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                            }
+                                          }
+                                        }
+                                      ],
+                                      "discriminator": {
+                                        "propertyName": "refType",
+                                        "mapping": {
+                                          "existing": "#/ExistingWorkItemIdentity",
+                                          "temporary": "#/TemporaryWorkItemIdentity"
+                                        }
+                                      },
+                                      "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "GENERATED",
+                                    "BACKLOG",
+                                    "READY",
+                                    "REFINING",
+                                    "BLOCKED",
+                                    "REFINING_DESCRIPTION",
+                                    "REFINING_DETAILS",
+                                    "REFINING_ACCEPTANCE_CRITERIA",
+                                    "GENERATING_DESCRIPTION",
+                                    "GENERATING_DETAILS",
+                                    "GENERATING_DESCRIPTION_AND_DETAILS",
+                                    "GENERATING_ACCEPTANCE_CRITERIA",
+                                    "GENERATING_ALL",
+                                    "ACTIVE",
+                                    "ON_HOLD",
+                                    "VERIFYING",
+                                    "COMPLETED",
+                                    "CANCELLED",
+                                    "ARCHIVED",
+                                    "SUPERSEDED"
+                                  ],
+                                  "description": "Unified work status for initiatives and tasks"
+                                },
+                                "priority": {
+                                  "type": "string",
+                                  "enum": [
+                                    "LOW",
+                                    "MEDIUM",
+                                    "HIGH",
+                                    "CRITICAL"
+                                  ],
+                                  "description": "The priority level of an item.",
+                                  "example": "HIGH"
+                                },
+                                "dueDate": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "format": "date-time"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "assigneeId": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "format": "uuid"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "tag": {
+                                  "type": "string",
+                                  "enum": [
+                                    "product",
+                                    "frontend",
+                                    "backend",
+                                    "infra",
+                                    "design",
+                                    "AI"
+                                  ],
+                                  "description": "Coarse-grained classification of what kind of work a FEATURE task\nrepresents. Single source of truth — every Feature-shaped DTO that\nsurfaces the tag references this enum.\n\nValues:\n  * `product` — user-facing product capabilities and outcomes.\n  * `frontend` — client/UI-shaped delivery (web, mobile, surfaces).\n  * `backend` — server/API/data-shaped delivery.\n  * `infra` — platform, deployment, observability, build, runtime.\n  * `design` — design-system, visual, or UX research deliverables.\n  * `AI` — AI/agent-shaped delivery: prompts, agent orchestration, runners.\n\nSet on every FEATURE task at creation time. Other task types\n(STANDARD, BUG, GOAL) do not carry a tag.\n",
+                                  "example": "backend"
+                                },
+                                "serviceIds": {
+                                  "type": "array",
+                                  "uniqueItems": true,
+                                  "items": {
+                                    "type": "string",
+                                    "format": "branded-ServiceId",
+                                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                                    "description": "Unique identifier for a service (branded type)",
+                                    "example": "550e8400-e29b-41d4-a716-446655440015",
+                                    "x-typescript-type": "ServiceId",
+                                    "x-brand": "ServiceId",
+                                    "x-semantic-type": "resource-identifier"
+                                  }
+                                },
+                                "sections": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "key",
+                                      "content"
+                                    ],
+                                    "properties": {
+                                      "key": {
+                                        "type": "string"
+                                      },
+                                      "content": {
+                                        "anyOf": [
+                                          {
+                                            "description": "Any JSON value. Markdown sections use strings; schema-backed JSON sections may use objects, arrays, numbers, booleans, or null; html/css sections use the strict WorkItemHtmlCssSectionContent object; structured-mockup sections use the versioned WorkItemStructuredMockupSectionContent object. This envelope remains intentionally broad so validation can dispatch by the resolved section definition.\n"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                },
+                                "deleted": {
+                                  "type": "boolean"
+                                }
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "children": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "identity",
+                              "label",
+                              "type",
+                              "name",
+                              "sections",
+                              "deleted"
+                            ],
+                            "properties": {
+                              "identity": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "id"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "existing"
+                                        ]
+                                      },
+                                      "id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "tempId"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "temporary"
+                                        ]
+                                      },
+                                      "tempId": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                      }
+                                    }
+                                  }
+                                ],
+                                "discriminator": {
+                                  "propertyName": "refType",
+                                  "mapping": {
+                                    "existing": "#/ExistingWorkItemIdentity",
+                                    "temporary": "#/TemporaryWorkItemIdentity"
+                                  }
+                                },
+                                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string",
+                                "description": "An open work-item type key — either one of the system values (STANDARD, FEATURE, GOAL, BUG, PLAN, PLAN_STAGE, CONTRACT, DIAGRAM, DIAGRAM_ELEMENT, TASK_MONITOR) or a project-scoped custom key (e.g. \"MARKETING\"). Used wherever a type filter or type reference must accept custom types registered via the work-item type registry.\n",
+                                "example": "STANDARD"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "parent": {
+                                "anyOf": [
+                                  {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "refType",
+                                          "id"
+                                        ],
+                                        "properties": {
+                                          "refType": {
+                                            "type": "string",
+                                            "enum": [
+                                              "existing"
+                                            ]
+                                          },
+                                          "id": {
+                                            "type": "string",
+                                            "format": "uuid"
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "refType",
+                                          "tempId"
+                                        ],
+                                        "properties": {
+                                          "refType": {
+                                            "type": "string",
+                                            "enum": [
+                                              "temporary"
+                                            ]
+                                          },
+                                          "tempId": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                          }
+                                        }
+                                      }
+                                    ],
+                                    "discriminator": {
+                                      "propertyName": "refType",
+                                      "mapping": {
+                                        "existing": "#/ExistingWorkItemIdentity",
+                                        "temporary": "#/TemporaryWorkItemIdentity"
+                                      }
+                                    },
+                                    "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "GENERATED",
+                                  "BACKLOG",
+                                  "READY",
+                                  "REFINING",
+                                  "BLOCKED",
+                                  "REFINING_DESCRIPTION",
+                                  "REFINING_DETAILS",
+                                  "REFINING_ACCEPTANCE_CRITERIA",
+                                  "GENERATING_DESCRIPTION",
+                                  "GENERATING_DETAILS",
+                                  "GENERATING_DESCRIPTION_AND_DETAILS",
+                                  "GENERATING_ACCEPTANCE_CRITERIA",
+                                  "GENERATING_ALL",
+                                  "ACTIVE",
+                                  "ON_HOLD",
+                                  "VERIFYING",
+                                  "COMPLETED",
+                                  "CANCELLED",
+                                  "ARCHIVED",
+                                  "SUPERSEDED"
+                                ],
+                                "description": "Unified work status for initiatives and tasks"
+                              },
+                              "priority": {
+                                "type": "string",
+                                "enum": [
+                                  "LOW",
+                                  "MEDIUM",
+                                  "HIGH",
+                                  "CRITICAL"
+                                ],
+                                "description": "The priority level of an item.",
+                                "example": "HIGH"
+                              },
+                              "dueDate": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "assigneeId": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "tag": {
+                                "type": "string",
+                                "enum": [
+                                  "product",
+                                  "frontend",
+                                  "backend",
+                                  "infra",
+                                  "design",
+                                  "AI"
+                                ],
+                                "description": "Coarse-grained classification of what kind of work a FEATURE task\nrepresents. Single source of truth — every Feature-shaped DTO that\nsurfaces the tag references this enum.\n\nValues:\n  * `product` — user-facing product capabilities and outcomes.\n  * `frontend` — client/UI-shaped delivery (web, mobile, surfaces).\n  * `backend` — server/API/data-shaped delivery.\n  * `infra` — platform, deployment, observability, build, runtime.\n  * `design` — design-system, visual, or UX research deliverables.\n  * `AI` — AI/agent-shaped delivery: prompts, agent orchestration, runners.\n\nSet on every FEATURE task at creation time. Other task types\n(STANDARD, BUG, GOAL) do not carry a tag.\n",
+                                "example": "backend"
+                              },
+                              "serviceIds": {
+                                "type": "array",
+                                "uniqueItems": true,
+                                "items": {
+                                  "type": "string",
+                                  "format": "branded-ServiceId",
+                                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                                  "description": "Unique identifier for a service (branded type)",
+                                  "example": "550e8400-e29b-41d4-a716-446655440015",
+                                  "x-typescript-type": "ServiceId",
+                                  "x-brand": "ServiceId",
+                                  "x-semantic-type": "resource-identifier"
+                                }
+                              },
+                              "sections": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "key",
+                                    "content"
+                                  ],
+                                  "properties": {
+                                    "key": {
+                                      "type": "string"
+                                    },
+                                    "content": {
+                                      "anyOf": [
+                                        {
+                                          "description": "Any JSON value. Markdown sections use strings; schema-backed JSON sections may use objects, arrays, numbers, booleans, or null; html/css sections use the strict WorkItemHtmlCssSectionContent object; structured-mockup sections use the versioned WorkItemStructuredMockupSectionContent object. This envelope remains intentionally broad so validation can dispatch by the resolved section definition.\n"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              },
+                              "deleted": {
+                                "type": "boolean"
+                              }
+                            }
+                          }
+                        },
+                        "sections": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "key",
+                              "content"
+                            ],
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "content": {
+                                "anyOf": [
+                                  {
+                                    "description": "Any JSON value. Markdown sections use strings; schema-backed JSON sections may use objects, arrays, numbers, booleans, or null; html/css sections use the strict WorkItemHtmlCssSectionContent object; structured-mockup sections use the versioned WorkItemStructuredMockupSectionContent object. This envelope remains intentionally broad so validation can dispatch by the resolved section definition.\n"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        },
+                        "incidentRelationships": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "identity",
+                              "label",
+                              "source",
+                              "target",
+                              "edgeType",
+                              "deleted"
+                            ],
+                            "properties": {
+                              "identity": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "id"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "existing"
+                                        ]
+                                      },
+                                      "id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "tempId"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "temporary"
+                                        ]
+                                      },
+                                      "tempId": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      }
+                                    }
+                                  }
+                                ],
+                                "discriminator": {
+                                  "propertyName": "refType",
+                                  "mapping": {
+                                    "existing": "#/ExistingRelationshipIdentity",
+                                    "temporary": "#/TemporaryRelationshipIdentity"
+                                  }
+                                }
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "source": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "id"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "existing"
+                                        ]
+                                      },
+                                      "id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "tempId"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "temporary"
+                                        ]
+                                      },
+                                      "tempId": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                      }
+                                    }
+                                  }
+                                ],
+                                "discriminator": {
+                                  "propertyName": "refType",
+                                  "mapping": {
+                                    "existing": "#/ExistingWorkItemIdentity",
+                                    "temporary": "#/TemporaryWorkItemIdentity"
+                                  }
+                                },
+                                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                              },
+                              "sourceEntityType": {
+                                "type": "string",
+                                "enum": [
+                                  "ARTIFACT",
+                                  "INITIATIVE",
+                                  "PROJECT",
+                                  "TASK",
+                                  "MESSAGE",
+                                  "CONVERSATION",
+                                  "DESIGN_DOC",
+                                  "AGENT_SESSION",
+                                  "VALIDATION_SESSION",
+                                  "SERVICE",
+                                  "REPORT",
+                                  "PROPOSAL",
+                                  "IMPLEMENTATION_HINT"
+                                ],
+                                "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
+                              },
+                              "target": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "id"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "existing"
+                                        ]
+                                      },
+                                      "id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "tempId"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "temporary"
+                                        ]
+                                      },
+                                      "tempId": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                      }
+                                    }
+                                  }
+                                ],
+                                "discriminator": {
+                                  "propertyName": "refType",
+                                  "mapping": {
+                                    "existing": "#/ExistingWorkItemIdentity",
+                                    "temporary": "#/TemporaryWorkItemIdentity"
+                                  }
+                                },
+                                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                              },
+                              "targetEntityType": {
+                                "type": "string",
+                                "enum": [
+                                  "ARTIFACT",
+                                  "INITIATIVE",
+                                  "PROJECT",
+                                  "TASK",
+                                  "MESSAGE",
+                                  "CONVERSATION",
+                                  "DESIGN_DOC",
+                                  "AGENT_SESSION",
+                                  "VALIDATION_SESSION",
+                                  "SERVICE",
+                                  "REPORT",
+                                  "PROPOSAL",
+                                  "IMPLEMENTATION_HINT"
+                                ],
+                                "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
+                              },
+                              "edgeType": {
+                                "type": "string",
+                                "enum": [
+                                  "RELATED_TO",
+                                  "DEPENDS_ON",
+                                  "DERIVES_FROM",
+                                  "SUPERSEDES",
+                                  "CONTRADICTS",
+                                  "EVOLVES",
+                                  "TRACKS",
+                                  "PROPOSED_TOGETHER",
+                                  "FULFILLED_BY",
+                                  "GUARANTEES",
+                                  "IMPLEMENTS",
+                                  "CONSUMES",
+                                  "STANDARD",
+                                  "CONDITIONAL",
+                                  "LOOP"
+                                ],
+                                "description": "Relationship type for agent-authored topology edges between two entities. Each value carries a distinct semantic:\n- RELATED_TO: source and target share context but have no directional\n  dependency, derivation, or replacement relationship.\n- DEPENDS_ON: source entity requires the target entity to be in place\n  (functionally or temporally) before it is meaningful or completable.\n- DERIVES_FROM: target entity is the origin or basis from which the\n  source entity was produced; the target remains canonical and the\n  source is a downstream artifact.\n- SUPERSEDES: source entity replaces the target entity; the target is\n  displaced and should no longer be treated as canonical.\n- CONTRADICTS: source entity disagrees with the target entity; both\n  remain visible so the conflict can be resolved by an authoring agent.\n- EVOLVES: source entity refines, extends, or iterates on the target\n  entity, which remains canonical. Distinct from SUPERSEDES (target is\n  displaced) and DERIVES_FROM (target is origin only and the source\n  stands apart).\n- TRACKS: source references the target as a tracked deliverable. The\n  meaning is composed with source and target type — the canonical\n  use is a GOAL-typed task referencing a FEATURE / STANDARD / BUG task\n  or a PLAN it expects to ship. DESIGN_DOC and other GOAL targets are\n  rejected at the attach boundary (track the parent feature or plan\n  instead). Validation lives in the boundary handler, not the edge\n  service.\n- PROPOSED_TOGETHER: source and target were created or modified by the\n  same proposal, making them co-authored siblings. Symmetric (the edge\n  carries no direction beyond the storage tuple) and system-emitted\n  (derived by the Graph service from a proposal-approved event rather\n  than authored by a user or agent). Carries no semantic claim about\n  dependency, derivation, or replacement — only that the two entities\n  share a proposal origin. Always paired with source `system`.\n- FULFILLED_BY: meta edge from a WORKFLOW_STEP work item to the work item\n  where that step's implementation lives. It remains visible in generic\n  meta-edge surfaces and is never categorized as flow.\n- STANDARD: flow edge from one WORKFLOW_STEP to the next ordinary step in\n  the same workflow graph. Carries category `flow` and requires direction.\n- CONDITIONAL: flow edge from a WORKFLOW_STEP to the next branch selected\n  by a predicate. Carries category `flow` and requires both direction and\n  predicate.\n- LOOP: flow edge representing a self-loop or return loop in a workflow\n  graph. Carries category `flow`, does not carry direction, and may carry\n  a predicate when the return is conditional.\n"
+                              },
+                              "category": {
+                                "type": "string",
+                                "enum": [
+                                  "meta",
+                                  "flow"
+                                ],
+                                "default": "meta",
+                                "description": "Rendering and traversal category for an edge. Existing edge records and callers that omit this field default to `meta`. Flow-category edges (`STANDARD`, `CONDITIONAL`, `LOOP`) are workflow structure and must stay out of generic related-entity, supersede/evolves, task-list, and link-discovery surfaces. Meta-category edges remain the regular topology and fulfillment surface.\n"
+                              },
+                              "direction": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "forward",
+                                      "backward"
+                                    ],
+                                    "description": "Direction declared on workflow flow edges where the direction matters to rendering or validation. `STANDARD` and `CONDITIONAL` edges require this field. `LOOP` edges do not carry it because the source step is also the return point.\n"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "predicate": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "reasoning": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "metadata": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": true
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "deleted": {
+                                "type": "boolean"
+                              }
+                            }
+                          }
+                        },
+                        "identityLabels": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "issues": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "field",
+                              "code",
+                              "reason",
+                              "layer"
+                            ],
+                            "properties": {
+                              "field": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "reason": {
+                                "type": "string"
+                              },
+                              "layer": {
+                                "type": "string",
+                                "enum": [
+                                  "structural",
+                                  "referential",
+                                  "permission"
+                                ]
+                              },
+                              "suggestion": {
+                                "type": "string"
+                              },
+                              "metadata": {
+                                "type": "object",
+                                "additionalProperties": true,
+                                "description": "Machine-readable identities and counts that locate the projected topology involved in this finding. Identity values use the same existing:/temporary: labels as the projected change-set response."
+                              }
+                            }
+                          }
+                        },
+                        "warnings": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "field",
+                              "code",
+                              "reason",
+                              "layer"
+                            ],
+                            "properties": {
+                              "field": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "reason": {
+                                "type": "string"
+                              },
+                              "layer": {
+                                "type": "string",
+                                "enum": [
+                                  "structural",
+                                  "referential",
+                                  "permission"
+                                ]
+                              },
+                              "suggestion": {
+                                "type": "string"
+                              },
+                              "metadata": {
+                                "type": "object",
+                                "additionalProperties": true,
+                                "description": "Machine-readable identities and counts that locate the projected topology involved in this finding. Identity values use the same existing:/temporary: labels as the projected change-set response."
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
               ]
             },
@@ -2173,6 +6235,2063 @@ export const futureRevisionAuthoringSchema = {
                       "order": {
                         "type": "integer",
                         "description": "Optional ordering index for rendering sections."
+                      }
+                    }
+                  }
+                },
+                "operations": {
+                  "type": "array",
+                  "description": "Generic graph edits within the target root, its children and incident relationships. The root cannot be deleted or change type or status. Applied to the selected non-live graph, including during refinement.",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "op",
+                          "ref",
+                          "name"
+                        ],
+                        "properties": {
+                          "op": {
+                            "type": "string",
+                            "enum": [
+                              "workItem.create"
+                            ]
+                          },
+                          "ref": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "tempId"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "temporary"
+                                ]
+                              },
+                              "tempId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                              }
+                            }
+                          },
+                          "name": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "An open work-item type key — either one of the system values (STANDARD, FEATURE, GOAL, BUG, PLAN, PLAN_STAGE, CONTRACT, DIAGRAM, DIAGRAM_ELEMENT, TASK_MONITOR) or a project-scoped custom key (e.g. \"MARKETING\"). Used wherever a type filter or type reference must accept custom types registered via the work-item type registry.\n",
+                            "example": "STANDARD"
+                          },
+                          "parent": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "existing"
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                  }
+                                }
+                              }
+                            ],
+                            "discriminator": {
+                              "propertyName": "refType",
+                              "mapping": {
+                                "existing": "#/ExistingWorkItemIdentity",
+                                "temporary": "#/TemporaryWorkItemIdentity"
+                              }
+                            },
+                            "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "GENERATED",
+                              "BACKLOG",
+                              "READY",
+                              "REFINING",
+                              "BLOCKED",
+                              "REFINING_DESCRIPTION",
+                              "REFINING_DETAILS",
+                              "REFINING_ACCEPTANCE_CRITERIA",
+                              "GENERATING_DESCRIPTION",
+                              "GENERATING_DETAILS",
+                              "GENERATING_DESCRIPTION_AND_DETAILS",
+                              "GENERATING_ACCEPTANCE_CRITERIA",
+                              "GENERATING_ALL",
+                              "ACTIVE",
+                              "ON_HOLD",
+                              "VERIFYING",
+                              "COMPLETED",
+                              "CANCELLED",
+                              "ARCHIVED",
+                              "SUPERSEDED"
+                            ],
+                            "description": "Unified work status for initiatives and tasks"
+                          },
+                          "priority": {
+                            "type": "string",
+                            "enum": [
+                              "LOW",
+                              "MEDIUM",
+                              "HIGH",
+                              "CRITICAL"
+                            ],
+                            "description": "The priority level of an item.",
+                            "example": "HIGH"
+                          },
+                          "dueDate": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "assigneeId": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "tag": {
+                            "type": "string",
+                            "enum": [
+                              "product",
+                              "frontend",
+                              "backend",
+                              "infra",
+                              "design",
+                              "AI"
+                            ],
+                            "description": "Coarse-grained classification of what kind of work a FEATURE task\nrepresents. Single source of truth — every Feature-shaped DTO that\nsurfaces the tag references this enum.\n\nValues:\n  * `product` — user-facing product capabilities and outcomes.\n  * `frontend` — client/UI-shaped delivery (web, mobile, surfaces).\n  * `backend` — server/API/data-shaped delivery.\n  * `infra` — platform, deployment, observability, build, runtime.\n  * `design` — design-system, visual, or UX research deliverables.\n  * `AI` — AI/agent-shaped delivery: prompts, agent orchestration, runners.\n\nSet on every FEATURE task at creation time. Other task types\n(STANDARD, BUG, GOAL) do not carry a tag.\n",
+                            "example": "backend"
+                          },
+                          "serviceIds": {
+                            "type": "array",
+                            "description": "Optional complete known Service assignment array for a work-item type whose project-effective registry role is work-item. Preserve this value as a JSON array. Repeated IDs are accepted with an advisory finding and produce one assignment per unique valid ID. Generic work-item authoring continues to require project-valid references, and the field is rejected for other registry roles. For plan-materialized STANDARD children of PLAN_STAGE, omitted or empty Service coverage remains admissible after plan-specific advisory normalization; invalid project Service IDs are omitted before persistence.",
+                            "items": {
+                              "type": "string",
+                              "format": "branded-ServiceId",
+                              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                              "description": "Unique identifier for a service (branded type)",
+                              "example": "550e8400-e29b-41d4-a716-446655440015",
+                              "x-typescript-type": "ServiceId",
+                              "x-brand": "ServiceId",
+                              "x-semantic-type": "resource-identifier"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "op",
+                          "ref"
+                        ],
+                        "properties": {
+                          "op": {
+                            "type": "string",
+                            "enum": [
+                              "workItem.update"
+                            ]
+                          },
+                          "ref": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "existing"
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                  }
+                                }
+                              }
+                            ],
+                            "discriminator": {
+                              "propertyName": "refType",
+                              "mapping": {
+                                "existing": "#/ExistingWorkItemIdentity",
+                                "temporary": "#/TemporaryWorkItemIdentity"
+                              }
+                            },
+                            "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                          },
+                          "name": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "parent": {
+                            "anyOf": [
+                              {
+                                "allOf": [
+                                  {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "refType",
+                                          "id"
+                                        ],
+                                        "properties": {
+                                          "refType": {
+                                            "type": "string",
+                                            "enum": [
+                                              "existing"
+                                            ]
+                                          },
+                                          "id": {
+                                            "type": "string",
+                                            "format": "uuid"
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "refType",
+                                          "tempId"
+                                        ],
+                                        "properties": {
+                                          "refType": {
+                                            "type": "string",
+                                            "enum": [
+                                              "temporary"
+                                            ]
+                                          },
+                                          "tempId": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                          }
+                                        }
+                                      }
+                                    ],
+                                    "discriminator": {
+                                      "propertyName": "refType",
+                                      "mapping": {
+                                        "existing": "#/ExistingWorkItemIdentity",
+                                        "temporary": "#/TemporaryWorkItemIdentity"
+                                      }
+                                    },
+                                    "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "GENERATED",
+                              "BACKLOG",
+                              "READY",
+                              "REFINING",
+                              "BLOCKED",
+                              "REFINING_DESCRIPTION",
+                              "REFINING_DETAILS",
+                              "REFINING_ACCEPTANCE_CRITERIA",
+                              "GENERATING_DESCRIPTION",
+                              "GENERATING_DETAILS",
+                              "GENERATING_DESCRIPTION_AND_DETAILS",
+                              "GENERATING_ACCEPTANCE_CRITERIA",
+                              "GENERATING_ALL",
+                              "ACTIVE",
+                              "ON_HOLD",
+                              "VERIFYING",
+                              "COMPLETED",
+                              "CANCELLED",
+                              "ARCHIVED",
+                              "SUPERSEDED"
+                            ],
+                            "description": "Unified work status for initiatives and tasks"
+                          },
+                          "priority": {
+                            "type": "string",
+                            "enum": [
+                              "LOW",
+                              "MEDIUM",
+                              "HIGH",
+                              "CRITICAL"
+                            ],
+                            "description": "The priority level of an item.",
+                            "example": "HIGH"
+                          },
+                          "dueDate": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "assigneeId": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "tag": {
+                            "type": "string",
+                            "enum": [
+                              "product",
+                              "frontend",
+                              "backend",
+                              "infra",
+                              "design",
+                              "AI"
+                            ],
+                            "description": "Coarse-grained classification of what kind of work a FEATURE task\nrepresents. Single source of truth — every Feature-shaped DTO that\nsurfaces the tag references this enum.\n\nValues:\n  * `product` — user-facing product capabilities and outcomes.\n  * `frontend` — client/UI-shaped delivery (web, mobile, surfaces).\n  * `backend` — server/API/data-shaped delivery.\n  * `infra` — platform, deployment, observability, build, runtime.\n  * `design` — design-system, visual, or UX research deliverables.\n  * `AI` — AI/agent-shaped delivery: prompts, agent orchestration, runners.\n\nSet on every FEATURE task at creation time. Other task types\n(STANDARD, BUG, GOAL) do not carry a tag.\n",
+                            "example": "backend"
+                          },
+                          "serviceIds": {
+                            "type": "array",
+                            "description": "Optional complete known replacement Service assignment array for a work-item type whose project-effective registry role is work-item. Preserve this value as a JSON array. Repeated IDs are accepted with an advisory finding and produce one assignment per unique valid ID. Generic work-item authoring continues to require project-valid references, and the field is rejected for other registry roles. For plan-materialized STANDARD children of PLAN_STAGE, omitted or empty Service coverage remains admissible after plan-specific advisory normalization; invalid project Service IDs are omitted before persistence.",
+                            "items": {
+                              "type": "string",
+                              "format": "branded-ServiceId",
+                              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                              "description": "Unique identifier for a service (branded type)",
+                              "example": "550e8400-e29b-41d4-a716-446655440015",
+                              "x-typescript-type": "ServiceId",
+                              "x-brand": "ServiceId",
+                              "x-semantic-type": "resource-identifier"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "op",
+                          "ref"
+                        ],
+                        "properties": {
+                          "op": {
+                            "type": "string",
+                            "enum": [
+                              "workItem.delete"
+                            ]
+                          },
+                          "ref": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "existing"
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                  }
+                                }
+                              }
+                            ],
+                            "discriminator": {
+                              "propertyName": "refType",
+                              "mapping": {
+                                "existing": "#/ExistingWorkItemIdentity",
+                                "temporary": "#/TemporaryWorkItemIdentity"
+                              }
+                            },
+                            "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "op",
+                          "ref",
+                          "key",
+                          "content"
+                        ],
+                        "properties": {
+                          "op": {
+                            "type": "string",
+                            "enum": [
+                              "section.replace"
+                            ]
+                          },
+                          "ref": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "existing"
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                  }
+                                }
+                              }
+                            ],
+                            "discriminator": {
+                              "propertyName": "refType",
+                              "mapping": {
+                                "existing": "#/ExistingWorkItemIdentity",
+                                "temporary": "#/TemporaryWorkItemIdentity"
+                              }
+                            },
+                            "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                          },
+                          "key": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "content": {
+                            "anyOf": [
+                              {
+                                "description": "Any JSON value. Markdown sections use strings; schema-backed JSON sections may use objects, arrays, numbers, booleans, or null; html/css sections use the strict WorkItemHtmlCssSectionContent object; structured-mockup sections use the versioned WorkItemStructuredMockupSectionContent object. This envelope remains intentionally broad so validation can dispatch by the resolved section definition.\n"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "op",
+                          "ref",
+                          "key"
+                        ],
+                        "properties": {
+                          "op": {
+                            "type": "string",
+                            "enum": [
+                              "section.clear"
+                            ]
+                          },
+                          "ref": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "existing"
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                  }
+                                }
+                              }
+                            ],
+                            "discriminator": {
+                              "propertyName": "refType",
+                              "mapping": {
+                                "existing": "#/ExistingWorkItemIdentity",
+                                "temporary": "#/TemporaryWorkItemIdentity"
+                              }
+                            },
+                            "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                          },
+                          "key": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        }
+                      },
+                      {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "op",
+                              "ref",
+                              "source",
+                              "target",
+                              "edgeType"
+                            ],
+                            "properties": {
+                              "op": {
+                                "type": "string",
+                                "enum": [
+                                  "relationship.create"
+                                ]
+                              },
+                              "ref": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  }
+                                }
+                              },
+                              "source": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "id"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "existing"
+                                        ]
+                                      },
+                                      "id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "tempId"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "temporary"
+                                        ]
+                                      },
+                                      "tempId": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                      }
+                                    }
+                                  }
+                                ],
+                                "discriminator": {
+                                  "propertyName": "refType",
+                                  "mapping": {
+                                    "existing": "#/ExistingWorkItemIdentity",
+                                    "temporary": "#/TemporaryWorkItemIdentity"
+                                  }
+                                },
+                                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                              },
+                              "target": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "id"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "existing"
+                                        ]
+                                      },
+                                      "id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "tempId"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "temporary"
+                                        ]
+                                      },
+                                      "tempId": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                      }
+                                    }
+                                  }
+                                ],
+                                "discriminator": {
+                                  "propertyName": "refType",
+                                  "mapping": {
+                                    "existing": "#/ExistingWorkItemIdentity",
+                                    "temporary": "#/TemporaryWorkItemIdentity"
+                                  }
+                                },
+                                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                              },
+                              "edgeType": {
+                                "type": "string",
+                                "enum": [
+                                  "RELATED_TO",
+                                  "DEPENDS_ON",
+                                  "DERIVES_FROM",
+                                  "SUPERSEDES",
+                                  "CONTRADICTS",
+                                  "EVOLVES",
+                                  "TRACKS",
+                                  "PROPOSED_TOGETHER",
+                                  "FULFILLED_BY",
+                                  "GUARANTEES",
+                                  "IMPLEMENTS",
+                                  "CONSUMES"
+                                ],
+                                "description": "Agent-authored relationship types in the meta category. GUARANTEES, IMPLEMENTS and CONSUMES connect TASK DIAGRAM_ELEMENT sources to TASK CONTRACT targets."
+                              },
+                              "category": {
+                                "type": "string",
+                                "enum": [
+                                  "meta"
+                                ]
+                              },
+                              "direction": {
+                                "anyOf": [
+                                  {
+                                    "allOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "forward",
+                                          "backward"
+                                        ],
+                                        "description": "Direction declared on workflow flow edges where the direction matters to rendering or validation. `STANDARD` and `CONDITIONAL` edges require this field. `LOOP` edges do not carry it because the source step is also the return point.\n"
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "predicate": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "reasoning": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "metadata": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": true
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "op",
+                              "ref",
+                              "source",
+                              "target",
+                              "edgeType",
+                              "category",
+                              "direction"
+                            ],
+                            "properties": {
+                              "op": {
+                                "type": "string",
+                                "enum": [
+                                  "relationship.create"
+                                ]
+                              },
+                              "ref": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  }
+                                }
+                              },
+                              "source": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "id"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "existing"
+                                        ]
+                                      },
+                                      "id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "tempId"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "temporary"
+                                        ]
+                                      },
+                                      "tempId": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                      }
+                                    }
+                                  }
+                                ],
+                                "discriminator": {
+                                  "propertyName": "refType",
+                                  "mapping": {
+                                    "existing": "#/ExistingWorkItemIdentity",
+                                    "temporary": "#/TemporaryWorkItemIdentity"
+                                  }
+                                },
+                                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                              },
+                              "target": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "id"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "existing"
+                                        ]
+                                      },
+                                      "id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "tempId"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "temporary"
+                                        ]
+                                      },
+                                      "tempId": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                      }
+                                    }
+                                  }
+                                ],
+                                "discriminator": {
+                                  "propertyName": "refType",
+                                  "mapping": {
+                                    "existing": "#/ExistingWorkItemIdentity",
+                                    "temporary": "#/TemporaryWorkItemIdentity"
+                                  }
+                                },
+                                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                              },
+                              "edgeType": {
+                                "type": "string",
+                                "enum": [
+                                  "STANDARD"
+                                ]
+                              },
+                              "category": {
+                                "type": "string",
+                                "enum": [
+                                  "flow"
+                                ]
+                              },
+                              "direction": {
+                                "type": "string",
+                                "enum": [
+                                  "forward",
+                                  "backward"
+                                ],
+                                "description": "Direction declared on workflow flow edges where the direction matters to rendering or validation. `STANDARD` and `CONDITIONAL` edges require this field. `LOOP` edges do not carry it because the source step is also the return point.\n"
+                              },
+                              "reasoning": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "metadata": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": true
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "op",
+                              "ref",
+                              "source",
+                              "target",
+                              "edgeType",
+                              "category",
+                              "direction",
+                              "predicate"
+                            ],
+                            "properties": {
+                              "op": {
+                                "type": "string",
+                                "enum": [
+                                  "relationship.create"
+                                ]
+                              },
+                              "ref": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  }
+                                }
+                              },
+                              "source": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "id"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "existing"
+                                        ]
+                                      },
+                                      "id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "tempId"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "temporary"
+                                        ]
+                                      },
+                                      "tempId": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                      }
+                                    }
+                                  }
+                                ],
+                                "discriminator": {
+                                  "propertyName": "refType",
+                                  "mapping": {
+                                    "existing": "#/ExistingWorkItemIdentity",
+                                    "temporary": "#/TemporaryWorkItemIdentity"
+                                  }
+                                },
+                                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                              },
+                              "target": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "id"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "existing"
+                                        ]
+                                      },
+                                      "id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "tempId"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "temporary"
+                                        ]
+                                      },
+                                      "tempId": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                      }
+                                    }
+                                  }
+                                ],
+                                "discriminator": {
+                                  "propertyName": "refType",
+                                  "mapping": {
+                                    "existing": "#/ExistingWorkItemIdentity",
+                                    "temporary": "#/TemporaryWorkItemIdentity"
+                                  }
+                                },
+                                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                              },
+                              "edgeType": {
+                                "type": "string",
+                                "enum": [
+                                  "CONDITIONAL"
+                                ]
+                              },
+                              "category": {
+                                "type": "string",
+                                "enum": [
+                                  "flow"
+                                ]
+                              },
+                              "direction": {
+                                "type": "string",
+                                "enum": [
+                                  "forward",
+                                  "backward"
+                                ],
+                                "description": "Direction declared on workflow flow edges where the direction matters to rendering or validation. `STANDARD` and `CONDITIONAL` edges require this field. `LOOP` edges do not carry it because the source step is also the return point.\n"
+                              },
+                              "predicate": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200,
+                                "pattern": "^(?=.*[A-Za-z0-9_\\.:/=()!<>&|+\\-])[A-Za-z0-9_ .:/=()!<>&|+\\-]+$",
+                                "description": "Non-blank branch label or predicate carried by a CONDITIONAL workflow edge or an optionally conditional LOOP workflow edge. Values are limited to printable ASCII identifier, comparison, boolean, grouping, path, and arithmetic characters so every service applies the same portable predicate syntax.\n"
+                              },
+                              "reasoning": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "metadata": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": true
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "op",
+                              "ref",
+                              "source",
+                              "target",
+                              "edgeType",
+                              "category"
+                            ],
+                            "properties": {
+                              "op": {
+                                "type": "string",
+                                "enum": [
+                                  "relationship.create"
+                                ]
+                              },
+                              "ref": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  }
+                                }
+                              },
+                              "source": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "id"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "existing"
+                                        ]
+                                      },
+                                      "id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "tempId"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "temporary"
+                                        ]
+                                      },
+                                      "tempId": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                      }
+                                    }
+                                  }
+                                ],
+                                "discriminator": {
+                                  "propertyName": "refType",
+                                  "mapping": {
+                                    "existing": "#/ExistingWorkItemIdentity",
+                                    "temporary": "#/TemporaryWorkItemIdentity"
+                                  }
+                                },
+                                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                              },
+                              "target": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "id"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "existing"
+                                        ]
+                                      },
+                                      "id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "tempId"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "temporary"
+                                        ]
+                                      },
+                                      "tempId": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                      }
+                                    }
+                                  }
+                                ],
+                                "discriminator": {
+                                  "propertyName": "refType",
+                                  "mapping": {
+                                    "existing": "#/ExistingWorkItemIdentity",
+                                    "temporary": "#/TemporaryWorkItemIdentity"
+                                  }
+                                },
+                                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                              },
+                              "edgeType": {
+                                "type": "string",
+                                "enum": [
+                                  "LOOP"
+                                ]
+                              },
+                              "category": {
+                                "type": "string",
+                                "enum": [
+                                  "flow"
+                                ]
+                              },
+                              "predicate": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200,
+                                "pattern": "^(?=.*[A-Za-z0-9_\\.:/=()!<>&|+\\-])[A-Za-z0-9_ .:/=()!<>&|+\\-]+$",
+                                "description": "Non-blank branch label or predicate carried by a CONDITIONAL workflow edge or an optionally conditional LOOP workflow edge. Values are limited to printable ASCII identifier, comparison, boolean, grouping, path, and arithmetic characters so every service applies the same portable predicate syntax.\n"
+                              },
+                              "reasoning": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "metadata": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": true
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ],
+                        "discriminator": {
+                          "propertyName": "edgeType",
+                          "mapping": {
+                            "RELATED_TO": "#/WorkItemMetaRelationshipCreateOperation",
+                            "DEPENDS_ON": "#/WorkItemMetaRelationshipCreateOperation",
+                            "DERIVES_FROM": "#/WorkItemMetaRelationshipCreateOperation",
+                            "SUPERSEDES": "#/WorkItemMetaRelationshipCreateOperation",
+                            "CONTRADICTS": "#/WorkItemMetaRelationshipCreateOperation",
+                            "EVOLVES": "#/WorkItemMetaRelationshipCreateOperation",
+                            "TRACKS": "#/WorkItemMetaRelationshipCreateOperation",
+                            "PROPOSED_TOGETHER": "#/WorkItemMetaRelationshipCreateOperation",
+                            "FULFILLED_BY": "#/WorkItemMetaRelationshipCreateOperation",
+                            "GUARANTEES": "#/WorkItemMetaRelationshipCreateOperation",
+                            "IMPLEMENTS": "#/WorkItemMetaRelationshipCreateOperation",
+                            "CONSUMES": "#/WorkItemMetaRelationshipCreateOperation",
+                            "STANDARD": "#/WorkItemStandardRelationshipCreateOperation",
+                            "CONDITIONAL": "#/WorkItemConditionalRelationshipCreateOperation",
+                            "LOOP": "#/WorkItemLoopRelationshipCreateOperation"
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "op",
+                          "ref"
+                        ],
+                        "properties": {
+                          "op": {
+                            "type": "string",
+                            "enum": [
+                              "relationship.update"
+                            ]
+                          },
+                          "ref": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "existing"
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  }
+                                }
+                              }
+                            ],
+                            "discriminator": {
+                              "propertyName": "refType",
+                              "mapping": {
+                                "existing": "#/ExistingRelationshipIdentity",
+                                "temporary": "#/TemporaryRelationshipIdentity"
+                              }
+                            }
+                          },
+                          "source": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "existing"
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                  }
+                                }
+                              }
+                            ],
+                            "discriminator": {
+                              "propertyName": "refType",
+                              "mapping": {
+                                "existing": "#/ExistingWorkItemIdentity",
+                                "temporary": "#/TemporaryWorkItemIdentity"
+                              }
+                            },
+                            "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                          },
+                          "sourceEntityType": {
+                            "type": "string",
+                            "enum": [
+                              "ARTIFACT",
+                              "INITIATIVE",
+                              "PROJECT",
+                              "TASK",
+                              "MESSAGE",
+                              "CONVERSATION",
+                              "DESIGN_DOC",
+                              "AGENT_SESSION",
+                              "VALIDATION_SESSION",
+                              "SERVICE",
+                              "REPORT",
+                              "PROPOSAL",
+                              "IMPLEMENTATION_HINT"
+                            ],
+                            "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
+                          },
+                          "target": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "existing"
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                  }
+                                }
+                              }
+                            ],
+                            "discriminator": {
+                              "propertyName": "refType",
+                              "mapping": {
+                                "existing": "#/ExistingWorkItemIdentity",
+                                "temporary": "#/TemporaryWorkItemIdentity"
+                              }
+                            },
+                            "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                          },
+                          "targetEntityType": {
+                            "type": "string",
+                            "enum": [
+                              "ARTIFACT",
+                              "INITIATIVE",
+                              "PROJECT",
+                              "TASK",
+                              "MESSAGE",
+                              "CONVERSATION",
+                              "DESIGN_DOC",
+                              "AGENT_SESSION",
+                              "VALIDATION_SESSION",
+                              "SERVICE",
+                              "REPORT",
+                              "PROPOSAL",
+                              "IMPLEMENTATION_HINT"
+                            ],
+                            "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
+                          },
+                          "edgeType": {
+                            "type": "string",
+                            "enum": [
+                              "RELATED_TO",
+                              "DEPENDS_ON",
+                              "DERIVES_FROM",
+                              "SUPERSEDES",
+                              "CONTRADICTS",
+                              "EVOLVES",
+                              "TRACKS",
+                              "PROPOSED_TOGETHER",
+                              "FULFILLED_BY",
+                              "GUARANTEES",
+                              "IMPLEMENTS",
+                              "CONSUMES",
+                              "STANDARD",
+                              "CONDITIONAL",
+                              "LOOP"
+                            ],
+                            "description": "Relationship type for agent-authored topology edges between two entities. Each value carries a distinct semantic:\n- RELATED_TO: source and target share context but have no directional\n  dependency, derivation, or replacement relationship.\n- DEPENDS_ON: source entity requires the target entity to be in place\n  (functionally or temporally) before it is meaningful or completable.\n- DERIVES_FROM: target entity is the origin or basis from which the\n  source entity was produced; the target remains canonical and the\n  source is a downstream artifact.\n- SUPERSEDES: source entity replaces the target entity; the target is\n  displaced and should no longer be treated as canonical.\n- CONTRADICTS: source entity disagrees with the target entity; both\n  remain visible so the conflict can be resolved by an authoring agent.\n- EVOLVES: source entity refines, extends, or iterates on the target\n  entity, which remains canonical. Distinct from SUPERSEDES (target is\n  displaced) and DERIVES_FROM (target is origin only and the source\n  stands apart).\n- TRACKS: source references the target as a tracked deliverable. The\n  meaning is composed with source and target type — the canonical\n  use is a GOAL-typed task referencing a FEATURE / STANDARD / BUG task\n  or a PLAN it expects to ship. DESIGN_DOC and other GOAL targets are\n  rejected at the attach boundary (track the parent feature or plan\n  instead). Validation lives in the boundary handler, not the edge\n  service.\n- PROPOSED_TOGETHER: source and target were created or modified by the\n  same proposal, making them co-authored siblings. Symmetric (the edge\n  carries no direction beyond the storage tuple) and system-emitted\n  (derived by the Graph service from a proposal-approved event rather\n  than authored by a user or agent). Carries no semantic claim about\n  dependency, derivation, or replacement — only that the two entities\n  share a proposal origin. Always paired with source `system`.\n- FULFILLED_BY: meta edge from a WORKFLOW_STEP work item to the work item\n  where that step's implementation lives. It remains visible in generic\n  meta-edge surfaces and is never categorized as flow.\n- STANDARD: flow edge from one WORKFLOW_STEP to the next ordinary step in\n  the same workflow graph. Carries category `flow` and requires direction.\n- CONDITIONAL: flow edge from a WORKFLOW_STEP to the next branch selected\n  by a predicate. Carries category `flow` and requires both direction and\n  predicate.\n- LOOP: flow edge representing a self-loop or return loop in a workflow\n  graph. Carries category `flow`, does not carry direction, and may carry\n  a predicate when the return is conditional.\n"
+                          },
+                          "category": {
+                            "type": "string",
+                            "enum": [
+                              "meta",
+                              "flow"
+                            ],
+                            "default": "meta",
+                            "description": "Rendering and traversal category for an edge. Existing edge records and callers that omit this field default to `meta`. Flow-category edges (`STANDARD`, `CONDITIONAL`, `LOOP`) are workflow structure and must stay out of generic related-entity, supersede/evolves, task-list, and link-discovery surfaces. Meta-category edges remain the regular topology and fulfillment surface.\n"
+                          },
+                          "direction": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "forward",
+                                  "backward"
+                                ],
+                                "description": "Direction declared on workflow flow edges where the direction matters to rendering or validation. `STANDARD` and `CONDITIONAL` edges require this field. `LOOP` edges do not carry it because the source step is also the return point.\n"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "predicate": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "reasoning": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "metadata": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": true
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "op",
+                          "ref"
+                        ],
+                        "properties": {
+                          "op": {
+                            "type": "string",
+                            "enum": [
+                              "relationship.delete"
+                            ]
+                          },
+                          "ref": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "existing"
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  }
+                                }
+                              }
+                            ],
+                            "discriminator": {
+                              "propertyName": "refType",
+                              "mapping": {
+                                "existing": "#/ExistingRelationshipIdentity",
+                                "temporary": "#/TemporaryRelationshipIdentity"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "op",
+                          "root",
+                          "sectionKey",
+                          "entries"
+                        ],
+                        "properties": {
+                          "op": {
+                            "type": "string",
+                            "enum": [
+                              "layout.replace"
+                            ]
+                          },
+                          "root": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "existing"
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                  }
+                                }
+                              }
+                            ],
+                            "discriminator": {
+                              "propertyName": "refType",
+                              "mapping": {
+                                "existing": "#/ExistingWorkItemIdentity",
+                                "temporary": "#/TemporaryWorkItemIdentity"
+                              }
+                            },
+                            "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                          },
+                          "sectionKey": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "entries": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "node",
+                                "position"
+                              ],
+                              "properties": {
+                                "node": {
+                                  "oneOf": [
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "refType",
+                                        "id"
+                                      ],
+                                      "properties": {
+                                        "refType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "existing"
+                                          ]
+                                        },
+                                        "id": {
+                                          "type": "string",
+                                          "format": "uuid"
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "refType",
+                                        "tempId"
+                                      ],
+                                      "properties": {
+                                        "refType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "temporary"
+                                          ]
+                                        },
+                                        "tempId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                        }
+                                      }
+                                    }
+                                  ],
+                                  "discriminator": {
+                                    "propertyName": "refType",
+                                    "mapping": {
+                                      "existing": "#/ExistingWorkItemIdentity",
+                                      "temporary": "#/TemporaryWorkItemIdentity"
+                                    }
+                                  }
+                                },
+                                "position": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "x",
+                                    "y"
+                                  ],
+                                  "properties": {
+                                    "x": {
+                                      "type": "number"
+                                    },
+                                    "y": {
+                                      "type": "number"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "op",
+                          "root",
+                          "sectionKey"
+                        ],
+                        "properties": {
+                          "op": {
+                            "type": "string",
+                            "enum": [
+                              "layout.clear"
+                            ]
+                          },
+                          "root": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "existing"
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                  }
+                                }
+                              }
+                            ],
+                            "discriminator": {
+                              "propertyName": "refType",
+                              "mapping": {
+                                "existing": "#/ExistingWorkItemIdentity",
+                                "temporary": "#/TemporaryWorkItemIdentity"
+                              }
+                            },
+                            "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                          },
+                          "sectionKey": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        }
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "op",
+                      "mapping": {
+                        "workItem.create": "#/WorkItemCreateOperation",
+                        "workItem.update": "#/WorkItemUpdateOperation",
+                        "workItem.delete": "#/WorkItemDeleteOperation",
+                        "section.replace": "#/WorkItemSectionReplaceOperation",
+                        "section.clear": "#/WorkItemSectionClearOperation",
+                        "relationship.create": "#/WorkItemRelationshipCreateOperation",
+                        "relationship.update": "#/WorkItemRelationshipUpdateOperation",
+                        "relationship.delete": "#/WorkItemRelationshipDeleteOperation",
+                        "layout.replace": "#/WorkItemLayoutReplaceOperation",
+                        "layout.clear": "#/WorkItemLayoutClearOperation"
                       }
                     }
                   }
@@ -3365,6 +9484,2063 @@ export const futureWorkItemChangesSchema = {
           "order": {
             "type": "integer",
             "description": "Optional ordering index for rendering sections."
+          }
+        }
+      }
+    },
+    "operations": {
+      "type": "array",
+      "description": "Generic graph edits within the target root, its children and incident relationships. The root cannot be deleted or change type or status. Applied to the selected non-live graph, including during refinement.",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "op",
+              "ref",
+              "name"
+            ],
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": [
+                  "workItem.create"
+                ]
+              },
+              "ref": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "refType",
+                  "tempId"
+                ],
+                "properties": {
+                  "refType": {
+                    "type": "string",
+                    "enum": [
+                      "temporary"
+                    ]
+                  },
+                  "tempId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                  }
+                }
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "type": {
+                "type": "string",
+                "description": "An open work-item type key — either one of the system values (STANDARD, FEATURE, GOAL, BUG, PLAN, PLAN_STAGE, CONTRACT, DIAGRAM, DIAGRAM_ELEMENT, TASK_MONITOR) or a project-scoped custom key (e.g. \"MARKETING\"). Used wherever a type filter or type reference must accept custom types registered via the work-item type registry.\n",
+                "example": "STANDARD"
+              },
+              "parent": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "id"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "existing"
+                        ]
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "tempId"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "temporary"
+                        ]
+                      },
+                      "tempId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                      }
+                    }
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "refType",
+                  "mapping": {
+                    "existing": "#/ExistingWorkItemIdentity",
+                    "temporary": "#/TemporaryWorkItemIdentity"
+                  }
+                },
+                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "GENERATED",
+                  "BACKLOG",
+                  "READY",
+                  "REFINING",
+                  "BLOCKED",
+                  "REFINING_DESCRIPTION",
+                  "REFINING_DETAILS",
+                  "REFINING_ACCEPTANCE_CRITERIA",
+                  "GENERATING_DESCRIPTION",
+                  "GENERATING_DETAILS",
+                  "GENERATING_DESCRIPTION_AND_DETAILS",
+                  "GENERATING_ACCEPTANCE_CRITERIA",
+                  "GENERATING_ALL",
+                  "ACTIVE",
+                  "ON_HOLD",
+                  "VERIFYING",
+                  "COMPLETED",
+                  "CANCELLED",
+                  "ARCHIVED",
+                  "SUPERSEDED"
+                ],
+                "description": "Unified work status for initiatives and tasks"
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "LOW",
+                  "MEDIUM",
+                  "HIGH",
+                  "CRITICAL"
+                ],
+                "description": "The priority level of an item.",
+                "example": "HIGH"
+              },
+              "dueDate": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "assigneeId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "tag": {
+                "type": "string",
+                "enum": [
+                  "product",
+                  "frontend",
+                  "backend",
+                  "infra",
+                  "design",
+                  "AI"
+                ],
+                "description": "Coarse-grained classification of what kind of work a FEATURE task\nrepresents. Single source of truth — every Feature-shaped DTO that\nsurfaces the tag references this enum.\n\nValues:\n  * `product` — user-facing product capabilities and outcomes.\n  * `frontend` — client/UI-shaped delivery (web, mobile, surfaces).\n  * `backend` — server/API/data-shaped delivery.\n  * `infra` — platform, deployment, observability, build, runtime.\n  * `design` — design-system, visual, or UX research deliverables.\n  * `AI` — AI/agent-shaped delivery: prompts, agent orchestration, runners.\n\nSet on every FEATURE task at creation time. Other task types\n(STANDARD, BUG, GOAL) do not carry a tag.\n",
+                "example": "backend"
+              },
+              "serviceIds": {
+                "type": "array",
+                "description": "Optional complete known Service assignment array for a work-item type whose project-effective registry role is work-item. Preserve this value as a JSON array. Repeated IDs are accepted with an advisory finding and produce one assignment per unique valid ID. Generic work-item authoring continues to require project-valid references, and the field is rejected for other registry roles. For plan-materialized STANDARD children of PLAN_STAGE, omitted or empty Service coverage remains admissible after plan-specific advisory normalization; invalid project Service IDs are omitted before persistence.",
+                "items": {
+                  "type": "string",
+                  "format": "branded-ServiceId",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                  "description": "Unique identifier for a service (branded type)",
+                  "example": "550e8400-e29b-41d4-a716-446655440015",
+                  "x-typescript-type": "ServiceId",
+                  "x-brand": "ServiceId",
+                  "x-semantic-type": "resource-identifier"
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "op",
+              "ref"
+            ],
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": [
+                  "workItem.update"
+                ]
+              },
+              "ref": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "id"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "existing"
+                        ]
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "tempId"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "temporary"
+                        ]
+                      },
+                      "tempId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                      }
+                    }
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "refType",
+                  "mapping": {
+                    "existing": "#/ExistingWorkItemIdentity",
+                    "temporary": "#/TemporaryWorkItemIdentity"
+                  }
+                },
+                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parent": {
+                "anyOf": [
+                  {
+                    "allOf": [
+                      {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "id"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "existing"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "tempId"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "temporary"
+                                ]
+                              },
+                              "tempId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                              }
+                            }
+                          }
+                        ],
+                        "discriminator": {
+                          "propertyName": "refType",
+                          "mapping": {
+                            "existing": "#/ExistingWorkItemIdentity",
+                            "temporary": "#/TemporaryWorkItemIdentity"
+                          }
+                        },
+                        "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "GENERATED",
+                  "BACKLOG",
+                  "READY",
+                  "REFINING",
+                  "BLOCKED",
+                  "REFINING_DESCRIPTION",
+                  "REFINING_DETAILS",
+                  "REFINING_ACCEPTANCE_CRITERIA",
+                  "GENERATING_DESCRIPTION",
+                  "GENERATING_DETAILS",
+                  "GENERATING_DESCRIPTION_AND_DETAILS",
+                  "GENERATING_ACCEPTANCE_CRITERIA",
+                  "GENERATING_ALL",
+                  "ACTIVE",
+                  "ON_HOLD",
+                  "VERIFYING",
+                  "COMPLETED",
+                  "CANCELLED",
+                  "ARCHIVED",
+                  "SUPERSEDED"
+                ],
+                "description": "Unified work status for initiatives and tasks"
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "LOW",
+                  "MEDIUM",
+                  "HIGH",
+                  "CRITICAL"
+                ],
+                "description": "The priority level of an item.",
+                "example": "HIGH"
+              },
+              "dueDate": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "assigneeId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "tag": {
+                "type": "string",
+                "enum": [
+                  "product",
+                  "frontend",
+                  "backend",
+                  "infra",
+                  "design",
+                  "AI"
+                ],
+                "description": "Coarse-grained classification of what kind of work a FEATURE task\nrepresents. Single source of truth — every Feature-shaped DTO that\nsurfaces the tag references this enum.\n\nValues:\n  * `product` — user-facing product capabilities and outcomes.\n  * `frontend` — client/UI-shaped delivery (web, mobile, surfaces).\n  * `backend` — server/API/data-shaped delivery.\n  * `infra` — platform, deployment, observability, build, runtime.\n  * `design` — design-system, visual, or UX research deliverables.\n  * `AI` — AI/agent-shaped delivery: prompts, agent orchestration, runners.\n\nSet on every FEATURE task at creation time. Other task types\n(STANDARD, BUG, GOAL) do not carry a tag.\n",
+                "example": "backend"
+              },
+              "serviceIds": {
+                "type": "array",
+                "description": "Optional complete known replacement Service assignment array for a work-item type whose project-effective registry role is work-item. Preserve this value as a JSON array. Repeated IDs are accepted with an advisory finding and produce one assignment per unique valid ID. Generic work-item authoring continues to require project-valid references, and the field is rejected for other registry roles. For plan-materialized STANDARD children of PLAN_STAGE, omitted or empty Service coverage remains admissible after plan-specific advisory normalization; invalid project Service IDs are omitted before persistence.",
+                "items": {
+                  "type": "string",
+                  "format": "branded-ServiceId",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                  "description": "Unique identifier for a service (branded type)",
+                  "example": "550e8400-e29b-41d4-a716-446655440015",
+                  "x-typescript-type": "ServiceId",
+                  "x-brand": "ServiceId",
+                  "x-semantic-type": "resource-identifier"
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "op",
+              "ref"
+            ],
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": [
+                  "workItem.delete"
+                ]
+              },
+              "ref": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "id"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "existing"
+                        ]
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "tempId"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "temporary"
+                        ]
+                      },
+                      "tempId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                      }
+                    }
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "refType",
+                  "mapping": {
+                    "existing": "#/ExistingWorkItemIdentity",
+                    "temporary": "#/TemporaryWorkItemIdentity"
+                  }
+                },
+                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "op",
+              "ref",
+              "key",
+              "content"
+            ],
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": [
+                  "section.replace"
+                ]
+              },
+              "ref": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "id"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "existing"
+                        ]
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "tempId"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "temporary"
+                        ]
+                      },
+                      "tempId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                      }
+                    }
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "refType",
+                  "mapping": {
+                    "existing": "#/ExistingWorkItemIdentity",
+                    "temporary": "#/TemporaryWorkItemIdentity"
+                  }
+                },
+                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+              },
+              "key": {
+                "type": "string",
+                "minLength": 1
+              },
+              "content": {
+                "anyOf": [
+                  {
+                    "description": "Any JSON value. Markdown sections use strings; schema-backed JSON sections may use objects, arrays, numbers, booleans, or null; html/css sections use the strict WorkItemHtmlCssSectionContent object; structured-mockup sections use the versioned WorkItemStructuredMockupSectionContent object. This envelope remains intentionally broad so validation can dispatch by the resolved section definition.\n"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "op",
+              "ref",
+              "key"
+            ],
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": [
+                  "section.clear"
+                ]
+              },
+              "ref": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "id"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "existing"
+                        ]
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "tempId"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "temporary"
+                        ]
+                      },
+                      "tempId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                      }
+                    }
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "refType",
+                  "mapping": {
+                    "existing": "#/ExistingWorkItemIdentity",
+                    "temporary": "#/TemporaryWorkItemIdentity"
+                  }
+                },
+                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+              },
+              "key": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "op",
+                  "ref",
+                  "source",
+                  "target",
+                  "edgeType"
+                ],
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "enum": [
+                      "relationship.create"
+                    ]
+                  },
+                  "ref": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "tempId"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "temporary"
+                        ]
+                      },
+                      "tempId": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  },
+                  "source": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "refType",
+                          "id"
+                        ],
+                        "properties": {
+                          "refType": {
+                            "type": "string",
+                            "enum": [
+                              "existing"
+                            ]
+                          },
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "refType",
+                          "tempId"
+                        ],
+                        "properties": {
+                          "refType": {
+                            "type": "string",
+                            "enum": [
+                              "temporary"
+                            ]
+                          },
+                          "tempId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                          }
+                        }
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "refType",
+                      "mapping": {
+                        "existing": "#/ExistingWorkItemIdentity",
+                        "temporary": "#/TemporaryWorkItemIdentity"
+                      }
+                    },
+                    "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                  },
+                  "target": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "refType",
+                          "id"
+                        ],
+                        "properties": {
+                          "refType": {
+                            "type": "string",
+                            "enum": [
+                              "existing"
+                            ]
+                          },
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "refType",
+                          "tempId"
+                        ],
+                        "properties": {
+                          "refType": {
+                            "type": "string",
+                            "enum": [
+                              "temporary"
+                            ]
+                          },
+                          "tempId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                          }
+                        }
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "refType",
+                      "mapping": {
+                        "existing": "#/ExistingWorkItemIdentity",
+                        "temporary": "#/TemporaryWorkItemIdentity"
+                      }
+                    },
+                    "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                  },
+                  "edgeType": {
+                    "type": "string",
+                    "enum": [
+                      "RELATED_TO",
+                      "DEPENDS_ON",
+                      "DERIVES_FROM",
+                      "SUPERSEDES",
+                      "CONTRADICTS",
+                      "EVOLVES",
+                      "TRACKS",
+                      "PROPOSED_TOGETHER",
+                      "FULFILLED_BY",
+                      "GUARANTEES",
+                      "IMPLEMENTS",
+                      "CONSUMES"
+                    ],
+                    "description": "Agent-authored relationship types in the meta category. GUARANTEES, IMPLEMENTS and CONSUMES connect TASK DIAGRAM_ELEMENT sources to TASK CONTRACT targets."
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "meta"
+                    ]
+                  },
+                  "direction": {
+                    "anyOf": [
+                      {
+                        "allOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "forward",
+                              "backward"
+                            ],
+                            "description": "Direction declared on workflow flow edges where the direction matters to rendering or validation. `STANDARD` and `CONDITIONAL` edges require this field. `LOOP` edges do not carry it because the source step is also the return point.\n"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "predicate": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "reasoning": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metadata": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": true
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "op",
+                  "ref",
+                  "source",
+                  "target",
+                  "edgeType",
+                  "category",
+                  "direction"
+                ],
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "enum": [
+                      "relationship.create"
+                    ]
+                  },
+                  "ref": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "tempId"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "temporary"
+                        ]
+                      },
+                      "tempId": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  },
+                  "source": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "refType",
+                          "id"
+                        ],
+                        "properties": {
+                          "refType": {
+                            "type": "string",
+                            "enum": [
+                              "existing"
+                            ]
+                          },
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "refType",
+                          "tempId"
+                        ],
+                        "properties": {
+                          "refType": {
+                            "type": "string",
+                            "enum": [
+                              "temporary"
+                            ]
+                          },
+                          "tempId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                          }
+                        }
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "refType",
+                      "mapping": {
+                        "existing": "#/ExistingWorkItemIdentity",
+                        "temporary": "#/TemporaryWorkItemIdentity"
+                      }
+                    },
+                    "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                  },
+                  "target": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "refType",
+                          "id"
+                        ],
+                        "properties": {
+                          "refType": {
+                            "type": "string",
+                            "enum": [
+                              "existing"
+                            ]
+                          },
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "refType",
+                          "tempId"
+                        ],
+                        "properties": {
+                          "refType": {
+                            "type": "string",
+                            "enum": [
+                              "temporary"
+                            ]
+                          },
+                          "tempId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                          }
+                        }
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "refType",
+                      "mapping": {
+                        "existing": "#/ExistingWorkItemIdentity",
+                        "temporary": "#/TemporaryWorkItemIdentity"
+                      }
+                    },
+                    "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                  },
+                  "edgeType": {
+                    "type": "string",
+                    "enum": [
+                      "STANDARD"
+                    ]
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "flow"
+                    ]
+                  },
+                  "direction": {
+                    "type": "string",
+                    "enum": [
+                      "forward",
+                      "backward"
+                    ],
+                    "description": "Direction declared on workflow flow edges where the direction matters to rendering or validation. `STANDARD` and `CONDITIONAL` edges require this field. `LOOP` edges do not carry it because the source step is also the return point.\n"
+                  },
+                  "reasoning": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metadata": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": true
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "op",
+                  "ref",
+                  "source",
+                  "target",
+                  "edgeType",
+                  "category",
+                  "direction",
+                  "predicate"
+                ],
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "enum": [
+                      "relationship.create"
+                    ]
+                  },
+                  "ref": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "tempId"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "temporary"
+                        ]
+                      },
+                      "tempId": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  },
+                  "source": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "refType",
+                          "id"
+                        ],
+                        "properties": {
+                          "refType": {
+                            "type": "string",
+                            "enum": [
+                              "existing"
+                            ]
+                          },
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "refType",
+                          "tempId"
+                        ],
+                        "properties": {
+                          "refType": {
+                            "type": "string",
+                            "enum": [
+                              "temporary"
+                            ]
+                          },
+                          "tempId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                          }
+                        }
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "refType",
+                      "mapping": {
+                        "existing": "#/ExistingWorkItemIdentity",
+                        "temporary": "#/TemporaryWorkItemIdentity"
+                      }
+                    },
+                    "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                  },
+                  "target": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "refType",
+                          "id"
+                        ],
+                        "properties": {
+                          "refType": {
+                            "type": "string",
+                            "enum": [
+                              "existing"
+                            ]
+                          },
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "refType",
+                          "tempId"
+                        ],
+                        "properties": {
+                          "refType": {
+                            "type": "string",
+                            "enum": [
+                              "temporary"
+                            ]
+                          },
+                          "tempId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                          }
+                        }
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "refType",
+                      "mapping": {
+                        "existing": "#/ExistingWorkItemIdentity",
+                        "temporary": "#/TemporaryWorkItemIdentity"
+                      }
+                    },
+                    "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                  },
+                  "edgeType": {
+                    "type": "string",
+                    "enum": [
+                      "CONDITIONAL"
+                    ]
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "flow"
+                    ]
+                  },
+                  "direction": {
+                    "type": "string",
+                    "enum": [
+                      "forward",
+                      "backward"
+                    ],
+                    "description": "Direction declared on workflow flow edges where the direction matters to rendering or validation. `STANDARD` and `CONDITIONAL` edges require this field. `LOOP` edges do not carry it because the source step is also the return point.\n"
+                  },
+                  "predicate": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^(?=.*[A-Za-z0-9_\\.:/=()!<>&|+\\-])[A-Za-z0-9_ .:/=()!<>&|+\\-]+$",
+                    "description": "Non-blank branch label or predicate carried by a CONDITIONAL workflow edge or an optionally conditional LOOP workflow edge. Values are limited to printable ASCII identifier, comparison, boolean, grouping, path, and arithmetic characters so every service applies the same portable predicate syntax.\n"
+                  },
+                  "reasoning": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metadata": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": true
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "op",
+                  "ref",
+                  "source",
+                  "target",
+                  "edgeType",
+                  "category"
+                ],
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "enum": [
+                      "relationship.create"
+                    ]
+                  },
+                  "ref": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "tempId"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "temporary"
+                        ]
+                      },
+                      "tempId": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  },
+                  "source": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "refType",
+                          "id"
+                        ],
+                        "properties": {
+                          "refType": {
+                            "type": "string",
+                            "enum": [
+                              "existing"
+                            ]
+                          },
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "refType",
+                          "tempId"
+                        ],
+                        "properties": {
+                          "refType": {
+                            "type": "string",
+                            "enum": [
+                              "temporary"
+                            ]
+                          },
+                          "tempId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                          }
+                        }
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "refType",
+                      "mapping": {
+                        "existing": "#/ExistingWorkItemIdentity",
+                        "temporary": "#/TemporaryWorkItemIdentity"
+                      }
+                    },
+                    "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                  },
+                  "target": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "refType",
+                          "id"
+                        ],
+                        "properties": {
+                          "refType": {
+                            "type": "string",
+                            "enum": [
+                              "existing"
+                            ]
+                          },
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "refType",
+                          "tempId"
+                        ],
+                        "properties": {
+                          "refType": {
+                            "type": "string",
+                            "enum": [
+                              "temporary"
+                            ]
+                          },
+                          "tempId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                          }
+                        }
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "refType",
+                      "mapping": {
+                        "existing": "#/ExistingWorkItemIdentity",
+                        "temporary": "#/TemporaryWorkItemIdentity"
+                      }
+                    },
+                    "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                  },
+                  "edgeType": {
+                    "type": "string",
+                    "enum": [
+                      "LOOP"
+                    ]
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "flow"
+                    ]
+                  },
+                  "predicate": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^(?=.*[A-Za-z0-9_\\.:/=()!<>&|+\\-])[A-Za-z0-9_ .:/=()!<>&|+\\-]+$",
+                    "description": "Non-blank branch label or predicate carried by a CONDITIONAL workflow edge or an optionally conditional LOOP workflow edge. Values are limited to printable ASCII identifier, comparison, boolean, grouping, path, and arithmetic characters so every service applies the same portable predicate syntax.\n"
+                  },
+                  "reasoning": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metadata": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": true
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            ],
+            "discriminator": {
+              "propertyName": "edgeType",
+              "mapping": {
+                "RELATED_TO": "#/WorkItemMetaRelationshipCreateOperation",
+                "DEPENDS_ON": "#/WorkItemMetaRelationshipCreateOperation",
+                "DERIVES_FROM": "#/WorkItemMetaRelationshipCreateOperation",
+                "SUPERSEDES": "#/WorkItemMetaRelationshipCreateOperation",
+                "CONTRADICTS": "#/WorkItemMetaRelationshipCreateOperation",
+                "EVOLVES": "#/WorkItemMetaRelationshipCreateOperation",
+                "TRACKS": "#/WorkItemMetaRelationshipCreateOperation",
+                "PROPOSED_TOGETHER": "#/WorkItemMetaRelationshipCreateOperation",
+                "FULFILLED_BY": "#/WorkItemMetaRelationshipCreateOperation",
+                "GUARANTEES": "#/WorkItemMetaRelationshipCreateOperation",
+                "IMPLEMENTS": "#/WorkItemMetaRelationshipCreateOperation",
+                "CONSUMES": "#/WorkItemMetaRelationshipCreateOperation",
+                "STANDARD": "#/WorkItemStandardRelationshipCreateOperation",
+                "CONDITIONAL": "#/WorkItemConditionalRelationshipCreateOperation",
+                "LOOP": "#/WorkItemLoopRelationshipCreateOperation"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "op",
+              "ref"
+            ],
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": [
+                  "relationship.update"
+                ]
+              },
+              "ref": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "id"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "existing"
+                        ]
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "tempId"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "temporary"
+                        ]
+                      },
+                      "tempId": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "refType",
+                  "mapping": {
+                    "existing": "#/ExistingRelationshipIdentity",
+                    "temporary": "#/TemporaryRelationshipIdentity"
+                  }
+                }
+              },
+              "source": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "id"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "existing"
+                        ]
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "tempId"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "temporary"
+                        ]
+                      },
+                      "tempId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                      }
+                    }
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "refType",
+                  "mapping": {
+                    "existing": "#/ExistingWorkItemIdentity",
+                    "temporary": "#/TemporaryWorkItemIdentity"
+                  }
+                },
+                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+              },
+              "sourceEntityType": {
+                "type": "string",
+                "enum": [
+                  "ARTIFACT",
+                  "INITIATIVE",
+                  "PROJECT",
+                  "TASK",
+                  "MESSAGE",
+                  "CONVERSATION",
+                  "DESIGN_DOC",
+                  "AGENT_SESSION",
+                  "VALIDATION_SESSION",
+                  "SERVICE",
+                  "REPORT",
+                  "PROPOSAL",
+                  "IMPLEMENTATION_HINT"
+                ],
+                "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
+              },
+              "target": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "id"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "existing"
+                        ]
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "tempId"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "temporary"
+                        ]
+                      },
+                      "tempId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                      }
+                    }
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "refType",
+                  "mapping": {
+                    "existing": "#/ExistingWorkItemIdentity",
+                    "temporary": "#/TemporaryWorkItemIdentity"
+                  }
+                },
+                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+              },
+              "targetEntityType": {
+                "type": "string",
+                "enum": [
+                  "ARTIFACT",
+                  "INITIATIVE",
+                  "PROJECT",
+                  "TASK",
+                  "MESSAGE",
+                  "CONVERSATION",
+                  "DESIGN_DOC",
+                  "AGENT_SESSION",
+                  "VALIDATION_SESSION",
+                  "SERVICE",
+                  "REPORT",
+                  "PROPOSAL",
+                  "IMPLEMENTATION_HINT"
+                ],
+                "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
+              },
+              "edgeType": {
+                "type": "string",
+                "enum": [
+                  "RELATED_TO",
+                  "DEPENDS_ON",
+                  "DERIVES_FROM",
+                  "SUPERSEDES",
+                  "CONTRADICTS",
+                  "EVOLVES",
+                  "TRACKS",
+                  "PROPOSED_TOGETHER",
+                  "FULFILLED_BY",
+                  "GUARANTEES",
+                  "IMPLEMENTS",
+                  "CONSUMES",
+                  "STANDARD",
+                  "CONDITIONAL",
+                  "LOOP"
+                ],
+                "description": "Relationship type for agent-authored topology edges between two entities. Each value carries a distinct semantic:\n- RELATED_TO: source and target share context but have no directional\n  dependency, derivation, or replacement relationship.\n- DEPENDS_ON: source entity requires the target entity to be in place\n  (functionally or temporally) before it is meaningful or completable.\n- DERIVES_FROM: target entity is the origin or basis from which the\n  source entity was produced; the target remains canonical and the\n  source is a downstream artifact.\n- SUPERSEDES: source entity replaces the target entity; the target is\n  displaced and should no longer be treated as canonical.\n- CONTRADICTS: source entity disagrees with the target entity; both\n  remain visible so the conflict can be resolved by an authoring agent.\n- EVOLVES: source entity refines, extends, or iterates on the target\n  entity, which remains canonical. Distinct from SUPERSEDES (target is\n  displaced) and DERIVES_FROM (target is origin only and the source\n  stands apart).\n- TRACKS: source references the target as a tracked deliverable. The\n  meaning is composed with source and target type — the canonical\n  use is a GOAL-typed task referencing a FEATURE / STANDARD / BUG task\n  or a PLAN it expects to ship. DESIGN_DOC and other GOAL targets are\n  rejected at the attach boundary (track the parent feature or plan\n  instead). Validation lives in the boundary handler, not the edge\n  service.\n- PROPOSED_TOGETHER: source and target were created or modified by the\n  same proposal, making them co-authored siblings. Symmetric (the edge\n  carries no direction beyond the storage tuple) and system-emitted\n  (derived by the Graph service from a proposal-approved event rather\n  than authored by a user or agent). Carries no semantic claim about\n  dependency, derivation, or replacement — only that the two entities\n  share a proposal origin. Always paired with source `system`.\n- FULFILLED_BY: meta edge from a WORKFLOW_STEP work item to the work item\n  where that step's implementation lives. It remains visible in generic\n  meta-edge surfaces and is never categorized as flow.\n- STANDARD: flow edge from one WORKFLOW_STEP to the next ordinary step in\n  the same workflow graph. Carries category `flow` and requires direction.\n- CONDITIONAL: flow edge from a WORKFLOW_STEP to the next branch selected\n  by a predicate. Carries category `flow` and requires both direction and\n  predicate.\n- LOOP: flow edge representing a self-loop or return loop in a workflow\n  graph. Carries category `flow`, does not carry direction, and may carry\n  a predicate when the return is conditional.\n"
+              },
+              "category": {
+                "type": "string",
+                "enum": [
+                  "meta",
+                  "flow"
+                ],
+                "default": "meta",
+                "description": "Rendering and traversal category for an edge. Existing edge records and callers that omit this field default to `meta`. Flow-category edges (`STANDARD`, `CONDITIONAL`, `LOOP`) are workflow structure and must stay out of generic related-entity, supersede/evolves, task-list, and link-discovery surfaces. Meta-category edges remain the regular topology and fulfillment surface.\n"
+              },
+              "direction": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "forward",
+                      "backward"
+                    ],
+                    "description": "Direction declared on workflow flow edges where the direction matters to rendering or validation. `STANDARD` and `CONDITIONAL` edges require this field. `LOOP` edges do not carry it because the source step is also the return point.\n"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "predicate": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "reasoning": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "metadata": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "op",
+              "ref"
+            ],
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": [
+                  "relationship.delete"
+                ]
+              },
+              "ref": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "id"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "existing"
+                        ]
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "tempId"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "temporary"
+                        ]
+                      },
+                      "tempId": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "refType",
+                  "mapping": {
+                    "existing": "#/ExistingRelationshipIdentity",
+                    "temporary": "#/TemporaryRelationshipIdentity"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "op",
+              "root",
+              "sectionKey",
+              "entries"
+            ],
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": [
+                  "layout.replace"
+                ]
+              },
+              "root": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "id"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "existing"
+                        ]
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "tempId"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "temporary"
+                        ]
+                      },
+                      "tempId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                      }
+                    }
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "refType",
+                  "mapping": {
+                    "existing": "#/ExistingWorkItemIdentity",
+                    "temporary": "#/TemporaryWorkItemIdentity"
+                  }
+                },
+                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+              },
+              "sectionKey": {
+                "type": "string",
+                "minLength": 1
+              },
+              "entries": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "node",
+                    "position"
+                  ],
+                  "properties": {
+                    "node": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "refType",
+                            "id"
+                          ],
+                          "properties": {
+                            "refType": {
+                              "type": "string",
+                              "enum": [
+                                "existing"
+                              ]
+                            },
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "refType",
+                            "tempId"
+                          ],
+                          "properties": {
+                            "refType": {
+                              "type": "string",
+                              "enum": [
+                                "temporary"
+                              ]
+                            },
+                            "tempId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                            }
+                          }
+                        }
+                      ],
+                      "discriminator": {
+                        "propertyName": "refType",
+                        "mapping": {
+                          "existing": "#/ExistingWorkItemIdentity",
+                          "temporary": "#/TemporaryWorkItemIdentity"
+                        }
+                      }
+                    },
+                    "position": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "x",
+                        "y"
+                      ],
+                      "properties": {
+                        "x": {
+                          "type": "number"
+                        },
+                        "y": {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "op",
+              "root",
+              "sectionKey"
+            ],
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": [
+                  "layout.clear"
+                ]
+              },
+              "root": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "id"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "existing"
+                        ]
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "tempId"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "temporary"
+                        ]
+                      },
+                      "tempId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                      }
+                    }
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "refType",
+                  "mapping": {
+                    "existing": "#/ExistingWorkItemIdentity",
+                    "temporary": "#/TemporaryWorkItemIdentity"
+                  }
+                },
+                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+              },
+              "sectionKey": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        ],
+        "discriminator": {
+          "propertyName": "op",
+          "mapping": {
+            "workItem.create": "#/WorkItemCreateOperation",
+            "workItem.update": "#/WorkItemUpdateOperation",
+            "workItem.delete": "#/WorkItemDeleteOperation",
+            "section.replace": "#/WorkItemSectionReplaceOperation",
+            "section.clear": "#/WorkItemSectionClearOperation",
+            "relationship.create": "#/WorkItemRelationshipCreateOperation",
+            "relationship.update": "#/WorkItemRelationshipUpdateOperation",
+            "relationship.delete": "#/WorkItemRelationshipDeleteOperation",
+            "layout.replace": "#/WorkItemLayoutReplaceOperation",
+            "layout.clear": "#/WorkItemLayoutClearOperation"
           }
         }
       }

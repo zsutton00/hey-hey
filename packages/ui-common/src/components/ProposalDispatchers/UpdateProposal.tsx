@@ -1,3 +1,4 @@
+import { FutureGraphReview } from "./FutureGraphReview";
 import { Alert, Box, CircularProgress, Stack, Typography } from "@mui/material";
 import React, { useCallback, useMemo } from "react";
 import type { ProposalResponseDto, WorkItemTypeDefinitionDto } from "../../api";
@@ -215,6 +216,12 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
             <Typography variant="body2" data-testid="future-cancel-notice">
               Cancels this approved change.
             </Typography>
+          ) : future?.updates.operation === "REVISE" ? (
+            <FutureGraphReview
+              mutation={future.updates}
+              organizationId={organizationId}
+              projectId={projectId}
+            />
           ) : undefined;
         // Approve → linked work → Apply is shown from the start; before
         // approval the ordinary Approve/Reject fills the first step.

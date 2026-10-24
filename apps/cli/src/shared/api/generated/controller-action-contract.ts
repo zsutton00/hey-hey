@@ -8529,9 +8529,13 @@ export const controllerActionRuntimeSchema = {
       properties: {
         schemaVersion: {
           type: 'string',
-          enum: ['project-mode-snapshot.v1', 'project-mode-snapshot.v2'],
+          enum: [
+            'project-mode-snapshot.v1',
+            'project-mode-snapshot.v2',
+            'project-mode-snapshot.v3',
+          ],
           description:
-            'v2 adds `projectAssistant`. v1 is kept so snapshots captured before the\nsetting existed still verify against their original hash.\n',
+            'v3 adds the resolved `sessionRole`. v2 adds `projectAssistant`.\nv1/v2 retain their original hash inputs for resume compatibility.\n',
         },
         modeId: {
           type: 'string',
@@ -8556,6 +8560,9 @@ export const controllerActionRuntimeSchema = {
         projectAssistant: {
           $ref: '#/definitions/ProjectModeProjectAssistantSetting',
         },
+        sessionRole: {
+          $ref: '#/definitions/SessionRole',
+        },
         snapshotHash: {
           type: 'string',
           pattern: '^[a-f0-9]{64}$',
@@ -8564,7 +8571,7 @@ export const controllerActionRuntimeSchema = {
         },
       },
       description:
-        'Platform-captured immutable MODE configuration persisted with a coding\nsession. The repeated mode identity lets admission verify that the snapshot\nmatches `ProjectModeSelection` before constructing a Run or Turn.\n',
+        'Platform-captured immutable MODE configuration persisted with a coding\nsession. The repeated mode identity lets admission verify that the snapshot\nmatches `ProjectModeSelection` before constructing a Run or Turn.\nv3 requires sessionRole and projectAssistant; v2 requires projectAssistant\nand excludes sessionRole; v1 excludes both fields.\n',
     },
     ProjectModeFiles: {
       type: 'object',
@@ -8613,6 +8620,13 @@ export const controllerActionRuntimeSchema = {
       },
       description:
         "Project Assistant participation chosen by the MODE author. It is the\nproject-mode handler's participation baseline rather than a\nsession-configuration override, which is why it may turn participation on.\n",
+    },
+    SessionRole: {
+      type: 'string',
+      description:
+        'Kind of work performed by a mode session, independent of mode identity and work-item-type registry role.',
+      enum: ['implementation', 'research', 'planning', 'review'],
+      default: 'implementation',
     },
     AgentSkillSelection: {
       type: 'object',

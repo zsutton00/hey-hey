@@ -1,3 +1,4 @@
+import { futureGraph, graphChangeSet } from './future-graph';
 import { isEqual } from 'lodash';
 import { projectReconciliationContent } from './proposal-reconciliation-content';
 import {
@@ -833,6 +834,12 @@ export class ProposalService {
       result: input.proposedResult!,
       dependencies: future.dependencies,
     });
+    if (updates.operation === 'REVISE') {
+      const before = futureGraph(updates.baseline.content);
+      const after = futureGraph(updates.result);
+      if (before && after)
+        updates.graphChangeSet = graphChangeSet(before, after);
+    }
     const provenance: ReconciliationProvenance = {
       source: input.method,
       previousRevisionId: state.candidateRevisionId ?? null,
