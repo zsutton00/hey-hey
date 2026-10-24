@@ -1,3 +1,4 @@
+import { hashControllerAction } from '../../../generated/controller-action-contract';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
 import { ControllerAuthorizationCadence as PrismaControllerAuthorizationCadence } from '@prisma/client';
@@ -145,6 +146,9 @@ describe('ControllerAuthorizationService', () => {
       verifier,
       config,
       browserBindingService as any,
+      {
+        resolveStartRunConfiguration: jest.fn().mockResolvedValue(undefined),
+      } as any,
     );
     const submitWithBinding = service.submit.bind(service);
     service.submit = (async (
@@ -321,6 +325,71 @@ describe('ControllerAuthorizationService', () => {
     },
   );
 
+  it('binds every submitted read input before creating the WebAuthn challenge', async () => {
+    const readAction: HostActionPreparation = {
+      ...action,
+      actionCategory: HostActionCategory.CliRead,
+      actionType: HostAffectingActionType.CliRead,
+      inputs: {
+        kind: 'CLI_READ',
+        body: {
+          requestId: ids.request,
+          agentSessionId: ids.agentSession,
+          operation: 'run.changed_files.detail',
+          runId: ids.agentSession,
+          file: {
+            serviceId: ids.taskMonitor,
+            repoPath: '/workspace',
+            filePath: 'src/approved.ts',
+          },
+        },
+      },
+    };
+    const approved = await service.prepare({
+      organizationId: ids.organization,
+      projectId: ids.project,
+      userId: ids.user,
+      input: prepareInput(readAction),
+    });
+    expect(approved.intent.actionPayloadHash).toBe(
+      hashControllerAction(readAction),
+    );
+    const changed: HostActionPreparation = {
+      ...readAction,
+      requestId: crypto.randomUUID(),
+      inputs: {
+        kind: 'CLI_READ',
+        body: {
+          requestId: ids.request,
+          agentSessionId: ids.agentSession,
+          operation: 'run.changed_files.detail',
+          runId: ids.agentSession,
+          file: {
+            serviceId: ids.taskMonitor,
+            repoPath: '/workspace',
+            filePath: 'src/changed.ts',
+          },
+        },
+      },
+    };
+    const other = await service.prepare({
+      organizationId: ids.organization,
+      projectId: ids.project,
+      userId: ids.user,
+      input: prepareInput(changed),
+    });
+    expect(other.intent.actionPayloadHash).not.toBe(
+      approved.intent.actionPayloadHash,
+    );
+    expect(db.executionAuthorization.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          actionPayloadHash: hashControllerAction(changed),
+        }),
+      }),
+    );
+  });
+
   it('persists the exact canonical two-minute intent and fixed request options', async () => {
     const before = Date.now();
     const result = await service.prepare({
@@ -330,9 +399,7 @@ describe('ControllerAuthorizationService', () => {
       input: prepareInput(action),
     });
 
-    expect(result.intent.actionPayloadHash).toBe(
-      crypto.createHash('sha256').update(canonicalizeJcs(action)).digest('hex'),
-    );
+    expect(result.intent.actionPayloadHash).toBe(hashControllerAction(action));
     expect(result.intent.controllerCredentialId).toBe(controllerCredentialId);
     expect(result.intent.controllerCredentialId).not.toBe(ids.controller);
     expect(result.intent.target).toEqual({
@@ -855,10 +922,7 @@ describe('ControllerAuthorizationService', () => {
     const expiresAt =
       override.expiresAt ??
       new Date(issuedAt.getTime() + CONTROLLER_AUTHORIZATION_TTL_MS);
-    const actionPayloadHash = crypto
-      .createHash('sha256')
-      .update(canonicalizeJcs(action))
-      .digest('hex');
+    const actionPayloadHash = hashControllerAction(action);
     const grantDescriptorHash = hashControllerDeviceGrantDescriptor(
       buildControllerDeviceGrantDescriptor({
         controllerCredentialId: controllerCredentialId,

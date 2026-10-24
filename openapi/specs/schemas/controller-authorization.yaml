@@ -13,7 +13,7 @@ ControllerCredentialId:
   type: string
   minLength: 1
   maxLength: 1024
-  pattern: '^[A-Za-z0-9_-]+$'
+  pattern: "^[A-Za-z0-9_-]+$"
   description: >-
     Base64url WebAuthn controller credential identifier. This is never the
     internal MachineControllerCredential relational row ID.
@@ -33,13 +33,13 @@ ControllerCredentialPublicKey:
       type: string
       minLength: 43
       maxLength: 43
-      pattern: '^[A-Za-z0-9_-]{43}$'
+      pattern: "^[A-Za-z0-9_-]{43}$"
       description: Base64url-encoded 32-byte P-256 public-key x coordinate.
     y:
       type: string
       minLength: 43
       maxLength: 43
-      pattern: '^[A-Za-z0-9_-]{43}$'
+      pattern: "^[A-Za-z0-9_-]{43}$"
       description: Base64url-encoded 32-byte P-256 public-key y coordinate.
 
 ControllerInstallationId:
@@ -262,7 +262,7 @@ CanonicalControllerAuthorizationIntent:
         independent from the two-minute, single-use WebAuthn challenge.
     grantDescriptorHash:
       type: string
-      pattern: '^[a-f0-9]{64}$'
+      pattern: "^[a-f0-9]{64}$"
       description: >-
         Lowercase SHA-256 of the complete immutable controller-device grant
         descriptor, including installation, machine, action set, policy,
@@ -273,7 +273,7 @@ CanonicalControllerAuthorizationIntent:
       $ref: "#/HostAffectingActionType"
     actionPayloadHash:
       type: string
-      pattern: '^[a-f0-9]{64}$'
+      pattern: "^[a-f0-9]{64}$"
       description: >-
         Lowercase SHA-256 of the RFC 8785 canonical action payload, computed by
         the server from the resolved action and never supplied by the browser.
@@ -303,7 +303,7 @@ CanonicalControllerAuthorizationIntent:
       type: string
       minLength: 43
       maxLength: 43
-      pattern: '^[A-Za-z0-9_-]{43}$'
+      pattern: "^[A-Za-z0-9_-]{43}$"
       description: Base64url encoding of a server-generated 256-bit nonce.
     issuedAtMs:
       type: integer
@@ -341,18 +341,18 @@ ControllerAssertionEvidence:
     clientDataJSON:
       type: string
       minLength: 1
-      pattern: '^[A-Za-z0-9_-]+$'
+      pattern: "^[A-Za-z0-9_-]+$"
     authenticatorData:
       type: string
       minLength: 1
-      pattern: '^[A-Za-z0-9_-]+$'
+      pattern: "^[A-Za-z0-9_-]+$"
     signature:
       type: string
       minLength: 1
-      pattern: '^[A-Za-z0-9_-]+$'
+      pattern: "^[A-Za-z0-9_-]+$"
     userHandle:
       type: string
-      pattern: '^[A-Za-z0-9_-]+$'
+      pattern: "^[A-Za-z0-9_-]+$"
       nullable: true
     grantDescriptor:
       $ref: "#/ControllerDeviceGrantDescriptor"
@@ -386,18 +386,18 @@ ExecutableControllerAssertionEvidence:
     clientDataJSON:
       type: string
       minLength: 1
-      pattern: '^[A-Za-z0-9_-]+$'
+      pattern: "^[A-Za-z0-9_-]+$"
     authenticatorData:
       type: string
       minLength: 1
-      pattern: '^[A-Za-z0-9_-]+$'
+      pattern: "^[A-Za-z0-9_-]+$"
     signature:
       type: string
       minLength: 1
-      pattern: '^[A-Za-z0-9_-]+$'
+      pattern: "^[A-Za-z0-9_-]+$"
     userHandle:
       type: string
-      pattern: '^[A-Za-z0-9_-]+$'
+      pattern: "^[A-Za-z0-9_-]+$"
       nullable: true
     grantDescriptor:
       $ref: "#/ControllerDeviceGrantDescriptor"
@@ -547,6 +547,8 @@ ConversationHostActionPreparation:
       description: >-
         Selection hint only. The server resolves and authorizes the canonical
         target instead of copying browser scope into the intent.
+    inputs:
+      $ref: "#/ControllerActionInputs"
   description: >-
     Closed selector for a non-revisioned conversation action. Conversation
     authorization is bound to target identity and the immutable operation
@@ -579,10 +581,12 @@ AgentSessionHostActionPreparation:
       description: >-
         Selection hint only. The server resolves and authorizes the canonical
         target instead of copying browser scope into the intent.
+    inputs:
+      $ref: "#/ControllerActionInputs"
   description: >-
-    Closed selector for a non-revisioned Agent Session action. Agent Session
-    authorization is bound to target identity and the immutable operation
-    fingerprint instead of a mutable conversation counter.
+    Preparation for a non-revisioned Agent Session action. Direct actions
+    bind target identity and complete semantic inputs, independently of
+    delivery framing and mutable conversation counters.
 
 TaskMonitorHostActionPreparation:
   type: object
@@ -611,9 +615,11 @@ TaskMonitorHostActionPreparation:
       description: >-
         Selection hint only. The server resolves and authorizes the canonical
         target instead of copying browser scope into the intent.
+    inputs:
+      $ref: "#/ControllerActionInputs"
   description: >-
-    Closed selector for a Task Monitor machine action. Authorization binds the
-    exact action and Task Monitor identity; the CLI machine evaluates the
+    Preparation for a Task Monitor machine action. Authorization binds the
+    complete typed command and Task Monitor identity; the CLI evaluates the
     command against its own durable snapshot and internal revision.
 
 HostActionPreparation:
@@ -630,8 +636,9 @@ HostActionPreparation:
       TASK_MONITOR: "#/TaskMonitorHostActionPreparation"
       CLI_READ: "#/CliReadHostActionPreparation"
   description: >-
-    Closed selector for a persisted domain action. It contains no account,
-    organization, project, payload, hash, authorization ID, nonce, or lifetime.
+    Preparation for a server-resolved action. Direct actions carry complete
+    typed execution or disclosure inputs. Account, organization, project,
+    payload hash, authorization ID, nonce, and lifetime remain server-owned.
   x-heyhey-target-kind-by-action:
     CONVERSATION_TRIGGER: AGENT_SESSION
     PLATFORM_EVENT_TRIGGER: PLATFORM_EVENT
@@ -746,7 +753,7 @@ ControllerAuthorizationRequestOptions:
       type: string
       minLength: 43
       maxLength: 43
-      pattern: '^[A-Za-z0-9_-]{43}$'
+      pattern: "^[A-Za-z0-9_-]{43}$"
     rpId:
       type: string
       minLength: 1
@@ -887,7 +894,7 @@ ApplicationEffectLaunchBody:
       format: uuid
     actionPayloadHash:
       type: string
-      pattern: '^[a-f0-9]{64}$'
+      pattern: "^[a-f0-9]{64}$"
 
 ExactActionDeliveryBody:
   type: object
@@ -909,7 +916,7 @@ ExactActionDeliveryBody:
       minimum: 0
     actionFingerprint:
       type: string
-      pattern: '^[a-f0-9]{64}$'
+      pattern: "^[a-f0-9]{64}$"
   description: >-
     Existing exact-action fingerprint and revision remain application-level
     constraints; they never substitute for controller or grant admission.
@@ -946,7 +953,16 @@ RuntimeModelCatalogHostActionPreparation:
 WorkspaceSkillsHostActionPreparation:
   type: object
   additionalProperties: false
-  required: [requestId, actionCategory, actionType, targetKind, targetId, provider, catalogContext]
+  required:
+    [
+      requestId,
+      actionCategory,
+      actionType,
+      targetKind,
+      targetId,
+      provider,
+      catalogContext,
+    ]
   properties:
     requestId:
       type: string
@@ -969,3 +985,83 @@ WorkspaceSkillsHostActionPreparation:
     catalogContext:
       $ref: "../agent-bridge/openapi.yaml#/components/schemas/AgentSkillCatalogContext"
   description: Exact machine-addressed workspace Skill catalog read under existing CLI_READ authority.
+
+ControllerActionInputs:
+  oneOf:
+    - $ref: "#/ControllerReadInputs"
+    - $ref: "#/ControllerControlInputs"
+    - $ref: "#/ControllerMonitorInputs"
+    - $ref: "#/ControllerStartInputs"
+    - $ref: "#/ControllerMessageInputs"
+  discriminator:
+    propertyName: kind
+    mapping:
+      CLI_READ: "#/ControllerReadInputs"
+      CONTROL: "#/ControllerControlInputs"
+      TASK_MONITOR: "#/ControllerMonitorInputs"
+      START_RUN: "#/ControllerStartInputs"
+      USER_MESSAGE: "#/ControllerMessageInputs"
+  description: >-
+    Complete typed semantic inputs for a direct action. Approval and local
+    admission use the same definition. Authorization and platform signatures
+    are never inputs. Correlation-only fields are removed by the shared
+    canonicalizer; operation parameters and ordered arrays remain bound.
+
+ControllerReadInputs:
+  type: object
+  additionalProperties: false
+  required: [kind, body]
+  properties:
+    kind:
+      type: string
+      enum: [CLI_READ]
+    body:
+      $ref: "./websockets.yaml#/CliReadEnvelopeBody"
+
+ControllerControlInputs:
+  type: object
+  additionalProperties: false
+  required: [kind, body]
+  properties:
+    kind:
+      type: string
+      enum: [CONTROL]
+    body:
+      $ref: "./websockets.yaml#/ConversationAuthorityIncreasingControlBody"
+
+ControllerMonitorInputs:
+  type: object
+  additionalProperties: false
+  required: [kind, command]
+  properties:
+    kind:
+      type: string
+      enum: [TASK_MONITOR]
+    command:
+      $ref: "./monitor-commands.yaml#/TaskMonitorExternalCommand"
+
+ControllerStartInputs:
+  type: object
+  additionalProperties: false
+  required: [kind, payload]
+  properties:
+    kind:
+      type: string
+      enum: [START_RUN]
+    payload:
+      $ref: "./trigger-payloads.yaml#/StartRunPromptPayload"
+    admittedServiceScope:
+      $ref: "./trigger-payloads.yaml#/UserMessageAdmittedServiceScope"
+
+ControllerMessageInputs:
+  type: object
+  additionalProperties: false
+  required: [kind, payload]
+  properties:
+    kind:
+      type: string
+      enum: [USER_MESSAGE]
+    payload:
+      $ref: "./trigger-payloads.yaml#/UserMessagePromptPayload"
+    admittedServiceScope:
+      $ref: "./trigger-payloads.yaml#/UserMessageAdmittedServiceScope"

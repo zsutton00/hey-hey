@@ -239,8 +239,10 @@ describe("defaultAgentOperationDependencies", () => {
           conversationId: "conversation-1",
           parentMessageId: null,
           data: {
-            promptType: "coding_freeform",
-            userMessage: "continue",
+            agentInput: {
+              promptType: "coding_freeform",
+              userMessage: "continue",
+            },
           },
         },
       },
@@ -253,6 +255,14 @@ describe("defaultAgentOperationDependencies", () => {
           actionType: HostAffectingActionType.ConversationTrigger,
           targetKind: HostActionTargetKind.AgentSession,
           targetId: "agent-session-1",
+          inputs: {
+            kind: "USER_MESSAGE",
+            payload: {
+              handlerPromptType: "coding_freeform",
+              userMessage: "continue",
+              attachments: [],
+            },
+          },
         }),
       }),
     );

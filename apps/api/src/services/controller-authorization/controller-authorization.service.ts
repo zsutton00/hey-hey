@@ -1,4 +1,12 @@
-import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { AgentSessionService } from '../agent-session.service';
+import { DirectActionServiceScopeResolver } from './direct-action-service-scope-resolver';
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import {
   ControllerAuthorizationCadence as PrismaControllerAuthorizationCadence,
   ExecutionAuthorization,
@@ -15,13 +23,10 @@ import {
   CanonicalControllerAuthorizationIntent,
   ControllerAuthorizationAllowedCredential,
   ControllerAuthorizationDenialReason,
-  AgentSessionHostActionPreparation,
-  ConversationHostActionPreparation,
   HostActionCategory,
   HostActionPreparation,
   HostActionTargetKind,
   HostAffectingActionType,
-  TaskMonitorHostActionPreparation,
   PrepareControllerAuthorizationRequestDto,
   PrepareControllerAuthorizationResponseDto,
   ResolveControllerAuthorizationRequestDto,
@@ -29,6 +34,10 @@ import {
   SubmitControllerAuthorizedActionRequestDto,
   SubmitControllerAuthorizedActionResponseDto,
 } from '../../generated';
+import {
+  hashControllerAction,
+  isHostActionPreparation,
+} from '../../generated/controller-action-contract';
 import { canonicalizeJcs } from '../../core/websockets/trigger-canonicalization';
 import { MachinePresenceService } from '../../core/websockets/machine-presence.service';
 import {
@@ -187,6 +196,8 @@ export class ControllerAuthorizationService {
     private readonly assertionVerifier: ControllerAssertionVerifierService,
     private readonly webauthnConfig: ControllerAuthorizationWebAuthnConfigService,
     private readonly browserBindingService: ControllerBrowserBindingService,
+    @Inject(forwardRef(() => AgentSessionService))
+    private readonly agentSessionService: AgentSessionService,
   ) {}
 
   async resolve(params: {
@@ -375,9 +386,7 @@ export class ControllerAuthorizationService {
     );
     const authorizationId = crypto.randomUUID();
     const nonce = crypto.randomBytes(32).toString('base64url');
-    const actionPayloadHash = this.sha256Hex(
-      canonicalizeJcs(resolvedAction.payload),
-    );
+    const actionPayloadHash = hashControllerAction(resolvedAction.payload);
     const policyRevision = CONTROLLER_DEVICE_POLICY_REVISION;
     const allowedActions = this.allowedGrantActions(resolvedAction.payload);
     const grantDescriptor = buildControllerDeviceGrantDescriptor({
@@ -796,6 +805,7 @@ export class ControllerAuthorizationService {
     action: HostActionPreparation;
   }): Promise<ResolvedAction> {
     const { action } = params;
+
     const binding = ACTION_BINDINGS[action.actionType];
     if (action.targetKind === 'CLI_READ') {
       if (
@@ -906,7 +916,11 @@ export class ControllerAuthorizationService {
         taskMonitorId: null,
       } satisfies ResolvedTarget;
       return {
-        payload: this.toResolvedActionPayload(action, binding, target),
+        payload: this.toResolvedActionPayload(
+          await this.resolveDirectInputs(params),
+          binding,
+          target,
+        ),
         target,
       };
     }
@@ -949,57 +963,71 @@ export class ControllerAuthorizationService {
     );
   }
 
+  async resolveDirectInputs(params: {
+    organizationId: OrganizationId;
+    projectId: ProjectId;
+    userId: UserId;
+    machineId: string;
+    action: HostActionPreparation;
+  }): Promise<HostActionPreparation> {
+    const { action } = params;
+    if (!('inputs' in action) || !action.inputs) return action;
+    let inputs = action.inputs;
+    if (action.targetKind !== 'AGENT_SESSION') return action;
+    if (inputs.kind === 'START_RUN') {
+      if (inputs.payload.agentSessionId !== action.targetId) {
+        this.rejectPreparation(
+          ControllerAuthorizationDenialReason.TargetMismatch,
+          params,
+        );
+      }
+      const config =
+        await this.agentSessionService.resolveStartRunConfiguration({
+          organizationId: params.organizationId,
+          agentSessionId: action.targetId,
+          taskMonitorId: inputs.payload.contextMetadata.taskMonitorId,
+          config: inputs.payload.config,
+        });
+      if (config !== undefined)
+        inputs = { ...inputs, payload: { ...inputs.payload, config } };
+    }
+    if (inputs.kind === 'START_RUN' || inputs.kind === 'USER_MESSAGE') {
+      const userText =
+        inputs.kind === 'USER_MESSAGE'
+          ? inputs.payload.userMessage
+          : inputs.payload.payload && 'userMessage' in inputs.payload.payload
+            ? inputs.payload.payload.userMessage
+            : undefined;
+      const services = await new DirectActionServiceScopeResolver(
+        this.prisma,
+        this.machinePresence,
+      ).prepare({
+        organizationId: params.organizationId,
+        projectId: params.projectId,
+        userId: params.userId,
+        agentSessionId: action.targetId as import('../../types').AgentSessionId,
+        machineId: params.machineId as MachineId,
+        userText,
+      });
+      // Browser-provided scope never substitutes for the server-owned scope.
+      const { admittedServiceScope: _untrusted, ...submittedInputs } = inputs;
+      inputs = {
+        ...submittedInputs,
+        ...(services ? { admittedServiceScope: services.scope } : {}),
+      };
+    }
+    return { ...action, inputs };
+  }
+
   private toResolvedActionPayload(
     requested: HostActionPreparation,
     binding: { category: HostActionCategory; targetKind: HostActionTargetKind },
     target: ResolvedTarget,
   ): HostActionPreparation {
-    return this.buildHostActionPreparation({
-      requestId: requested.requestId,
-      actionCategory: binding.category,
-      actionType: requested.actionType,
-      targetKind: target.kind,
+    return {
+      ...requested,
       targetId: target.id,
-    });
-  }
-
-  private buildHostActionPreparation(params: {
-    requestId: string;
-    actionCategory: HostActionCategory;
-    actionType: HostAffectingActionType;
-    targetKind: HostActionTargetKind;
-    targetId: string;
-  }): HostActionPreparation {
-    switch (params.targetKind) {
-      case 'CONVERSATION':
-        return {
-          requestId: params.requestId,
-          actionCategory: params.actionCategory,
-          actionType: params.actionType,
-          targetKind: 'CONVERSATION',
-          targetId: params.targetId,
-        } satisfies ConversationHostActionPreparation;
-      case 'AGENT_SESSION':
-        return {
-          requestId: params.requestId,
-          actionCategory: params.actionCategory,
-          actionType: params.actionType,
-          targetKind: 'AGENT_SESSION',
-          targetId: params.targetId,
-        } satisfies AgentSessionHostActionPreparation;
-      case 'TASK_MONITOR':
-        return {
-          requestId: params.requestId,
-          actionCategory: params.actionCategory,
-          actionType: params.actionType,
-          targetKind: 'TASK_MONITOR',
-          targetId: params.targetId,
-        } satisfies TaskMonitorHostActionPreparation;
-      default:
-        throw new Error(
-          'Controller authorization target kind has no external preparation shape',
-        );
-    }
+    };
   }
 
   private allowedGrantActions(
@@ -1392,45 +1420,11 @@ export class ControllerAuthorizationService {
   }
 
   private isAction(value: unknown): value is HostActionPreparation {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      return false;
-    }
-    const action = value as Record<string, unknown>;
-    const commonKeys = [
-      'requestId',
-      'actionCategory',
-      'actionType',
-      'targetKind',
-      'targetId',
-    ] as const;
-    if (
-      !this.isUuid(action.requestId) ||
-      !Object.values(HostActionCategory).includes(
-        action.actionCategory as HostActionCategory,
-      ) ||
-      !Object.values(HostAffectingActionType).includes(
-        action.actionType as HostAffectingActionType,
-      ) ||
-      !this.isUuid(action.targetId)
-    ) {
-      return false;
-    }
-
-    switch (action.targetKind) {
-      case HostActionTargetKind.Conversation:
-      case HostActionTargetKind.AgentSession:
-      case HostActionTargetKind.TaskMonitor:
-        return this.hasExactKeys(action, commonKeys);
-      case HostActionTargetKind.CliRead:
-        return this.hasExactKeys(
-          action,
-          'catalogContext' in action
-            ? [...commonKeys, 'provider', 'catalogContext']
-            : commonKeys,
-        );
-      default:
-        return false;
-    }
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      isHostActionPreparation(value)
+    );
   }
 
   private isSubmitRequest(

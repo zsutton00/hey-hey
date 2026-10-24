@@ -1,3 +1,7 @@
+import {
+  directActionHarness,
+  directActionIds,
+} from '../../controller-authorization/direct-action.test-support';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -4404,4 +4408,271 @@ describe('verified cancellation telemetry', () => {
       vi.useRealTimers();
     }
   });
+});
+
+describe('direct commands bind the delivered inputs at real dispatch', () => {
+  const agentSessionId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const conversationId = '55555555-5555-4555-8555-555555555555';
+  const body = {
+    kind: 'permission_decision' as const,
+    agentSessionId,
+    requestId: 'permission-request',
+    sessionId: 'provider-session',
+    agentType: 'claude' as const,
+    decision: 'approve' as const,
+    reason: null,
+    idempotencyToken: 'decision-delivery',
+  };
+  const approvedAction = {
+    requestId: randomUUID(),
+    actionCategory: 'AUTHORITY_INCREASING_CONTROL' as const,
+    actionType: 'CONVERSATION_CONTROL_PERMISSION_DECISION' as const,
+    targetKind: 'AGENT_SESSION' as const,
+    targetId: agentSessionId,
+    inputs: { kind: 'CONTROL' as const, body },
+  };
+
+  const subject = (harness: ReturnType<typeof directActionHarness>) => {
+    const submitPermissionDecision = vi
+      .fn()
+      .mockResolvedValue({ outcome: 'delivered', callbackType: 'claude_control_response' });
+    const router = createTestRouter({
+      verifier: harness.verifier,
+      hostActionAdmission: harness.admission,
+      resolveConversationRun: () => ({ runId: agentSessionId, conversationId }),
+      sendMessage: vi.fn(),
+      createRun: vi.fn(),
+      stopRun: vi.fn(),
+      compactRun: vi.fn(),
+      submitPermissionDecision,
+      restoreRun: vi.fn().mockResolvedValue({ taskMonitorId: null }),
+      logger: noopLogger(),
+    });
+    return { router, submitPermissionDecision };
+  };
+
+  it('delivers matching inputs with real controller proof and platform signing', async () => {
+    const harness = directActionHarness(approvedAction);
+    const { router, submitPermissionDecision } = subject(harness);
+    await router.handlePlatformEvent(harness.frame('trigger.control', body, conversationId));
+    expect(await harness.admit.mock.results[0]?.value).toMatchObject({ admitted: true });
+    expect(submitPermissionDecision).toHaveBeenCalledOnce();
+    expect(submitPermissionDecision).toHaveBeenCalledWith(
+      agentSessionId,
+      expect.objectContaining({ decision: 'approve' }),
+    );
+  });
+
+  it.each([
+    { decision: 'always_approve' as const },
+    { requestId: 'another-permission-request' },
+    { sessionId: 'another-provider-session' },
+    { agentType: 'codex' as const },
+    { reason: 'different-reason' },
+    { idempotencyToken: 'another-decision-delivery' },
+  ])(
+    'rejects substituted execution input %j despite valid controller proof and platform framing',
+    async (change) => {
+      const harness = directActionHarness(approvedAction);
+      const { router, submitPermissionDecision } = subject(harness);
+      await router.handlePlatformEvent(
+        harness.frame('trigger.control', { ...body, ...change }, conversationId),
+      );
+      expect(await harness.admit.mock.results[0]?.value).toMatchObject({
+        admitted: false,
+        reason: 'PAYLOAD_HASH_MISMATCH',
+      });
+      expect(submitPermissionDecision).not.toHaveBeenCalled();
+      expect(harness.createGrant).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe('starts, messages, and monitor commands bind their complete delivered payloads', () => {
+  const agentSessionId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const conversationId = '55555555-5555-4555-8555-555555555555';
+  const monitorId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const startPayload = {
+    handlerPromptType: 'daily_session',
+    payload: {
+      promptType: 'daily_session' as const,
+      payloadVersion: 1 as const,
+      userMessage: 'approved kickoff',
+    },
+    model: 'claude-opus-4-7',
+    provider: 'claude' as const,
+    contextMetadata: {
+      capturedAt: '2026-10-23T00:00:00.000Z',
+      organizationId: directActionIds.organizationId,
+      projectId: directActionIds.projectId,
+      agentSessionId,
+      userComments: [],
+      fileReferences: { resolved: [], unresolved: [] },
+    },
+    agentSessionId,
+  };
+  const startBody = {
+    promptType: 'start_run' as const,
+    operationId: randomUUID(),
+    operationFingerprint: 'a'.repeat(64),
+    triggerMessageId: randomUUID(),
+    payload: startPayload,
+  };
+  const messageBody = {
+    promptType: 'user_message' as const,
+    operationId: randomUUID(),
+    operationFingerprint: 'a'.repeat(64),
+    triggerMessageId: randomUUID(),
+    sourceUserMessageId: randomUUID(),
+    payload: {
+      handlerPromptType: 'coding_freeform',
+      userMessage: 'approved message',
+      attachments: [],
+    },
+  };
+  const command = {
+    cause: 'START' as const,
+    userMessage: 'approved monitor work',
+    launchConfig: {
+      taskId: agentSessionId,
+      method: 'quick' as const,
+      provider: 'codex' as const,
+      model: 'gpt-5.4',
+      reasoningEffort: 'high' as const,
+    },
+  };
+  const monitorBody = {
+    version: 2 as const,
+    kind: 'task_monitor_command' as const,
+    commandId: randomUUID(),
+    createdAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 60000).toISOString(),
+    organizationId: directActionIds.organizationId,
+    projectId: directActionIds.projectId,
+    target: { workItemType: 'TASK_MONITOR' as const, workItemId: monitorId },
+    command,
+  };
+  const cases = [
+    {
+      name: 'start model',
+      frameType: 'trigger.conversation' as const,
+      body: startBody,
+      changed: { ...startBody, payload: { ...startPayload, model: 'another-model' } },
+      action: {
+        requestId: randomUUID(),
+        actionCategory: 'CONVERSATION' as const,
+        actionType: 'CONVERSATION_TRIGGER' as const,
+        targetKind: 'AGENT_SESSION' as const,
+        targetId: agentSessionId,
+        inputs: { kind: 'START_RUN' as const, payload: startPayload },
+      },
+    },
+    {
+      name: 'start kickoff text',
+      frameType: 'trigger.conversation' as const,
+      body: startBody,
+      changed: {
+        ...startBody,
+        payload: {
+          ...startPayload,
+          payload: { ...startPayload.payload, userMessage: 'substituted kickoff' },
+        },
+      },
+      action: {
+        requestId: randomUUID(),
+        actionCategory: 'CONVERSATION' as const,
+        actionType: 'CONVERSATION_TRIGGER' as const,
+        targetKind: 'AGENT_SESSION' as const,
+        targetId: agentSessionId,
+        inputs: { kind: 'START_RUN' as const, payload: startPayload },
+      },
+    },
+    {
+      name: 'message text',
+      frameType: 'trigger.conversation' as const,
+      body: messageBody,
+      changed: {
+        ...messageBody,
+        payload: { ...messageBody.payload, userMessage: 'substituted message' },
+      },
+      action: {
+        requestId: randomUUID(),
+        actionCategory: 'CONVERSATION' as const,
+        actionType: 'CONVERSATION_TRIGGER' as const,
+        targetKind: 'AGENT_SESSION' as const,
+        targetId: agentSessionId,
+        inputs: { kind: 'USER_MESSAGE' as const, payload: messageBody.payload },
+      },
+    },
+    {
+      name: 'monitor command inputs',
+      frameType: 'trigger.monitor_command' as const,
+      body: monitorBody,
+      changed: { ...monitorBody, command: { ...command, userMessage: 'substituted monitor work' } },
+      action: {
+        requestId: randomUUID(),
+        actionCategory: 'TASK_MONITOR' as const,
+        actionType: 'TASK_MONITOR_START' as const,
+        targetKind: 'TASK_MONITOR' as const,
+        targetId: monitorId,
+        inputs: { kind: 'TASK_MONITOR' as const, command },
+      },
+    },
+  ];
+
+  const subject = (harness: ReturnType<typeof directActionHarness>) => {
+    const sendMessage = vi.fn().mockResolvedValue({ messageId: 'result-message' });
+    const createRun = vi.fn().mockResolvedValue({ status: 'started', run: { id: agentSessionId } });
+    const dispatchMonitorCommand = vi
+      .fn()
+      .mockResolvedValue({ status: 'ADMITTED', commandId: monitorBody.commandId });
+    const router = createTestRouter({
+      verifier: harness.verifier,
+      hostActionAdmission: harness.admission,
+      resolveConversationRun: () => ({ runId: agentSessionId, conversationId }),
+      sendMessage,
+      createRun,
+      dispatchMonitorCommand,
+      stopRun: vi.fn(),
+      compactRun: vi.fn(),
+      submitPermissionDecision: noopSubmitPermissionDecision(),
+      logger: noopLogger(),
+    });
+    return { router, sendMessage, createRun, dispatchMonitorCommand };
+  };
+  it.each(cases)('admits matching $name through real verification and dispatch', async (test) => {
+    const harness = directActionHarness(test.action);
+    const owners = subject(harness);
+    const frame = harness.frame(test.frameType, test.body, conversationId);
+    if (test.frameType === 'trigger.monitor_command')
+      await owners.router.handleMonitorCommand(frame);
+    else await owners.router.handlePlatformEvent(frame);
+    expect(await harness.admit.mock.results[0]?.value).toMatchObject({ admitted: true });
+    await vi.waitFor(() => {
+      if (test.frameType === 'trigger.monitor_command')
+        expect(owners.dispatchMonitorCommand).toHaveBeenCalledOnce();
+      else if (test.body.promptType === 'start_run')
+        expect(owners.createRun).toHaveBeenCalledOnce();
+      else expect(owners.sendMessage).toHaveBeenCalledOnce();
+    });
+  });
+  it.each(cases)(
+    'rejects substituted $name with unchanged controller evidence and a valid platform signature',
+    async (test) => {
+      const harness = directActionHarness(test.action);
+      const owners = subject(harness);
+      const frame = harness.frame(test.frameType, test.changed, conversationId);
+      if (test.frameType === 'trigger.monitor_command')
+        await owners.router.handleMonitorCommand(frame);
+      else await owners.router.handlePlatformEvent(frame);
+      expect(await harness.admit.mock.results[0]?.value).toMatchObject({
+        admitted: false,
+        reason: 'PAYLOAD_HASH_MISMATCH',
+      });
+      expect(owners.sendMessage).not.toHaveBeenCalled();
+      expect(owners.createRun).not.toHaveBeenCalled();
+      expect(owners.dispatchMonitorCommand).not.toHaveBeenCalled();
+      expect(harness.createGrant).not.toHaveBeenCalled();
+    },
+  );
 });

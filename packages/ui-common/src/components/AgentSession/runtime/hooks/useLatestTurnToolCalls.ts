@@ -96,6 +96,11 @@ export const useLatestTurnToolCalls = (params: {
     inFlightRef.current = true;
     // The run id is the agent session id (see useAgentRunLifecycle).
     const runId = agentSessionId;
+    const controllerReadInputs = {
+      operation:
+        CliReadRunToolCallsLatestTurnRequestOperationEnum.RunToolCallsLatestTurn,
+      runId,
+    } as const;
     void authorize({
       cause: {
         operation:
@@ -111,18 +116,21 @@ export const useLatestTurnToolCalls = (params: {
         actionType: HostAffectingActionType.CliRead,
         targetKind: HostActionTargetKind.AgentSession,
         targetId: agentSessionId,
+        inputs: {
+          kind: "CLI_READ",
+          body: {
+            requestId: crypto.randomUUID(),
+            agentSessionId: agentSessionId,
+            ...controllerReadInputs,
+          },
+        },
       },
       submit: ({ authorization }) =>
         unifiedApiClient.readAgentSessionCliState({
           organizationId,
           projectId,
           agentSessionId,
-          cliReadRequestDto: {
-            operation:
-              CliReadRunToolCallsLatestTurnRequestOperationEnum.RunToolCallsLatestTurn,
-            runId,
-            authorization,
-          },
+          cliReadRequestDto: { ...controllerReadInputs, authorization },
         }),
     })
       .then((response): LatestTurnToolCallsState => {

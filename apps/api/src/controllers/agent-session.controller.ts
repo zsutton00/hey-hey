@@ -27,6 +27,7 @@ import {
 } from '@nestjs/swagger';
 import {
   AgentSessionDto,
+  HostActionPreparation,
   PaginatedAgentSessionResponseDto,
   CreateAgentSessionDto,
   UpdateAgentSessionDto,
@@ -71,7 +72,7 @@ import { CliReadEmitter } from '../core/websockets/cli-read-emitter.service';
 import { MachinePresenceService } from '../core/websockets/machine-presence.service';
 import { WorkItemPlanGenerationService } from '../services/plan/work-item-plan-generation.service';
 import { ExecutionGrantService } from '../services/controller-authorization/execution-grant.service';
-import { canonicalizeJcs } from '../core/websockets/trigger-canonicalization';
+import { hashControllerAction } from '../generated/controller-action-contract';
 import * as crypto from 'node:crypto';
 import type { Request } from 'express';
 import { ControllerBindingOriginGuard } from '../common/guards/controller-binding-origin.guard';
@@ -185,6 +186,14 @@ export class AgentSessionController {
     const executionAdmission =
       await this.executionGrantService.assertAgentSessionAuthorized({
         authorization: request.authorization,
+        inputs: {
+          kind: 'CLI_READ',
+          body: (({ authorization: _proof, ...inputs }) => ({
+            requestId: crypto.randomUUID(),
+            agentSessionId: session.id,
+            ...inputs,
+          }))(request),
+        },
         organizationId,
         projectId,
         userId,
@@ -739,6 +748,15 @@ export class AgentSessionController {
     const executionAdmission =
       await this.executionGrantService.assertAgentSessionAuthorized({
         authorization: dto.authorization,
+        inputs: {
+          kind: 'CONTROL',
+          body: {
+            kind: 'compact_run',
+            agentSessionId: session.id,
+            conversationId: session.conversationId as ConversationId,
+            runId: agentSessionId,
+          },
+        },
         organizationId,
         projectId: session.projectId as ProjectId,
         userId,
@@ -841,6 +859,14 @@ export class AgentSessionController {
     const executionAdmission =
       await this.executionGrantService.assertAgentSessionAuthorized({
         authorization: dto.authorization,
+        inputs: {
+          kind: 'CONTROL',
+          body: (({ authorization: _proof, ...inputs }) => ({
+            kind: 'permission_decision' as const,
+            agentSessionId: session.id,
+            ...inputs,
+          }))(dto),
+        },
         organizationId,
         projectId: session.projectId as ProjectId,
         userId,
@@ -947,6 +973,14 @@ export class AgentSessionController {
     const executionAdmission =
       await this.executionGrantService.assertAgentSessionAuthorized({
         authorization: dto.authorization,
+        inputs: {
+          kind: 'CONTROL',
+          body: (({ authorization: _proof, ...inputs }) => ({
+            kind: 'question_answer' as const,
+            agentSessionId: session.id,
+            ...inputs,
+          }))(dto),
+        },
         organizationId,
         projectId: session.projectId as ProjectId,
         userId,
@@ -992,11 +1026,8 @@ export class AgentSessionController {
     }
   }
 
-  private hashExecutionAction(action: unknown): string {
-    return crypto
-      .createHash('sha256')
-      .update(canonicalizeJcs(action), 'utf8')
-      .digest('hex');
+  private hashExecutionAction(action: HostActionPreparation): string {
+    return hashControllerAction(action);
   }
 
   @Post(':agentSessionId/restart-plan-generation')

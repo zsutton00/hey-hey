@@ -2312,6 +2312,7 @@ export * from './sessionReportReadyNotificationDto';
 export * from './sessionReportReadyPayload';
 export * from './sessionReviewNeededNotificationDto';
 export * from './sessionReviewNeededPayload';
+export * from './sessionRole';
 export * from './sessionSummaryReportPayload';
 export * from './setAccountDefaultOrganizationDto';
 export * from './setAgentSessionOutputAttentionReady200Response';

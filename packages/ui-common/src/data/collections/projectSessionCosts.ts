@@ -108,6 +108,15 @@ export async function fetchProjectSessionCosts(
     );
   }
 
+  const controllerReadInputs = {
+    operation: "project.session_costs.list",
+    projectId: projectId,
+    activityFrom: activityFrom ?? undefined,
+    activityTo: activityTo ?? undefined,
+    minKnownCostUsd: minKnownCostUsd ?? undefined,
+    limit: limit,
+    cursor: cursor,
+  } as const;
   const authorized = await executeControllerAuthorizedAction({
     organizationId: organizationId,
     projectId: projectId,
@@ -118,6 +127,14 @@ export async function fetchProjectSessionCosts(
       actionType: HostAffectingActionType.CliRead,
       targetKind: HostActionTargetKind.AgentSession,
       targetId: routingAgentSessionId,
+      inputs: {
+        kind: "CLI_READ",
+        body: {
+          requestId: crypto.randomUUID(),
+          agentSessionId: routingAgentSessionId,
+          ...controllerReadInputs,
+        },
+      },
     },
     submit: ({ authorization }) =>
       agentSessionsClient.readAgentSessionCliState(
@@ -125,16 +142,7 @@ export async function fetchProjectSessionCosts(
           organizationId: organizationId,
           projectId: projectId,
           agentSessionId: routingAgentSessionId,
-          cliReadRequestDto: {
-            operation: "project.session_costs.list",
-            projectId: projectId,
-            activityFrom: activityFrom ?? undefined,
-            activityTo: activityTo ?? undefined,
-            minKnownCostUsd: minKnownCostUsd ?? undefined,
-            limit: limit,
-            cursor: cursor,
-            authorization,
-          },
+          cliReadRequestDto: { ...controllerReadInputs, authorization },
         },
         requestOptions,
       ),

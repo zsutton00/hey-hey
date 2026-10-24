@@ -1,3 +1,4 @@
+import { ControllerAuthorizationService } from './controller-authorization.service';
 import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import {
   ControllerAuthorizationCadence as PrismaControllerAuthorizationCadence,
@@ -22,11 +23,13 @@ import {
   ExecutableEnvelopeAuthorization,
   HostActionCategory,
   HostActionPreparation,
+  ControllerActionInputs,
   HostActionTargetKind,
   HostAffectingActionType,
   MonitorCommandBody,
   TaskMonitorExternalCommand,
 } from '../../generated';
+import { hashControllerAction } from '../../generated/controller-action-contract';
 import { canonicalizeJcs } from '../../core/websockets/trigger-canonicalization';
 import {
   AnyTransactionClient,
@@ -119,9 +122,11 @@ export class ExecutionGrantService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly browserBindingService: ControllerBrowserBindingService,
+    private readonly controllerAuthorizationService: ControllerAuthorizationService,
   ) {}
 
   async assertInteractiveAuthorized(params: {
+    inputs?: ControllerActionInputs;
     authorization: AdmissionEnvelopeAuthorization;
     organizationId: OrganizationId;
     projectId: ProjectId;
@@ -139,13 +144,23 @@ export class ExecutionGrantService {
       params.authorization,
     );
     const isReuse = params.authorization.kind === 'bounded_grant';
-    const action = this.buildNonRevisionedAction({
+    const requestedAction = this.buildNonRevisionedAction({
       requestId: isReuse ? crypto.randomUUID() : authorization.requestId,
       actionCategory: HostActionCategory.Conversation,
       actionType: params.actionType,
       targetKind: params.targetKind,
       targetId: params.targetId,
+      ...(params.inputs ? { inputs: params.inputs } : {}),
     });
+    const action = params.inputs
+      ? await this.controllerAuthorizationService.resolveDirectInputs({
+          organizationId: params.organizationId,
+          projectId: params.projectId,
+          userId: params.userId,
+          machineId: authorization.machineId,
+          action: requestedAction,
+        })
+      : requestedAction;
     const controllerInstallationId =
       await this.resolveCurrentControllerInstallation(params);
     if (isReuse) {
@@ -196,6 +211,7 @@ export class ExecutionGrantService {
   }
 
   async assertAgentSessionAuthorized(params: {
+    inputs?: ControllerActionInputs;
     authorization: AdmissionEnvelopeAuthorization;
     organizationId: OrganizationId;
     projectId: ProjectId;
@@ -222,6 +238,7 @@ export class ExecutionGrantService {
       actionType: params.actionType,
       targetKind: 'AGENT_SESSION',
       targetId: params.agentSessionId,
+      ...(params.inputs ? { inputs: params.inputs } : {}),
     };
     const controllerInstallationId =
       await this.resolveCurrentControllerInstallation(params);
@@ -260,6 +277,25 @@ export class ExecutionGrantService {
         ? { existingGrantId: authorization.grant.id }
         : {}),
     };
+  }
+
+  assertDeliveredInputs(
+    admission: InteractiveGrantAdmission,
+    inputs: ControllerActionInputs,
+  ): void {
+    if (admission.envelopeAuthorization.kind === 'bounded_grant') return;
+    const action = admission.action;
+    if (!('inputs' in action)) this.deny();
+    const deliveredAction = {
+      ...action,
+      inputs,
+    } satisfies HostActionPreparation;
+    if (
+      hashControllerAction(deliveredAction) !==
+      admission.envelopeAuthorization.intent.actionPayloadHash
+    ) {
+      this.deny();
+    }
   }
 
   assertWorkspaceSkillsAuthorized(params: {
@@ -556,6 +592,7 @@ export class ExecutionGrantService {
         actionType,
         targetKind: 'TASK_MONITOR',
         targetId: params.monitorId,
+        inputs: { kind: 'TASK_MONITOR', command: params.command },
       };
       this.assertAuthorizationMatches(
         authorization,
@@ -1248,6 +1285,7 @@ export class ExecutionGrantService {
   }
 
   private buildNonRevisionedAction(params: {
+    inputs?: ControllerActionInputs;
     requestId: string;
     actionCategory: HostActionCategory;
     actionType: HostAffectingActionType;
@@ -1262,6 +1300,7 @@ export class ExecutionGrantService {
           actionType: params.actionType,
           targetKind: 'CONVERSATION',
           targetId: params.targetId,
+          ...(params.inputs ? { inputs: params.inputs } : {}),
         } satisfies ConversationHostActionPreparation;
       case 'AGENT_SESSION':
         return {
@@ -1270,6 +1309,7 @@ export class ExecutionGrantService {
           actionType: params.actionType,
           targetKind: 'AGENT_SESSION',
           targetId: params.targetId,
+          ...(params.inputs ? { inputs: params.inputs } : {}),
         } satisfies AgentSessionHostActionPreparation;
       default:
         throw new ExecutionGrantAdmissionDeniedException(
@@ -1312,8 +1352,7 @@ export class ExecutionGrantService {
       authorization.actionType !== action.actionType ||
       authorization.targetKind !== action.targetKind ||
       authorization.targetId !== action.targetId ||
-      authorization.actionPayloadHash !==
-        this.sha256Hex(canonicalizeJcs(action))
+      authorization.actionPayloadHash !== hashControllerAction(action)
     ) {
       this.deny();
     }

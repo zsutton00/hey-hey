@@ -9,6 +9,12 @@ import {
   storedSignedTriggerSchema,
   toStoredTriggerFrame,
 } from '../input-admission/input-admission-payload';
+import {
+  conversationActionHash,
+  controlActionHash,
+  monitorActionHash,
+  controlAction,
+} from './delivered-controller-action';
 import { createHash } from 'node:crypto';
 import { canonicalizeJson } from './jcs';
 /**
@@ -70,11 +76,7 @@ import type { TriggerVerifier, VerificationDropReason, VerifiedTriggerFrame } fr
 import type { HostActionAdmission } from '../controller-authorization/host-action-admission';
 import type { HostActionAdmissionRequest } from '../controller-authorization/types';
 import type { AdmittedHostAction } from '../controller-authorization/types';
-import type {
-  ApplicationEffectLaunchBodyV2,
-  ExactActionDeliveryBodyV2,
-  V2ConversationControlBody,
-} from './protocol-v2';
+import type { ApplicationEffectLaunchBodyV2, ExactActionDeliveryBodyV2 } from './protocol-v2';
 import type { AdmissionEnvelopeAuthorization } from '../../shared/api/generated/api';
 import type { ExecutableEnvelopeAuthorization } from '../controller-authorization/types';
 import { ConversationRunResolver } from '../conversation-dispatch/conversation-run-resolver';
@@ -93,29 +95,6 @@ const FRAME_EVENT_TYPES = new Set([
   'trigger.exact_action',
   'trigger.monitor_reduction',
 ]);
-
-type AuthorityIncreasingControlKind = V2ConversationControlBody['kind'];
-
-/** Maps each authorized control kind to its controller-authorized action. */
-const controlAction = (
-  kind: AuthorityIncreasingControlKind,
-): Pick<HostActionAdmissionRequest, 'actionCategory' | 'actionType'> => {
-  switch (kind) {
-    case 'compact_run':
-      return {
-        actionCategory: 'AUTHORITY_INCREASING_CONTROL',
-        actionType: 'CONVERSATION_CONTROL_COMPACT_RUN',
-      };
-    case 'permission_decision':
-      return {
-        actionCategory: 'AUTHORITY_INCREASING_CONTROL',
-        actionType: 'CONVERSATION_CONTROL_PERMISSION_DECISION',
-      };
-    // An answer is the user replying in the conversation.
-    case 'question_answer':
-      return { actionCategory: 'CONVERSATION', actionType: 'CONVERSATION_TRIGGER' };
-  }
-};
 
 const toAdmissionAuthorization = (
   authorization: ExecutableEnvelopeAuthorization,
@@ -214,8 +193,7 @@ const logDropped = (logger: ServerLogger, fields: Record<string, unknown>): void
  */
 const describeDroppedPayload = (body: { payload?: unknown }): Record<string, unknown> => {
   const wirePayload = body.payload as
-    | { handlerPromptType?: unknown; payload?: { promptType?: unknown } }
-    | undefined;
+    { handlerPromptType?: unknown; payload?: { promptType?: unknown } } | undefined;
   return {
     handlerPromptType: wirePayload?.handlerPromptType,
     innerPromptType: wirePayload?.payload?.promptType,
@@ -559,8 +537,6 @@ export class TriggerFrameRouter {
     if (!authorization) return null;
     const projectId = verified.frame.projectId;
     if (!projectId) return null;
-    const assertedPayloadHash =
-      authorization.kind === 'controller_assertion' ? authorization.intent.actionPayloadHash : '';
     const admissionIdentity =
       authorization.kind === 'controller_assertion'
         ? { controllerInstallationId: authorization.intent.controllerInstallationId }
@@ -604,7 +580,12 @@ export class TriggerFrameRouter {
         projectId,
         actionCategory: 'CONVERSATION',
         actionType: 'CONVERSATION_TRIGGER',
-        actionPayloadHash: assertedPayloadHash,
+        actionPayloadHash: conversationActionHash(
+          body,
+          agentSessionId,
+          envelope.nonce,
+          authorization,
+        ),
         target: {
           kind: 'AGENT_SESSION',
           id: agentSessionId,
@@ -631,7 +612,7 @@ export class TriggerFrameRouter {
         projectId,
         actionCategory: 'APPLICATION_EFFECT',
         actionType: 'APPLICATION_EFFECT_LAUNCH',
-        actionPayloadHash: assertedPayloadHash,
+        actionPayloadHash: createHash('sha256').update(canonicalizeJson(body)).digest('hex'),
         target: { kind: 'APPLICATION_EFFECT', id: body.effectId, revision: null },
         agentSessionId: body.agentSessionId,
         taskMonitorId: null,
@@ -650,7 +631,7 @@ export class TriggerFrameRouter {
         projectId,
         actionCategory: 'EXACT_ACTION',
         actionType: 'EXACT_ACTION_DELIVERY',
-        actionPayloadHash: assertedPayloadHash,
+        actionPayloadHash: createHash('sha256').update(canonicalizeJson(body)).digest('hex'),
         target: { kind: 'EXACT_ACTION', id: body.exactActionId, revision: body.requestRevision },
         envelopeNonce: envelope.nonce,
         authorization,
@@ -668,7 +649,7 @@ export class TriggerFrameRouter {
         organizationId: verified.frame.organizationId,
         projectId,
         ...controlAction(body.kind),
-        actionPayloadHash: assertedPayloadHash,
+        actionPayloadHash: controlActionHash(body, envelope.nonce),
         target: { kind: 'AGENT_SESSION', id: body.agentSessionId, revision: null },
         agentSessionId: body.agentSessionId,
         envelopeNonce: envelope.nonce,
@@ -694,7 +675,7 @@ export class TriggerFrameRouter {
               : body.command.cause === 'CONTINUE'
                 ? 'TASK_MONITOR_CONTINUE'
                 : 'TASK_MONITOR_COMPLETE',
-      actionPayloadHash: assertedPayloadHash,
+      actionPayloadHash: monitorActionHash(body, envelope.nonce),
       target: {
         kind: 'TASK_MONITOR',
         id: body.target.workItemId,

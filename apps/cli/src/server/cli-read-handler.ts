@@ -1,3 +1,5 @@
+import { hashControllerAction } from '../shared/api/generated/controller-action-contract';
+import type { HostActionPreparation } from '../shared/api/generated/api';
 import { createHash } from 'node:crypto';
 import { canonicalizeJson } from '../shared/canonical-json';
 import {
@@ -219,8 +221,14 @@ export class CliReadHandler {
       projectId,
       actionCategory: 'CLI_READ',
       actionType: 'CLI_READ',
-      actionPayloadHash:
-        authorization.kind === 'controller_assertion' ? authorization.intent.actionPayloadHash : '',
+      actionPayloadHash: hashControllerAction({
+        requestId: verification.verified.envelope.nonce,
+        actionCategory: 'CLI_READ',
+        actionType: 'CLI_READ',
+        targetKind: 'AGENT_SESSION',
+        targetId: verification.verified.body.agentSessionId,
+        inputs: { kind: 'CLI_READ', body: verification.verified.body },
+      } satisfies HostActionPreparation),
       target: {
         kind: 'AGENT_SESSION',
         id: verification.verified.body.agentSessionId,
