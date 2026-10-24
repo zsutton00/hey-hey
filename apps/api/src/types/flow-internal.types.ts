@@ -2638,6 +2638,13 @@ export type WithFeatureSyncContext = {
 
 export type FeatureSyncFlowContext = FlowContext &
   WithFeatureSyncContext & {
+    codingPlanApprovedContext?: Pick<
+      import('src/generated').ImplementPromptPayload,
+      | 'approvedVersion'
+      | 'versionMessageId'
+      | 'planningDiscussion'
+      | 'approvalFeedback'
+    >;
     implementRuntime?: import('src/generated').ImplementRuntimeSelection;
     implementApprovalOperationId?: string;
     taskId?: TaskId;

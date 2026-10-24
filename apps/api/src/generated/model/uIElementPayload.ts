@@ -28,11 +28,14 @@ import { RepositoryPlacementStrategyPayload } from './repositoryPlacementStrateg
 import { PlanGenerationVisualPreviewEntry } from './planGenerationVisualPreviewEntry';
 import { FileDiffMetrics } from './fileDiffMetrics';
 import { CodingPromptFinalAssessmentEvidenceCorrection } from './codingPromptFinalAssessmentEvidenceCorrection';
+import { CodingPromptStartupSourceRef } from './codingPromptStartupSourceRef';
 import { RepositoryGroundingDeterministicBounds } from './repositoryGroundingDeterministicBounds';
 import { PermissionRequestSummary } from './permissionRequestSummary';
 import { CodingPromptFinalAssessmentOpenQuestion } from './codingPromptFinalAssessmentOpenQuestion';
 import { AgentQuestionPayload } from './agentQuestionPayload';
+import { CodingPlanIssueResolution } from './codingPlanIssueResolution';
 import { RepositoryGroundingFieldPayload } from './repositoryGroundingFieldPayload';
+import { CodingPlanDiscrepancy } from './codingPlanDiscrepancy';
 import { PlanGenerationVisualPreviewPayload } from './planGenerationVisualPreviewPayload';
 import { CodingPromptNeighborhoodTaskUpdate } from './codingPromptNeighborhoodTaskUpdate';
 import { VerifyFeaturePayload } from './verifyFeaturePayload';
@@ -56,6 +59,7 @@ import { OpenItemsTriageSuggestion } from './openItemsTriageSuggestion';
 import { VerifyFeatureReference } from './verifyFeatureReference';
 import { AgentSessionReviewFileScopeRequest } from './agentSessionReviewFileScopeRequest';
 import { AgentRequestPermissionPayload } from './agentRequestPermissionPayload';
+import { CodingPlanContext } from './codingPlanContext';
 import { AgentRequestReviewFileScopePayload } from './agentRequestReviewFileScopePayload';
 import { PlanGapDiscoveryPayloadGaps } from './planGapDiscoveryPayloadGaps';
 import { CodingPromptFinalAssessmentHierarchyWalkEntry } from './codingPromptFinalAssessmentHierarchyWalkEntry';
@@ -67,6 +71,7 @@ import { GoalPmRoutingOption } from './goalPmRoutingOption';
 import { PlanGenerationJourneyReviewPayload } from './planGenerationJourneyReviewPayload';
 import { RepositoryPlacementReviewRoot } from './repositoryPlacementReviewRoot';
 import { CodingPromptFinalAssessmentValidationRecommendation } from './codingPromptFinalAssessmentValidationRecommendation';
+import { CodingPlanVersion } from './codingPlanVersion';
 import { OpenItemsTriagePayload } from './openItemsTriagePayload';
 
 
@@ -78,5 +83,5 @@ import { OpenItemsTriagePayload } from './openItemsTriagePayload';
  * Optional payload for custom UI elements
  * @export
  */
-export type UIElementPayload = AgentQuestionPayload | AgentRequestPermissionPayload | AgentRequestReviewFileScopePayload | AgentRequestServiceScopePayload | CodingPromptFinalAssessmentPayload | CodingPromptMergedFinalAssessmentPayload | CodingPromptStartupPlanPayload | FileDiffPayload | GoalPmRoutingPayload | ImplementationReadinessPayload | MultipleChoicePayload | OnboardingPlanCandidateReviewPayload | OpenItemsTriagePayload | PlanApprovalPayload | PlanDocumentViewPayload | PlanGapDiscoveryPayload | PlanGenerationFinalizePayload | PlanGenerationJourneyReviewPayload | PlanGenerationStageReviewPayload | PlanGenerationVisualPreviewPayload | QuestionsGroupPayload | RepositoryGroundingFieldPayload | RepositoryPlacementReviewPayload | RepositoryPlacementStrategyPayload | VerifyFeaturePayload;
+export type UIElementPayload = AgentQuestionPayload | AgentRequestPermissionPayload | AgentRequestReviewFileScopePayload | AgentRequestServiceScopePayload | CodingPlanContext | CodingPlanDiscrepancy | CodingPlanVersion | CodingPromptFinalAssessmentPayload | CodingPromptMergedFinalAssessmentPayload | CodingPromptStartupPlanPayload | FileDiffPayload | GoalPmRoutingPayload | ImplementationReadinessPayload | MultipleChoicePayload | OnboardingPlanCandidateReviewPayload | OpenItemsTriagePayload | PlanApprovalPayload | PlanDocumentViewPayload | PlanGapDiscoveryPayload | PlanGenerationFinalizePayload | PlanGenerationJourneyReviewPayload | PlanGenerationStageReviewPayload | PlanGenerationVisualPreviewPayload | QuestionsGroupPayload | RepositoryGroundingFieldPayload | RepositoryPlacementReviewPayload | RepositoryPlacementStrategyPayload | VerifyFeaturePayload;
 

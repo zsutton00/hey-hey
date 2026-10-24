@@ -27147,6 +27147,8 @@ components:
       $ref: "../schemas/conversations.yaml#/ExternalAgentActionSchemas"
     WorkflowReviewAction:
       $ref: "../schemas/conversations.yaml#/WorkflowReviewAction"
+    CodingPlanEmissionInput:
+      $ref: "../schemas/conversations.yaml#/CodingPlanEmissionInput"
     CodingPlanReviewDiscrepancyFeedbackEntry:
       $ref: "../schemas/conversations.yaml#/CodingPlanReviewDiscrepancyFeedbackEntry"
     CodingPlanReviewStepFeedbackEntry:

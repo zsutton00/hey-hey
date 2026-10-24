@@ -10,7 +10,7 @@ import {
 import { PromptTypeRegistry } from '../../prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../../prompt-type-registry.test-support';
 import { NOOP_LOGGER } from '../../../server/logger';
-import { implementHandler } from '../implement.handler';
+import { implementHandler, readPreparedImplementRequiredServiceIds } from '../implement.handler';
 import type { EnrichedImplementPromptPayload } from '../prompts';
 
 const makeSession = (overrides: Partial<AgenticSession> = {}): AgenticSession =>
@@ -253,6 +253,35 @@ describe('implementHandler', () => {
   });
 
   describe('prepare', () => {
+    it('hands conversational intent, technical decisions, replies and approval feedback to implementation without reading reports', async () => {
+      const approvedVersion = {
+        responseType: 'coding_plan_version_v1' as const,
+        markdown:
+          '\n# Plan\n\nUsers can reply before explicit approval.\nPreserve keyboard access and existing session identity. Retain explicit approval.',
+        requiredServiceIds: ['a8fb6fbb-5747-4480-89e3-fc4a43ab7745'],
+      };
+      const fetchImpl = vi.fn<typeof fetch>();
+      const result = await implementHandler.prepare!(
+        makeSession(),
+        {
+          approvedVersion,
+          planningDiscussion: 'First reply: keyboard support. Second reply: keep approval.',
+          approvalFeedback: 'Use the selected runtime.',
+        },
+        makeDeps(fetchImpl),
+      );
+      expect(fetchImpl).not.toHaveBeenCalled();
+      const prompt = implementHandler.buildPrompt(result.payload);
+      expect(prompt).toContain(
+        `## Approved plan\n${approvedVersion.markdown}\n\n## Supporting planning discussion\nFirst reply`,
+      );
+      expect(prompt).toContain('First reply: keyboard support. Second reply: keep approval.');
+      expect(prompt).toContain('Approval feedback: Use the selected runtime.');
+      expect(readPreparedImplementRequiredServiceIds(result.payload)).toEqual(
+        approvedVersion.requiredServiceIds,
+      );
+    });
+
     it('recovers the approved plan from the canonical PLAN report attachment', async () => {
       const plan = makeValidPlan({
         sessionTitle: 'Canonical report title',

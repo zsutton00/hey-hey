@@ -5,7 +5,6 @@ import {
   type LocalPromptStartupInput,
   type LocalStartupSessionPromptPayload,
 } from '../../../shared/agent-bridge-contract/generated/api';
-import { ReportAudience, ReportType } from '../../../shared/api/index';
 import { PromptTypeRegistry } from '../../prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../../prompt-type-registry.test-support';
 import type { PromptTypeHandlerContext, PromptTypeHandlerDeps } from '../../prompt-type-handler';
@@ -19,7 +18,7 @@ import {
   codingPlanHandler,
   type EnrichedCodingPlanPromptPayload,
 } from '../coding-plan.handler';
-import { CODING_PLAN_ACTIONS, codingPlanSubmissionTools } from '../submission-tools';
+import { codingPlanSubmissionTools } from '../submission-tools';
 
 const makeStartupInput = (): LocalPromptStartupInput =>
   ({
@@ -93,25 +92,12 @@ describe('codingPlanHandler', () => {
     expect(codingPlanHandler.subagentConfig?.mcpAllowedTools.length).toBeGreaterThan(0);
   });
 
-  it('declares the required PLAN report', () => {
-    expect(codingPlanHandler.reports).toEqual([
-      { reportType: ReportType.Plan, audience: ReportAudience.ProjectVisible, required: true },
-    ]);
-  });
-
-  it('owns only the hidden no-payload approval submission tool', () => {
-    expect(codingPlanHandler.submissionTools?.map((tool) => tool.name)).toEqual([
-      'submit_approved',
-    ]);
+  it('requires no reports and mounts only conversation tools', () => {
+    expect(codingPlanHandler.reports).toEqual([]);
     expect(codingPlanHandler.submissionTools).toEqual([...codingPlanSubmissionTools]);
-    expect(codingPlanHandler.expectedResponseTypes).toBeUndefined();
-    expect(codingPlanHandler.emitLegacyStartupPlanUiElement).toBeUndefined();
-  });
-
-  it('uses the generated Coding Plan action discriminators', () => {
-    expect(codingPlanHandler.submissionTools?.[0]?.execute({ runId: 'run-1', args: {} })).toEqual({
-      action: CODING_PLAN_ACTIONS.APPROVED,
-    });
+    expect(codingPlanHandler.submissionTools?.every((tool) => tool.kind === 'pass_through')).toBe(
+      true,
+    );
   });
 
   it('exposes a read-only subagent MCP allowlist with no proposal or edge mutations', () => {
@@ -546,104 +532,22 @@ describe('codingPlanHandler', () => {
   });
 
   describe('buildPrompt', () => {
-    it('keeps workflow control out of the PLAN payload and names only the approval tool', () => {
+    it('persists conversational context and reserves approval for explicit user control', () => {
       const prompt = codingPlanHandler.buildPrompt(makePayload());
-      expect(prompt).not.toContain('nextAction');
-      expect(prompt).not.toContain('startup_plan_v1');
-      expect(prompt).toContain('reportType');
-      expect(prompt).toContain('APPROVED');
-      expect(prompt).toContain('submit_approved');
-      expect(prompt).not.toContain('submit_revised');
-    });
-
-    it('documents that the typed PLAN report is the sole structured presentation', () => {
-      const prompt = codingPlanHandler.buildPrompt(makePayload());
-      expect(prompt).toContain('short acknowledgement');
-      expect(prompt).toContain('typed PLAN report is the sole structured plan presentation');
-      expect(prompt).toContain(`audience: "${ReportAudience.ProjectVisible}"`);
-      expect(prompt).not.toContain('audience: "EXTERNAL"');
-    });
-
-    it('never tells the planner to emit a refine action', () => {
-      const prompt = codingPlanHandler.buildPrompt(makePayload());
-      expect(prompt).not.toContain('submit_revised');
-      expect(prompt).not.toContain('REFINE');
-    });
-
-    it('renders the project_assistant memo carried on the enriched payload and defers graph orientation to it', () => {
-      const enriched: EnrichedCodingPlanPromptPayload = {
-        ...makePayload(),
-        _researchMemo: '## Research frame\nfeature F surfaced',
-      };
-      const prompt = codingPlanHandler.buildPrompt(enriched);
-      expect(prompt).toContain('feature F surfaced');
-      expect(prompt).toMatch(
-        /Use the Project Assistant findings above to know which work items and design docs govern this plan/,
+      expect(prompt).toContain('emit_coding_plan');
+      expect(prompt).toContain('emit_coding_plan_discrepancy');
+      expect(prompt).toContain(
+        'Only the explicit Approve control on the current complete emitted plan authorizes implementation',
       );
+      expect(prompt).not.toContain('submit_approved');
     });
-
-    describe('with no recent user replies', () => {
-      it('instructs the agent to persist the initial report and avoid completion actions', () => {
-        const prompt = codingPlanHandler.buildPrompt(makePayload(), {
-          recentUserReplies: [],
-          triggerParentMessageId: null,
-        });
-        expect(prompt).toMatch(/no new user reply/i);
-        expect(prompt).toMatch(/persist[\s\S]{0,100}PLAN report/i);
-        expect(prompt).toMatch(/do not call[\s\S]{0,80}submit_approved/i);
+    it('preserves ordinary replies without interpreting them as approval', () => {
+      const prompt = codingPlanHandler.buildPrompt(makePayload(), {
+        recentUserReplies: [{ messageId: 'reply', text: 'looks good', createdAt: '' }],
+        triggerParentMessageId: null,
       });
-
-      it('does not embed any user reply text', () => {
-        const prompt = codingPlanHandler.buildPrompt(makePayload(), {
-          recentUserReplies: [],
-          triggerParentMessageId: null,
-        });
-        expect(prompt).not.toMatch(/Reply 1:/);
-      });
-    });
-
-    describe('with recent user replies', () => {
-      it('embeds each user reply in chronological order with JSON-stringified text', () => {
-        const prompt = codingPlanHandler.buildPrompt(makePayload(), {
-          recentUserReplies: [
-            { messageId: 'u1', text: 'looks good', createdAt: '2026-04-21T10:00:00Z' },
-            { messageId: 'u2', text: 'one more thing', createdAt: '2026-04-21T10:01:00Z' },
-          ],
-          triggerParentMessageId: null,
-        });
-        expect(prompt).toContain('Reply 1: "looks good"');
-        expect(prompt).toContain('Reply 2: "one more thing"');
-        expect(prompt.indexOf('Reply 1:')).toBeLessThan(prompt.indexOf('Reply 2:'));
-      });
-
-      it('directs the agent to classify the latest reply and use the matching tool', () => {
-        const prompt = codingPlanHandler.buildPrompt(makePayload(), {
-          recentUserReplies: [
-            { messageId: 'u1', text: 'looks good', createdAt: '2026-04-21T10:00:00Z' },
-          ],
-          triggerParentMessageId: null,
-        });
-        expect(prompt).toMatch(/classify[\s\S]{0,100}latest[\s\S]{0,20}reply/i);
-        expect(prompt).toMatch(/APPROVED/);
-        expect(prompt).toMatch(/REVISED/);
-        expect(prompt).toMatch(/submit_approved/);
-        expect(prompt).toMatch(/end the turn without calling[\s\S]{0,40}submission tool/i);
-        expect(prompt).not.toMatch(/submit_revised/);
-      });
-
-      it('escapes embedded quotes via JSON.stringify', () => {
-        const prompt = codingPlanHandler.buildPrompt(makePayload(), {
-          recentUserReplies: [
-            {
-              messageId: 'u1',
-              text: 'why "approve" now?',
-              createdAt: '2026-04-21T10:00:00Z',
-            },
-          ],
-          triggerParentMessageId: null,
-        });
-        expect(prompt).toContain('Reply 1: "why \\"approve\\" now?"');
-      });
+      expect(prompt).toContain('## Current feedback\nlooks good');
+      expect(prompt).toContain('never completes the workflow, submits APPROVED or REFINE');
     });
   });
 
@@ -664,6 +568,9 @@ describe('coding-plan registry wiring', () => {
 
   it('the registered handler carries the explicit completion tools', async () => {
     const fetched = registry.get('startup_session');
-    expect(fetched?.submissionTools?.map((tool) => tool.name)).toEqual(['submit_approved']);
+    expect(fetched?.submissionTools?.map((tool) => tool.name)).toEqual([
+      'emit_coding_plan_discrepancy',
+      'emit_coding_plan',
+    ]);
   });
 });

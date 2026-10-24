@@ -297,6 +297,8 @@ components:
       $ref: ../schemas/conversations.yaml#/AgentTrigger
     ImplementRuntimeSelection:
       $ref: ../schemas/conversations.yaml#/ImplementRuntimeSelection
+    CodingPlanEmissionInput:
+      $ref: ../schemas/conversations.yaml#/CodingPlanEmissionInput
     ImplementPromptPayload:
       $ref: ../schemas/conversations.yaml#/ImplementPromptPayload
     AgentTriggerRepositoryGrounding:

@@ -1,3 +1,4 @@
+import { latestCodingPlanVersionMessageId } from "../utils/codingPlanConversation";
 import type { ResolvedConversationForm } from "../utils/conversationResponseModel";
 import React, { memo } from "react";
 import {
@@ -58,6 +59,7 @@ export const ConversationFormRenderer: React.FC<ConversationFormRendererProps> =
       // Get context data instead of props
       const {
         activeConversation,
+        messages,
         project,
         agentSessionId,
         planId,
@@ -197,6 +199,8 @@ export const ConversationFormRenderer: React.FC<ConversationFormRendererProps> =
         latestTurnToolCalls,
         onFocusComposer,
       );
+      fieldContext.codingPlanVersionMessageId =
+        latestCodingPlanVersionMessageId(messages);
       fieldContext.onGoalPmAction = onGoalPmAction;
       fieldContext.onRepositoryGroundingLaunch = async (submission) => {
         const workflowId = activeConversation.workflowId;

@@ -1,3 +1,4 @@
+import { CodingPlanVersionSchema } from '../../generated/coding-plan.schemas';
 import { HINT_WRITE_MCP_TOOLS } from '../mcp-server-config';
 import { reportChangedFilesTool } from '../submission-tools/report-changed-files-tool';
 import {
@@ -153,6 +154,9 @@ export const readPreparedImplementRequiredServiceIds = (
   payload: unknown,
 ): readonly string[] | null => {
   if (!isRecord(payload)) return null;
+  if (payload['approvedVersion'] !== undefined) {
+    return CodingPlanVersionSchema.parse(payload['approvedVersion']).requiredServiceIds;
+  }
   const parsed = parseStartupSessionPlanResponse(payload['_approvedPlanPayload']);
   return parsed.ok ? Array.from(parsed.value.requiredServiceIds) : null;
 };
@@ -237,7 +241,10 @@ export const implementHandler: UserLaunchablePromptTypeHandler<LocalImplementPro
     payload: LocalImplementPromptPayload,
     deps: PromptTypeHandlerDeps,
   ): Promise<PrepareResult<LocalImplementPromptPayload>> {
-    const approvedPlan = await fetchApprovedPlan(run, deps);
+    const approvedVersion = payload.approvedVersion
+      ? CodingPlanVersionSchema.parse(payload.approvedVersion)
+      : null;
+    const approvedPlan = approvedVersion ? null : await fetchApprovedPlan(run, deps);
     const services = run.services ?? [];
     const launchServiceId = run.launchServiceId ?? undefined;
     const codingSessionId = run.contextMetadata?.agentSessionId ?? undefined;
@@ -246,8 +253,11 @@ export const implementHandler: UserLaunchablePromptTypeHandler<LocalImplementPro
 
     deps.logger.info('implement.prepare.resolved', {
       runId: run.agentic_session_id,
-      hasApprovedPlan: Boolean(approvedPlan),
-      requiredServiceCount: approvedPlan ? Array.from(approvedPlan.requiredServiceIds).length : 0,
+      hasApprovedPlan: Boolean(approvedVersion || approvedPlan),
+      versionMessageId: payload.versionMessageId,
+      requiredServiceCount:
+        approvedVersion?.requiredServiceIds.length ??
+        (approvedPlan ? Array.from(approvedPlan.requiredServiceIds).length : 0),
       serviceCount: services.length,
       hasLaunchServiceId: Boolean(launchServiceId),
       hasCodingSessionId: Boolean(codingSessionId),
@@ -256,6 +266,19 @@ export const implementHandler: UserLaunchablePromptTypeHandler<LocalImplementPro
 
     const enriched: EnrichedImplementPromptPayload = {
       ...payload,
+      ...(approvedVersion
+        ? {
+            _approvedPlan: [
+              approvedVersion.markdown,
+              payload.planningDiscussion
+                ? `## Supporting planning discussion\n${payload.planningDiscussion}`
+                : '',
+              payload.approvalFeedback ? `Approval feedback: ${payload.approvalFeedback}` : '',
+            ]
+              .filter(Boolean)
+              .join('\n\n'),
+          }
+        : {}),
       ...(approvedPlan
         ? {
             _approvedPlan: renderApprovedPlanMarkdown(approvedPlan),

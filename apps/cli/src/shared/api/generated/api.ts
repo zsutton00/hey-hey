@@ -14548,6 +14548,25 @@ export interface CodingPlanDiscrepancyElement extends UIElement {
 /**
  *
  * @export
+ * @interface CodingPlanEmissionInput
+ */
+export interface CodingPlanEmissionInput {
+    /**
+     * Complete visible plan. Preserve this exact text through approval and implementation.
+     * @type {string}
+     * @memberof CodingPlanEmissionInput
+     */
+    'markdown': string;
+    /**
+     *
+     * @type {Array<string>}
+     * @memberof CodingPlanEmissionInput
+     */
+    'requiredServiceIds': Array<string>;
+}
+/**
+ *
+ * @export
  * @interface CodingPlanIssueResolution
  */
 export interface CodingPlanIssueResolution {

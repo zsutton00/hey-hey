@@ -160,6 +160,8 @@ export * from './CliReadWorkspaceSkillsListSuccessResponseDtoResult';
 export * from './CodingPlanActionSchemas';
 export * from './CodingPlanActionSchemasAPPROVED';
 export * from './CodingPlanActionSchemasREFINE';
+export * from './CodingPlanEmissionInput';
+export * from './CodingPlanVersion';
 export * from './ContextAgent';
 export * from './ContextApiUsage';
 export * from './ContextCategory';

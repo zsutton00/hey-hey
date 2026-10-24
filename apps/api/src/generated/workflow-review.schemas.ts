@@ -2,6 +2,152 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { z } from 'zod';
+import type {
+  CodingPlanVersion,
+  CodingPlanEmissionInput,
+} from './model/models';
+
+export const CodingPlanVersionSchema = z
+  .object({
+    responseType: z.literal('coding_plan_version_v1'),
+    markdown: z.string().min(1),
+    requiredServiceIds: z
+      .array(z.string().uuid())
+      .min(1)
+      .refine(
+        (items) =>
+          new Set(items.map((item) => JSON.stringify(item))).size ===
+          items.length,
+        'Array items must be unique',
+      ),
+  })
+  .strict() satisfies z.ZodType<CodingPlanVersion>;
+
+const ImplementRuntimeSelectionSchema = z
+  .object({
+    provider: z.enum(['claude', 'codex', 'opencode']),
+    model: z.string().min(1),
+    reasoningEffort: z
+      .enum([
+        'none',
+        'minimal',
+        'low',
+        'medium',
+        'high',
+        'xhigh',
+        'max',
+        'ultra',
+        'default',
+      ])
+      .optional(),
+    fastMode: z.boolean().optional(),
+  })
+  .strict();
+
+export const ImplementPromptPayloadSchema = z
+  .object({
+    approvedVersion: CodingPlanVersionSchema.optional(),
+    versionMessageId: z.string().uuid().optional(),
+    approvalFeedback: z.string().optional(),
+    planningDiscussion: z.string().optional(),
+    runtime: ImplementRuntimeSelectionSchema.optional(),
+    userMessage: z.string().optional(),
+  })
+  .strict();
+
+const CodingPromptStartupSourceTypeSchema = z.enum([
+  'evidenceItem',
+  'task',
+  'designDoc',
+  'plan',
+  'initiative',
+]);
+
+const CodingPromptStartupSourceRefSchema = z
+  .object({
+    sourceType: CodingPromptStartupSourceTypeSchema,
+    sourceId: z.string(),
+  })
+  .passthrough();
+
+const CodingPromptStartupDiscrepancySchema = z
+  .object({
+    sourceRef: CodingPromptStartupSourceRefSchema,
+    sourceField: z.string().optional(),
+    sourceExcerpt: z.string(),
+    reasoning: z.string(),
+    discrepancyText: z.string(),
+    severity: z.enum(['low', 'medium', 'high']),
+  })
+  .passthrough();
+
+export const CodingPlanDiscrepancySchema = z.intersection(
+  CodingPromptStartupDiscrepancySchema,
+  z
+    .object({
+      sourceField: z.string().min(1),
+    })
+    .passthrough(),
+);
+
+const CodingPlanIssueResolutionSchema = z
+  .object({
+    messageId: z.string().uuid(),
+    resolution: z.string(),
+  })
+  .strict();
+
+export const CodingPlanContextSchema = z
+  .object({
+    responseType: z.literal('coding_plan_context_v1'),
+    sessionTitle: z.string().min(1),
+    intent: z.string().min(1),
+    technicalContext: z.string().min(1),
+    issues: z.array(CodingPlanIssueResolutionSchema),
+    requiredServiceIds: z
+      .array(z.string().uuid())
+      .min(1)
+      .refine(
+        (items) =>
+          new Set(items.map((item) => JSON.stringify(item))).size ===
+          items.length,
+        'Array items must be unique',
+      ),
+  })
+  .strict();
+
+export const CodingPlanVersionApprovalSchema = z
+  .object({
+    responseType: z.literal('coding_plan_version_approval_v1'),
+    versionMessageId: z.string().uuid(),
+    feedback: z.string().optional(),
+    runtime: ImplementRuntimeSelectionSchema.optional(),
+  })
+  .strict();
+
+export const CodingPlanEmissionInputSchema = z
+  .object({
+    markdown: z.string().min(1),
+    requiredServiceIds: z
+      .array(z.string().uuid())
+      .min(1)
+      .refine(
+        (items) =>
+          new Set(items.map((item) => JSON.stringify(item))).size ===
+          items.length,
+        'Array items must be unique',
+      ),
+  })
+  .strict() satisfies z.ZodType<CodingPlanEmissionInput>;
+
+export const CodingPlanConversationalApprovalSchema = z
+  .object({
+    responseType: z.literal('coding_plan_approval_v1'),
+    contextMessageId: z.string().uuid(),
+    feedback: z.string().optional(),
+    runtime: ImplementRuntimeSelectionSchema.optional(),
+  })
+  .strict();
 
 const CodingPromptStartupPrimaryImplementationConnectionSchema = z
   .object({
@@ -29,14 +175,6 @@ const CodingPromptStartupPrimaryImplementationSchema = z
   })
   .passthrough();
 
-const CodingPromptStartupSourceTypeSchema = z.enum([
-  'evidenceItem',
-  'task',
-  'designDoc',
-  'plan',
-  'initiative',
-]);
-
 const CodingPromptStartupPlanReferenceSchema = z
   .object({
     sourceType: CodingPromptStartupSourceTypeSchema,
@@ -54,24 +192,6 @@ const CodingPromptStartupPlanStepSchema = z
     references: z.array(CodingPromptStartupPlanReferenceSchema),
     validationFocus: z.string().optional(),
     phase: z.number().int().min(1),
-  })
-  .passthrough();
-
-const CodingPromptStartupSourceRefSchema = z
-  .object({
-    sourceType: CodingPromptStartupSourceTypeSchema,
-    sourceId: z.string(),
-  })
-  .passthrough();
-
-const CodingPromptStartupDiscrepancySchema = z
-  .object({
-    sourceRef: CodingPromptStartupSourceRefSchema,
-    sourceField: z.string().optional(),
-    sourceExcerpt: z.string(),
-    reasoning: z.string(),
-    discrepancyText: z.string(),
-    severity: z.enum(['low', 'medium', 'high']),
   })
   .passthrough();
 
@@ -159,6 +279,30 @@ export const CodingPlanReviewAnswerPayloadSchema = z.intersection(
     })
     .passthrough(),
 );
+
+export const CodingPlanApprovalPayloadSchema = z.union([
+  CodingPlanVersionApprovalSchema,
+  CodingPlanReviewAnswerPayloadSchema,
+]);
+
+const CodingPlanRefineWorkflowAnswerSchema = z
+  .object({
+    action: z.literal('REFINE'),
+    payload: CodingPlanReviewAnswerPayloadSchema,
+  })
+  .strict();
+
+const CodingPlanApprovedWorkflowAnswerSchema = z
+  .object({
+    action: z.literal('APPROVED'),
+    payload: CodingPlanApprovalPayloadSchema,
+  })
+  .strict();
+
+export const CodingPlanWorkflowAnswerSchema = z.union([
+  CodingPlanRefineWorkflowAnswerSchema,
+  CodingPlanApprovedWorkflowAnswerSchema,
+]);
 
 export const QuestionsFeedbackPayloadSchema = z
   .object({

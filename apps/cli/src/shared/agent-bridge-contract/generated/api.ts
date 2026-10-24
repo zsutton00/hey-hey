@@ -6125,6 +6125,57 @@ export type CodingPlanActionSchemasREFINEActionEnum = typeof CodingPlanActionSch
 /**
  *
  * @export
+ * @interface CodingPlanEmissionInput
+ */
+export interface CodingPlanEmissionInput {
+    /**
+     * Complete visible plan. Preserve this exact text through approval and implementation.
+     * @type {string}
+     * @memberof CodingPlanEmissionInput
+     */
+    'markdown': string;
+    /**
+     *
+     * @type {Array<string>}
+     * @memberof CodingPlanEmissionInput
+     */
+    'requiredServiceIds': Array<string>;
+}
+/**
+ *
+ * @export
+ * @interface CodingPlanVersion
+ */
+export interface CodingPlanVersion {
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanVersion
+     */
+    'responseType': CodingPlanVersionResponseTypeEnum;
+    /**
+     * Complete visible plan. Preserve this exact text through approval and implementation.
+     * @type {string}
+     * @memberof CodingPlanVersion
+     */
+    'markdown': string;
+    /**
+     *
+     * @type {Array<string>}
+     * @memberof CodingPlanVersion
+     */
+    'requiredServiceIds': Array<string>;
+}
+
+export const CodingPlanVersionResponseTypeEnum = {
+    CodingPlanVersionV1: 'coding_plan_version_v1'
+} as const;
+
+export type CodingPlanVersionResponseTypeEnum = typeof CodingPlanVersionResponseTypeEnum[keyof typeof CodingPlanVersionResponseTypeEnum];
+
+/**
+ *
+ * @export
  * @interface ContextAgent
  */
 export interface ContextAgent {
@@ -8698,6 +8749,30 @@ export type ImplementActionSchemasDONEActionEnum = typeof ImplementActionSchemas
  * @interface ImplementPromptPayload
  */
 export interface ImplementPromptPayload {
+    /**
+     *
+     * @type {CodingPlanVersion}
+     * @memberof ImplementPromptPayload
+     */
+    'approvedVersion'?: CodingPlanVersion;
+    /**
+     *
+     * @type {string}
+     * @memberof ImplementPromptPayload
+     */
+    'versionMessageId'?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof ImplementPromptPayload
+     */
+    'approvalFeedback'?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof ImplementPromptPayload
+     */
+    'planningDiscussion'?: string;
     /**
      *
      * @type {ImplementRuntimeSelection}
@@ -16109,13 +16184,13 @@ export const ProjectModeSettingsSchemaVersionEnum = {
 export type ProjectModeSettingsSchemaVersionEnum = typeof ProjectModeSettingsSchemaVersionEnum[keyof typeof ProjectModeSettingsSchemaVersionEnum];
 
 /**
- * Platform-captured immutable MODE configuration persisted with a coding session. The repeated mode identity lets admission verify that the snapshot matches `ProjectModeSelection` before constructing a Run or Turn.
+ * Platform-captured immutable MODE configuration persisted with a coding session. The repeated mode identity lets admission verify that the snapshot matches `ProjectModeSelection` before constructing a Run or Turn. v3 requires sessionRole and projectAssistant; v2 requires projectAssistant and excludes sessionRole; v1 excludes both fields.
  * @export
  * @interface ProjectModeSnapshot
  */
 export interface ProjectModeSnapshot {
     /**
-     * v2 adds `projectAssistant`. v1 is kept so snapshots captured before the setting existed still verify against their original hash.
+     * v3 adds the resolved `sessionRole`. v2 adds `projectAssistant`. v1/v2 retain their original hash inputs for resume compatibility.
      * @type {string}
      * @memberof ProjectModeSnapshot
      */
@@ -16151,6 +16226,12 @@ export interface ProjectModeSnapshot {
      */
     'projectAssistant'?: ProjectModeProjectAssistantSetting;
     /**
+     *
+     * @type {SessionRole}
+     * @memberof ProjectModeSnapshot
+     */
+    'sessionRole'?: SessionRole;
+    /**
      * Lowercase hexadecimal SHA-256 digest of the platform-canonicalized snapshot content. Consumers preserve and compare this value; they do not refresh the snapshot from the live MODE.
      * @type {string}
      * @memberof ProjectModeSnapshot
@@ -16160,7 +16241,8 @@ export interface ProjectModeSnapshot {
 
 export const ProjectModeSnapshotSchemaVersionEnum = {
     ProjectModeSnapshotV1: 'project-mode-snapshot.v1',
-    ProjectModeSnapshotV2: 'project-mode-snapshot.v2'
+    ProjectModeSnapshotV2: 'project-mode-snapshot.v2',
+    ProjectModeSnapshotV3: 'project-mode-snapshot.v3'
 } as const;
 
 export type ProjectModeSnapshotSchemaVersionEnum = typeof ProjectModeSnapshotSchemaVersionEnum[keyof typeof ProjectModeSnapshotSchemaVersionEnum];

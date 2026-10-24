@@ -156,6 +156,8 @@ export type FieldComponentContext = {
   parentMessageData?: SystemMessageData;
   /** True when this message is the last one in the conversation timeline. */
   isLastInTimeline?: boolean;
+  /** Latest persisted planning context, independent of later narrative messages. */
+  codingPlanVersionMessageId?: string | null;
   /** The current Turn's tool calls, polled once by the conversation. */
   latestTurnToolCalls?: LatestTurnToolCallsState;
   /** Focuses the shared conversation composer without submitting a message. */

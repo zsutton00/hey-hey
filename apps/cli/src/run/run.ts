@@ -1,3 +1,4 @@
+import { resolveHandlerSessionRole } from '../agents/prompt-type-handler';
 import { RunAttachmentNotFoundError } from '../server/run-attachment-store';
 import { RunAttachmentContentReader } from '../agents/providers/run-attachment-content-reader';
 import type { BrowserMcpAccess } from '../agents/browser-tools/browser-mcp-access';
@@ -4210,6 +4211,7 @@ export class Run {
         resolvedPrompt: ctx.resolvedPrompt,
         attachments: ctx.input.attachments ?? [],
         handler: ctx.handler,
+        effectiveRole: resolveHandlerSessionRole(ctx.handler, this.session),
         payload: ctx.preparedPayload ?? input.payload,
         externalAgentNodeId: this.triggerContext?.externalAgentNodeId ?? null,
         triggerMessageId: this.triggerContext?.triggerMessageId ?? null,
@@ -6213,6 +6215,52 @@ export class Run {
       priorTriggerContext: this.triggerContext,
     });
     this.setTriggerContext(null);
+  }
+
+  public async persistCodingPlanElement(
+    type: import('../shared/api/generated/api').ExtendedUIFieldType,
+    payload:
+      | import('../shared/api/generated/api').CodingPlanVersion
+      | import('../shared/api/generated/api').CodingPlanDiscrepancy,
+  ): Promise<string> {
+    if (this.activeTurn?.handler.promptType !== 'startup_session') {
+      throw new Error('Planning conversation tools require the active planning handler.');
+    }
+    const session = this.session;
+    const messageId = await this.poster.createOutOfBand({
+      organizationId: session.contextMetadata.organizationId,
+      projectId: session.contextMetadata.projectId,
+      conversationId: session.conversationId,
+      dto: {
+        type: MessageType.System,
+        status: MessageStatus.Completed,
+        projectId: session.contextMetadata.projectId,
+        data: {
+          type: SystemMessageDataTypeEnum.Agent,
+          response: '',
+          detectedIntent: 'coding_plan_conversation',
+          intentConfidence: 1,
+          uiElements: [
+            {
+              id: randomUUID(),
+              type,
+              label: type === 'coding_plan_version' ? 'Complete plan' : 'Planning issue',
+              required: false,
+              influences: [],
+              payload,
+            },
+          ],
+        },
+      },
+      stamp: null,
+    });
+    this.logger.debug('local.coding_plan.conversation.persisted', {
+      runId: this.runId,
+      turnId: this.activeTurn?.turnId,
+      type,
+      messageId,
+    });
+    return messageId;
   }
 
   private async postAgentSystemMessage(

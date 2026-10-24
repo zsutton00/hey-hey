@@ -9,6 +9,15 @@ const openapiRoot = resolveOpenapiRoot();
 const schemaPath = path.join(openapiRoot, 'specs/schemas/conversations.yaml');
 const schemas = yaml.load(fs.readFileSync(schemaPath, 'utf8'));
 const generatedSchemaNames = [
+  'ImplementPromptPayload',
+  'CodingPlanDiscrepancy',
+  'CodingPlanContext',
+  'CodingPlanVersion',
+  'CodingPlanVersionApproval',
+  'CodingPlanEmissionInput',
+  'CodingPlanConversationalApproval',
+  'CodingPlanApprovalPayload',
+  'CodingPlanWorkflowAnswer',
   'CodingPlanReviewAnswerPayload',
   'QuestionsFeedbackPayload',
   'QuestionsApprovedPayload',
@@ -23,6 +32,12 @@ const referencedNames = new Set();
 function schemaExpression(schema) {
   if (schema.$ref) {
     const name = schema.$ref.replace(/^#\//, '');
+    if (name.includes('/')) {
+      const target = name
+        .split('/')
+        .reduce((value, key) => value[key], schemas);
+      return schemaExpression(target);
+    }
     referencedNames.add(name);
     return `${name}Schema`;
   }
@@ -94,6 +109,7 @@ function schemaExpression(schema) {
   return 'z.unknown()';
 }
 
+const checkedSchemas = ['CodingPlanVersion', 'CodingPlanEmissionInput'];
 const emitted = new Set();
 const declarations = [];
 
@@ -109,7 +125,7 @@ function emitSchema(name, exported) {
 
   emitted.add(name);
   declarations.push(
-    `${exported ? 'export ' : ''}const ${name}Schema = ${expression};`,
+    `${generatedSchemaNames.includes(name) ? 'export ' : ''}const ${name}Schema = ${expression}${checkedSchemas.includes(name) ? ` satisfies z.ZodType<${name}>` : ''};`,
   );
 }
 
@@ -118,11 +134,41 @@ for (const name of generatedSchemaNames) emitSchema(name, true);
 const output = [
   '/* This file is generated from OpenAPI by scripts/generate-workflow-review-schemas.js. */',
   "import { z } from 'zod';",
+  `import type { ${checkedSchemas.join(', ')} } from '${process.argv[2] ? '../shared/api/generated/api' : './model/models'}';`,
   '',
   ...declarations.flatMap((declaration) => [declaration, '']),
 ].join('\n');
 
 fs.writeFileSync(
-  path.join(resolveGeneratedRoot(), 'workflow-review.schemas.ts'),
+  process.argv[2] ??
+    path.join(resolveGeneratedRoot(), 'workflow-review.schemas.ts'),
   output,
 );
+
+// Handler tool declarations use the original JSON Schema, including uniqueness.
+if (process.argv[2]) {
+  const expand = (schema) => {
+    if (Array.isArray(schema)) return schema.map(expand);
+    if (!schema || typeof schema !== 'object') return schema;
+    if (schema.$ref)
+      return expand(
+        schema.$ref
+          .replace(/^#\//, '')
+          .split('/')
+          .reduce((value, key) => value[key], schemas),
+      );
+    return Object.fromEntries(
+      Object.entries(schema).map(([key, value]) => [key, expand(value)]),
+    );
+  };
+  fs.writeFileSync(
+    process.argv[2].replace('.schemas.ts', '.tool-schemas.ts'),
+    '/* Generated from OpenAPI; do not edit. */\n' +
+      ['CodingPlanEmissionInput', 'CodingPlanDiscrepancy']
+        .map(
+          (name) =>
+            `export const ${name}ToolSchema = ${JSON.stringify(expand(schemas[name]), null, 2)};\n`,
+        )
+        .join('\n'),
+  );
+}

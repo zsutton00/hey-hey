@@ -437,15 +437,20 @@ describe('SubAgent — unified runtime contract', () => {
       expectedMessageCount: number;
       expectedPreambleCount: number;
     }> = [
-      { userMessage: uniqueUserMessage, expectedMessageCount: 1, expectedPreambleCount: 1 },
+      { userMessage: uniqueUserMessage, expectedMessageCount: 1, expectedPreambleCount: 0 },
       { userMessage: '', expectedMessageCount: 0, expectedPreambleCount: 0 },
       { expectedMessageCount: 0, expectedPreambleCount: 0 },
     ];
     for (const testCase of cases) {
-      const payload: LocalStartupSessionPromptPayload = {
-        ...basePayload,
-        ...(testCase.userMessage !== undefined ? { userMessage: testCase.userMessage } : {}),
-      };
+      // SubAgent receives the payload already prepared by Run, including conversational feedback.
+      const payload: import('../agents/coding-plan/coding-plan.handler').EnrichedCodingPlanPromptPayload =
+        {
+          ...basePayload,
+          _recentUserReplies: testCase.userMessage
+            ? [{ messageId: 'reply', text: testCase.userMessage, createdAt: '' }]
+            : [],
+          ...(testCase.userMessage !== undefined ? { userMessage: testCase.userMessage } : {}),
+        };
       const subagent = makeSubAgent({
         session: makeSession(),
         handler: registeredCodingPlanHandler,
