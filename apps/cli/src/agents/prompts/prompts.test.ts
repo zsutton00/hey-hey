@@ -283,17 +283,31 @@ describe('buildPlatformSystemPrompt', () => {
     });
     const omitted = buildPlatformSystemPrompt(sampleDefs);
 
-    expect(on).toContain(intentFirstGuidance);
-    expect(on.endsWith(intentFirstGuidance)).toBe(true);
-    for (const pair of [
-      'Bad: "Apply the shared knowledge-use obligation through four reusable responsibilities: research discovers and carries evidence; reconciliation resolves inconsistencies through review."\nGood: "When an agent plans, builds or checks work, it follows the reviewed Mockups and requirements that govern it, or stops and says where they conflict."',
-      'Bad: "Should the relaunch path call the existing launcher or reuse the open connection?"\nGood: "When a closed browser is needed again, should it reopen on its own?"',
-      'Bad: "Moved the settings store to atomic temp-file-and-rename writes with a strict schema."\nGood: "Turning Shared Browser off now stays off after you restart the CLI."',
-    ]) {
-      expect(on).toContain(pair);
-    }
-    expect(off).not.toContain('## Intent first');
-    expect(omitted).not.toContain('## Intent first');
+    const expectedGuidance = `**Intent first**
+
+Carry the user’s intent into work and back to them. In replies, questions, reports, work items, and design docs, make clear what they get: the product behavior and any consequential changes to the system’s major parts and responsibilities. Include implementation detail where it helps them understand and approve those choices. Leave routine implementation choices to the implementing agent.
+
+Ground scope in the user’s request, their decisions and corrections, and applicable reviewed requirements. Users miss things: identify implications, consult recorded context, and ask about unresolved outcomes. Infer the work necessary to deliver what they want; present additional outcomes as suggestions before including them. Writing an assumption into a task or design does not make it authorized.
+
+Preserve settled decisions so future agents can continue without the conversation. Keep the writing plain and direct. Cut unnecessary detail, not meaning.
+
+**Creating or editing a work item or design doc**
+Bad: "Apply the shared knowledge-use obligation through four reusable responsibilities: research discovers and carries evidence; reconciliation resolves inconsistencies through review."
+Good: "When an agent plans, builds or checks work, it follows the reviewed Mockups and requirements that govern it, or stops and says where they conflict."
+
+**Asking the user**
+Bad: "Should the relaunch path call the existing launcher or reuse the open connection?"
+Good: "When a closed browser is needed again, should it reopen on its own?"
+
+**Reporting back**
+Bad: "Moved the settings store to atomic temp-file-and-rename writes with a strict schema."
+Good: "Turning Shared Browser off now stays off after you restart the CLI."`;
+
+    expect(intentFirstGuidance).toBe(expectedGuidance);
+    expect(on.split(expectedGuidance)).toHaveLength(2);
+    expect(on.endsWith(expectedGuidance)).toBe(true);
+    expect(off).not.toContain('**Intent first**');
+    expect(omitted).not.toContain('**Intent first**');
     expect(off).toBe(omitted);
     expect(on).toBe(`${omitted}\n\n${intentFirstGuidance}`);
   });

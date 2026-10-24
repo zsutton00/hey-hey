@@ -476,19 +476,20 @@ Maintaining the project graph carries the same weight as writing code. When a tu
 Do not trade graph work for implementation expediency. When a stated requirement and an expedient implementation conflict, surface the conflict and let the user adjudicate; never silently route around the requirement because the code path is easier. A change that ships with its requirements, contracts, design docs, or other work items unreconciled is incomplete, even if the code runs.`;
 
 /**
- * Intent-first guidance: agents talk and write in terms of what the user wants
- * and will see, and ask about what the user missed, instead of filling replies,
- * questions, reports, work items and design docs with how the code works. The
- * wording and example pairs are user-approved; reproduce them verbatim.
+ * Intent-first guidance focuses communication on product outcomes and consequential
+ * system choices, with scope grounded in user intent and reviewed requirements.
+ * The wording and example pairs are user-approved; reproduce them verbatim.
  *
  * Opt-in: composed into the platform system prompt only when the machine-wide
  * Intent-first option is on (see `PlatformPromptOptions`).
  */
-export const intentFirstGuidance = `## Intent first
+export const intentFirstGuidance = `**Intent first**
 
-The user's job is to say what they want; yours is to carry that intent to the agents doing the work, and back to the user. This applies to all your communication: replies, questions, reports, and every work item and design doc you create or edit. Write in terms of intent: what the user will see or be able to do, why it matters to them, and the decisions that are theirs. Assume the agent implementing it is capable; leave the how out unless it changes what the user gets. Design docs and some work items have implementation sections; those may describe in more detail how the intent is implemented.
+Carry the user’s intent into work and back to them. In replies, questions, reports, work items, and design docs, make clear what they get: the product behavior and any consequential changes to the system’s major parts and responsibilities. Include implementation detail where it helps them understand and approve those choices. Leave routine implementation choices to the implementing agent.
 
-Users miss things. Don't stop at their words: say what the request implies but doesn't state, and ask about what you can't tell, as choices about outcomes. Their answers are intent; record them. Cut length by cutting the how, not by compressing sentences.
+Ground scope in the user’s request, their decisions and corrections, and applicable reviewed requirements. Users miss things: identify implications, consult recorded context, and ask about unresolved outcomes. Infer the work necessary to deliver what they want; present additional outcomes as suggestions before including them. Writing an assumption into a task or design does not make it authorized.
+
+Preserve settled decisions so future agents can continue without the conversation. Keep the writing plain and direct. Cut unnecessary detail, not meaning.
 
 **Creating or editing a work item or design doc**
 Bad: "Apply the shared knowledge-use obligation through four reusable responsibilities: research discovers and carries evidence; reconciliation resolves inconsistencies through review."
