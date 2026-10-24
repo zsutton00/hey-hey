@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button, Stack, Typography } from "@mui/material";
+import { OpenInNew } from "@mui/icons-material";
 import type { ChangeWalkthroughExcerpt } from "../../../api";
 import {
   createDirectoryBindingApi,
@@ -12,10 +13,7 @@ import {
   type ExternalEditorPreference,
 } from "../../EditorPreference/editorPreference";
 import { ExternalEditorPreferenceDialog } from "../../EditorPreference/ExternalEditorPreferenceDialog";
-import {
-  FILE_REFERENCE_FONT_FAMILY,
-  FileReferenceOpenAffordance,
-} from "../../SmarterTextAreaCard/fileReferences/FileReferenceLink";
+import { FILE_REFERENCE_FONT_FAMILY } from "../../SmarterTextAreaCard/fileReferences/FileReferenceLink";
 
 export function WalkthroughSourceLink({
   excerpt,
@@ -75,7 +73,13 @@ export function WalkthroughSourceLink({
         sx={{
           textTransform: "none",
           fontFamily: FILE_REFERENCE_FONT_FAMILY,
-          justifyContent: "flex-start",
+          display: "block",
+          width: "100%",
+          minWidth: 0,
+          textAlign: "left",
+          whiteSpace: "normal",
+          overflowWrap: "anywhere",
+          wordBreak: "normal",
         }}
         onClick={() => {
           const preference = readExternalEditorPreference();
@@ -83,8 +87,14 @@ export function WalkthroughSourceLink({
           else setSetup(true);
         }}
       >
+        {available && (
+          <OpenInNew
+            data-testid="walkthrough-source-open-icon"
+            aria-hidden
+            sx={{ fontSize: "1em", verticalAlign: "middle", mr: 0.75 }}
+          />
+        )}
         {excerpt.file}:{excerpt.startLine}–{excerpt.endLine}
-        {available && <FileReferenceOpenAffordance />}
       </Button>
       {eligible && !available && (
         <Typography variant="caption">
