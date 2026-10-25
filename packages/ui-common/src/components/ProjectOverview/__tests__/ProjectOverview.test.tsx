@@ -35,6 +35,14 @@ vi.mock("../../../data/hooks/useProjectReports", () => ({
   }),
 }));
 
+vi.mock("../../../data/hooks/useProjectReadyFutures", () => ({
+  useProjectReadyFutures: () => ({
+    isPending: false,
+    isError: false,
+    data: { items: [], total: 0, limit: 10, offset: 0, unavailableCount: 0 },
+  }),
+}));
+
 const useProject = vi.hoisted(() => vi.fn());
 const useProjectMetrics = vi.hoisted(() => vi.fn());
 const useEntityStar = vi.hoisted(() => vi.fn());
@@ -384,9 +392,9 @@ describe("ProjectOverview", () => {
       });
       renderOverview();
       expect(
-        screen.queryByRole("button", { name: "Cancel Onboarding" })
+        screen.queryByRole("button", { name: "Cancel Onboarding" }),
       ).not.toBeInTheDocument();
-    }
+    },
   );
 
   it.each(

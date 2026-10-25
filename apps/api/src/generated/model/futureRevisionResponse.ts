@@ -14,6 +14,7 @@
 import { FutureRevisionOutcome } from './futureRevisionOutcome';
 import { FutureCompletionEligibility } from './futureCompletionEligibility';
 import { FutureRevisionContent } from './futureRevisionContent';
+import { FutureDependencyPresentation } from './futureDependencyPresentation';
 import { FutureCompletionDependency } from './futureCompletionDependency';
 import { FutureRevisionBaseline } from './futureRevisionBaseline';
 import { FutureRevisionHistoryEntry } from './futureRevisionHistoryEntry';
@@ -32,6 +33,7 @@ export interface FutureRevisionResponse {
     latestProposalId: string;
     baseline: FutureRevisionBaseline;
     result: FutureRevisionContent;
+    readonly dependencyPresentation: Array<FutureDependencyPresentation>;
     dependencies: Array<FutureCompletionDependency>;
     history: Array<FutureRevisionHistoryEntry>;
     /**

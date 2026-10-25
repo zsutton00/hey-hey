@@ -10,6 +10,7 @@ import { QueryClient, type QueryKey } from "@tanstack/react-query";
 import { vi } from "vitest";
 import { WebSocketHandler } from "../handler";
 import { WebSocketDebugger } from "../debug";
+import { proposalKeys } from "../../collections/proposals";
 import { conversationKeys } from "../../collections/conversations";
 import type {
   ConversationResponseDto,
@@ -81,6 +82,29 @@ describe("WebSocket handler with queryKeys", () => {
   });
 
   describe("handleConversationUpdated invalidation ownership", () => {
+    it("invalidates project-ready lists after remote future approval while isolating other projects", () => {
+      const ready = [...proposalKeys.lists(ORG, PROJECT), "ready-futures", 1];
+      const other = [
+        ...proposalKeys.lists(ORG, "other-project"),
+        "ready-futures",
+        1,
+      ];
+      queryClient.setQueryData(ready, { items: [] });
+      queryClient.setQueryData(other, { items: [] });
+      handler.handleEvent({
+        type: "proposal.approved",
+        timestamp: "2026-10-01T00:00:00Z",
+        organizationId: ORG,
+        projectId: PROJECT,
+        proposalId: "proposal",
+        targetEntityId: "target",
+        targetEntityType: "TASK",
+        action: "VERSIONED_UPDATE",
+      });
+      expect(isInvalidated(queryClient, ready)).toBe(true);
+      expect(isInvalidated(queryClient, other)).toBe(false);
+    });
+
     it("does not invalidate conversation envelope variants for conversation.updated", () => {
       const event: WebSocketConversationUpdatedEvent = {
         type: "conversation.updated",
@@ -93,15 +117,15 @@ describe("WebSocket handler with queryKeys", () => {
       };
       queryClient.setQueryData(
         conversationKeys.envelope("org-789", "project-456", "conv-123"),
-        conversation("conv-123")
+        conversation("conv-123"),
       );
       queryClient.setQueryData(
         conversationKeys.envelope("org-789", "project-456", "conv-123", true),
-        conversation("conv-123")
+        conversation("conv-123"),
       );
       queryClient.setQueryData(
         conversationKeys.list("org-789", "project-456", {}),
-        [conversation("conv-123")]
+        [conversation("conv-123")],
       );
 
       handler.handleEvent(event);
@@ -344,7 +368,7 @@ describe("WebSocket handler with queryKeys", () => {
             "Conversation status changed, marking cached envelope queries stale",
           conversationId: "conv-debug-test",
           timestamp: "2024-01-01T00:00:00Z",
-        })
+        }),
       );
     });
 
@@ -366,7 +390,7 @@ describe("WebSocket handler with queryKeys", () => {
           type: "conversation.status_changed",
           source: "websocket-handler",
           data: event,
-        })
+        }),
       );
 
       // Should log successful processing
@@ -374,7 +398,7 @@ describe("WebSocket handler with queryKeys", () => {
         expect.objectContaining({
           type: "conversation.status_changed",
           source: "websocket-handler-success",
-        })
+        }),
       );
     });
   });
@@ -436,7 +460,7 @@ describe("WebSocket handler with queryKeys", () => {
 
       // Precise: only conv-simple's envelopes
       expect(invalidatedKeys(queryClient)).toEqual(
-        expect.arrayContaining(keys["conv-simple"])
+        expect.arrayContaining(keys["conv-simple"]),
       );
       expect(invalidatedKeys(queryClient)).toHaveLength(2);
     });

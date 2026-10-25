@@ -79,7 +79,11 @@ describe("WebSocketService", () => {
   beforeEach(() => {
     mockStore = createStore();
     mockDebugger = createMockDebugger();
-    mockHandler = new WebSocketHandler(mockStore, mockDebugger, new QueryClient());
+    mockHandler = new WebSocketHandler(
+      mockStore,
+      mockDebugger,
+      new QueryClient(),
+    );
     vi.clearAllMocks();
 
     // Reset mock socket state
@@ -640,6 +644,46 @@ describe("WebSocketService", () => {
     ]);
   });
 
+  it("subscribes to proposal approvals and forwards them to cache invalidation", () => {
+    const handleEventSpy = vi.spyOn(mockHandler, "handleEvent");
+    const service = new WebSocketService(mockHandler);
+    service.subscribe({ projectIds: ["project-1"] });
+    service.initialize({ userId: "test-user" });
+    mockSocket.connected = true;
+    mockSocket.on.mock.calls.find((call) => call[0] === "authenticated")![1]({
+      status: "success",
+      connectionId: "connection-1",
+      userId: "test-user",
+      projectIds: ["project-1"],
+      conversationIds: [],
+      initiativeIds: [],
+      designDocIds: [],
+    });
+    expect(mockSocket.emit).toHaveBeenCalledWith(
+      "subscribe",
+      expect.objectContaining({
+        eventTypes: expect.arrayContaining([
+          WebSocketSubscriptionRequestEventTypesEnum.ProposalApproved,
+        ]),
+      }),
+    );
+    const event = {
+      type: "proposal.approved",
+      timestamp: "2026-10-01T00:00:00Z",
+      organizationId: "org-1",
+      projectId: "project-1",
+      proposalId: "proposal",
+      targetEntityId: "target",
+      targetEntityType: "TASK",
+      action: "VERSIONED_UPDATE",
+    };
+    mockSocket.on.mock.calls.find(
+      (call) =>
+        call[0] === WebSocketSubscriptionRequestEventTypesEnum.ProposalApproved,
+    )![1](event);
+    expect(handleEventSpy).toHaveBeenCalledWith(event);
+  });
+
   it("subscribes to and dispatches proposal group lifecycle events", () => {
     const handleEventSpy = vi.spyOn(mockHandler, "handleEvent");
     const service = new WebSocketService(mockHandler);
@@ -1086,8 +1130,16 @@ describe("WebSocketService", () => {
   it("should allow different services to use different handlers", () => {
     const store1 = createStore();
     const store2 = createStore();
-    const handler1 = new WebSocketHandler(store1, createMockDebugger(), new QueryClient());
-    const handler2 = new WebSocketHandler(store2, createMockDebugger(), new QueryClient());
+    const handler1 = new WebSocketHandler(
+      store1,
+      createMockDebugger(),
+      new QueryClient(),
+    );
+    const handler2 = new WebSocketHandler(
+      store2,
+      createMockDebugger(),
+      new QueryClient(),
+    );
 
     const service1 = new WebSocketService(handler1);
     const service2 = new WebSocketService(handler2);

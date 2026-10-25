@@ -101,7 +101,14 @@ export function sectionContent(
 /** Compare the selected content basis, not response metadata or a new version token. */
 export async function futureBaselineBlocker(
   db: Prisma.TransactionClient,
-  future: FutureRevisionResponse,
+  future: Pick<
+    FutureRevisionResponse,
+    | 'baseline'
+    | 'organizationId'
+    | 'projectId'
+    | 'targetEntityId'
+    | 'targetEntityType'
+  >,
   reconciliation: ProposalReconciliationService,
 ): Promise<FutureApplyResponse['blocker'] | undefined> {
   let baseline = future.baseline;

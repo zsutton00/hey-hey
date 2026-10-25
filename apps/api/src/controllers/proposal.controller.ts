@@ -11,6 +11,9 @@ import {
   HttpStatus,
   Param,
   ParseUUIDPipe,
+  ParseIntPipe,
+  DefaultValuePipe,
+  BadRequestException,
   Patch,
   Post,
   Query,
@@ -231,6 +234,28 @@ export class ProposalController {
       organizationId,
       projectId,
       user.userId,
+    );
+  }
+
+  @Get('futures/ready')
+  @ApiOperation({
+    summary: 'List project futures with ready implementation work',
+  })
+  async listProjectReadyFutures(
+    @CurrentOrganization() organizationId: OrganizationId,
+    @Param('projectId', ParseUUIDPipe) projectId: ProjectId,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+    @Query('offset', new DefaultValuePipe(0), ParseIntPipe) offset: number,
+  ) {
+    if (limit < 1 || limit > 100 || offset < 0)
+      throw new BadRequestException('Invalid pagination');
+    return this.approvalService.listProjectReadyFutures(
+      organizationId,
+      projectId,
+      user.userId,
+      limit,
+      offset,
     );
   }
 

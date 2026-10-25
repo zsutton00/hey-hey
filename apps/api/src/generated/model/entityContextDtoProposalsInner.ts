@@ -20,6 +20,7 @@ import { WorkItemChangeSetMaterializationProgress } from './workItemChangeSetMat
 import { TargetEntityType } from './targetEntityType';
 import { ProposalAction } from './proposalAction';
 import { ProposalOutOfDateStatus } from './proposalOutOfDateStatus';
+import { FutureDependencyPresentation } from './futureDependencyPresentation';
 import { Influence } from './influence';
 import { ProposalEdgeDeclaration } from './proposalEdgeDeclaration';
 import { ProposalGroupMembership } from './proposalGroupMembership';

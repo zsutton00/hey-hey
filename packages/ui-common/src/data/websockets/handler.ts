@@ -10,6 +10,7 @@ import {
   type EvalAttemptUpdatedEvent,
   type EvalRunUpdatedEvent,
   type WebSocketProposalGroupLifecycleEvent,
+  type WebSocketProposalApprovedEvent,
   type WebSocketConversationCreatedEvent,
   type WebSocketConversationStatusChangedEvent,
   type WebSocketConversationUpdatedEvent,
@@ -111,6 +112,7 @@ import { machineRepoBindingsByMachineAtom } from "./machineRepoBindingsState";
 type Store = ReturnType<typeof createStore>;
 
 type WebSocketEventUnion =
+  | WebSocketProposalApprovedEvent
   | WebSocketProposalGroupLifecycleEvent
   | EvalRunUpdatedEvent
   | EvalAttemptUpdatedEvent
@@ -323,7 +325,9 @@ export class WebSocketHandler {
       taskId || undefined,
     );
 
-    this.debugger.logQueryInvalidation("workItemReferences", `${eventType}:${taskId}`,
+    this.debugger.logQueryInvalidation(
+      "workItemReferences",
+      `${eventType}:${taskId}`,
       {
         eventType,
         reason:
@@ -448,7 +452,17 @@ export class WebSocketHandler {
 
     try {
       switch (event.type) {
+        case "proposal.approved":
+          this.invalidateQueryFilters({
+            queryKey: event.projectId
+              ? proposalKeys.project(event.organizationId, event.projectId)
+              : [...proposalKeys.root(), event.organizationId],
+          });
+          break;
         case "proposal_group.lifecycle":
+          this.invalidateQueryFilters({
+            queryKey: proposalKeys.lists(event.organizationId, event.projectId),
+          });
           this.invalidateQueryFilters({
             queryKey: proposalKeys.group(
               event.organizationId,
@@ -746,17 +760,15 @@ export class WebSocketHandler {
       return;
     }
 
-    this.debugger.logQueryInvalidation("workItems", `item:${event.taskId}`,
-      {
-        eventType: "task.updated",
-        reason: "Task updated, invalidating its reads and project lists",
-        taskId: event.taskId,
-        initiativeId: event.initiativeId,
-        changedFields: event.changedFields,
-        changedBy: event.changedBy?.email,
-        timestamp: event.timestamp,
-      },
-    );
+    this.debugger.logQueryInvalidation("workItems", `item:${event.taskId}`, {
+      eventType: "task.updated",
+      reason: "Task updated, invalidating its reads and project lists",
+      taskId: event.taskId,
+      initiativeId: event.initiativeId,
+      changedFields: event.changedFields,
+      changedBy: event.changedBy?.email,
+      timestamp: event.timestamp,
+    });
 
     this.dispatchRelationshipInvalidations("Task", "update", {
       id: event.taskId,
@@ -799,14 +811,12 @@ export class WebSocketHandler {
       event.taskId,
     );
 
-    this.debugger.logQueryInvalidation("workItems", `deleted:${event.taskId}`,
-      {
-        eventType: "task.deleted",
-        reason: "Task deleted, removing it from cached work-item reads",
-        taskId: event.taskId,
-        initiativeId: event.initiativeId,
-      },
-    );
+    this.debugger.logQueryInvalidation("workItems", `deleted:${event.taskId}`, {
+      eventType: "task.deleted",
+      reason: "Task deleted, removing it from cached work-item reads",
+      taskId: event.taskId,
+      initiativeId: event.initiativeId,
+    });
   }
 
   private handleTaskStatusChanged(event: {
@@ -839,16 +849,14 @@ export class WebSocketHandler {
       event.taskId,
     );
 
-    this.debugger.logQueryInvalidation("workItems", `item:${event.taskId}`,
-      {
-        eventType: "task.status_changed",
-        reason: "Task status changed, invalidating its reads and project lists",
-        taskId: event.taskId,
-        initiativeId: event.initiativeId,
-        previousStatus: event.previousStatus,
-        newStatus: event.newStatus,
-      },
-    );
+    this.debugger.logQueryInvalidation("workItems", `item:${event.taskId}`, {
+      eventType: "task.status_changed",
+      reason: "Task status changed, invalidating its reads and project lists",
+      taskId: event.taskId,
+      initiativeId: event.initiativeId,
+      previousStatus: event.previousStatus,
+      newStatus: event.newStatus,
+    });
   }
 
   private handleEditHistoryUpdated(event: {
@@ -989,7 +997,9 @@ export class WebSocketHandler {
       event.projectId,
     );
 
-    this.debugger.logQueryInvalidation("agentSessions", `agent_session.created:${event.agentSessionId}`,
+    this.debugger.logQueryInvalidation(
+      "agentSessions",
+      `agent_session.created:${event.agentSessionId}`,
       {
         eventType: event.type,
         reason: "New agent session created, re-reading loaded lists and feeds",
@@ -1011,7 +1021,9 @@ export class WebSocketHandler {
       queryKey: agentSessionKeys.lists(event.organizationId, event.projectId),
     });
 
-    this.debugger.logQueryInvalidation("agentSessions", `daily_session.updated:${event.sessionId}`,
+    this.debugger.logQueryInvalidation(
+      "agentSessions",
+      `daily_session.updated:${event.sessionId}`,
       {
         eventType: event.type,
         reason:
@@ -1033,7 +1045,9 @@ export class WebSocketHandler {
       event.agentSessionId,
     );
 
-    this.debugger.logQueryInvalidation("agentSessions", `item:${event.agentSessionId}`,
+    this.debugger.logQueryInvalidation(
+      "agentSessions",
+      `item:${event.agentSessionId}`,
       {
         eventType: event.type,
         reason:
@@ -1059,7 +1073,9 @@ export class WebSocketHandler {
       event.projectId,
     );
 
-    this.debugger.logQueryInvalidation("agentSessions", `item:${event.agentSessionId}`,
+    this.debugger.logQueryInvalidation(
+      "agentSessions",
+      `item:${event.agentSessionId}`,
       {
         eventType: event.type,
         reason:
@@ -1101,7 +1117,9 @@ export class WebSocketHandler {
       },
     );
 
-    this.debugger.logQueryInvalidation("conversations", `item:${event.conversationId}`,
+    this.debugger.logQueryInvalidation(
+      "conversations",
+      `item:${event.conversationId}`,
       {
         eventType: event.type,
         reason:
@@ -1186,7 +1204,9 @@ export class WebSocketHandler {
         },
       );
 
-      this.debugger.logQueryInvalidation("conversations", `item:${event.conversationId}`,
+      this.debugger.logQueryInvalidation(
+        "conversations",
+        `item:${event.conversationId}`,
         {
           eventType: event.type,
           reason:
@@ -1304,6 +1324,11 @@ export class WebSocketHandler {
     changedFields?: string[];
   }) {
     if (!event.designDocId) return;
+    this.invalidateQueryFilters({
+      queryKey: event.projectId
+        ? proposalKeys.lists(event.organizationId, event.projectId)
+        : [...proposalKeys.root(), event.organizationId],
+    });
     void invalidateDesignDocQueries(
       this.queryClient,
       event.organizationId,

@@ -45,6 +45,7 @@ import {
   type WebSocketAgentSessionOutputAttentionChangedEvent,
   type WebSocketConversationPhaseChangedEvent,
   type WebSocketProposalGroupLifecycleEvent,
+  type WebSocketProposalApprovedEvent,
   type EvalAttemptUpdatedEvent,
   type EvalRunUpdatedEvent,
 } from "../api";
@@ -1394,6 +1395,13 @@ export class WebSocketService {
     );
 
     socket.on(
+      WebSocketSubscriptionRequestEventTypesEnum.ProposalApproved,
+      (event: WebSocketProposalApprovedEvent) => {
+        this.handleAuthorizedEvent(event);
+      },
+    );
+
+    socket.on(
       WebSocketSubscriptionRequestEventTypesEnum.ProposalGroupLifecycle,
       (event: WebSocketProposalGroupLifecycleEvent) => {
         logger.info("services_websockets", "Proposal group lifecycle", {
@@ -1548,6 +1556,7 @@ export class WebSocketService {
       WebSocketSubscriptionRequestEventTypesEnum.AgentSessionOutputAttentionChanged,
       WebSocketSubscriptionRequestEventTypesEnum.ConversationPhaseChanged,
       WebSocketSubscriptionRequestEventTypesEnum.ProposalGroupLifecycle,
+      WebSocketSubscriptionRequestEventTypesEnum.ProposalApproved,
       WebSocketSubscriptionRequestEventTypesEnum.EvalRunUpdated,
       WebSocketSubscriptionRequestEventTypesEnum.EvalAttemptUpdated,
       WebSocketSubscriptionRequestEventTypesEnum.SystemNotification,

@@ -375,6 +375,7 @@ export const ORGANIZATIONS_ORGANIZATIONID_ACTIVITY_CORRELATIONS_QUERY_PATH = '/o
 export const ORGANIZATIONS_ORGANIZATIONID_ACTIVITY_CORRELATIONS_SLEEP_PATH = '/organizations/{organizationId}/activity-correlations/sleep';
 export const ORGANIZATIONS_ORGANIZATIONID_ACTIVITY_CORRELATIONS_ENTITIES_ENTITYTYPE_ENTITYID_PATH = '/organizations/{organizationId}/activity-correlations/entities/{entityType}/{entityId}';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSALS_PATH = '/organizations/{organizationId}/projects/{projectId}/proposals';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSALS_FUTURES_READY_PATH = '/organizations/{organizationId}/projects/{projectId}/proposals/futures/ready';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSALS_FUTURES_PATH = '/organizations/{organizationId}/projects/{projectId}/proposals/futures';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSALS_FUTURES_FUTUREID_APPLICABILITY_PATH = '/organizations/{organizationId}/projects/{projectId}/proposals/futures/{futureId}/applicability';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSALS_FUTURES_FUTUREID_APPLY_PATH = '/organizations/{organizationId}/projects/{projectId}/proposals/futures/{futureId}/apply';

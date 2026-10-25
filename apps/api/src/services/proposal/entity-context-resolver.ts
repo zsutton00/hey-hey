@@ -109,6 +109,7 @@ interface ChangedFieldResolutionContext {
   organizationId: string;
   projectId: string;
   workItemTypeRegistry?: WorkItemTypeRegistryService;
+  future?: { baseline: FutureRevisionBaseline; result: FutureRevisionContent };
 }
 
 function taskScalarValue(
@@ -209,16 +210,18 @@ export async function deriveChangedFields(
       baseline = mutation.baseline.content;
       result = mutation.result;
     } else {
-      const future = await tx.proposalFuture.findFirst({
-        where: {
-          id: mutation.futureId,
-          organizationId: context.organizationId,
-          projectId: context.projectId,
-          targetEntityId: input.targetEntityId,
-          targetEntityType: 'TASK',
-        },
-        select: { baseline: true, result: true },
-      });
+      const future =
+        context.future ??
+        (await tx.proposalFuture.findFirst({
+          where: {
+            id: mutation.futureId,
+            organizationId: context.organizationId,
+            projectId: context.projectId,
+            targetEntityId: input.targetEntityId,
+            targetEntityType: 'TASK',
+          },
+          select: { baseline: true, result: true },
+        }));
       if (!future) {
         throw new NotFoundException(
           `Task future not found for changed-field resolution: ${mutation.futureId}`,

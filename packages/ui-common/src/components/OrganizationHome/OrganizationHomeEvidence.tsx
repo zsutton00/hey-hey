@@ -32,7 +32,7 @@ import { CategoricalBarChart } from "./CategoricalBarChart";
 export type OrganizationHomeMetricActivation = (path: string) => void;
 
 type OrganizationHomeMetricContinuationActivation = (
-  continuation: ActivityMetricContinuationDto
+  continuation: ActivityMetricContinuationDto,
 ) => void;
 
 export type OrganizationHomeEvidenceProps = Pick<
@@ -80,7 +80,7 @@ const EvidenceLoading: React.FC<{ includeProjectInfo: boolean }> = ({
               </Stack>
             </CardContent>
           </MuiCard>
-        )
+        ),
       )}
     </Stack>
   </Box>
@@ -115,13 +115,13 @@ const MetricGroup: React.FC<{
     () =>
       group.metrics.map((metric) => ({
         accessibleLabel: `${group.label}, ${metric.label}, ${String(
-          metric.metric?.value ?? 0
+          metric.metric?.value ?? 0,
         )}, ${windowLabel} (${windowDetails})`,
         label: metric.label,
         metric: metric.identity,
         value: metric.metric?.value ?? 0,
       })),
-    [group.label, group.metrics, windowDetails, windowLabel]
+    [group.label, group.metrics, windowDetails, windowLabel],
   );
 
   return (
@@ -160,6 +160,7 @@ const MetricGroup: React.FC<{
 
 const MetricSectionCard: React.FC<{
   testId: string;
+  viewScope: OrganizationHomeEvidenceProps["viewScope"];
   title: string;
   groups: GroupedProjectMetricGroup[];
   windowLabel: string;
@@ -171,6 +172,7 @@ const MetricSectionCard: React.FC<{
   showTimeRange?: boolean;
 }> = ({
   testId,
+  viewScope,
   title,
   groups,
   windowLabel,
@@ -232,7 +234,10 @@ const MetricSectionCard: React.FC<{
           gridTemplateColumns: {
             xs: "minmax(0, 1fr)",
             sm: "repeat(2, minmax(0, 1fr))",
-            md: `repeat(${groups.length}, minmax(0, 1fr))`,
+            md:
+              viewScope === "project"
+                ? "repeat(2, minmax(0, 1fr))"
+                : `repeat(${groups.length}, minmax(0, 1fr))`,
           },
           gap: 2,
         }}
@@ -284,10 +289,10 @@ export const OrganizationHomeEvidence: React.FC<
           organizationId,
           viewScope,
           metricContinuation: continuation,
-        })
+        }),
       );
     },
-    [onMetricActivate, organizationId, pathService, viewScope]
+    [onMetricActivate, organizationId, pathService, viewScope],
   );
   const onRetry = React.useCallback(() => {
     void refetch().catch(() => undefined);
@@ -365,6 +370,7 @@ export const OrganizationHomeEvidence: React.FC<
         }}
       >
         <MetricSectionCard
+          viewScope={viewScope}
           testId="organization-home-throughput"
           title={title}
           groups={groups.throughput}
@@ -378,6 +384,7 @@ export const OrganizationHomeEvidence: React.FC<
         />
         {includeProjectInfo && (
           <MetricSectionCard
+            viewScope={viewScope}
             testId="organization-home-updates"
             title="Project Info Updates"
             groups={groups.updates}

@@ -18,6 +18,14 @@ import { PlanShapingFeatureSyncItemDecision } from './planShapingFeatureSyncItem
 
 export interface RunCreatePayloadPlanShapingFeatureSyncIterate { 
     /**
+     * Canonical delivering Plan identity from the persisted plan seed.
+     */
+    planId: string;
+    /**
+     * Authoritative design document from the persisted plan seed.
+     */
+    designDocId: string;
+    /**
      * The outstanding flagged items, each with its stable `id`, in the order the user saw them. 
      */
     discrepancies: Array<FeatureSyncDiscrepancy>;

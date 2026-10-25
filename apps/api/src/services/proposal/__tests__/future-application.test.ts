@@ -191,7 +191,7 @@ describe('manual future application', () => {
     });
     groupInvalidation = jest.fn().mockResolvedValue(undefined);
     service = Object.assign(Object.create(ProposalApprovalService.prototype), {
-      logger: { log: jest.fn(), warn: jest.fn() },
+      logger: { log: jest.fn(), warn: jest.fn(), debug: jest.fn() },
       prisma: { db },
       workItemTypeRegistry: registry,
       reconciliation,
@@ -663,6 +663,153 @@ describe('manual future application', () => {
     );
     expect(reopened?.applicability.blockers).toContain('COMPLETION_INCOMPLETE');
   });
+  function readyList(candidates = [state.future]) {
+    db.proposalFuture.findMany = jest.fn(async () =>
+      candidates.filter((f) => f.outcome === 'STAGED'),
+    );
+    db.proposal.findMany.mockImplementation(async ({ where }: any) =>
+      where.status === 'APPROVED'
+        ? [state.proposal].filter((p) => p.status === 'APPROVED')
+        : state.refinements,
+    );
+    db.task.findMany.mockImplementation(async () => [
+      state.target,
+      ...(state.work ? [state.work] : []),
+    ]);
+    db.designDoc.findMany = jest.fn(async () => []);
+    return (limit = 10, offset = 0) =>
+      service.listProjectReadyFutures(
+        organizationId as any,
+        projectId as any,
+        userId as any,
+        limit,
+        offset,
+      );
+  }
+
+  it('lists project-ready futures with fresh work state and keeps drift for review', async () => {
+    dependent();
+    state.proposal.title = 'Reviewed knowledge';
+    state.work.status = 'VERIFYING';
+    const list = readyList();
+    expect(await list()).toMatchObject({
+      total: 1,
+      items: [{ futureId, targetName: 'Current', targetType: 'FEATURE' }],
+    });
+    state.target.name = 'Changed baseline';
+    expect(await list()).toMatchObject({
+      total: 1,
+      items: [
+        { applicability: { canApply: false, blockers: ['BASELINE_CHANGED'] } },
+      ],
+    });
+    state.work.status = 'ACTIVE';
+    expect(await apply()).toMatchObject({ blocker: 'COMPLETION_INCOMPLETE' });
+    expect(await list()).toMatchObject({ total: 0, items: [] });
+    expect(enact).not.toHaveBeenCalled();
+    state.work.status = 'VERIFYING';
+    state.future.outcome = 'APPLIED';
+    expect(await list()).toMatchObject({ total: 0 });
+    expect(db.proposalFuture.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { organizationId, projectId, outcome: 'STAGED' },
+      }),
+    );
+  });
+
+  it('isolates an unreadable future while keeping healthy futures reachable', async () => {
+    state.proposal.title = 'Healthy change';
+    const list = readyList([
+      { ...state.future, id: randomUUID(), targetEntityId: randomUUID() },
+      state.future,
+    ]);
+    expect(await list()).toMatchObject({
+      unavailableCount: 1,
+      total: 1,
+      items: [{ futureId }],
+    });
+    expect(enact).not.toHaveBeenCalled();
+  });
+
+  it('filters blocked candidates before pagination and routes the latest refinement to grouped review', async () => {
+    state.proposal.title = 'Refined change';
+    state.proposal.groupMembership = {
+      groupId: randomUUID(),
+      requiredApprovals: 1,
+    };
+    state.work.status = 'ACTIVE';
+    const candidates = [
+      {
+        ...state.future,
+        id: randomUUID(),
+        dependencies: [{ targetEntityId: workId }],
+      },
+      { ...state.future, id: randomUUID(), revision: 2 },
+      { ...state.future, id: randomUUID(), revision: 2 },
+    ];
+    const list = readyList(candidates);
+    expect(await list(1, 1)).toMatchObject({
+      total: 2,
+      limit: 1,
+      offset: 1,
+      items: [
+        {
+          futureId: candidates[2].id,
+          proposalId,
+          reviewGroupId: state.proposal.groupMembership.groupId,
+          applicability: { revision: 2 },
+        },
+      ],
+    });
+  });
+
+  it('uses fixed batch reads for 100 futures and reconciles only the requested page', async () => {
+    dependent();
+    state.proposal.title = 'Reviewed knowledge';
+    const candidates = Array.from({ length: 100 }, () => ({
+      ...state.future,
+      id: randomUUID(),
+    }));
+    const list = readyList(candidates);
+    const baseline = jest.spyOn(reconciliation, 'futureBaselineChanged');
+    expect(await list(10, 50)).toMatchObject({
+      total: 100,
+      items: candidates.slice(50, 60).map((f) => ({ futureId: f.id })),
+    });
+    expect(db.proposalFuture.findMany).toHaveBeenCalledTimes(1);
+    expect(db.proposal.findMany).toHaveBeenCalledTimes(1);
+    expect(db.task.findMany).toHaveBeenCalledTimes(1);
+    expect(db.designDoc.findMany).toHaveBeenCalledTimes(1);
+    expect(db.projectMember.findMany).toHaveBeenCalledTimes(1);
+    expect(db.proposal.findFirst).not.toHaveBeenCalled();
+    expect(db.proposalFuture.findFirst).not.toHaveBeenCalled();
+    expect(baseline).toHaveBeenCalledTimes(10);
+    // Each displayed live baseline uses one availability and one canonical-content read.
+    expect(db.task.findFirst).toHaveBeenCalledTimes(20);
+    jest.clearAllMocks();
+    await list(10, 100);
+    expect(baseline).not.toHaveBeenCalled();
+  });
+
+  it('filters insufficient approvals before pagination and retains permission blockers for review', async () => {
+    state.proposal.title = 'Reviewed knowledge';
+    const list = readyList();
+    state.proposal.groupMembership = {
+      groupId: randomUUID(),
+      requiredApprovals: 2,
+    };
+    expect(await list()).toMatchObject({ total: 0, items: [] });
+    expect(db.task.findFirst).not.toHaveBeenCalled();
+    state.proposal.groupMembership.requiredApprovals = 1;
+    state.members = [{ userId: otherUserId }];
+    expect(await list()).toMatchObject({
+      total: 1,
+      items: [
+        { applicability: { canApply: false, blockers: ['PERMISSION_DENIED'] } },
+      ],
+    });
+  });
+
   it('requires explicit Plan completion', async () => {
     dependent();
     state.work.type = 'PLAN';
@@ -995,6 +1142,52 @@ describe('manual future application', () => {
         { revision: 1, refinements: [a, b] },
       ),
     ).toBe(false);
+  });
+  it('passes scoped pagination to Proposals and rejects schema-invalid page bounds', async () => {
+    const boundary = {
+      listProjectReadyFutures: jest.fn().mockResolvedValue({
+        items: [],
+        total: 0,
+        limit: 20,
+        offset: 0,
+        unavailableCount: 0,
+      }),
+    };
+    const controller = new ProposalController(
+      {} as any,
+      boundary as any,
+      {} as never,
+    );
+    await controller.listProjectReadyFutures(
+      organizationId as any,
+      projectId as any,
+      { userId } as any,
+      20,
+      0,
+    );
+    expect(boundary.listProjectReadyFutures).toHaveBeenCalledWith(
+      organizationId,
+      projectId,
+      userId,
+      20,
+      0,
+    );
+    for (const [limit, offset] of [
+      [0, 0],
+      [101, 0],
+      [20, -1],
+    ]) {
+      await expect(
+        controller.listProjectReadyFutures(
+          organizationId as any,
+          projectId as any,
+          { userId } as any,
+          limit!,
+          offset!,
+        ),
+      ).rejects.toThrow('Invalid pagination');
+    }
+    expect(boundary.listProjectReadyFutures).toHaveBeenCalledTimes(1);
   });
   it('validates the HTTP boundary from OpenAPI and delegates the parsed request', async () => {
     expect(parseFutureApplyRequest({ expectedRevision: 1 })).toEqual({

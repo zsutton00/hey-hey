@@ -14,15 +14,16 @@ import { ConversationId, MessageId, OrganizationId, ProjectId, ProposalId, Valid
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { ProposalApprovalDto } from './proposalApprovalDto';
+import { ProposalUpdates } from './proposalUpdates';
+import { FutureRevisionResponse } from './futureRevisionResponse';
+import { WorkItemChangeSetMaterializationProgress } from './workItemChangeSetMaterializationProgress';
 import { TargetEntityType } from './targetEntityType';
 import { ProposalAction } from './proposalAction';
 import { ProposalOutOfDateStatus } from './proposalOutOfDateStatus';
-import { ProposalUpdates } from './proposalUpdates';
-import { FutureRevisionResponse } from './futureRevisionResponse';
+import { FutureDependencyPresentation } from './futureDependencyPresentation';
 import { Influence } from './influence';
 import { ProposalEdgeDeclaration } from './proposalEdgeDeclaration';
 import { ProposalGroupMembership } from './proposalGroupMembership';
-import { WorkItemChangeSetMaterializationProgress } from './workItemChangeSetMaterializationProgress';
 import { ProposalStatus } from './proposalStatus';
 import { ProposalType } from './proposalType';
 
@@ -58,6 +59,10 @@ export interface ProposalResponseDto {
      */
     eli5?: string;
     updates: ProposalUpdates;
+    /**
+     * Response-only linked-work identity for VERSIONED_UPDATE review, including pending and grouped previews. Pending responses omit live status. Not part of updates or frozen changes.
+     */
+    readonly dependencyPresentation?: Array<FutureDependencyPresentation>;
     /**
      * API-owned reviewed future projection for VERSIONED_UPDATE proposals when a persisted future revision exists for updates.futureId; null otherwise.
      */

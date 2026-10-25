@@ -18,6 +18,7 @@ import type {
   FutureCompletionEligibility,
   FutureCompletionDependency,
   FutureCompletionBlocker,
+  WorkStatus,
 } from 'src/generated';
 import { futureRevisionMutationSchema } from 'src/generated/future-revision.schema';
 import { ORDINARY_PROPOSAL_VISIBILITY_WHERE } from './proposal-visibility';
@@ -651,7 +652,24 @@ export async function readFutureCompletionEligibility(
     },
     select: { id: true, type: true, status: true, archivedAt: true },
   });
-  const byId = new Map(tasks.map((task) => [task.id, task]));
+  return futureCompletionEligibility(
+    registry,
+    projectId,
+    dependencies,
+    new Map(tasks.map((task) => [task.id, task])),
+  );
+}
+
+/** Shared lifecycle rules for single-future and batched collection reads. */
+export function futureCompletionEligibility(
+  registry: WorkItemTypeRegistryService,
+  projectId: string,
+  dependencies: readonly FutureCompletionDependency[],
+  byId: ReadonlyMap<
+    string,
+    { id: string; type: string; status: WorkStatus; archivedAt: Date | null }
+  >,
+): FutureCompletionEligibility {
   const blockers: FutureCompletionBlocker[] = [];
   for (const dependency of dependencies) {
     const task = byId.get(dependency.targetEntityId);

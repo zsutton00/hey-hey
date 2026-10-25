@@ -15457,6 +15457,18 @@ export type PlanShapingFeatureSyncIterateActionSchemasDISMISSEDActionEnum = type
  */
 export interface PlanShapingFeatureSyncIteratePromptPayload {
     /**
+     * Canonical delivering Plan identity from the persisted plan seed.
+     * @type {string}
+     * @memberof PlanShapingFeatureSyncIteratePromptPayload
+     */
+    'planId': string;
+    /**
+     * Authoritative design document from the persisted plan seed.
+     * @type {string}
+     * @memberof PlanShapingFeatureSyncIteratePromptPayload
+     */
+    'designDocId': string;
+    /**
      * The outstanding flagged items, each with its stable `id`, in the order the user saw them.
      * @type {Array<FeatureSyncDiscrepancy>}
      * @memberof PlanShapingFeatureSyncIteratePromptPayload
@@ -19693,6 +19705,18 @@ export type RunCreatePayloadPlanShapingFeatureSyncAnalyzePromptTypeEnum = typeof
  */
 export interface RunCreatePayloadPlanShapingFeatureSyncIterate {
     /**
+     * Canonical delivering Plan identity from the persisted plan seed.
+     * @type {string}
+     * @memberof RunCreatePayloadPlanShapingFeatureSyncIterate
+     */
+    'planId': string;
+    /**
+     * Authoritative design document from the persisted plan seed.
+     * @type {string}
+     * @memberof RunCreatePayloadPlanShapingFeatureSyncIterate
+     */
+    'designDocId': string;
+    /**
      * The outstanding flagged items, each with its stable `id`, in the order the user saw them.
      * @type {Array<FeatureSyncDiscrepancy>}
      * @memberof RunCreatePayloadPlanShapingFeatureSyncIterate
@@ -23853,6 +23877,18 @@ export interface UserMessageFeatureSyncIterateContext {
  * @interface UserMessagePlanShapingFeatureSyncIterateContext
  */
 export interface UserMessagePlanShapingFeatureSyncIterateContext {
+    /**
+     * Canonical delivering Plan identity from the persisted plan seed.
+     * @type {string}
+     * @memberof UserMessagePlanShapingFeatureSyncIterateContext
+     */
+    'planId': string;
+    /**
+     * Authoritative design document from the persisted plan seed.
+     * @type {string}
+     * @memberof UserMessagePlanShapingFeatureSyncIterateContext
+     */
+    'designDocId': string;
     /**
      *
      * @type {Array<FeatureSyncDiscrepancy>}

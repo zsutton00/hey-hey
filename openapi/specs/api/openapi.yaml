@@ -21619,6 +21619,33 @@ paths:
         "404":
           description: Project not found
 
+  /organizations/{organizationId}/projects/{projectId}/proposals/futures/ready:
+    get:
+      operationId: listProjectReadyFutures
+      tags: [Proposals]
+      summary: List approved staged project futures with ready implementation work, including baseline drift
+      parameters:
+        - {name: organizationId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: projectId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
+        - {name: offset, in: query, schema: {type: integer, minimum: 0, default: 0}}
+      responses:
+        "200":
+          description: Distinct qualifying futures, filtered before pagination; applicability is a snapshot and never authorizes Apply
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "../schemas/future-revisions.yaml#/ProjectReadyFuturesPage"
+        "400": {description: Invalid pagination}
+        "401": {description: Unauthorized}
+        "403": {description: Project read access denied}
+
   /organizations/{organizationId}/projects/{projectId}/proposals/futures:
     get:
       operationId: listProposalFutureOffers

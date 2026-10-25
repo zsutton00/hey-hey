@@ -1,4 +1,5 @@
 import { isEqual } from 'lodash';
+import { readProjectReadyCandidates } from './project-ready-futures';
 import {
   futureGraph,
   graphChangeSet,
@@ -41,6 +42,8 @@ import type {
   CreateDesignDocDto,
   FutureApplicability,
   FutureApplicationOffer,
+  ProjectReadyFuture,
+  ProjectReadyFuturesPage,
   FutureApplyRequest,
   FutureApplyResponse,
   FutureRevisionResponse,
@@ -510,6 +513,91 @@ export class ProposalApprovalService {
       canApply: blockers.length === 0,
       blockers,
       completionEligibility: future.completionEligibility,
+    };
+  }
+
+  /** Project outstanding work is selected by stable future identity, before paging. */
+  async listProjectReadyFutures(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    userId: UserId,
+    limit: number,
+    offset: number,
+  ): Promise<ProjectReadyFuturesPage> {
+    this.logger.debug('Reading project ready futures', {
+      organizationId,
+      projectId,
+      limit,
+      offset,
+    });
+    const db = this.prisma.db as unknown as Prisma.TransactionClient;
+    const policy = await this.projectApprovalPolicyService.resolve(projectId);
+    const selection = await readProjectReadyCandidates(
+      db,
+      this.workItemTypeRegistry,
+      policy,
+      organizationId,
+      projectId,
+    );
+    const items: ProjectReadyFuture[] = [];
+    let unavailableCount = selection.unavailableCount;
+    // Baseline checks cannot change membership: drift remains reviewable.
+    // Restrict this expensive reconciliation work to the requested page.
+    for (const { item, baseline } of selection.candidates.slice(
+      offset,
+      offset + limit,
+    )) {
+      try {
+        const blockers: FutureApplicability['blockers'] = [];
+        if (!selection.eligibleMemberIds.includes(userId))
+          blockers.push('PERMISSION_DENIED');
+        const blocker = await futureBaselineBlocker(
+          db,
+          {
+            organizationId,
+            projectId,
+            baseline,
+            targetEntityId: item.targetEntityId,
+            targetEntityType: item.targetEntityType,
+          },
+          this.reconciliation,
+        );
+        if (
+          blocker === 'BASELINE_CHANGED' ||
+          blocker === 'BASELINE_UNAVAILABLE'
+        )
+          blockers.push(blocker);
+        items.push({
+          ...item,
+          applicability: {
+            ...item.applicability,
+            canApply: blockers.length === 0,
+            blockers,
+          },
+        });
+      } catch {
+        unavailableCount += 1;
+        this.logger.warn('Project ready future read failed', {
+          futureId: item.futureId,
+          organizationId,
+          projectId,
+        });
+      }
+    }
+    this.logger.debug('Project ready futures selected', {
+      organizationId,
+      projectId,
+      total: selection.candidates.length,
+      unavailableCount,
+      limit,
+      offset,
+    });
+    return {
+      items,
+      total: selection.candidates.length,
+      limit,
+      offset,
+      unavailableCount,
     };
   }
 
