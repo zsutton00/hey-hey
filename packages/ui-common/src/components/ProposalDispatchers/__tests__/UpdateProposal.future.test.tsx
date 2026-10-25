@@ -552,7 +552,7 @@ describe("UpdateProposal future revisions", () => {
     mocks.proposal = { ...initial, status: "APPROVED", reviewedFuture };
     rerender(ui());
     await waitFor(() =>
-      expect(screen.getByText("Previously approved")).toBeInTheDocument(),
+      expect(screen.getByText("Approved")).toBeInTheDocument(),
     );
     expect(screen.queryByText("Approve")).not.toBeInTheDocument();
     expect(screen.queryByText(/Once approved/)).not.toBeInTheDocument();
@@ -791,7 +791,7 @@ describe("UpdateProposal future revisions", () => {
     });
     mocks.offers.mockResolvedValue({ data: { data: offerList.slice(1) } });
     fireEvent.click(apply);
-    await screen.findByText("Applied version 1");
+    await within(screen.getByRole("tabpanel")).findByText("Applied");
     expect(mocks.apply).toHaveBeenLastCalledWith({
       organizationId: "org",
       projectId: "project",
@@ -836,9 +836,7 @@ describe("UpdateProposal future revisions", () => {
     expect(
       screen.getByTestId("future-apply-footer").parentElement?.parentElement,
     ).toBeTruthy();
-    expect(
-      within(footerTarget).getByText("Previously approved"),
-    ).toBeInTheDocument();
+    expect(within(footerTarget).getByText("Approved")).toBeInTheDocument();
     expect(screen.getAllByTestId("future-apply")).toHaveLength(1);
     await waitFor(() =>
       expect(within(footerTarget).getByTestId("future-apply")).toBeDisabled(),
@@ -859,7 +857,7 @@ describe("UpdateProposal future revisions", () => {
 
     const footer = screen.getByTestId("future-apply-footer");
     expect(screen.queryByTestId("proposal-state")).not.toBeInTheDocument();
-    expect(within(footer).getByText("Previously approved")).toBeInTheDocument();
+    expect(within(footer).getByText("Approved")).toBeInTheDocument();
     expect(within(footer).getByTestId("future-dependency")).toHaveTextContent(
       "Cap Open Items at 100In progress",
     );
@@ -869,9 +867,7 @@ describe("UpdateProposal future revisions", () => {
       ),
     );
     const sequence = within(footer).getByTestId("future-review-sequence");
-    expect(
-      within(sequence).getByText("Previously approved"),
-    ).toBeInTheDocument();
+    expect(within(sequence).getByText("Approved")).toBeInTheDocument();
     expect(
       within(sequence).getByTestId("future-dependency"),
     ).toBeInTheDocument();
@@ -886,6 +882,47 @@ describe("UpdateProposal future revisions", () => {
     ).not.toBeInTheDocument();
     expect(footer.textContent).not.toMatch(/incomplete|readiness/i);
   });
+
+  it.each(["pending", "approved", "applied"] as const)(
+    "keeps multiple long linked mentions collapsed without scrolling when %s",
+    (state) => {
+      const linked = [0, 1].map((index) => ({
+        ...reviewedFuture.dependencyPresentation[0],
+        targetEntityId: `linked-work-${index}`,
+        title: `Linked implementation ${index} with a deliberately long title that must truncate`,
+      }));
+      mount(
+        futureProposal({
+          status: state === "pending" ? "DRAFT" : "APPROVED",
+          dependencyPresentation: linked.map(
+            ({ status, ...dependency }) => dependency,
+          ),
+          reviewedFuture:
+            state === "pending"
+              ? undefined
+              : {
+                  ...reviewedFuture,
+                  outcome: state === "applied" ? "APPLIED" : "STAGED",
+                  appliedRevision: state === "applied" ? 1 : undefined,
+                  dependencyPresentation: linked,
+                },
+        }),
+      );
+      const sequence = screen.getByTestId("future-review-sequence");
+      const middle = within(sequence).getByTestId("future-linked-work");
+      expect(getComputedStyle(middle).overflow).toBe("hidden");
+      expect(getComputedStyle(sequence).overflow).toBe("hidden");
+      expect(within(middle).getAllByTestId("mention-badge")).toHaveLength(2);
+      expect(
+        middle.querySelector('[data-testid="work-item-inline-mention"]'),
+      ).toBeNull();
+      expect(sequence).not.toHaveTextContent("Previously approved");
+      if (state === "applied") {
+        expect(within(sequence).getByText("Applied")).toBeVisible();
+        expect(sequence).not.toHaveTextContent(/Applied version/);
+      }
+    },
+  );
 
   it("shows a cancellation as one plain line on the ordinary card", () => {
     mount(
@@ -944,7 +981,7 @@ it("shows approved future drift through real shared review and hides the unresol
     ),
   ).toBeVisible();
   expect(screen.getByText("Intended")).toBeVisible();
-  expect(screen.getByText("Previously approved")).toBeVisible();
+  expect(screen.getByText("Approved")).toBeVisible();
   expect(screen.queryByTestId("general-diff")).toBeNull();
   expect(screen.getByTestId("future-apply")).toBeDisabled();
 });
@@ -961,7 +998,7 @@ it("keeps previous approval and authoritative linked work visible while a revise
   });
   mocks.proposal = proposal;
   mount(proposal);
-  expect(await screen.findByText("Previously approved")).toBeVisible();
+  expect(await screen.findByText("Approved")).toBeVisible();
   expect(screen.getByTestId("future-apply")).toBeDisabled();
   expect(screen.getByTestId("future-waiting")).toHaveTextContent(
     "Approval stores the same future and leaves live content unchanged",

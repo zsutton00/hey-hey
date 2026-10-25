@@ -123,12 +123,23 @@ export function FutureApplication({
   return (
     <Stack spacing={1} data-testid="future-application">
       {applied ? (
-        <Stack direction="row" spacing={1} alignItems="center">
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="center"
+          data-testid="future-review-sequence"
+          sx={{
+            minWidth: 0,
+            flexWrap: "nowrap",
+            overflow: "hidden",
+            "& > :not([data-testid=future-linked-work])": { flexShrink: 0 },
+          }}
+        >
           {reviewSteps}
-          <Alert severity="success">
-            Applied version{" "}
-            {response?.future.appliedRevision ?? future.appliedRevision}
-          </Alert>
+          {reviewSteps && (
+            <ArrowForwardIcon fontSize="small" color="disabled" />
+          )}
+          <Alert severity="success">Applied</Alert>
         </Stack>
       ) : (
         <>
@@ -138,7 +149,8 @@ export function FutureApplication({
             alignItems="center"
             sx={{
               flexWrap: "nowrap",
-              overflowX: "auto",
+              minWidth: 0,
+              overflow: "hidden",
               "& > :not([data-testid=future-linked-work])": { flexShrink: 0 },
             }}
             data-testid="future-review-sequence"

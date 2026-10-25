@@ -32,7 +32,19 @@ export function FutureDependency({
       direction="row"
       spacing={0.75}
       alignItems="center"
-      sx={{ minWidth: 0 }}
+      sx={{
+        minWidth: 0,
+        overflow: "hidden",
+        whiteSpace: "nowrap",
+        "& > [data-testid=interaction-component]": { minWidth: 0, flex: 1 },
+        "& [data-testid=mention-badge]": {
+          maxWidth: "100%",
+          boxSizing: "border-box",
+          margin: 0,
+          top: 0,
+          "&:hover": { transform: "none" },
+        },
+      }}
       data-testid="future-dependency"
       data-task-id={dependency.targetEntityId}
     >
@@ -51,7 +63,7 @@ export function FutureDependency({
         <Typography
           variant="caption"
           color="text.secondary"
-          sx={{ whiteSpace: "nowrap" }}
+          sx={{ whiteSpace: "nowrap", flexShrink: 0 }}
         >
           {getStatusLabel(dependency.status)}
         </Typography>

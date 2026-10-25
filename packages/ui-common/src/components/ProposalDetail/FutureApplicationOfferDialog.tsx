@@ -75,6 +75,9 @@ function OpenFutureApplicationOfferDialog({
   const active = revisions.some((item) => item.futureId === selected)
     ? selected
     : revisions[0]?.futureId;
+  const remainingCount = revisions.filter(
+    (offer) => !applied.has(offer.futureId),
+  ).length;
   if (
     offers.isPending ||
     (offers.isSuccess && offers.data.length === 0 && applied.size === 0)
@@ -160,7 +163,9 @@ function OpenFutureApplicationOfferDialog({
       ))}
       <DialogActions sx={{ flexShrink: 0 }}>
         <Button data-testid="future-offer-dismiss" onClick={onClose}>
-          Not now
+          {remainingCount === 0
+            ? "Close"
+            : `Decide on ${remainingCount} ${remainingCount === 1 ? "proposal" : "proposals"} later`}
         </Button>
       </DialogActions>
     </Dialog>
@@ -250,11 +255,6 @@ function OfferedFuture({
           borderTop: 1,
           borderColor: "divider",
           p: 2,
-          "[data-testid=future-review-sequence]": {
-            flexWrap: "wrap",
-            overflowX: "visible",
-            gap: 1,
-          },
         }}
       />
     </Box>

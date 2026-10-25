@@ -183,6 +183,51 @@ describe("FutureApplicationOfferDialog", () => {
     expect(api.apply).not.toHaveBeenCalled();
   });
 
+  it("counts remaining decisions across tabs and offers Close after the last Apply", async () => {
+    const user = userEvent.setup();
+    const second = {
+      ...offer,
+      futureId: "second",
+      proposalId: "second-proposal",
+      proposalTitle: "Second revision",
+    };
+    api.offers.mockResolvedValue({ data: { data: [offer, second] } });
+    const onClose = vi.fn();
+    mount(true, onClose);
+    expect(
+      await screen.findByRole("button", {
+        name: "Decide on 2 proposals later",
+      }),
+    ).toBeVisible();
+    api.offers.mockResolvedValue({ data: { data: [second] } });
+    await user.click(
+      within(screen.getByRole("tabpanel")).getByTestId("future-apply"),
+    );
+    expect(
+      await screen.findByRole("button", {
+        name: "Decide on 1 proposal later",
+      }),
+    ).toBeVisible();
+    await user.click(
+      screen.getByRole("tab", { name: "Second revision Ready to apply" }),
+    );
+    api.offers.mockResolvedValue({ data: { data: [] } });
+    await user.click(
+      within(screen.getByRole("tabpanel")).getByTestId("future-apply"),
+    );
+    const close = await screen.findByRole("button", {
+      name: "Close",
+      exact: true,
+    });
+    expect(
+      screen.getByText("Complete changes for second-proposal"),
+    ).toBeVisible();
+    expect(onClose).not.toHaveBeenCalled();
+    await user.click(close);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(api.apply.mock.calls).toEqual([["proposal"], ["second-proposal"]]);
+  });
+
   it("shows nothing when closed or when no unapplied futures remain", async () => {
     mount(false);
     expect(api.offers).not.toHaveBeenCalled();

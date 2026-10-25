@@ -81,9 +81,10 @@ function FutureApplyFooterContent({
           spacing={1}
           alignItems="center"
           flexWrap="nowrap"
+          data-testid="future-review-sequence"
           sx={{
             minWidth: 0,
-            overflowX: "auto",
+            overflow: "hidden",
             "& > :not([data-testid=future-linked-work])": { flexShrink: 0 },
           }}
           useFlexGap
@@ -91,7 +92,7 @@ function FutureApplyFooterContent({
           {previous ? (
             <Chip
               icon={<CheckIcon />}
-              label="Previously approved"
+              label="Approved"
               size="small"
               color="success"
               variant="outlined"
@@ -109,8 +110,8 @@ function FutureApplyFooterContent({
               sx={{
                 minWidth: 0,
                 flex: 1,
-                overflowX: "auto",
-                "& > *": { flexShrink: 0 },
+                overflow: "hidden",
+                "& > *": { flex: "1 1 0", minWidth: 0 },
               }}
               data-testid="future-linked-work"
             >
@@ -200,7 +201,7 @@ function FutureApplyFooterContent({
           <>
             <Chip
               icon={<CheckIcon />}
-              label="Previously approved"
+              label="Approved"
               size="small"
               color="success"
               variant="outlined"
@@ -215,8 +216,8 @@ function FutureApplyFooterContent({
                 sx={{
                   minWidth: 0,
                   flex: 1,
-                  overflowX: "auto",
-                  "& > *": { flexShrink: 0 },
+                  overflow: "hidden",
+                  "& > *": { flex: "1 1 0", minWidth: 0 },
                 }}
                 data-testid="future-linked-work"
               >
