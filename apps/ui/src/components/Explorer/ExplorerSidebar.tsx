@@ -559,6 +559,29 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
       : []),
     ...(isPlatformAdmin
       ? [
+          <MenuItem
+            key="user-menu-admin"
+            data-testid="user-menu-admin"
+            component="a"
+            href="/admin"
+            onClick={(event: React.MouseEvent<HTMLAnchorElement>) => {
+              if (
+                !event.ctrlKey &&
+                !event.metaKey &&
+                !event.shiftKey &&
+                event.button === 0
+              ) {
+                event.preventDefault();
+                handleUserMenuNavigation("/admin");
+              }
+            }}
+          >
+            {t("admin.title")}
+          </MenuItem>,
+        ]
+      : []),
+    ...(isPlatformAdmin
+      ? [
           <Divider key="debug-divider" />,
           <MenuItem
             key="internal-reports"
@@ -676,29 +699,6 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
         Organizations
       </Typography>
     </Box>,
-    ...(isPlatformAdmin
-      ? [
-          <MenuItem
-            key="user-menu-admin"
-            data-testid="user-menu-admin"
-            component="a"
-            href="/admin"
-            onClick={(event: React.MouseEvent<HTMLAnchorElement>) => {
-              if (
-                !event.ctrlKey &&
-                !event.metaKey &&
-                !event.shiftKey &&
-                event.button === 0
-              ) {
-                event.preventDefault();
-                handleUserMenuNavigation("/admin");
-              }
-            }}
-          >
-            {t("admin.title")}
-          </MenuItem>,
-        ]
-      : []),
     ...organizations.map((organization) => (
       <MenuItem
         key={organization.id}
