@@ -149,6 +149,7 @@ describe('future Diagram graph round trip through the generic projector', () => 
       status: 'ACTIVE',
       source: 'user',
       archivedAt: null,
+      tag: null,
       serviceRelations: [],
       sections,
     });
@@ -340,6 +341,26 @@ describe('future Diagram graph round trip through the generic projector', () => 
       stored: () => storedFuture,
     };
   }
+
+  it('stages a future from database nodes with null tags without violating the output contract', async () => {
+    const h = await setup();
+    const liveBefore = structuredClone(h.rows);
+    const mutation = await h.materialize({ name: 'Updated architecture' });
+
+    for (const content of [mutation.baseline.content, mutation.result]) {
+      if (!('type' in content) || !content.graph)
+        throw new Error('Expected captured Diagram graph');
+      for (const node of [
+        content.graph.projectedRoot,
+        ...content.graph.children,
+      ]) {
+        expect(node).not.toHaveProperty('tag');
+      }
+    }
+    await h.stage(mutation);
+    expect(h.stored()).toMatchObject({ outcome: 'STAGED', revision: 1 });
+    expect(h.rows).toEqual(liveBefore);
+  });
 
   it('persists a complete non-live graph and refines a temporary create without losing its baseline or unchanged identities', async () => {
     const h = await setup();

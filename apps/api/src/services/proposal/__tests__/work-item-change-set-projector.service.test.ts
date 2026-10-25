@@ -712,6 +712,7 @@ describe('WorkItemChangeSetProjectorService', () => {
     expect(projected.issues).toEqual([]);
     expect(transactionTaskFindMany).toHaveBeenCalled();
     expect(prisma.db.task.findMany).not.toHaveBeenCalled();
+    expect(projected.projectedRoot.tag).toBe('product');
   });
 
   it('requires multiple Plan Stages to form one linear dependency chain', async () => {
@@ -2551,11 +2552,11 @@ describe('WorkItemChangeSetProjectorService', () => {
       expect.arrayContaining([
         expect.objectContaining({
           identity: { refType: 'existing', id: firstChildId },
-          tag: null,
+          tag: undefined,
         }),
         expect.objectContaining({
           identity: { refType: 'existing', id: secondChildId },
-          tag: null,
+          tag: undefined,
         }),
       ]),
     );

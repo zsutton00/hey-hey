@@ -1426,7 +1426,7 @@ export class WorkItemChangeSetProjectorService {
       priority: task.priority ?? undefined,
       dueDate: task.dueDate?.toISOString() ?? null,
       assigneeId: task.assigneeId ?? null,
-      tag: task.tag as ProjectedNode['tag'],
+      tag: (task.tag ?? undefined) as ProjectedNode['tag'],
       serviceIds: new Set(
         task.serviceRelations.map((relation) => relation.serviceId).sort(),
       ),
