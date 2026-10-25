@@ -2423,7 +2423,7 @@ ProposalReconciliationRevision:
       format: uuid
     source:
       type: string
-      enum: [AUTHORING, MERGE, AGENT_FIX]
+      enum: [AUTHORING, MERGE, AGENT_FIX, MANUAL]
     previousRevisionId:
       type: string
       format: uuid
@@ -2452,6 +2452,10 @@ ProposalReconciliationState:
     status:
       type: string
       enum: [NOT_APPLICABLE, CURRENT, RECONCILIATION_REQUIRED, AGENT_FIX_REQUIRED, READY_FOR_REVIEW]
+    futureRevision:
+      type: integer
+      minimum: 0
+      description: Stored future revision used to prepare this context; include as expectedFutureRevision when submitting future reconciliation.
     writtenAt:
       type: string
       format: date-time
@@ -2462,7 +2466,7 @@ ProposalReconciliationState:
       type: array
       description: >-
         Proposals approved on the same target after this change was written, oldest first.
-        Empty when the proposal is approved or rejected.
+        Empty for terminal proposals; approved unapplied futures remain reviewable.
       items:
         $ref: '#/ProposalReconciliationIntervening'
     overlaps:
@@ -2548,6 +2552,7 @@ CreateProposalReconciliationCandidate:
   oneOf:
     - $ref: '#/ProposalReconciliationMergeRequest'
     - $ref: '#/ProposalReconciliationAgentFixRequest'
+    - $ref: '#/ProposalReconciliationManualRequest'
 
 ProposalAgentFixRequest:
   type: object
@@ -2585,6 +2590,10 @@ ProposalReconciliationAgentFixRequest:
     method:
       type: string
       enum: [AGENT_FIX]
+    expectedFutureRevision:
+      type: integer
+      minimum: 0
+      description: Required for a future candidate; prevents a stale result replacing a newer reviewed future.
     proposedResult:
       type: object
       additionalProperties: true
@@ -2594,3 +2603,25 @@ ProposalReconciliationAgentFixRequest:
       items:
         $ref: '#/ProposalReconciliationBasis'
       description: The server-issued current bases used to prepare an Agent fix; further drift rejects submission.
+
+ProposalReconciliationManualRequest:
+  type: object
+  additionalProperties: false
+  required: [method, proposedResult, expectedCurrentBases]
+  properties:
+    method:
+      type: string
+      enum: [MANUAL]
+    expectedFutureRevision:
+      type: integer
+      minimum: 0
+      description: Required for a future candidate; prevents a stale result replacing a newer reviewed future.
+    proposedResult:
+      type: object
+      additionalProperties: true
+      description: Required for manual resolution; admitted through ordinary proposal validation before persistence. Submission never authorizes application.
+    expectedCurrentBases:
+      type: array
+      items:
+        $ref: '#/ProposalReconciliationBasis'
+      description: The server-issued current bases used to prepare a manual resolution; further drift rejects submission.

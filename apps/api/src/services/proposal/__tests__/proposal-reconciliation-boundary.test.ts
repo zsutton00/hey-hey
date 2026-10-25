@@ -23,6 +23,19 @@ describe('OpenAPI reconciliation boundary', () => {
     };
     expect(pipe.transform(candidate)).toEqual(candidate);
   });
+  it('admits manual results only with a server-issued basis', () => {
+    expect(() =>
+      pipe.transform({ method: 'MANUAL', proposedResult: {} }),
+    ).toThrow(BadRequestException);
+    expect(
+      pipe.transform({
+        method: 'MANUAL',
+        proposedResult: { name: 'Resolved' },
+        expectedCurrentBases: [],
+        expectedFutureRevision: 3,
+      }),
+    ).toMatchObject({ method: 'MANUAL', expectedFutureRevision: 3 });
+  });
   it('rejects acknowledgement or approval fields as candidate authorization', () => {
     expect(() =>
       pipe.transform({ method: 'MERGE', acknowledgeOutOfDate: true }),

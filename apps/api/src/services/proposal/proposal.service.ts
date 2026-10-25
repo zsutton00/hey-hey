@@ -1,6 +1,9 @@
 import { futureGraph, graphChangeSet } from './future-graph';
 import { isEqual } from 'lodash';
-import { projectReconciliationContent } from './proposal-reconciliation-content';
+import {
+  projectReconciliationContent,
+  manualReconciliationPatch,
+} from './proposal-reconciliation-content';
 import {
   parseFutureRevisionMutation,
   readFutureRevision,
@@ -529,6 +532,40 @@ export class ProposalService {
     return this.reconciliationState(id, organizationId, projectId, true);
   }
 
+  /** Approved links may point at an older revision; recovery always uses the stored future. */
+  async currentReconciliationProposal(
+    proposal: Proposal,
+    tx: AnyTransactionClient = this.prisma.db,
+  ): Promise<Proposal> {
+    if (
+      proposal.action !== 'VERSIONED_UPDATE' ||
+      proposal.status !== 'APPROVED'
+    )
+      return proposal;
+    const mutation = parseFutureRevisionMutation(proposal.updates);
+    const future = await tx.proposalFuture.findFirst({
+      where: {
+        id: mutation.futureId,
+        organizationId: proposal.organizationId,
+        projectId: proposal.projectId,
+      },
+    });
+    if (!future || future.latestProposalId === proposal.id) return proposal;
+    this.logger.debug(
+      `Resolving reconciliation from approved proposal ${proposal.id} to latest future revision ${future.revision}`,
+    );
+    const latest = await tx.proposal.findFirst({
+      where: {
+        id: future.latestProposalId,
+        organizationId: proposal.organizationId,
+        projectId: proposal.projectId,
+      },
+    });
+    if (!latest)
+      throw new ConflictException('The latest reviewed future is unavailable.');
+    return latest;
+  }
+
   async reconciliationState(
     id: string,
     organizationId: OrganizationId,
@@ -544,11 +581,12 @@ export class ProposalService {
       });
       if (!proposal) throw new NotFoundException('Proposal not found');
       if (proposal.action === 'VERSIONED_UPDATE') {
-        const mutation = parseFutureRevisionMutation(proposal.updates);
+        const latest = await this.currentReconciliationProposal(proposal, tx);
+        const mutation = parseFutureRevisionMutation(latest.updates);
         if (mutation.operation === 'REVISE')
           return this.reconciliation.stateForFuture(
             tx,
-            proposal,
+            latest,
             mutation.baseline,
           );
       }
@@ -607,11 +645,15 @@ export class ProposalService {
     input: import('src/generated').CreateProposalReconciliationCandidate,
     requestorContext: StampedCreateProposalDto['requestorContext'],
   ): Promise<import('src/generated').ProposalReconciliationState> {
-    const original = await this.prisma.db.proposal.findFirst({
+    const found = await this.prisma.db.proposal.findFirst({
       where: { id, organizationId, projectId },
       include: { groupMembership: true },
     });
-    if (!original) throw new NotFoundException('Proposal not found');
+    if (!found) throw new NotFoundException('Proposal not found');
+    const original = {
+      ...(await this.currentReconciliationProposal(found)),
+      groupMembership: found.groupMembership,
+    };
     const state =
       input.method === 'MERGE' &&
       original.action === 'UPDATE' &&
@@ -651,7 +693,14 @@ export class ProposalService {
         state.currentBases,
         id,
       );
-      updates = input.proposedResult!;
+      updates =
+        input.method === 'MANUAL'
+          ? manualReconciliationPatch(
+              state.currentBases[0]!.content,
+              input.proposedResult!,
+              original.targetEntityType,
+            )
+          : input.proposedResult!;
     }
     const provenance: ReconciliationProvenance = {
       source: input.method,
@@ -784,6 +833,10 @@ export class ProposalService {
     input: import('src/generated').CreateProposalReconciliationCandidate,
     requestorContext: StampedCreateProposalDto['requestorContext'],
   ): Promise<import('src/generated').ProposalReconciliationState> {
+    if (state.status === 'NOT_APPLICABLE')
+      throw new ConflictException(
+        'This future is no longer available for reconciliation.',
+      );
     if (input.method === 'MERGE')
       return { ...state, status: 'AGENT_FIX_REQUIRED' };
     if (
@@ -793,6 +846,9 @@ export class ProposalService {
       throw new BadRequestException(
         'Future reconciliation requires a task or design document target.',
       );
+    this.logger.debug(
+      `Preparing ${input.method} future reconciliation for proposal ${original.id}`,
+    );
     const authoredMutation = parseFutureRevisionMutation(original.updates);
     if (authoredMutation.operation !== 'REVISE')
       throw new BadRequestException('Cancelled futures cannot be reconciled.');
@@ -811,6 +867,32 @@ export class ProposalService {
         projectId,
       ),
     );
+    if (input.expectedFutureRevision !== future.revision) {
+      this.logger.warn(
+        `Rejected stale future reconciliation for ${future.id}: expected revision ${input.expectedFutureRevision}, current revision ${future.revision}`,
+      );
+      throw new ConflictException(
+        'The future revision changed. Refresh before reconciling.',
+      );
+    }
+    if (future.outcome !== 'STAGED')
+      throw new ConflictException('Only unapplied futures can be reconciled.');
+    const sourceMutation = parseFutureRevisionMutation(original.updates);
+    if (
+      original.status === 'APPROVED' &&
+      future.latestProposalId !== original.id
+    )
+      throw new ConflictException(
+        'The approved future changed. Refresh before reconciling.',
+      );
+    if (
+      sourceMutation.operation === 'REVISE' &&
+      original.status !== 'APPROVED' &&
+      sourceMutation.expectedRevision !== future.revision
+    )
+      throw new ConflictException(
+        'The future revision changed. Refresh before reconciling.',
+      );
     const currentContent = await this.reconciliation.currentFutureContent({
       organizationId,
       projectId,

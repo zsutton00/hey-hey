@@ -5927,6 +5927,12 @@ export const controllerActionRuntimeSchema = {
                 'READY_FOR_REVIEW',
               ],
             },
+            futureRevision: {
+              type: 'integer',
+              minimum: 0,
+              description:
+                'Stored future revision used to prepare this context; include as expectedFutureRevision when submitting future reconciliation.',
+            },
             writtenAt: {
               type: 'string',
               format: 'date-time',
@@ -5936,7 +5942,7 @@ export const controllerActionRuntimeSchema = {
             interveningProposals: {
               type: 'array',
               description:
-                'Proposals approved on the same target after this change was written, oldest first. Empty when the proposal is approved or rejected.',
+                'Proposals approved on the same target after this change was written, oldest first. Empty for terminal proposals; approved unapplied futures remain reviewable.',
               items: {
                 type: 'object',
                 additionalProperties: false,
@@ -6092,7 +6098,7 @@ export const controllerActionRuntimeSchema = {
                   },
                   source: {
                     type: 'string',
-                    enum: ['AUTHORING', 'MERGE', 'AGENT_FIX'],
+                    enum: ['AUTHORING', 'MERGE', 'AGENT_FIX', 'MANUAL'],
                   },
                   previousRevisionId: {
                     type: ['string', 'null'],

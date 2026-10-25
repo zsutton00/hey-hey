@@ -31,11 +31,12 @@ export interface ProposalReconciliationRevision {
     createdAt: string;
 }
 export namespace ProposalReconciliationRevision {
-    export type SourceEnum = 'AUTHORING' | 'MERGE' | 'AGENT_FIX';
+    export type SourceEnum = 'AUTHORING' | 'MERGE' | 'AGENT_FIX' | 'MANUAL';
     export const SourceEnum = {
         Authoring: 'AUTHORING' as SourceEnum,
         Merge: 'MERGE' as SourceEnum,
-        AgentFix: 'AGENT_FIX' as SourceEnum
+        AgentFix: 'AGENT_FIX' as SourceEnum,
+        Manual: 'MANUAL' as SourceEnum
     };
 }
 

@@ -31,6 +31,8 @@ const mocks = vi.hoisted(() => ({
   definitions: [] as WorkItemTypeDefinitionDto[],
   proposal: undefined as ProposalResponseDto | undefined,
   readiness: vi.fn(),
+  refetch: vi.fn(),
+  reconciliation: vi.fn(),
   offers: vi.fn(),
   apply: vi.fn(),
   proposals: new Map<string, ProposalResponseDto>(),
@@ -108,12 +110,13 @@ vi.mock("../../../data/hooks/useProposal", () => ({
     proposal: mocks.proposals.get(proposalId) ?? mocks.proposal,
     isLoading: false,
     error: null,
-    refetch: vi.fn(),
+    refetch: mocks.refetch,
   }),
 }));
 vi.mock("../../../clients/serviceClients", () => ({
   proposalsClient: {
     getProposalFutureApplicability: mocks.readiness,
+    getProposalReconciliation: mocks.reconciliation,
     applyProposalFuture: mocks.apply,
     listProposalFutureOffers: mocks.offers,
   },
@@ -178,11 +181,9 @@ vi.mock("../../SuggestedContent", () => ({
     </div>
   ),
 }));
-vi.mock("../ProposalStateIndicator", () => ({
+vi.mock("../ProposalStateIndicator", async (original) => ({
+  ...(await original<typeof import("../ProposalStateIndicator")>()),
   ProposalStateIndicator: () => <div data-testid="proposal-state" />,
-  ProposalOutOfDateReview: ({ children }: { children: React.ReactNode }) => (
-    <>{children}</>
-  ),
 }));
 vi.mock("../ProposalEdges", () => ({ ProposalEdges: () => null }));
 vi.mock("../../InteractionComponent", async (original) => ({
@@ -371,7 +372,20 @@ const mount = (proposal: ProposalResponseDto, footerTarget?: HTMLElement) => {
 };
 
 beforeEach(() => {
+  mocks.reconciliation.mockResolvedValue({
+    data: {
+      data: {
+        status: "CURRENT",
+        currentBases: [],
+        revisions: [],
+        conflictingPaths: [],
+        interveningProposals: [],
+        overlaps: [],
+      },
+    },
+  });
   mocks.readiness.mockReset();
+  mocks.refetch.mockReset();
   mocks.proposals.clear();
   mocks.apply.mockReset();
   mocks.definitions.splice(0, mocks.definitions.length, featureDefinition);
@@ -402,7 +416,7 @@ beforeEach(() => {
 });
 
 describe("UpdateProposal future revisions", () => {
-  it("renders a graph-only future from its captured baseline and complete result while live content has drifted", () => {
+  it("renders a graph-only future from its captured baseline and complete result while live content has drifted", async () => {
     const graph = {
       valid: true,
       projectedRoot: {
@@ -459,7 +473,7 @@ describe("UpdateProposal future revisions", () => {
       data: { ...live, name: "Concurrent live Diagram" },
     };
     mount(proposal);
-    const review = screen.getByTestId("future-graph-review");
+    const review = await screen.findByTestId("future-graph-review");
     expect(
       within(review).getAllByTestId("captured-graph")[0],
     ).toHaveTextContent("Before element");
@@ -538,7 +552,7 @@ describe("UpdateProposal future revisions", () => {
     mocks.proposal = { ...initial, status: "APPROVED", reviewedFuture };
     rerender(ui());
     await waitFor(() =>
-      expect(screen.getByText("Approved")).toBeInTheDocument(),
+      expect(screen.getByText("Previously approved")).toBeInTheDocument(),
     );
     expect(screen.queryByText("Approve")).not.toBeInTheDocument();
     expect(screen.queryByText(/Once approved/)).not.toBeInTheDocument();
@@ -822,7 +836,9 @@ describe("UpdateProposal future revisions", () => {
     expect(
       screen.getByTestId("future-apply-footer").parentElement?.parentElement,
     ).toBeTruthy();
-    expect(within(footerTarget).getByText("Approved")).toBeInTheDocument();
+    expect(
+      within(footerTarget).getByText("Previously approved"),
+    ).toBeInTheDocument();
     expect(screen.getAllByTestId("future-apply")).toHaveLength(1);
     await waitFor(() =>
       expect(within(footerTarget).getByTestId("future-apply")).toBeDisabled(),
@@ -843,7 +859,7 @@ describe("UpdateProposal future revisions", () => {
 
     const footer = screen.getByTestId("future-apply-footer");
     expect(screen.queryByTestId("proposal-state")).not.toBeInTheDocument();
-    expect(within(footer).getByText("Approved")).toBeInTheDocument();
+    expect(within(footer).getByText("Previously approved")).toBeInTheDocument();
     expect(within(footer).getByTestId("future-dependency")).toHaveTextContent(
       "Cap Open Items at 100In progress",
     );
@@ -853,7 +869,9 @@ describe("UpdateProposal future revisions", () => {
       ),
     );
     const sequence = within(footer).getByTestId("future-review-sequence");
-    expect(within(sequence).getByText("Approved")).toBeInTheDocument();
+    expect(
+      within(sequence).getByText("Previously approved"),
+    ).toBeInTheDocument();
     expect(
       within(sequence).getByTestId("future-dependency"),
     ).toBeInTheDocument();
@@ -886,3 +904,110 @@ describe("UpdateProposal future revisions", () => {
     expect(screen.getByTestId("proposal-state")).toBeInTheDocument();
   });
 });
+
+it("shows approved future drift through real shared review and hides the unresolved comparison", async () => {
+  const proposal = futureProposal({ status: "APPROVED", reviewedFuture });
+  mocks.reconciliation.mockResolvedValue({
+    data: {
+      data: {
+        status: "RECONCILIATION_REQUIRED",
+        currentBases: [
+          {
+            entityType: "TASK",
+            entityId: "feature",
+            version: "v2",
+            content: { name: "Current" },
+          },
+        ],
+        revisions: [],
+        conflictingPaths: ["name"],
+        interveningProposals: [],
+        overlaps: [
+          {
+            path: "name",
+            currentValue: "Current",
+            proposedValue: "Intended",
+            interveningProposalId: null,
+          },
+        ],
+      },
+    },
+  });
+  mount(proposal);
+  expect(
+    await screen.findByTestId("proposal-reconciliation-edit-by-hand"),
+  ).toBeVisible();
+  expect(screen.getByTestId("proposal-reconciliation-agent-fix")).toBeVisible();
+  expect(
+    within(screen.getByTestId("proposal-reconciliation-overlap")).getByText(
+      "Current",
+    ),
+  ).toBeVisible();
+  expect(screen.getByText("Intended")).toBeVisible();
+  expect(screen.getByText("Previously approved")).toBeVisible();
+  expect(screen.queryByTestId("general-diff")).toBeNull();
+  expect(screen.getByTestId("future-apply")).toBeDisabled();
+});
+
+it("keeps previous approval and authoritative linked work visible while a revised future awaits review", async () => {
+  const proposal = futureProposal({
+    reviewedFuture: {
+      ...reviewedFuture,
+      latestProposalId: "previous",
+      dependencyPresentation: reviewedFuture.dependencyPresentation.map(
+        (dependency) => ({ ...dependency, status: "COMPLETED" }),
+      ),
+    },
+  });
+  mocks.proposal = proposal;
+  mount(proposal);
+  expect(await screen.findByText("Previously approved")).toBeVisible();
+  expect(screen.getByTestId("future-apply")).toBeDisabled();
+  expect(screen.getByTestId("future-waiting")).toHaveTextContent(
+    "Approval stores the same future and leaves live content unchanged",
+  );
+  expect(screen.getByTestId("proposal-state")).toBeVisible();
+});
+
+it.each(["APPROVED", "DRAFT"] as const)(
+  "shows a retryable blocker when a %s future response omits linked-work presentation",
+  async (status) => {
+    // Reproduce a real response missing a field required by the current API contract.
+    const incomplete = { ...reviewedFuture };
+    Reflect.deleteProperty(incomplete, "dependencyPresentation");
+    const proposal = futureProposal({ status, reviewedFuture: incomplete });
+    mocks.proposal = proposal;
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const tree = (current: ProposalResponseDto) => (
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <FutureApplyFooter
+            proposal={current}
+            approveControl={
+              status === "DRAFT" ? <button>Approve revision</button> : undefined
+            }
+          />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+    const view = render(tree(proposal));
+    expect(
+      screen.getByTestId("future-linked-work-unavailable"),
+    ).toHaveTextContent("Linked work details are unavailable");
+    expect(screen.queryByTestId("future-apply")).toBeNull();
+    expect(screen.queryByText("Approve revision")).toBeNull();
+    expect(mocks.readiness).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(mocks.refetch).toHaveBeenCalledTimes(1);
+    const refreshed = { ...proposal, reviewedFuture };
+    mocks.proposal = refreshed;
+    view.rerender(tree(refreshed));
+    expect(screen.queryByTestId("future-linked-work-unavailable")).toBeNull();
+    expect(screen.getByTestId("future-linked-work")).toHaveTextContent(
+      "Cap Open Items at 100",
+    );
+    expect(screen.getByTestId("future-apply")).toBeDisabled();
+  },
+);

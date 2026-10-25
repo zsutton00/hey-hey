@@ -24085,7 +24085,7 @@ export interface CreateProposalDto {
  * @type CreateProposalReconciliationCandidate
  * @export
  */
-export type CreateProposalReconciliationCandidate = ProposalReconciliationAgentFixRequest | ProposalReconciliationMergeRequest;
+export type CreateProposalReconciliationCandidate = ProposalReconciliationAgentFixRequest | ProposalReconciliationManualRequest | ProposalReconciliationMergeRequest;
 
 /**
  *
@@ -71761,6 +71761,12 @@ export interface ProposalReconciliationAgentFixRequest {
      */
     'method': ProposalReconciliationAgentFixRequestMethodEnum;
     /**
+     * Required for a future candidate; prevents a stale result replacing a newer reviewed future.
+     * @type {number}
+     * @memberof ProposalReconciliationAgentFixRequest
+     */
+    'expectedFutureRevision'?: number;
+    /**
      * Required for Agent fix; admitted through ordinary proposal validation before persistence. Submission never authorizes application.
      * @type {{ [key: string]: any; }}
      * @memberof ProposalReconciliationAgentFixRequest
@@ -71909,6 +71915,44 @@ export interface ProposalReconciliationIntervening {
 /**
  *
  * @export
+ * @interface ProposalReconciliationManualRequest
+ */
+export interface ProposalReconciliationManualRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationManualRequest
+     */
+    'method': ProposalReconciliationManualRequestMethodEnum;
+    /**
+     * Required for a future candidate; prevents a stale result replacing a newer reviewed future.
+     * @type {number}
+     * @memberof ProposalReconciliationManualRequest
+     */
+    'expectedFutureRevision'?: number;
+    /**
+     * Required for manual resolution; admitted through ordinary proposal validation before persistence. Submission never authorizes application.
+     * @type {{ [key: string]: any; }}
+     * @memberof ProposalReconciliationManualRequest
+     */
+    'proposedResult': { [key: string]: any; };
+    /**
+     * The server-issued current bases used to prepare a manual resolution; further drift rejects submission.
+     * @type {Array<ProposalReconciliationBasis>}
+     * @memberof ProposalReconciliationManualRequest
+     */
+    'expectedCurrentBases': Array<ProposalReconciliationBasis>;
+}
+
+export const ProposalReconciliationManualRequestMethodEnum = {
+    Manual: 'MANUAL'
+} as const;
+
+export type ProposalReconciliationManualRequestMethodEnum = typeof ProposalReconciliationManualRequestMethodEnum[keyof typeof ProposalReconciliationManualRequestMethodEnum];
+
+/**
+ *
+ * @export
  * @interface ProposalReconciliationMergeRequest
  */
 export interface ProposalReconciliationMergeRequest {
@@ -72016,7 +72060,8 @@ export interface ProposalReconciliationRevision {
 export const ProposalReconciliationRevisionSourceEnum = {
     Authoring: 'AUTHORING',
     Merge: 'MERGE',
-    AgentFix: 'AGENT_FIX'
+    AgentFix: 'AGENT_FIX',
+    Manual: 'MANUAL'
 } as const;
 
 export type ProposalReconciliationRevisionSourceEnum = typeof ProposalReconciliationRevisionSourceEnum[keyof typeof ProposalReconciliationRevisionSourceEnum];
@@ -72034,13 +72079,19 @@ export interface ProposalReconciliationState {
      */
     'status': ProposalReconciliationStateStatusEnum;
     /**
+     * Stored future revision used to prepare this context; include as expectedFutureRevision when submitting future reconciliation.
+     * @type {number}
+     * @memberof ProposalReconciliationState
+     */
+    'futureRevision'?: number;
+    /**
      * When the change under review was originally written; for a merged replacement, when the proposal it reconciles was written.
      * @type {string}
      * @memberof ProposalReconciliationState
      */
     'writtenAt'?: string;
     /**
-     * Proposals approved on the same target after this change was written, oldest first. Empty when the proposal is approved or rejected.
+     * Proposals approved on the same target after this change was written, oldest first. Empty for terminal proposals; approved unapplied futures remain reviewable.
      * @type {Array<ProposalReconciliationIntervening>}
      * @memberof ProposalReconciliationState
      */

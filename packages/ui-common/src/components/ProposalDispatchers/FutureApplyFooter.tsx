@@ -52,16 +52,28 @@ function FutureApplyFooterContent({
   approveControl,
 }: FutureApplyFooterProps) {
   const { organizationId, projectId } = initial;
-  const { proposal, refetch } = useProposal(
+  const { proposal, refetch, isReady, error } = useProposal(
     organizationId,
     projectId,
     initial.id,
   );
   const current = proposal ?? initial;
+  const linkedWorkUnavailable = (
+    <Alert
+      severity="error"
+      data-testid="future-linked-work-unavailable"
+      action={<Button onClick={() => void refetch()}>Refresh</Button>}
+    >
+      Linked work details are unavailable. Refresh before reviewing or applying
+      this future.
+    </Alert>
+  );
   if (approveControl && current.status !== "APPROVED") {
-    const linked = current.dependencyPresentation;
-    if (!linked)
-      return <Alert severity="warning">Linked work identity unavailable</Alert>;
+    const previous = current.reviewedFuture;
+    const linked = previous
+      ? previous.dependencyPresentation
+      : current.dependencyPresentation;
+    if (!linked) return linkedWorkUnavailable;
     return (
       <Stack spacing={1} data-testid="future-apply-footer" data-state="preview">
         <Stack
@@ -76,7 +88,17 @@ function FutureApplyFooterContent({
           }}
           useFlexGap
         >
-          {approveControl}
+          {previous ? (
+            <Chip
+              icon={<CheckIcon />}
+              label="Previously approved"
+              size="small"
+              color="success"
+              variant="outlined"
+            />
+          ) : (
+            approveControl
+          )}
           {linked.length > 0 && (
             <ArrowForwardIcon fontSize="small" color="disabled" />
           )}
@@ -111,12 +133,15 @@ function FutureApplyFooterContent({
             Apply
           </Button>
         </Stack>
+        {previous && approveControl}
         <Typography
           variant="body2"
           color="text.secondary"
           data-testid="future-waiting"
         >
-          {linked.length > 0 ? (
+          {previous ? (
+            "Review this revised result. Approval stores the same future and leaves live content unchanged; then choose Apply separately."
+          ) : linked.length > 0 ? (
             <>
               Once approved, this change waits for {joinNames(linked)} to reach
               Verifying. You'll be asked to apply it then.
@@ -129,6 +154,16 @@ function FutureApplyFooterContent({
     );
   }
   const future = current.reviewedFuture;
+  if (!future && (isReady || error))
+    return (
+      <Alert
+        severity="error"
+        action={<Button onClick={() => void refetch()}>Refresh</Button>}
+      >
+        The approved future is unavailable. Refresh before reviewing or applying
+        it.
+      </Alert>
+    );
   if (!future)
     return (
       <Typography variant="body2" color="text.secondary">
@@ -138,12 +173,16 @@ function FutureApplyFooterContent({
   if (future.outcome === "CANCELLED")
     return <Alert severity="info">This approved change was cancelled.</Alert>;
 
+  // Required response data can be absent when the running API violates its
+  // contract. Keep that failure local; absence never means no dependencies.
+  const linked = future.dependencyPresentation;
+  if (!linked) return linkedWorkUnavailable;
+
   const waitingIds = new Set(
     future.completionEligibility.blockers.map(
       (blocker) => blocker.dependency.targetEntityId,
     ),
   );
-  const linked = future.dependencyPresentation;
   const waitingOn = linked.filter((dependency) =>
     waitingIds.has(dependency.targetEntityId),
   );
@@ -157,12 +196,11 @@ function FutureApplyFooterContent({
         onRefresh={async () => {
           await refetch();
         }}
-        reconciliationProposal={current}
         reviewSteps={
           <>
             <Chip
               icon={<CheckIcon />}
-              label="Approved"
+              label="Previously approved"
               size="small"
               color="success"
               variant="outlined"

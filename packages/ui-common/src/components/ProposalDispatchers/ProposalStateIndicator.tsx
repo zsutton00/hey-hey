@@ -266,9 +266,13 @@ const ProposalStateIndicatorContent: React.FC<ProposalStateIndicatorProps> = ({
     );
   }
 
-  const approveLabel = approvalProgress
-    ? formatApprovalLabel(approvalProgress)
-    : (applyLabel ?? label);
+  const approveLabel =
+    action === ProposalAction.VersionedUpdate &&
+    !approvalProgress?.isMultiApproval
+      ? "Approve revision"
+      : approvalProgress
+        ? formatApprovalLabel(approvalProgress)
+        : (applyLabel ?? label);
 
   const approveButton = (
     <Button

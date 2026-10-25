@@ -2006,6 +2006,7 @@ export * from './proposalReconciliationAgentFixRequest';
 export * from './proposalReconciliationBasis';
 export * from './proposalReconciliationFieldChange';
 export * from './proposalReconciliationIntervening';
+export * from './proposalReconciliationManualRequest';
 export * from './proposalReconciliationMergeRequest';
 export * from './proposalReconciliationOverlap';
 export * from './proposalReconciliationRevision';

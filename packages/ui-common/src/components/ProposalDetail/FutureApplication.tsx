@@ -15,7 +15,6 @@ import {
   Typography,
 } from "@mui/material";
 import type {
-  ProposalResponseDto,
   FutureApplyConfirmation,
   FutureApplyResponse,
   FutureRevisionResponse,
@@ -23,7 +22,7 @@ import type {
 import { proposalsClient } from "../../clients/serviceClients";
 import { useApplyProposalFuture } from "../../data/hooks/useApplyProposalFuture";
 import { FutureProposalLink } from "./FutureProposalLink";
-import { ProposalReconciliationReview } from "../ProposalReconciliation/ProposalReconciliationReview";
+
 import {
   extractProposalApprovalFailureDiagnostic,
   ProposalFailureDiagnostic,
@@ -49,14 +48,12 @@ const blockerLabels = {
 export function FutureApplication({
   future,
   onApplied,
-  reconciliationProposal,
   waitingNote,
   reviewSteps,
   onRefresh,
 }: {
   future: FutureRevisionResponse;
   onApplied: () => Promise<void>;
-  reconciliationProposal?: ProposalResponseDto;
   /** Replaces the generic waiting-on-linked-work message. */
   waitingNote?: ReactNode;
   /** Approval and linked work share the action row. */
@@ -120,11 +117,6 @@ export function FutureApplication({
   };
   const applied =
     response?.status === "APPLIED" || future.outcome === "APPLIED";
-  const reconciliationRequired =
-    applicability.data?.blockers.includes("BASELINE_CHANGED") ||
-    applicability.data?.blockers.includes("BASELINE_UNAVAILABLE") ||
-    response?.blocker === "BASELINE_CHANGED" ||
-    response?.blocker === "BASELINE_UNAVAILABLE";
   const ready =
     applicability.data?.canApply &&
     applicability.data.revision === future.revision;
@@ -220,14 +212,6 @@ export function FutureApplication({
       )}
       {response?.blocker && (
         <Alert severity="warning">{blockerLabels[response.blocker]}</Alert>
-      )}
-      {reconciliationRequired && reconciliationProposal && (
-        <ProposalReconciliationReview
-          proposal={reconciliationProposal}
-          onApply={() => undefined}
-        >
-          {null}
-        </ProposalReconciliationReview>
       )}
       {apply.error && !applied && (
         <Stack spacing={1}>

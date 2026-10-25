@@ -52,10 +52,11 @@ export class ProposalAgentFixService {
     userId: UserId,
     proposalId: string,
   ): Promise<ProposalAgentFixRequest> {
-    const proposal = await this.prisma.db.proposal.findFirst({
+    const found = await this.prisma.db.proposal.findFirst({
       where: { id: proposalId, organizationId, projectId },
     });
-    if (!proposal) throw new NotFoundException('Proposal not found');
+    if (!found) throw new NotFoundException('Proposal not found');
+    const proposal = await this.proposals.currentReconciliationProposal(found);
     const state = await this.proposals.reconciliationState(
       proposalId,
       organizationId,
@@ -88,14 +89,17 @@ export class ProposalAgentFixService {
           conversationId: unstarted.conversationId!,
           createdAt: unstarted.createdAt,
         }
-      : await this.prepareSession(organizationId, projectId, userId, proposal);
+      : await this.prepareSession(organizationId, projectId, userId, {
+          ...proposal,
+          id: proposalId,
+        });
     return {
       proposalId,
       organizationId,
       projectId,
       agentSessionId: prepared.agentSessionId,
       conversationId: prepared.conversationId,
-      payload: this.payloadFor(proposal),
+      payload: this.payloadFor({ ...proposal, id: proposalId }),
       createdAt: prepared.createdAt.toISOString(),
     };
   }
@@ -131,13 +135,16 @@ export class ProposalAgentFixService {
     ) {
       return false;
     }
-    const proposal = await this.prisma.db.proposal.findFirst({
+    const found = await this.prisma.db.proposal.findFirst({
       where: {
         id: session.entityId,
         organizationId: input.organizationId,
         projectId: input.projectId,
       },
     });
+    const proposal = found
+      ? await this.proposals.currentReconciliationProposal(found)
+      : null;
     const mismatches = [
       ['proposal', !!proposal],
       ['user', session.userId === input.userId],
@@ -158,7 +165,10 @@ export class ProposalAgentFixService {
       [
         'payload',
         !!proposal &&
-          isDeepStrictEqual(requestDto.payload, this.payloadFor(proposal)),
+          isDeepStrictEqual(
+            requestDto.payload,
+            this.payloadFor({ ...proposal, id: session.entityId }),
+          ),
       ],
       [
         'context',

@@ -2519,6 +2519,7 @@ Class | Method | HTTP request | Description
  - [ProposalReconciliationBasis](docs/ProposalReconciliationBasis.md)
  - [ProposalReconciliationFieldChange](docs/ProposalReconciliationFieldChange.md)
  - [ProposalReconciliationIntervening](docs/ProposalReconciliationIntervening.md)
+ - [ProposalReconciliationManualRequest](docs/ProposalReconciliationManualRequest.md)
  - [ProposalReconciliationMergeRequest](docs/ProposalReconciliationMergeRequest.md)
  - [ProposalReconciliationOverlap](docs/ProposalReconciliationOverlap.md)
  - [ProposalReconciliationRevision](docs/ProposalReconciliationRevision.md)

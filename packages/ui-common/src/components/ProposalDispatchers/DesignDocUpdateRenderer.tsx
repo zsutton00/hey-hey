@@ -119,7 +119,7 @@ export const DesignDocUpdateRenderer: React.FC<{
           }
         />
       )}
-      {notice}
+      {!hideDiff && notice}
       <Collapse in={expanded && !hideDiff}>
         <Stack spacing={1.5}>
           {isApplied ? (

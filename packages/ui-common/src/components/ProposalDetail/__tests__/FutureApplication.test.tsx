@@ -3,7 +3,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   FutureApplicability,
-  ProposalResponseDto,
   FutureApplyResponse,
   FutureRevisionResponse,
 } from "../../../api";
@@ -26,12 +25,6 @@ vi.mock("../../../data/hooks/useInvalidateProposalReview", () => ({
 vi.mock("../FutureProposalLink", () => ({
   FutureProposalLink: ({ proposalId }: { proposalId: string }) => (
     <a href={`/proposals/${proposalId}`}>Proposed refinement</a>
-  ),
-}));
-
-vi.mock("../../ProposalReconciliation/ProposalReconciliationReview", () => ({
-  ProposalReconciliationReview: () => (
-    <div data-testid="shared-reconciliation">Reconcile reviewed change</div>
   ),
 }));
 
@@ -246,42 +239,21 @@ describe("manual future application", () => {
 });
 
 it.each(["BASELINE_CHANGED", "BASELINE_UNAVAILABLE"] as const)(
-  "opens shared reconciliation for %s while keeping Apply guarded",
+  "keeps Apply guarded for %s while the shared comparison owns recovery",
   async (blocker) => {
     api.readiness.mockResolvedValue({
       data: { data: { ...ready, canApply: false, blockers: [blocker] } },
     });
-    const proposal: ProposalResponseDto = {
-      id: "reviewed",
-      organizationId: "org",
-      projectId: "project",
-      type: "SINGLE",
-      action: "VERSIONED_UPDATE",
-      status: "APPROVED",
-      targetEntityType: "TASK",
-      targetEntityId: "target",
-      updates: {},
-      title: "Reviewed change",
-      requestorId: "user",
-      requiredApprovals: 1,
-      approvals: [],
-      createdAt: "2026-10-01T00:00:00Z",
-      updatedAt: "2026-10-01T00:00:00Z",
-    };
     render(
       <QueryClientProvider
         client={
           new QueryClient({ defaultOptions: { queries: { retry: false } } })
         }
       >
-        <FutureApplication
-          future={future}
-          onApplied={onApplied}
-          reconciliationProposal={proposal}
-        />
+        <FutureApplication future={future} onApplied={onApplied} />
       </QueryClientProvider>,
     );
-    expect(await screen.findByTestId("shared-reconciliation")).toBeVisible();
+    await waitFor(() => expect(api.readiness).toHaveBeenCalled());
     expect(screen.getByTestId("future-apply")).toBeDisabled();
     expect(api.apply).not.toHaveBeenCalled();
   },

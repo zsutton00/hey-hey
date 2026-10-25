@@ -1,3 +1,4 @@
+import { isAxiosError } from "axios";
 import React, {
   createContext,
   useCallback,
@@ -29,12 +30,16 @@ import { usePathService } from "../../contexts/PathServiceContext";
 import type { ProposalApprovalRequest } from "../ProposalDispatchers/types";
 import { DiffRenderer } from "../SuggestedContent/DiffRenderer";
 import { subscribeProposalReconciliation } from "./reconciliationInvalidation";
+import { useInvalidateProposalReview } from "../../data/hooks/useInvalidateProposalReview";
+import { isFutureProposal } from "../ProposalDispatchers/futureAsUpdate";
+import { ManualReconciliationEditor } from "./ManualReconciliationEditor";
 import { AgentFixConfirmDialog } from "./AgentFixConfirmDialog";
 
 export const ProposalReconciliationContext = createContext<{
   approvalDisabled: boolean;
   state: ProposalReconciliationState | null;
   standaloneUpdate: boolean;
+  future: boolean;
   submit: () => void;
 } | null>(null);
 
@@ -47,14 +52,31 @@ const OUT_OF_DATE_STATUSES = new Set<ProposalReconciliationState["status"]>([
 const ago = (iso: string) =>
   formatDistanceToNow(new Date(iso), { addSuffix: true });
 
-const displayValue = (value: unknown): string =>
-  value === null || value === undefined
-    ? ""
-    : typeof value === "string"
-      ? value
-      : JSON.stringify(value, null, 2);
+const displayValue = (value: unknown): string => {
+  if (value == null) return "";
+  if (typeof value === "string") {
+    if (/^\s*[\[{]/.test(value)) {
+      try {
+        return displayValue(JSON.parse(value));
+      } catch {
+        /* Ordinary text. */
+      }
+    }
+    return value;
+  }
+  if (Array.isArray(value)) return value.map(displayValue).join("\n\n");
+  if (typeof value === "object")
+    return Object.entries(value)
+      .filter(([key]) => key !== "id")
+      .map(
+        ([key, entry]) =>
+          `${key.replace(/([A-Z])/g, " $1")}: ${displayValue(entry)}`,
+      )
+      .join("\n");
+  return String(value);
+};
 
-type Resolve = { editHref: string; onAgentFix: () => void; busy: boolean };
+type Resolve = { onEdit: () => void; onAgentFix: () => void; busy: boolean };
 
 function OutOfDateHeadsUp({ state }: { state: ProposalReconciliationState }) {
   const count = state.interveningProposals.length;
@@ -113,7 +135,7 @@ function OverlapComparison({
         <Button
           size="small"
           data-testid="proposal-reconciliation-edit-by-hand"
-          href={resolve.editHref}
+          onClick={resolve.onEdit}
         >
           Edit by hand
         </Button>
@@ -262,7 +284,11 @@ export function ProposalReconciliationReview(props: {
   children: React.ReactNode;
 }) {
   if (
-    props.proposal.status === ProposalStatus.Approved ||
+    (isFutureProposal(props.proposal) &&
+      props.proposal.updates.operation === "CANCEL") ||
+    (props.proposal.status === ProposalStatus.Approved &&
+      (props.proposal.action !== "VERSIONED_UPDATE" ||
+        props.proposal.reviewedFuture?.outcome !== "STAGED")) ||
     props.proposal.status === ProposalStatus.Rejected
   )
     return <>{props.children}</>;
@@ -281,7 +307,10 @@ function PendingProposalReconciliationReview({
   children: React.ReactNode;
 }) {
   const paths = usePathService();
+  const invalidateReview = useInvalidateProposalReview();
   const [agentFixOpen, setAgentFixOpen] = useState(false);
+  const [manualState, setManualState] =
+    useState<ProposalReconciliationState | null>(null);
   const [state, setState] = useState<ProposalReconciliationState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -372,13 +401,7 @@ function PendingProposalReconciliationReview({
   };
   const outOfDate = !!state && OUT_OF_DATE_STATUSES.has(state.status);
   const resolve: Resolve = {
-    editHref: outOfDate
-      ? paths.proposal({
-          projectId: proposal.projectId,
-          proposalId: proposal.id,
-          editing: true,
-        })
-      : "",
+    onEdit: () => setManualState(state),
     onAgentFix: () => setAgentFixOpen(true),
     busy,
   };
@@ -392,6 +415,7 @@ function PendingProposalReconciliationReview({
         submit,
         state,
         standaloneUpdate: !grouped && proposal.action === "UPDATE",
+        future: proposal.action === "VERSIONED_UPDATE",
       }}
     >
       <Stack spacing={1} data-testid="proposal-reconciliation-review">
@@ -436,6 +460,13 @@ function PendingProposalReconciliationReview({
                 </Button>
               ) : null}
               <Button
+                data-testid="proposal-reconciliation-edit-by-hand"
+                disabled={busy || !state.currentBases.length}
+                onClick={resolve.onEdit}
+              >
+                Edit by hand
+              </Button>
+              <Button
                 data-testid="proposal-reconciliation-agent-fix"
                 disabled={busy}
                 onClick={resolve.onAgentFix}
@@ -445,13 +476,56 @@ function PendingProposalReconciliationReview({
             </Stack>
           </Stack>
         ) : null}
+        {manualState ? (
+          <ManualReconciliationEditor
+            proposal={proposal}
+            state={manualState}
+            busy={busy}
+            error={error}
+            onClose={() => setManualState(null)}
+            onSave={(result) => {
+              setBusy(true);
+              setError(null);
+              void proposalsClient
+                .createProposalReconciliationCandidate({
+                  ...scope,
+                  createProposalReconciliationCandidate: {
+                    method: "MANUAL",
+                    expectedFutureRevision: manualState.futureRevision,
+                    proposedResult: result,
+                    expectedCurrentBases: manualState.currentBases,
+                  },
+                })
+                .then((response) => {
+                  setState(response.data.data);
+                  setManualState(null);
+                  void invalidateReview(
+                    proposal.organizationId,
+                    proposal.projectId,
+                  );
+                })
+                .catch(async (caught) => {
+                  if (isAxiosError(caught) && caught.response?.status === 409) {
+                    await refresh();
+                    setManualState(null);
+                  }
+                  setError(
+                    caught instanceof Error
+                      ? caught.message
+                      : "The result could not be prepared. Refresh and try again.",
+                  );
+                })
+                .finally(() => setBusy(false));
+            }}
+          />
+        ) : null}
         {agentFixOpen ? (
           <AgentFixConfirmDialog
             proposal={proposal}
             onClose={() => setAgentFixOpen(false)}
           />
         ) : null}
-        {grouped && state?.replacementProposalId ? (
+        {usesReplacement && state?.replacementProposalId ? (
           <Button
             variant="contained"
             data-testid="proposal-reconciliation-open-replacement"
@@ -460,7 +534,7 @@ function PendingProposalReconciliationReview({
               proposalId: state.replacementProposalId,
             })}
           >
-            Review merged version
+            Review revised result
           </Button>
         ) : null}
         {usesReplacement && state?.replacementGroupId ? (

@@ -31,6 +31,11 @@ export const proposalReconciliationCandidateSchema = {
             "AGENT_FIX"
           ]
         },
+        "expectedFutureRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Required for a future candidate; prevents a stale result replacing a newer reviewed future."
+        },
         "proposedResult": {
           "type": "object",
           "additionalProperties": true,
@@ -79,6 +84,75 @@ export const proposalReconciliationCandidateSchema = {
           "description": "The server-issued current bases used to prepare an Agent fix; further drift rejects submission."
         }
       }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "proposedResult",
+        "expectedCurrentBases"
+      ],
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "MANUAL"
+          ]
+        },
+        "expectedFutureRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Required for a future candidate; prevents a stale result replacing a newer reviewed future."
+        },
+        "proposedResult": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Required for manual resolution; admitted through ordinary proposal validation before persistence. Submission never authorizes application."
+        },
+        "expectedCurrentBases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "entityType",
+              "entityId",
+              "version",
+              "content"
+            ],
+            "properties": {
+              "entityType": {
+                "type": "string",
+                "enum": [
+                  "TASK",
+                  "DESIGN_DOC",
+                  "REPORT",
+                  "SERVICE",
+                  "AGENT_SESSION",
+                  "CONVERSATION",
+                  "WORK_ITEM_TYPE",
+                  "ENTITY_PROMPT_TEMPLATE",
+                  "EDGE"
+                ]
+              },
+              "entityId": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "Server-owned version of the exact captured content, including section edits."
+              },
+              "content": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Complete canonical content produced by the owning entity adapter; never a client-supplied historical baseline."
+              }
+            }
+          },
+          "description": "The server-issued current bases used to prepare a manual resolution; further drift rejects submission."
+        }
+      }
     }
   ]
 } as const;
@@ -104,6 +178,11 @@ export const proposalReconciliationStateSchema = {
         "READY_FOR_REVIEW"
       ]
     },
+    "futureRevision": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Stored future revision used to prepare this context; include as expectedFutureRevision when submitting future reconciliation."
+    },
     "writtenAt": {
       "type": "string",
       "format": "date-time",
@@ -111,7 +190,7 @@ export const proposalReconciliationStateSchema = {
     },
     "interveningProposals": {
       "type": "array",
-      "description": "Proposals approved on the same target after this change was written, oldest first. Empty when the proposal is approved or rejected.",
+      "description": "Proposals approved on the same target after this change was written, oldest first. Empty for terminal proposals; approved unapplied futures remain reviewable.",
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -277,7 +356,8 @@ export const proposalReconciliationStateSchema = {
             "enum": [
               "AUTHORING",
               "MERGE",
-              "AGENT_FIX"
+              "AGENT_FIX",
+              "MANUAL"
             ]
           },
           "previousRevisionId": {

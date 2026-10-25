@@ -252,13 +252,25 @@ export class ProposalReconciliationService {
     proposal: Proposal,
     baseline: FutureRevisionBaseline,
   ): Promise<ProposalReconciliationState> {
-    const state = await this.state(tx, proposal);
     if (
       proposal.targetEntityType !== 'TASK' &&
       proposal.targetEntityType !== 'DESIGN_DOC'
     )
-      return state;
-    if (!state.revisions.length) return state;
+      return this.state(tx, proposal);
+    if (
+      proposal.status === 'REJECTED' ||
+      (proposal.status === 'APPROVED' &&
+        !(await this.isUnappliedFuture(tx, proposal)))
+    )
+      return this.state(tx, proposal);
+    const mutation = parseFutureRevisionMutation(proposal.updates);
+    const future = await tx.proposalFuture.findFirst({
+      where: {
+        id: mutation.futureId,
+        organizationId: proposal.organizationId,
+        projectId: proposal.projectId,
+      },
+    });
     const changed = await this.futureBaselineChanged(
       tx,
       {
@@ -269,8 +281,32 @@ export class ProposalReconciliationService {
       },
       baseline,
     );
+    const state = await this.state(tx, proposal, changed);
+    if (!state.revisions.length || state.status === 'NOT_APPLICABLE')
+      return state;
+    let currentBases = state.currentBases;
+    if (changed) {
+      // Section identities are response metadata, outside the semantic basis check.
+      // Manual recovery must retain actual live identities when carrying new sections forward.
+      const live = await this.currentFutureContent({
+        organizationId: proposal.organizationId,
+        projectId: proposal.projectId,
+        targetEntityType: proposal.targetEntityType,
+        targetEntityId: proposal.targetEntityId,
+      });
+      currentBases = state.currentBases.map((basis) => ({
+        ...basis,
+        content: {
+          ...basis.content,
+          ...('type' in live ? { source: live.source } : {}),
+          materializedSections: live.sections as unknown as Prisma.JsonArray,
+        },
+      }));
+    }
     return {
       ...state,
+      currentBases,
+      futureRevision: future?.revision ?? 0,
       status: changed
         ? 'RECONCILIATION_REQUIRED'
         : state.revisions.at(-1)?.source === 'AUTHORING'
@@ -687,12 +723,34 @@ export class ProposalReconciliationService {
     });
   }
 
+  private async isUnappliedFuture(
+    tx: AnyTransactionClient,
+    proposal: Proposal,
+  ): Promise<boolean> {
+    if (proposal.action !== 'VERSIONED_UPDATE') return false;
+    const mutation = parseFutureRevisionMutation(proposal.updates);
+    if (mutation.operation !== 'REVISE') return false;
+    const future = await tx.proposalFuture.findFirst({
+      where: {
+        id: mutation.futureId,
+        organizationId: proposal.organizationId,
+        projectId: proposal.projectId,
+      },
+    });
+    return future?.outcome === 'STAGED';
+  }
+
   async state(
     tx: AnyTransactionClient,
     proposal: Proposal,
+    baselineChanged = false,
   ): Promise<ProposalReconciliationState> {
     // A decided proposal has nothing left to reconcile or review.
-    if (proposal.status === 'APPROVED' || proposal.status === 'REJECTED') {
+    if (
+      proposal.status === 'REJECTED' ||
+      (proposal.status === 'APPROVED' &&
+        !(await this.isUnappliedFuture(tx, proposal)))
+    ) {
       return {
         status: 'NOT_APPLICABLE',
         currentBases: [],
@@ -803,6 +861,8 @@ export class ProposalReconciliationService {
             : 'READY_FOR_REVIEW'
           : 'RECONCILIATION_REQUIRED';
     }
+    if (baselineChanged && currentBases.length)
+      status = 'RECONCILIATION_REQUIRED';
     if (materialization?.status === 'PUBLISHED') status = 'NOT_APPLICABLE';
     let replacement =
       proposal.action === 'VERSIONED_UPDATE' ||
@@ -814,6 +874,12 @@ export class ProposalReconciliationService {
             orderBy: { createdAt: 'desc' },
           })
         : null;
+    if (replacement && proposal.action === 'VERSIONED_UPDATE') {
+      const candidate = await tx.proposal.findUnique({
+        where: { id: replacement.replacementProposalId },
+      });
+      if (!candidate || candidate.status !== 'DRAFT') replacement = null;
+    }
     if (replacement?.replacementGroupId) {
       const group = await tx.proposalGroup.findUnique({
         where: { id: replacement.replacementGroupId },
@@ -841,7 +907,15 @@ export class ProposalReconciliationService {
               interveningProposals: [],
               overlaps: [],
             }),
-            latest?.proposedResult,
+            proposal.action === 'VERSIONED_UPDATE' &&
+              (proposal.targetEntityType === 'TASK' ||
+                proposal.targetEntityType === 'DESIGN_DOC')
+              ? this.adapter.futureContentBasis(
+                  proposal.targetEntityType,
+                  this.futureRevisionResult(proposal),
+                  proposal.projectId,
+                )
+              : latest?.proposedResult,
             currentBases[0]?.content,
             intervening,
           )
@@ -981,10 +1055,53 @@ export class ProposalReconciliationService {
       });
   }
 
+  private futureRevisionResult(proposal: Proposal): FutureRevisionContent {
+    const mutation = parseFutureRevisionMutation(proposal.updates);
+    if (mutation.operation !== 'REVISE')
+      throw new ConflictException('Cancelled futures have no proposed result.');
+    return mutation.result;
+  }
+
   prepareMerge(proposal: Proposal, state: ProposalReconciliationState) {
     const original = state.revisions.at(-1);
     if (!original || !state.currentBases[0] || proposal.action === 'DELETE') {
       return { kind: 'AGENT_FIX_REQUIRED', conflictingPaths: [''] } as const;
+    }
+    if (
+      proposal.action === 'VERSIONED_UPDATE' &&
+      (proposal.targetEntityType === 'TASK' ||
+        proposal.targetEntityType === 'DESIGN_DOC')
+    ) {
+      const mutation = parseFutureRevisionMutation(proposal.updates);
+      if (mutation.operation !== 'REVISE')
+        return { kind: 'AGENT_FIX_REQUIRED', conflictingPaths: [''] } as const;
+      const before = this.adapter.futureContentBasis(
+        proposal.targetEntityType,
+        mutation.baseline.content,
+        proposal.projectId,
+      );
+      const after = this.adapter.futureContentBasis(
+        proposal.targetEntityType,
+        mutation.result,
+        proposal.projectId,
+      );
+      const textPaths = new Set(
+        Object.keys(before.sections as Prisma.JsonObject).map(
+          (key) => `/sections/${key.replace(/~/g, '~0').replace(/\//g, '~1')}`,
+        ),
+      );
+      const result = mergeProposalContent(
+        before,
+        this.adapter.currentFutureBasisContent(
+          proposal.targetEntityType,
+          state.currentBases[0],
+        ),
+        after,
+        textPaths,
+      );
+      return result.kind === 'MERGED'
+        ? ({ kind: 'AGENT_FIX_REQUIRED', conflictingPaths: [] } as const)
+        : result;
     }
     const patch = proposal.updates as UpdateTaskDto | UpdateDesignDocDto;
     // Ordered requirement operations carry semantic intent, not replacement content.
@@ -1028,16 +1145,14 @@ export class ProposalReconciliationService {
     reviewedRevisionId?: string,
     requireRevisionReview = false,
   ): Promise<void> {
-    const replacement =
-      proposal.action === 'VERSIONED_UPDATE' ||
-      (await tx.proposalGroupMember.findUnique({
-        where: { proposalId: proposal.id },
-      }))
-        ? await tx.proposalReconciliationReplacement.findFirst({
-            where: { proposalId: proposal.id },
-            orderBy: { createdAt: 'desc' },
-          })
-        : null;
+    const replacement = (await tx.proposalGroupMember.findUnique({
+      where: { proposalId: proposal.id },
+    }))
+      ? await tx.proposalReconciliationReplacement.findFirst({
+          where: { proposalId: proposal.id },
+          orderBy: { createdAt: 'desc' },
+        })
+      : null;
     if (replacement) {
       const group = replacement.replacementGroupId
         ? await tx.proposalGroup.findUnique({

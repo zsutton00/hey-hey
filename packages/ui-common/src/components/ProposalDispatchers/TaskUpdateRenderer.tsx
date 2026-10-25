@@ -496,7 +496,7 @@ export const TaskUpdateRenderer: React.FC<{
         />
       )}
       {existing.type !== "MODE" || isApplied ? availability : null}
-      {notice}
+      {!hideDiff && notice}
       <Collapse in={expanded && !hideDiff}>
         <Stack spacing={1.5}>
           {proposedServiceIds !== undefined && servicesQuery.isLoading ? (

@@ -3,7 +3,10 @@ import type { Proposal } from '@prisma/client';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 import type { ProposalReconciliationBasis } from 'src/generated';
 import { ProposalReconciliationService } from '../proposal-reconciliation.service';
-import { projectReconciliationContent } from '../proposal-reconciliation-content';
+import {
+  projectReconciliationContent,
+  manualReconciliationPatch,
+} from '../proposal-reconciliation-content';
 
 const original: ProposalReconciliationBasis = {
   entityType: 'TASK',
@@ -277,6 +280,32 @@ describe('reviewed reconciliation application', () => {
     ).rejects.toThrow(ConflictException);
   });
 
+  it('carries every manually edited field and section into ordinary candidate validation', () => {
+    expect(
+      manualReconciliationPatch(
+        {
+          name: 'Current',
+          priority: 'LOW',
+          sections: { description: 'Old', remove: 'Remove' },
+          sectionOrder: { description: 0, remove: 1 },
+        },
+        {
+          name: 'Resolved',
+          priority: 'HIGH',
+          sections: { description: 'Resolved body', added: 'New' },
+          sectionOrder: { description: 0, added: 1 },
+        },
+      ),
+    ).toEqual({
+      name: 'Resolved',
+      priority: 'HIGH',
+      sections: [
+        { key: 'description', content: 'Resolved body', order: 0 },
+        { key: 'remove', content: null },
+        { key: 'added', content: 'New', order: 1 },
+      ],
+    });
+  });
   it('retains the original basis on edits and invalidates earlier votes', async () => {
     const f = fixture();
     f.change({ ...original.content, name: 'Intervening' }, 'second');

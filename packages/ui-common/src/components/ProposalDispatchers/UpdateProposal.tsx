@@ -537,11 +537,7 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
           </MentionExpansionProvider>
         );
 
-        if (
-          renderMode === "group-member" ||
-          renderMode === "future-review" ||
-          isEvaluationOutput
-        ) {
+        if (renderMode === "group-member" || isEvaluationOutput) {
           return <React.Fragment key={proposal.id}>{rendered}</React.Fragment>;
         }
 

@@ -17,6 +17,19 @@ import type {
   ProposalResponseDto,
   ProposalReconciliationState,
 } from "../../../api";
+vi.mock("../../../data/hooks/useInvalidateProposalReview", () => ({
+  useInvalidateProposalReview: () => vi.fn(),
+}));
+vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
+  useWorkItemTypes: () => ({
+    workItemTypes: [],
+    isLoading: false,
+    error: null,
+  }),
+}));
+vi.mock("../../../data/hooks/useMentionEntitySearch", () => ({
+  useMentionEntitySearch: () => ({ searchEntities: vi.fn() }),
+}));
 vi.mock("../../../clients/serviceClients", () => ({
   proposalsClient: {
     getProposalReconciliation: vi.fn(),
@@ -305,5 +318,74 @@ describe("out-of-date review", () => {
     expect(screen.getByText("Approved content")).toBeVisible();
     expect(screen.queryByTestId("proposal-reconciliation-review")).toBeNull();
     expect(proposalsClient.getProposalReconciliation).not.toHaveBeenCalled();
+  });
+});
+
+describe("approved future recovery", () => {
+  it("exposes manual resolution after earlier approval and submits the displayed bases and future revision", async () => {
+    const future = {
+      ...proposal,
+      action: "VERSIONED_UPDATE",
+      status: "APPROVED",
+      reviewedFuture: { outcome: "STAGED" },
+    } as ProposalResponseDto;
+    const stale = {
+      ...ready,
+      status: "RECONCILIATION_REQUIRED",
+      futureRevision: 3,
+      overlaps: [],
+    } as ProposalReconciliationState;
+    vi.mocked(proposalsClient.getProposalReconciliation).mockResolvedValue({
+      data: { data: stale },
+    } as never);
+    vi.mocked(
+      proposalsClient.createProposalReconciliationCandidate,
+    ).mockResolvedValue({
+      data: { data: { ...ready, replacementProposalId: "review" } },
+    } as never);
+    render(
+      <ProposalReconciliationReview proposal={future} onApply={vi.fn()}>
+        <span>Previously approved</span>
+      </ProposalReconciliationReview>,
+    );
+    fireEvent.click(
+      await screen.findByTestId("proposal-reconciliation-edit-by-hand"),
+    );
+    fireEvent.change(screen.getByLabelText("name"), {
+      target: { value: "Resolved by hand" },
+    });
+    fireEvent.click(screen.getByTestId("proposal-reconciliation-manual-save"));
+    await waitFor(() =>
+      expect(
+        proposalsClient.createProposalReconciliationCandidate,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          createProposalReconciliationCandidate: {
+            method: "MANUAL",
+            expectedFutureRevision: 3,
+            expectedCurrentBases: stale.currentBases,
+            proposedResult: {
+              name: "Resolved by hand",
+              preserved: "Intervening work",
+            },
+          },
+        }),
+      ),
+    );
+    expect(await screen.findByText("Review revised result")).toBeVisible();
+    expect(screen.getByText("Previously approved")).toBeVisible();
+  });
+  it("cancels manual editing without submitting", async () => {
+    mount({ ...ready, status: "RECONCILIATION_REQUIRED" });
+    fireEvent.click(
+      await screen.findByTestId("proposal-reconciliation-edit-by-hand"),
+    );
+    fireEvent.click(screen.getByText("Cancel"));
+    expect(
+      screen.queryByTestId("proposal-reconciliation-manual-editor"),
+    ).toBeNull();
+    expect(
+      proposalsClient.createProposalReconciliationCandidate,
+    ).not.toHaveBeenCalled();
   });
 });
