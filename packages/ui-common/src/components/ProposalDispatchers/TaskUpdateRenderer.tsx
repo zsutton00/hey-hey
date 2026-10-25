@@ -59,6 +59,7 @@ import {
 import {
   isModeFilesSection,
   isModeSettingsSection,
+  readModeProjectAssistantSetting,
 } from "../shared/modeFilesSection";
 import { ModeSettingsSectionRenderer } from "../shared/ModeSettingsSectionRenderer";
 import { ImageSectionRenderer } from "../shared/ImageSectionRenderer";
@@ -392,53 +393,31 @@ export const TaskUpdateRenderer: React.FC<{
       }).filter(({ definition }) => isImageSectionDefinition(definition)),
     [existing.sections, proposal.updates.sections, workItemTypeDefinition],
   );
-  const renderModeFileDiffs = (
-    existingValue: unknown,
-    proposedValue: unknown,
-  ) => {
-    const proposed = readModeFilesContent(proposedValue);
-    if (proposed.status !== "valid") return null;
-    const hasExisting =
-      existingValue !== undefined &&
-      existingValue !== null &&
-      !(typeof existingValue === "string" && !existingValue.trim());
-    const existingFiles = hasExisting
-      ? readModeFilesContent(existingValue)
-      : {
-          status: "valid" as const,
-          bundle: { files: new Map<string, string>() },
-        };
-    if (existingFiles.status !== "valid") return null;
-    const before = existingFiles.bundle.files;
-    const after = proposed.bundle.files;
-    const paths = Array.from(new Set([...before.keys(), ...after.keys()]))
-      .filter((path) => before.get(path) !== after.get(path))
-      .sort((left, right) =>
-        left === "MODE.md"
-          ? -1
-          : right === "MODE.md"
-            ? 1
-            : left.localeCompare(right),
-      );
-    return paths.map((path) => (
-      <Stack key={path} spacing={0.5} data-testid="mode-file-diff">
-        <Typography variant="caption" color="text.secondary">
-          {path}
-          {!before.has(path)
-            ? " (added)"
-            : !after.has(path)
-              ? " (removed)"
-              : ""}
-        </Typography>
-        <DiffRenderer
-          oldContent={before.get(path) ?? ""}
-          newContent={after.get(path) ?? ""}
-          defaultViewMode={resolvedDiffMode}
-          showViewModeToggle
-        />
-      </Stack>
-    ));
-  };
+  const modeFilesComparisonUnavailable =
+    !isApplied &&
+    modeFilesSections.some(
+      (section) =>
+        readModeFilesContent(section.existingValue).status !== "valid" ||
+        readModeFilesContent(section.proposedValue).status !== "valid",
+    );
+  const modeSettingsComparisonUnavailable =
+    !isApplied &&
+    modeSettingsSections.some(
+      (section) =>
+        readModeProjectAssistantSetting(section.existingValue).status ===
+          "invalid" ||
+        readModeProjectAssistantSetting(section.proposedValue).status ===
+          "invalid",
+    );
+  const modeComparisonUnavailable =
+    modeFilesComparisonUnavailable || modeSettingsComparisonUnavailable;
+  const availability = (
+    <ModeAvailabilitySummary
+      availability={modeAvailability}
+      organizationId={proposal.organizationId}
+      projectId={proposal.projectId}
+    />
+  );
   const renderImageSection = (
     section: (typeof imageSections)[number],
     showPrevious: boolean,
@@ -513,11 +492,7 @@ export const TaskUpdateRenderer: React.FC<{
           }
         />
       )}
-      <ModeAvailabilitySummary
-        availability={modeAvailability}
-        organizationId={proposal.organizationId}
-        projectId={proposal.projectId}
-      />
+      {existing.type !== "MODE" || isApplied ? availability : null}
       {notice}
       <Collapse in={expanded && !hideDiff}>
         <Stack spacing={1.5}>
@@ -615,13 +590,39 @@ export const TaskUpdateRenderer: React.FC<{
             </Stack>
           ) : (
             <Stack spacing={1.5}>
+              {modeFilesSections.map((section) => (
+                <Stack key={section.key} spacing={0.5}>
+                  <Typography variant="caption" color="text.secondary">
+                    {section.label}
+                  </Typography>
+                  <ModeFilesSectionRenderer
+                    content={section.proposedValue}
+                    mentionConfig={modeMentionConfig}
+                    comparison={{
+                      currentContent: section.existingValue,
+                      defaultViewMode: resolvedDiffMode,
+                    }}
+                  />
+                </Stack>
+              ))}
+              {existing.type === "MODE" ? (
+                <Box component="details">
+                  <Box component="summary">Where this mode can be used</Box>
+                  {availability}
+                </Box>
+              ) : null}
               {hasGeneralChanges ? (
-                <DiffRenderer
-                  oldContent={oldContent}
-                  newContent={newContent}
-                  defaultViewMode={resolvedDiffMode}
-                  showViewModeToggle
-                />
+                <Box component={existing.type === "MODE" ? "details" : "div"}>
+                  {existing.type === "MODE" ? (
+                    <Box component="summary">Summary and other changes</Box>
+                  ) : null}
+                  <DiffRenderer
+                    oldContent={oldContent}
+                    newContent={newContent}
+                    defaultViewMode={resolvedDiffMode}
+                    showViewModeToggle
+                  />
+                </Box>
               ) : null}
               {structuredRequirementsChange?.status === "invalid" ? (
                 <Alert
@@ -665,23 +666,16 @@ export const TaskUpdateRenderer: React.FC<{
                   after={section.proposedValue}
                 />
               ))}
-              {modeFilesSections.map((section) => (
-                <Stack key={section.key} spacing={0.5}>
-                  <Typography variant="caption" color="text.secondary">
-                    {section.label}
-                  </Typography>
-                  <ModeFilesSectionRenderer
-                    content={section.proposedValue}
-                    mentionConfig={modeMentionConfig}
-                  />
-                  {renderModeFileDiffs(
-                    section.existingValue,
-                    section.proposedValue,
-                  )}
-                </Stack>
-              ))}
               {modeSettingsSections.map((section) => (
-                <Stack key={section.key} spacing={0.5}>
+                <Stack
+                  component="details"
+                  open={modeSettingsComparisonUnavailable}
+                  key={section.key}
+                  spacing={0.5}
+                >
+                  <Box component="summary">
+                    Eligible work-item types and Project Assistant
+                  </Box>
                   <Typography variant="caption" color="text.secondary">
                     {section.label}
                   </Typography>
@@ -707,20 +701,28 @@ export const TaskUpdateRenderer: React.FC<{
           )}
         </Stack>
       </Collapse>
-      {footer && !overrides?.hideStateIndicator
-        ? footer
-        : !overrides?.hideStateIndicator && (
-            <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
-              <ProposalStateIndicator
-                status={status}
-                action={ProposalAction.Update}
-                onApply={onApply}
-                onReject={onReject}
-                disabled={disabled}
-                approvalProgress={approvalProgress}
-              />
-            </Box>
-          )}
+      {footer && !overrides?.hideStateIndicator ? (
+        modeComparisonUnavailable ? (
+          <Alert severity="error">
+            Approval is unavailable until the complete comparison can be shown.
+          </Alert>
+        ) : (
+          footer
+        )
+      ) : (
+        !overrides?.hideStateIndicator && (
+          <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
+            <ProposalStateIndicator
+              status={status}
+              action={ProposalAction.Update}
+              onApply={onApply}
+              onReject={onReject}
+              disabled={disabled || modeComparisonUnavailable}
+              approvalProgress={approvalProgress}
+            />
+          </Box>
+        )
+      )}
     </Stack>
   );
 

@@ -418,7 +418,16 @@ describe("TaskUpdateRenderer visual section review", () => {
       ...existing,
       type: "MODE",
       sections: [
-        { key: "files", materializedMarkdown: "{}" },
+        {
+          key: "files",
+          materializedMarkdown: JSON.stringify({
+            schemaVersion: "project-mode-files.v1",
+            files: {
+              "MODE.md": "# Main guidance",
+              "references/review.md": "## Review checklist",
+            },
+          }),
+        },
         { key: "applicability", materializedMarkdown: "{}" },
       ],
     } as unknown as TaskResponseDto;
@@ -472,8 +481,9 @@ describe("TaskUpdateRenderer visual section review", () => {
         "mock-markdown-renderer",
       ),
     ).toHaveAttribute("data-mention-project-id", "project-1");
+    fireEvent.click(screen.getByTestId("mode-files-toggle-unchanged"));
     fireEvent.click(
-      screen.getByRole("button", { name: "references/review.md" }),
+      screen.getByRole("button", { name: "references/review.md (unchanged)" }),
     );
     expect(screen.getByTestId("mode-files-selected-content")).toHaveTextContent(
       "## Review checklist",

@@ -1005,59 +1005,64 @@ const InlineMarkdownDiffOperations: React.FC<
   InlineMarkdownDiffOperationsProps
 > = ({ operations, markdownComponents }) => {
   const theme = useTheme();
-
-  const renderHighlight = (
-    key: string,
-    text: string,
-    tone: "insert" | "delete",
-  ): React.ReactElement => (
+  // Fragments belong to the same paragraph. Only authored paragraph breaks
+  // introduce vertical space; a word-level operation is never a block boundary.
+  const renderFragment = (key: string, text: string, tone: MentionDiffTone) => (
     <Box
       key={key}
+      data-diff-tone={tone}
       sx={{
-        // MarkdownRenderer's container hardcodes its own text color, so the
-        // diff color must be applied via a descendant selector to reach the
-        // rendered markdown elements.
-        "& *": {
-          color: getDiffTextColor(tone, theme.palette.mode),
-          ...(tone === "delete" ? { textDecoration: "line-through" } : {}),
-        },
-        "& [data-mention-token]": {
-          backgroundColor: `${getMentionDiffBackground(tone, theme)} !important`,
-          borderRadius: "3px",
-        },
+        display: "contents",
+        ...(tone === "equal"
+          ? {}
+          : {
+              "& *": {
+                color: getDiffTextColor(tone, theme.palette.mode),
+                ...(tone === "delete"
+                  ? { textDecoration: "line-through" }
+                  : {}),
+              },
+              "& [data-mention-token]": {
+                backgroundColor: `${getMentionDiffBackground(tone, theme)} !important`,
+              },
+            }),
       }}
     >
-      <MarkdownRenderer components={markdownComponents}>
-        {text}
-      </MarkdownRenderer>
+      {text.split(/(\n\s*\n)/).map((part, index) =>
+        /^\n\s*\n$/.test(part) ? (
+          <React.Fragment key={index}>
+            <br />
+            <br />
+          </React.Fragment>
+        ) : (
+          <React.Fragment key={index}>
+            {part.match(/^[ \t]+/)?.[0]}
+            <MarkdownRenderer
+              components={markdownComponents}
+              sx={{ display: "contents", "& p": { display: "inline", m: 0 } }}
+            >
+              {part.replace(/^[ \t]+|[ \t]+$/g, "")}
+            </MarkdownRenderer>
+            {part.trim() ? part.match(/[ \t]+$/)?.[0] : null}
+          </React.Fragment>
+        ),
+      )}
     </Box>
   );
-
   return (
     <>
-      {operations.map((op, index) => {
+      {operations.map((operation, index) => {
         const key = `inline-op-${index}`;
-
-        if (op.type === "equal") {
-          return (
-            <MarkdownRenderer key={key} components={markdownComponents}>
-              {op.originalText}
-            </MarkdownRenderer>
-          );
-        }
-
-        if (op.type === "insert") {
-          return renderHighlight(key, op.newText, "insert");
-        }
-
-        if (op.type === "delete") {
-          return renderHighlight(key, op.originalText, "delete");
-        }
-
+        if (operation.type === "equal")
+          return renderFragment(key, operation.originalText, "equal");
+        if (operation.type === "insert")
+          return renderFragment(key, operation.newText, "insert");
+        if (operation.type === "delete")
+          return renderFragment(key, operation.originalText, "delete");
         return (
           <React.Fragment key={key}>
-            {renderHighlight(`${key}-del`, op.originalText, "delete")}
-            {renderHighlight(`${key}-ins`, op.newText, "insert")}
+            {renderFragment(`${key}-del`, operation.originalText, "delete")}
+            {renderFragment(`${key}-ins`, operation.newText, "insert")}
           </React.Fragment>
         );
       })}
@@ -1237,7 +1242,7 @@ const DiffViewModeToggle: React.FC<DiffViewModeToggleProps> = ({
 
 /**
  * DiffRenderer displays differences between old and new content as a
- * sequence of per-operation markdown segments. Each segment is rendered
+ * flowing sequence of per-operation markdown fragments. Each fragment is rendered
  * in its own MarkdownRenderer to avoid embedding raw HTML diff markers
  * (which leak as literal text when adjacent markdown delimiters — like
  * backticks — turn the surrounding region into a code span).
