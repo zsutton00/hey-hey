@@ -361,7 +361,12 @@ describe('input admission lifecycle delivery', () => {
           handlerPromptType: 'plan_shaping_feature_sync_iterate',
           userMessage: 'Keep refining.',
           attachments: [],
-          featureSyncContext: { discrepancies: [], decisions: [] },
+          featureSyncContext: {
+            planId: randomUUID(),
+            designDocId: randomUUID(),
+            discrepancies: [],
+            decisions: [],
+          },
         },
       }),
     );

@@ -26,6 +26,12 @@ const validateAction = ajv.compile<HostActionPreparation>({
   $ref: '#/definitions/HostActionPreparation',
 });
 export const isHostActionPreparation = (value: object): value is HostActionPreparation => validateAction(value);
+const validateInputs = ajv.compile<ControllerActionInputs>({
+  ...controllerActionRuntimeSchema,
+  $ref: '#/definitions/ControllerActionInputs',
+});
+export const isControllerActionInputs = (value: object): value is ControllerActionInputs => validateInputs(value);
+
 
 function serialize<T>(value: T): string {
   if (value === null) return 'null';

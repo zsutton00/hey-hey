@@ -1281,6 +1281,8 @@ describe('createTestRouter', () => {
         userMessage: 'Keep refining item 2.',
         attachments: [],
         featureSyncContext: {
+          planId: '22222222-2222-4222-8222-222222222222',
+          designDocId: '11111111-1111-4111-8111-111111111111',
           discrepancies: [
             { id: 'fs-1', summary: 'first', rationale: 'one' },
             { id: 'fs-2', summary: 'second', rationale: 'two' },
@@ -1331,6 +1333,8 @@ describe('createTestRouter', () => {
         payload: {
           discrepancies: body.payload.featureSyncContext.discrepancies,
           decisions: body.payload.featureSyncContext.decisions,
+          planId: body.payload.featureSyncContext.planId,
+          designDocId: body.payload.featureSyncContext.designDocId,
           userMessage: body.payload.userMessage,
         },
         references: { resolved: [], unresolved: [] },

@@ -1,26 +1,26 @@
 import { z } from 'zod/v4';
 import type { JsonValue } from '../../durable-data';
 import {
-  INPUT_QUEUE_SCHEMA_VERSION_V8,
-  decodeStoredRecordV8,
-  type FinishedInputRecordV8,
-  type OpenInputRecordV8,
-  type ReadableInputRecordV8,
-  type RecordDecodeV8,
-  type StoredInputKindV8,
-  type StoredPayloadV8,
-  storedPayloadV8Schemas,
-} from './storage-schema/v8';
+  INPUT_QUEUE_SCHEMA_VERSION_V9,
+  decodeStoredRecordV9,
+  type FinishedInputRecordV9,
+  type OpenInputRecordV9,
+  type ReadableInputRecordV9,
+  type RecordDecodeV9,
+  type StoredInputKindV9,
+  type StoredPayloadV9,
+  storedPayloadV9Schemas,
+} from './storage-schema/v9';
 
 /** The storage version this build writes; older files migrate to it when opened. */
-export const INPUT_QUEUE_SCHEMA_VERSION = INPUT_QUEUE_SCHEMA_VERSION_V8;
-export const decodeStoredRecord: (value: JsonValue) => RecordDecodeV8 = decodeStoredRecordV8;
+export const INPUT_QUEUE_SCHEMA_VERSION = INPUT_QUEUE_SCHEMA_VERSION_V9;
+export const decodeStoredRecord: (value: JsonValue) => RecordDecodeV9 = decodeStoredRecordV9;
 
-export type ReadableInputRecord = ReadableInputRecordV8;
-export type OpenInputRecord = OpenInputRecordV8;
-type FinishedInputRecord = FinishedInputRecordV8;
-export type StoredInputKind = StoredInputKindV8;
-type StoredPayload = StoredPayloadV8;
+export type ReadableInputRecord = ReadableInputRecordV9;
+export type OpenInputRecord = OpenInputRecordV9;
+type FinishedInputRecord = FinishedInputRecordV9;
+export type StoredInputKind = StoredInputKindV9;
+type StoredPayload = StoredPayloadV9;
 export type InputIdentity = Pick<
   ReadableInputRecord,
   | 'key'
@@ -50,7 +50,7 @@ export const storedInput = (
   payload: unknown,
 ): StoredInput =>
   // JSON-shaped input has no explicit `undefined`, so the exact-optional view is sound.
-  ({ kind, keyKind, payload: storedPayloadV8Schemas[kind].parse(payload) }) as StoredInput;
+  ({ kind, keyKind, payload: storedPayloadV9Schemas[kind].parse(payload) }) as StoredInput;
 
 /** Any record about to be committed; `save` decodes it back into a readable record. */
 export type InputRecordDraft = Omit<ReadableInputRecord, 'kind' | 'payload'> & {

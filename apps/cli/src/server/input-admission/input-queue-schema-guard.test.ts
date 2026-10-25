@@ -1,3 +1,5 @@
+import { decodeStoredRecordV9 } from './storage-schema/v9';
+import { migrateSessionFileV8ToV9 } from './storage-schema/v8-to-v9';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod/v4';
 import { mkdtemp, readdir, readFile, rm, writeFile, mkdir } from 'node:fs/promises';
@@ -162,4 +164,43 @@ describe('input queue storage versions', () => {
       });
     },
   );
+});
+
+it('resumes canonical Plan inputs and isolates older contextless revisions without changing history', async () => {
+  const { sessions } = JSON.parse(
+    await readFile(join(__dirname, '__fixtures__/input-queue-v8.json'), 'utf8'),
+  );
+  const file = Object.values(sessions)[0] as { records: Array<Record<string, any>> };
+  const template = file.records.find((record) => record['kind'] === 'trigger_frame')!;
+  const event = {
+    promptType: 'plan_shaping_feature_sync_iterate',
+    triggerMessageId: '00000000-0000-4000-8000-000000000011',
+    payload: {
+      planId: 'canonical-plan',
+      designDocId: 'seed-doc',
+      discrepancies: [],
+      decisions: [],
+    },
+  };
+  const valid = {
+    ...template,
+    state: 'queued',
+    turnId: null,
+    payload: { ...template['payload'], event },
+  };
+  const invalid = {
+    ...valid,
+    payload: {
+      ...valid.payload,
+      event: { ...event, payload: { discrepancies: [], decisions: [] } },
+    },
+  };
+  const finished = { ...invalid, state: 'failed' };
+  const source = { records: [valid, invalid, finished], quarantined: [] };
+  expect(migrateSessionFileV8ToV9(source)).toEqual(source);
+  const decoded = [valid, invalid, finished].map(decodeStoredRecordV9);
+  expect(decoded.map((result) => result.status)).toEqual(['readable', 'quarantined', 'readable']);
+  if (decoded[0]?.status === 'readable') expect(decoded[0].record.payload).toEqual(valid.payload);
+  if (decoded[2]?.status === 'readable')
+    expect(decoded[2].record.payload).toEqual(finished.payload);
 });

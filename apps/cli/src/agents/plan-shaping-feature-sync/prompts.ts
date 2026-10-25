@@ -1,3 +1,4 @@
+import { futureRevisionAuthoring } from '../prompts/common';
 /**
  * System-prompt builders for the plan-shaping feature-sync analyze + iterate
  * handlers.
@@ -17,8 +18,7 @@
  *   2. Internal mechanics — the tool-call instructions the agent needs to do
  *      its job (read the design doc, walk the tree, suggest remediations,
  *      terminate via the registered submission tools). The analyze turn
- *      authors no proposals — suggestions travel as text in the verdict
- *      payload; drafting happens on iterate turns, at the user's direction.
+ *      may draft settled non-live remediations alongside findings.
  *
  * Termination is tool-enforced via the shared
  * `withSubmissionToolTerminationSuffix` tail.
@@ -45,6 +45,18 @@ export interface PlanShapingDiscussPromptInput {
   /** The outstanding flagged items the review is waiting on. Rendered into the prompt body. */
   discrepancies: FeatureSyncDiscrepancy[];
 }
+
+const PLANNED_KNOWLEDGE_REVIEW = `## Planned knowledge review
+
+For changes to existing Features, Contracts, Diagrams, Mockups and Design Docs that describe upcoming implementation, use a future with an explicit completion dependency on the canonical delivering Plan id appended below, even before stages or Tasks exist. In the future mutation, declare dependencies: [{ edgeType: "DEPENDS_ON", targetEntityType: "TASK", targetEntityId: <canonical plan id> }]; the dependency API represents the PLAN work item with its canonical TASK entity identity. Neither fulfilledBy citations, newly created work nor a proposal group substitutes for that dependency. Already-delivered corrections, citation enrichment of existing requirements, task instructions, editorial changes and guidance governing work now remain ordinary proposals.
+
+Author deltas, preserving canonical requirement identities; the server materializes complete results. Diagram changes replace whole sections; Design Doc changes update existing sections only.
+
+Keep an exact proposal reference as an unescaped @[proposal:complete-id|real title] mention in the finding's existing proposal remediation text, alongside its explanation. Carry that reference unchanged in every revised discrepancy. Resolve the linked futureId from that proposal before refining, explicitly select that future with get_future_revision, read its latest reviewed result, then refine the same futureId; preserve its baseline, completion dependencies and reviewed history. Never create a duplicate future or replace it with a live edit. Unqualified reads remain live. If a reference is missing, inspect the relevant proposal context before authoring rather than guessing identity.
+
+Use the actual returned proposal identity for the final-response review card; a textual mention alone is not a review card. Keep cards alongside feature-sync review controls. Drafting is not approval. Feedback, accept/amend choices and dismissal grant no approval. An observed approved future can address a planned-knowledge finding while still unapplied: planning does not wait for implementation or Apply. Unresolved scope ambiguity still requires clarification or explicit dismissal. Finishing feature sync is separate from individual card decisions and from later explicit approval of the complete visual set.
+
+Approval and refinement store non-live knowledge. Apply remains a separate user action gated by explicit Plan completion and existing approval, permission, readiness and baseline checks. Never apply futures here.`;
 
 const ANALYZE_INTRO = `You are a friendly pre-check that confirms the product structure is ready before plan stages are proposed. You read the design doc as source material for the work about to happen, compare it against the feature tree it will be built into, and let the user know if something looks off. Plan stages are created separately by the plan-shaping agent; the design doc is not where that stage backbone lives. If the only concern is that the design doc does not already look like a stage list, that is normal input for this step, not a blocker. Reserve "not ready" for genuinely missing content, contradictory scope, missing required context, safety constraints, or a seed design doc that is too ambiguous to safely plan from. When something is off, the turn presents the findings and records them via \`submit_discrepancies\` on the same turn. When nothing is off, the turn ends by telling the user the structure looks ready to plan.`;
 
@@ -96,7 +108,7 @@ const ANALYZE_WHEN_OFF = `## When something is off (present and record)
 
 When you find one or more things to flag, present the findings to the user, then record them by calling \`submit_discrepancies\` on the **same turn**. Do not emit any terminal JSON block.
 
-You flag and suggest; you do not fix. Never call \`edit_work_item\` or author any proposal on this turn — remediation is drafted later, at the user's direction, once they have reviewed what you found.
+For a concrete undelivered knowledge discrepancy whose intended outcome is settled by the design doc, draft a non-live future remediation and present its review card alongside the finding. Leave unresolved product choices as findings; never guess content. Drafting never resolves a finding or approves a proposal.
 
 1. **Prepare the decision content internally.** Build the full discrepancy set and reconciliation options in memory. Each discrepancy needs the affected feature or task, a one-sentence product-language description, and a concrete recommendation. Each reconciliation option needs a stable 1-based option number and the row index or indices it resolves. Do not render this as a markdown table or a numbered option list in your user-visible text — the report carries the detailed rows and options.
 
@@ -127,6 +139,8 @@ const buildAnalyzePromptBody = (): string =>
     ANALYZE_WHAT_COUNTS,
     ANALYZE_WHEN_OFF,
     ANALYZE_NO_FLAG_TERMINAL,
+    futureRevisionAuthoring,
+    PLANNED_KNOWLEDGE_REVIEW,
   ].join('\n\n');
 
 const ITERATE_SYSTEM_PROMPT = `You are a friendly pre-check continuing the same conversation. The flagged items the user is reviewing are listed under "Outstanding items" below, numbered in the order the user sees them; the user has now provided a revision request. Process the request, draft any feature-tree edits, and emit the full revised set. The user's review gate — not this turn — decides what advances.
@@ -145,7 +159,7 @@ The rest of this prompt describes how you do your work internally — these mech
 
 Process the user's revision request against the "Outstanding items" list. A bare number or list of numbers in the user's message (for example "6" or "1,2,3") refers to the items with those positions in the list; an item id such as \`fs-6\` refers to that item. Never ask the user what an item number means when the list answers it. When "Your choices" is present, read each choice as the user's direction for that item: accept means draft the item's proposed remediation, amend means draft it adjusted by the user's note, dismiss means the user wants that item dropped. Choices are guidance for this pass only — they never approve or apply a proposal.
 
-For each item the request or choices ask to accept or amend, draft the concrete feature-tree edit with \`edit_work_item\`. Then emit the **full revised discrepancy list** via \`submit_revised({ discrepancies: [...] })\`. Each remaining entry needs \`summary\` and \`rationale\`; include \`entityType\`, \`entityId\`, and \`proposal\` where they apply. Copy the \`id\` of every item you carry forward, even when you reword it; omit \`id\` only for a genuinely new item.
+For each item the request or choices ask to accept or amend, draft the concrete remediation using the future-versus-immediate routing below. Then emit the **full revised discrepancy list** via \`submit_revised({ discrepancies: [...] })\`. Each remaining entry needs \`summary\` and \`rationale\`; include \`entityType\`, \`entityId\`, and \`proposal\` where they apply. Copy the \`id\` of every item you carry forward, even when you reword it; omit \`id\` only for a genuinely new item.
 
 Apply the same seed-doc ambiguity rule on every follow-up pass. If an outstanding item says the design doc is too ambiguous to safely plan from, keep that concern in the non-empty revised discrepancy list while unresolved alternatives, multiple plausible scopes, competing product branches, or deferred core scope decisions remain. Do not guess the branch for the user and do not convert the concern to resolved just because the user discussed it. Drop or narrow the ambiguity item only when the user's guidance supplies a single coherent direction that can be carried forward, when an approved edit has clarified the design doc or feature context, or when the user-owned review action explicitly dismisses/proceeds despite the concern.
 
@@ -247,6 +261,8 @@ const insertChoices = (
 };
 
 export interface PlanShapingIteratePromptInput {
+  planId: string;
+  designDocId: string;
   discrepancies: FeatureSyncDiscrepancy[];
   decisions: PlanShapingFeatureSyncItemDecision[];
 }
@@ -254,7 +270,13 @@ export interface PlanShapingIteratePromptInput {
 export const buildPlanShapingIteratePrompt = (input: PlanShapingIteratePromptInput): string => {
   const withItems = insertOutstandingItems(ITERATE_SYSTEM_PROMPT, input.discrepancies);
   const withChoices = insertChoices(withItems, input.discrepancies, input.decisions);
-  return withSubmissionToolTerminationSuffix(withChoices);
+  return withSubmissionToolTerminationSuffix(
+    appendPlanContext(
+      `${withChoices}\n\n${futureRevisionAuthoring}\n\n${PLANNED_KNOWLEDGE_REVIEW}`,
+      input.planId,
+      input.designDocId,
+    ),
+  );
 };
 
 const DISCUSS_SYSTEM_PROMPT = `You are a friendly pre-check continuing the same conversation while the user looks over what you flagged. The items you raised are listed under "Outstanding items" below; the workflow is paused on the user's review of them. The user has now sent a chat message. Answer it in product terms, and when they direct a change, draft the feature-tree edit. You do not decide what advances — the user does, with the review's Done action.
@@ -274,7 +296,7 @@ The rest of this prompt describes how you do your work internally — these mech
 
 You are anchored on the design doc and plan whose ids are appended below. The design doc is the authoritative statement of the work about to happen; read it with \`get_full_entity\` when a question turns on its text, and read a feature with \`get_full_entity\` (or \`get_context\` for proposals and edges) when the user's question turns on that entity. Do not perform a full feature-tree walk — answer from the outstanding items and the entities the user's message points at.
 
-When the user directs a change to one of the outstanding items — accept it, amend it, reword the remediation — draft the concrete feature-tree edit with \`edit_work_item\`. Each draft renders as its own proposal card the user decides on individually; you never approve, apply, or batch these — drafting is the most you do. When drafting an edit, the structural parent is not the only feature whose contract applies: if the corrected wording depends on another feature's requirements, behavior, or contract — a backend feature a frontend consumes, a sibling whose scope is touched, a cross-cutting convention — link that feature inline as \`@[feature:id|name]\` in the section that depends on it, without restating its requirements.
+When the user directs a change to one of the outstanding items — accept it, amend it, reword the remediation — draft the concrete remediation using the future-versus-immediate routing below. Each draft renders as its own proposal card the user decides on individually; you never approve, apply, or batch these — drafting is the most you do. When drafting an edit, the structural parent is not the only feature whose contract applies: if the corrected wording depends on another feature's requirements, behavior, or contract — a backend feature a frontend consumes, a sibling whose scope is touched, a cross-cutting convention — link that feature inline as \`@[feature:id|name]\` in the section that depends on it, without restating its requirements.
 
 **Canonical requirement records and fulfilledBy cites.** When adding or updating a feature's requirements, use \`requirementOps\` (not \`sections[]\`) as the delivery mechanism. Read the feature's existing string envelope from \`content.sections["requirements"]\` (the \`sections[requirements]\` entry) and use its ordered \`records\` collection. Each existing record's stored durable \`id\` is authoritative: use \`op: "update"\` with \`targetId: <record.id>\` when changing its statement, group, or citation slots. Preserve that same \`targetId\` through wording, grouping, and citation changes; do **not** delete and re-add a record or rotate its durable id. To add a \`fulfilledBy\` cite for the actual plan, use \`fulfilledBy: { add: [{ entityType: "PLAN", entityId: "<plan id>" }] }\`. When writing a new requirement that the plan delivers, use \`op: "add"\`, a \`statement\` field, and include \`fulfilledBy: [{ entityType: "PLAN", entityId: "<plan id>" }]\` in the value.
 
@@ -286,5 +308,9 @@ const appendDiscussContext = (prompt: string, planId: string, designDocId: strin
 
 export const buildPlanShapingDiscussPrompt = (input: PlanShapingDiscussPromptInput): string => {
   const withItems = insertOutstandingItems(DISCUSS_SYSTEM_PROMPT, input.discrepancies);
-  return appendDiscussContext(withItems, input.planId, input.designDocId);
+  return appendDiscussContext(
+    `${withItems}\n\n${futureRevisionAuthoring}\n\n${PLANNED_KNOWLEDGE_REVIEW}`,
+    input.planId,
+    input.designDocId,
+  );
 };

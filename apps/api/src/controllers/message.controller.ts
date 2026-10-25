@@ -1,4 +1,7 @@
-import { messageControllerInputs } from '../generated/controller-action-contract';
+import {
+  isControllerActionInputs,
+  messageControllerInputs,
+} from '../generated/controller-action-contract';
 import {
   ProjectAccessGuard,
   ProjectResourceId,
@@ -714,7 +717,7 @@ export class MessageController {
         'Workflow answers must use the dedicated workflow-answer endpoint',
       );
     }
-    if (!hasPromptType) {
+    if (!data || !hasPromptType) {
       throw new BadRequestException(
         'A USER message must carry data.agentInput.promptType; workflow answers use the dedicated workflow-answer endpoint',
       );
@@ -730,11 +733,10 @@ export class MessageController {
     }
     if (
       agentInput?.promptType === 'plan_shaping_feature_sync_iterate' &&
-      (!Array.isArray(agentInput.discrepancies) ||
-        !Array.isArray(agentInput.decisions))
+      !isControllerActionInputs(messageControllerInputs(data))
     ) {
       throw new BadRequestException(
-        'plan_shaping_feature_sync_iterate USER messages require data.agentInput.discrepancies and data.agentInput.decisions',
+        'plan_shaping_feature_sync_iterate USER messages require the canonical planId, designDocId, discrepancies and decisions',
       );
     }
   }

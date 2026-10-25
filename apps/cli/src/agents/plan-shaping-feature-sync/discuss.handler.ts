@@ -1,3 +1,4 @@
+import { FUTURE_REVISION_MCP_TOOLS } from '../mcp-server-config';
 /**
  * `plan_shaping_feature_sync_discuss` prompt-type handler.
  *
@@ -36,6 +37,7 @@ export const planShapingFeatureSyncDiscussHandler: UserLaunchablePromptTypeHandl
     runnerKind: 'provider_session',
     providerSessionCountsForContext: true,
     reports: [],
+    additionalAllowedTools: ['get_proposal', ...FUTURE_REVISION_MCP_TOOLS],
 
     // No completion path: the review's Done action — not this turn — decides
     // what advances, so the turn must not be able to post a workflow

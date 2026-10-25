@@ -88,7 +88,12 @@ export function messageControllerInputs(
     input.promptType === "feature_sync_iterate"
       ? { discrepancies: input.discrepancies }
       : input.promptType === "plan_shaping_feature_sync_iterate"
-        ? { discrepancies: input.discrepancies, decisions: input.decisions }
+        ? {
+            planId: input.planId,
+            designDocId: input.designDocId,
+            discrepancies: input.discrepancies,
+            decisions: input.decisions,
+          }
         : undefined;
   return {
     kind: "USER_MESSAGE",

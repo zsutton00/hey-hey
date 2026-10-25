@@ -1,3 +1,4 @@
+import { readCreatedProposalIds } from '../../agents/platform-mcp-proxy/proposal-result';
 import { describe, expect, it, vi } from 'vitest';
 import { normalizeEvent } from '../normalize';
 import { handleAssistantComplete } from './assistant-complete';
@@ -1796,4 +1797,57 @@ describe('assistant_complete end-to-end', () => {
     // lookup for prompt-B would have missed.
     expect(onCompleteA).toHaveBeenCalledOnce();
   });
+});
+
+it('attaches the actual future proposal card to the final plan-shaping review message', async () => {
+  const proposalId = '11111111-1111-4111-8111-111111111111';
+  const futureId = '22222222-2222-4222-8222-222222222222';
+  const poster = makePoster();
+  const ctx = makeTestRun({
+    lastSubmissionAction: { action: FEATURE_SYNC_ACTIONS.REVISED, payload: { discrepancies: [] } },
+  });
+  const turn = makeTestTurn({
+    promptType: LocalPromptType.PlanShapingFeatureSyncIterate,
+  } as PromptTypeHandler<unknown>);
+  const ids = readCreatedProposalIds('propose_future_revision', {
+    statusCode: 200,
+    body: {
+      jsonrpc: '2.0',
+      id: 1,
+      result: {
+        structuredContent: {
+          status: 'proposed',
+          proposalId,
+          futureId,
+          operation: 'REVISE',
+          targetEntityType: 'TASK',
+          targetEntityId: '33333333-3333-4333-8333-333333333333',
+        },
+      },
+    },
+  });
+  for (const id of ids) turn.recordCreatedProposal(id);
+  await handleAssistantComplete(
+    normalizeEvent(
+      makeRawAssistantComplete('Review the planned knowledge.'),
+      'claude',
+    ) as AssistantCompleteEvent,
+    ctx,
+    makeDeps(poster),
+    turn,
+  );
+  expect(poster.createOutOfBand).toHaveBeenCalledWith(
+    expect.objectContaining({
+      dto: expect.objectContaining({
+        proposalIds: [proposalId],
+        data: expect.objectContaining({
+          type: SystemMessageDataTypeEnum.Questions,
+          actionHint: 'task_complete',
+          uiElements: expect.arrayContaining([
+            expect.objectContaining({ type: ExtendedUIFieldType.PlanShapingFeatureSyncReview }),
+          ]),
+        }),
+      }),
+    }),
+  );
 });

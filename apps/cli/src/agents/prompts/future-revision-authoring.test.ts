@@ -1,3 +1,6 @@
+import { planShapingFeatureSyncAnalyzeHandler } from '../plan-shaping-feature-sync/analyze.handler';
+import { planShapingFeatureSyncIterateHandler } from '../plan-shaping-feature-sync/iterate.handler';
+import { planShapingFeatureSyncDiscussHandler } from '../plan-shaping-feature-sync/discuss.handler';
 import { describe, expect, it } from 'vitest';
 import { PlanShapingValidationMode } from '../../shared/agent-bridge-contract/generated/api';
 import {
@@ -124,5 +127,50 @@ describe('futureRevisionAuthoring', () => {
         prompt.includes(futureRevisionAuthoring),
       );
     }
+  });
+});
+
+describe('plan-shaping review future authoring parity', () => {
+  const seed = {
+    planId: 'canonical-plan',
+    designDocId: 'seed-doc',
+    userMessage: '',
+    discrepancies: [],
+    decisions: [],
+  };
+  for (const handler of [
+    planShapingFeatureSyncAnalyzeHandler,
+    planShapingFeatureSyncIterateHandler,
+    planShapingFeatureSyncDiscussHandler,
+  ]) {
+    it(`${handler.id} composes guided authoring with canonical context`, () => {
+      const prompt = handler.buildPrompt(seed);
+      const tools = resolveMcpToolNames({
+        useCase: 'plan_shaping',
+        additionalTools: handler.additionalAllowedTools ?? [],
+      });
+      expect(prompt).toMatchSnapshot();
+      expect(prompt).toContain(futureRevisionAuthoring);
+      expect(prompt).toContain('Current plan id: canonical-plan');
+      expect(prompt).toContain('explicit completion dependency');
+      expect(prompt).toContain('same futureId');
+      expect(prompt).toContain('Unqualified reads remain live');
+      expect(prompt).toContain('planning does not wait for implementation or Apply');
+      expect(prompt).toContain('remain ordinary proposals');
+      expect(tools).toContain('get_proposal');
+      expect(tools).toContain('propose_future_revision');
+      expect(tools).toContain('get_future_revision');
+    });
+  }
+  it('keeps exact remediation identity available on revision without a new schema', () => {
+    const proposal = 'Refine @[proposal:11111111-1111-4111-8111-111111111111|Upcoming capability]';
+    const prompt = planShapingFeatureSyncIterateHandler.buildPrompt({
+      ...seed,
+      discrepancies: [
+        { id: 'fs-1', summary: 'Upcoming capability', rationale: 'Not delivered', proposal },
+      ],
+    });
+    expect(prompt).toContain(proposal);
+    expect(planShapingFeatureSyncDiscussHandler.submissionTools).toEqual([]);
   });
 });

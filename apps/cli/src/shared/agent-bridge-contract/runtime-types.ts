@@ -3,7 +3,7 @@ import type {
   StartRunPromptPayloadReasoningEffortEnum,
   LocalAgentSearchEntityType,
   FeatureSyncDiscrepancy,
-  PlanShapingFeatureSyncItemDecision,
+  PlanShapingFeatureSyncIteratePromptPayload,
   LocalPromptStartupInput,
   LocalPromptTaskNeighborhoodInput,
   LocalPromptTaskNeighborhoodTaskInput,
@@ -241,11 +241,8 @@ export interface LocalPlanShapingFeatureSyncAnalyzePromptPayload {
   userMessage?: string;
 }
 
-export interface LocalPlanShapingFeatureSyncIteratePromptPayload {
-  discrepancies: FeatureSyncDiscrepancy[];
-  decisions: PlanShapingFeatureSyncItemDecision[];
-  userMessage?: string;
-}
+export type LocalPlanShapingFeatureSyncIteratePromptPayload =
+  PlanShapingFeatureSyncIteratePromptPayload;
 
 export interface LocalPlanShapingFeatureSyncDiscussPromptPayload {
   planId: string;

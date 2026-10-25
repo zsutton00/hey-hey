@@ -26,6 +26,30 @@ const VALID_DESIGN_DOC_ID = '11111111-1111-4111-8111-111111111111';
 const VALID_PLAN_ID = '22222222-2222-4222-8222-222222222222';
 
 describe('validateTriggerPayload', () => {
+  it.each(['planId', 'designDocId'])('rejects a revision missing canonical %s', (field) => {
+    const payload = {
+      planId: VALID_PLAN_ID,
+      designDocId: VALID_PLAN_ID,
+      discrepancies: [],
+      decisions: [],
+      [field]: undefined,
+    };
+    expect(() =>
+      validateTriggerPayload(LocalPromptType.PlanShapingFeatureSyncIterate, payload),
+    ).toThrow(TriggerPayloadValidationError);
+    expect(() =>
+      validateUserMessageTriggerPayload(
+        {
+          handlerPromptType: LocalPromptType.PlanShapingFeatureSyncIterate,
+          userMessage: 'Refine',
+          attachments: [],
+          featureSyncContext: payload,
+        },
+        promptTypeRegistry,
+      ),
+    ).toThrow(TriggerPayloadValidationError);
+  });
+
   it.each([LocalPromptType.WorkTrackerConnect, LocalPromptType.WorkTrackerImport])(
     'validates %s without a Service and isolates invalid requests',
     (promptType) => {
@@ -62,6 +86,8 @@ describe('validateTriggerPayload', () => {
     [
       LocalPromptType.PlanShapingFeatureSyncIterate,
       {
+        planId: VALID_PLAN_ID,
+        designDocId: VALID_PLAN_ID,
         discrepancies: [],
         decisions: [{ itemId: 'fs-9', choice: 'dismiss' }],
       },
@@ -515,6 +541,8 @@ describe('validateTriggerPayload', () => {
         userMessage: 'Keep refining.',
         attachments: [],
         featureSyncContext: {
+          planId: 'canonical-plan',
+          designDocId: 'seed-doc',
           discrepancies: [
             { id: 'fs-7', summary: 'seventh', rationale: 'seven' },
             { id: 'fs-2', summary: 'second', rationale: 'two' },
@@ -567,6 +595,8 @@ describe('validateTriggerPayload', () => {
         userMessage: 'The list is empty.',
         attachments: [],
         featureSyncContext: {
+          planId: 'canonical-plan',
+          designDocId: 'seed-doc',
           discrepancies: [],
           decisions: [],
         },

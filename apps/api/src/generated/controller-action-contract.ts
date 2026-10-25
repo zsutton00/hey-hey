@@ -7356,10 +7356,22 @@ export const controllerActionRuntimeSchema = {
     },
     PlanShapingFeatureSyncIteratePromptPayload: {
       type: 'object',
-      required: ['discrepancies', 'decisions'],
+      required: ['planId', 'designDocId', 'discrepancies', 'decisions'],
       description:
         "Payload for the plan-shaping feature-sync iterate EXTERNAL_AGENT node (promptType=plan_shaping_feature_sync_iterate). Every trigger carries the outstanding flagged items in display order and the user's per-item choices, so the turn never depends on provider session history to know what the user is referring to.\n",
       properties: {
+        planId: {
+          type: 'string',
+          minLength: 1,
+          description:
+            'Canonical delivering Plan identity from the persisted plan seed.',
+        },
+        designDocId: {
+          type: 'string',
+          minLength: 1,
+          description:
+            'Authoritative design document from the persisted plan seed.',
+        },
         discrepancies: {
           type: 'array',
           items: {
@@ -9072,10 +9084,22 @@ export const controllerActionRuntimeSchema = {
             {
               type: 'object',
               additionalProperties: false,
-              required: ['discrepancies', 'decisions'],
+              required: ['planId', 'designDocId', 'discrepancies', 'decisions'],
               description:
                 'The plan-shaping feature-sync iterate fields copied from the active flow context for a follow-up turn. The handler is selected by the enclosing `handlerPromptType`; outstanding discrepancies remain in their existing order and every explicit decision is preserved. Empty arrays are valid when the flow explicitly has no findings or pending choices.\n',
               properties: {
+                planId: {
+                  type: 'string',
+                  minLength: 1,
+                  description:
+                    'Canonical delivering Plan identity from the persisted plan seed.',
+                },
+                designDocId: {
+                  type: 'string',
+                  minLength: 1,
+                  description:
+                    'Authoritative design document from the persisted plan seed.',
+                },
                 discrepancies: {
                   type: 'array',
                   items: {
@@ -9155,6 +9179,13 @@ const validateAction = ajv.compile<HostActionPreparation>({
 export const isHostActionPreparation = (
   value: object,
 ): value is HostActionPreparation => validateAction(value);
+const validateInputs = ajv.compile<ControllerActionInputs>({
+  ...controllerActionRuntimeSchema,
+  $ref: '#/definitions/ControllerActionInputs',
+});
+export const isControllerActionInputs = (
+  value: object,
+): value is ControllerActionInputs => validateInputs(value);
 
 function serialize<T>(value: T): string {
   if (value === null) return 'null';
@@ -9319,7 +9350,12 @@ export function messageControllerInputs(
     input.promptType === 'feature_sync_iterate'
       ? { discrepancies: input.discrepancies }
       : input.promptType === 'plan_shaping_feature_sync_iterate'
-        ? { discrepancies: input.discrepancies, decisions: input.decisions }
+        ? {
+            planId: input.planId,
+            designDocId: input.designDocId,
+            discrepancies: input.discrepancies,
+            decisions: input.decisions,
+          }
         : undefined;
   return {
     kind: 'USER_MESSAGE',

@@ -437,6 +437,8 @@ describe('inbound agent-input contract: per-arm stamp + persistence', () => {
           });
         } else if (fixture.promptType === 'plan_shaping_feature_sync_iterate') {
           expect(trigger.payload.featureSyncContext).toEqual({
+            planId: 'fixture-plan',
+            designDocId: 'fixture-design-doc',
             discrepancies: [
               {
                 id: 'fs-1',
@@ -472,6 +474,24 @@ describe('inbound agent-input contract: per-arm stamp + persistence', () => {
       {
         promptType: 'plan_shaping_feature_sync_iterate',
         discrepancies: [],
+      },
+    ],
+    [
+      'plan-shaping revision without Plan identity',
+      {
+        promptType: 'plan_shaping_feature_sync_iterate',
+        designDocId: 'fixture-design-doc',
+        discrepancies: [],
+        decisions: [],
+      },
+    ],
+    [
+      'plan-shaping revision without design-doc identity',
+      {
+        promptType: 'plan_shaping_feature_sync_iterate',
+        planId: 'fixture-plan',
+        discrepancies: [],
+        decisions: [],
       },
     ],
   ])(

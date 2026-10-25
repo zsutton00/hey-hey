@@ -66,6 +66,7 @@ import {
   type AgentSkillSelection,
   type FeatureSyncDiscrepancy,
   type PlanShapingFeatureSyncItemDecision,
+  type PlanShapingFeatureSyncIteratePromptPayload,
   type StartRunWorktree,
 } from '../../shared/agent-bridge-contract/generated/api';
 import {
@@ -132,20 +133,18 @@ const featureSyncIterateUserMessageContextSchema = z
   .strict();
 
 const planShapingFeatureSyncIteratePayloadFields = {
+  planId: z.string().min(1),
+  designDocId: z.string().min(1),
   discrepancies: z.array(featureSyncDiscrepancySchema),
   decisions: z.array(planShapingFeatureSyncItemDecisionSchema),
   userMessage: z.string().optional(),
-};
+} satisfies Record<keyof PlanShapingFeatureSyncIteratePromptPayload, z.ZodTypeAny>;
 
 const planShapingFeatureSyncIteratePayloadSchema = z.object(
   planShapingFeatureSyncIteratePayloadFields,
 );
-const planShapingFeatureSyncIterateUserMessageContextSchema = z
-  .object({
-    discrepancies: z.array(featureSyncDiscrepancySchema),
-    decisions: z.array(planShapingFeatureSyncItemDecisionSchema),
-  })
-  .strict();
+const planShapingFeatureSyncIterateUserMessageContextSchema =
+  planShapingFeatureSyncIteratePayloadSchema.omit({ userMessage: true }).strict();
 
 const featureSyncUserMessageContextSchema = z.union([
   featureSyncIterateUserMessageContextSchema,

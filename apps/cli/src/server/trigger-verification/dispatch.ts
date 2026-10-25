@@ -193,7 +193,8 @@ const logDropped = (logger: ServerLogger, fields: Record<string, unknown>): void
  */
 const describeDroppedPayload = (body: { payload?: unknown }): Record<string, unknown> => {
   const wirePayload = body.payload as
-    { handlerPromptType?: unknown; payload?: { promptType?: unknown } } | undefined;
+    | { handlerPromptType?: unknown; payload?: { promptType?: unknown } }
+    | undefined;
   return {
     handlerPromptType: wirePayload?.handlerPromptType,
     innerPromptType: wirePayload?.payload?.promptType,
@@ -368,6 +369,8 @@ export const toRunPromptRequest = (event: ConversationPromptEvent): LocalRunProm
       const payload: LocalAnyPromptPayload = {
         discrepancies: message.featureSyncContext.discrepancies,
         decisions: message.featureSyncContext.decisions,
+        planId: message.featureSyncContext.planId,
+        designDocId: message.featureSyncContext.designDocId,
         userMessage: message.userMessage,
       };
       return {

@@ -198,6 +198,8 @@ PlanShapingFeatureSyncAnalyzePromptPayload:
 PlanShapingFeatureSyncIteratePromptPayload:
   type: object
   required:
+    - planId
+    - designDocId
     - discrepancies
     - decisions
   description: >
@@ -207,6 +209,14 @@ PlanShapingFeatureSyncIteratePromptPayload:
     per-item choices, so the turn never depends on provider session
     history to know what the user is referring to.
   properties:
+    planId:
+      type: string
+      minLength: 1
+      description: Canonical delivering Plan identity from the persisted plan seed.
+    designDocId:
+      type: string
+      minLength: 1
+      description: Authoritative design document from the persisted plan seed.
     discrepancies:
       type: array
       items:
@@ -2199,6 +2209,8 @@ UserMessagePlanShapingFeatureSyncIterateContext:
   type: object
   additionalProperties: false
   required:
+    - planId
+    - designDocId
     - discrepancies
     - decisions
   description: >
@@ -2208,6 +2220,14 @@ UserMessagePlanShapingFeatureSyncIterateContext:
     order and every explicit decision is preserved. Empty arrays are valid
     when the flow explicitly has no findings or pending choices.
   properties:
+    planId:
+      type: string
+      minLength: 1
+      description: Canonical delivering Plan identity from the persisted plan seed.
+    designDocId:
+      type: string
+      minLength: 1
+      description: Authoritative design document from the persisted plan seed.
     discrepancies:
       type: array
       items:
