@@ -64,6 +64,7 @@ import {
   isRoutingMessage,
 } from "../utils";
 import { determineMessageState } from "../utils/messageStateUtils";
+import { placeCodingPlanReviewMessage } from "../utils/codingPlanConversation";
 import {
   applyVisualPreviewPresentationState,
   resolveCurrentVisualPreviewProposalIds,
@@ -415,9 +416,11 @@ const buildBaseConversationTimeline = (
     );
   }
 
-  return applyVisualPreviewPresentationState(
-    filterRoutingMessages(timeline),
-    messages,
+  return placeCodingPlanReviewMessage(
+    applyVisualPreviewPresentationState(
+      filterRoutingMessages(timeline),
+      messages,
+    ),
   );
 };
 

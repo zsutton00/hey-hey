@@ -9,6 +9,7 @@ import {
   mockCalculateMessageStatus,
 } from "./conversationTestUtils";
 import { ConversationTimeline } from "../ConversationTimeline";
+import { MessageStatus } from "../../../../api";
 import type { QuestionsSystemMessageData } from "../../../../api";
 
 vi.mock("react-i18next", () => ({
@@ -66,6 +67,67 @@ vi.mock("../../../LlmForms/SkeletonForm", () => ({
 }));
 
 describe("ConversationTimeline", () => {
+  it.each([
+    {
+      handler: "startup_session",
+      reply: false,
+      expected: ["review-message", "plan-version"],
+    },
+    {
+      handler: "implement",
+      reply: false,
+      expected: ["plan-version", "review-message"],
+    },
+    {
+      handler: "startup_session",
+      reply: true,
+      expected: ["plan-version", "user-reply", "review-message"],
+    },
+  ])(
+    "places the review introduction above its plan without crossing other work ($handler, reply=$reply)",
+    async ({ handler, reply, expected }) => {
+      const plan = createMockConversationMessage({
+        message: createMockMessage({
+          id: "plan-version",
+          data: {
+            type: "AGENT",
+            response: "",
+            uiElements: [{ id: "plan", type: "coding_plan_version" }],
+          },
+        }),
+      });
+      const summary = createMockConversationMessage({
+        message: createMockMessage({
+          id: "review-message",
+          status: MessageStatus.Completed,
+          createdAt: "2023-01-01T00:01:00Z",
+          data: {
+            type: "AGENT",
+            promptHandler: handler,
+            response: "The complete plan is ready for review.",
+          },
+        }),
+      });
+      const userReply = createMockConversationMessage({
+        message: createMockMessage({
+          id: "user-reply",
+          type: "USER",
+          createdAt: "2023-01-01T00:00:30Z",
+          data: { comment: "Change the plan" },
+        }),
+      });
+      const { container } = await renderWithConversationProvider(
+        <ConversationTimeline messageAnimationMode="none" />,
+        { timeline: [plan, ...(reply ? [userReply] : []), summary] },
+      );
+      expect(
+        [...container.querySelectorAll("[data-message-id]")].map((element) =>
+          element.getAttribute("data-message-id"),
+        ),
+      ).toEqual(expected);
+    },
+  );
+
   it.each([false, true])(
     "keeps mounted messages visible only when initial scroll readiness is %s",
     async (initialScrollReady) => {
@@ -74,13 +136,13 @@ describe("ConversationTimeline", () => {
           data-testid="conversation-timeline"
           messageAnimationMode="none"
         />,
-        { initialScrollReady }
+        { initialScrollReady },
       );
       const timeline = screen.getByTestId("conversation-timeline");
       expect(timeline.querySelector("[data-message-id]")).not.toBeNull();
       if (initialScrollReady) expect(timeline).toBeVisible();
       else expect(timeline).not.toBeVisible();
-    }
+    },
   );
   beforeEach(() => {
     vi.clearAllMocks();
@@ -119,7 +181,7 @@ describe("ConversationTimeline", () => {
       <ConversationTimeline messageAnimationMode="none" />,
       {
         timeline: [firstMessage, secondMessage],
-      }
+      },
     );
 
     expect(screen.queryByTestId("fade-in")).not.toBeInTheDocument();
@@ -182,7 +244,7 @@ describe("ConversationTimeline", () => {
       {
         timeline: [formMessage],
         calculateMessageStatus: "ready",
-      }
+      },
     );
 
     expect(mockCalculateMessageStatus).toHaveBeenCalled();
@@ -208,7 +270,7 @@ describe("ConversationTimeline", () => {
 
     await waitFor(() => {
       expect(
-        screen.queryByTestId("show-older-messages-button")
+        screen.queryByTestId("show-older-messages-button"),
       ).not.toBeInTheDocument();
     });
     expect(screen.getByTestId("recent-message")).toBeInTheDocument();
