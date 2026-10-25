@@ -89,7 +89,7 @@ export class LocalAgentInfrastructure {
       sink: fanOutLogSinks(this.logRingBuffer, this.diagnosticFeed),
       ...(options.writeLogLine ? { writeLine: options.writeLogLine } : {}),
     }).child({ component: 'local-server' });
-    this.processFailureReporter = new ProcessFailureReporter(this.logger);
+    this.processFailureReporter = new ProcessFailureReporter(this.logger, this.diagnosticFeed);
     this.httpServer = createServer();
     this.runStore = new RunStore({
       onCompatibilityDiagnostic: (diagnostic) => {
