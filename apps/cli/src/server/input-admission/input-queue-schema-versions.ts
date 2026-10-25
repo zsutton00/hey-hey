@@ -8,6 +8,8 @@ import { inputQueueV3Schemas } from './storage-schema/v3';
 import { inputQueueV4Schemas } from './storage-schema/v4';
 import { inputQueueV5Schemas } from './storage-schema/v5';
 import { inputQueueV6Schemas } from './storage-schema/v6';
+import { inputQueueV8Schemas } from './storage-schema/v8';
+import { migrateSessionFileV7ToV8 } from './storage-schema/v7-to-v8';
 import { inputQueueV7Schemas } from './storage-schema/v7';
 import { migrateSessionFileV2ToV3 } from './storage-schema/v2-to-v3';
 import { migrateSessionFileV3ToV4 } from './storage-schema/v3-to-v4';
@@ -23,6 +25,7 @@ export const INPUT_QUEUE_MIGRATIONS: ReadonlyMap<number, (body: JsonValue) => Js
   [4, migrateSessionFileV4ToV5],
   [5, migrateSessionFileV5ToV6],
   [6, migrateSessionFileV6ToV7],
+  [7, migrateSessionFileV7ToV8],
 ]);
 
 /** SHA-256 of the canonical JSON Schema of every schema that reads one stored version. */
@@ -97,9 +100,16 @@ export const SHIPPED_INPUT_QUEUE_VERSIONS: readonly ShippedInputQueueVersion[] =
   },
   {
     schemaVersion: 7,
-    fixture: null,
+    fixture: '__fixtures__/input-queue-v7.json',
     expectedQuarantinedKeys: [],
     schemas: inputQueueV7Schemas,
     fingerprint: '44d03469d3827091cb9be6d43e6de3b2ab9eabb4134bb1571a659f8c63bb99d0',
+  },
+  {
+    schemaVersion: 8,
+    fixture: null,
+    expectedQuarantinedKeys: [],
+    schemas: inputQueueV8Schemas,
+    fingerprint: 'c712944bcb46840fc0d937eabf25ec1e9d7618d466a30b67a887b1f4129222a0',
   },
 ];
