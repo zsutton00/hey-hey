@@ -62,6 +62,7 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
   allProposals,
   diffDefaultViewMode,
   renderMode,
+  renderFutureFooter,
 }) => {
   const isEvaluationOutput = renderMode === "evaluation-output";
   const { getState, applyItem, rejectItem } = useProposalState(proposals);
@@ -193,8 +194,31 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
 
   const content = (
     <Stack spacing={1.5}>
-      {proposals.map((original) => {
-        const status = getState(original.id);
+      {proposals.map((incoming) => {
+        const reviewed = incoming.reviewedFuture;
+        const original =
+          isFutureProposal(incoming) &&
+          incoming.status === ProposalStatus.Approved &&
+          reviewed
+            ? {
+                ...incoming,
+                updates: {
+                  operation: "REVISE" as const,
+                  futureId: reviewed.id,
+                  expectedRevision: reviewed.revision,
+                  baseline: reviewed.baseline,
+                  result: reviewed.result,
+                  dependencies: reviewed.dependencies,
+                },
+              }
+            : incoming;
+        // Approval stores a future; it has not applied the target changes.
+        // This review keeps its complete comparison open even after Apply.
+        const status =
+          isFutureProposal(original) &&
+          original.status !== ProposalStatus.Rejected
+            ? { state: "pending" as const }
+            : getState(original.id);
         const liveEntity = entities[original.targetEntityId];
         // A future revision renders as an ordinary update against the content
         // it replaces; only its footer differs once approved.
@@ -235,7 +259,7 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
             approveControl={
               <ProposalStateIndicator
                 status={status}
-                action={ProposalAction.Update}
+                action={ProposalAction.VersionedUpdate}
                 onApply={() => handleApply(original.id)}
                 onReject={
                   onReject
@@ -446,7 +470,13 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
                 overrides={overrides}
                 workItemTypeDefinition={taskTypeDefinition}
                 notice={futureNotice}
-                footer={futureFooter}
+                footer={
+                  renderFutureFooter && futureFooter ? (
+                    <>{renderFutureFooter(futureFooter)}</>
+                  ) : (
+                    futureFooter
+                  )
+                }
               />
             );
           } else if (
@@ -475,7 +505,13 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
                 diffDefaultViewMode={diffDefaultViewMode}
                 overrides={overrides}
                 notice={futureNotice}
-                footer={futureFooter}
+                footer={
+                  renderFutureFooter && futureFooter ? (
+                    <>{renderFutureFooter(futureFooter)}</>
+                  ) : (
+                    futureFooter
+                  )
+                }
               />
             );
           } else {
@@ -501,7 +537,11 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
           </MentionExpansionProvider>
         );
 
-        if (renderMode === "group-member" || isEvaluationOutput) {
+        if (
+          renderMode === "group-member" ||
+          renderMode === "future-review" ||
+          isEvaluationOutput
+        ) {
           return <React.Fragment key={proposal.id}>{rendered}</React.Fragment>;
         }
 

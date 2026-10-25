@@ -1,4 +1,11 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { createPortal } from "react-dom";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -12,6 +19,7 @@ import {
   type WorkItemTypeDefinitionDto,
 } from "../../../api";
 import { UpdateProposal } from "../UpdateProposal";
+import { FutureApplicationOfferDialog } from "../../ProposalDetail/FutureApplicationOfferDialog";
 import { FutureApplyFooter } from "../FutureApplyFooter";
 
 const mocks = vi.hoisted(() => ({
@@ -23,6 +31,9 @@ const mocks = vi.hoisted(() => ({
   definitions: [] as WorkItemTypeDefinitionDto[],
   proposal: undefined as ProposalResponseDto | undefined,
   readiness: vi.fn(),
+  offers: vi.fn(),
+  apply: vi.fn(),
+  proposals: new Map<string, ProposalResponseDto>(),
   workItems: new Map<string, TaskResponseDto>(),
 }));
 
@@ -93,8 +104,8 @@ vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
   }),
 }));
 vi.mock("../../../data/hooks/useProposal", () => ({
-  useProposal: () => ({
-    proposal: mocks.proposal,
+  useProposal: (_org: string, _project: string, proposalId: string) => ({
+    proposal: mocks.proposals.get(proposalId) ?? mocks.proposal,
     isLoading: false,
     error: null,
     refetch: vi.fn(),
@@ -103,7 +114,8 @@ vi.mock("../../../data/hooks/useProposal", () => ({
 vi.mock("../../../clients/serviceClients", () => ({
   proposalsClient: {
     getProposalFutureApplicability: mocks.readiness,
-    applyProposalFuture: vi.fn(),
+    applyProposalFuture: mocks.apply,
+    listProposalFutureOffers: mocks.offers,
   },
   unifiedApiClient: {},
 }));
@@ -331,7 +343,7 @@ const futureProposal = (
     ...extra,
   }) as ProposalResponseDto;
 
-const mount = (proposal: ProposalResponseDto) => {
+const mount = (proposal: ProposalResponseDto, footerTarget?: HTMLElement) => {
   mocks.proposal = proposal;
   return render(
     <QueryClientProvider
@@ -341,6 +353,12 @@ const mount = (proposal: ProposalResponseDto) => {
     >
       <MemoryRouter>
         <UpdateProposal
+          renderMode={footerTarget ? "future-review" : undefined}
+          renderFutureFooter={
+            footerTarget
+              ? (content) => createPortal(content, footerTarget)
+              : undefined
+          }
           proposals={[proposal]}
           onApply={vi.fn()}
           onReject={vi.fn()}
@@ -354,6 +372,8 @@ const mount = (proposal: ProposalResponseDto) => {
 
 beforeEach(() => {
   mocks.readiness.mockReset();
+  mocks.proposals.clear();
+  mocks.apply.mockReset();
   mocks.definitions.splice(0, mocks.definitions.length, featureDefinition);
   mocks.entities.feature = {
     type: "task",
@@ -654,6 +674,168 @@ describe("UpdateProposal future revisions", () => {
       "Once approved, this change waits for Cap Open Items at 100 to reach Verifying. You'll be asked to apply it then.",
     );
     expect(mocks.readiness).not.toHaveBeenCalled();
+  });
+
+  it("reviews mixed readiness in the real dialog and applies only the selected revision, retaining its comparison", async () => {
+    const readyFuture = {
+      ...reviewedFuture,
+      completionEligibility: { eligible: true, blockers: [] },
+    };
+    const first = futureProposal({
+      status: "APPROVED",
+      reviewedFuture: readyFuture,
+    });
+    const second = futureProposal({
+      id: "second-proposal",
+      title: "Second revision",
+      status: "APPROVED",
+      reviewedFuture: { ...reviewedFuture, id: "second-future" },
+    });
+    const third = futureProposal({
+      id: "third-proposal",
+      title: "Third revision",
+      status: "APPROVED",
+      reviewedFuture: { ...readyFuture, id: "third-future" },
+    });
+    mocks.proposals.set(third.id, third);
+    mocks.proposals.set(first.id, first);
+    mocks.proposals.set(second.id, second);
+    mocks.proposal = first;
+    const offerList = [first, second, third].map((proposal, index) => ({
+      futureId: proposal.reviewedFuture!.id,
+      proposalId: proposal.id,
+      proposalTitle: proposal.title,
+      targetEntityType: "TASK",
+      targetEntityId: "feature",
+      applicability: {
+        revision: 1,
+        canApply: index !== 1,
+        blockers: index !== 1 ? [] : ["COMPLETION_INCOMPLETE"],
+        completionEligibility: proposal.reviewedFuture!.completionEligibility,
+      },
+    }));
+    mocks.offers.mockResolvedValue({ data: { data: offerList } });
+    mocks.readiness.mockImplementation(({ futureId }: { futureId: string }) =>
+      Promise.resolve({
+        data: {
+          data: {
+            revision: 1,
+            canApply: futureId !== "second-future",
+            blockers:
+              futureId !== "second-future" ? [] : ["COMPLETION_INCOMPLETE"],
+            completionEligibility: readyFuture.completionEligibility,
+          },
+        },
+      }),
+    );
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <MemoryRouter>
+          <FutureApplicationOfferDialog
+            organizationId="org"
+            projectId="project"
+            taskId="cap-task"
+            open
+            onClose={vi.fn()}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    const firstTab = await screen.findByRole("tab", {
+      name: /Open Items cap requirement Ready to apply/,
+    });
+    fireEvent.click(
+      screen.getByRole("tab", { name: /Second revision Not ready to apply/ }),
+    );
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole("tabpanel")).getByTestId("future-apply"),
+      ).toBeDisabled(),
+    );
+    fireEvent.click(firstTab);
+    const panel = screen.getByRole("tabpanel");
+    const apply = within(panel).getByTestId("future-apply");
+    await waitFor(() => expect(apply).toBeEnabled());
+    expect(
+      within(panel).getByTestId("structured-requirements-diff"),
+    ).toBeInTheDocument();
+    mocks.apply.mockRejectedValueOnce(new Error("Application failed"));
+    fireEvent.click(apply);
+    await screen.findByText(/Application failed/);
+    await waitFor(() => expect(apply).toBeEnabled());
+    mocks.apply.mockResolvedValueOnce({
+      data: {
+        data: {
+          status: "APPLIED",
+          future: { ...readyFuture, outcome: "APPLIED", appliedRevision: 1 },
+        },
+      },
+    });
+    mocks.offers.mockResolvedValue({ data: { data: offerList.slice(1) } });
+    fireEvent.click(apply);
+    await screen.findByText("Applied version 1");
+    expect(mocks.apply).toHaveBeenLastCalledWith({
+      organizationId: "org",
+      projectId: "project",
+      futureId: "future",
+      futureApplyRequest: { expectedRevision: 1 },
+    });
+    expect(
+      screen.getByRole("tab", { name: /Open Items cap requirement Applied/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("tabpanel")).getByTestId(
+        "structured-requirements-diff",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("tab", { name: /Third revision Ready to apply/ }),
+    );
+    const thirdApply = within(screen.getByRole("tabpanel")).getByTestId(
+      "future-apply",
+    );
+    await waitFor(() => expect(thirdApply).toBeEnabled());
+    mocks.apply.mockRejectedValueOnce(
+      new Error("Sibling remains independently actionable"),
+    );
+    fireEvent.click(thirdApply);
+    await screen.findByText(/Sibling remains independently actionable/);
+    expect(mocks.apply).toHaveBeenLastCalledWith({
+      organizationId: "org",
+      projectId: "project",
+      futureId: "third-future",
+      futureApplyRequest: { expectedRevision: 1 },
+    });
+  });
+
+  it("keeps the full ordinary comparison and moves the single guarded action to a persistent footer", async () => {
+    const footerTarget = document.createElement("div");
+    document.body.appendChild(footerTarget);
+    const view = mount(
+      futureProposal({ status: "APPROVED", reviewedFuture }),
+      footerTarget,
+    );
+    expect(
+      screen.getByTestId("future-apply-footer").parentElement?.parentElement,
+    ).toBeTruthy();
+    expect(within(footerTarget).getByText("Approved")).toBeInTheDocument();
+    expect(screen.getAllByTestId("future-apply")).toHaveLength(1);
+    await waitFor(() =>
+      expect(within(footerTarget).getByTestId("future-apply")).toBeDisabled(),
+    );
+    expect(
+      screen.getByTestId("structured-requirements-diff"),
+    ).toBeInTheDocument();
+    expect(view.container.textContent).toContain("100");
+    expect(
+      view.container.querySelector('[data-testid="future-apply"]'),
+    ).toBeNull();
+    view.unmount();
+    footerTarget.remove();
   });
 
   it("swaps the footer for Approved → linked work → Apply once approved", async () => {
