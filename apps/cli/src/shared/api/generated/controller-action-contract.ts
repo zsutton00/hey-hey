@@ -2462,9 +2462,8 @@ export const controllerActionRuntimeSchema = {
         },
         userMessage: {
           type: 'string',
-          minLength: 1,
           description:
-            "The user's launch kickoff text. The API authors a real USER message row from this value before the start-run trigger, ordered ahead of the workflow's first turn, so the user's opening text renders before the response.\n",
+            "The user's launch kickoff text, which may be empty for a supported blank startup. The API authors a real USER message row from this value before the start-run trigger, ordered ahead of the workflow's first turn, so the user's opening text renders before the response.\n",
         },
       },
       description:
@@ -4172,9 +4171,9 @@ export const controllerActionRuntimeSchema = {
                       },
                       materializedProposalId: {
                         type: 'string',
-                        format: 'uuid',
+                        pattern: '^(?:[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12})?$',
                         description:
-                          "Proposal whose successfully materialized change produced the section's current composition or resolved presentation context.\n",
+                          "Proposal whose successfully materialized change produced the section's current composition or resolved presentation context. Empty when the section has no recorded proposal provenance.\n",
                       },
                       crdtSnapshotSeq: {
                         type: ['integer', 'null'],
@@ -4196,7 +4195,7 @@ export const controllerActionRuntimeSchema = {
               description: 'The ID of the project this task belongs to.',
             },
             initiativeId: {
-              type: 'string',
+              type: ['string', 'null'],
               format: 'uuid',
               description: 'The ID of the initiative this task is part of.',
             },
@@ -4259,7 +4258,7 @@ export const controllerActionRuntimeSchema = {
               description: 'The ID of the user who reported or created this task.',
             },
             parentTaskId: {
-              type: 'string',
+              type: ['string', 'null'],
               format: 'uuid',
               description: 'The ID of the parent task, if this is a sub-task.',
             },
@@ -4294,19 +4293,19 @@ export const controllerActionRuntimeSchema = {
               },
             },
             designDocCount: {
-              type: 'integer',
+              type: ['integer', 'null'],
               format: 'int32',
               description:
                 'Number of design docs linked to this task. Present when includeDesignDocCounts=true; otherwise null.',
             },
             codingSessionCount: {
-              type: 'integer',
+              type: ['integer', 'null'],
               format: 'int32',
               description:
                 'Number of coding sessions (type=CODING) linked to this task. Present when includeAgentSessionCounts=true; otherwise null.',
             },
             agentSessionCount: {
-              type: 'integer',
+              type: ['integer', 'null'],
               format: 'int32',
               description:
                 'Number of non-coding agent sessions (e.g. DAILY_SESSION, TASK_REFINING) linked to this task. Present when includeAgentSessionCounts=true; otherwise null.',
@@ -4556,7 +4555,7 @@ export const controllerActionRuntimeSchema = {
                 'Whether this entity type supports MCP proposal tools (e.g. edit_task). Always true for tasks.',
             },
             archivedAt: {
-              type: 'string',
+              type: ['string', 'null'],
               format: 'date-time',
               readOnly: true,
               description: 'The timestamp when the task was archived (soft delete).',

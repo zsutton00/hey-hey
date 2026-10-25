@@ -711,7 +711,7 @@ export const TaskPageView: React.FC<TaskPageViewProps> = ({
                       renderItem={(child) => {
                         const props = taskAdapter.toEntityListItemProps(child, {
                           projectId,
-                          initiativeId: child.initiativeId,
+                          initiativeId: child.initiativeId ?? undefined,
                         });
                         return (
                           <InteractionComponent

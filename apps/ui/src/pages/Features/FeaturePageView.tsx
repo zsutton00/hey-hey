@@ -848,7 +848,7 @@ export const FeaturePageView: React.FC<FeaturePageViewProps> = ({
                             child,
                             {
                               projectId,
-                              initiativeId: child.initiativeId,
+                              initiativeId: child.initiativeId ?? undefined,
                             },
                           );
                           return (

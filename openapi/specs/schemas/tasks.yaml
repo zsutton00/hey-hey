@@ -684,6 +684,7 @@ TaskResponseDto:
       format: uuid
       description: The ID of the project this task belongs to.
     initiativeId:
+      nullable: true
       type: string
       format: uuid
       description: The ID of the initiative this task is part of.
@@ -713,6 +714,7 @@ TaskResponseDto:
       format: uuid
       description: The ID of the user who reported or created this task.
     parentTaskId:
+      nullable: true
       type: string
       format: uuid
       description: The ID of the parent task, if this is a sub-task.
@@ -741,14 +743,17 @@ TaskResponseDto:
           description: Number of direct child tasks that are still in the backlog.
           example: 1
     designDocCount:
+      nullable: true
       type: integer
       format: int32
       description: Number of design docs linked to this task. Present when includeDesignDocCounts=true; otherwise null.
     codingSessionCount:
+      nullable: true
       type: integer
       format: int32
       description: Number of coding sessions (type=CODING) linked to this task. Present when includeAgentSessionCounts=true; otherwise null.
     agentSessionCount:
+      nullable: true
       type: integer
       format: int32
       description: Number of non-coding agent sessions (e.g. DAILY_SESSION, TASK_REFINING) linked to this task. Present when includeAgentSessionCounts=true; otherwise null.
@@ -785,6 +790,7 @@ TaskResponseDto:
       default: true
       description: Whether this entity type supports MCP proposal tools (e.g. edit_task). Always true for tasks.
     archivedAt:
+      nullable: true
       type: string
       format: date-time
       readOnly: true

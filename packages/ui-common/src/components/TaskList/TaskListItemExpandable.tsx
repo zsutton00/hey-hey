@@ -32,11 +32,13 @@ export const TaskListItemExpandable: React.FC<TaskListItemExpandableProps> = ({
 }) => {
   const pathService = usePathService();
 
-  const fetchChildren = useCallback(async (): Promise<WorkItemResponseDto[]> => {
+  const fetchChildren = useCallback(async (): Promise<
+    WorkItemResponseDto[]
+  > => {
     const hierarchy = await fetchTaskHierarchy(
       organizationId,
       projectId,
-      task.id
+      task.id,
     );
     return hierarchy.children;
   }, [organizationId, projectId, task.id]);
@@ -45,7 +47,7 @@ export const TaskListItemExpandable: React.FC<TaskListItemExpandableProps> = ({
 
   const adapterProps = taskAdapter.toEntityListItemProps(task, {
     projectId,
-    initiativeId: initiativeId || task.initiativeId,
+    initiativeId: initiativeId || (task.initiativeId ?? undefined),
     pathService,
     relatedEntities: relatedTasks ? { tasks: relatedTasks } : undefined,
     onDelete,

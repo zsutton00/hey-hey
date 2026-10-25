@@ -14526,11 +14526,11 @@ export interface MaterializedWorkItemSection {
      */
     'materializedMarkdown': string;
     /**
-     *
+     * Proposal whose successfully materialized change produced the section\'s current composition or resolved presentation context. Empty when the section has no recorded proposal provenance.
      * @type {string}
      * @memberof MaterializedWorkItemSection
      */
-    'materializedProposalId': MaterializedWorkItemSectionMaterializedProposalIdEnum | null;
+    'materializedProposalId': string;
     /**
      * Sequence number associated with the persisted CRDT snapshot.
      * @type {number}
@@ -14538,13 +14538,6 @@ export interface MaterializedWorkItemSection {
      */
     'crdtSnapshotSeq'?: number | null;
 }
-
-export const MaterializedWorkItemSectionMaterializedProposalIdEnum = {
-    Empty: ''
-} as const;
-
-export type MaterializedWorkItemSectionMaterializedProposalIdEnum = typeof MaterializedWorkItemSectionMaterializedProposalIdEnum[keyof typeof MaterializedWorkItemSectionMaterializedProposalIdEnum];
-
 /**
  * Signed protocol-2 authenticated user input. It carries no controller execution authorization because it does not directly authorize host work.
  * @export

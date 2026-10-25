@@ -188,8 +188,8 @@ export const futureRevisionMutationSchema = {
                                   },
                                   "materializedProposalId": {
                                     "type": "string",
-                                    "format": "uuid",
-                                    "description": "Proposal whose successfully materialized change produced the section's current composition or resolved presentation context.\n"
+                                    "pattern": "^(?:[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12})?$",
+                                    "description": "Proposal whose successfully materialized change produced the section's current composition or resolved presentation context. Empty when the section has no recorded proposal provenance.\n"
                                   },
                                   "crdtSnapshotSeq": {
                                     "anyOf": [
@@ -218,9 +218,16 @@ export const futureRevisionMutationSchema = {
                           "description": "The ID of the project this task belongs to."
                         },
                         "initiativeId": {
-                          "type": "string",
-                          "format": "uuid",
-                          "description": "The ID of the initiative this task is part of."
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "uuid",
+                              "description": "The ID of the initiative this task is part of."
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "status": {
                           "type": "string",
@@ -312,9 +319,16 @@ export const futureRevisionMutationSchema = {
                           "description": "The ID of the user who reported or created this task."
                         },
                         "parentTaskId": {
-                          "type": "string",
-                          "format": "uuid",
-                          "description": "The ID of the parent task, if this is a sub-task."
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "uuid",
+                              "description": "The ID of the parent task, if this is a sub-task."
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "childCounts": {
                           "type": "object",
@@ -347,19 +361,40 @@ export const futureRevisionMutationSchema = {
                           }
                         },
                         "designDocCount": {
-                          "type": "integer",
-                          "format": "int32",
-                          "description": "Number of design docs linked to this task. Present when includeDesignDocCounts=true; otherwise null."
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "format": "int32",
+                              "description": "Number of design docs linked to this task. Present when includeDesignDocCounts=true; otherwise null."
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "codingSessionCount": {
-                          "type": "integer",
-                          "format": "int32",
-                          "description": "Number of coding sessions (type=CODING) linked to this task. Present when includeAgentSessionCounts=true; otherwise null."
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "format": "int32",
+                              "description": "Number of coding sessions (type=CODING) linked to this task. Present when includeAgentSessionCounts=true; otherwise null."
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "agentSessionCount": {
-                          "type": "integer",
-                          "format": "int32",
-                          "description": "Number of non-coding agent sessions (e.g. DAILY_SESSION, TASK_REFINING) linked to this task. Present when includeAgentSessionCounts=true; otherwise null."
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "format": "int32",
+                              "description": "Number of non-coding agent sessions (e.g. DAILY_SESSION, TASK_REFINING) linked to this task. Present when includeAgentSessionCounts=true; otherwise null."
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "serviceRelations": {
                           "type": "array",
@@ -659,10 +694,17 @@ export const futureRevisionMutationSchema = {
                           "description": "Whether this entity type supports MCP proposal tools (e.g. edit_task). Always true for tasks."
                         },
                         "archivedAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "readOnly": true,
-                          "description": "The timestamp when the task was archived (soft delete)."
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time",
+                              "readOnly": true,
+                              "description": "The timestamp when the task was archived (soft delete)."
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "trackedEntities": {
                           "type": "array",
@@ -4224,8 +4266,8 @@ export const futureRevisionMutationSchema = {
                               },
                               "materializedProposalId": {
                                 "type": "string",
-                                "format": "uuid",
-                                "description": "Proposal whose successfully materialized change produced the section's current composition or resolved presentation context.\n"
+                                "pattern": "^(?:[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12})?$",
+                                "description": "Proposal whose successfully materialized change produced the section's current composition or resolved presentation context. Empty when the section has no recorded proposal provenance.\n"
                               },
                               "crdtSnapshotSeq": {
                                 "anyOf": [
@@ -4254,9 +4296,16 @@ export const futureRevisionMutationSchema = {
                       "description": "The ID of the project this task belongs to."
                     },
                     "initiativeId": {
-                      "type": "string",
-                      "format": "uuid",
-                      "description": "The ID of the initiative this task is part of."
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "uuid",
+                          "description": "The ID of the initiative this task is part of."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "status": {
                       "type": "string",
@@ -4348,9 +4397,16 @@ export const futureRevisionMutationSchema = {
                       "description": "The ID of the user who reported or created this task."
                     },
                     "parentTaskId": {
-                      "type": "string",
-                      "format": "uuid",
-                      "description": "The ID of the parent task, if this is a sub-task."
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "uuid",
+                          "description": "The ID of the parent task, if this is a sub-task."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "childCounts": {
                       "type": "object",
@@ -4383,19 +4439,40 @@ export const futureRevisionMutationSchema = {
                       }
                     },
                     "designDocCount": {
-                      "type": "integer",
-                      "format": "int32",
-                      "description": "Number of design docs linked to this task. Present when includeDesignDocCounts=true; otherwise null."
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "format": "int32",
+                          "description": "Number of design docs linked to this task. Present when includeDesignDocCounts=true; otherwise null."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "codingSessionCount": {
-                      "type": "integer",
-                      "format": "int32",
-                      "description": "Number of coding sessions (type=CODING) linked to this task. Present when includeAgentSessionCounts=true; otherwise null."
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "format": "int32",
+                          "description": "Number of coding sessions (type=CODING) linked to this task. Present when includeAgentSessionCounts=true; otherwise null."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "agentSessionCount": {
-                      "type": "integer",
-                      "format": "int32",
-                      "description": "Number of non-coding agent sessions (e.g. DAILY_SESSION, TASK_REFINING) linked to this task. Present when includeAgentSessionCounts=true; otherwise null."
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "format": "int32",
+                          "description": "Number of non-coding agent sessions (e.g. DAILY_SESSION, TASK_REFINING) linked to this task. Present when includeAgentSessionCounts=true; otherwise null."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "serviceRelations": {
                       "type": "array",
@@ -4695,10 +4772,17 @@ export const futureRevisionMutationSchema = {
                       "description": "Whether this entity type supports MCP proposal tools (e.g. edit_task). Always true for tasks."
                     },
                     "archivedAt": {
-                      "type": "string",
-                      "format": "date-time",
-                      "readOnly": true,
-                      "description": "The timestamp when the task was archived (soft delete)."
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "readOnly": true,
+                          "description": "The timestamp when the task was archived (soft delete)."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "trackedEntities": {
                       "type": "array",

@@ -1,4 +1,7 @@
-import { hashControllerAction } from '../../../generated/controller-action-contract';
+import {
+  hashControllerAction,
+  startControllerInputs,
+} from '../../../generated/controller-action-contract';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
 import { ControllerAuthorizationCadence as PrismaControllerAuthorizationCadence } from '@prisma/client';
@@ -283,6 +286,64 @@ describe('ControllerAuthorizationService', () => {
       }),
     ).resolves.toEqual({ outcome: 'AUTHORIZATION_REQUIRED' });
   });
+
+  it.each(['Please start', ''])(
+    'admits task-bearing startup %j at resolve without weakening proof requirements',
+    async (userMessage) => {
+      const inputs = startControllerInputs({
+        agentSessionId: ids.agentSession,
+        workflowName: 'feature-sync',
+        model: 'gpt-5',
+        provider: 'codex',
+        payload: {
+          promptType: 'workflow_kickoff',
+          userMessage,
+          entity: { entityType: 'TASK', entityId: ids.taskMonitor },
+        },
+        contextMetadata: {
+          capturedAt: new Date().toISOString(),
+          organizationId: ids.organization,
+          projectId: ids.project,
+          agentSessionId: ids.agentSession,
+          userComments: [],
+          fileReferences: { resolved: [], unresolved: [] },
+          task: {
+            id: ids.taskMonitor,
+            name: 'Repair startup',
+            type: 'BUG',
+            status: 'BACKLOG',
+            source: 'user',
+            organizationId: ids.organization,
+            projectId: ids.project,
+            initiativeId: null,
+            parentTaskId: null,
+            archivedAt: null,
+            designDocCount: null,
+            codingSessionCount: null,
+            agentSessionCount: null,
+            sections: [
+              {
+                id: ids.taskMonitor,
+                key: 'description',
+                order: 0,
+                materializedMarkdown: 'Retain context',
+                materializedProposalId: '',
+              },
+            ],
+          },
+        },
+      });
+      await expect(
+        service.resolve({
+          organizationId: ids.organization,
+          projectId: ids.project,
+          userId: ids.user,
+          controllerBindingSecret: ids.bindingSecret,
+          input: { machineId: ids.machine, action: { ...action, inputs } },
+        }),
+      ).resolves.toEqual({ outcome: 'AUTHORIZATION_REQUIRED' });
+    },
+  );
 
   it.each([
     [ControllerAuthorizationCadence.FiveMinutes, 5 / (24 * 60)],

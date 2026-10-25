@@ -125,7 +125,7 @@ export const TaskList: React.FC<TaskGridProps> = ({
         renderItem={(task) => {
           const props = taskAdapter.toEntityListItemProps(task, {
             projectId,
-            initiativeId: task.initiativeId,
+            initiativeId: task.initiativeId ?? undefined,
             pathService,
             relatedEntities: { tasks: tasksLookup },
           });

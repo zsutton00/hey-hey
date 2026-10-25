@@ -405,7 +405,7 @@ const TrackedEntityRow: React.FC<TrackedEntityRowProps> = ({
           : undefined;
       const props = taskAdapter.toEntityListItemProps(task, {
         projectId,
-        initiativeId: task.initiativeId,
+        initiativeId: task.initiativeId ?? undefined,
         pathService,
         showEntityKind: true,
         workItemTypeDefinition: resolvedDefinition,

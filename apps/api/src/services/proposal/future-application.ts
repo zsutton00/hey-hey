@@ -182,7 +182,7 @@ export function futureTargetUpdates(
       name: result.name,
       priority: result.priority,
       tag: result.tag,
-      initiativeId: result.initiativeId,
+      initiativeId: result.initiativeId ?? undefined,
       parentTaskId: result.parentTaskId ?? null,
       assigneeId: result.assigneeId ?? null,
       dueDate: result.dueDate ?? null,

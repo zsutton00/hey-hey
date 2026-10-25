@@ -1,3 +1,7 @@
+import { isHostActionPreparation } from "../../../../../../../apps/api/src/generated/controller-action-contract";
+import { buildTaskRunContextMetadata } from "../../runtime/coding/build-task-run-context-metadata";
+import { resolveStartRunPrompt } from "../../runtime/coding/resolveStartRunPrompt";
+import type { TaskResponseDto } from "../../../../api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   HostActionCategory,
@@ -117,6 +121,108 @@ describe("defaultAgentOperationDependencies", () => {
       }),
     });
   });
+
+  it.each([
+    { userMessage: "Please start", method: "plan" as const },
+    { userMessage: "", method: "plan" as const },
+    { userMessage: "Please start", method: undefined },
+    { userMessage: "", method: undefined },
+  ])(
+    "admits task-bearing UI startup $method with kickoff $userMessage through the API validator",
+    async ({ userMessage, method }) => {
+      const id = "10000000-0000-4000-8000-000000000001";
+      const task = {
+        id,
+        name: "Repair startup",
+        type: "BUG",
+        status: "BACKLOG",
+        source: "user",
+        organizationId: id,
+        projectId: id,
+        initiativeId: null,
+        parentTaskId: null,
+        designDocCount: null,
+        codingSessionCount: null,
+        agentSessionCount: null,
+        archivedAt: null,
+        sections: [
+          {
+            id,
+            key: "description",
+            order: 0,
+            materializedMarkdown: "Keep required context",
+            materializedProposalId: "",
+          },
+        ],
+      } satisfies TaskResponseDto;
+      const contextMetadata = buildTaskRunContextMetadata({
+        organizationId: id,
+        projectId: id,
+        agentSessionId: id,
+        task,
+      });
+      vi.mocked(executeControllerAuthorizedAction).mockImplementationOnce(
+        async (variables) => {
+          // Exercise the generated API runtime validator, not a selector-only mock.
+          expect(isHostActionPreparation(variables.action)).toBe(true);
+          if (!isHostActionPreparation(variables.action))
+            throw new Error("Invalid startup action");
+          const altered = structuredClone(variables.action);
+          if (altered.inputs?.kind !== "START_RUN")
+            throw new Error("Expected start inputs");
+          altered.inputs.payload.contextMetadata!.task!.sections![0].materializedProposalId =
+            "not-a-proposal-id";
+          expect(isHostActionPreparation(altered)).toBe(false);
+          altered.inputs.payload.contextMetadata!.task!.sections![0].materializedProposalId =
+            id;
+          expect(isHostActionPreparation(altered)).toBe(true);
+          const data = await variables.submit({
+            authorization: { kind: "bounded_grant", grantId: id },
+          });
+          return { outcome: "ADMITTED", data };
+        },
+      );
+      const prompt = resolveStartRunPrompt({
+        launch: {
+          taskId: id,
+          ...(method
+            ? { sessionMethod: { method, serviceIds: [], services: [] } }
+            : {}),
+        },
+        userMessage,
+      });
+      const result = await defaultAgentOperationDependencies.startSession({
+        operationId: id,
+        fingerprint: "a".repeat(64),
+        input: {
+          organizationId: id,
+          projectId: id,
+          agentSessionId: id,
+          conversationId: id,
+          machineId: "machine-1",
+          intent: {
+            model: "gpt-5",
+            provider: "codex",
+            ...(prompt.kind === "workflow"
+              ? { workflowName: prompt.workflowName }
+              : { handlerPromptType: prompt.promptType }),
+            payload: prompt.payload,
+            contextMetadata,
+          },
+        },
+      });
+      expect(result.state).toBe("succeeded");
+      expect(unifiedApiClient.startConversationRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          conversationStartRunRequestDto: expect.objectContaining({
+            contextMetadata,
+            payload: prompt.payload,
+          }),
+        }),
+      );
+      expect(contextMetadata.task).toEqual(task);
+    },
+  );
 
   it("fingerprints the complete semantic start request", async () => {
     const input = {

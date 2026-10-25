@@ -22,7 +22,7 @@ const readNonEmptyString = (value: string): string | null => {
 };
 
 export const buildTaskRunContextMetadata = (
-  input: BuildTaskRunContextMetadataInput
+  input: BuildTaskRunContextMetadataInput,
 ): RunContextMetadata => {
   const organizationId = readNonEmptyString(input.organizationId);
   if (!organizationId) {
@@ -52,7 +52,7 @@ export const buildTaskRunContextMetadata = (
     ...(input.launchPlanId ? { launchPlanId: input.launchPlanId } : {}),
     ...(input.launchStepId ? { launchStepId: input.launchStepId } : {}),
     ...(input.launchStageId ? { launchStageId: input.launchStageId } : {}),
-    task: input.task as RunContextMetadata["task"],
+    task: input.task,
     userComments: input.userComments ?? [],
     fileReferences: input.fileReferences ?? { resolved: [], unresolved: [] },
   };
