@@ -1,14 +1,7 @@
 import { useAtom } from "jotai";
 import { codingPlanRuntimeChoice } from "./codingPlanRuntimeChoice";
 import { supportsFastMode } from "../../AgentSession/capabilityCatalog";
-import {
-  Alert,
-  Button,
-  Checkbox,
-  FormControlLabel,
-  Stack,
-  TextField,
-} from "@mui/material";
+import { Alert, Button, Paper, Stack, TextField } from "@mui/material";
 import { useMemo, useRef, useState } from "react";
 import type { CodingPlanVersion } from "../../../api";
 import { useServices } from "../../../data/hooks/useServices";
@@ -32,8 +25,7 @@ export function CodingPlanApprovalField({
   const [runtimeChoice, setRuntimeChoice] = useAtom(
     codingPlanRuntimeChoice(context.conversationId),
   );
-  const { chooseRuntime, provider, model, reasoningEffort, fastMode } =
-    runtimeChoice;
+  const { provider, model, reasoningEffort, fastMode } = runtimeChoice;
   const [approved, setApproved] = useState(false);
   const inFlight = useRef(false);
   const services = useServices(context.organizationId, {
@@ -76,7 +68,7 @@ export function CodingPlanApprovalField({
             responseType: "coding_plan_version_approval_v1",
             versionMessageId: context.messageId,
             feedback,
-            ...(chooseRuntime && provider && model
+            ...(provider && model
               ? {
                   runtime: {
                     provider,
@@ -96,58 +88,52 @@ export function CodingPlanApprovalField({
   };
   return (
     <Stack spacing={1} data-testid="coding-plan-version">
-      <MarkdownRenderer
-        mentionConfig={{
-          organizationId: context.organizationId,
-          projectId: context.projectId,
+      <Paper
+        variant="outlined"
+        data-testid="coding-plan-document"
+        sx={{
+          p: { xs: 2, sm: 3 },
+          bgcolor: "background.paper",
+          overflowWrap: "anywhere",
+          minWidth: 0,
         }}
       >
-        {planning.markdown}
-      </MarkdownRenderer>
+        <MarkdownRenderer
+          mentionConfig={{
+            organizationId: context.organizationId,
+            projectId: context.projectId,
+          }}
+        >
+          {planning.markdown}
+        </MarkdownRenderer>
+      </Paper>
       <StartupServiceScopeSection review={scope} />
       {context.codingPlanVersionMessageId === context.messageId ? (
         <>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={chooseRuntime}
-                onChange={(event) =>
-                  setRuntimeChoice((current) => ({
-                    ...current,
-                    chooseRuntime: event.target.checked,
-                  }))
-                }
-                disabled={locked}
-              />
+          <RuntimeModelSelector
+            testIdPrefix="coding-plan-approval"
+            catalogSource={catalogSource}
+            provider={provider}
+            model={model}
+            reasoningEffort={reasoningEffort}
+            fastMode={fastMode}
+            disabled={locked}
+            onProviderChange={(value) =>
+              setRuntimeChoice((current) => ({ ...current, provider: value }))
             }
-            label="Change implementation model"
+            onModelChange={(value) =>
+              setRuntimeChoice((current) => ({ ...current, model: value }))
+            }
+            onReasoningEffortChange={(value) =>
+              setRuntimeChoice((current) => ({
+                ...current,
+                reasoningEffort: value,
+              }))
+            }
+            onFastModeChange={(value) =>
+              setRuntimeChoice((current) => ({ ...current, fastMode: value }))
+            }
           />
-          {chooseRuntime && (
-            <RuntimeModelSelector
-              testIdPrefix="coding-plan-approval"
-              catalogSource={catalogSource}
-              provider={provider}
-              model={model}
-              reasoningEffort={reasoningEffort}
-              fastMode={fastMode}
-              disabled={locked}
-              onProviderChange={(value) =>
-                setRuntimeChoice((current) => ({ ...current, provider: value }))
-              }
-              onModelChange={(value) =>
-                setRuntimeChoice((current) => ({ ...current, model: value }))
-              }
-              onReasoningEffortChange={(value) =>
-                setRuntimeChoice((current) => ({
-                  ...current,
-                  reasoningEffort: value,
-                }))
-              }
-              onFastModeChange={(value) =>
-                setRuntimeChoice((current) => ({ ...current, fastMode: value }))
-              }
-            />
-          )}
           <TextField
             label="Feedback to include with approval"
             multiline
@@ -161,7 +147,7 @@ export function CodingPlanApprovalField({
             disabled={
               locked ||
               scope.status !== "valid" ||
-              (chooseRuntime && (!provider || !model))
+              Boolean(provider) !== Boolean(model)
             }
             onClick={() => void approve()}
           >

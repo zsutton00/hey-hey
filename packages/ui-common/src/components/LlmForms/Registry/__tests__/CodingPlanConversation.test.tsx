@@ -171,7 +171,9 @@ describe("conversational planning controls", () => {
         />,
       );
       expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
-      expect(screen.queryByLabelText("Change implementation model")).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "Pick implementation runtime" }),
+      ).toBeNull();
       expect(screen.getByTestId("coding-plan-version-state")).toHaveTextContent(
         message,
       );
@@ -227,6 +229,12 @@ describe("conversational planning controls", () => {
       />,
     );
     expect(screen.queryByText(/revise|continue refining/i)).toBeNull();
+    expect(
+      screen.queryByRole("checkbox", { name: "Change implementation model" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Pick implementation runtime" }),
+    ).toBeVisible();
     fireEvent.change(
       screen.getByLabelText("Feedback to include with approval"),
       { target: { value: "Preserve keyboard access." } },
@@ -259,9 +267,6 @@ describe("conversational planning controls", () => {
       />,
     );
     fireEvent.click(
-      screen.getByRole("checkbox", { name: "Change implementation model" }),
-    );
-    fireEvent.click(
       screen.getByRole("button", { name: "Pick implementation runtime" }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
@@ -285,9 +290,6 @@ describe("conversational planning controls", () => {
       isSubmitted: false,
     };
     const first = render(<CodingPlanApprovalField {...props} />);
-    fireEvent.click(
-      screen.getByRole("checkbox", { name: "Change implementation model" }),
-    );
     fireEvent.click(
       screen.getByRole("button", { name: "Pick implementation runtime" }),
     );

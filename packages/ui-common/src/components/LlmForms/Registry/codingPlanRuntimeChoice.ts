@@ -6,12 +6,10 @@ type CodingPlanRuntimeChoice = Pick<
   RuntimeModelSelectorProps,
   "provider" | "model" | "reasoningEffort"
 > & {
-  chooseRuntime: boolean;
   fastMode: boolean;
 };
 
 export const currentCodingPlanRuntime: CodingPlanRuntimeChoice = {
-  chooseRuntime: false,
   provider: null,
   model: null,
   reasoningEffort: null,

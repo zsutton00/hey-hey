@@ -14526,11 +14526,11 @@ export interface MaterializedWorkItemSection {
      */
     'materializedMarkdown': string;
     /**
-     * Proposal whose successfully materialized change produced the section\'s current composition or resolved presentation context.
+     *
      * @type {string}
      * @memberof MaterializedWorkItemSection
      */
-    'materializedProposalId': string;
+    'materializedProposalId': MaterializedWorkItemSectionMaterializedProposalIdEnum | null;
     /**
      * Sequence number associated with the persisted CRDT snapshot.
      * @type {number}
@@ -14538,6 +14538,13 @@ export interface MaterializedWorkItemSection {
      */
     'crdtSnapshotSeq'?: number | null;
 }
+
+export const MaterializedWorkItemSectionMaterializedProposalIdEnum = {
+    Empty: ''
+} as const;
+
+export type MaterializedWorkItemSectionMaterializedProposalIdEnum = typeof MaterializedWorkItemSectionMaterializedProposalIdEnum[keyof typeof MaterializedWorkItemSectionMaterializedProposalIdEnum];
+
 /**
  * Signed protocol-2 authenticated user input. It carries no controller execution authorization because it does not directly authorize host work.
  * @export
@@ -21430,7 +21437,7 @@ export interface RunCreatePayloadWorkflowKickoff {
      */
     'entity'?: RunEntityReference;
     /**
-     * The user\'s launch kickoff text. The API authors a real USER message row from this value before the start-run trigger, ordered ahead of the workflow\'s first turn, so the user\'s opening text renders before the response.
+     * The user\'s launch kickoff text, which may be empty for a supported blank startup. The API authors a real USER message row from this value before the start-run trigger, ordered ahead of the workflow\'s first turn, so the user\'s opening text renders before the response.
      * @type {string}
      * @memberof RunCreatePayloadWorkflowKickoff
      */
@@ -23474,7 +23481,7 @@ export interface TaskResponseDto {
      * @type {string}
      * @memberof TaskResponseDto
      */
-    'initiativeId'?: string;
+    'initiativeId'?: string | null;
     /**
      *
      * @type {WorkStatus}
@@ -23522,7 +23529,7 @@ export interface TaskResponseDto {
      * @type {string}
      * @memberof TaskResponseDto
      */
-    'parentTaskId'?: string;
+    'parentTaskId'?: string | null;
     /**
      *
      * @type {TaskResponseDtoChildCounts}
@@ -23534,19 +23541,19 @@ export interface TaskResponseDto {
      * @type {number}
      * @memberof TaskResponseDto
      */
-    'designDocCount'?: number;
+    'designDocCount'?: number | null;
     /**
      * Number of coding sessions (type=CODING) linked to this task. Present when includeAgentSessionCounts=true; otherwise null.
      * @type {number}
      * @memberof TaskResponseDto
      */
-    'codingSessionCount'?: number;
+    'codingSessionCount'?: number | null;
     /**
      * Number of non-coding agent sessions (e.g. DAILY_SESSION, TASK_REFINING) linked to this task. Present when includeAgentSessionCounts=true; otherwise null.
      * @type {number}
      * @memberof TaskResponseDto
      */
-    'agentSessionCount'?: number;
+    'agentSessionCount'?: number | null;
     /**
      * Service-to-task relation records linked to this task. Present when includeServiceRelations=true.
      * @type {Array<ServiceTaskRelation>}
@@ -23582,7 +23589,7 @@ export interface TaskResponseDto {
      * @type {string}
      * @memberof TaskResponseDto
      */
-    'archivedAt'?: string;
+    'archivedAt'?: string | null;
     /**
      * Outgoing `TRACKS` edges from this task, inlined as snapshots so list views render tracked items without a second hop. Populated only for GOAL-typed tasks (other task types omit the field or return an empty array). Order is unspecified; callers should not rely on it.
      * @type {Array<TrackedEntitySnapshot>}
