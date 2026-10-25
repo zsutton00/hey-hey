@@ -79,7 +79,7 @@ export const setupLabel = (setting: EvalModelSetting): string =>
 export const toConfiguration = (
   setting: EvalModelSetting,
 ): EvalConfiguration => ({
-  id: setupKey(setting),
+  id: crypto.randomUUID(),
   target: setting,
 });
 

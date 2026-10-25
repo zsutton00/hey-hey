@@ -4,6 +4,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { EvalRunService } from '../eval-run.service';
+import { EvalRunController } from 'src/controllers/eval-run.controller';
 
 const ORG = 'org-1' as never;
 const PROJECT = 'project-1' as never;
@@ -81,6 +82,51 @@ const request = {
 };
 
 describe('EvalRunService.launch', () => {
+  it('accepts the app launch shape with UUID configuration ids through the controller', async () => {
+    const { service, prisma, reports } = build();
+    const cases = Array.from({ length: 4 }, () => ({
+      ...caseRecord,
+      id: crypto.randomUUID(),
+    }));
+    prisma.db.task.findMany.mockResolvedValue(cases);
+    const configuration = {
+      id: crypto.randomUUID(),
+      target: {
+        provider: 'claude',
+        model: 'claude-opus-5-5',
+        reasoningEffort: 'medium',
+      },
+    };
+    const body = {
+      evalCaseIds: cases.map((item) => item.id),
+      configurations: [configuration],
+      judgeSetup: {
+        provider: 'claude',
+        model: 'claude-sonnet-5-5',
+        reasoningEffort: 'medium',
+      },
+      settings: { maxConcurrentAttempts: 3 },
+    };
+    await new EvalRunController(service).launch(
+      ORG,
+      PROJECT,
+      EVAL_ID,
+      USER,
+      body,
+    );
+    const calls = reports.createWithIdInTransaction.mock.calls;
+    expect(calls).toHaveLength(5);
+    expect(calls[0]![3].payload).toMatchObject({
+      configurations: body.configurations,
+      judgeSetup: body.judgeSetup,
+      settings: body.settings,
+    });
+    expect(calls[0]![3].payload.cases).toHaveLength(4);
+    expect(calls.slice(1).map((call) => call[3].payload.configuration)).toEqual(
+      cases.map(() => configuration),
+    );
+  });
+
   it('records one run and an attempt per case and setup without starting an agent', async () => {
     const { service, reports, sessions } = build();
 
@@ -206,6 +252,17 @@ describe('EvalRunService.launch', () => {
   it.each([
     ['no cases', { ...request, evalCaseIds: [] }],
     ['no setups', { ...request, configurations: [] }],
+    [
+      'a model key instead of a configuration UUID',
+      {
+        ...request,
+        configurations: [{ ...CONFIG_A, id: 'claude:claude-opus-5-5:medium' }],
+      },
+    ],
+    [
+      'a configuration without a target',
+      { ...request, configurations: [{ id: CONFIG_A.id }] },
+    ],
     ['a repeated case', { ...request, evalCaseIds: [CASE_ID, CASE_ID] }],
     [
       'repeated setup ids',
@@ -220,10 +277,12 @@ describe('EvalRunService.launch', () => {
       { ...request, settings: { attemptTimeLimitSeconds: 1.5 } },
     ],
   ])('rejects %s', async (_name, body) => {
-    const { service } = build();
+    const { service, reports, sessions } = build();
     await expect(
       service.launch(ORG, PROJECT, USER, EVAL_ID, body as never),
     ).rejects.toBeInstanceOf(BadRequestException);
+    expect(reports.createWithIdInTransaction).not.toHaveBeenCalled();
+    expect(sessions.createInTransaction).not.toHaveBeenCalled();
   });
 });
 

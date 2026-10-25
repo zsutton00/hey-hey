@@ -11,6 +11,7 @@ import {
   defaultRunSettings,
   formatElapsed,
   progressEntries,
+  toConfiguration,
   toLaunchSettings,
 } from "./evalRunView";
 
@@ -42,6 +43,24 @@ const attempt = (
   }) as unknown as EvalAttemptReport;
 
 const NOW = Date.parse("2026-10-22T10:10:00.000Z");
+
+describe("toConfiguration", () => {
+  it("assigns distinct UUID identities while preserving the chosen target", () => {
+    const target = {
+      provider: "claude",
+      model: "claude-opus-5-5",
+      reasoningEffort: "medium",
+    };
+    const first = toConfiguration(target);
+    const second = toConfiguration(target);
+    const uuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    expect(first.id).toMatch(uuid);
+    expect(second.id).toMatch(uuid);
+    expect(first.id).not.toBe(second.id);
+    expect(first.target).toEqual(target);
+  });
+});
 
 describe("toLaunchSettings", () => {
   it("defaults to 3 at once and leaves both limits out (no limit)", () => {
