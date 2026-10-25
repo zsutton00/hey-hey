@@ -230,6 +230,8 @@ export const handleAssistantComplete = async (
     !eventTurn.changedFileReporting.isReleasing
   ) {
     if (!eventTurn.changedFileReporting.isRepairing) {
+      // Retain even an omitted report until in-flight submissions and edits settle.
+      // The coordinator then releases omissions without validation or repair.
       eventTurn.changedFileReporting.retain(event);
       await ctx.persistChangedFileReporting(eventTurn);
     }

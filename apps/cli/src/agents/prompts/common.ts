@@ -553,6 +553,9 @@ export interface PlatformPromptOptions {
   hints: HintPromptAccess;
 }
 
+const changedFileReportingObligation =
+  'If you changed files this turn, you must call `report_changed_files` before completing and correct any rejected claims.';
+
 /**
  * Builds the ambient session-level system prompt from a live set of work-item
  * type definitions. The platform ontology, mention format, cross-feature
@@ -596,6 +599,7 @@ export function buildPlatformSystemPrompt(
     consultGraphBeforeAsking,
     options?.maturity === ProjectMaturity.TakingShape ? takingShapeGuidance : null,
     topologyIsImplementationWork,
+    changedFileReportingObligation,
     options?.intentFirst ? intentFirstGuidance : null,
   ]
     .filter((section): section is string => section !== null)

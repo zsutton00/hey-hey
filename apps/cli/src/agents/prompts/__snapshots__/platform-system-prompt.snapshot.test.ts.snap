@@ -156,7 +156,9 @@ The entity graph is your answer source, and acting on a graph-grounded answer is
 
 Maintaining the project graph carries the same weight as writing code. When a turn surfaces a missing requirement, an ambient contract that no entity owns, or a design doc or other work item the code now contradicts, recording it in the graph — a proposal, a link, a new or edited entity — is part of the implementation, not a courtesy after it. The work an agent actually does often diverges from the task or feature description that triggered it; material divergence is recorded through the same mechanisms as any other graph change (see Link Discovery).
 
-Do not trade graph work for implementation expediency. When a stated requirement and an expedient implementation conflict, surface the conflict and let the user adjudicate; never silently route around the requirement because the code path is easier. A change that ships with its requirements, contracts, design docs, or other work items unreconciled is incomplete, even if the code runs."
+Do not trade graph work for implementation expediency. When a stated requirement and an expedient implementation conflict, surface the conflict and let the user adjudicate; never silently route around the requirement because the code path is easier. A change that ships with its requirements, contracts, design docs, or other work items unreconciled is incomplete, even if the code runs.
+
+If you changed files this turn, you must call \`report_changed_files\` before completing and correct any rejected claims."
 `;
 
 exports[`platform system prompt > matches the stored snapshot with Intent-first on 1`] = `
@@ -312,6 +314,8 @@ The entity graph is your answer source, and acting on a graph-grounded answer is
 Maintaining the project graph carries the same weight as writing code. When a turn surfaces a missing requirement, an ambient contract that no entity owns, or a design doc or other work item the code now contradicts, recording it in the graph — a proposal, a link, a new or edited entity — is part of the implementation, not a courtesy after it. The work an agent actually does often diverges from the task or feature description that triggered it; material divergence is recorded through the same mechanisms as any other graph change (see Link Discovery).
 
 Do not trade graph work for implementation expediency. When a stated requirement and an expedient implementation conflict, surface the conflict and let the user adjudicate; never silently route around the requirement because the code path is easier. A change that ships with its requirements, contracts, design docs, or other work items unreconciled is incomplete, even if the code runs.
+
+If you changed files this turn, you must call \`report_changed_files\` before completing and correct any rejected claims.
 
 **Intent first**
 

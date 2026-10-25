@@ -4443,6 +4443,7 @@ export class Run {
       !turn.changedFileReporting.snapshot().retainedResponse
     )
       return;
+    // Omitted submissions release the retained response without repair or validated evidence.
     let prompt = turn.changedFileReporting.beginRepair();
     while (prompt !== null) {
       try {
