@@ -1,6 +1,9 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CliReadToolCallsLatestTurnResult } from "../../../../../api";
+import type {
+  CliReadToolCall,
+  CliReadToolCallsLatestTurnResult,
+} from "../../../../../api";
 import {
   ControllerAuthorizationClientError,
   ControllerAuthorizationClientFailureCode,
@@ -36,6 +39,7 @@ const baseParams = {
   agentSessionId: sessionId,
   activityKey: "thought one",
   enabled: true,
+  replyPending: false,
 };
 
 const respond = (result: CliReadToolCallsLatestTurnResult) =>
@@ -54,13 +58,26 @@ const respond = (result: CliReadToolCallsLatestTurnResult) =>
     },
   } as Awaited<ReturnType<typeof read>>);
 
+const call = (createdAt: string): CliReadToolCall => ({
+  entryId: "call-1",
+  toolUseId: "tool-1",
+  toolName: "read_file",
+  summary: "Read a file",
+  status: "completed",
+  exitCode: null,
+  lane: { subagentTurnId: null, providerThreadId: null, parentToolUseId: null },
+  createdAt,
+  updatedAt: createdAt,
+  detail: { input: null, output: null, result: null },
+});
+
 const available: CliReadToolCallsLatestTurnResult = {
   state: "available",
   runId: sessionId,
   turnId: "turn-1",
   omittedEarlierCount: 0,
   evictedCount: 0,
-  toolCalls: [],
+  toolCalls: [call("2020-01-01T00:00:00.000Z")],
 };
 
 const advance = async (ms: number) => {
@@ -222,6 +239,77 @@ describe("useLatestTurnToolCalls", () => {
     unmount();
     await tick();
     expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the previous Turn out after send, then accepts the new Turn before narration", async () => {
+    respond(available);
+    const { result, rerender } = renderHook(
+      (props) => useLatestTurnToolCalls(props),
+      { initialProps: baseParams },
+    );
+    await flush();
+    rerender({ ...baseParams, enabled: false });
+    rerender({ ...baseParams, replyPending: true });
+    expect(result.current.status).toBe("idle");
+    await tick();
+    rerender(baseParams);
+    await tick();
+    expect(result.current.status).toBe("idle");
+    const next = {
+      ...available,
+      turnId: "turn-2",
+      toolCalls: [call(new Date().toISOString())],
+    };
+    respond(next);
+    await tick();
+    expect(result.current).toEqual({ status: "available", result: next });
+  });
+
+  it("ignores a delayed read from before the follow-up and keeps polling", async () => {
+    let finish: (value: Awaited<ReturnType<typeof read>>) => void = () => {};
+    read.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { result, rerender } = renderHook(
+      (props) => useLatestTurnToolCalls(props),
+      { initialProps: baseParams },
+    );
+    await flush();
+    rerender({ ...baseParams, replyPending: true });
+    rerender(baseParams);
+    await act(async () => {
+      finish(wrapped(available));
+    });
+    expect(result.current.status).toBe("idle");
+    respond({ ...available, turnId: "turn-2" });
+    await tick();
+    expect(result.current.status).toBe("available");
+  });
+
+  it("filters old calls when send precedes the first successful read", async () => {
+    respond(available);
+    const { result, rerender } = renderHook(
+      (props) => useLatestTurnToolCalls(props),
+      {
+        initialProps: { ...baseParams, enabled: false },
+      },
+    );
+    rerender({ ...baseParams, replyPending: true });
+    await flush();
+    expect(result.current).toMatchObject({
+      status: "available",
+      result: { toolCalls: [] },
+    });
+    const fresh = call(new Date().toISOString());
+    respond({ ...available, turnId: "turn-2", toolCalls: [fresh] });
+    await tick();
+    expect(result.current).toMatchObject({
+      status: "available",
+      result: { toolCalls: [fresh] },
+    });
   });
 
   it("never writes tool calls to browser storage", async () => {

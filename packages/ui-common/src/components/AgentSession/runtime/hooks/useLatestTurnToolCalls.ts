@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import type { AxiosResponse } from "axios";
 import {
   CliReadRunToolCallsLatestTurnRequestOperationEnum,
@@ -55,12 +61,27 @@ export const useLatestTurnToolCalls = (params: {
   activityKey: string;
   /** True while the Turn is active; reading stops when it turns false. */
   enabled: boolean;
+  /** A follow-up has been submitted, including before STARTING arrives. */
+  replyPending: boolean;
 }): LatestTurnToolCallsState => {
-  const { organizationId, projectId, agentSessionId, activityKey, enabled } =
-    params;
+  const {
+    organizationId,
+    projectId,
+    agentSessionId,
+    activityKey,
+    enabled,
+    replyPending,
+  } = params;
   const [state, setState] = useState<LatestTurnToolCallsState>(idleState);
   const inFlightRef = useRef(false);
   const haltedRef = useRef(false);
+  const generationRef = useRef(0);
+  const replyStartedAtRef = useRef<number | null>(null);
+  const lastTurnIdRef = useRef<string | null>(null);
+  const excludedTurnIdRef = useRef<string | null>(null);
+  const previousPendingRef = useRef(false);
+  const previousSessionRef = useRef(agentSessionId);
+  const previousActiveRef = useRef(false);
   const mountedRef = useRef(true);
   const active = enabled && agentSessionId !== undefined;
 
@@ -94,6 +115,9 @@ export const useLatestTurnToolCalls = (params: {
     if (!agentSessionId || !currentMachine) return;
     if (haltedRef.current || inFlightRef.current) return;
     inFlightRef.current = true;
+    const generation = generationRef.current;
+    const isCurrent = () =>
+      mountedRef.current && generation === generationRef.current;
     // The run id is the agent session id (see useAgentRunLifecycle).
     const runId = agentSessionId;
     const controllerReadInputs = {
@@ -134,6 +158,7 @@ export const useLatestTurnToolCalls = (params: {
         }),
     })
       .then((response): LatestTurnToolCallsState => {
+        if (!isCurrent()) return idleState;
         if (response.outcome === "DENIED") {
           if (!response.retryable) haltedRef.current = true;
           return {
@@ -155,9 +180,33 @@ export const useLatestTurnToolCalls = (params: {
           haltedRef.current = true;
           return { status: "disabled" };
         }
-        return { status: "available", result: result.result };
+        const snapshot = result.result;
+        if (
+          snapshot.turnId === excludedTurnIdRef.current &&
+          snapshot.turnId !== null
+        ) {
+          return idleState;
+        }
+        lastTurnIdRef.current = snapshot.turnId;
+        const startedAt = replyStartedAtRef.current;
+        if (startedAt === null || excludedTurnIdRef.current !== null)
+          return { status: "available", result: snapshot };
+        // The latest CLI Turn may still be the completed one during startup.
+        // Keep this boundary after STARTING ends, including delayed snapshots.
+        return {
+          status: "available",
+          result: {
+            ...snapshot,
+            toolCalls: snapshot.toolCalls.filter(
+              ({ createdAt }) => Date.parse(createdAt) >= startedAt,
+            ),
+            omittedEarlierCount: 0,
+            evictedCount: 0,
+          },
+        };
       })
       .catch((error: unknown): LatestTurnToolCallsState => {
+        if (!isCurrent()) return idleState;
         if (
           error instanceof ControllerAuthorizationClientError &&
           HALTING_CONTROLLER_FAILURE_CODES.includes(error.code)
@@ -172,7 +221,7 @@ export const useLatestTurnToolCalls = (params: {
       })
       .then((next) => {
         inFlightRef.current = false;
-        if (!mountedRef.current) return;
+        if (!isCurrent()) return;
         // Keep the last good list on a transient failure.
         setState((previous) =>
           next.status === "unavailable" && previous.status === "available"
@@ -182,15 +231,36 @@ export const useLatestTurnToolCalls = (params: {
       });
   }, [agentSessionId, authorize, organizationId, projectId]);
 
-  // A new Turn starts from a clean slate and may read again.
-  useEffect(() => {
-    if (!active) return;
-    haltedRef.current = false;
-    setState(idleState);
-    return () => {
+  // Clear both consumers before paint and invalidate outstanding reads at the
+  // send boundary, rather than waiting for the remote STARTING event.
+  useLayoutEffect(() => {
+    generationRef.current += 1;
+    const sessionChanged = previousSessionRef.current !== agentSessionId;
+    const replyStarted = replyPending && !previousPendingRef.current;
+    const becameActive = active && !previousActiveRef.current;
+    if (sessionChanged) {
+      replyStartedAtRef.current = null;
+      lastTurnIdRef.current = null;
+      excludedTurnIdRef.current = null;
+      previousSessionRef.current = agentSessionId;
+    }
+    if (becameActive) {
+      excludedTurnIdRef.current = lastTurnIdRef.current;
+    }
+    previousActiveRef.current = active;
+    if (replyStarted) {
+      replyStartedAtRef.current = Date.now();
+      excludedTurnIdRef.current = lastTurnIdRef.current;
+    }
+    previousPendingRef.current = replyPending;
+    if (sessionChanged || replyStarted || becameActive || !active) {
       haltedRef.current = false;
+      setState(idleState);
+    }
+    return () => {
+      generationRef.current += 1;
     };
-  }, [active, agentSessionId]);
+  }, [active, agentSessionId, replyPending]);
 
   useEffect(() => {
     if (!active || !machineId) return;
@@ -211,5 +281,5 @@ export const useLatestTurnToolCalls = (params: {
     return () => clearTimeout(timer);
   }, [active, activityKey, machineId, readNow]);
 
-  return state;
+  return active ? state : idleState;
 };

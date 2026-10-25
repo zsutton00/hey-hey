@@ -693,15 +693,6 @@ export const ConversationProvider: React.FC<ConversationProviderProps> = ({
     [conversationTimeline],
   );
   const hasInterstitialInTimeline = interstitialBodies.length > 0;
-  const latestTurnToolCalls = useLatestTurnToolCalls({
-    organizationId: project.organizationId,
-    projectId: project.id,
-    agentSessionId,
-    activityKey: interstitialBodies[interstitialBodies.length - 1] ?? "",
-    enabled:
-      agentSessionCurrentState !== undefined &&
-      ACTIVE_TURN_STATES.includes(agentSessionCurrentState),
-  });
 
   const userIdentity = useUserIdentity();
   const currentUserId = userIdentity?.userId || "";
@@ -741,6 +732,17 @@ export const ConversationProvider: React.FC<ConversationProviderProps> = ({
     onSubmitOnboardingReply,
     onSubmitRepositoryImportReply,
     onConversationUpdated: handleConversationUpdated,
+  });
+
+  const latestTurnToolCalls = useLatestTurnToolCalls({
+    organizationId: project.organizationId,
+    projectId: project.id,
+    agentSessionId,
+    activityKey: interstitialBodies[interstitialBodies.length - 1] ?? "",
+    replyPending: submissionState.isSubmitting,
+    enabled:
+      agentSessionCurrentState !== undefined &&
+      ACTIVE_TURN_STATES.includes(agentSessionCurrentState),
   });
 
   const { handleStepClick, loadOlderMessages, initialScrollReady } =

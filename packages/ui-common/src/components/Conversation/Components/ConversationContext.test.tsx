@@ -1068,6 +1068,7 @@ describe("ConversationContext Timeline Calculation", () => {
           agentSessionId: "agent-session-1",
           activityKey: "",
           enabled: true,
+          replyPending: false,
         });
         expect(getByTestId("tool-calls").textContent).toBe("idle|false");
       },
