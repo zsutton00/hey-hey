@@ -68,8 +68,12 @@ export class ResumeRunner implements Runner {
       startupInputAvailable: this.ctx.startupPromptInput !== undefined,
       startupInputDelivered: startupProjection?.delivered ?? false,
     });
-    const providerPrompt =
+    const baseProviderPrompt =
       startupProjection?.input.kind === 'turn' ? startupProjection.input.prompt : resolvedPrompt;
+
+    const providerPrompt = [this.ctx.roleGuidance?.text, baseProviderPrompt]
+      .filter(Boolean)
+      .join('\n\n');
 
     if (this.ctx.startupPromptInput) {
       const { provenance } = this.ctx.startupPromptInput;
@@ -129,6 +133,17 @@ export class ResumeRunner implements Runner {
       executionProvider,
     );
 
+    if (
+      this.ctx.roleGuidance?.deliveryKeys.length &&
+      result.errorCount === 0 &&
+      (result.providerSessionId ?? run.session.provider_session_id)
+    ) {
+      await run.sessionRoleGuidance.acknowledge(
+        run.session,
+        (result.providerSessionId ?? run.session.provider_session_id)!,
+        this.ctx.roleGuidance,
+      );
+    }
     const patch: Partial<typeof run.session> = {};
     if (result.providerSessionId !== null) {
       patch.provider_session_id = result.providerSessionId;

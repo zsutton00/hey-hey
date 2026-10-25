@@ -1,9 +1,11 @@
+import { WorkItemTypesApi } from '../shared/api/generated/api';
+import { readActiveWorkItemTypeDefinitions } from '../agents/prompts/work-item-type-registry';
 import { reportChangedFilesTool } from '../agents/submission-tools/report-changed-files-tool';
 import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PromptTypeRegistry } from '../agents/prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../agents/prompt-type-registry.test-support';
@@ -51,6 +53,31 @@ import {
 vi.mock('../server/services/run.service', () => ({
   validateResolvedPromptReferences: vi.fn().mockResolvedValue(undefined),
 }));
+
+vi.mock('../agents/prompts/work-item-type-registry', () => ({
+  readActiveWorkItemTypeDefinitions: vi.fn(),
+}));
+beforeEach(() => {
+  vi.mocked(readActiveWorkItemTypeDefinitions).mockResolvedValue([
+    { key: 'STANDARD', name: 'Task' },
+  ] as never);
+  vi.spyOn(WorkItemTypesApi.prototype, 'getWorkItemTypeGuidanceBatch').mockImplementation(
+    async ({ workItemTypeGuidanceBatchRequestDto: request }) =>
+      ({
+        data: {
+          success: true,
+          data: {
+            results: request.typeKeys.map((typeKey) => ({
+              typeKey,
+              name: 'Task',
+              sessionRole: request.sessionRole,
+              guidance: `Effective ${request.sessionRole} role advice`,
+            })),
+          },
+        },
+      }) as never,
+  );
+});
 
 const RUN_ID = 'run-mode-boundary';
 const TASK_ID = '6b0f7a51-2c4e-4d3b-9a8e-1f2d3c4b5a61';
@@ -289,7 +316,7 @@ const makeHarness = async (options: {
     localAgentEndpoint: new LocalAgentEndpoint(),
   });
 
-  const createRun = (currentSession = session) =>
+  const createRun = (currentSession = session, hasProviderSession = false) =>
     new Run(
       {
         runId: RUN_ID,
@@ -298,6 +325,7 @@ const makeHarness = async (options: {
         conversationId: 'conversation-1',
         provider: 'claude',
         session: currentSession,
+        hasProviderSession,
         skipProjectAssistant:
           options.skipProjectAssistant || currentSession.projectAssistantDone === true,
       },
@@ -323,10 +351,17 @@ const makeHarness = async (options: {
   let run = createRun();
   live.run = run;
   const restore = async () => {
+    const hasProviderSession = run.hasProviderSession;
+    if (hasProviderSession)
+      await runStore.updateRunProviderIdentity(RUN_ID, {
+        providerSessionId: run.session.provider_session_id,
+        providerConversationId: run.session.provider_conversation_id ?? null,
+        providerSessionAgentId: run.session.provider_session_agent_id ?? null,
+      });
     run.cleanup();
     const persisted = await runStore.getRun(RUN_ID);
     if (!persisted) throw new Error('Expected persisted session');
-    run = createRun(persisted);
+    run = createRun(persisted, hasProviderSession);
     live.run = run;
   };
   if (options.restoreBeforeFirst) await restore();
@@ -404,6 +439,9 @@ describe('write boundary across turn types in a mode-backed Run', () => {
           options.sessionRole,
           options.sessionRole,
         ]);
+        expect(h.turns[0]?.prompt).toContain('Effective research role advice');
+        expect(h.turns[1]?.prompt).toContain(`Effective ${options.sessionRole} role advice`);
+        expect(h.turns[2]?.prompt).not.toContain('role advice');
         expect(h.turns.map((t) => t.handlerId)).toEqual([
           'project_assistant',
           'project_mode',

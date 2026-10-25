@@ -1,3 +1,4 @@
+import { SessionRoleGuidance } from '../agents/session-role-guidance/session-role-guidance';
 import { resolveHandlerSessionRole } from '../agents/prompt-type-handler';
 import { RunAttachmentNotFoundError } from '../server/run-attachment-store';
 import { RunAttachmentContentReader } from '../agents/providers/run-attachment-content-reader';
@@ -882,6 +883,7 @@ export class Run {
   private readonly poster: MessagePoster;
   private readonly submissionActionPoster: SubmissionActionPoster;
   private readonly broadcaster: RunEventPublisher;
+  readonly sessionRoleGuidance: SessionRoleGuidance;
   private readonly handlerDeps: PromptTypeHandlerBaseDeps;
   /** Latest authoritative entity startup projection for the current Turn. */
   private startupPromptInputResult: AgentStartupPromptInputResult | null = null;
@@ -947,6 +949,10 @@ export class Run {
     this.submissionActionPoster = new SubmissionActionPoster(this.poster);
     this.broadcaster = collaborators.broadcaster;
     this.handlerDeps = collaborators.handlerDeps;
+    this.sessionRoleGuidance = new SessionRoleGuidance(
+      { ...this.handlerDeps, logger: collaborators.logger },
+      this.runStore,
+    );
     this.reviewFileScopeCoordinator = new ReviewFileScopeCoordinator({
       admission: collaborators.runFollowUpAdmission,
       runStore: this.runStore,
@@ -5594,6 +5600,24 @@ export class Run {
             .join('\n\n')
         : (resolvedPrompt ?? '');
     const effectiveProviderSessionStartupSegments = providerSessionStartupSegments;
+    const roleGuidance =
+      handler.runnerKind === 'provider_session'
+        ? await this.sessionRoleGuidance.prepare({
+            session: this.session,
+            handler,
+            payload: preparedPayload ?? input.payload,
+            ...(this.startupPromptInputResult ? { startup: this.startupPromptInputResult } : {}),
+            fresh: providerSessionDecision !== 'resume',
+            userMessages: readRecentUserReplies(input).map((reply) => reply.text),
+          })
+        : undefined;
+    if (this.sessionRoleGuidance.continuity)
+      this.refreshSessionFields({
+        sessionContext: {
+          ...this.session.sessionContext,
+          sessionRoleGuidance: this.sessionRoleGuidance.continuity,
+        },
+      });
     const serviceScopeRecovery = this.serviceScope.pendingRecovery();
 
     const resolvedTurnEffective = resolveTurnEffective(handler, session);
@@ -5626,6 +5650,7 @@ export class Run {
         turnId,
         handler,
         resolvedPrompt: resolvedPromptNonNull,
+        ...(roleGuidance ? { roleGuidance } : {}),
         input,
         ...(preparedPayload !== undefined ? { preparedPayload } : {}),
         cwd: turnWorkspace.cwd,

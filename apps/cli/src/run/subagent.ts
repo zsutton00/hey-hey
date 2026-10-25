@@ -1,3 +1,5 @@
+import { SessionRoleGuidance } from '../agents/session-role-guidance/session-role-guidance';
+import { SubmissionToolAuth } from '../agents/submission-tools/submission-tool-auth';
 import {
   composeFreshPlatformPromptDelivery,
   resolveProviderPlatformPromptDeliveryMode,
@@ -617,7 +619,7 @@ export class SubAgent {
     // subagent reads before composing its report — parity with the main-session
     // per-turn append in `resolve-prompt.ts`. Prior reports are prepended, so
     // the reminder stays at the very end.
-    const prompt = `${prependPriorReports(composed, priorReports)}\n\n${mentionFormatReminder}`;
+    const basePrompt = `${prependPriorReports(composed, priorReports)}\n\n${mentionFormatReminder}`;
 
     // An eval child writes as its attempt's target session, never the Run's,
     // so the platform attributes its output to that attempt.
@@ -642,6 +644,22 @@ export class SubAgent {
       oauthClient,
       projectId: session.contextMetadata?.projectId,
     });
+    const configuredApiUrl = process.env['HEYHEY_API_URL']?.trim() || 'https://heyhey.dev';
+    const roleGuidance = await new SessionRoleGuidance({
+      auth: new SubmissionToolAuth(oauthClient),
+      logger,
+      apiBaseUrl: configuredApiUrl.endsWith('/api/v1')
+        ? configuredApiUrl
+        : `${configuredApiUrl.replace(/\/$/u, '')}/api/v1`,
+    }).prepare({
+      session,
+      handler,
+      payload: enrichedPayload,
+      fresh: true,
+      ...(startupPromptInput ? { startup: startupPromptInput } : {}),
+      definitions: sessionStartContext.workItemTypeDefinitions,
+    });
+    const prompt = [roleGuidance.text, basePrompt].filter(Boolean).join('\n\n');
     const providerId = resolveAgentProviderId(session.provider);
     const platformSystemPrompt = buildPlatformSystemPrompt(
       sessionStartContext.workItemTypeDefinitions,

@@ -50,6 +50,8 @@ export interface ImplementPromptInput {
  */
 export type EnrichedImplementPromptPayload = LocalImplementPromptPayload & {
   _approvedPlan?: string;
+  /** Exact approved scope, excluding discussion and approval feedback. */
+  _approvedPlanMarkdown?: string;
   _approvedPlanPayload?: LocalStartupSessionPlanResponse;
   _services?: ResolvedServiceBinding[];
   _launchServiceId?: string;

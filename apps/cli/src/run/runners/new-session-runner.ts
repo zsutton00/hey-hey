@@ -74,10 +74,24 @@ export class NewSessionRunner implements Runner {
       startupInputAvailable: this.ctx.startupPromptInput !== undefined,
       startupInputDelivered: startupProjection?.delivered ?? false,
     });
-    const providerInput = startupProjection?.input ?? {
+    const baseProviderInput = startupProjection?.input ?? {
       kind: 'turn' as const,
       prompt: resolvedPrompt,
     };
+    const advice = this.ctx.roleGuidance?.text;
+    const providerInput = advice
+      ? baseProviderInput.kind === 'startup'
+        ? {
+            ...baseProviderInput,
+            segments: {
+              ...baseProviderInput.segments,
+              dynamicContext: [baseProviderInput.segments.dynamicContext, advice]
+                .filter(Boolean)
+                .join('\n\n'),
+            },
+          }
+        : { ...baseProviderInput, prompt: `${advice}\n\n${baseProviderInput.prompt}` }
+      : baseProviderInput;
     const providerPrompt =
       providerInput.kind === 'turn'
         ? providerInput.prompt
@@ -184,6 +198,17 @@ export class NewSessionRunner implements Runner {
       run.refreshSessionFields(patch);
     }
 
+    if (
+      this.ctx.roleGuidance?.deliveryKeys.length &&
+      result.errorCount === 0 &&
+      result.providerSessionId
+    ) {
+      await run.sessionRoleGuidance.acknowledge(
+        run.session,
+        result.providerSessionId,
+        this.ctx.roleGuidance,
+      );
+    }
     run.setHasProviderSession(true, 'new-session-mint');
     if (this.ctx.serviceScopeRecovery) {
       await run.serviceScope.completeServiceScopeRecoveryDelivery(this.ctx.serviceScopeRecovery);

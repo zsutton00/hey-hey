@@ -1,3 +1,4 @@
+import type { PreparedRoleGuidance } from '../../agents/session-role-guidance/session-role-guidance';
 import type { BrowserMcpMount } from '../../agents/browser-tools/browser-mcp-access';
 /**
  * Runner module — the per-Turn dispatch choice.
@@ -78,6 +79,7 @@ export interface RunnerContext {
    * subagent handlers that compose their own prompts downstream).
    */
   resolvedPrompt: string;
+  roleGuidance?: PreparedRoleGuidance;
   /** The raw `InternalRunPromptRequest`. Runners read payload / references from this. */
   input: InternalRunPromptRequest;
   /**

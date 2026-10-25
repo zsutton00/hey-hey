@@ -1,3 +1,4 @@
+import { EntityContextApi, WorkItemTypesApi } from '../shared/api/generated/api';
 import { researchHandler } from '../agents/research/research.handler';
 import { LocalPromptType } from '../shared/agent-bridge-contract/generated';
 /**
@@ -201,6 +202,90 @@ describe('SubAgent — unified runtime contract', () => {
       maturity: 'ESTABLISHED',
     });
   });
+
+  it.each(['codex', 'claude'] as const)(
+    'delivers effective advice in rebuilt %s child prompts before the request',
+    async (provider) => {
+      const referenceId = '20000000-0000-4000-8000-000000000002';
+      readSessionStartContextMock.mockResolvedValue({
+        workItemTypeDefinitions: [{ key: 'mockup', name: 'Mockup' } as WorkItemTypeDefinitionDto],
+        intentFirst: false,
+        maturity: 'ESTABLISHED',
+      });
+      const context = vi.spyOn(EntityContextApi.prototype, 'getEntityContext').mockResolvedValue({
+        data: {
+          success: true,
+          data: {
+            entityId: referenceId,
+            entityType: 'TASK',
+            taskType: 'mockup',
+            displayName: 'Reviewed mockup',
+            content: { sections: {}, status: 'BACKLOG' },
+          },
+        },
+      } as never);
+      const advice = vi
+        .spyOn(WorkItemTypesApi.prototype, 'getWorkItemTypeGuidanceBatch')
+        .mockResolvedValue({
+          data: {
+            success: true,
+            data: {
+              results: [
+                {
+                  typeKey: 'mockup',
+                  name: 'Mockup',
+                  sessionRole: 'research',
+                  guidance: 'READ THE REVIEWED MOCKUP CONTENT BEFORE AFFECTED WORK',
+                },
+              ],
+            },
+          },
+        } as never);
+      try {
+        const registry = new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES);
+        const handler = {
+          ...registry.get(LocalPromptType.Research)!,
+          sessionRole: 'research' as const,
+        };
+        await makeSubAgent({
+          session: makeSession({ provider }),
+          handler,
+          config: handler.childConfig!,
+          payload: {
+            userMessage: `Inspect @[mockup:${referenceId}|Reviewed mockup]`,
+            startupInput: {},
+          },
+          touchedFiles: [],
+          onAgentOutput: vi.fn(),
+          oauthClient: makeOauth(),
+          logger: makeLogger(),
+          cwd: '/tmp',
+          priorReports: [],
+        }).execute();
+        const request = (
+          provider === 'codex'
+            ? codexStartSessionMock.mock.calls[0]?.[0]
+            : startSessionMock.mock.calls[0]?.[0]
+        ) as { prompt: string };
+        expect(request.prompt.indexOf('READ THE REVIEWED MOCKUP')).toBeGreaterThanOrEqual(0);
+        expect(request.prompt.indexOf('READ THE REVIEWED MOCKUP')).toBeLessThan(
+          request.prompt.indexOf('Inspect @['),
+        );
+        expect(advice).toHaveBeenCalledWith(
+          expect.objectContaining({
+            workItemTypeGuidanceBatchRequestDto: {
+              typeKeys: ['mockup'],
+              purpose: 'role',
+              sessionRole: 'research',
+            },
+          }),
+        );
+      } finally {
+        context.mockRestore();
+        advice.mockRestore();
+      }
+    },
+  );
 
   it.each(['codex', 'claude'] as const)(
     'registered research children replace %s defaults',

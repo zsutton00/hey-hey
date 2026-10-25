@@ -268,6 +268,7 @@ export const implementHandler: UserLaunchablePromptTypeHandler<LocalImplementPro
       ...payload,
       ...(approvedVersion
         ? {
+            _approvedPlanMarkdown: approvedVersion.markdown,
             _approvedPlan: [
               approvedVersion.markdown,
               payload.planningDiscussion
@@ -282,6 +283,7 @@ export const implementHandler: UserLaunchablePromptTypeHandler<LocalImplementPro
       ...(approvedPlan
         ? {
             _approvedPlan: renderApprovedPlanMarkdown(approvedPlan),
+            _approvedPlanMarkdown: renderApprovedPlanMarkdown(approvedPlan),
             _approvedPlanPayload: approvedPlan,
           }
         : {}),
