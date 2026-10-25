@@ -338,6 +338,7 @@ export class CodexSdkClient {
    * Resolved when the initialize response arrives.
    */
   private handshakeResolve: ((value: void) => void) | null = null;
+  private handshakeReject: ((reason: Error) => void) | null = null;
 
   setCommand(command: string): void {
     this.commandOverride = command;
@@ -446,26 +447,23 @@ export class CodexSdkClient {
     this.setupReadline();
     this.setupSignalHandler(options?.signal);
 
-    const resultPromise = this.waitForResult();
-    await this.performHandshake();
-
-    const configOverrides = mergeExtraWritableDirsIntoConfig(
-      config.config,
-      config.extraWritableDirs,
-    );
-    const requestId = this.writeRequest('thread/resume', {
-      threadId,
-      ...(config.sandbox ? { sandbox: config.sandbox } : {}),
-      ...(config.model ? { model: config.model } : {}),
-      ...(config.serviceTier ? { serviceTier: config.serviceTier } : {}),
-      ...(configOverrides ? { config: configOverrides } : {}),
-    });
-    if (requestId !== null) {
-      this.pendingThreadRequestIds.add(requestId);
-    }
-
     try {
-      await resultPromise;
+      await this.waitForInitializedResult(() => {
+        const configOverrides = mergeExtraWritableDirsIntoConfig(
+          config.config,
+          config.extraWritableDirs,
+        );
+        const requestId = this.writeRequest('thread/resume', {
+          threadId,
+          ...(config.sandbox ? { sandbox: config.sandbox } : {}),
+          ...(config.model ? { model: config.model } : {}),
+          ...(config.serviceTier ? { serviceTier: config.serviceTier } : {}),
+          ...(configOverrides ? { config: configOverrides } : {}),
+        });
+        if (requestId !== null) {
+          this.pendingThreadRequestIds.add(requestId);
+        }
+      });
       return this.getContextUsage();
     } finally {
       this.resolvePendingOnTokenUsageSnapshot = false;
@@ -496,8 +494,9 @@ export class CodexSdkClient {
     };
 
     // Send initialize request and wait for response
-    const handshakePromise = new Promise<void>((resolve) => {
+    const handshakePromise = new Promise<void>((resolve, reject) => {
       this.handshakeResolve = resolve;
+      this.handshakeReject = reject;
       this.writeRequest('initialize', {
         clientInfo,
         capabilities,
@@ -536,11 +535,15 @@ export class CodexSdkClient {
     this.setupReadline();
     this.setupSignalHandler(options?.signal);
 
-    // Perform the initialize → initialized handshake before any other request
-    await this.performHandshake();
-    sendInitial();
+    return this.waitForInitializedResult(sendInitial);
+  }
 
-    return this.waitForResult();
+  private async waitForInitializedResult(sendInitial: () => void): Promise<void> {
+    // Register the result before initialization and observe both promises
+    // immediately. A spawn/pipe/handshake failure must reject the caller,
+    // including when it happens before initialize has replied.
+    const result = this.waitForResult();
+    await Promise.all([result, this.performHandshake().then(sendInitial)]);
   }
 
   /**
@@ -628,6 +631,11 @@ export class CodexSdkClient {
     const targetCommand = this.commandOverride ? process.execPath : 'codex';
     const targetArgs = this.commandOverride ? [this.commandOverride] : ['app-server'];
 
+    console.debug('[CodexSdkClient] process spawn started', {
+      command: targetCommand,
+      cwd: config.cwd,
+    });
+
     this.process = spawn(targetCommand, targetArgs, {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: config.cwd,
@@ -660,6 +668,11 @@ export class CodexSdkClient {
     });
 
     this.process.on('error', (err) => {
+      console.error('[CodexSdkClient] process spawn failed', {
+        command: targetCommand,
+        cwd: config.cwd,
+        error: err.message,
+      });
       this.rejectPending(new Error(`Process error: ${err.message}`));
       this.rejectPendingCompactRequests(() => new Error(`Process error: ${err.message}`));
       this.cleanup();
@@ -728,6 +741,7 @@ export class CodexSdkClient {
         // Resolve the handshake - the response carries server metadata we don't need to store
         this.handshakeResolve();
         this.handshakeResolve = null;
+        this.handshakeReject = null;
         console.debug('[CodexSdkClient] initialize handshake completed');
         return;
       }
@@ -957,7 +971,11 @@ export class CodexSdkClient {
     const reject = this.pendingReject;
     this.pendingResolve = null;
     this.pendingReject = null;
+    const rejectHandshake = this.handshakeReject;
+    this.handshakeResolve = null;
+    this.handshakeReject = null;
     reject?.(error);
+    rejectHandshake?.(error);
   }
 
   private setupSignalHandler(signal?: AbortSignal): void {
@@ -1100,6 +1118,7 @@ export class CodexSdkClient {
     this.latestModel = '';
     this.resolvePendingOnTokenUsageSnapshot = false;
     this.handshakeResolve = null;
+    this.handshakeReject = null;
     this.rejectPendingCompactRequests(() => new Error('Disconnected'));
   }
 }
