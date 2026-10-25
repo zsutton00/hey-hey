@@ -425,6 +425,11 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
           ) {
             rendered = (
               <TaskUpdateRenderer
+                presentationAction={
+                  future?.updates.operation === "REVISE"
+                    ? ProposalAction.VersionedUpdate
+                    : undefined
+                }
                 proposal={proposal}
                 existing={entityData.data}
                 status={status}
@@ -450,6 +455,11 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
           ) {
             rendered = (
               <DesignDocUpdateRenderer
+                presentationAction={
+                  future?.updates.operation === "REVISE"
+                    ? ProposalAction.VersionedUpdate
+                    : undefined
+                }
                 proposal={proposal}
                 existing={entityData.data}
                 status={status}

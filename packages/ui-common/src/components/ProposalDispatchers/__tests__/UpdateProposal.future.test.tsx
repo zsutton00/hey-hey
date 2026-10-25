@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ProposalAction,
+  type DesignDocResponseDto,
   type FutureRevisionContent,
   type FutureRevisionResponse,
   type ProposalResponseDto,
@@ -11,9 +12,14 @@ import {
   type WorkItemTypeDefinitionDto,
 } from "../../../api";
 import { UpdateProposal } from "../UpdateProposal";
+import { FutureApplyFooter } from "../FutureApplyFooter";
 
 const mocks = vi.hoisted(() => ({
-  entities: {} as Record<string, { type: "task"; data: TaskResponseDto }>,
+  entities: {} as Record<
+    string,
+    | { type: "task"; data: TaskResponseDto }
+    | { type: "designDoc"; data: DesignDocResponseDto }
+  >,
   definitions: [] as WorkItemTypeDefinitionDto[],
   proposal: undefined as ProposalResponseDto | undefined,
   readiness: vi.fn(),
@@ -64,6 +70,11 @@ vi.mock("../useEntityData", () => ({
   }),
 }));
 vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
+  useMentionWorkItemTypeKey: (
+    _org: string,
+    _project: string,
+    kind: string,
+  ) => ({ typeKey: kind?.toUpperCase(), isResolved: true }),
   useWorkItemTypeTrackingEligibility: () => ({
     isAllowed: true,
     isReady: true,
@@ -107,6 +118,9 @@ vi.mock("../../../contexts/PathServiceContext", () => ({
   usePathService: () => ({
     feature: ({ featureId }: { featureId: string }) => `/features/${featureId}`,
     task: ({ taskId }: { taskId: string }) => `/tasks/${taskId}`,
+    designDoc: ({ designDocId }: { designDocId: string }) =>
+      `/docs/${designDocId}`,
+    plan: ({ planId }: { planId: string }) => `/plans/${planId}`,
     proposal: ({ proposalId }: { proposalId: string }) =>
       `/proposals/${proposalId}`,
   }),
@@ -131,7 +145,13 @@ vi.mock("../ModeAvailabilitySummary", () => ({
   ModeAvailabilitySummary: () => null,
 }));
 vi.mock("../../Entity", () => ({
-  EntityLinkWithPreview: ({ label }: { label: string }) => <a>{label}</a>,
+  EntityLinkWithPreview: ({
+    label,
+    testId,
+  }: {
+    label: string;
+    testId?: string;
+  }) => <a data-testid={testId}>{label}</a>,
 }));
 vi.mock("../../SuggestedContent", () => ({
   DiffRenderer: ({
@@ -153,7 +173,8 @@ vi.mock("../ProposalStateIndicator", () => ({
   ),
 }));
 vi.mock("../ProposalEdges", () => ({ ProposalEdges: () => null }));
-vi.mock("../../InteractionComponent", () => ({
+vi.mock("../../InteractionComponent", async (original) => ({
+  ...(await original<object>()),
   InteractionComponent: ({
     entityTitle,
     children,
@@ -240,6 +261,15 @@ const reviewedFuture: FutureRevisionResponse = {
   latestProposalId: "future-proposal",
   baseline: { kind: "LIVE", revision: "r1", content: live },
   result,
+  dependencyPresentation: [
+    {
+      availability: "AVAILABLE",
+      targetEntityId: "cap-task",
+      title: "Cap Open Items at 100",
+      workItemType: "STANDARD",
+      status: "ACTIVE",
+    },
+  ],
   dependencies: [
     {
       edgeType: "DEPENDS_ON",
@@ -285,6 +315,14 @@ const futureProposal = (
       result,
       dependencies: new Set(reviewedFuture.dependencies),
     },
+    dependencyPresentation: [
+      {
+        availability: "AVAILABLE",
+        targetEntityId: "cap-task",
+        title: "Cap Open Items at 100",
+        workItemType: "STANDARD",
+      },
+    ],
     requestorId: "user",
     requiredApprovals: 1,
     approvals: [],
@@ -415,10 +453,185 @@ describe("UpdateProposal future revisions", () => {
     expect(screen.getByTestId("proposal-state")).toBeInTheDocument();
   });
 
+  it("carries deferred timing into the Design Doc comparison header", () => {
+    const doc = {
+      id: "doc",
+      name: "Review notes",
+      organizationId: "org",
+      projectId: "project",
+      status: "DRAFT",
+      template: "PLAN_DOCUMENT",
+      tags: [],
+      sections: [
+        {
+          id: "section",
+          key: "content",
+          order: 0,
+          materializedMarkdown: "Before",
+          materializedProposalId: "p0",
+        },
+      ],
+    } as DesignDocResponseDto;
+    mocks.entities.doc = { type: "designDoc", data: doc };
+    mount(
+      futureProposal({
+        targetEntityType: "DESIGN_DOC",
+        targetEntityId: "doc",
+        updates: {
+          operation: "REVISE",
+          futureId: "doc-future",
+          expectedRevision: 0,
+          baseline: { kind: "LIVE", revision: "doc-r1", content: doc },
+          result: {
+            ...doc,
+            sections: [{ ...doc.sections[0], materializedMarkdown: "After" }],
+          },
+          dependencies: new Set(reviewedFuture.dependencies),
+        },
+      }),
+    );
+    expect(screen.getByTestId("proposal-header-action")).toHaveTextContent(
+      "Updates after linked work",
+    );
+    expect(screen.getByTestId("proposal-title")).toHaveTextContent(
+      "Review notes",
+    );
+    expect(screen.getByTestId("general-diff")).toHaveTextContent(
+      /Before.*→.*After/,
+    );
+  });
+
+  it("replaces the preview with approved work status when approval refreshes before the parent", async () => {
+    const initial = futureProposal();
+    mocks.proposal = initial;
+    const ui = () => (
+      <MemoryRouter>
+        <FutureApplyFooter
+          proposal={initial}
+          approveControl={<button>Approve</button>}
+        />
+      </MemoryRouter>
+    );
+    const { rerender } = render(ui());
+    expect(screen.getByText("Approve")).toBeInTheDocument();
+    expect(mocks.readiness).not.toHaveBeenCalled();
+    mocks.proposal = { ...initial, status: "APPROVED", reviewedFuture };
+    rerender(ui());
+    await waitFor(() =>
+      expect(screen.getByText("Approved")).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("Approve")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Once approved/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("mention-badge")).toHaveAttribute(
+      "data-entity-type",
+      "standard",
+    );
+    expect(screen.getByText("In progress")).toBeInTheDocument();
+  });
+
+  it("keeps multiple pending work identities distinct and leaves approval with the group", () => {
+    const initial = futureProposal({
+      dependencyPresentation: [
+        {
+          availability: "AVAILABLE",
+          targetEntityId: "cap-task",
+          title: "Cap Open Items at 100",
+          workItemType: "STANDARD",
+        },
+        {
+          availability: "AVAILABLE",
+          targetEntityId: "bug",
+          title: "Clarify hidden items",
+          workItemType: "BUG",
+        },
+        {
+          availability: "AVAILABLE",
+          targetEntityId: "plan",
+          title: "Deliver triage",
+          workItemType: "PLAN",
+        },
+        { availability: "UNAVAILABLE", targetEntityId: "missing" },
+      ],
+    });
+    mocks.proposal = initial;
+    render(
+      <MemoryRouter>
+        <FutureApplyFooter
+          proposal={initial}
+          approveControl={<span>Needs approval</span>}
+        />
+      </MemoryRouter>,
+    );
+    expect(
+      screen
+        .getAllByTestId("mention-badge")
+        .map((b) => b.getAttribute("data-entity-type")),
+    ).toEqual(["standard", "bug", "plan"]);
+    expect(screen.getByText("Linked work unavailable")).toBeInTheDocument();
+    expect(screen.getByText("Needs approval")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Approve" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("future-apply")).toBeDisabled();
+    expect(mocks.readiness).not.toHaveBeenCalled();
+  });
+
+  it("copies multiple linked badges with canonical identity and readable HTML", () => {
+    const initial = futureProposal({
+      dependencyPresentation: [
+        {
+          availability: "AVAILABLE",
+          targetEntityId: "task",
+          title: "Implement cap",
+          workItemType: "STANDARD",
+        },
+        {
+          availability: "AVAILABLE",
+          targetEntityId: "bug",
+          title: "Repair count",
+          workItemType: "BUG",
+        },
+      ],
+    });
+    mocks.proposal = initial;
+    render(
+      <MemoryRouter>
+        <FutureApplyFooter
+          proposal={initial}
+          approveControl={<span>Needs approval</span>}
+        />
+      </MemoryRouter>,
+    );
+    const linked = screen.getByTestId("future-linked-work");
+    const range = document.createRange();
+    range.selectNodeContents(linked);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    const copied = new Map<string, string>();
+    const event = new Event("copy", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", {
+      value: {
+        setData: (type: string, value: string) => copied.set(type, value),
+      },
+    });
+    linked.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(copied.get("text/plain")).toBe(
+      "@[standard:task|Implement cap]@[bug:bug|Repair count]",
+    );
+    expect(copied.get("text/html")).toContain('data-entity-id="task"');
+    expect(copied.get("text/html")).toContain('data-entity-id="bug"');
+    selection?.removeAllRanges();
+  });
+
   it("renders a pending future as an ordinary Feature update card", () => {
     mount(futureProposal());
 
     const card = screen.getByRole("region", { name: "Update Feature" });
+    expect(
+      within(card).getByTestId("proposal-header-action"),
+    ).toHaveTextContent("Updates after linked work");
     expect(
       within(card).getByTestId("structured-requirements-diff"),
     ).toBeInTheDocument();
@@ -432,9 +645,9 @@ describe("UpdateProposal future revisions", () => {
     const footer = within(card).getByTestId("future-apply-footer");
     expect(footer).toHaveAttribute("data-state", "preview");
     expect(within(footer).getByTestId("proposal-state")).toBeInTheDocument();
-    expect(
-      within(footer).getByTestId("future-dependency-preview"),
-    ).toHaveTextContent("Cap Open Items at 100");
+    expect(within(footer).getByTestId("mention-badge")).toHaveTextContent(
+      "Cap Open Items at 100",
+    );
     expect(within(footer).queryByText("In progress")).not.toBeInTheDocument();
     expect(within(footer).getByTestId("future-apply")).toBeDisabled();
     expect(within(footer).getByTestId("future-waiting")).toHaveTextContent(
@@ -463,10 +676,10 @@ describe("UpdateProposal future revisions", () => {
       within(sequence).getByTestId("future-dependency"),
     ).toBeInTheDocument();
     expect(
-      within(sequence).getByRole("button", {
+      within(sequence).queryByRole("button", {
         name: "Refresh linked work status",
       }),
-    ).toBeInTheDocument();
+    ).not.toBeInTheDocument();
     expect(within(sequence).getByTestId("future-apply")).toBeDisabled();
     expect(
       within(sequence).queryByTestId("future-waiting"),

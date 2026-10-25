@@ -1,3 +1,4 @@
+import { readProposalDependencyPresentation } from './future-dependency-presentation';
 import {
   Injectable,
   Logger,
@@ -229,6 +230,10 @@ export class ProposalGroupService {
       preparedMembers.map(({ proposal }) => proposal),
     );
 
+    const dependencyPresentation = await readProposalDependencyPresentation(
+      db,
+      preparedMembers.map(({ proposal }) => proposal),
+    );
     const members = preparedMembers.map(
       ({
         member,
@@ -241,6 +246,7 @@ export class ProposalGroupService {
           requiredApprovals,
           reviewedFuturesByProposalId.get(proposal.id) ?? null,
           outOfDateStatus,
+          dependencyPresentation.get(proposal.id),
         );
         const approvalCount = reviewedProposal.approvals.filter(
           (record) => record.type === 'APPROVAL',

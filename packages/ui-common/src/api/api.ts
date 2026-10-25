@@ -8597,6 +8597,50 @@ export type AuthorizationProtocolVersion = typeof AuthorizationProtocolVersion[k
 
 
 /**
+ * 
+ * @export
+ * @interface AvailableFutureDependency
+ */
+export interface AvailableFutureDependency {
+    /**
+     * 
+     * @type {string}
+     * @memberof AvailableFutureDependency
+     */
+    'targetEntityId': string;
+    /**
+     * 
+     * @type {string}
+     * @memberof AvailableFutureDependency
+     */
+    'availability': AvailableFutureDependencyAvailabilityEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof AvailableFutureDependency
+     */
+    'title': string;
+    /**
+     * Actual registered work-item type key.
+     * @type {string}
+     * @memberof AvailableFutureDependency
+     */
+    'workItemType': string;
+    /**
+     * Current status on approved future reads only; absent on pending previews.
+     * @type {WorkStatus}
+     * @memberof AvailableFutureDependency
+     */
+    'status'?: WorkStatus;
+}
+
+export const AvailableFutureDependencyAvailabilityEnum = {
+    Available: 'AVAILABLE'
+} as const;
+
+export type AvailableFutureDependencyAvailabilityEnum = typeof AvailableFutureDependencyAvailabilityEnum[keyof typeof AvailableFutureDependencyAvailabilityEnum];
+
+/**
  * An MCP tool available in the context menu for a given viewing context. The tool\'s targetEntityType indicates what entity type the tool operates on, which may differ from the entity being viewed. 
  * @export
  * @interface AvailableMcpToolDto
@@ -37898,6 +37942,13 @@ export interface FutureCompletionEligibility {
     'blockers': Array<FutureCompletionBlocker>;
 }
 /**
+ * @type FutureDependencyPresentation
+ * Response-only display identity resolved in the authorized project. Never authored or frozen as reviewed mutation content.
+ * @export
+ */
+export type FutureDependencyPresentation = { availability: 'AVAILABLE' } & AvailableFutureDependency | { availability: 'UNAVAILABLE' } & UnavailableFutureDependency;
+
+/**
  * Same change shape as a live design-doc edit; status stays with the baseline.
  * @export
  * @interface FutureDesignDocChanges
@@ -38667,6 +38718,12 @@ export interface FutureRevisionResponse {
      * @memberof FutureRevisionResponse
      */
     'result': FutureRevisionContent;
+    /**
+     * 
+     * @type {Array<FutureDependencyPresentation>}
+     * @memberof FutureRevisionResponse
+     */
+    'dependencyPresentation': Array<FutureDependencyPresentation>;
     /**
      * 
      * @type {Array<FutureCompletionDependency>}
@@ -50373,6 +50430,49 @@ export interface ListProjectMembers200Response {
      * Request path
      * @type {string}
      * @memberof ListProjectMembers200Response
+     */
+    'path'?: string;
+}
+/**
+ * 
+ * @export
+ * @interface ListProjectReadyFutures200Response
+ */
+export interface ListProjectReadyFutures200Response {
+    /**
+     * Indicates if the request was successful
+     * @type {boolean}
+     * @memberof ListProjectReadyFutures200Response
+     */
+    'success': boolean;
+    /**
+     * Human-readable message about the operation
+     * @type {string}
+     * @memberof ListProjectReadyFutures200Response
+     */
+    'message': string;
+    /**
+     * 
+     * @type {ProjectReadyFuturesPage}
+     * @memberof ListProjectReadyFutures200Response
+     */
+    'data': ProjectReadyFuturesPage;
+    /**
+     * ISO timestamp of when the response was generated
+     * @type {string}
+     * @memberof ListProjectReadyFutures200Response
+     */
+    'timestamp': string;
+    /**
+     * HTTP status code
+     * @type {number}
+     * @memberof ListProjectReadyFutures200Response
+     */
+    'statusCode': number;
+    /**
+     * Request path
+     * @type {string}
+     * @memberof ListProjectReadyFutures200Response
      */
     'path'?: string;
 }
@@ -64960,6 +65060,18 @@ export type PlanShapingFeatureSyncIterateActionSchemasDISMISSEDActionEnum = type
  */
 export interface PlanShapingFeatureSyncIteratePromptPayload {
     /**
+     * Canonical delivering Plan identity from the persisted plan seed.
+     * @type {string}
+     * @memberof PlanShapingFeatureSyncIteratePromptPayload
+     */
+    'planId': string;
+    /**
+     * Authoritative design document from the persisted plan seed.
+     * @type {string}
+     * @memberof PlanShapingFeatureSyncIteratePromptPayload
+     */
+    'designDocId': string;
+    /**
      * The outstanding flagged items, each with its stable `id`, in the order the user saw them. 
      * @type {Array<FeatureSyncDiscrepancy>}
      * @memberof PlanShapingFeatureSyncIteratePromptPayload
@@ -68184,6 +68296,112 @@ export const ProjectModeSnapshotSchemaVersionEnum = {
 
 export type ProjectModeSnapshotSchemaVersionEnum = typeof ProjectModeSnapshotSchemaVersionEnum[keyof typeof ProjectModeSnapshotSchemaVersionEnum];
 
+/**
+ * 
+ * @export
+ * @interface ProjectReadyFuture
+ */
+export interface ProjectReadyFuture {
+    /**
+     * 
+     * @type {string}
+     * @memberof ProjectReadyFuture
+     */
+    'futureId': string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ProjectReadyFuture
+     */
+    'proposalId': string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ProjectReadyFuture
+     */
+    'proposalTitle': string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ProjectReadyFuture
+     */
+    'targetEntityId': string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ProjectReadyFuture
+     */
+    'targetEntityType': ProjectReadyFutureTargetEntityTypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof ProjectReadyFuture
+     */
+    'targetName': string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ProjectReadyFuture
+     */
+    'targetType': string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ProjectReadyFuture
+     */
+    'reviewGroupId'?: string;
+    /**
+     * 
+     * @type {FutureApplicability}
+     * @memberof ProjectReadyFuture
+     */
+    'applicability': FutureApplicability;
+}
+
+export const ProjectReadyFutureTargetEntityTypeEnum = {
+    Task: 'TASK',
+    DesignDoc: 'DESIGN_DOC'
+} as const;
+
+export type ProjectReadyFutureTargetEntityTypeEnum = typeof ProjectReadyFutureTargetEntityTypeEnum[keyof typeof ProjectReadyFutureTargetEntityTypeEnum];
+
+/**
+ * 
+ * @export
+ * @interface ProjectReadyFuturesPage
+ */
+export interface ProjectReadyFuturesPage {
+    /**
+     * 
+     * @type {Array<ProjectReadyFuture>}
+     * @memberof ProjectReadyFuturesPage
+     */
+    'items': Array<ProjectReadyFuture>;
+    /**
+     * Futures that could not be read individually. Other entries remain usable; retry to resolve these records.
+     * @type {number}
+     * @memberof ProjectReadyFuturesPage
+     */
+    'unavailableCount': number;
+    /**
+     * 
+     * @type {number}
+     * @memberof ProjectReadyFuturesPage
+     */
+    'total': number;
+    /**
+     * 
+     * @type {number}
+     * @memberof ProjectReadyFuturesPage
+     */
+    'limit': number;
+    /**
+     * 
+     * @type {number}
+     * @memberof ProjectReadyFuturesPage
+     */
+    'offset': number;
+}
 /**
  * Canonical activity after persisted scope and primary-subject exclusions. Stable canonical ordering and limit/offset semantics. Authorization is checked per page; absence of nextOffset ends the live read.
  * @export
@@ -71958,6 +72176,12 @@ export interface ProposalResponseDto {
      * @memberof ProposalResponseDto
      */
     'updates': ProposalUpdates;
+    /**
+     * Response-only linked-work identity for VERSIONED_UPDATE review, including pending and grouped previews. Pending responses omit live status. Not part of updates or frozen changes.
+     * @type {Array<FutureDependencyPresentation>}
+     * @memberof ProposalResponseDto
+     */
+    'dependencyPresentation'?: Array<FutureDependencyPresentation>;
     /**
      * API-owned reviewed future projection for VERSIONED_UPDATE proposals when a persisted future revision exists for updates.futureId; null otherwise.
      * @type {FutureRevisionResponse}
@@ -80023,6 +80247,18 @@ export type RunCreatePayloadPlanShapingFeatureSyncAnalyzePromptTypeEnum = typeof
  * @interface RunCreatePayloadPlanShapingFeatureSyncIterate
  */
 export interface RunCreatePayloadPlanShapingFeatureSyncIterate {
+    /**
+     * Canonical delivering Plan identity from the persisted plan seed.
+     * @type {string}
+     * @memberof RunCreatePayloadPlanShapingFeatureSyncIterate
+     */
+    'planId': string;
+    /**
+     * Authoritative design document from the persisted plan seed.
+     * @type {string}
+     * @memberof RunCreatePayloadPlanShapingFeatureSyncIterate
+     */
+    'designDocId': string;
     /**
      * The outstanding flagged items, each with its stable `id`, in the order the user saw them. 
      * @type {Array<FeatureSyncDiscrepancy>}
@@ -97335,6 +97571,32 @@ export interface UIInteractionEventAllOfDataChangesInner {
     'to'?: any;
 }
 /**
+ * Missing, inaccessible or archived linked work exposes no title, type or status.
+ * @export
+ * @interface UnavailableFutureDependency
+ */
+export interface UnavailableFutureDependency {
+    /**
+     * 
+     * @type {string}
+     * @memberof UnavailableFutureDependency
+     */
+    'targetEntityId': string;
+    /**
+     * 
+     * @type {string}
+     * @memberof UnavailableFutureDependency
+     */
+    'availability': UnavailableFutureDependencyAvailabilityEnum;
+}
+
+export const UnavailableFutureDependencyAvailabilityEnum = {
+    Unavailable: 'UNAVAILABLE'
+} as const;
+
+export type UnavailableFutureDependencyAvailabilityEnum = typeof UnavailableFutureDependencyAvailabilityEnum[keyof typeof UnavailableFutureDependencyAvailabilityEnum];
+
+/**
  * 
  * @export
  * @interface UngroupOpenItemsRequest
@@ -102002,6 +102264,18 @@ export interface UserMessageDataPlanShapingFeatureSyncIterate {
      */
     'provenance'?: UserMessageAgentInputProvenance;
     /**
+     * Canonical delivering Plan identity from the persisted plan seed.
+     * @type {string}
+     * @memberof UserMessageDataPlanShapingFeatureSyncIterate
+     */
+    'planId': string;
+    /**
+     * Authoritative design document from the persisted plan seed.
+     * @type {string}
+     * @memberof UserMessageDataPlanShapingFeatureSyncIterate
+     */
+    'designDocId': string;
+    /**
      * The outstanding flagged items, each with its stable `id`, in the order the user saw them. 
      * @type {Array<FeatureSyncDiscrepancy>}
      * @memberof UserMessageDataPlanShapingFeatureSyncIterate
@@ -103086,6 +103360,18 @@ export interface UserMessageFeatureSyncIterateContext {
  * @interface UserMessagePlanShapingFeatureSyncIterateContext
  */
 export interface UserMessagePlanShapingFeatureSyncIterateContext {
+    /**
+     * Canonical delivering Plan identity from the persisted plan seed.
+     * @type {string}
+     * @memberof UserMessagePlanShapingFeatureSyncIterateContext
+     */
+    'planId': string;
+    /**
+     * Authoritative design document from the persisted plan seed.
+     * @type {string}
+     * @memberof UserMessagePlanShapingFeatureSyncIterateContext
+     */
+    'designDocId': string;
     /**
      * 
      * @type {Array<FeatureSyncDiscrepancy>}
@@ -160135,6 +160421,58 @@ export const ProposalsApiAxiosParamCreator = function (configuration?: Configura
         },
         /**
          * 
+         * @summary List approved staged project futures with ready implementation work, including baseline drift
+         * @param {string} organizationId 
+         * @param {string} projectId 
+         * @param {number} [limit] 
+         * @param {number} [offset] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        listProjectReadyFutures: async (organizationId: string, projectId: string, limit?: number, offset?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('listProjectReadyFutures', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('listProjectReadyFutures', 'projectId', projectId)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/proposals/futures/ready`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+            if (limit !== undefined) {
+                localVarQueryParameter['limit'] = limit;
+            }
+
+            if (offset !== undefined) {
+                localVarQueryParameter['offset'] = offset;
+            }
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
          * @summary List unapplied futures that depend on a work item, with current-user readiness
          * @param {string} organizationId 
          * @param {string} projectId 
@@ -160867,6 +161205,22 @@ export const ProposalsApiFp = function(configuration?: Configuration) {
         },
         /**
          * 
+         * @summary List approved staged project futures with ready implementation work, including baseline drift
+         * @param {string} organizationId 
+         * @param {string} projectId 
+         * @param {number} [limit] 
+         * @param {number} [offset] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async listProjectReadyFutures(organizationId: string, projectId: string, limit?: number, offset?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ListProjectReadyFutures200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.listProjectReadyFutures(organizationId, projectId, limit, offset, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['ProposalsApi.listProjectReadyFutures']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * 
          * @summary List unapplied futures that depend on a work item, with current-user readiness
          * @param {string} organizationId 
          * @param {string} projectId 
@@ -161162,6 +161516,16 @@ export const ProposalsApiFactory = function (configuration?: Configuration, base
         },
         /**
          * 
+         * @summary List approved staged project futures with ready implementation work, including baseline drift
+         * @param {ProposalsApiListProjectReadyFuturesRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        listProjectReadyFutures(requestParameters: ProposalsApiListProjectReadyFuturesRequest, options?: RawAxiosRequestConfig): AxiosPromise<ListProjectReadyFutures200Response> {
+            return localVarFp.listProjectReadyFutures(requestParameters.organizationId, requestParameters.projectId, requestParameters.limit, requestParameters.offset, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * 
          * @summary List unapplied futures that depend on a work item, with current-user readiness
          * @param {ProposalsApiListProposalFutureOffersRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
@@ -161388,6 +161752,16 @@ export interface ProposalsApiInterface {
      * @memberof ProposalsApiInterface
      */
     getProposalReconciliation(requestParameters: ProposalsApiGetProposalReconciliationRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetProposalReconciliation200Response>;
+
+    /**
+     * 
+     * @summary List approved staged project futures with ready implementation work, including baseline drift
+     * @param {ProposalsApiListProjectReadyFuturesRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ProposalsApiInterface
+     */
+    listProjectReadyFutures(requestParameters: ProposalsApiListProjectReadyFuturesRequest, options?: RawAxiosRequestConfig): AxiosPromise<ListProjectReadyFutures200Response>;
 
     /**
      * 
@@ -161871,6 +162245,41 @@ export interface ProposalsApiGetProposalReconciliationRequest {
      * @memberof ProposalsApiGetProposalReconciliation
      */
     readonly proposalId: string
+}
+
+/**
+ * Request parameters for listProjectReadyFutures operation in ProposalsApi.
+ * @export
+ * @interface ProposalsApiListProjectReadyFuturesRequest
+ */
+export interface ProposalsApiListProjectReadyFuturesRequest {
+    /**
+     * 
+     * @type {string}
+     * @memberof ProposalsApiListProjectReadyFutures
+     */
+    readonly organizationId: string
+
+    /**
+     * 
+     * @type {string}
+     * @memberof ProposalsApiListProjectReadyFutures
+     */
+    readonly projectId: string
+
+    /**
+     * 
+     * @type {number}
+     * @memberof ProposalsApiListProjectReadyFutures
+     */
+    readonly limit?: number
+
+    /**
+     * 
+     * @type {number}
+     * @memberof ProposalsApiListProjectReadyFutures
+     */
+    readonly offset?: number
 }
 
 /**
@@ -162426,6 +162835,18 @@ export class ProposalsApi extends BaseAPI implements ProposalsApiInterface {
      */
     public getProposalReconciliation(requestParameters: ProposalsApiGetProposalReconciliationRequest, options?: RawAxiosRequestConfig) {
         return ProposalsApiFp(this.configuration).getProposalReconciliation(requestParameters.organizationId, requestParameters.projectId, requestParameters.proposalId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * 
+     * @summary List approved staged project futures with ready implementation work, including baseline drift
+     * @param {ProposalsApiListProjectReadyFuturesRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ProposalsApi
+     */
+    public listProjectReadyFutures(requestParameters: ProposalsApiListProjectReadyFuturesRequest, options?: RawAxiosRequestConfig) {
+        return ProposalsApiFp(this.configuration).listProjectReadyFutures(requestParameters.organizationId, requestParameters.projectId, requestParameters.limit, requestParameters.offset, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

@@ -42,6 +42,52 @@ function proposal(
 }
 
 describe('mapProposalResponses', () => {
+  it('carries response-only linked-work identity through single and collection reads', async () => {
+    const stored = {
+      ...proposal('preview', []),
+      action: 'VERSIONED_UPDATE',
+      updates: {
+        operation: 'REVISE',
+        dependencies: [
+          {
+            edgeType: 'DEPENDS_ON',
+            targetEntityType: 'TASK',
+            targetEntityId: 'bug',
+          },
+        ],
+      },
+      groupMembership: {
+        id: 'member',
+        groupId: 'group',
+        memberOrder: 0,
+        requiredApprovals: 1,
+        group: { status: 'REVIEWABLE', revision: 1, frozenRevision: 1 },
+      },
+      workItemChangeSetMaterialization: null,
+    } as unknown as ProposalWithApprovals;
+    const findMany = jest
+      .fn()
+      .mockResolvedValue([{ id: 'bug', name: 'Repair review', type: 'BUG' }]);
+    const tx = { task: { findMany } } as unknown as AnyTransactionClient;
+    const policy = createDefaultProjectApprovalPolicy();
+    const single = await mapProposalResponse(tx, stored, policy, {
+      requiredApprovals: 1,
+    });
+    const listed = await mapProposalResponses(tx, [stored], policy);
+    expect(listed).toHaveLength(1);
+    for (const response of [single, ...listed]) {
+      expect(response?.dependencyPresentation).toEqual([
+        {
+          targetEntityId: 'bug',
+          availability: 'AVAILABLE',
+          title: 'Repair review',
+          workItemType: 'BUG',
+        },
+      ]);
+      expect(response?.updates).toEqual(stored.updates);
+    }
+  });
+
   it('loads reviewed futures once for a page and leaves an absent first revision null', async () => {
     const reviewedProposal = (id: string, futureId: string) =>
       ({

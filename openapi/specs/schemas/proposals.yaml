@@ -697,6 +697,12 @@ ProposalResponseDto:
       description: Optional proposal-owned explanation captured at write time. Legacy proposals omit it.
     updates:
       $ref: "#/ProposalUpdates"
+    dependencyPresentation:
+      type: array
+      readOnly: true
+      description: Response-only linked-work identity for VERSIONED_UPDATE review, including pending and grouped previews. Pending responses omit live status. Not part of updates or frozen changes.
+      items:
+        $ref: "./future-revisions.yaml#/FutureDependencyPresentation"
     reviewedFuture:
       allOf:
         - $ref: "./future-revisions.yaml#/FutureRevisionResponse"

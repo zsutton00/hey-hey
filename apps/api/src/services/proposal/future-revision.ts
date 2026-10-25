@@ -1,3 +1,4 @@
+import { readDependencyPresentation } from './future-dependency-presentation';
 import {
   BadRequestException,
   ConflictException,
@@ -480,6 +481,16 @@ export async function readFutureRevisions(
       ]);
     }
 
+    const presentation = await readDependencyPresentation(
+      tx,
+      organizationId,
+      projectId,
+      [...dependenciesByTarget.values()],
+      true,
+    );
+    const presentationById = new Map(
+      presentation.map((p) => [p.targetEntityId, p]),
+    );
     for (const future of futures) {
       const dependencies = future.dependencies.map((dependency) => ({
         edgeType: 'DEPENDS_ON' as const,
@@ -512,6 +523,9 @@ export async function readFutureRevisions(
         baseline: future.baseline as unknown as FutureRevisionBaseline,
         result: future.result as unknown as FutureRevisionContent,
         dependencies,
+        dependencyPresentation: dependencies.map(
+          (d) => presentationById.get(d.targetEntityId)!,
+        ),
         history: future.history.map((entry) => ({
           revision: entry.revision,
           proposalId: entry.proposalId,
@@ -592,6 +606,17 @@ export async function readFutureRevision(
     ),
     baseline: future.baseline as unknown as FutureRevisionBaseline,
     result: future.result as unknown as FutureRevisionContent,
+    dependencyPresentation: await readDependencyPresentation(
+      tx,
+      organizationId,
+      projectId,
+      future.dependencies.map((dependency) => ({
+        edgeType: 'DEPENDS_ON',
+        targetEntityType: 'TASK',
+        targetEntityId: dependency.targetEntityId,
+      })),
+      true,
+    ),
     dependencies: future.dependencies.map((dependency) => ({
       edgeType: 'DEPENDS_ON',
       targetEntityType: 'TASK',

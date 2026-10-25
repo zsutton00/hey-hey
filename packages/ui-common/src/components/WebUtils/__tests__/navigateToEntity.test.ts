@@ -3,6 +3,16 @@ import { getPathService } from "../../../services";
 import { navigateToEntity } from "../navigateToEntity";
 
 describe("navigateToEntity", () => {
+  it("navigates Plan mentions to their plan route", async () => {
+    const navigate = vi.fn();
+    await navigateToEntity({
+      entity: { id: "plan-1", type: "plan", name: "Delivery" },
+      navigate,
+      projectId: "project-1",
+      pathService: getPathService(),
+    });
+    expect(navigate).toHaveBeenCalledWith("/projects/project-1/plans/plan-1");
+  });
   it("routes BUG entities through the task-backed work-item path", async () => {
     const navigate = vi.fn();
 

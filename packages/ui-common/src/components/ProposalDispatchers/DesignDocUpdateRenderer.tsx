@@ -28,6 +28,7 @@ import { useProposalHeaderTypeResolution } from "./proposalHeaderType";
  * content instead of the diff view.
  */
 export const DesignDocUpdateRenderer: React.FC<{
+  presentationAction?: ProposalAction;
   proposal: ProposalResponseDto & { updates: UpdateDesignDocDto };
   existing: DesignDocResponseDto;
   status: ProposalItemStatus;
@@ -44,6 +45,7 @@ export const DesignDocUpdateRenderer: React.FC<{
   footer?: React.ReactNode;
 }> = ({
   proposal: inputProposal,
+  presentationAction,
   existing: inputExisting,
   status,
   onApply,
@@ -86,6 +88,7 @@ export const DesignDocUpdateRenderer: React.FC<{
     <Stack spacing={1.5}>
       {!overrides?.hideHeader && (
         <ProposalTitle
+          presentationAction={presentationAction}
           proposal={proposal}
           resolvedTargetName={existing.name}
           typePresentation={typePresentation}

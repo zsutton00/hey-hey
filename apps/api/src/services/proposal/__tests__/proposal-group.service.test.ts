@@ -85,6 +85,52 @@ describe('ProposalGroupService', () => {
     };
   }
 
+  it('adds pending linked-work identity to canonical member responses without changing frozen mutation content', async () => {
+    const proposal = storedProposal('future-preview', [], {
+      action: 'VERSIONED_UPDATE',
+      updates: {
+        operation: 'REVISE',
+        dependencies: [
+          {
+            edgeType: 'DEPENDS_ON',
+            targetEntityType: 'TASK',
+            targetEntityId: 'work',
+          },
+        ],
+      },
+    });
+    const group = canonicalGroup(proposal);
+    const findMany = jest
+      .fn()
+      .mockResolvedValue([
+        { id: 'work', name: 'Implementation', type: 'STANDARD' },
+      ]);
+    const prisma = {
+      db: {
+        proposalGroup: { findFirst: jest.fn().mockResolvedValue(group) },
+        task: { findMany },
+      },
+    } as unknown as PrismaService;
+    const snapshot = await new ProposalGroupService(prisma).findOne(
+      'org-1' as OrganizationId,
+      'project-1' as ProjectId,
+      'group-1',
+    );
+    expect(snapshot.members).toHaveLength(1);
+    for (const member of snapshot.members) {
+      expect(member.proposal?.dependencyPresentation).toEqual([
+        {
+          targetEntityId: 'work',
+          availability: 'AVAILABLE',
+          title: 'Implementation',
+          workItemType: 'STANDARD',
+        },
+      ]);
+      expect(member.proposal?.updates).toEqual(proposal.updates);
+    }
+    expect(findMany).toHaveBeenCalledTimes(1);
+  });
+
   it('reads a scoped snapshot in persisted order and preserves per-member policy state', async () => {
     const findFirst = jest.fn().mockResolvedValue({
       id: 'group-1',

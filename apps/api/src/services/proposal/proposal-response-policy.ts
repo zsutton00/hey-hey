@@ -1,3 +1,4 @@
+import { readProposalDependencyPresentation } from './future-dependency-presentation';
 import { Logger, NotFoundException } from '@nestjs/common';
 import type { Proposal } from '@prisma/client';
 import type { ProposalOutOfDateStatus } from 'src/generated';
@@ -431,11 +432,15 @@ export async function mapProposalResponse(
     tx,
     proposalWithApprovals,
   );
+  const dependencyPresentation = await readProposalDependencyPresentation(tx, [
+    proposalWithApprovals,
+  ]);
   return toProposalResponseDto(
     proposalWithApprovals,
     requiredApprovals,
     reviewedFuturesByProposalId.get(proposal.id) ?? null,
     outOfDateStatus,
+    dependencyPresentation.get(proposal.id),
   );
 }
 
@@ -530,6 +535,10 @@ export async function mapProposalResponses(
     ),
   );
 
+  const dependencyPresentation = await readProposalDependencyPresentation(
+    tx,
+    resolvableProposals,
+  );
   return resolvableProposals.flatMap((proposal, index) => {
     const requiredApprovals = requiredById.get(proposal.id);
     if (requiredApprovals === null) {
@@ -550,6 +559,7 @@ export async function mapProposalResponses(
         requiredApprovals,
         reviewedFuturesByProposalId.get(proposal.id) ?? null,
         outOfDateStatus,
+        dependencyPresentation.get(proposal.id),
       ),
     ];
   });

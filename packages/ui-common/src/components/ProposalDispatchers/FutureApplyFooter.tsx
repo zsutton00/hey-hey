@@ -2,8 +2,12 @@ import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import CheckIcon from "@mui/icons-material/Check";
 import { Alert, Button, Chip, Stack, Typography } from "@mui/material";
 import { Fragment, type ReactNode } from "react";
-import type { ProposalResponseDto } from "../../api";
+import type {
+  FutureDependencyPresentation,
+  ProposalResponseDto,
+} from "../../api";
 import { useProposal } from "../../data/hooks/useProposal";
+import { MentionCopyBoundary } from "../shared/MentionCopyBoundary";
 import { FutureApplication } from "../ProposalDetail/FutureApplication";
 import {
   FutureDependency,
@@ -11,15 +15,11 @@ import {
 } from "../ProposalDetail/FutureDependency";
 import { FutureProposalLink } from "../ProposalDetail/FutureProposalLink";
 
-const joinNames = (
-  taskIds: string[],
-  organizationId: string,
-  projectId: string,
-) =>
-  taskIds.map((taskId, index) => (
-    <Fragment key={taskId}>
-      {index > 0 && (index === taskIds.length - 1 ? " and " : ", ")}
-      <FutureDependencyName {...{ organizationId, projectId, taskId }} />
+const joinNames = (dependencies: readonly FutureDependencyPresentation[]) =>
+  dependencies.map((dependency, index) => (
+    <Fragment key={dependency.targetEntityId}>
+      {index > 0 && (index === dependencies.length - 1 ? " and " : ", ")}
+      <FutureDependencyName dependency={dependency} />
     </Fragment>
   ));
 
@@ -31,16 +31,26 @@ const joinNames = (
  * and Apply follows the API (completion eligibility and applicability); this
  * footer never infers readiness.
  */
-export function FutureApplyFooter({
-  proposal: initial,
-  onApplied,
-  approveControl,
-}: {
+interface FutureApplyFooterProps {
   proposal: ProposalResponseDto;
   onApplied?: (id: string) => Promise<void> | void;
   /** Present until approval; replaces the Approved step. */
   approveControl?: ReactNode;
-}) {
+}
+
+export function FutureApplyFooter(props: FutureApplyFooterProps) {
+  return (
+    <MentionCopyBoundary>
+      <FutureApplyFooterContent {...props} />
+    </MentionCopyBoundary>
+  );
+}
+
+function FutureApplyFooterContent({
+  proposal: initial,
+  onApplied,
+  approveControl,
+}: FutureApplyFooterProps) {
   const { organizationId, projectId } = initial;
   const { proposal, refetch } = useProposal(
     organizationId,
@@ -48,13 +58,10 @@ export function FutureApplyFooter({
     initial.id,
   );
   const current = proposal ?? initial;
-  if (approveControl) {
-    const updates = initial.updates as {
-      dependencies?: Iterable<{ targetEntityId: string }>;
-    };
-    const linked = Array.from(updates.dependencies ?? []).map(
-      (dependency) => dependency.targetEntityId,
-    );
+  if (approveControl && current.status !== "APPROVED") {
+    const linked = current.dependencyPresentation;
+    if (!linked)
+      return <Alert severity="warning">Linked work identity unavailable</Alert>;
     return (
       <Stack spacing={1} data-testid="future-apply-footer" data-state="preview">
         <Stack
@@ -62,24 +69,37 @@ export function FutureApplyFooter({
           spacing={1}
           alignItems="center"
           flexWrap="nowrap"
+          sx={{
+            minWidth: 0,
+            overflowX: "auto",
+            "& > :not([data-testid=future-linked-work])": { flexShrink: 0 },
+          }}
           useFlexGap
         >
           {approveControl}
           {linked.length > 0 && (
             <ArrowForwardIcon fontSize="small" color="disabled" />
           )}
-          {linked.map((taskId) => (
-            <Typography
-              key={taskId}
-              variant="body2"
-              color="text.secondary"
-              data-testid="future-dependency-preview"
+          {linked.length > 0 && (
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{
+                minWidth: 0,
+                flex: 1,
+                overflowX: "auto",
+                "& > *": { flexShrink: 0 },
+              }}
+              data-testid="future-linked-work"
             >
-              <FutureDependencyName
-                {...{ organizationId, projectId, taskId }}
-              />
-            </Typography>
-          ))}
+              {linked.map((dependency) => (
+                <FutureDependency
+                  key={dependency.targetEntityId}
+                  {...{ organizationId, projectId, dependency }}
+                />
+              ))}
+            </Stack>
+          )}
           <ArrowForwardIcon fontSize="small" color="disabled" />
           <Button
             size="small"
@@ -98,9 +118,8 @@ export function FutureApplyFooter({
         >
           {linked.length > 0 ? (
             <>
-              Once approved, this change waits for{" "}
-              {joinNames(linked, organizationId, projectId)} to reach Verifying.
-              You'll be asked to apply it then.
+              Once approved, this change waits for {joinNames(linked)} to reach
+              Verifying. You'll be asked to apply it then.
             </>
           ) : (
             "Once approved, you can apply this change."
@@ -119,8 +138,14 @@ export function FutureApplyFooter({
   if (future.outcome === "CANCELLED")
     return <Alert severity="info">This approved change was cancelled.</Alert>;
 
-  const waitingOn = future.completionEligibility.blockers.map(
-    (blocker) => blocker.dependency.targetEntityId,
+  const waitingIds = new Set(
+    future.completionEligibility.blockers.map(
+      (blocker) => blocker.dependency.targetEntityId,
+    ),
+  );
+  const linked = future.dependencyPresentation;
+  const waitingOn = linked.filter((dependency) =>
+    waitingIds.has(dependency.targetEntityId),
   );
   const refinements = Array.from(future.outstandingRefinementProposalIds);
 
@@ -129,6 +154,9 @@ export function FutureApplyFooter({
       <FutureApplication
         key={future.id}
         future={future}
+        onRefresh={async () => {
+          await refetch();
+        }}
         reconciliationProposal={current}
         reviewSteps={
           <>
@@ -142,13 +170,26 @@ export function FutureApplyFooter({
             {future.dependencies.length > 0 && (
               <ArrowForwardIcon fontSize="small" color="disabled" />
             )}
-            {future.dependencies.map((dependency) => (
-              <FutureDependency
-                key={dependency.targetEntityId}
-                {...{ organizationId, projectId }}
-                taskId={dependency.targetEntityId}
-              />
-            ))}
+            {linked.length > 0 && (
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{
+                  minWidth: 0,
+                  flex: 1,
+                  overflowX: "auto",
+                  "& > *": { flexShrink: 0 },
+                }}
+                data-testid="future-linked-work"
+              >
+                {linked.map((dependency) => (
+                  <FutureDependency
+                    key={dependency.targetEntityId}
+                    {...{ organizationId, projectId, dependency }}
+                  />
+                ))}
+              </Stack>
+            )}
           </>
         }
         onApplied={async () => {
@@ -158,10 +199,9 @@ export function FutureApplyFooter({
         waitingNote={
           waitingOn.length > 0 ? (
             <>
-              Waiting for {joinNames(waitingOn, organizationId, projectId)}.
-              You'll be asked to apply this change when{" "}
-              {waitingOn.length > 1 ? "they reach" : "it reaches"} Verifying.
-              Refresh checks the status again.
+              Waiting for {joinNames(waitingOn)}. You'll be asked to apply this
+              change when {waitingOn.length > 1 ? "they reach" : "it reaches"}{" "}
+              Verifying. Refresh checks the status again.
             </>
           ) : undefined
         }

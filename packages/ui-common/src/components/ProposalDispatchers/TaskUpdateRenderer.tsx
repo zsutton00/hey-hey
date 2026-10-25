@@ -75,6 +75,7 @@ import { useModeAvailability } from "./modeAvailability";
  * content instead of the diff view.
  */
 export const TaskUpdateRenderer: React.FC<{
+  presentationAction?: ProposalAction;
   proposal: ProposalResponseDto & { updates: UpdateTaskProposalUpdates };
   existing: TaskResponseDto;
   status: ProposalItemStatus;
@@ -92,6 +93,7 @@ export const TaskUpdateRenderer: React.FC<{
   workItemTypeDefinition: WorkItemTypeDefinitionDto;
 }> = ({
   proposal: inputProposal,
+  presentationAction,
   existing: inputExisting,
   status,
   onApply,
@@ -458,6 +460,7 @@ export const TaskUpdateRenderer: React.FC<{
     <Stack spacing={1.5}>
       {!overrides?.hideHeader && (
         <ProposalTitle
+          presentationAction={presentationAction}
           proposal={proposal}
           resolvedTargetName={existing.name}
           typePresentation={resolveWorkItemTypePresentation(

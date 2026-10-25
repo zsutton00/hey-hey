@@ -49,6 +49,7 @@ interface ResolvedProposalTitleTarget extends Omit<
 
 export interface ProposalTitleProps {
   proposal: ProposalResponseDto;
+  presentationAction?: ProposalAction;
   typePresentation: ProposalHeaderTypePresentation;
   /** Concrete materialized target data for CREATE titles that are not yet approved. */
   target?: ProposalTitleTarget;
@@ -89,6 +90,7 @@ const renderTitleMarkup = (
 
 export const ProposalTitle: FC<ProposalTitleProps> = ({
   proposal,
+  presentationAction,
   typePresentation,
   target,
   resolvedTargetName,
@@ -184,6 +186,7 @@ export const ProposalTitle: FC<ProposalTitleProps> = ({
         {!hideHeaderMetadata && (
           <ProposalHeader
             proposal={proposal}
+            presentationAction={presentationAction}
             typePresentation={typePresentation}
             hideTypeChip={hideTypeChip}
             typeTestId={typeTestId}

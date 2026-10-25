@@ -1,3 +1,33 @@
+ProjectReadyFuture:
+  type: object
+  required: [futureId, proposalId, proposalTitle, targetEntityId, targetEntityType, targetName, targetType, applicability]
+  properties:
+    futureId: {type: string, format: uuid}
+    proposalId: {type: string, format: uuid}
+    proposalTitle: {type: string}
+    targetEntityId: {type: string, format: uuid}
+    targetEntityType: {type: string, enum: [TASK, DESIGN_DOC]}
+    targetName: {type: string}
+    targetType: {type: string}
+    reviewGroupId: {type: string, format: uuid}
+    applicability:
+      $ref: "#/FutureApplicability"
+
+ProjectReadyFuturesPage:
+  type: object
+  required: [items, total, limit, offset, unavailableCount]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: "#/ProjectReadyFuture"
+    unavailableCount:
+      type: integer
+      description: Futures that could not be read individually. Other entries remain usable; retry to resolve these records.
+    total: {type: integer}
+    limit: {type: integer}
+    offset: {type: integer}
+
 FutureApplicability:
   type: object
   required: [revision, canApply, blockers, completionEligibility]
@@ -79,6 +109,51 @@ FutureCompletionDependency:
     targetEntityId:
       type: string
       format: uuid
+
+FutureDependencyPresentation:
+  description: Response-only display identity resolved in the authorized project. Never authored or frozen as reviewed mutation content.
+  oneOf:
+    - $ref: "#/AvailableFutureDependency"
+    - $ref: "#/UnavailableFutureDependency"
+  discriminator:
+    propertyName: availability
+    mapping:
+      AVAILABLE: "#/AvailableFutureDependency"
+      UNAVAILABLE: "#/UnavailableFutureDependency"
+
+AvailableFutureDependency:
+  type: object
+  additionalProperties: false
+  required: [targetEntityId, availability, title, workItemType]
+  properties:
+    targetEntityId:
+      type: string
+      format: uuid
+    availability:
+      type: string
+      enum: [AVAILABLE]
+    title:
+      type: string
+    workItemType:
+      type: string
+      description: Actual registered work-item type key.
+    status:
+      allOf:
+        - $ref: "common.yaml#/WorkStatus"
+      description: Current status on approved future reads only; absent on pending previews.
+
+UnavailableFutureDependency:
+  type: object
+  additionalProperties: false
+  required: [targetEntityId, availability]
+  description: Missing, inaccessible or archived linked work exposes no title, type or status.
+  properties:
+    targetEntityId:
+      type: string
+      format: uuid
+    availability:
+      type: string
+      enum: [UNAVAILABLE]
 
 FutureRevisionUpdate:
   type: object
@@ -326,7 +401,7 @@ FutureCompletionEligibility:
 
 FutureRevisionResponse:
   type: object
-  required: [id, organizationId, projectId, targetEntityType, targetEntityId, revision, outcome, originatingProposalId, latestProposalId, baseline, result, dependencies, history, outstandingRefinementProposalIds, completionEligibility]
+  required: [id, organizationId, projectId, targetEntityType, targetEntityId, revision, outcome, originatingProposalId, latestProposalId, baseline, result, dependencies, dependencyPresentation, history, outstandingRefinementProposalIds, completionEligibility]
   properties:
     id:
       type: string
@@ -359,6 +434,11 @@ FutureRevisionResponse:
       $ref: "#/FutureRevisionBaseline"
     result:
       $ref: "#/FutureRevisionContent"
+    dependencyPresentation:
+      type: array
+      readOnly: true
+      items:
+        $ref: "#/FutureDependencyPresentation"
     dependencies:
       type: array
       items:

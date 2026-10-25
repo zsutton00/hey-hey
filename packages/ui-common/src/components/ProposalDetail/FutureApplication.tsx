@@ -52,6 +52,7 @@ export function FutureApplication({
   reconciliationProposal,
   waitingNote,
   reviewSteps,
+  onRefresh,
 }: {
   future: FutureRevisionResponse;
   onApplied: () => Promise<void>;
@@ -60,6 +61,7 @@ export function FutureApplication({
   waitingNote?: ReactNode;
   /** Approval and linked work share the action row. */
   reviewSteps?: ReactNode;
+  onRefresh?: () => Promise<void>;
 }) {
   const { organizationId, projectId, id: futureId } = future;
   const [response, setResponse] = useState<FutureApplyResponse | null>(null);
@@ -120,7 +122,9 @@ export function FutureApplication({
     response?.status === "APPLIED" || future.outcome === "APPLIED";
   const reconciliationRequired =
     applicability.data?.blockers.includes("BASELINE_CHANGED") ||
-    response?.blocker === "BASELINE_CHANGED";
+    applicability.data?.blockers.includes("BASELINE_UNAVAILABLE") ||
+    response?.blocker === "BASELINE_CHANGED" ||
+    response?.blocker === "BASELINE_UNAVAILABLE";
   const ready =
     applicability.data?.canApply &&
     applicability.data.revision === future.revision;
@@ -140,25 +144,14 @@ export function FutureApplication({
             direction="row"
             spacing={1}
             alignItems="center"
-            sx={{ flexWrap: "nowrap", overflowX: "auto" }}
+            sx={{
+              flexWrap: "nowrap",
+              overflowX: "auto",
+              "& > :not([data-testid=future-linked-work])": { flexShrink: 0 },
+            }}
             data-testid="future-review-sequence"
           >
             {reviewSteps}
-            {!ready && (
-              <Tooltip title="Refresh linked work status">
-                <span>
-                  <IconButton
-                    size="small"
-                    aria-label="Refresh linked work status"
-                    data-testid="future-refresh-readiness"
-                    disabled={applicability.isFetching}
-                    onClick={() => void applicability.refetch()}
-                  >
-                    <RefreshIcon fontSize="small" />
-                  </IconButton>
-                </span>
-              </Tooltip>
-            )}
             {reviewSteps && (
               <ArrowForwardIcon fontSize="small" color="disabled" />
             )}
@@ -174,6 +167,26 @@ export function FutureApplication({
               {apply.isPending ? "Applying…" : "Apply"}
             </Button>
           </Stack>
+          {!ready && (
+            <Tooltip title="Refresh linked work status">
+              <span>
+                <IconButton
+                  size="small"
+                  aria-label="Refresh linked work status"
+                  data-testid="future-refresh-readiness"
+                  disabled={applicability.isFetching}
+                  onClick={() =>
+                    void (async () => {
+                      await onRefresh?.();
+                      await applicability.refetch();
+                    })()
+                  }
+                >
+                  <RefreshIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+          )}
           {applicability.isPending && (
             <Typography variant="body2">
               Checking whether this can be applied…

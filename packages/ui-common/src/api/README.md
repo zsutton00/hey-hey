@@ -390,6 +390,7 @@ Class | Method | HTTP request | Description
 *ProposalsApi* | [**getProposalFutureApplicability**](docs/ProposalsApi.md#getproposalfutureapplicability) | **GET** /organizations/{organizationId}/projects/{projectId}/proposals/futures/{futureId}/applicability | Check current-user future application readiness without applying
 *ProposalsApi* | [**getProposalGroup**](docs/ProposalsApi.md#getproposalgroup) | **GET** /organizations/{organizationId}/projects/{projectId}/proposal-groups/{groupId} | Get a canonical proposal group
 *ProposalsApi* | [**getProposalReconciliation**](docs/ProposalsApi.md#getproposalreconciliation) | **GET** /organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/reconciliation | Prepare standalone clean UPDATE review on the same proposal and read reconciliation history
+*ProposalsApi* | [**listProjectReadyFutures**](docs/ProposalsApi.md#listprojectreadyfutures) | **GET** /organizations/{organizationId}/projects/{projectId}/proposals/futures/ready | List approved staged project futures with ready implementation work, including baseline drift
 *ProposalsApi* | [**listProposalFutureOffers**](docs/ProposalsApi.md#listproposalfutureoffers) | **GET** /organizations/{organizationId}/projects/{projectId}/proposals/futures | List unapplied futures that depend on a work item, with current-user readiness
 *ProposalsApi* | [**listProposals**](docs/ProposalsApi.md#listproposals) | **GET** /organizations/{organizationId}/projects/{projectId}/proposals | List proposals
 *ProposalsApi* | [**rejectProposal**](docs/ProposalsApi.md#rejectproposal) | **POST** /organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/reject | Reject a proposal
@@ -759,6 +760,7 @@ Class | Method | HTTP request | Description
  - [AuthorityReductionAppliedAcknowledgement](docs/AuthorityReductionAppliedAcknowledgement.md)
  - [AuthorityReductionRejectedAcknowledgement](docs/AuthorityReductionRejectedAcknowledgement.md)
  - [AuthorizationProtocolVersion](docs/AuthorizationProtocolVersion.md)
+ - [AvailableFutureDependency](docs/AvailableFutureDependency.md)
  - [AvailableMcpToolDto](docs/AvailableMcpToolDto.md)
  - [AvailableSkipNode](docs/AvailableSkipNode.md)
  - [AvailableSkipNodesResponseDto](docs/AvailableSkipNodesResponseDto.md)
@@ -1537,6 +1539,7 @@ Class | Method | HTTP request | Description
  - [FutureCompletionBlocker](docs/FutureCompletionBlocker.md)
  - [FutureCompletionDependency](docs/FutureCompletionDependency.md)
  - [FutureCompletionEligibility](docs/FutureCompletionEligibility.md)
+ - [FutureDependencyPresentation](docs/FutureDependencyPresentation.md)
  - [FutureDesignDocChanges](docs/FutureDesignDocChanges.md)
  - [FutureDesignDocSectionChange](docs/FutureDesignDocSectionChange.md)
  - [FutureRevisionAuthoring](docs/FutureRevisionAuthoring.md)
@@ -1875,6 +1878,7 @@ Class | Method | HTTP request | Description
  - [ListProjectFeatures200Response](docs/ListProjectFeatures200Response.md)
  - [ListProjectHintsResponse](docs/ListProjectHintsResponse.md)
  - [ListProjectMembers200Response](docs/ListProjectMembers200Response.md)
+ - [ListProjectReadyFutures200Response](docs/ListProjectReadyFutures200Response.md)
  - [ListProjectReports200Response](docs/ListProjectReports200Response.md)
  - [ListProposalFutureOffers200Response](docs/ListProposalFutureOffers200Response.md)
  - [ListProposals200Response](docs/ListProposals200Response.md)
@@ -2417,6 +2421,8 @@ Class | Method | HTTP request | Description
  - [ProjectModeSelection](docs/ProjectModeSelection.md)
  - [ProjectModeSettings](docs/ProjectModeSettings.md)
  - [ProjectModeSnapshot](docs/ProjectModeSnapshot.md)
+ - [ProjectReadyFuture](docs/ProjectReadyFuture.md)
+ - [ProjectReadyFuturesPage](docs/ProjectReadyFuturesPage.md)
  - [ProjectReportActivityPageDto](docs/ProjectReportActivityPageDto.md)
  - [ProjectReportAttempt](docs/ProjectReportAttempt.md)
  - [ProjectReportBody](docs/ProjectReportBody.md)
@@ -3194,6 +3200,7 @@ Class | Method | HTTP request | Description
  - [UIInteractionEvent](docs/UIInteractionEvent.md)
  - [UIInteractionEventAllOfData](docs/UIInteractionEventAllOfData.md)
  - [UIInteractionEventAllOfDataChangesInner](docs/UIInteractionEventAllOfDataChangesInner.md)
+ - [UnavailableFutureDependency](docs/UnavailableFutureDependency.md)
  - [UngroupOpenItemsRequest](docs/UngroupOpenItemsRequest.md)
  - [UnifiedBatchGraphSearchOptions](docs/UnifiedBatchGraphSearchOptions.md)
  - [UnifiedBatchSearchGlobalOptions](docs/UnifiedBatchSearchGlobalOptions.md)
