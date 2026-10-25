@@ -532,6 +532,18 @@ describe('codingPlanHandler', () => {
   });
 
   describe('buildPrompt', () => {
+    it('delivers the section readability guidance and example in the effective planner prompt', () => {
+      const prompt = codingPlanHandler.buildPrompt(makePayload());
+      expect(prompt).toContain(
+        'Open each substantive section of the complete plan with a short, bold paragraph explaining in accessible language why the change is needed and what the user or system gains.',
+      );
+      expect(prompt).toContain('not a required section schema');
+      expect(prompt).toContain('without adding another heading or using a blockquote');
+      expect(prompt).toContain(
+        '**People should be able to understand the proposed change before reviewing its engineering details. Each section explains the reason for the work and its expected benefit first.**\n\n- Bold the opening paragraph.\n- Follow with distinct implementation instructions while retaining necessary qualifications and references.',
+      );
+    });
+
     it('persists conversational context and reserves approval for explicit user control', () => {
       const prompt = codingPlanHandler.buildPrompt(makePayload());
       expect(prompt).toContain('emit_coding_plan');
