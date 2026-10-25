@@ -1,3 +1,5 @@
+import { useModalState } from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import {
   extractProposalApprovalFailureDiagnostic,
   ProposalFailureDiagnostic,
@@ -58,7 +60,6 @@ import {
   Checkbox,
   Chip,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -395,7 +396,8 @@ export const WorkItemTypeFormPage: React.FC = () => {
   const [impactConfirmed, setImpactConfirmed] = useState(false);
   const [pendingCanonicalDefinition, setPendingCanonicalDefinition] =
     useState<WorkItemTypeDefinitionDto | null>(null);
-  const [hardDeleteOpen, setHardDeleteOpen] = useState(false);
+  const [hardDeleteOpen, setHardDeleteOpen, hardDeleteOpenOwnerKey] =
+    useModalState(false);
   const [hardDeleteConfirmation, setHardDeleteConfirmation] = useState("");
   const [cascadeImpactOverride, setCascadeImpactOverride] =
     useState<WorkItemTypeCascadeImpactDto | null>(null);
@@ -2697,6 +2699,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
       </Dialog>
 
       <Dialog
+        ownerKey={hardDeleteOpenOwnerKey}
         open={hardDeleteOpen}
         onClose={handleCloseHardDelete}
         maxWidth="sm"

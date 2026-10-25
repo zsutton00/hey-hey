@@ -1,3 +1,5 @@
+import { useModalState } from "../Modals/useModalState";
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import {
   ProposalReconciliationReview,
   ProposalReconciliationContext,
@@ -7,7 +9,6 @@ import {
   Button,
   Chip,
   Collapse,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -401,7 +402,8 @@ const MemberDecisionControls: React.FC<{
   isDeciding,
 }) => {
   const reconciliation = React.useContext(ProposalReconciliationContext);
-  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejectDialogOpen, setRejectDialogOpen, rejectDialogOpenOwnerKey] =
+    useModalState(false);
   const [rejectReason, setRejectReason] = useState("");
   const actionability = getMemberActionability(member);
   const submitRejection = useCallback(async () => {
@@ -464,6 +466,7 @@ const MemberDecisionControls: React.FC<{
         </Button>
       </Stack>
       <Dialog
+        ownerKey={rejectDialogOpenOwnerKey}
         open={rejectDialogOpen}
         onClose={() => setRejectDialogOpen(false)}
         maxWidth="sm"

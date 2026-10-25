@@ -1,10 +1,10 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import {
   Accordion,
   AccordionDetails,
   AccordionSummary,
   Box,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,

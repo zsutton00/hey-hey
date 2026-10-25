@@ -1,3 +1,4 @@
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import {
   WorkflowName,
   type ConversationResponseDto,
@@ -7,7 +8,6 @@ import {
   Box,
   Button,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -37,7 +37,7 @@ export interface GoalConversationTocProps {
 
 const conversationLabel = (
   conversation: ConversationResponseDto,
-  index: number
+  index: number,
 ): string => {
   const title = conversation.title?.trim();
   if (title) return title;
@@ -73,10 +73,10 @@ export const GoalConversationToc: React.FC<GoalConversationTocProps> = ({
       .sort(
         (left, right) =>
           new Date(right.updatedAt).getTime() -
-          new Date(left.updatedAt).getTime()
+          new Date(left.updatedAt).getTime(),
       );
     const root = sorted.find(
-      (conversation) => conversation.workflowName === WorkflowName.GoalPm
+      (conversation) => conversation.workflowName === WorkflowName.GoalPm,
     );
     return root
       ? [root, ...sorted.filter((conversation) => conversation.id !== root.id)]
@@ -113,7 +113,9 @@ export const GoalConversationToc: React.FC<GoalConversationTocProps> = ({
       onConversationArchived(archivedConversationId);
     } catch (error) {
       setArchiveError(
-        error instanceof Error ? error.message : "Could not archive conversation.",
+        error instanceof Error
+          ? error.message
+          : "Could not archive conversation.",
       );
     }
   }, [
@@ -124,7 +126,8 @@ export const GoalConversationToc: React.FC<GoalConversationTocProps> = ({
     projectId,
   ]);
 
-  const archivedTitle = conversationToArchive?.title?.trim() || "Untitled Conversation";
+  const archivedTitle =
+    conversationToArchive?.title?.trim() || "Untitled Conversation";
 
   return (
     <Box
@@ -185,8 +188,8 @@ export const GoalConversationToc: React.FC<GoalConversationTocProps> = ({
                 conversation.workflowName === WorkflowName.GoalPm;
               const canArchive = Boolean(
                 !isGoalPm &&
-                  currentUserId &&
-                  conversation.createdBy === currentUserId,
+                currentUserId &&
+                conversation.createdBy === currentUserId,
               );
               return (
                 <ListItemButton
@@ -204,7 +207,7 @@ export const GoalConversationToc: React.FC<GoalConversationTocProps> = ({
                         : conversationLabel(conversation, index)
                     }
                     secondary={new Date(
-                      conversation.updatedAt || conversation.createdAt
+                      conversation.updatedAt || conversation.createdAt,
                     ).toLocaleString()}
                     primaryTypographyProps={{ noWrap: true }}
                     secondaryTypographyProps={{ noWrap: true }}
@@ -240,8 +243,8 @@ export const GoalConversationToc: React.FC<GoalConversationTocProps> = ({
         </DialogTitle>
         <DialogContent>
           <Typography>
-            “{archivedTitle}” will be removed from this goal’s conversation list.
-            You can restore it later. No messages will be deleted.
+            “{archivedTitle}” will be removed from this goal’s conversation
+            list. You can restore it later. No messages will be deleted.
           </Typography>
           {archiveError && (
             <Alert severity="error" sx={{ mt: 2 }}>
@@ -250,7 +253,10 @@ export const GoalConversationToc: React.FC<GoalConversationTocProps> = ({
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseArchive} disabled={deleteConversation.isPending}>
+          <Button
+            onClick={handleCloseArchive}
+            disabled={deleteConversation.isPending}
+          >
             Cancel
           </Button>
           <Button

@@ -1,3 +1,5 @@
+import { useModalState } from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import EditIcon from "@mui/icons-material/Edit";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import {
@@ -5,7 +7,6 @@ import {
   Button,
   ButtonBase,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -28,7 +29,8 @@ export const GoalDescriptionEditor: React.FC<GoalDescriptionEditorProps> = ({
   isSaving = false,
   onSave,
 }) => {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen, isDialogOpenOwnerKey] =
+    useModalState(false);
   const [draft, setDraft] = useState(description);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -122,6 +124,7 @@ export const GoalDescriptionEditor: React.FC<GoalDescriptionEditorProps> = ({
       </Box>
 
       <Dialog
+        ownerKey={isDialogOpenOwnerKey}
         open={isDialogOpen}
         onClose={handleClose}
         fullWidth

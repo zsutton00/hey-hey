@@ -1,3 +1,6 @@
+import { useModalState } from "../Modals/useModalState";
+import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 /**
  * ADR Editor Component
  *
@@ -17,7 +20,6 @@ import {
   Box,
   Button,
   Chip,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
@@ -116,13 +118,18 @@ export const AdrEditor: React.FC<AdrEditorProps> = ({
   const [isSettingReady, setIsSettingReady] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccessCount, setSaveSuccessCount] = useState(0);
-  const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
-  const [reasonModalOpen, setReasonModalOpen] = useState(false);
+  const [
+    isDiscardDialogOpen,
+    setIsDiscardDialogOpen,
+    isDiscardDialogOpenOwnerKey,
+  ] = useModalState(false);
+  const [reasonModalOpen, setReasonModalOpen, reasonModalOpenOwnerKey] =
+    useModalState(false);
   const [pendingProposalMessage, setPendingProposalMessage] = useState<
     string | null
   >(null);
   const [saveStatus, setSaveStatus] = useState<"draft" | "saving" | "saved">(
-    "saved"
+    "saved",
   );
   const initializedAdrIdRef = useRef<string | null>(null);
   const [persistedTitle, setPersistedTitle] = useState(title);
@@ -208,13 +215,13 @@ export const AdrEditor: React.FC<AdrEditorProps> = ({
           return t("Describe the decision that was made...");
         case "consequences":
           return t(
-            "Document the consequences and implications of this decision..."
+            "Document the consequences and implications of this decision...",
           );
         default:
           return t("Enter ADR content...");
       }
     },
-    [t]
+    [t],
   );
 
   // Handle title changes
@@ -303,13 +310,13 @@ export const AdrEditor: React.FC<AdrEditorProps> = ({
 
         if (contentChanged) {
           const contextSection = sections.find(
-            (section) => section.key.toLowerCase() === "context"
+            (section) => section.key.toLowerCase() === "context",
           );
           const decisionSection = sections.find(
-            (section) => section.key.toLowerCase() === "decision"
+            (section) => section.key.toLowerCase() === "decision",
           );
           const consequencesSection = sections.find(
-            (section) => section.key.toLowerCase() === "consequences"
+            (section) => section.key.toLowerCase() === "consequences",
           );
 
           updates.sections = [
@@ -350,8 +357,8 @@ export const AdrEditor: React.FC<AdrEditorProps> = ({
           setSaveSuccessCount((current) => current + 1);
           setPendingProposalMessage(
             t(
-              "Your edits were submitted as a proposal and are waiting for review."
-            )
+              "Your edits were submitted as a proposal and are waiting for review.",
+            ),
           );
           return;
         }
@@ -382,7 +389,7 @@ export const AdrEditor: React.FC<AdrEditorProps> = ({
       sections,
       t,
       updateDesignDoc,
-    ]
+    ],
   );
 
   const handleSave = useCallback(() => {
@@ -397,7 +404,7 @@ export const AdrEditor: React.FC<AdrEditorProps> = ({
       setReasonModalOpen(false);
       await performSave(reason);
     },
-    [performSave]
+    [performSave],
   );
 
   const handleReasonModalClose = useCallback(() => {
@@ -505,7 +512,7 @@ export const AdrEditor: React.FC<AdrEditorProps> = ({
         organizationId={organizationId}
       />
     ),
-    [adrId, projectId, organizationId]
+    [adrId, projectId, organizationId],
   );
 
   // Render function for "Export" capsule action
@@ -513,7 +520,7 @@ export const AdrEditor: React.FC<AdrEditorProps> = ({
     () => (
       <AdrExportPanel title={title} summary={summary} sections={sections} />
     ),
-    [title, summary, sections]
+    [title, summary, sections],
   );
 
   const collabBridgeValue = useCollabBridgeValue(adrId, organizationId);
@@ -735,6 +742,7 @@ export const AdrEditor: React.FC<AdrEditorProps> = ({
           </>
         )}
         <Dialog
+          ownerKey={isDiscardDialogOpenOwnerKey}
           open={isDiscardDialogOpen}
           onClose={handleDiscardDialogClose}
           aria-labelledby="discard-adr-changes-title"
@@ -763,17 +771,19 @@ export const AdrEditor: React.FC<AdrEditorProps> = ({
           </DialogActions>
         </Dialog>
 
-        <SaveReasonModal
-          open={reasonModalOpen}
-          onClose={handleReasonModalClose}
-          onSubmit={handleReasonModalSubmit}
-          title={t("Save changes")}
-          submitLabel={t("Submit")}
-          cancelLabel={t("Cancel")}
-          helperText={t(
-            "Add an optional note explaining why you're making this change."
-          )}
-        />
+        <ModalWorkOwner.Provider value={reasonModalOpenOwnerKey}>
+          <SaveReasonModal
+            open={reasonModalOpen}
+            onClose={handleReasonModalClose}
+            onSubmit={handleReasonModalSubmit}
+            title={t("Save changes")}
+            submitLabel={t("Submit")}
+            cancelLabel={t("Cancel")}
+            helperText={t(
+              "Add an optional note explaining why you're making this change.",
+            )}
+          />
+        </ModalWorkOwner.Provider>
       </WalkthroughProvider>
     </DesignDocCollabProvider>
   );

@@ -1,3 +1,7 @@
+import {
+  useModalState,
+  ModalWorkOwner,
+} from "@hey-hey/ui-common/components/Modals";
 import type {
   ConversationResponseDto,
   ConversationStatus,
@@ -88,7 +92,8 @@ export const ConversationListTab: React.FC<ConversationListTabProps> = ({
   const [
     isNewConversationConfirmationOpen,
     setIsNewConversationConfirmationOpen,
-  ] = useState(false);
+    isNewConversationConfirmationOpenOwnerKey,
+  ] = useModalState(false);
   const [isCreatingNewConversation, setIsCreatingNewConversation] =
     useState(false);
   const canCreateConversation =
@@ -303,14 +308,18 @@ export const ConversationListTab: React.FC<ConversationListTabProps> = ({
         />
       </Stack>
 
-      <NewConversationConfirmationDialog
-        open={isNewConversationConfirmationOpen}
-        onClose={handleCloseNewConversationConfirmation}
-        onConfirm={() => {
-          void handleConfirmNewConversation().catch(() => undefined);
-        }}
-        isConfirming={isCreatingNewConversation}
-      />
+      <ModalWorkOwner.Provider
+        value={isNewConversationConfirmationOpenOwnerKey}
+      >
+        <NewConversationConfirmationDialog
+          open={isNewConversationConfirmationOpen}
+          onClose={handleCloseNewConversationConfirmation}
+          onConfirm={() => {
+            void handleConfirmNewConversation().catch(() => undefined);
+          }}
+          isConfirming={isCreatingNewConversation}
+        />
+      </ModalWorkOwner.Provider>
 
       <DiscussModal
         open={isDiscussOpen}

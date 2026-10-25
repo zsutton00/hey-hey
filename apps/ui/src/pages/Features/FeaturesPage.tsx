@@ -1,3 +1,7 @@
+import {
+  useModalState,
+  ModalWorkOwner,
+} from "@hey-hey/ui-common/components/Modals";
 import { WORK_ITEM_TYPE_KEYS } from "../../types/workItemTypes";
 import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
@@ -91,7 +95,8 @@ export const FeaturesPage: React.FC<FeaturesPageProps> = ({
   const isMobileViewport = useMediaQuery(theme.breakpoints.down("md"));
   const isPreviewPresentation = usePreviewPresentation();
 
-  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createModalOpen, setCreateModalOpen, createModalOpenOwnerKey] =
+    useModalState(false);
   const [isCreating, setIsCreating] = useState(false);
 
   const [activeTab, setActiveTab] = useQueryState(
@@ -612,12 +617,14 @@ export const FeaturesPage: React.FC<FeaturesPageProps> = ({
           </Box>
         )}
 
-        <NewFeatureModal
-          open={createModalOpen}
-          onClose={() => setCreateModalOpen(false)}
-          onSubmit={handleCreateFeature}
-          isLoading={isCreating}
-        />
+        <ModalWorkOwner.Provider value={createModalOpenOwnerKey}>
+          <NewFeatureModal
+            open={createModalOpen}
+            onClose={() => setCreateModalOpen(false)}
+            onSubmit={handleCreateFeature}
+            isLoading={isCreating}
+          />
+        </ModalWorkOwner.Provider>
       </DetailPageContainer>
       <DiscussFeatureTreeActionCapsule
         organizationId={currentOrgId}

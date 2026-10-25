@@ -1,3 +1,6 @@
+import { useModalState } from "../Modals/useModalState";
+import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import CancelIcon from "@mui/icons-material/Cancel";
 import DownloadIcon from "@mui/icons-material/Download";
 import SaveIcon from "@mui/icons-material/Save";
@@ -5,7 +8,6 @@ import {
   Alert,
   Box,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
@@ -96,12 +98,17 @@ export const DesignDocSingleSectionEditor: React.FC<
   const { t } = useTranslation();
   const [contentLoaded, setContentLoaded] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"draft" | "saving" | "saved">(
-    "saved"
+    "saved",
   );
   const [saveError, setSaveError] = useState<string | null>(null);
   const [draftClearCount, setDraftClearCount] = useState(0);
-  const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
-  const [reasonModalOpen, setReasonModalOpen] = useState(false);
+  const [
+    isDiscardDialogOpen,
+    setIsDiscardDialogOpen,
+    isDiscardDialogOpenOwnerKey,
+  ] = useModalState(false);
+  const [reasonModalOpen, setReasonModalOpen, reasonModalOpenOwnerKey] =
+    useModalState(false);
   const [pendingProposalMessage, setPendingProposalMessage] = useState<
     string | null
   >(null);
@@ -110,14 +117,14 @@ export const DesignDocSingleSectionEditor: React.FC<
   const { searchEntities } = useMentionEntitySearch(
     organizationId,
     projectId,
-    null
+    null,
   );
 
   const initialContent = useMemo(
     () =>
       sections.find((section) => section.key.toLowerCase() === "content")
         ?.materializedMarkdown ?? "",
-    [sections]
+    [sections],
   );
   const {
     state: contentSyncState,
@@ -165,7 +172,7 @@ export const DesignDocSingleSectionEditor: React.FC<
       }
 
       const contentSection = event.sections.find(
-        (section) => section.key.toLowerCase() === "content"
+        (section) => section.key.toLowerCase() === "content",
       );
       if (!contentSection) {
         return;
@@ -188,7 +195,7 @@ export const DesignDocSingleSectionEditor: React.FC<
       },
       onSearchEntities: searchEntities,
     }),
-    [designDocId, organizationId, projectId, searchEntities]
+    [designDocId, organizationId, projectId, searchEntities],
   );
 
   useEffect(() => {
@@ -214,7 +221,7 @@ export const DesignDocSingleSectionEditor: React.FC<
       applyUserPatch({ content: newContent });
       setSaveStatus("draft");
     },
-    [applyUserPatch, draftContent]
+    [applyUserPatch, draftContent],
   );
 
   const hasUnsavedChanges =
@@ -259,7 +266,7 @@ export const DesignDocSingleSectionEditor: React.FC<
           draftTitle !== persistedTitle || draftSummary !== persistedSummary;
         const contentChanged = draftContent !== persistedContent;
         const contentSection = sections.find(
-          (section) => section.key.toLowerCase() === "content"
+          (section) => section.key.toLowerCase() === "content",
         );
 
         if (!metadataChanged && !contentChanged) {
@@ -306,8 +313,8 @@ export const DesignDocSingleSectionEditor: React.FC<
           setDraftClearCount((current) => current + 1);
           setPendingProposalMessage(
             t(
-              "Your edits were submitted as a proposal and are waiting for review."
-            )
+              "Your edits were submitted as a proposal and are waiting for review.",
+            ),
           );
           return;
         }
@@ -338,7 +345,7 @@ export const DesignDocSingleSectionEditor: React.FC<
       discardDraft,
       t,
       updateDesignDoc,
-    ]
+    ],
   );
 
   const handleSave = useCallback(() => {
@@ -353,7 +360,7 @@ export const DesignDocSingleSectionEditor: React.FC<
       setReasonModalOpen(false);
       await performSave(reason);
     },
-    [performSave]
+    [performSave],
   );
 
   const handleReasonModalClose = useCallback(() => {
@@ -440,12 +447,12 @@ export const DesignDocSingleSectionEditor: React.FC<
       exportDescriptionText,
       exportButtonText,
       exportFallbackFilename,
-    ]
+    ],
   );
 
   const collabBridgeValue = useDesignDocCollabBridgeValue(
     designDocId,
-    organizationId
+    organizationId,
   );
 
   return (
@@ -570,6 +577,7 @@ export const DesignDocSingleSectionEditor: React.FC<
         title={exportHeaderText}
       />
       <Dialog
+        ownerKey={isDiscardDialogOpenOwnerKey}
         open={isDiscardDialogOpen}
         onClose={handleDiscardDialogClose}
         aria-labelledby="discard-design-doc-changes-title"
@@ -598,17 +606,19 @@ export const DesignDocSingleSectionEditor: React.FC<
         </DialogActions>
       </Dialog>
 
-      <SaveReasonModal
-        open={reasonModalOpen}
-        onClose={handleReasonModalClose}
-        onSubmit={handleReasonModalSubmit}
-        title={t("Save changes")}
-        submitLabel={t("Submit")}
-        cancelLabel={t("Cancel")}
-        helperText={t(
-          "Add an optional note explaining why you're making this change."
-        )}
-      />
+      <ModalWorkOwner.Provider value={reasonModalOpenOwnerKey}>
+        <SaveReasonModal
+          open={reasonModalOpen}
+          onClose={handleReasonModalClose}
+          onSubmit={handleReasonModalSubmit}
+          title={t("Save changes")}
+          submitLabel={t("Submit")}
+          cancelLabel={t("Cancel")}
+          helperText={t(
+            "Add an optional note explaining why you're making this change.",
+          )}
+        />
+      </ModalWorkOwner.Provider>
     </DesignDocCollabProvider>
   );
 };

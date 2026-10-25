@@ -1,9 +1,9 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import { useMemo } from "react";
 import {
   Alert,
   Box,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,

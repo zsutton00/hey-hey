@@ -1,3 +1,4 @@
+import { ModalRestoreControls } from "../Modals/ModalRestoreControls";
 import React, { useCallback, useState } from "react";
 import { ActionsCapsuleContext } from "./ActionsCapsuleContext";
 import type {
@@ -15,6 +16,19 @@ export interface ActionsCapsuleProviderProps {
 export const ActionsCapsuleProvider: React.FC<ActionsCapsuleProviderProps> = ({
   children,
 }) => {
+  const [capsuleTop, setCapsuleTop] = useState<number | null>(null);
+  const [anchor, setAnchor] = useState<"bottom-left" | "bottom-right">(() =>
+    localStorage.getItem("capsule-anchor") === "bottom-left"
+      ? "bottom-left"
+      : "bottom-right",
+  );
+  const toggleAnchor = useCallback(() => {
+    setAnchor((current) => {
+      const next = current === "bottom-left" ? "bottom-right" : "bottom-left";
+      localStorage.setItem("capsule-anchor", next);
+      return next;
+    });
+  }, []);
   const [actionsMap, setActionsMap] = useState<
     Map<string, CapsuleActionRegistration>
   >(new Map());
@@ -34,7 +48,7 @@ export const ActionsCapsuleProvider: React.FC<ActionsCapsuleProviderProps> = ({
         return next;
       });
     },
-    []
+    [],
   );
 
   const unregisterAction = useCallback((id: string): void => {
@@ -84,7 +98,7 @@ export const ActionsCapsuleProvider: React.FC<ActionsCapsuleProviderProps> = ({
   // Memoize the actions array to prevent unnecessary re-renders
   const actions = React.useMemo(
     () => Array.from(actionsMap.values()),
-    [actionsMap]
+    [actionsMap],
   );
 
   // CRITICAL: Memoize the context value to prevent infinite re-render loops.
@@ -93,6 +107,10 @@ export const ActionsCapsuleProvider: React.FC<ActionsCapsuleProviderProps> = ({
   // infinite loops. All dependencies must be stable (primitives or memoized).
   const value: ActionsCapsuleContextValue = React.useMemo(
     () => ({
+      capsuleTop,
+      setCapsuleTop,
+      anchor,
+      toggleAnchor,
       actions,
       activeActionId,
       activeMenuItemId,
@@ -109,6 +127,10 @@ export const ActionsCapsuleProvider: React.FC<ActionsCapsuleProviderProps> = ({
       setSearchQuery,
     }),
     [
+      capsuleTop,
+      setCapsuleTop,
+      anchor,
+      toggleAnchor,
       actions,
       activeActionId,
       activeMenuItemId,
@@ -123,12 +145,13 @@ export const ActionsCapsuleProvider: React.FC<ActionsCapsuleProviderProps> = ({
       toggleMinimize,
       searchQuery,
       setSearchQuery,
-    ]
+    ],
   );
 
   return (
     <ActionsCapsuleContext.Provider value={value}>
       {children}
+      <ModalRestoreControls />
     </ActionsCapsuleContext.Provider>
   );
 };

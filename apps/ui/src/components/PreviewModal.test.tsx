@@ -1,3 +1,4 @@
+import { ModalRestoreControls } from "@hey-hey/ui-common/components/Modals";
 import {
   fireEvent,
   render,
@@ -22,6 +23,41 @@ const LocationProbe: React.FC = () => {
 };
 
 describe("PreviewModal", () => {
+  it("preserves interactive content and a pending link confirmation across minimization without navigation", async () => {
+    const close = vi.fn();
+    render(
+      <MemoryRouter initialEntries={["/original"]}>
+        <PreviewModal open onClose={close}>
+          <input aria-label="Reply draft" defaultValue="Review this" />
+          <a href="/target">Target</a>
+        </PreviewModal>
+        <ModalRestoreControls />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+    const input = screen.getByLabelText("Reply draft");
+    fireEvent.click(screen.getByText("Target"));
+    expect(screen.getByTestId("preview-navigation-confirmation")).toBeVisible();
+    fireEvent.click(screen.getAllByTestId("modal-minimize")[1]);
+    await waitFor(() =>
+      expect(document.body.style.overflow).not.toBe("hidden"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Restore Preview" }));
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("preview-navigation-confirmation"),
+      ).toBeVisible(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Reply draft")).toBeVisible(),
+    );
+    expect(screen.getByLabelText("Reply draft")).toBe(input);
+    expect(input).toHaveValue("Review this");
+    expect(screen.getByTestId("probe")).toHaveTextContent("/original");
+    expect(close).not.toHaveBeenCalled();
+  });
+
   it("renders arbitrary slot content when open", () => {
     render(
       <MemoryRouter>

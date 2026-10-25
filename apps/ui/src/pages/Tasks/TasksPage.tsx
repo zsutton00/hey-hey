@@ -1,3 +1,5 @@
+import { useModalState } from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import AddIcon from "@mui/icons-material/Add";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import {
@@ -5,7 +7,6 @@ import {
   Box,
   Button,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -73,9 +74,12 @@ export const TasksPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Dialog states
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen, createDialogOpenOwnerKey] =
+    useModalState(false);
+  const [editDialogOpen, setEditDialogOpen, editDialogOpenOwnerKey] =
+    useModalState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen, deleteDialogOpenOwnerKey] =
+    useModalState(false);
   const [editingTask, setEditingTask] = useState<TaskResponseDto | null>(null);
   const [deletingTask, setDeletingTask] = useState<WorkItemResponseDto | null>(
     null,
@@ -349,6 +353,7 @@ export const TasksPage: React.FC = () => {
 
         {/* Create Task Dialog */}
         <Dialog
+          ownerKey={createDialogOpenOwnerKey}
           open={createDialogOpen}
           onClose={handleCloseCreateDialog}
           maxWidth="sm"
@@ -455,6 +460,7 @@ export const TasksPage: React.FC = () => {
 
         {/* Edit Task Dialog */}
         <Dialog
+          ownerKey={editDialogOpenOwnerKey}
           open={editDialogOpen}
           onClose={handleCloseEditDialog}
           maxWidth="sm"
@@ -560,7 +566,11 @@ export const TasksPage: React.FC = () => {
         </Dialog>
 
         {/* Delete Confirmation Dialog */}
-        <Dialog open={deleteDialogOpen} onClose={handleCloseDeleteDialog}>
+        <Dialog
+          ownerKey={deleteDialogOpenOwnerKey}
+          open={deleteDialogOpen}
+          onClose={handleCloseDeleteDialog}
+        >
           <DialogTitle>{t(KEYS.tasks.dialog.deleteTitle)}</DialogTitle>
           <DialogContent>
             <Typography>

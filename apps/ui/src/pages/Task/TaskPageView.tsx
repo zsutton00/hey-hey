@@ -1,7 +1,7 @@
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import {
   Box,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,

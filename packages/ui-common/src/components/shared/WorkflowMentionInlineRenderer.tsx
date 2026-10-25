@@ -1,3 +1,6 @@
+import { useModalState } from "../Modals/useModalState";
+import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import { DiagramReferenceActions } from "./DiagramReferenceActions";
 import { DIAGRAM_TASK_TYPE } from "../../constants/taskTypes";
 import { MentionArtifactCard } from "./MentionArtifactCard";
@@ -63,7 +66,6 @@ import {
   Box,
   Alert,
   Button,
-  Dialog,
   DialogContent,
   DialogTitle,
   IconButton,
@@ -6844,6 +6846,16 @@ const WorkflowGraphFullscreenDialog: React.FC<
         },
       },
     }}
+    closeControl={
+      <IconButton
+        size="small"
+        onClick={onClose}
+        aria-label="Close workflow viewer"
+        data-testid="workflow-fullscreen-dialog-close"
+      >
+        <CloseIcon fontSize="small" />
+      </IconButton>
+    }
   >
     <DialogTitle
       data-testid="workflow-fullscreen-dialog-title"
@@ -6861,14 +6873,6 @@ const WorkflowGraphFullscreenDialog: React.FC<
         testId="workflow-fullscreen-dialog-title-link"
         workflowHref={workflowHref}
       />
-      <IconButton
-        size="small"
-        onClick={onClose}
-        aria-label="Close workflow viewer"
-        data-testid="workflow-fullscreen-dialog-close"
-      >
-        <CloseIcon fontSize="small" />
-      </IconButton>
     </DialogTitle>
     <DialogContent
       dividers
@@ -7019,7 +7023,8 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
   ...interaction
 }) => {
   const hasRouter = useInRouterContext();
-  const [isFullscreenOpen, setIsFullscreenOpen] = useState(false);
+  const [isFullscreenOpen, setIsFullscreenOpen, isFullscreenOpenOwnerKey] =
+    useModalState(false);
   const [graphSizeMode, setGraphSizeMode] = useState<WorkflowGraphSizeMode>(
     DEFAULT_WORKFLOW_GRAPH_SIZE_MODE,
   );
@@ -7175,34 +7180,36 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
         }}
         onExpandReference={openExploration}
       />
-      <WorkflowGraphFullscreenDialog
-        layoutComparisonControls={layoutComparisonControls}
-        graphData={hydratedGraphData}
-        projection={projection}
-        graphSizeMode={graphSizeMode}
-        disableLinks={resolvedDisableLinks}
-        highlightedStepId={highlightedStepId}
-        highlightedEdgeId={highlightedEdgeId}
-        hoveredNodeId={hoveredNodeId}
-        onNodeHover={setHoveredNodeId}
-        onEdgeMouseEnter={handleEdgeMouseEnter}
-        onEdgeMouseLeave={handleEdgeMouseLeave}
-        onViewportPointerLeave={handleViewportPointerLeave}
-        createdElements={createdElements}
-        diffElements={diffElements}
-        presentationState={presentationState}
-        workflowHref={resolvedDisableLinks ? undefined : workflowHref}
-        interaction={{ mode, ...interaction }}
-        directEntityLinks={directEntityLinks}
-        onSizeModeChange={setGraphSizeMode}
-        onExpandReference={openExploration}
-        open={isFullscreenOpen}
-        onClose={() => {
-          setIsFullscreenOpen(false);
-          setHighlightedEdgeId(undefined);
-          setHoveredNodeId(undefined);
-        }}
-      />
+      <ModalWorkOwner.Provider value={isFullscreenOpenOwnerKey}>
+        <WorkflowGraphFullscreenDialog
+          layoutComparisonControls={layoutComparisonControls}
+          graphData={hydratedGraphData}
+          projection={projection}
+          graphSizeMode={graphSizeMode}
+          disableLinks={resolvedDisableLinks}
+          highlightedStepId={highlightedStepId}
+          highlightedEdgeId={highlightedEdgeId}
+          hoveredNodeId={hoveredNodeId}
+          onNodeHover={setHoveredNodeId}
+          onEdgeMouseEnter={handleEdgeMouseEnter}
+          onEdgeMouseLeave={handleEdgeMouseLeave}
+          onViewportPointerLeave={handleViewportPointerLeave}
+          createdElements={createdElements}
+          diffElements={diffElements}
+          presentationState={presentationState}
+          workflowHref={resolvedDisableLinks ? undefined : workflowHref}
+          interaction={{ mode, ...interaction }}
+          directEntityLinks={directEntityLinks}
+          onSizeModeChange={setGraphSizeMode}
+          onExpandReference={openExploration}
+          open={isFullscreenOpen}
+          onClose={() => {
+            setIsFullscreenOpen(false);
+            setHighlightedEdgeId(undefined);
+            setHoveredNodeId(undefined);
+          }}
+        />
+      </ModalWorkOwner.Provider>
       {explorationTarget ? (
         <DiagramExplorationDialog
           organizationId={hydratedGraphData.workflow.organizationId}

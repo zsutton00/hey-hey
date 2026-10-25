@@ -1,10 +1,11 @@
+import { useModalState } from "../Modals/useModalState";
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import { ProposalReconciliationContext } from "../ProposalReconciliation/ProposalReconciliationReview";
 import {
   Box,
   Button,
   Chip,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -96,7 +97,8 @@ const ProposalStateIndicatorContent: React.FC<ProposalStateIndicatorProps> = ({
   canApprove = true,
 }) => {
   const readOnly = useContext(ProposalPresentationContext) === "read-only";
-  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejectDialogOpen, setRejectDialogOpen, rejectDialogOpenOwnerKey] =
+    useModalState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectState, setRejectState] = useState<RejectState>("idle");
   const rejectPendingRef = useRef(false);
@@ -327,6 +329,7 @@ const ProposalStateIndicatorContent: React.FC<ProposalStateIndicatorProps> = ({
       </Stack>
       {!readOnly && onReject && (
         <Dialog
+          ownerKey={rejectDialogOpenOwnerKey}
           open={rejectDialogOpen}
           onClose={handleCloseRejectDialog}
           maxWidth="sm"

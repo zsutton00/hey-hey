@@ -1,4 +1,8 @@
 import {
+  useModalState,
+  ModalWorkOwner,
+} from "@hey-hey/ui-common/components/Modals";
+import {
   getBuiltInWorkItemIconKey,
   getWorkItemTypePluralDisplayName,
   WORK_ITEM_TYPE_KEYS,
@@ -224,7 +228,8 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
 
   // Fetch current project and all projects for switching
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [reportProblemOpen, setReportProblemOpen] = useState(false);
+  const [reportProblemOpen, setReportProblemOpen, reportProblemOpenOwnerKey] =
+    useModalState(false);
   const userMenuButtonRef = useRef<HTMLButtonElement>(null);
 
   // URL state for persistence
@@ -1165,12 +1170,14 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
                 )}
               </Box>
             </Box>
-            <ReportProblemDialog
-              open={reportProblemOpen}
-              onClose={() => setReportProblemOpen(false)}
-              productLocation={location.pathname + location.search}
-              returnFocusRef={userMenuButtonRef}
-            />
+            <ModalWorkOwner.Provider value={reportProblemOpenOwnerKey}>
+              <ReportProblemDialog
+                open={reportProblemOpen}
+                onClose={() => setReportProblemOpen(false)}
+                productLocation={location.pathname + location.search}
+                returnFocusRef={userMenuButtonRef}
+              />
+            </ModalWorkOwner.Provider>
           </>
         ) : (
           <Button

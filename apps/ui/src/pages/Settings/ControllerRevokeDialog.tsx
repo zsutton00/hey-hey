@@ -1,3 +1,4 @@
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import type {
   ControllerCredentialSummaryDto,
   MachineDto,
@@ -5,7 +6,6 @@ import type {
 import {
   Button,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,

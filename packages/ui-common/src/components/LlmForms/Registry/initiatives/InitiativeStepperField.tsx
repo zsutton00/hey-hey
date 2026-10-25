@@ -1,3 +1,5 @@
+import { useModalState } from "../../../Modals/useModalState";
+import { FunctionalDialog as Dialog } from "../../../Modals/FunctionalDialog";
 import {
   Alert,
   Box,
@@ -5,7 +7,6 @@ import {
   Card,
   CardContent,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
@@ -34,8 +35,10 @@ import {
   type SuggestionDecisionStatus,
 } from "../../../Conversation/hooks/useSuggestionDecisions";
 
-export interface InitiativeStepperFieldProps
-  extends Omit<FieldComponentProps, "onChange"> {
+export interface InitiativeStepperFieldProps extends Omit<
+  FieldComponentProps,
+  "onChange"
+> {
   value: GenerationSystemMessageData;
   onChange?: (value: unknown) => void;
 }
@@ -59,7 +62,7 @@ export const InitiativeStepperField: React.FC<InitiativeStepperFieldProps> = ({
     context.organizationId,
     context.projectId,
     context.conversationId,
-    { enabled: !!context.conversationId }
+    { enabled: !!context.conversationId },
   );
 
   // Stepper state management
@@ -80,17 +83,18 @@ export const InitiativeStepperField: React.FC<InitiativeStepperFieldProps> = ({
 
   // UI state
   const [showIntro, setShowIntro] = useState(true);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm, showDeleteConfirmOwnerKey] =
+    useModalState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [slideDirection, setSlideDirection] = useState<"left" | "right">(
-    "right"
+    "right",
   );
 
   // Update form validation when complete
   useEffect(() => {
     if (onChange && isComplete) {
       onChange(
-        `user reviewed ${totalInitiatives} initiatives and kept ${keptCount}`
+        `user reviewed ${totalInitiatives} initiatives and kept ${keptCount}`,
       );
     }
   }, [onChange, isComplete, totalInitiatives, keptCount]);
@@ -146,7 +150,7 @@ export const InitiativeStepperField: React.FC<InitiativeStepperFieldProps> = ({
           console.error("Failed to record initiative decision:", error);
         });
     },
-    [context, decisionMutation, suggestionDecisions]
+    [context, decisionMutation, suggestionDecisions],
   );
 
   // Handle keep initiative
@@ -213,7 +217,7 @@ export const InitiativeStepperField: React.FC<InitiativeStepperFieldProps> = ({
 
     const suggestionId = buildSuggestionId(
       context.messageId,
-      currentInitiative.id
+      currentInitiative.id,
     );
     const decision = suggestionDecisions.getDecision(suggestionId);
 
@@ -385,6 +389,7 @@ export const InitiativeStepperField: React.FC<InitiativeStepperFieldProps> = ({
 
         {/* Delete confirmation dialog */}
         <Dialog
+          ownerKey={showDeleteConfirmOwnerKey}
           open={showDeleteConfirm}
           onClose={() => !isDeleting && setShowDeleteConfirm(false)}
         >

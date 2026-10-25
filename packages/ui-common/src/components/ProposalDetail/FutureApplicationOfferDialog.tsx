@@ -1,3 +1,4 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import { useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -6,7 +7,6 @@ import {
   Box,
   Button,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogTitle,
   Stack,

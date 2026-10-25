@@ -1,6 +1,6 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import React from "react";
 import {
-  Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
@@ -62,15 +62,17 @@ export const CreateArtifactModal: React.FC<CreateArtifactModalProps> = ({
       PaperProps={{
         sx: { minHeight: "400px" },
       }}
+      closeControl={
+        <IconButton onClick={onClose} size="small">
+          <CloseIcon />
+        </IconButton>
+      }
     >
       <DialogTitle>
         <Box display="flex" justifyContent="space-between" alignItems="center">
           <Typography variant="h6">
             {t("artifacts.createDocument", "Create Document")}
           </Typography>
-          <IconButton onClick={onClose} size="small">
-            <CloseIcon />
-          </IconButton>
         </Box>
       </DialogTitle>
 

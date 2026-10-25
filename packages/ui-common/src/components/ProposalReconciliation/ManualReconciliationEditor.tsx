@@ -1,9 +1,9 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import { manualReconciliationContent } from "./manualReconciliationContent";
 import { useCallback, useState } from "react";
 import {
   Alert,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,

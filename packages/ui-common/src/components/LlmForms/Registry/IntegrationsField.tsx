@@ -1,3 +1,5 @@
+import { useModalState } from "../../Modals/useModalState";
+import { ModalWorkOwner } from "../../Modals/ModalWorkOwner";
 import {
   Alert,
   Box,
@@ -47,8 +49,10 @@ export const IntegrationsField: React.FC<FieldComponentProps> = ({
 
   // State for dialog management
   const [searchTerm, setSearchTerm] = useState("");
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showCreateDialog, setShowCreateDialog, showCreateDialogOwnerKey] =
+    useModalState(false);
+  const [showEditDialog, setShowEditDialog, showEditDialogOwnerKey] =
+    useModalState(false);
   const [selectedIntegrationType, setSelectedIntegrationType] = useState<
     string | null
   >(null);
@@ -61,7 +65,7 @@ export const IntegrationsField: React.FC<FieldComponentProps> = ({
       getAllIntegrations(projectId).catch((error) => {
         console.error(
           "Failed to load integrations in IntegrationsField:",
-          error
+          error,
         );
       });
     }
@@ -76,7 +80,9 @@ export const IntegrationsField: React.FC<FieldComponentProps> = ({
     return AVAILABLE_INTEGRATIONS.filter(
       (integration) =>
         integration.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        integration.description.toLowerCase().includes(searchTerm.toLowerCase())
+        integration.description
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase()),
     );
   }, [searchTerm]);
 
@@ -84,7 +90,7 @@ export const IntegrationsField: React.FC<FieldComponentProps> = ({
   const availableToAdd = useMemo(() => {
     const configuredTypes = new Set(allIntegrations.map((i) => i.type));
     return filteredAvailableIntegrations.filter(
-      (integration) => !configuredTypes.has(integration.type)
+      (integration) => !configuredTypes.has(integration.type),
     );
   }, [filteredAvailableIntegrations, allIntegrations]);
 
@@ -109,7 +115,7 @@ export const IntegrationsField: React.FC<FieldComponentProps> = ({
     }
     // Check if this is an API integration
     const apiIntegration = apiIntegrations.find(
-      (api) => api.id === integration.id
+      (api) => api.id === integration.id,
     );
     if (apiIntegration && projectId) {
       setEditingApiIntegration(apiIntegration);
@@ -123,7 +129,7 @@ export const IntegrationsField: React.FC<FieldComponentProps> = ({
     }
     // Check if this is an API integration
     const isApiIntegration = apiIntegrations.some(
-      (api) => api.id === integrationId
+      (api) => api.id === integrationId,
     );
 
     if (isApiIntegration) {
@@ -278,25 +284,29 @@ export const IntegrationsField: React.FC<FieldComponentProps> = ({
 
         {/* API-driven Integration Create Dialog */}
         {projectId && selectedIntegrationType && (
-          <CreateIntegrationDialog
-            open={showCreateDialog}
-            onClose={handleCloseCreateDialog}
-            onSuccess={handleCreateSuccess}
-            projectId={projectId}
-            selectedType={
-              selectedIntegrationType.toUpperCase() as IntegrationType
-            }
-          />
+          <ModalWorkOwner.Provider value={showCreateDialogOwnerKey}>
+            <CreateIntegrationDialog
+              open={showCreateDialog}
+              onClose={handleCloseCreateDialog}
+              onSuccess={handleCreateSuccess}
+              projectId={projectId}
+              selectedType={
+                selectedIntegrationType.toUpperCase() as IntegrationType
+              }
+            />
+          </ModalWorkOwner.Provider>
         )}
 
         {/* API-driven GitHub Edit Dialog */}
         {projectId && editingApiIntegration && (
-          <EditIntegrationDialog
-            open={showEditDialog}
-            onClose={handleCloseEditDialog}
-            onSuccess={handleEditSuccess}
-            integration={editingApiIntegration}
-          />
+          <ModalWorkOwner.Provider value={showEditDialogOwnerKey}>
+            <EditIntegrationDialog
+              open={showEditDialog}
+              onClose={handleCloseEditDialog}
+              onSuccess={handleEditSuccess}
+              integration={editingApiIntegration}
+            />
+          </ModalWorkOwner.Provider>
         )}
       </FormControl>
     </Paper>

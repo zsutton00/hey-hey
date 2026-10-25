@@ -1,3 +1,5 @@
+import { useModalState } from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import {
   InitiativesList,
   useFilteredWorkItems,
@@ -13,7 +15,6 @@ import {
   Box,
   Button,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -70,8 +71,10 @@ export const InitiativesPage: React.FC = () => {
   const [sortBy, setSortBy] = useState("status");
 
   // Dialog states
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen, createDialogOpenOwnerKey] =
+    useModalState(false);
+  const [editDialogOpen, setEditDialogOpen, editDialogOpenOwnerKey] =
+    useModalState(false);
   const [editingInitiative, setEditingInitiative] =
     useState<InitiativeResponseDto | null>(null);
 
@@ -267,6 +270,7 @@ export const InitiativesPage: React.FC = () => {
 
       {/* Create Initiative Dialog */}
       <Dialog
+        ownerKey={createDialogOpenOwnerKey}
         open={createDialogOpen}
         onClose={handleCloseCreateDialog}
         maxWidth="sm"
@@ -325,6 +329,7 @@ export const InitiativesPage: React.FC = () => {
 
       {/* Edit Initiative Dialog */}
       <Dialog
+        ownerKey={editDialogOpenOwnerKey}
         open={editDialogOpen}
         onClose={handleCloseEditDialog}
         maxWidth="sm"

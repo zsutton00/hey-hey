@@ -1,9 +1,10 @@
+import { useModalState } from "../Modals/useModalState";
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import {
   Alert,
   Autocomplete,
   Box,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -641,8 +642,12 @@ export const ModelSelector = ({
   );
   const [preferredFavoriteId, setPreferredFavoriteId] =
     useState<ModelSelectionFavoriteId | null>(null);
-  const [manageFavoritesOpen, setManageFavoritesOpen] = useState(false);
-  const [editorOpen, setEditorOpen] = useState(false);
+  const [
+    manageFavoritesOpen,
+    setManageFavoritesOpen,
+    manageFavoritesOpenOwnerKey,
+  ] = useModalState(false);
+  const [editorOpen, setEditorOpen, editorOpenOwnerKey] = useModalState(false);
   // A provider that reported zero models is explained by the CLI's notice
   // (shown by RuntimeModelSelector); it is not something to pick.
   const providers = listProviders().filter(
@@ -944,6 +949,7 @@ export const ModelSelector = ({
       )}
       {rowEndBelow}
       <Dialog
+        ownerKey={editorOpenOwnerKey}
         open={editorOpen}
         onClose={() => setEditorOpen(false)}
         fullWidth
@@ -959,6 +965,7 @@ export const ModelSelector = ({
       </Dialog>
 
       <Dialog
+        ownerKey={manageFavoritesOpenOwnerKey}
         open={manageFavoritesOpen}
         onClose={() => setManageFavoritesOpen(false)}
         fullWidth

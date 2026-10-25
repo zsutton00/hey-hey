@@ -1,5 +1,6 @@
 import {
   type ReactNode,
+  useId,
   useCallback,
   useEffect,
   useReducer,
@@ -16,6 +17,7 @@ import {
   Stack,
   Tooltip,
 } from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
 import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
 import { useTranslation } from "react-i18next";
 import {
@@ -23,6 +25,7 @@ import {
   useOpenItemsTriageSession,
 } from "@hey-hey/ui-common/data";
 import type { OpenItemsTriageRunOptions } from "@hey-hey/ui-common/components";
+import { restoreModalWork } from "@hey-hey/ui-common/components/Modals";
 import { PreviewModal } from "../PreviewModal";
 import {
   OpenItemsTriagePage,
@@ -165,11 +168,13 @@ function OpenItemsTriageReview({
   projectId,
   open,
   onClosed,
+  ownerKey,
 }: {
   organizationId: string;
   projectId: string;
   open: boolean;
   onClosed: () => void;
+  ownerKey: string;
 }) {
   const { t } = useTranslation();
   const session = useOpenItemsTriageSession();
@@ -289,6 +294,17 @@ function OpenItemsTriageReview({
 
   return (
     <PreviewModal
+      ownerKey={ownerKey}
+      workTitle="Open Items triage"
+      closeControl={
+        <IconButton
+          aria-label={t("triage.close", "Close triage")}
+          data-testid="open-items-triage-close"
+          onClick={handleRequestClose}
+        >
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      }
       open={open}
       onClose={handleRequestClose}
       layout="dialog"
@@ -340,10 +356,15 @@ export function OpenItemsTriageAction({
   projectId: string;
 }) {
   const { t } = useTranslation();
+  const ownerKey = useId();
   const [modalOpen, setModalOpen] = useState(false);
   // Each opening mounts a new review, so it always starts at help.
   const [opening, setOpening] = useState(0);
   const handleOpen = () => {
+    if (modalOpen) {
+      restoreModalWork(ownerKey);
+      return;
+    }
     setOpening((current) => current + 1);
     setModalOpen(true);
   };
@@ -373,6 +394,7 @@ export function OpenItemsTriageAction({
       >
         <OpenItemsTriageReview
           key={opening}
+          ownerKey={ownerKey}
           organizationId={organizationId}
           projectId={projectId}
           open={modalOpen}

@@ -1,8 +1,9 @@
+import { useModalState } from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import HelpOutline from "@mui/icons-material/HelpOutline";
 import {
   Box,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -11,7 +12,7 @@ import {
 } from "@mui/material";
 import { getEntityPromptTemplateCompositionMetadata } from "@hey-hey/ui-common/data";
 import type { EntityPromptTemplateEffectiveDto } from "@hey-hey/ui-common/api";
-import React, { useState } from "react";
+import React from "react";
 
 export interface EntityPromptTemplateCompositionGuidanceProps {
   effective: Pick<
@@ -23,7 +24,7 @@ export interface EntityPromptTemplateCompositionGuidanceProps {
 export const EntityPromptTemplateCompositionGuidance: React.FC<
   EntityPromptTemplateCompositionGuidanceProps
 > = ({ effective }) => {
-  const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen, isHelpOpenOwnerKey] = useModalState(false);
   const metadata = getEntityPromptTemplateCompositionMetadata(effective);
 
   return (
@@ -36,6 +37,7 @@ export const EntityPromptTemplateCompositionGuidance: React.FC<
         How this template works
       </Button>
       <Dialog
+        ownerKey={isHelpOpenOwnerKey}
         open={isHelpOpen}
         onClose={() => setIsHelpOpen(false)}
         aria-labelledby="entity-prompt-template-help-title"

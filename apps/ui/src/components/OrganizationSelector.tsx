@@ -1,3 +1,5 @@
+import { useModalState } from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import React, { useState } from "react";
 import {
   Box,
@@ -8,7 +10,6 @@ import {
   Divider,
   Chip,
   CircularProgress,
-  Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
@@ -32,7 +33,8 @@ export const OrganizationSelector: React.FC = () => {
   } = useOrganization();
 
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen, createDialogOpenOwnerKey] =
+    useModalState(false);
   const [newOrgName, setNewOrgName] = useState("");
   const [newOrgDescription, setNewOrgDescription] = useState("");
   const [creating, setCreating] = useState(false);
@@ -183,6 +185,7 @@ export const OrganizationSelector: React.FC = () => {
 
       {/* Create Organization Dialog */}
       <Dialog
+        ownerKey={createDialogOpenOwnerKey}
         open={createDialogOpen}
         onClose={handleCancelCreate}
         maxWidth="sm"

@@ -1,3 +1,7 @@
+import {
+  useModalState,
+  ModalWorkOwner,
+} from "@hey-hey/ui-common/components/Modals";
 import { useRepositoryImportEntry } from "./useRepositoryImportEntry";
 import { RepositoryImportEntryDialog } from "./RepositoryImportEntryDialog";
 import { ServicesList } from "@hey-hey/ui-common/components";
@@ -16,7 +20,7 @@ import {
   Tabs,
 } from "@mui/material";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
-import React, { useState } from "react";
+import React from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { type ServiceDto } from "@hey-hey/ui-common/api";
@@ -80,7 +84,8 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
   });
 
   const entry = useRepositoryImportEntry(resolvedOrganizationId, projectId);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCreateModal, setShowCreateModal, showCreateModalOwnerKey] =
+    useModalState(false);
   const handleServiceClick = (service: ServiceDto) => {
     navigate(`/projects/${projectId}/services/${service.id}`);
   };
@@ -225,12 +230,14 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
       <RepositoryImportEntryDialog entry={entry} />
 
       {/* Create Service Modal */}
-      <CreateServiceModal
-        open={showCreateModal}
-        organizationId={resolvedOrganizationId || ""}
-        onClose={() => setShowCreateModal(false)}
-        projectId={projectId!}
-      />
+      <ModalWorkOwner.Provider value={showCreateModalOwnerKey}>
+        <CreateServiceModal
+          open={showCreateModal}
+          organizationId={resolvedOrganizationId || ""}
+          onClose={() => setShowCreateModal(false)}
+          projectId={projectId!}
+        />
+      </ModalWorkOwner.Provider>
     </Box>
   );
 };

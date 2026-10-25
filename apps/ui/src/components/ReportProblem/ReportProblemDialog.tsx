@@ -1,9 +1,9 @@
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import {
   Alert,
   Box,
   Button,
   Checkbox,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,

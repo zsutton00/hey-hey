@@ -1,6 +1,6 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import {
   Button,
-  Dialog,
   DialogContent,
   DialogTitle,
   IconButton,
@@ -31,6 +31,11 @@ export const ReportDialog: React.FC<ReportDialogProps> = ({
     maxWidth="md"
     onClose={onClose}
     open={report !== null}
+    closeControl={
+      <IconButton aria-label="Close" onClick={onClose} size="small">
+        <CloseIcon fontSize="small" />
+      </IconButton>
+    }
   >
     {report ? (
       <>
@@ -42,9 +47,6 @@ export const ReportDialog: React.FC<ReportDialogProps> = ({
           }}
         >
           {report.title}
-          <IconButton aria-label="Close" onClick={onClose} size="small">
-            <CloseIcon fontSize="small" />
-          </IconButton>
         </DialogTitle>
         <DialogContent dividers>
           <ReportViewer report={report} />

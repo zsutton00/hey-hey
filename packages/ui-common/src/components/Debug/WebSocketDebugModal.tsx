@@ -1,6 +1,6 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import React, { useState, useMemo } from "react";
 import {
-  Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
@@ -98,12 +98,12 @@ export const WebSocketDebugModal: React.FC<WebSocketDebugModalProps> = ({
     totalActiveSubscriptions: collections.reduce(
       (sum, c) =>
         sum + c.activeQueries.listQueries + c.activeQueries.singleQueries,
-      0
+      0,
     ),
     uniqueDataSubscriptions: collections.reduce(
       (sum, c) =>
         sum + c.activeQueries.listQueries + c.activeQueries.singleQueries,
-      0
+      0,
     ),
     subscriptionCountByKey: {},
     duplicateSubscriptions: 0,
@@ -127,27 +127,33 @@ export const WebSocketDebugModal: React.FC<WebSocketDebugModalProps> = ({
   const analytics = useMemo(() => {
     const now = Date.now();
     const last5Min = events.filter(
-      (e) => now - new Date(e.timestamp).getTime() < 300000
+      (e) => now - new Date(e.timestamp).getTime() < 300000,
     );
     const lastHour = events.filter(
-      (e) => now - new Date(e.timestamp).getTime() < 3600000
+      (e) => now - new Date(e.timestamp).getTime() < 3600000,
     );
 
-    const eventsByType = events.reduce((acc, event) => {
-      acc[event.type] = (acc[event.type] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const eventsByType = events.reduce(
+      (acc, event) => {
+        acc[event.type] = (acc[event.type] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
 
-    const eventsBySource = events.reduce((acc, event) => {
-      acc[event.source] = (acc[event.source] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const eventsBySource = events.reduce(
+      (acc, event) => {
+        acc[event.source] = (acc[event.source] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
 
     const errorEvents = events.filter(
       (event) =>
         event.metadata?.success === false ||
         JSON.stringify(event.data).includes("error") ||
-        JSON.stringify(event.data).includes("Error")
+        JSON.stringify(event.data).includes("Error"),
     );
 
     return {
@@ -168,7 +174,7 @@ export const WebSocketDebugModal: React.FC<WebSocketDebugModalProps> = ({
             const time = new Date(e.timestamp).getTime();
             return time >= periodStart && time < periodEnd;
           }).length;
-        })
+        }),
       ),
     };
   }, [events]);
@@ -241,6 +247,11 @@ export const WebSocketDebugModal: React.FC<WebSocketDebugModalProps> = ({
           maxHeight: "90vh",
         },
       }}
+      closeControl={
+        <IconButton size="small" onClick={onClose}>
+          <CloseIcon />
+        </IconButton>
+      }
     >
       <DialogTitle>
         <Box
@@ -275,10 +286,6 @@ export const WebSocketDebugModal: React.FC<WebSocketDebugModalProps> = ({
                 <ClearIcon />
               </IconButton>
             </Tooltip>
-
-            <IconButton size="small" onClick={onClose}>
-              <CloseIcon />
-            </IconButton>
           </Box>
         </Box>
       </DialogTitle>
@@ -363,8 +370,7 @@ export const WebSocketDebugModal: React.FC<WebSocketDebugModalProps> = ({
                           label={t("debug.eventType", "Event Type")}
                           onChange={(e) => {
                             const value = e.target.value as
-                              | WebSocketEventFilter["type"]
-                              | "";
+                              WebSocketEventFilter["type"] | "";
                             setEventFilter({
                               ...eventFilter,
                               type: value === "" ? undefined : value,
@@ -716,7 +722,7 @@ export const WebSocketDebugModal: React.FC<WebSocketDebugModalProps> = ({
                 <Typography variant="body2" color="text.secondary">
                   {t(
                     "debug.settingsNote",
-                    "More debug settings will be available in future versions."
+                    "More debug settings will be available in future versions.",
                   )}
                 </Typography>
               </Stack>
@@ -729,7 +735,7 @@ export const WebSocketDebugModal: React.FC<WebSocketDebugModalProps> = ({
         <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>
           {t(
             "debug.keyboardShortcuts",
-            "Shortcuts: Ctrl+Shift+W (toggle), Ctrl+Shift+X (clear), Ctrl+Shift+E (export)"
+            "Shortcuts: Ctrl+Shift+W (toggle), Ctrl+Shift+X (clear), Ctrl+Shift+E (export)",
           )}
         </Typography>
         <Button onClick={onClose}>{t("common.close", "Close")}</Button>

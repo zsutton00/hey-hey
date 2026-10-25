@@ -1,8 +1,8 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import React from "react";
 import {
   Alert,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
@@ -12,8 +12,7 @@ import {
 export type RemoveMemberScope = "project" | "organization";
 
 export type RemoveMemberError =
-  | { kind: "lastOwner"; message: string }
-  | { kind: "generic"; message: string };
+  { kind: "lastOwner"; message: string } | { kind: "generic"; message: string };
 
 export interface RemoveMemberDialogProps {
   open: boolean;

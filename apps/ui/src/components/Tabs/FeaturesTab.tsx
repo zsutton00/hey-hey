@@ -1,3 +1,7 @@
+import {
+  useModalState,
+  ModalWorkOwner,
+} from "@hey-hey/ui-common/components/Modals";
 import { WORK_ITEM_TYPE_KEYS } from "../../types/workItemTypes";
 import React, { useState, useCallback } from "react";
 import { Box, Button, Stack } from "@mui/material";
@@ -22,7 +26,8 @@ export const FeaturesTab: React.FC<FeaturesTabProps> = ({
   projectId,
 }) => {
   const { t } = useTranslation();
-  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createModalOpen, setCreateModalOpen, createModalOpenOwnerKey] =
+    useModalState(false);
   const [isCreating, setIsCreating] = useState(false);
   const { workItemTypeSummary: featureTypeSummary, isFetched: isTypeFetched } =
     useWorkItemTypeByKey(
@@ -105,12 +110,14 @@ export const FeaturesTab: React.FC<FeaturesTabProps> = ({
         )}
 
         {canCreateFeature ? (
-          <NewFeatureModal
-            open={createModalOpen}
-            onClose={() => setCreateModalOpen(false)}
-            onSubmit={handleCreateFeature}
-            isLoading={isCreating}
-          />
+          <ModalWorkOwner.Provider value={createModalOpenOwnerKey}>
+            <NewFeatureModal
+              open={createModalOpen}
+              onClose={() => setCreateModalOpen(false)}
+              onSubmit={handleCreateFeature}
+              isLoading={isCreating}
+            />
+          </ModalWorkOwner.Provider>
         ) : null}
       </Stack>
     </TabContainer>

@@ -1,8 +1,8 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import LinkOffOutlinedIcon from "@mui/icons-material/LinkOffOutlined";
 import {
   Box,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -26,16 +26,14 @@ export interface AgentBridgeRecoveryNoticeProps {
 }
 
 type GeneralGuidance =
-  | "no_paired_machines"
-  | "bound_machine_missing"
-  | "status_unavailable";
+  "no_paired_machines" | "bound_machine_missing" | "status_unavailable";
 
 type GuidanceTarget =
   | { kind: "machine"; state: AgentBridgeMachineUnavailableState }
   | { kind: "general"; type: GeneralGuidance };
 
 const browserAuthorizationUrl = (
-  state: AgentBridgeMachineUnavailableState
+  state: AgentBridgeMachineUnavailableState,
 ): string => {
   const params = new URLSearchParams({
     section: "pairing",
@@ -69,7 +67,7 @@ const machineStatus = (state: AgentBridgeMachineUnavailableState): string => {
 };
 
 export const getAgentBridgeRecoveryActionLabel = (
-  state: AgentBridgeMachineUnavailableState
+  state: AgentBridgeMachineUnavailableState,
 ): string => {
   switch (state.type) {
     case "browser_authorization_required":
@@ -232,10 +230,10 @@ const GuidanceDialog = ({
   const title = machineState
     ? `${machineStatus(machineState)} — ${machineState.machine.name}`
     : target?.kind === "general" && target.type === "no_paired_machines"
-    ? "Pair an Agent Bridge"
-    : target?.kind === "general" && target.type === "bound_machine_missing"
-    ? "Agent Bridge no longer paired"
-    : "Agent Bridge status unavailable";
+      ? "Pair an Agent Bridge"
+      : target?.kind === "general" && target.type === "bound_machine_missing"
+        ? "Agent Bridge no longer paired"
+        : "Agent Bridge status unavailable";
   const authorizable =
     machineState?.type === "browser_authorization_required" ||
     machineState?.type === "browser_authorization_revoked" ||
@@ -366,12 +364,12 @@ export const AgentBridgeRecoveryNotice = ({
   testId = "agent-bridge-recovery-notice",
 }: AgentBridgeRecoveryNoticeProps) => {
   const [guidanceTarget, setGuidanceTarget] = useState<GuidanceTarget | null>(
-    null
+    null,
   );
   if (state.type === "loading" || state.type === "ready") return null;
 
   const openMachineGuidance = (
-    unavailableState: AgentBridgeMachineUnavailableState
+    unavailableState: AgentBridgeMachineUnavailableState,
   ) => setGuidanceTarget({ kind: "machine", state: unavailableState });
 
   const content = (() => {

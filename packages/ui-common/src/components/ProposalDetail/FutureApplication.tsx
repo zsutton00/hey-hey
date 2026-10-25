@@ -1,3 +1,4 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { useState, type ReactNode } from "react";
@@ -5,7 +6,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,

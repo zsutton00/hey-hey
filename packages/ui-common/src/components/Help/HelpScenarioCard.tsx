@@ -1,3 +1,5 @@
+import { useModalState } from "../Modals/useModalState";
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import OndemandVideoOutlinedIcon from "@mui/icons-material/OndemandVideoOutlined";
 import {
   Alert,
@@ -5,7 +7,6 @@ import {
   Box,
   Button,
   Chip,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -13,7 +14,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import React, { Fragment, useId, useRef, useState } from "react";
+import React, { Fragment, useId, useRef } from "react";
 import { Link as RouterLink } from "react-router-dom";
 
 import { HeyheyPairTerminalDemo } from "../Activity/HeyheyPairTerminalDemo";
@@ -348,7 +349,7 @@ export const HelpScenarioCard: React.FC<HelpScenarioCardProps> = ({
   const routing = help?.routing ?? null;
   const checkpoints = scenario.checkpoints ?? [];
   const hasCheckpoints = checkpoints.length > 0;
-  const [demoOpen, setDemoOpen] = useState(false);
+  const [demoOpen, setDemoOpen, demoOpenOwnerKey] = useModalState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dialogTitleId = `${useId()}-demo-title`;
   const hasDemo =
@@ -409,6 +410,7 @@ export const HelpScenarioCard: React.FC<HelpScenarioCardProps> = ({
             Show me how
           </Button>
           <Dialog
+            ownerKey={demoOpenOwnerKey}
             open={demoOpen}
             onClose={closeDemo}
             aria-labelledby={dialogTitleId}

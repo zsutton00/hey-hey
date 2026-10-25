@@ -1,3 +1,5 @@
+import { useModalState } from "../Modals/useModalState";
+import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 /**
  * Unified Debug Panel Component
  * Combines WorkflowStatusDebug and WebSocketDebug into a single tabbed interface
@@ -57,7 +59,7 @@ const getPositionStyles = (position: PanelPosition): PositionStyles => {
 // Tab configuration
 const createTabConfigs = (
   enabledTabs: DebugTab[],
-  t: ReturnType<typeof useTranslation>["t"]
+  t: ReturnType<typeof useTranslation>["t"],
 ): TabConfig[] => {
   const allTabs: Record<DebugTab, Omit<TabConfig, "enabled" | "visible">> = {
     workflow: {
@@ -126,14 +128,15 @@ export const UnifiedDebugPanel: React.FC<UnifiedDebugPanelProps> = ({
   // UI State
   const [isExpanded, setIsExpanded] = useState(true);
   const [selectedTab, setSelectedTab] = useState<DebugTab>(initialTab);
-  const [isLogsModalOpen, setIsLogsModalOpen] = useState(false);
+  const [isLogsModalOpen, setIsLogsModalOpen, isLogsModalOpenOwnerKey] =
+    useModalState(false);
 
   // Workflow ID validation - allow any non-empty string that's not a mock ID
   const isValidWorkflowId = Boolean(
     workflowId &&
-      workflowId.trim().length > 0 &&
-      !workflowId.toLowerCase().includes("mock") &&
-      !workflowId.toLowerCase().includes("test")
+    workflowId.trim().length > 0 &&
+    !workflowId.toLowerCase().includes("mock") &&
+    !workflowId.toLowerCase().includes("test"),
   );
 
   console.log(
@@ -141,7 +144,7 @@ export const UnifiedDebugPanel: React.FC<UnifiedDebugPanelProps> = ({
     JSON.stringify({
       workflowId,
       isValidWorkflowId,
-    })
+    }),
   );
 
   // WebSocket debug data
@@ -171,7 +174,7 @@ export const UnifiedDebugPanel: React.FC<UnifiedDebugPanelProps> = ({
       subscriptionCountByKey: {} as Record<string, number>,
       duplicateSubscriptions: 0,
     }),
-    []
+    [],
   );
 
   const activeSubscriptions = useMemo(
@@ -190,7 +193,7 @@ export const UnifiedDebugPanel: React.FC<UnifiedDebugPanelProps> = ({
           eventCount: number;
         };
       }>,
-    []
+    [],
   );
 
   // Tab configuration
@@ -212,7 +215,7 @@ export const UnifiedDebugPanel: React.FC<UnifiedDebugPanelProps> = ({
     (_event: React.SyntheticEvent, newTab: string) => {
       setSelectedTab(newTab as DebugTab);
     },
-    []
+    [],
   );
 
   const handleToggleExpansion = useCallback(() => {
@@ -314,7 +317,7 @@ export const UnifiedDebugPanel: React.FC<UnifiedDebugPanelProps> = ({
 
   // Calculate error count from WebSocket events
   const webSocketErrors = webSocketEvents.filter(
-    (event) => event.metadata?.error
+    (event) => event.metadata?.error,
   ).length;
   const errorCount = webSocketErrors;
 
@@ -327,7 +330,7 @@ export const UnifiedDebugPanel: React.FC<UnifiedDebugPanelProps> = ({
     (filter: typeof webSocketFilter) => {
       setWebSocketFilter(filter);
     },
-    []
+    [],
   );
 
   const handleExportWebSocketEvents = useCallback(() => {
@@ -506,7 +509,7 @@ export const UnifiedDebugPanel: React.FC<UnifiedDebugPanelProps> = ({
                 <Chip
                   label={`${webSocketEvents.length} ${t(
                     "debug.events",
-                    "Events"
+                    "Events",
                   )}`}
                   size="small"
                   variant="outlined"
@@ -517,7 +520,7 @@ export const UnifiedDebugPanel: React.FC<UnifiedDebugPanelProps> = ({
                 <Chip
                   label={`${subscriptionStats.totalActiveSubscriptions} ${t(
                     "debug.subscriptions",
-                    "Subs"
+                    "Subs",
                   )}`}
                   size="small"
                   variant="outlined"
@@ -655,8 +658,8 @@ export const UnifiedDebugPanel: React.FC<UnifiedDebugPanelProps> = ({
                 errorCount > 0
                   ? theme.palette.error.main
                   : connectionState.isConnected
-                  ? theme.palette.success.main
-                  : theme.palette.warning.main,
+                    ? theme.palette.success.main
+                    : theme.palette.warning.main,
             }}
           />
           <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }}>
@@ -675,12 +678,14 @@ export const UnifiedDebugPanel: React.FC<UnifiedDebugPanelProps> = ({
       )}
 
       {/* Workflow Logs Modal */}
-      <WorkflowLogsModal
-        open={isLogsModalOpen}
-        onClose={() => setIsLogsModalOpen(false)}
-        workflowId={isValidWorkflowId ? workflowId : undefined}
-        onFetchLogs={() => Promise.resolve([])}
-      />
+      <ModalWorkOwner.Provider value={isLogsModalOpenOwnerKey}>
+        <WorkflowLogsModal
+          open={isLogsModalOpen}
+          onClose={() => setIsLogsModalOpen(false)}
+          workflowId={isValidWorkflowId ? workflowId : undefined}
+          onFetchLogs={() => Promise.resolve([])}
+        />
+      </ModalWorkOwner.Provider>
     </Paper>
   );
 };

@@ -1,3 +1,8 @@
+import {
+  useModalState,
+  ModalWorkOwner,
+} from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import AddIcon from "@mui/icons-material/Add";
 import CancelIcon from "@mui/icons-material/Cancel";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
@@ -6,7 +11,6 @@ import {
   Box,
   Button,
   Chip,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -214,7 +218,7 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
   const navigate = useNavigate();
   const machine = useEvalRunMachine(organizationId, projectId);
   const [setups, setSetups] = useState<SetupChoice[]>([]);
-  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isAddOpen, setIsAddOpen, isAddOpenOwnerKey] = useModalState(false);
   const [settings, setSettings] =
     useState<RunSettingsDraft>(defaultRunSettings);
   const [judgeDraft, setJudgeDraft] =
@@ -515,13 +519,15 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
         </Alert>
       )}
 
-      <AddConfigurationDialog
-        open={isAddOpen}
-        catalogSource={machine.catalogSource}
-        existingKeys={existingKeys}
-        onClose={() => setIsAddOpen(false)}
-        onAdd={handleAddSetup}
-      />
+      <ModalWorkOwner.Provider value={isAddOpenOwnerKey}>
+        <AddConfigurationDialog
+          open={isAddOpen}
+          catalogSource={machine.catalogSource}
+          existingKeys={existingKeys}
+          onClose={() => setIsAddOpen(false)}
+          onAdd={handleAddSetup}
+        />
+      </ModalWorkOwner.Provider>
     </>
   );
 };

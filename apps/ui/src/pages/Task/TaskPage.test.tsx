@@ -1,3 +1,5 @@
+import { ModalRestoreControls } from "@hey-hey/ui-common/components/Modals";
+import { PreviewModal } from "../../components/PreviewModal";
 import type {
   TaskResponseDto,
   WorkItemTypeDefinitionDto,
@@ -620,6 +622,39 @@ describe("TaskPage data debug tab", () => {
     mockWorkItemTypesFetched = true;
     mockVisibleChildren = [];
     mockWorkItemFilesTab.mockReset();
+  });
+
+  it("preserves the actual canonical task composition and its context through Preview minimize and restore", async () => {
+    mockActiveTab = "task";
+    render(
+      <MemoryRouter initialEntries={["/underlying?tab=notes"]}>
+        <LocationProbe />
+        <PreviewModal open onClose={vi.fn()}>
+          <TaskPage
+            organizationId="org-1"
+            projectId="project-1"
+            taskId="task-1"
+            preview
+          />
+        </PreviewModal>
+        <ModalRestoreControls />
+      </MemoryRouter>,
+    );
+    const composition = screen.getByTestId("status-action-owner");
+    expect(screen.getByText("Feature Tree")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Hide Context" }));
+    expect(screen.queryByText("Feature Tree")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("modal-minimize"));
+    fireEvent.click(screen.getByRole("button", { name: "Restore Preview" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("status-action-owner")).toBeVisible(),
+    );
+    expect(screen.getByTestId("status-action-owner")).toBe(composition);
+    expect(mockStatusActionUnmount).not.toHaveBeenCalled();
+    expect(screen.queryByText("Feature Tree")).not.toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/underlying?tab=notes",
+    );
   });
 
   it("keeps the capsule mutation owner alive through optimistic completion until the page closes", () => {

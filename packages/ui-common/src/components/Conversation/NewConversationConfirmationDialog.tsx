@@ -1,6 +1,6 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import {
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -47,7 +47,7 @@ export const NewConversationConfirmationDialog: React.FC<
         <Typography variant="body2" color="text.secondary">
           {t(
             "conversation.newConversation.confirm",
-            "Your current conversation remains available in the Conversations tab."
+            "Your current conversation remains available in the Conversations tab.",
           )}
         </Typography>
         {setupContent}
@@ -61,7 +61,7 @@ export const NewConversationConfirmationDialog: React.FC<
             ? t("conversation.newConversation.creating", "Creating...")
             : t(
                 "conversation.newConversation.confirm_button",
-                "Start new conversation"
+                "Start new conversation",
               )}
         </Button>
       </DialogActions>

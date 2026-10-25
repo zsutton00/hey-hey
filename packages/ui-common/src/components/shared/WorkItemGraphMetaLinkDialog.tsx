@@ -1,9 +1,9 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import { useEffect, useMemo, useState, type FC } from "react";
 import {
   Alert,
   Button,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -77,24 +77,25 @@ export const WorkItemGraphMetaLinkDialog: FC<
   });
   const existingTargetKeys = useMemo(
     () => new Set(existingTargets.map(workItemIdentityKey)),
-    [existingTargets]
+    [existingTargets],
   );
   const selectableResults = useMemo(
     () =>
       search.results.filter(
         (result) =>
-          !existingTargetKeys.has(workItemIdentityKey(result.identity))
+          !existingTargetKeys.has(workItemIdentityKey(result.identity)),
       ),
-    [existingTargetKeys, search.results]
+    [existingTargetKeys, search.results],
   );
-  const selected = relationship?.target.refType === "existing"
-    ? {
-        identity: relationship.target,
-        entityType: EntityType.Task,
-        title: relationship.label,
-        workItemTypeKey: "",
-      }
-    : selectableResults.find((result) => result.identity.id === selectedId);
+  const selected =
+    relationship?.target.refType === "existing"
+      ? {
+          identity: relationship.target,
+          entityType: EntityType.Task,
+          title: relationship.label,
+          workItemTypeKey: "",
+        }
+      : selectableResults.find((result) => result.identity.id === selectedId);
 
   useEffect(() => {
     setSelectedId(null);
@@ -105,12 +106,12 @@ export const WorkItemGraphMetaLinkDialog: FC<
       setLabel(
         typeof relationship?.metadata?.label === "string"
           ? relationship.metadata.label
-          : ""
+          : "",
       );
       setDescription(
         typeof relationship?.metadata?.description === "string"
           ? relationship.metadata.description
-          : ""
+          : "",
       );
       setReasoning(relationship?.reasoning ?? "");
       setEditedLabel(false);
@@ -173,10 +174,10 @@ export const WorkItemGraphMetaLinkDialog: FC<
             (search.status === "empty" ||
               (search.status === "success" &&
                 selectableResults.length === 0)) && (
-            <Typography variant="body2" color="text.secondary">
-              No eligible results.
-            </Typography>
-          )}
+              <Typography variant="body2" color="text.secondary">
+                No eligible results.
+              </Typography>
+            )}
           {!relationship &&
             search.status === "success" &&
             selectableResults.length > 0 && (

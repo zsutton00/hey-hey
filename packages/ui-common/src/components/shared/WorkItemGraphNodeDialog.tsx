@@ -1,7 +1,7 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import { useEffect, useMemo, useState, type FC } from "react";
 import {
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -55,7 +55,7 @@ export interface WorkItemGraphNodeDialogProps {
 
 function initialSectionValues(
   definition: WorkItemTypeDefinitionDto,
-  node: ProjectedWorkItem | null | undefined
+  node: ProjectedWorkItem | null | undefined,
 ): Record<string, string> {
   const contentByKey = new Map(
     (node?.sections ?? []).map((section) => [
@@ -63,13 +63,13 @@ function initialSectionValues(
       typeof section.content === "string"
         ? section.content
         : JSON.stringify(section.content ?? {}, null, 2),
-    ])
+    ]),
   );
   return Object.fromEntries(
     definition.sections.map((section) => [
       section.key,
       contentByKey.get(section.key) ?? "",
-    ])
+    ]),
   );
 }
 
@@ -117,8 +117,8 @@ export const WorkItemGraphNodeDialog: FC<WorkItemGraphNodeDialogProps> = ({
         if (section.schemaRef?.endsWith("/DiagramMetadata"))
           return isValidDiagramMetadata(
             parseDiagramMetadata(
-              parseDiagramSectionInput(sections[section.key] ?? "")
-            )
+              parseDiagramSectionInput(sections[section.key] ?? ""),
+            ),
           );
         if (
           section.schemaRef?.endsWith("/DiagramElementMetadata") &&
@@ -126,9 +126,9 @@ export const WorkItemGraphNodeDialog: FC<WorkItemGraphNodeDialogProps> = ({
         )
           return isValidDiagramElementMetadata(
             parseDiagramElementMetadata(
-              parseDiagramSectionInput(sections[section.key] ?? "")
+              parseDiagramSectionInput(sections[section.key] ?? ""),
             ),
-            section.diagramElementPolicy
+            section.diagramElementPolicy,
           );
         return true;
       }),
@@ -141,7 +141,7 @@ export const WorkItemGraphNodeDialog: FC<WorkItemGraphNodeDialogProps> = ({
       sections,
       tag,
       typeDefinition,
-    ]
+    ],
   );
 
   const commit = () => {
@@ -152,7 +152,7 @@ export const WorkItemGraphNodeDialog: FC<WorkItemGraphNodeDialogProps> = ({
       const value = sections[section.key] ?? "";
       const isOptional = section.required === false;
       const hasExistingSection = Boolean(
-        node?.sections.some((candidate) => candidate.key === section.key)
+        node?.sections.some((candidate) => candidate.key === section.key),
       );
       if (isWorkflowStepGraphPresentationSection(section)) {
         if (authoredColor) {
@@ -208,7 +208,7 @@ export const WorkItemGraphNodeDialog: FC<WorkItemGraphNodeDialogProps> = ({
             inputProps={{ "data-testid": "work-item-graph-node-name" }}
           />
           {!typeDefinition.forbiddenScalars?.includes(
-            WorkItemTypeScalarField.DueDate
+            WorkItemTypeScalarField.DueDate,
           ) && (
             <TextField
               required={requiresDueDate}
@@ -220,7 +220,7 @@ export const WorkItemGraphNodeDialog: FC<WorkItemGraphNodeDialogProps> = ({
             />
           )}
           {!typeDefinition.forbiddenScalars?.includes(
-            WorkItemTypeScalarField.Tag
+            WorkItemTypeScalarField.Tag,
           ) && (
             <TextField
               select
@@ -240,7 +240,7 @@ export const WorkItemGraphNodeDialog: FC<WorkItemGraphNodeDialogProps> = ({
           {typeDefinition.sections.map((section) => {
             if (section.schemaRef?.endsWith("/DiagramMetadata")) {
               const value = parseDiagramMetadata(
-                parseDiagramSectionInput(sections[section.key] ?? "")
+                parseDiagramSectionInput(sections[section.key] ?? ""),
               );
               return (
                 <DiagramMetadataFields
@@ -260,7 +260,7 @@ export const WorkItemGraphNodeDialog: FC<WorkItemGraphNodeDialogProps> = ({
               section.diagramElementPolicy
             ) {
               const value = parseDiagramElementMetadata(
-                parseDiagramSectionInput(sections[section.key] ?? "")
+                parseDiagramSectionInput(sections[section.key] ?? ""),
               );
               return (
                 <DiagramElementFields

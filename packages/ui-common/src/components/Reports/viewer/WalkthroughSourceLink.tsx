@@ -1,3 +1,5 @@
+import { useModalState } from "../../Modals/useModalState";
+import { ModalWorkOwner } from "../../Modals/ModalWorkOwner";
 import { useEffect, useState } from "react";
 import { Button, Stack, Typography } from "@mui/material";
 import { OpenInNew } from "@mui/icons-material";
@@ -24,7 +26,7 @@ export function WalkthroughSourceLink({
 }) {
   const [available, setAvailable] = useState(false);
   const [pending, setPending] = useState(false);
-  const [setup, setSetup] = useState(false);
+  const [setup, setSetup, setupOwnerKey] = useModalState(false);
   const eligible = excerpt.sourceVersion.kind === "WORKSPACE";
   const resolve = async () => {
     const baseUrl = resolveLocalDirectoryRuntimeBaseUrl();
@@ -101,14 +103,16 @@ export function WalkthroughSourceLink({
           Current source opening unavailable
         </Typography>
       )}
-      <ExternalEditorPreferenceDialog
-        open={setup}
-        onCancel={() => setSetup(false)}
-        onSaved={(preference) => {
-          setSetup(false);
-          void open(preference);
-        }}
-      />
+      <ModalWorkOwner.Provider value={setupOwnerKey}>
+        <ExternalEditorPreferenceDialog
+          open={setup}
+          onCancel={() => setSetup(false)}
+          onSaved={(preference) => {
+            setSetup(false);
+            void open(preference);
+          }}
+        />
+      </ModalWorkOwner.Provider>
     </Stack>
   );
 }

@@ -1,12 +1,13 @@
+import { useModalState } from "../../Modals/useModalState";
+import { FunctionalDialog as Dialog } from "../../Modals/FunctionalDialog";
 import {
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
   DialogTitle,
 } from "@mui/material";
-import React, { useState } from "react";
+import React from "react";
 import type { SecondaryActionRenderContext } from "./types";
 
 type ImplementationReadinessSecondaryActionProps = Pick<
@@ -26,7 +27,8 @@ const confirmationCopy = {
 export const ImplementationReadinessSecondaryAction: React.FC<
   ImplementationReadinessSecondaryActionProps
 > = ({ action, context, formValues, onExecute, kind }) => {
-  const [confirmationOpen, setConfirmationOpen] = useState(false);
+  const [confirmationOpen, setConfirmationOpen, confirmationOpenOwnerKey] =
+    useModalState(false);
 
   if (kind === "clarify") {
     return (
@@ -62,6 +64,7 @@ export const ImplementationReadinessSecondaryAction: React.FC<
         {action.label}
       </Button>
       <Dialog
+        ownerKey={confirmationOpenOwnerKey}
         open={confirmationOpen}
         onClose={() => setConfirmationOpen(false)}
         aria-labelledby={`implementation-readiness-${kind}-confirmation-title`}

@@ -1,3 +1,7 @@
+import {
+  useModalState,
+  ModalWorkOwner,
+} from "@hey-hey/ui-common/components/Modals";
 import { WebPathService } from "@hey-hey/ui-common/services";
 import {
   CapsuleAction,
@@ -96,7 +100,11 @@ export const ServicePage: React.FC = () => {
   }, [setActiveTab]);
 
   // Modal state
-  const [isNewTaskModalOpen, setIsNewTaskModalOpen] = useState(false);
+  const [
+    isNewTaskModalOpen,
+    setIsNewTaskModalOpen,
+    isNewTaskModalOpenOwnerKey,
+  ] = useModalState(false);
   const [isContextualRailVisible, setIsContextualRailVisible] = useState(true);
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState("");
@@ -635,12 +643,14 @@ export const ServicePage: React.FC = () => {
           )}
         </AnimatePresence>
       </DetailPageContainer>
-      <NewTaskModal
-        open={isNewTaskModalOpen}
-        onClose={handleCloseNewTaskModal}
-        onSubmit={handleSubmitNewTask}
-        initiativeId=""
-      />
+      <ModalWorkOwner.Provider value={isNewTaskModalOpenOwnerKey}>
+        <NewTaskModal
+          open={isNewTaskModalOpen}
+          onClose={handleCloseNewTaskModal}
+          onSubmit={handleSubmitNewTask}
+          initiativeId=""
+        />
+      </ModalWorkOwner.Provider>
     </TrackingProvider>
   );
 };

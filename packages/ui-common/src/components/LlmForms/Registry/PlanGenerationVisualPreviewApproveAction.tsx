@@ -1,7 +1,7 @@
+import { FunctionalDialog as Dialog } from "../../Modals/FunctionalDialog";
 import {
   Alert,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
@@ -29,17 +29,17 @@ type ApprovePhase =
 
 /** Session decisions win over a server status that still reads DRAFT. */
 const countUndecidedVisualProposals = (
-  proposals: readonly Pick<ProposalResponseDto, "id" | "status">[]
+  proposals: readonly Pick<ProposalResponseDto, "id" | "status">[],
 ): number =>
   proposals.filter(
     (proposal) =>
-      proposal.status === ProposalStatus.Draft && !getEntry(proposal.id)
+      proposal.status === ProposalStatus.Draft && !getEntry(proposal.id),
   ).length;
 
 const loadCurrentVisualProposals = async (
   proposalIds: readonly string[],
   organizationId: string,
-  projectId: string
+  projectId: string,
 ): Promise<ProposalResponseDto[]> =>
   Promise.all(
     proposalIds.map(async (proposalId) => {
@@ -53,7 +53,7 @@ const loadCurrentVisualProposals = async (
         throw new Error("A visual proposal could not be loaded.");
       }
       return proposal;
-    })
+    }),
   );
 
 /**
@@ -73,10 +73,10 @@ export const PlanGenerationVisualPreviewApproveAction: React.FC<
       on("submission-error", () => {
         submittedRef.current = false;
         setPhase((current) =>
-          current.kind === "submitted" ? { kind: "idle" } : current
+          current.kind === "submitted" ? { kind: "idle" } : current,
         );
       }),
-    [on]
+    [on],
   );
 
   const submit = () => {
@@ -108,7 +108,7 @@ export const PlanGenerationVisualPreviewApproveAction: React.FC<
       const proposals = await loadCurrentVisualProposals(
         proposalIds,
         context.organizationId,
-        context.projectId
+        context.projectId,
       );
       const draftCount = countUndecidedVisualProposals(proposals);
       if (draftCount === 0) {

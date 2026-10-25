@@ -1,9 +1,9 @@
+import { FunctionalDialog as Dialog } from "../../Modals/FunctionalDialog";
 import CloseIcon from "@mui/icons-material/Close";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import {
   Alert,
   Box,
-  Dialog,
   DialogContent,
   DialogTitle,
   FormControl,
@@ -141,10 +141,7 @@ export const EntityCollectionPickerDialog: React.FC<
       maxWidth="md"
       fullScreen={fullScreen}
       data-testid={dialogTestId ?? `${testIdPrefix}-picker`}
-    >
-      <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-        {title}
-        {titleAction}
+      closeControl={
         <IconButton
           aria-label={`Close ${title.toLowerCase()}`}
           data-testid={`close-${testIdPrefix}-picker`}
@@ -153,6 +150,11 @@ export const EntityCollectionPickerDialog: React.FC<
         >
           <CloseIcon />
         </IconButton>
+      }
+    >
+      <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        {title}
+        {titleAction}
       </DialogTitle>
       <DialogContent dividers sx={{ minHeight: 0 }}>
         <Stack spacing={2} sx={{ minWidth: 0 }}>

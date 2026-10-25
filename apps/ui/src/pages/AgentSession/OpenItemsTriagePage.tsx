@@ -1,3 +1,4 @@
+import { useModalShell } from "@hey-hey/ui-common/components/Modals";
 import {
   type ReactNode,
   useCallback,
@@ -102,6 +103,7 @@ export function OpenItemsTriagePage({
   onClose?: () => void;
   review: OpenItemsTriageReviewBinding;
 }) {
+  const inModalShell = useModalShell();
   const { t } = useTranslation();
   const { user } = useAuth();
   const canonical = useOpenItems({
@@ -264,7 +266,13 @@ export function OpenItemsTriagePage({
           spacing={1.5}
           sx={
             onClose
-              ? { pb: 1.25, borderBottom: 1, borderColor: "divider" }
+              ? {
+                  pr: inModalShell ? 13 : 0,
+                  minHeight: 48,
+                  pb: 1.25,
+                  borderBottom: 1,
+                  borderColor: "divider",
+                }
               : undefined
           }
         >
@@ -279,7 +287,7 @@ export function OpenItemsTriagePage({
             >
               {t("triage.runAgain", "Run Again")}
             </Button>
-            {onClose && (
+            {onClose && !inModalShell && (
               <IconButton
                 aria-label={t("triage.close", "Close triage")}
                 data-testid="open-items-triage-close"

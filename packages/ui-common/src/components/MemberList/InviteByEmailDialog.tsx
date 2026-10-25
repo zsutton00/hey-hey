@@ -1,9 +1,9 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Button,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -76,14 +76,14 @@ export const InviteByEmailDialog: React.FC<InviteByEmailDialogProps> = ({
       setEmail(event.target.value);
       if (emailError) setEmailError(undefined);
     },
-    [emailError]
+    [emailError],
   );
 
   const handleRoleChange = useCallback(
     (event: SelectChangeEvent<ProjectRole>) => {
       setRole(event.target.value as ProjectRole);
     },
-    []
+    [],
   );
 
   const handleSubmit = useCallback(() => {

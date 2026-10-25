@@ -1,3 +1,5 @@
+import { useModalState } from "../Modals/useModalState";
+import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import type { TriageApplicationCoordinator } from "../../data/triage/application";
 import type { OpenItemsTriageItem } from "../../api";
 import { SubmissionPreviews } from "./SubmissionPreviews";
@@ -493,8 +495,11 @@ const ConversationViewerContent: React.FC<{
   // New conversation state
   const [isCreatingConversation, setIsCreatingConversation] =
     React.useState(false);
-  const [isNewConversationDialogOpen, setIsNewConversationDialogOpen] =
-    React.useState(false);
+  const [
+    isNewConversationDialogOpen,
+    setIsNewConversationDialogOpen,
+    isNewConversationDialogOpenOwnerKey,
+  ] = useModalState(false);
 
   const onCreateNewConversationRef = React.useRef(onCreateNewConversation);
   onCreateNewConversationRef.current = onCreateNewConversation;
@@ -849,12 +854,14 @@ const ConversationViewerContent: React.FC<{
             </Box>
           )}
 
-          <NewConversationConfirmationDialog
-            open={isNewConversationDialogOpen}
-            onClose={() => setIsNewConversationDialogOpen(false)}
-            onConfirm={guard("new-conv-confirm", handleNewConversation)}
-            isConfirming={isCreatingConversation}
-          />
+          <ModalWorkOwner.Provider value={isNewConversationDialogOpenOwnerKey}>
+            <NewConversationConfirmationDialog
+              open={isNewConversationDialogOpen}
+              onClose={() => setIsNewConversationDialogOpen(false)}
+              onConfirm={guard("new-conv-confirm", handleNewConversation)}
+              isConfirming={isCreatingConversation}
+            />
+          </ModalWorkOwner.Provider>
         </Paper>
       </Box>
     </>

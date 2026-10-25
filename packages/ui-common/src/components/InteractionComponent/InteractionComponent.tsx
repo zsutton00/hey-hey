@@ -1,3 +1,6 @@
+import { useModalState } from "../Modals/useModalState";
+import { restoreModalWork } from "../Modals/modalWorkRegistry";
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import { draggedEntities } from "../../types/dragAndDrop";
 import ClearIcon from "@mui/icons-material/Clear";
 import DeleteSweepOutlinedIcon from "@mui/icons-material/DeleteSweepOutlined";
@@ -18,7 +21,6 @@ import { keyframes } from "@emotion/react";
 import {
   Box,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -1245,10 +1247,16 @@ const InteractionComponentCore: React.FC<InteractionComponentProps> = ({
   const launchSeededConversation = useCallback(
     (toolName: string) => {
       if (!organizationId || !projectId) return;
+      if (
+        restoreModalWork(
+          `discuss:${normalizeEntityType(entityType)}:${entityId}`,
+        )
+      )
+        return;
       setDiscussInitialValue(toolName);
       setDiscussOpen(true);
     },
-    [organizationId, projectId],
+    [organizationId, projectId, entityType, entityId],
   );
 
   const actionHandlers = useMemo<Record<string, () => void>>(() => {
@@ -1284,6 +1292,12 @@ const InteractionComponentCore: React.FC<InteractionComponentProps> = ({
           );
           return;
         }
+        if (
+          restoreModalWork(
+            `discuss:${normalizeEntityType(entityType)}:${entityId}`,
+          )
+        )
+          return;
         setDiscussInitialValue(undefined);
         setDiscussOpen(true);
       };
@@ -1970,7 +1984,8 @@ export const OpenItemInteractionComponent: React.FC<
   const navigate = useNavigate();
   const pathService = usePathService();
   const [discussOpen, setDiscussOpen] = useState(false);
-  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const [groupDialogOpen, setGroupDialogOpen, groupDialogOpenOwnerKey] =
+    useModalState(false);
   const [selectedGroupId, setSelectedGroupId] = useState(
     NEW_OPEN_ITEM_GROUP_OPTION,
   );
@@ -2121,7 +2136,12 @@ export const OpenItemInteractionComponent: React.FC<
         );
         return;
       }
-      setDiscussOpen(true);
+      if (
+        !restoreModalWork(
+          `discuss:${normalizeEntityType(surfaceProps.entityType)}:${surfaceProps.entityId}`,
+        )
+      )
+        setDiscussOpen(true);
     },
     [
       handleOpenItemAction,
@@ -2221,6 +2241,7 @@ export const OpenItemInteractionComponent: React.FC<
         />
       )}
       <Dialog
+        ownerKey={groupDialogOpenOwnerKey}
         open={groupDialogOpen}
         onClose={() => setGroupDialogOpen(false)}
         aria-labelledby="open-item-group-dialog-title"

@@ -1,3 +1,4 @@
+import { restoreModalWork } from "../../Modals/modalWorkRegistry";
 import React, { useCallback, useMemo, useState } from "react";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import { useTheme } from "@mui/material";
@@ -58,11 +59,11 @@ export const DiscussCapsuleAction: React.FC<DiscussCapsuleActionProps> = ({
       projectId,
       enabled:
         !!organizationId && entityType === EntityType.Task && discussOpen,
-    }
+    },
   );
   const fileReferenceScope = resolveFileReferenceScope(
     workItem?.type,
-    entityId
+    entityId,
   );
   const normalizedFocalEntityType = normalizeEntityType(entityType);
   const focalEntity = normalizedFocalEntityType
@@ -80,19 +81,20 @@ export const DiscussCapsuleAction: React.FC<DiscussCapsuleActionProps> = ({
         entityType,
         ...(workItem?.type ? { entitySubtype: workItem.type } : {}),
       }),
-    [entityId, entityType, workItem?.type]
+    [entityId, entityType, workItem?.type],
   );
   const discussTarget = useMemo<GuidableTargetAddress | undefined>(
     () =>
       walkthroughEntity
         ? { name: "discuss-action", entity: walkthroughEntity }
         : undefined,
-    [walkthroughEntity]
+    [walkthroughEntity],
   );
 
   const handleOpen = useCallback(() => {
-    setDiscussOpen(true);
-  }, []);
+    if (!restoreModalWork(`discuss:${normalizedFocalEntityType}:${entityId}`))
+      setDiscussOpen(true);
+  }, [normalizedFocalEntityType, entityId]);
 
   const handleClose = useCallback(() => {
     if (!launcher.isLoading) {
@@ -137,7 +139,7 @@ export const DiscussCapsuleAction: React.FC<DiscussCapsuleActionProps> = ({
       }
       return ok;
     },
-    [entityId, entityType, isFetching, launcher, refetch, workItem]
+    [entityId, entityType, isFetching, launcher, refetch, workItem],
   );
 
   const clearSubmitError = useCallback(() => {

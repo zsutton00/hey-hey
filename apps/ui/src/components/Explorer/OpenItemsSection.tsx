@@ -1,3 +1,5 @@
+import { useModalState } from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import { useOpenItemsSelection } from "../../openItemsSelection";
 import { OpenItemsTriageAction } from "./OpenItemsTriageAction";
 import { OpenItemsSyncStatus } from "./OpenItemsSyncStatus";
@@ -64,7 +66,6 @@ import {
   Box,
   Button,
   Collapse,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -613,7 +614,8 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
   } = actions;
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [isNoteDialogOpen, setIsNoteDialogOpen] = useState(false);
+  const [isNoteDialogOpen, setIsNoteDialogOpen, isNoteDialogOpenOwnerKey] =
+    useModalState(false);
   const [noteDraft, setNoteDraft] = useState("");
   const closePreviewTimeout = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -1061,6 +1063,7 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
         </Box>
       </OpenItemInteractionComponent>
       <Dialog
+        ownerKey={isNoteDialogOpenOwnerKey}
         open={isNoteDialogOpen}
         onClose={handleCloseNoteDialog}
         fullWidth

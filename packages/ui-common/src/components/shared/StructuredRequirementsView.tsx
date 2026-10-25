@@ -1,8 +1,8 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import CloseIcon from "@mui/icons-material/Close";
 import {
   Box,
   Button,
-  Dialog,
   DialogContent,
   DialogTitle,
   IconButton,
@@ -61,12 +61,7 @@ const CITATION_SLOT_LABELS = {
 } as const satisfies Record<CitationSlot, string>;
 
 type RequirementCitationEntityType =
-  | "DESIGN_DOC"
-  | "MOCKUP"
-  | "DIAGRAM"
-  | "TASK"
-  | "PLAN"
-  | "CONTRACT";
+  "DESIGN_DOC" | "MOCKUP" | "DIAGRAM" | "TASK" | "PLAN" | "CONTRACT";
 
 const REQUIREMENT_CITATION_ENTITY_TYPES: readonly string[] = [
   "DESIGN_DOC",
@@ -78,7 +73,7 @@ const REQUIREMENT_CITATION_ENTITY_TYPES: readonly string[] = [
 ];
 
 const isRequirementCitationEntityType = (
-  value: string
+  value: string,
 ): value is RequirementCitationEntityType =>
   REQUIREMENT_CITATION_ENTITY_TYPES.includes(value);
 
@@ -115,25 +110,25 @@ type CitationDiffTone = "equal" | "insert" | "delete";
 
 const getCitationKey = (
   slot: CitationSlot,
-  cite: NonNullable<FeatureRequirementRecord[CitationSlot]>[number]
+  cite: NonNullable<FeatureRequirementRecord[CitationSlot]>[number],
 ): string => `${slot}:${cite.entityType}:${cite.entityId}`;
 
 const getCitationKeys = (
-  requirement: RequirementPresentationItem["requirement"] | undefined
+  requirement: RequirementPresentationItem["requirement"] | undefined,
 ): Set<string> =>
   new Set(
     CITATION_SLOTS.flatMap((slot) =>
-      (requirement?.[slot] ?? []).map((cite) => getCitationKey(slot, cite))
-    )
+      (requirement?.[slot] ?? []).map((cite) => getCitationKey(slot, cite)),
+    ),
   );
 
 const getHiddenCitationDiffTone = (
   slot: CitationSlot,
   hiddenCites: NonNullable<FeatureRequirementRecord[CitationSlot]>,
-  citationDiffTones: ReadonlyMap<string, CitationDiffTone> | undefined
+  citationDiffTones: ReadonlyMap<string, CitationDiffTone> | undefined,
 ): CitationDiffTone | undefined => {
   const tones = hiddenCites.map((cite) =>
-    citationDiffTones?.get(getCitationKey(slot, cite))
+    citationDiffTones?.get(getCitationKey(slot, cite)),
   );
 
   return (
@@ -149,11 +144,11 @@ const getDiffToneSx = (tone: CitationDiffTone | undefined) =>
         color: "success.contrastText",
       }
     : tone === "delete"
-    ? {
-        backgroundColor: "error.light",
-        color: "error.contrastText",
-      }
-    : undefined;
+      ? {
+          backgroundColor: "error.light",
+          color: "error.contrastText",
+        }
+      : undefined;
 
 const RequirementCitations: React.FC<RequirementCitationsProps> = ({
   item,
@@ -171,7 +166,7 @@ const RequirementCitations: React.FC<RequirementCitationsProps> = ({
       const hiddenDiffTone = getHiddenCitationDiffTone(
         slot,
         hiddenCites,
-        citationDiffTones
+        citationDiffTones,
       );
       return (
         <Stack
@@ -192,7 +187,7 @@ const RequirementCitations: React.FC<RequirementCitationsProps> = ({
               key={`${cite.entityType}:${cite.entityId}`}
               data-testid="structured-requirement-citation"
               data-diff-tone={citationDiffTones?.get(
-                getCitationKey(slot, cite)
+                getCitationKey(slot, cite),
               )}
               sx={
                 citationDiffTones?.get(getCitationKey(slot, cite)) === "insert"
@@ -203,14 +198,14 @@ const RequirementCitations: React.FC<RequirementCitationsProps> = ({
                       },
                     }
                   : citationDiffTones?.get(getCitationKey(slot, cite)) ===
-                    "delete"
-                  ? {
-                      "& [data-mention-token]": {
-                        backgroundColor: "error.light",
-                        color: "error.contrastText",
-                      },
-                    }
-                  : undefined
+                      "delete"
+                    ? {
+                        "& [data-mention-token]": {
+                          backgroundColor: "error.light",
+                          color: "error.contrastText",
+                        },
+                      }
+                    : undefined
               }
             >
               <CitationPresentation cite={cite} />
@@ -254,7 +249,7 @@ const renderRequirement = (
     string,
     ReadonlyMap<string, "equal" | "insert" | "delete">
   >,
-  badgeMentions?: boolean
+  badgeMentions?: boolean,
 ): React.ReactNode => (
   <Box
     component="li"
@@ -293,10 +288,10 @@ const renderBlock = (
   >,
   badgeMentions?: boolean,
   hiddenRequirementIds?: ReadonlySet<string>,
-  hasGroups?: boolean
+  hasGroups?: boolean,
 ): React.ReactNode => {
   const visibleItems = block.requirements.filter(
-    (item) => !hiddenRequirementIds?.has(item.id)
+    (item) => !hiddenRequirementIds?.has(item.id),
   );
   const hiddenCount = block.requirements.length - visibleItems.length;
   const requirements = visibleItems.map((item) =>
@@ -306,8 +301,8 @@ const renderBlock = (
       itemAttributes,
       itemStatementRenderers,
       itemCitationDiffTones,
-      badgeMentions
-    )
+      badgeMentions,
+    ),
   );
   const hiddenNotice =
     hiddenCount > 0 ? (
@@ -318,7 +313,10 @@ const renderBlock = (
         data-testid="structured-requirements-hidden-count"
         sx={{ mt: visibleItems.length > 0 ? 0.5 : 0.25 }}
       >
-        {formatHiddenCount(hiddenCount, block.kind === "ungrouped" && hasGroups)}
+        {formatHiddenCount(
+          hiddenCount,
+          block.kind === "ungrouped" && hasGroups,
+        )}
       </Typography>
     ) : null;
 
@@ -421,7 +419,7 @@ export const StructuredRequirementsView: React.FC<
               itemCitationDiffTones,
               badgeMentions,
               hiddenRequirementIds,
-              hasGroups
+              hasGroups,
             )}
           </React.Fragment>
         ))}
@@ -438,9 +436,7 @@ export const StructuredRequirementsView: React.FC<
               data-testid="structured-requirements-show-all"
               sx={{ px: 0.5 }}
             >
-              {isExpanded
-                ? "Show less"
-                : `View all (${requirements.length})`}
+              {isExpanded ? "Show less" : `View all (${requirements.length})`}
             </Button>
           </Box>
         ) : null}
@@ -451,9 +447,7 @@ export const StructuredRequirementsView: React.FC<
         maxWidth="sm"
         fullWidth
         data-testid="structured-requirement-fulfilled-by-dialog"
-      >
-        <DialogTitle sx={{ pr: 6 }}>
-          Fulfilled by
+        closeControl={
           <IconButton
             aria-label="Close fulfilled by citations"
             onClick={() => setDisclosedRequirementId(null)}
@@ -461,7 +455,9 @@ export const StructuredRequirementsView: React.FC<
           >
             <CloseIcon />
           </IconButton>
-        </DialogTitle>
+        }
+      >
+        <DialogTitle sx={{ pr: 6 }}>Fulfilled by</DialogTitle>
         <DialogContent dividers>
           {disclosedRequirement ? (
             <Stack spacing={1.5}>
@@ -491,7 +487,7 @@ export interface StructuredRequirementsDiffViewProps {
 
 const buildChangeAttributes = (
   changes: ReturnType<typeof buildRequirementPresentationChanges>,
-  pane: "old" | "new"
+  pane: "old" | "new",
 ): ReadonlyMap<string, Record<string, string>> =>
   new Map(
     changes.map((change) => [
@@ -500,7 +496,7 @@ const buildChangeAttributes = (
         "data-requirement-change": change.kind,
         "data-diff-pane": pane,
       },
-    ])
+    ]),
   );
 
 interface InlineRequirementsDiff {
@@ -515,7 +511,7 @@ interface InlineRequirementsDiff {
 
 const buildStatementRenderer = (
   change: ReturnType<typeof buildRequirementPresentationChanges>[number],
-  pane: "old" | "new"
+  pane: "old" | "new",
 ): React.ReactNode | undefined => {
   const item = pane === "old" ? change.before : change.after;
   if (!item || change.kind === "unchanged") return undefined;
@@ -531,7 +527,7 @@ const buildStatementRenderer = (
 
 const buildCitationDiffTones = (
   change: ReturnType<typeof buildRequirementPresentationChanges>[number],
-  pane: "old" | "new"
+  pane: "old" | "new",
 ): ReadonlyMap<string, "equal" | "insert" | "delete"> | undefined => {
   const item = pane === "old" ? change.before : change.after;
   if (!item || change.kind === "unchanged") return undefined;
@@ -549,13 +545,13 @@ const buildCitationDiffTones = (
           key,
           isPresentOnOtherPane ? "equal" : pane === "old" ? "delete" : "insert",
         ] as const;
-      })
-    )
+      }),
+    ),
   );
 };
 
 const buildInlineRequirementsDiff = (
-  changes: ReturnType<typeof buildRequirementPresentationChanges>
+  changes: ReturnType<typeof buildRequirementPresentationChanges>,
 ): InlineRequirementsDiff => {
   const records: FeatureRequirementRecord[] = [];
   const attributes = new Map<string, Record<string, string>>();
@@ -570,8 +566,8 @@ const buildInlineRequirementsDiff = (
       change.kind === "edited" || change.kind === "group-changed"
         ? (["old", "new"] as const)
         : change.kind === "removed"
-        ? (["old"] as const)
-        : (["new"] as const);
+          ? (["old"] as const)
+          : (["new"] as const);
 
     for (const pane of versions) {
       const item = pane === "old" ? change.before : change.after;
@@ -619,7 +615,7 @@ export const StructuredRequirementsDiffView: React.FC<
       return renderer && change.before
         ? [[change.before.id, renderer] as const]
         : [];
-    })
+    }),
   );
   const newStatementRenderers = new Map(
     changes.flatMap((change) => {
@@ -627,19 +623,19 @@ export const StructuredRequirementsDiffView: React.FC<
       return renderer && change.after
         ? [[change.after.id, renderer] as const]
         : [];
-    })
+    }),
   );
   const oldCitationDiffTones = new Map(
     changes.flatMap((change) => {
       const tones = buildCitationDiffTones(change, "old");
       return tones && change.before ? [[change.before.id, tones] as const] : [];
-    })
+    }),
   );
   const newCitationDiffTones = new Map(
     changes.flatMap((change) => {
       const tones = buildCitationDiffTones(change, "new");
       return tones && change.after ? [[change.after.id, tones] as const] : [];
-    })
+    }),
   );
   const inline = buildInlineRequirementsDiff(changes);
 

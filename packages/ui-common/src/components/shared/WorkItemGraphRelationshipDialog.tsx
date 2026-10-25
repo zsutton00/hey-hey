@@ -1,7 +1,7 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import { useEffect, useMemo, useState, type FC } from "react";
 import {
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -36,14 +36,14 @@ export interface WorkItemGraphRelationshipDialogProps {
 
 function declarationFor(
   declarations: readonly WorkItemTypeGraphRelationshipDeclaration[],
-  edgeType: string
+  edgeType: string,
 ): WorkItemTypeGraphRelationshipDeclaration | undefined {
   return declarations.find((declaration) => declaration.edgeType === edgeType);
 }
 
 function initialDirection(
   declaration: WorkItemTypeGraphRelationshipDeclaration | undefined,
-  relationship: ProjectedWorkItemRelationship | null | undefined
+  relationship: ProjectedWorkItemRelationship | null | undefined,
 ): AgentEdgeDirection | "" {
   const allowed = declaration?.direction?.allowedDirections ?? [];
   if (relationship?.direction && allowed.includes(relationship.direction)) {
@@ -76,12 +76,12 @@ export const WorkItemGraphRelationshipDialog: FC<
     setLabel(
       typeof relationship?.metadata?.label === "string"
         ? relationship.metadata.label
-        : ""
+        : "",
     );
     setDescription(
       typeof relationship?.metadata?.description === "string"
         ? relationship.metadata.description
-        : ""
+        : "",
     );
     setReasoning(relationship?.reasoning ?? "");
     setEditedLabel(false);
@@ -91,7 +91,7 @@ export const WorkItemGraphRelationshipDialog: FC<
 
   const selectedDeclaration = useMemo(
     () => declarationFor(declarations, edgeType),
-    [declarations, edgeType]
+    [declarations, edgeType],
   );
   const allowedDirections =
     selectedDeclaration?.direction?.allowedDirections ?? [];
@@ -106,13 +106,13 @@ export const WorkItemGraphRelationshipDialog: FC<
   const commit = () => {
     if (!selectedDeclaration || !canCommit) return;
     const changedType = Boolean(
-      relationship && relationship.edgeType !== selectedDeclaration.edgeType
+      relationship && relationship.edgeType !== selectedDeclaration.edgeType,
     );
     const committedPredicate = predicateRequired
       ? predicate.trim()
       : changedType
-      ? null
-      : undefined;
+        ? null
+        : undefined;
     const editedMetadata = editedLabel || editedDescription;
     const metadata = editedMetadata
       ? {
@@ -123,13 +123,13 @@ export const WorkItemGraphRelationshipDialog: FC<
             : {}),
         }
       : changedType
-      ? relationship?.metadata
-      : undefined;
+        ? relationship?.metadata
+        : undefined;
     const committedReasoning = editedReasoning
       ? reasoning.trim() || null
       : changedType
-      ? relationship?.reasoning
-      : undefined;
+        ? relationship?.reasoning
+        : undefined;
     onCommit({
       edgeType: selectedDeclaration.edgeType,
       category: selectedDeclaration.category,
@@ -160,7 +160,7 @@ export const WorkItemGraphRelationshipDialog: FC<
               const nextEdgeType = event.target.value as AgentEdgeType;
               const nextDeclaration = declarationFor(
                 declarations,
-                nextEdgeType
+                nextEdgeType,
               );
               setEdgeType(nextEdgeType);
               setDirection(initialDirection(nextDeclaration, null));

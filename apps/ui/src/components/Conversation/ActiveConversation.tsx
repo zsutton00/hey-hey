@@ -1,3 +1,5 @@
+import { useModalState } from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import {
   ConversationStatus as ConversationStatusEnum,
   InitiationType,
@@ -20,7 +22,6 @@ import {
   Box,
   Button,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -47,7 +48,11 @@ export const ActiveConversation: React.FC<ActiveConversationProps> = ({
   onDeleted,
   onPresentationLoaded,
 }) => {
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [
+    isDeleteDialogOpen,
+    setIsDeleteDialogOpen,
+    isDeleteDialogOpenOwnerKey,
+  ] = useModalState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const onBackRef = useRef(onBack);
   onBackRef.current = onBack;
@@ -67,7 +72,7 @@ export const ActiveConversation: React.FC<ActiveConversationProps> = ({
     { conversationId: conversationId ?? "" },
     {
       enabled: !!organizationId && !!projectId && !!conversationId,
-    }
+    },
   );
 
   const { mutate: submitOnboardingReply } = useSubmitOnboardingReply();
@@ -75,7 +80,7 @@ export const ActiveConversation: React.FC<ActiveConversationProps> = ({
     async (submission: OnboardingReplySubmission): Promise<void> => {
       if (!conversation || conversation.workflowName !== "onboarding") {
         throw new Error(
-          "The onboarding reply cannot be submitted for this conversation."
+          "The onboarding reply cannot be submitted for this conversation.",
         );
       }
 
@@ -86,7 +91,7 @@ export const ActiveConversation: React.FC<ActiveConversationProps> = ({
         ...submission,
       });
     },
-    [conversation, organizationId, projectId, submitOnboardingReply]
+    [conversation, organizationId, projectId, submitOnboardingReply],
   );
 
   const deleteConversation = useDeleteConversation({
@@ -171,7 +176,8 @@ export const ActiveConversation: React.FC<ActiveConversationProps> = ({
         <Stack direction="row" spacing={1.5} alignItems="center">
           {conversation && (
             <Typography variant="subtitle1" color="text.secondary">
-              {conversation.title || getWorkflowLabel(conversation.workflowName)}
+              {conversation.title ||
+                getWorkflowLabel(conversation.workflowName)}
             </Typography>
           )}
           <Button
@@ -242,6 +248,7 @@ export const ActiveConversation: React.FC<ActiveConversationProps> = ({
       )}
 
       <Dialog
+        ownerKey={isDeleteDialogOpenOwnerKey}
         open={isDeleteDialogOpen}
         onClose={handleCloseDeleteDialog}
         aria-labelledby="delete-conversation-title"

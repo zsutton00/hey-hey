@@ -1,3 +1,5 @@
+import { useModalState } from "../Modals/useModalState";
+import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import type { RunAttachmentReference } from "../../api";
 import CodeIcon from "@mui/icons-material/Code";
 import CommitIcon from "@mui/icons-material/Commit";
@@ -448,8 +450,10 @@ const CodingSessionActive = memo(
       useState<ActionFailureState | null>(null);
     const actionFailureGenerationRef = useRef(0);
     const [diffModalOpen, setDiffModalOpen] = useState(false);
-    const [reviewModalOpen, setReviewModalOpen] = useState(false);
-    const [commitModalOpen, setCommitModalOpen] = useState(false);
+    const [reviewModalOpen, setReviewModalOpen, reviewModalOpenOwnerKey] =
+      useModalState(false);
+    const [commitModalOpen, setCommitModalOpen, commitModalOpenOwnerKey] =
+      useModalState(false);
     const stepContext = useMemo<StepContext>(
       () => ({
         projectId,
@@ -1362,30 +1366,34 @@ const CodingSessionActive = memo(
             agentSessionId={agentSessionId}
             runId={runId}
           />
-          <FollowupActionModal
-            open={reviewModalOpen}
-            surfaceId={CODE_REVIEW_SURFACE_ID}
-            catalogSource={followupCatalogSource}
-            onClose={() => setReviewModalOpen(false)}
-            onSubmit={handleReviewSubmit}
-            submitting={requestingCodeReview}
-            title="Code Review"
-            submitLabel="Review"
-            submittingLabel="Reviewing..."
-            placeholder="Add any specific focus areas or instructions for the review... (optional)"
-          />
-          <FollowupActionModal
-            open={commitModalOpen}
-            surfaceId={COMMIT_SURFACE_ID}
-            catalogSource={followupCatalogSource}
-            onClose={() => setCommitModalOpen(false)}
-            onSubmit={handleCommitSubmit}
-            submitting={requestingCommit}
-            title="Commit Changes"
-            submitLabel="Commit"
-            submittingLabel="Committing..."
-            placeholder="Add any specific commit instructions... (optional)"
-          />
+          <ModalWorkOwner.Provider value={reviewModalOpenOwnerKey}>
+            <FollowupActionModal
+              open={reviewModalOpen}
+              surfaceId={CODE_REVIEW_SURFACE_ID}
+              catalogSource={followupCatalogSource}
+              onClose={() => setReviewModalOpen(false)}
+              onSubmit={handleReviewSubmit}
+              submitting={requestingCodeReview}
+              title="Code Review"
+              submitLabel="Review"
+              submittingLabel="Reviewing..."
+              placeholder="Add any specific focus areas or instructions for the review... (optional)"
+            />
+          </ModalWorkOwner.Provider>
+          <ModalWorkOwner.Provider value={commitModalOpenOwnerKey}>
+            <FollowupActionModal
+              open={commitModalOpen}
+              surfaceId={COMMIT_SURFACE_ID}
+              catalogSource={followupCatalogSource}
+              onClose={() => setCommitModalOpen(false)}
+              onSubmit={handleCommitSubmit}
+              submitting={requestingCommit}
+              title="Commit Changes"
+              submitLabel="Commit"
+              submittingLabel="Committing..."
+              placeholder="Add any specific commit instructions... (optional)"
+            />
+          </ModalWorkOwner.Provider>
           <Box
             data-testid="coding-session-conversation-region"
             sx={codingSessionConversationRegionSx}

@@ -1,6 +1,8 @@
+import { useModalState } from "../../Modals/useModalState";
+import { ModalWorkOwner } from "../../Modals/ModalWorkOwner";
 import { Box, Link } from "@mui/material";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
-import { useContext, useState, type MouseEvent } from "react";
+import { useContext, type MouseEvent } from "react";
 import {
   buildExternalEditorUrl,
   readExternalEditorPreference,
@@ -88,7 +90,8 @@ export const FileReferenceLink = ({
 }: FileReferenceLinkProps) => {
   const editorContext = useContext(MentionEditorContext);
   const projectContext = useProjectContext();
-  const [isSetupOpen, setIsSetupOpen] = useState(false);
+  const [isSetupOpen, setIsSetupOpen, isSetupOpenOwnerKey] =
+    useModalState(false);
   const sourceReference = resolveMappedSource(value);
   const label = resolveFileReferenceLabel(value, renderMode);
   const contextCandidate = editorContext ?? projectContext;
@@ -169,11 +172,13 @@ export const FileReferenceLink = ({
       ) : (
         reference
       )}
-      <ExternalEditorPreferenceDialog
-        open={isSetupOpen}
-        onCancel={() => setIsSetupOpen(false)}
-        onSaved={handleSaved}
-      />
+      <ModalWorkOwner.Provider value={isSetupOpenOwnerKey}>
+        <ExternalEditorPreferenceDialog
+          open={isSetupOpen}
+          onCancel={() => setIsSetupOpen(false)}
+          onSaved={handleSaved}
+        />
+      </ModalWorkOwner.Provider>
     </>
   );
 };
