@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -12,6 +12,9 @@ import {
 } from "../../../api";
 import type { FeatureRequirementRecord } from "../../../utils/structuredRequirements";
 import { TaskUpdateRenderer } from "../TaskUpdateRenderer";
+import { ProposalReconciliationReview } from "../../ProposalReconciliation/ProposalReconciliationReview";
+import { proposalsClient } from "../../../clients/serviceClients";
+import type { ProposalReconciliationState } from "../../../api";
 import type { UpdateTaskProposalUpdates } from "../types";
 
 const { featureLookup } = vi.hoisted(() => ({
@@ -74,6 +77,27 @@ vi.mock("../ProposalStateIndicator", () => ({
 
 vi.mock("../ProposalEdges", () => ({
   ProposalEdges: () => null,
+}));
+
+vi.mock("../../../clients/serviceClients", () => ({
+  proposalsClient: {
+    getProposalReconciliation: vi.fn(),
+    createProposalReconciliationCandidate: vi.fn(),
+  },
+}));
+vi.mock("../../../data/hooks/useInvalidateProposalReview", () => ({
+  useInvalidateProposalReview: () => vi.fn(),
+}));
+vi.mock("../../../data/hooks/useMentionEntitySearch", () => ({
+  useMentionEntitySearch: () => ({ searchEntities: vi.fn() }),
+}));
+vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
+  useWorkItemTypeByKey: () => ({ workItemTypeSummary: undefined }),
+  useWorkItemTypes: () => ({
+    workItemTypes: [{ definition }],
+    isLoading: false,
+    error: null,
+  }),
 }));
 
 const id = (last: string): string =>
@@ -449,4 +473,162 @@ describe("TaskUpdateRenderer structured requirements", () => {
       ).not.toBeInTheDocument();
     });
   });
+});
+
+it("edits a future's structured overlap by hand and shows the complete revised result against current content", async () => {
+  const updates = makeProposal([
+    requirement(id("1"), "Future wording", "Access", {
+      fulfilledBy: existingRecords[0].fulfilledBy,
+    }),
+    existingRecords[1],
+  ]);
+  const result = {
+    ...existing,
+    sections: [
+      materializedRequirements([
+        requirement(id("1"), "Future wording", "Access", {
+          fulfilledBy: existingRecords[0].fulfilledBy,
+        }),
+        existingRecords[1],
+      ]),
+    ],
+  };
+  const future = {
+    ...updates,
+    action: "VERSIONED_UPDATE",
+    status: "APPROVED",
+    reviewedFuture: { outcome: "STAGED" },
+    updates: {
+      operation: "REVISE",
+      baseline: { content: existing },
+      result,
+    },
+  } as unknown as ProposalResponseDto;
+  const basis = {
+    entityType: "TASK" as const,
+    entityId: existing.id,
+    version: "current",
+    content: {
+      name: existing.name,
+      type: "FEATURE",
+      sections: { requirements: { records: existingRecords } },
+      sectionOrder: { requirements: 0 },
+    },
+  };
+  const state: ProposalReconciliationState = {
+    status: "RECONCILIATION_REQUIRED",
+    futureRevision: 3,
+    currentBases: [basis],
+    candidateRevisionId: "original",
+    conflictingPaths: ["sections.requirements.records"],
+    interveningProposals: [],
+    overlaps: [
+      {
+        path: "sections.requirements.records",
+        currentValue: existingRecords,
+        proposedValue: JSON.parse(result.sections[0].materializedMarkdown)
+          .records,
+      },
+    ],
+    revisions: [
+      {
+        id: "original",
+        proposalId: future.id,
+        source: "ORIGINAL",
+        bases: [basis],
+        proposedResult: result,
+        intent: "Readable future",
+        createdAt: "2026-10-25T00:00:00Z",
+      },
+    ],
+  };
+  vi.mocked(proposalsClient.getProposalReconciliation).mockResolvedValue({
+    data: { data: state },
+  } as never);
+  vi.mocked(
+    proposalsClient.createProposalReconciliationCandidate,
+  ).mockImplementation(
+    async (request) =>
+      ({
+        data: {
+          data: {
+            ...state,
+            status: "READY_FOR_REVIEW",
+            overlaps: [],
+            conflictingPaths: [],
+            candidateRevisionId: "resolved",
+            revisions: [
+              ...state.revisions,
+              {
+                ...state.revisions[0],
+                id: "resolved",
+                source: "MANUAL",
+                proposedResult:
+                  request.createProposalReconciliationCandidate.proposedResult,
+              },
+            ],
+          },
+        },
+      }) as never,
+  );
+  const apply = vi.fn();
+  render(
+    <MemoryRouter>
+      <ProposalReconciliationReview proposal={future} onApply={apply}>
+        <TaskUpdateRenderer
+          proposal={updates}
+          existing={existing}
+          status={{ state: "pending" }}
+          onApply={apply}
+          workItemTypeDefinition={definition}
+        />
+      </ProposalReconciliationReview>
+    </MemoryRouter>,
+  );
+  fireEvent.click(
+    await screen.findByTestId("proposal-reconciliation-edit-by-hand"),
+  );
+  const editable = screen
+    .getAllByTestId("requirement-statement-input")
+    .find((node) => !(node as HTMLTextAreaElement).disabled)!;
+  fireEvent.change(editable, {
+    target: { value: "Reviewed wording preserves current work" },
+  });
+  fireEvent.click(screen.getByTestId("proposal-reconciliation-manual-save"));
+  await waitFor(() =>
+    expect(
+      screen.queryByTestId("proposal-reconciliation-manual-editor"),
+    ).toBeNull(),
+  );
+  const diff = screen.getByTestId("structured-requirements-diff");
+  expect(
+    diff.querySelector('[data-testid="structured-requirements-current"]'),
+  ).toHaveTextContent("One");
+  expect(
+    diff.querySelector('[data-testid="structured-requirements-proposed"]'),
+  ).toHaveTextContent("Reviewed wording preserves current work");
+  expect(
+    diff.querySelector(`[data-entity-id="${id("2")}"]`),
+  ).toBeInTheDocument();
+  expect(screen.queryByTestId("proposal-reconciliation-overlap")).toBeNull();
+  expect(
+    proposalsClient.createProposalReconciliationCandidate,
+  ).toHaveBeenCalledWith(
+    expect.objectContaining({
+      createProposalReconciliationCandidate: expect.objectContaining({
+        method: "MANUAL",
+        expectedFutureRevision: 3,
+        expectedCurrentBases: [basis],
+      }),
+    }),
+  );
+  expect(apply).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByTestId("structured-requirements-diff-show-all"));
+  expect(
+    screen.getByTestId("structured-requirements-proposed"),
+  ).toHaveTextContent("Two");
+  fireEvent.click(screen.getByTestId("diff-renderer-view-mode-inline"));
+  expect(
+    screen.getByTestId("structured-requirements-inline"),
+  ).toHaveTextContent("Reviewed wording preserves current work");
 });

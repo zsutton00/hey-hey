@@ -1540,6 +1540,8 @@ const InteractionComponentCore: React.FC<InteractionComponentProps> = ({
       }}
       {...dragAttributes}
       {...dragListeners}
+      // Dragging can be disabled while review controls inside remain usable.
+      aria-disabled={undefined}
       role="group"
       aria-roledescription="interactive entity"
       tabIndex={0}
@@ -1911,6 +1913,8 @@ const InteractionSurfaceCore: React.FC<InteractionSurfaceCoreProps> = ({
       }}
       {...dragSource?.attributes}
       {...dragSource?.listeners}
+      // Drag availability does not disable the entity’s nested controls.
+      aria-disabled={undefined}
       role="group"
       aria-roledescription="interactive entity"
       tabIndex={0}

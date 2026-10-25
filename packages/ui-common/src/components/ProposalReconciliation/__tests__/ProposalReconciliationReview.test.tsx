@@ -22,7 +22,22 @@ vi.mock("../../../data/hooks/useInvalidateProposalReview", () => ({
 }));
 vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
   useWorkItemTypes: () => ({
-    workItemTypes: [],
+    workItemTypes: [
+      {
+        definition: {
+          key: "FEATURE",
+          sections: [
+            {
+              key: "requirements",
+              label: "Requirements",
+              kind: "json",
+              schemaRef: "#/components/schemas/FeatureRequirementsSection",
+            },
+            { key: "description", label: "Description", kind: "markdown" },
+          ],
+        },
+      },
+    ],
     isLoading: false,
     error: null,
   }),
@@ -50,22 +65,16 @@ vi.mock("../AgentFixConfirmDialog", () => ({
     </div>
   ),
 }));
-vi.mock("../../SuggestedContent/DiffRenderer", () => ({
-  DiffRenderer: ({
-    oldContent,
-    newContent,
+vi.mock("../../SmarterTextAreaCard/MentionBadge", () => ({
+  MentionBadgeInner: ({
+    mention,
   }: {
-    oldContent: string;
-    newContent: string;
-  }) => (
-    <div>
-      <pre>{oldContent}</pre>
-      <pre>{newContent}</pre>
-    </div>
-  ),
+    mention: { entityId: string; entityName: string };
+  }) => <a href={`/items/${mention.entityId}`}>{mention.entityName}</a>,
 }));
 const proposal = {
   id: "proposal",
+  targetEntityId: "target",
   organizationId: "org",
   projectId: "project",
   updates: {},
@@ -76,7 +85,7 @@ const basis = {
   entityType: "TASK" as const,
   entityId: "target",
   version: "current",
-  content: { name: "Current", preserved: "Intervening work" },
+  content: { type: "FEATURE", name: "Current", preserved: "Intervening work" },
 };
 const ready: ProposalReconciliationState = {
   status: "READY_FOR_REVIEW",
@@ -294,7 +303,7 @@ describe("out-of-date review", () => {
     );
     expect(overlap).toHaveTextContent("ACTIVE");
     expect(overlap).toHaveTextContent("COMPLETED");
-    expect(screen.getByText("Overlaps: status")).toBeVisible();
+    expect(screen.getByText("Overlaps: Status")).toBeVisible();
     expect(
       screen.getByTestId("proposal-reconciliation-edit-by-hand"),
     ).toBeVisible();
@@ -388,4 +397,168 @@ describe("approved future recovery", () => {
       proposalsClient.createProposalReconciliationCandidate,
     ).not.toHaveBeenCalled();
   });
+});
+
+const requirement = (id: string, statement: string, group?: string) => ({
+  id,
+  statement,
+  ...(group ? { group } : {}),
+  designedBy: [],
+  contracts: [],
+  fulfilledBy: [
+    {
+      entityType: "TASK",
+      entityId: "00000000-0000-4000-8000-000000000099",
+      entityTitle: "Implement readable review",
+    },
+  ],
+});
+const first = requirement(
+  "00000000-0000-4000-8000-000000000001",
+  "Show dated history",
+  "Review",
+);
+const unchanged = requirement(
+  "00000000-0000-4000-8000-000000000002",
+  "Preserve explicit Apply",
+  "Application",
+);
+const intended = {
+  ...first,
+  statement: "Show readable dated history",
+  group: "Recovery",
+};
+
+it("keeps structured future overlaps legible while expanding and collapsing historical changes", async () => {
+  const records = [first, unchanged];
+  const futureRecords = [intended, unchanged];
+  const future = {
+    ...proposal,
+    targetEntityId: "target",
+    action: "VERSIONED_UPDATE",
+    status: "APPROVED",
+    reviewedFuture: { outcome: "STAGED" },
+  } as ProposalResponseDto;
+  vi.mocked(proposalsClient.getProposalReconciliation).mockResolvedValue({
+    data: {
+      data: {
+        ...ready,
+        status: "RECONCILIATION_REQUIRED",
+        interveningProposals: [
+          {
+            ...intervening,
+            changedPaths: ["sections.requirements"],
+            overlappingPaths: ["sections.requirements.records"],
+            changes: [
+              {
+                path: "sections.requirements",
+                before: { records: [unchanged] },
+                after: { records },
+              },
+            ],
+          },
+        ],
+        overlaps: [
+          {
+            path: "sections.requirements.records",
+            currentValue: records,
+            proposedValue: futureRecords,
+            interveningProposalId: intervening.proposalId,
+          },
+        ],
+      },
+    },
+  } as never);
+  const apply = vi.fn();
+  render(
+    <ProposalReconciliationReview proposal={future} onApply={apply}>
+      <span>Previously approved</span>
+      <button disabled>Apply</button>
+    </ProposalReconciliationReview>,
+  );
+  const overlap = await screen.findByTestId("proposal-reconciliation-overlap");
+  expect(overlap).toHaveTextContent("Show readable dated history");
+  expect(overlap).toHaveTextContent("Previously approved future");
+  expect(overlap).toHaveTextContent("1 unchanged requirement hidden");
+  expect(
+    overlap.querySelector(`[data-requirement-id="${first.id}"]`),
+  ).toHaveAttribute("data-requirement-change", "group-changed");
+  expect(overlap.querySelector("a")).toHaveAttribute(
+    "href",
+    "/items/00000000-0000-4000-8000-000000000099",
+  );
+  expect(screen.getByText("Overlaps: Requirements")).toBeVisible();
+  expect(screen.getByText(/What’s changed since the baseline/)).toBeVisible();
+  expect(screen.getByText(/Sep 27, 2026/)).toBeVisible();
+  expect(screen.getByText("Future under review")).toBeVisible();
+  expect(
+    screen.queryByText(
+      /entity Id:|sections.requirements.records|fulfilled By:/,
+    ),
+  ).toBeNull();
+  expect(
+    screen.queryByTestId("proposal-reconciliation-intervening-diff"),
+  ).toBeNull();
+  fireEvent.click(screen.getByTestId("proposal-reconciliation-history-toggle"));
+  const historical = screen.getByTestId(
+    "proposal-reconciliation-intervening-diff",
+  );
+  expect(
+    historical.querySelector('[data-testid="structured-requirements-diff"]'),
+  ).toBeInTheDocument();
+  expect(historical).toHaveTextContent("Show dated history");
+  fireEvent.click(screen.getByTestId("proposal-reconciliation-history-toggle"));
+  expect(
+    screen.queryByTestId("proposal-reconciliation-intervening-diff"),
+  ).toBeNull();
+  expect(overlap).toBeVisible();
+  fireEvent.click(
+    overlap.querySelector(
+      '[data-testid="structured-requirements-diff-show-all"]',
+    )!,
+  );
+  expect(overlap).toHaveTextContent("Preserve explicit Apply");
+  fireEvent.click(
+    overlap.querySelector('[data-testid="diff-renderer-view-mode-inline"]')!,
+  );
+  expect(
+    overlap.querySelector('[data-testid="structured-requirements-inline"]'),
+  ).toBeVisible();
+  expect(screen.getByText("Apply")).toBeDisabled();
+  expect(apply).not.toHaveBeenCalled();
+});
+
+it("keeps Design Doc history readable without treating it as a registered work item", async () => {
+  vi.mocked(proposalsClient.getProposalReconciliation).mockResolvedValue({
+    data: {
+      data: {
+        ...ready,
+        status: "RECONCILIATION_REQUIRED",
+        interveningProposals: [intervening],
+      },
+    },
+  } as never);
+  render(
+    <ProposalReconciliationReview
+      proposal={
+        { ...proposal, targetEntityType: "DESIGN_DOC" } as ProposalResponseDto
+      }
+      onApply={vi.fn()}
+    >
+      <Approve />
+    </ProposalReconciliationReview>,
+  );
+  fireEvent.click(
+    await screen.findByTestId("proposal-reconciliation-history-toggle"),
+  );
+  const history = screen.getByTestId(
+    "proposal-reconciliation-intervening-diff",
+  );
+  expect(history).toHaveTextContent("Description");
+  expect(history).toHaveTextContent("Cake");
+  expect(history).toHaveTextContent("Sorbet");
+  expect(history).not.toHaveTextContent("sections.description");
+  expect(
+    history.querySelector('[data-testid="diff-renderer-split-view"]'),
+  ).toBeVisible();
 });

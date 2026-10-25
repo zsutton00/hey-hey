@@ -480,6 +480,7 @@ export const StructuredRequirementsView: React.FC<
 };
 
 export interface StructuredRequirementsDiffViewProps {
+  splitLabels?: { before: string; after: string };
   before: readonly FeatureRequirementRecord[];
   after: readonly FeatureRequirementRecord[];
   defaultViewMode?: DiffViewMode;
@@ -597,7 +598,7 @@ const buildInlineRequirementsDiff = (
 
 export const StructuredRequirementsDiffView: React.FC<
   StructuredRequirementsDiffViewProps
-> = ({ before, after, defaultViewMode = "split" }) => {
+> = ({ before, after, defaultViewMode = "split", splitLabels }) => {
   const [showAll, setShowAll] = useState(false);
   const changes = buildRequirementPresentationChanges(before, after);
   const unchangedIds = changes
@@ -646,6 +647,7 @@ export const StructuredRequirementsDiffView: React.FC<
         newContent=""
         defaultViewMode={defaultViewMode}
         showViewModeToggle
+        splitLabels={splitLabels}
         contentRenderers={{
           split: {
             old: (

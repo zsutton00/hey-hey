@@ -18,7 +18,7 @@ class MockIntersectionObserver {
   observe(target: Element) {
     this.callback(
       [{ target, isIntersecting: true } as IntersectionObserverEntry],
-      this as unknown as IntersectionObserver
+      this as unknown as IntersectionObserver,
     );
   }
   unobserve() {}
@@ -79,7 +79,7 @@ const ENTITY_ID = "entity-123";
 const ENTITY_TYPE = "TASK" as const;
 
 function buildProps(
-  overrides: Partial<InteractionComponentProps> = {}
+  overrides: Partial<InteractionComponentProps> = {},
 ): InteractionComponentProps {
   return {
     entityId: ENTITY_ID,
@@ -102,7 +102,7 @@ describe("InteractionComponent a11y — ARIA attributes (hasProposalSupport=true
 
     expect(screen.getByTestId("interaction-component")).toHaveAttribute(
       "role",
-      "group"
+      "group",
     );
   });
 
@@ -111,7 +111,7 @@ describe("InteractionComponent a11y — ARIA attributes (hasProposalSupport=true
 
     expect(screen.getByTestId("interaction-component")).toHaveAttribute(
       "aria-roledescription",
-      "interactive entity"
+      "interactive entity",
     );
   });
 
@@ -120,7 +120,7 @@ describe("InteractionComponent a11y — ARIA attributes (hasProposalSupport=true
 
     expect(screen.getByTestId("interaction-component")).toHaveAttribute(
       "aria-label",
-      `Actions for ${ENTITY_TYPE} ${ENTITY_ID}`
+      `Actions for ${ENTITY_TYPE} ${ENTITY_ID}`,
     );
   });
 
@@ -129,7 +129,7 @@ describe("InteractionComponent a11y — ARIA attributes (hasProposalSupport=true
 
     expect(screen.getByTestId("interaction-component")).toHaveAttribute(
       "tabindex",
-      "0"
+      "0",
     );
   });
 });
@@ -146,12 +146,12 @@ describe("InteractionComponent a11y — ARIA attributes (baseline Discuss capabi
           entityType: "SERVICE",
           hasProposalSupport: false,
         })}
-      />
+      />,
     );
 
     expect(screen.getByTestId("interaction-component")).toHaveAttribute(
       "role",
-      "group"
+      "group",
     );
   });
 
@@ -162,12 +162,12 @@ describe("InteractionComponent a11y — ARIA attributes (baseline Discuss capabi
           entityType: "SERVICE",
           hasProposalSupport: false,
         })}
-      />
+      />,
     );
 
     expect(screen.getByTestId("interaction-component")).toHaveAttribute(
       "tabindex",
-      "0"
+      "0",
     );
   });
 });
@@ -200,7 +200,7 @@ describe("InteractionComponent a11y — keyboard operability", () => {
       <div>
         <button data-testid="preceding-button">Before</button>
         <InteractionComponent {...buildProps()} />
-      </div>
+      </div>,
     );
 
     // userEvent.tab() simulates browser tab order in jsdom. This relies on
@@ -210,7 +210,7 @@ describe("InteractionComponent a11y — keyboard operability", () => {
     await user.tab();
 
     expect(document.activeElement).toBe(
-      screen.getByTestId("interaction-component")
+      screen.getByTestId("interaction-component"),
     );
   });
 
@@ -226,14 +226,14 @@ describe("InteractionComponent a11y — keyboard operability", () => {
           })}
         />
         <button data-testid="following-button">After</button>
-      </div>
+      </div>,
     );
 
     screen.getByTestId("preceding-button").focus();
     await user.tab();
 
     expect(document.activeElement).toBe(
-      screen.getByTestId("interaction-component")
+      screen.getByTestId("interaction-component"),
     );
   });
 });
@@ -265,7 +265,7 @@ describe("InteractionComponent a11y — focus management", () => {
     await user.keyboard("{Escape}");
 
     expect(
-      screen.queryByTestId("interaction-context-menu")
+      screen.queryByTestId("interaction-context-menu"),
     ).not.toBeInTheDocument();
     expect(document.activeElement).toBe(container);
   });
@@ -292,4 +292,24 @@ describe("InteractionComponent a11y — context menu ARIA structure", () => {
     expect(menuList).toHaveAttribute("tabindex", "-1");
     expect(menu.querySelector('[role="menuitem"]')).toBeInTheDocument();
   });
+});
+
+it("keeps review controls accessible when the entity card cannot be dragged", async () => {
+  const inspect = vi.fn();
+  render(
+    <InteractionComponent
+      {...buildProps({
+        entityType: "PROPOSAL",
+        draggable: false,
+        children: <button onClick={inspect}>Show all requirements</button>,
+      })}
+    />,
+  );
+  expect(screen.getByTestId("interaction-component")).not.toHaveAttribute(
+    "aria-disabled",
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Show all requirements" }),
+  );
+  expect(inspect).toHaveBeenCalledOnce();
 });

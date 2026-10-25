@@ -976,8 +976,8 @@ it("shows approved future drift through real shared review and hides the unresol
   ).toBeVisible();
   expect(screen.getByTestId("proposal-reconciliation-agent-fix")).toBeVisible();
   expect(
-    within(screen.getByTestId("proposal-reconciliation-overlap")).getByText(
-      "Current",
+    within(screen.getByTestId("proposal-reconciliation-overlap")).getByTestId(
+      "diff-renderer-split-pane-old",
     ),
   ).toBeVisible();
   expect(screen.getByText("Intended")).toBeVisible();

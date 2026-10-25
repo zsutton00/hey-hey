@@ -47,6 +47,8 @@ interface DiffRendererBaseProps {
   codeLanguage?: string;
   /** Whether to render the internal inline/split mode toggle */
   showViewModeToggle?: boolean;
+  /** Names the two snapshots being compared. */
+  splitLabels?: { before: string; after: string };
   /** Structured content that must retain its domain-specific presentation. */
   contentRenderers?: {
     inline: React.ReactNode;
@@ -1267,6 +1269,7 @@ export const DiffRenderer: React.FC<DiffRendererProps> = ({
   defaultViewMode,
   onViewModeChange,
   contentRenderers,
+  splitLabels,
 }) => {
   const operations = useMemo(() => {
     return calculateWordDiff(oldContent, newContent).operations;
@@ -1451,7 +1454,10 @@ export const DiffRenderer: React.FC<DiffRendererProps> = ({
             gap: 1.5,
           }}
         >
-          <DiffSplitPane title="Current" testId={SPLIT_OLD_PANE_TEST_ID}>
+          <DiffSplitPane
+            title={splitLabels?.before ?? "Current"}
+            testId={SPLIT_OLD_PANE_TEST_ID}
+          >
             {contentRenderers ? (
               contentRenderers.split.old
             ) : enableInteractiveReview ? (
@@ -1466,7 +1472,10 @@ export const DiffRenderer: React.FC<DiffRendererProps> = ({
               />
             )}
           </DiffSplitPane>
-          <DiffSplitPane title="Suggested" testId={SPLIT_NEW_PANE_TEST_ID}>
+          <DiffSplitPane
+            title={splitLabels?.after ?? "Suggested"}
+            testId={SPLIT_NEW_PANE_TEST_ID}
+          >
             {contentRenderers ? (
               contentRenderers.split.new
             ) : enableInteractiveReview ? (
