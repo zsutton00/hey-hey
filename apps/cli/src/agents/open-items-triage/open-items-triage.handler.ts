@@ -43,6 +43,7 @@ export class OpenItemsTriageHandler implements UserLaunchablePromptTypeHandler<T
   public readonly rebuildPromptOnUserMessage = true;
   public readonly reports = [] as const;
   public readonly mcpToolUseCase = 'research' as const;
+  public readonly additionalAllowedTools = ['get_agent_session'] as const;
   public readonly builtinTools = [] as const;
   public readonly readOnlyFilesystem = true;
   public readonly omitServiceContextNote = true;

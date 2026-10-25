@@ -1198,3 +1198,71 @@ describe('relationships and typed replies', () => {
       expect(parseTriageResponse(JSON.stringify({ ...reply, suggestions })).ok).toBe(false);
   });
 });
+
+describe('triage session discovery permission', () => {
+  it('adds the canonical session read only on this handler', () => {
+    const handler = new OpenItemsTriageHandler();
+    expect(handler.mcpToolUseCase).toBe('research');
+    expect(handler.additionalAllowedTools).toEqual(['get_agent_session']);
+    expect(handler.builtinTools).toEqual([]);
+    expect(handler.readOnlyFilesystem).toBe(true);
+  });
+});
+
+describe('session observations in compact prepared input', () => {
+  it('keeps incomplete attention usable, omits archived sessions and refreshes recent session observations', async () => {
+    const fetchImpl = fetchFixture();
+    const original = fetchImpl.getMockImplementation()!;
+    let state = 'THINKING';
+    fetchImpl.mockImplementation(async (url, init) => {
+      const path = new URL(String(url)).pathname;
+      if (path.endsWith('/open-items'))
+        return response({
+          state: 'PRESENT',
+          revision: 3,
+          items: [1, 2].map((n) => ({ ...openItem(n), entityType: 'AGENT_SESSION' })),
+          groups: [],
+        });
+      if (path.endsWith('/attention')) return new Response('', { status: 503 });
+      if (path.endsWith('current-state:batch'))
+        return response({
+          items: [
+            null,
+            {
+              agentSessionId: id(1),
+              currentState: state,
+              revision: 2,
+              transitionedAt: new Date(now).toISOString(),
+            },
+          ],
+        });
+      if (path.endsWith('output-attention:batch')) return response({ items: [] });
+      if (path.includes('/agent-sessions/'))
+        return response({
+          id: path.split('/').at(-1),
+          projectId: id(92),
+          status: path.endsWith(id(2)) ? 'ARCHIVED' : 'ACTIVE',
+          createdAt: new Date(now - 3600000).toISOString(),
+          conversationId: id(51),
+        });
+      return original(url, init);
+    });
+    const owner = new TriageInputOwner(deps(fetchImpl), id(91), id(92), token, now);
+    const first = await owner.build();
+    expect(first.collection.items).toHaveLength(1);
+    expect(first.collection.items[0]).not.toHaveProperty('createdAt');
+    expect(first.sessionObservations[0]).toMatchObject({
+      createdAt: new Date(now - 3600000).toISOString(),
+      conversationId: id(51),
+      currentState: { currentState: 'THINKING' },
+      outputAttention: null,
+    });
+    expect(first.attention.totalsComplete).toBe(false);
+    expect(first.sessionSelection).toEqual({ cap: 10, omittedCandidates: 0 });
+    expect(Buffer.byteLength(JSON.stringify(first))).toBeLessThan(TRIAGE_INPUT_BUDGET_BYTES);
+    state = 'IDLE';
+    const second = await owner.build();
+    expect(second.sessionObservations[0]?.currentState?.currentState).toBe('IDLE');
+    expect(second.sessionObservations[0]?.outputAttention).toBeNull();
+  });
+});
