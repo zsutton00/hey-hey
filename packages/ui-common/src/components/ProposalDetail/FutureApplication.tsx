@@ -1,7 +1,7 @@
 import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import { useState, useContext, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
@@ -20,7 +20,6 @@ import type {
   FutureRevisionResponse,
 } from "../../api";
 import { proposalsClient } from "../../clients/serviceClients";
-import { ProposalReconciliationContext } from "../ProposalReconciliation/ProposalReconciliationReview";
 import { useApplyProposalFuture } from "../../data/hooks/useApplyProposalFuture";
 import { FutureProposalLink } from "./FutureProposalLink";
 
@@ -67,7 +66,6 @@ export function FutureApplication({
     useState<FutureApplyConfirmation | null>(null);
   const [invalidated, setInvalidated] = useState<string[]>([]);
   const apply = useApplyProposalFuture();
-  const reconciliation = useContext(ProposalReconciliationContext);
   const applicability = useQuery({
     queryKey: [
       "proposal-future-applicability",
@@ -167,12 +165,7 @@ export function FutureApplication({
               size="small"
               sx={{ flexShrink: 0 }}
               data-testid="future-apply"
-              disabled={
-                !ready ||
-                apply.isPending ||
-                applicability.isFetching ||
-                reconciliation?.approvalDisabled
-              }
+              disabled={!ready || apply.isPending || applicability.isFetching}
               onClick={() => void submit()}
             >
               {apply.isPending ? "Applying…" : "Apply"}

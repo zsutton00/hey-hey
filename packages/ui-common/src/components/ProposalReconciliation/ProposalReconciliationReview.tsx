@@ -17,7 +17,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import {
   ProposalStatus,
   type ProposalResponseDto,
@@ -28,7 +28,12 @@ import {
 import { proposalsClient } from "../../clients/serviceClients";
 import { usePathService } from "../../contexts/PathServiceContext";
 import type { ProposalApprovalRequest } from "../ProposalDispatchers/types";
-import { DiffRenderer } from "../SuggestedContent/DiffRenderer";
+import { ReconciliationFieldComparison } from "./ReconciliationFieldComparison";
+import {
+  reconciliationFieldLabel,
+  type ReconciliationPresentation,
+} from "./reconciliationPresentation";
+import { useWorkItemTypes } from "../../data/hooks/useWorkItemTypes";
 import { subscribeProposalReconciliation } from "./reconciliationInvalidation";
 import { useInvalidateProposalReview } from "../../data/hooks/useInvalidateProposalReview";
 import { isFutureProposal } from "../ProposalDispatchers/futureAsUpdate";
@@ -51,30 +56,6 @@ const OUT_OF_DATE_STATUSES = new Set<ProposalReconciliationState["status"]>([
 
 const ago = (iso: string) =>
   formatDistanceToNow(new Date(iso), { addSuffix: true });
-
-const displayValue = (value: unknown): string => {
-  if (value == null) return "";
-  if (typeof value === "string") {
-    if (/^\s*[\[{]/.test(value)) {
-      try {
-        return displayValue(JSON.parse(value));
-      } catch {
-        /* Ordinary text. */
-      }
-    }
-    return value;
-  }
-  if (Array.isArray(value)) return value.map(displayValue).join("\n\n");
-  if (typeof value === "object")
-    return Object.entries(value)
-      .filter(([key]) => key !== "id")
-      .map(
-        ([key, entry]) =>
-          `${key.replace(/([A-Z])/g, " $1")}: ${displayValue(entry)}`,
-      )
-      .join("\n");
-  return String(value);
-};
 
 type Resolve = { onEdit: () => void; onAgentFix: () => void; busy: boolean };
 
@@ -104,33 +85,29 @@ function OutOfDateHeadsUp({ state }: { state: ProposalReconciliationState }) {
 function OverlapComparison({
   overlap,
   resolve,
+  presentation,
+  future,
 }: {
+  presentation: ReconciliationPresentation;
+  future: boolean;
   overlap: ProposalReconciliationOverlap;
   resolve: Resolve;
 }) {
   return (
     <Stack spacing={1} data-testid="proposal-reconciliation-overlap">
-      <Stack direction="row" spacing={2}>
-        {(
-          [
-            ["Now", overlap.currentValue],
-            ["This proposal", overlap.proposedValue],
-          ] as const
-        ).map(([label, value]) => (
-          <Box key={label} sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="caption" color="text.secondary">
-              {label}
-            </Typography>
-            <Typography
-              variant="body2"
-              component="div"
-              sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
-            >
-              {displayValue(value) || "(empty)"}
-            </Typography>
-          </Box>
-        ))}
-      </Stack>
+      <Typography variant="subtitle2">
+        Resolve overlap: {reconciliationFieldLabel(overlap.path, presentation)}
+      </Typography>
+      <ReconciliationFieldComparison
+        labels={{
+          before: "Current",
+          after: future ? "Previously approved future" : "This proposal",
+        }}
+        path={overlap.path}
+        before={overlap.currentValue}
+        after={overlap.proposedValue}
+        presentation={presentation}
+      />
       <Stack direction="row" spacing={1}>
         <Button
           size="small"
@@ -157,7 +134,11 @@ function InterveningEntry({
   overlaps,
   proposalHref,
   resolve,
+  presentation,
+  future,
 }: {
+  presentation: ReconciliationPresentation;
+  future: boolean;
   entry: ProposalReconciliationIntervening;
   overlaps: ProposalReconciliationOverlap[];
   proposalHref: string;
@@ -167,7 +148,10 @@ function InterveningEntry({
   return (
     <Paper
       variant="outlined"
-      sx={{ p: 1.5 }}
+      sx={{
+        p: 1.5,
+        bgcolor: "background.paper",
+      }}
       data-testid="proposal-reconciliation-intervening"
     >
       <Stack spacing={1}>
@@ -180,26 +164,41 @@ function InterveningEntry({
               key={path}
               size="small"
               color="warning"
-              label={`Overlaps: ${path}`}
+              label={`Overlaps: ${reconciliationFieldLabel(path, presentation)}`}
             />
           ))}
         </Stack>
         <Typography variant="caption" color="text.secondary">
-          Approved{entry.approvedByName ? ` by ${entry.approvedByName}` : ""}{" "}
-          {ago(entry.approvedAt)}
+          Approved{entry.approvedByName ? ` by ${entry.approvedByName}` : ""} ·{" "}
+          {format(new Date(entry.approvedAt), "MMM d, yyyy · p")}
         </Typography>
         {overlaps.map((overlap) => (
           <OverlapComparison
             key={overlap.path}
             overlap={overlap}
             resolve={resolve}
+            presentation={presentation}
+            future={future}
           />
         ))}
         {entry.changes.length ? (
           <Box>
-            <Button size="small" onClick={() => setExpanded(!expanded)}>
+            <Button
+              size="small"
+              data-testid="proposal-reconciliation-history-toggle"
+              aria-expanded={expanded}
+              onClick={() => setExpanded(!expanded)}
+            >
               {expanded ? "Hide its changes" : "Show its changes"}
             </Button>
+            {expanded ? (
+              <Typography variant="caption" color="text.secondary">
+                What this approved change changed at the time.
+                {overlaps.length
+                  ? " Hiding this comparison keeps the overlap above visible for resolution."
+                  : ""}
+              </Typography>
+            ) : null}
             {expanded
               ? entry.changes.map((change) => (
                   <Stack
@@ -209,11 +208,17 @@ function InterveningEntry({
                     data-testid="proposal-reconciliation-intervening-diff"
                   >
                     <Typography variant="caption" color="text.secondary">
-                      {change.path}
+                      {reconciliationFieldLabel(change.path, presentation)}
                     </Typography>
-                    <DiffRenderer
-                      oldContent={displayValue(change.before)}
-                      newContent={displayValue(change.after)}
+                    <ReconciliationFieldComparison
+                      labels={{
+                        before: "Before this change",
+                        after: "After this change",
+                      }}
+                      path={change.path}
+                      before={change.before}
+                      after={change.after}
+                      presentation={presentation}
                     />
                   </Stack>
                 ))
@@ -235,38 +240,67 @@ function ChangedSinceList({
   resolve: Resolve;
 }) {
   const paths = usePathService();
+  const registry = useWorkItemTypes(proposal.organizationId, {
+    projectId: proposal.projectId,
+  });
+  const typeKey = state.currentBases.find(
+    (basis) => basis.entityId === proposal.targetEntityId,
+  )?.content.type;
+  const definition = registry.workItemTypes.find(
+    (item) => item.definition.key === typeKey,
+  )?.definition;
+  const presentation: ReconciliationPresentation =
+    proposal.targetEntityType === "DESIGN_DOC"
+      ? { kind: "design-doc" }
+      : { kind: "work-item", definition };
+  const future = proposal.action === "VERSIONED_UPDATE";
   const unattributed = state.overlaps.filter(
     (overlap) => !overlap.interveningProposalId,
   );
   if (!state.interveningProposals.length && !unattributed.length) return null;
   return (
-    <Stack spacing={1} data-testid="proposal-reconciliation-changed-since">
+    <Stack
+      spacing={1}
+      sx={{ p: 1.5, bgcolor: "action.hover", borderRadius: 1 }}
+      data-testid="proposal-reconciliation-changed-since"
+    >
       <Typography variant="subtitle2">
-        What&apos;s changed since this was written
+        {future
+          ? "What’s changed since the baseline"
+          : "What’s changed since this was written"}
       </Typography>
-      {state.interveningProposals.map((entry) => (
-        <InterveningEntry
-          key={entry.proposalId}
-          entry={entry}
-          overlaps={state.overlaps.filter(
-            (overlap) => overlap.interveningProposalId === entry.proposalId,
-          )}
-          proposalHref={paths.proposal({
-            projectId: proposal.projectId,
-            proposalId: entry.proposalId,
-          })}
-          resolve={resolve}
-        />
-      ))}
+      {[...state.interveningProposals]
+        .sort((a, b) => a.approvedAt.localeCompare(b.approvedAt))
+        .map((entry) => (
+          <InterveningEntry
+            key={entry.proposalId}
+            entry={entry}
+            presentation={presentation}
+            future={future}
+            overlaps={state.overlaps.filter(
+              (overlap) => overlap.interveningProposalId === entry.proposalId,
+            )}
+            proposalHref={paths.proposal({
+              projectId: proposal.projectId,
+              proposalId: entry.proposalId,
+            })}
+            resolve={resolve}
+          />
+        ))}
       {unattributed.map((overlap) => (
         <Paper key={overlap.path} variant="outlined" sx={{ p: 1.5 }}>
           <Chip
             size="small"
             color="warning"
-            label={`Overlaps: ${overlap.path}`}
+            label={`Overlaps: ${reconciliationFieldLabel(overlap.path, presentation)}`}
             sx={{ mb: 1 }}
           />
-          <OverlapComparison overlap={overlap} resolve={resolve} />
+          <OverlapComparison
+            overlap={overlap}
+            resolve={resolve}
+            presentation={presentation}
+            future={future}
+          />
         </Paper>
       ))}
     </Stack>
@@ -553,10 +587,34 @@ function PendingProposalReconciliationReview({
             variant="subtitle2"
             data-testid="proposal-reconciliation-merged-result"
           >
-            Merged result compared with current content
+            {proposal.action === "VERSIONED_UPDATE"
+              ? "Complete revised result"
+              : "Merged result compared with current content"}
           </Typography>
         ) : null}
-        {children}
+        {outOfDate ? (
+          <Box sx={{ borderTop: 1, borderColor: "divider", pt: 2 }}>
+            <Typography
+              variant="subtitle2"
+              data-testid="proposal-reconciliation-under-review"
+            >
+              {proposal.action === "VERSIONED_UPDATE"
+                ? "Future under review"
+                : "This proposal’s change"}
+            </Typography>
+            {hasOverlaps ? (
+              <Typography variant="body2" color="text.secondary">
+                The complete revised result appears after resolution.{" "}
+                {proposal.action === "VERSIONED_UPDATE"
+                  ? "Previous approval does not approve new edits. Review the revised future, then choose Apply separately."
+                  : "Resolve the overlap to approve."}
+              </Typography>
+            ) : null}
+            {children}
+          </Box>
+        ) : (
+          children
+        )}
       </Stack>
     </ProposalReconciliationContext.Provider>
   );
