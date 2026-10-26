@@ -7,13 +7,16 @@ function isStructuredText(value: string): boolean {
   return first === '{' || first === '[';
 }
 
-// These are transport correlation keys or logical workflow node names, not
-// references to project records. Known copied identities still take precedence.
+// These are transport correlation keys, logical workflow node names, or agent
+// dispatch identities, not references to project records. A persisted trigger's
+// `operationId` must survive the copy: its absence marks the trigger as still
+// pending. Known copied identities still take precedence.
 const NON_RECORD_IDENTIFIERS = new Set([
   'requestId',
   'correlationId',
   'causationId',
   'nodeId',
+  'operationId',
 ]);
 
 /** One identity namespace, including IDs embedded in structured sections. */

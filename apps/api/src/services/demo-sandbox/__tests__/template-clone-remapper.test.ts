@@ -49,3 +49,26 @@ describe('Template clone failure diagnostics', () => {
     expect(JSON.stringify(error.mock.calls)).not.toContain('secret-payload');
   });
 });
+
+describe('Template clone of dispatched agent triggers', () => {
+  it('keeps a trigger operationId so the copied trigger stays dispatched', () => {
+    const remap = new TemplateCloneRemapper();
+    const messageId = randomUUID();
+    const operationId = randomUUID();
+    const copiedMessageId = remap.allocate(messageId);
+    const copy = remap.rewrite({
+      id: messageId,
+      data: { triggersAgent: { operationId, messageId, nodeId: 'refine' } },
+    });
+    expect(copy).toEqual({
+      id: copiedMessageId,
+      data: {
+        triggersAgent: {
+          operationId,
+          messageId: copiedMessageId,
+          nodeId: 'refine',
+        },
+      },
+    });
+  });
+});
