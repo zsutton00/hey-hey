@@ -1,6 +1,7 @@
 import { OrganizationAccessBoundary } from "./components/OrganizationAccessBoundary";
 import type { ComponentType, FC, ReactElement, ReactNode } from "react";
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef } from "react";
+import type { MutableRefObject } from "react";
 import { WebClientProvider } from "@hey-hey/ui-common/clients";
 import { ActionsCapsuleProvider } from "@hey-hey/ui-common/components/ActionsCapsule";
 import {
@@ -20,6 +21,7 @@ import {
   WebSocketProvider,
   useOrganization,
   useAuth,
+  type EntityActivationSink,
 } from "@hey-hey/ui-common/context";
 import { GlobalStyles } from "@mui/material";
 import { QueryClient } from "@tanstack/react-query";
@@ -360,11 +362,18 @@ const withRouteSuspense = (element: ReactNode) => (
 const withProtectedRoute = (element: ReactElement) =>
   withRouteSuspense(<AppProtectedRoute>{element}</AppProtectedRoute>);
 
-const OpenItemsActivationBridge: FC<{ children: ReactNode }> = ({
-  children,
-}) => {
+const OpenItemsActivationBridge: FC<{
+  children: ReactNode;
+  hostedSinkRef: MutableRefObject<EntityActivationSink | null>;
+}> = ({ children, hostedSinkRef }) => {
   const sink = useOpenItemsActivationSink();
   const locator = useOpenItemLocatorHandler();
+  useEffect(() => {
+    hostedSinkRef.current = sink;
+    return () => {
+      if (hostedSinkRef.current === sink) hostedSinkRef.current = null;
+    };
+  }, [hostedSinkRef, sink]);
   return (
     <EntityActivationProvider sink={sink}>
       <OpenItemLocatorProvider locator={locator}>
@@ -388,20 +397,32 @@ export const AppRouteShell = () => {
   const showActionsCapsule = isActionsCapsuleRoute;
   const projectId =
     location.pathname.match(/^\/projects\/([^/]+)/)?.[1] ?? null;
+  // Hosted modals outlive the project-keyed open-items tree, so their page
+  // activations forward to whichever open-items sink is currently mounted.
+  const hostedSinkRef = useRef<EntityActivationSink | null>(null);
+  const hostedSink = useMemo<EntityActivationSink>(
+    () => ({
+      onEntityActivated: (activation) =>
+        hostedSinkRef.current?.onEntityActivated(activation),
+    }),
+    [],
+  );
   return (
     <>
-      <CanonicalPageProvider>
-        <NuqsAdapter>
-          <HeyHeyModal />
-        </NuqsAdapter>
-      </CanonicalPageProvider>
+      <EntityActivationProvider sink={hostedSink}>
+        <CanonicalPageProvider>
+          <NuqsAdapter>
+            <HeyHeyModal />
+          </NuqsAdapter>
+        </CanonicalPageProvider>
+      </EntityActivationProvider>
       <OpenItemsProvider
         key={`${user?.id}:${currentOrganization?.id}:${projectId}`}
         projectId={projectId}
         organizationId={currentOrganization?.id ?? null}
         userId={user?.id ?? null}
       >
-        <OpenItemsActivationBridge>
+        <OpenItemsActivationBridge hostedSinkRef={hostedSinkRef}>
           <CanonicalPageProvider>
             <CanonicalWalkthroughEvents />
             <NuqsAdapter>
