@@ -27,7 +27,7 @@ const COMMIT_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
   'search_implementation_hints',
 ];
 
-const COMMIT_SUBAGENT_BUILTIN_ALLOWED_TOOLS: readonly string[] = ['Read', 'Bash'];
+const COMMIT_SUBAGENT_BUILTIN_ALLOWED_TOOLS: readonly string[] = ['Read', 'Bash', 'ToolSearch'];
 const COMMIT_PLATFORM_TOOLS = new Set(
   COMMIT_SUBAGENT_MCP_ALLOWED_TOOLS.map((tool) => `mcp__heyhey-platform__${tool}`),
 );
@@ -120,6 +120,8 @@ export const decideReadOnlyCommitPermission = async (
     }
     return { behavior: 'allow' };
   }
+  // Loading a deferred schema grants nothing; its later call is decided here.
+  if (ctx.toolName === 'ToolSearch') return { behavior: 'allow' };
   if (ctx.toolName === 'mcp__heyhey-submission-tools__submit_commit_message') {
     return { behavior: 'allow' };
   }

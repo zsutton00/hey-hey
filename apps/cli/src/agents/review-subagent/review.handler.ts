@@ -55,6 +55,7 @@ const REVIEW_SUBAGENT_BUILTIN_ALLOWED_TOOLS: readonly string[] = [
   'Bash',
   'Glob',
   'Grep',
+  'ToolSearch',
 ];
 
 /**

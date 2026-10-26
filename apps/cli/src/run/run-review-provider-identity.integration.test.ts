@@ -585,7 +585,7 @@ describe.each(['human', 'automation'])('Review non-editing authority (%s)', (lau
       'Assessment: requirements not fulfilled. Findings: High — persistence is lost on restart; add durable storage. Verification: confirmed by inspection; no repairs applied.',
     );
     const config = reviewerSdk.startSessionConfigs[0];
-    expect(config?.['builtinTools']).toEqual(['Read', 'Bash', 'Glob', 'Grep']);
+    expect(config?.['builtinTools']).toEqual(['Read', 'Bash', 'Glob', 'Grep', 'ToolSearch']);
     expect(config?.['workspaceContainment']).toMatchObject({
       settings: {
         sandbox: {

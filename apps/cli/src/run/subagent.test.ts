@@ -1301,6 +1301,41 @@ describe('SubAgent — unified runtime contract', () => {
       expect(result).not.toHaveProperty('contextReading');
     });
 
+    it.each([LocalPromptType.StartupSession, LocalPromptType.CodeReview, LocalPromptType.Commit])(
+      'lets the read-only %s helper load deferred tools without being allowed to call off-allowlist ones',
+      async (promptType) => {
+        const decisions: Record<string, string> = {};
+        startSessionMock.mockImplementationOnce(async () => {
+          const decide = onPermissionRequestMock.mock.calls.at(-1)?.[0] as (
+            toolName: string,
+            input: unknown,
+          ) => Promise<{ behavior: string }>;
+          for (const toolName of [
+            'ToolSearch',
+            'mcp__heyhey-platform__edit_work_item',
+            'mcp__context7__query-docs',
+          ]) {
+            decisions[toolName] = (
+              await decide(toolName, { query: `select:${toolName}` })
+            ).behavior;
+          }
+          return undefined;
+        });
+
+        await executeRegistered(promptType, 'claude');
+
+        const launch = startSessionMock.mock.calls.at(-1)?.[0] as { builtinTools?: string[] };
+        // Commit has no read-only boundary, so Claude keeps its full built-in set.
+        if (promptType === LocalPromptType.Commit) expect(launch.builtinTools).toBeUndefined();
+        else expect(launch.builtinTools).toContain('ToolSearch');
+        expect(decisions).toEqual({
+          ToolSearch: 'allow',
+          'mcp__heyhey-platform__edit_work_item': 'deny',
+          'mcp__context7__query-docs': 'deny',
+        });
+      },
+    );
+
     it('logs a failed reading and still disconnects', async () => {
       const logger = makeLogger();
       claudeGetSessionIdMock.mockReturnValue('plan-session');
