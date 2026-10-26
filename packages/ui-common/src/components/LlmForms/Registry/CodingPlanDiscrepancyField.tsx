@@ -1,66 +1,49 @@
-import {
-  Alert,
-  Button,
-  Chip,
-  Stack,
-  TextField,
-  Typography,
-} from "@mui/material";
-import { useRef, useState } from "react";
+import { Error, Info, Warning } from "@mui/icons-material";
+import { Stack, Typography } from "@mui/material";
 import type { CodingPlanDiscrepancy } from "../../../api";
 import { renderInlineMentions } from "../../SmarterTextAreaCard/renderInlineMentions";
 import type { FieldComponentProps } from "./types";
-import { StartupSourceReferenceInline } from "./StartupPlanStructuredField";
-import { useCodingPlanConversation } from "./useCodingPlanConversation";
 
-export function CodingPlanDiscrepancyField({
-  config,
-  context,
-  disabled,
-}: FieldComponentProps) {
+const severityPresentation = {
+  high: { Icon: Error, color: "error.main", label: "High" },
+  medium: { Icon: Warning, color: "warning.main", label: "Medium" },
+  low: { Icon: Info, color: "info.main", label: "Low" },
+} satisfies Record<
+  CodingPlanDiscrepancy["severity"],
+  { Icon: typeof Error; color: string; label: string }
+>;
+
+export function CodingPlanDiscrepancyField({ config }: FieldComponentProps) {
   const issue = config.payload as CodingPlanDiscrepancy;
-  const conversation = useCodingPlanConversation(context);
-  const [reply, setReply] = useState("");
-  const inFlight = useRef(false);
-  const send = async () => {
-    if (inFlight.current || !reply.trim()) return;
-    inFlight.current = true;
-    try {
-      if (await conversation.submit({ reply: reply.trim() })) setReply("");
-    } finally {
-      inFlight.current = false;
-    }
-  };
+  const { Icon, color, label } = severityPresentation[issue.severity];
+
   return (
-    <Stack spacing={1}>
-      <Chip size="small" label={issue.severity} />
-      <Typography>{renderInlineMentions(issue.discrepancyText)}</Typography>
-      <Typography variant="body2">{issue.sourceExcerpt}</Typography>
-      <StartupSourceReferenceInline
-        sourceRef={issue.sourceRef}
-        organizationId={context.organizationId}
-        projectId={context.projectId}
+    <Stack
+      direction="row"
+      spacing={1.5}
+      alignItems="flex-start"
+      data-testid="coding-plan-discrepancy"
+    >
+      <Icon
+        titleAccess={`${label} severity`}
+        sx={{ color, fontSize: 28, flexShrink: 0, mt: 0.25 }}
       />
-      <Typography variant="caption">
-        Source field: {issue.sourceField}
-      </Typography>
-      <Typography variant="body2">{issue.reasoning}</Typography>
-      <TextField
-        label="Reply to this issue"
-        value={reply}
-        onChange={(event) => setReply(event.target.value)}
-        disabled={disabled || conversation.sending}
-        multiline
-      />
-      <Button
-        onClick={() => void send()}
-        disabled={disabled || conversation.sending || !reply.trim()}
-      >
-        Reply
-      </Button>
-      {conversation.error && (
-        <Alert severity="error">{conversation.error}</Alert>
-      )}
+      <Stack spacing={1} sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
+        <Typography variant="caption" fontWeight={600}>
+          {label}
+        </Typography>
+        <Typography component="div">
+          {renderInlineMentions(issue.discrepancyText)}
+        </Typography>
+        <Stack spacing={0.5}>
+          <Typography variant="body2" fontWeight={600}>
+            What I will do
+          </Typography>
+          <Typography component="div" variant="body2">
+            {renderInlineMentions(issue.reasoning)}
+          </Typography>
+        </Stack>
+      </Stack>
     </Stack>
   );
 }
