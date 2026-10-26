@@ -21,7 +21,12 @@ import {
   type FeatureRequirementsEditorContext,
 } from "../WorkItem/FeatureRequirementsSectionEditor";
 import { StructuredRequirementsView } from "../shared/StructuredRequirementsView";
+import { useWorkItemTypes } from "../../data/hooks/useWorkItemTypes";
 import { ReconciliationValue } from "./ReconciliationValue";
+import {
+  reconciliationFieldLabel,
+  type ReconciliationPresentation,
+} from "./reconciliationPresentation";
 import {
   normalizeReconciliationContent,
   projectThreeWayReview,
@@ -51,6 +56,16 @@ export function ScopedResolutionEditor({
   disabled: boolean;
 }) {
   const projection = projectThreeWayReview(proposal, state);
+  const registry = useWorkItemTypes(proposal.organizationId, {
+    projectId: proposal.projectId,
+  });
+  const definition = registry.workItemTypes.find(
+    (item) => item.definition.key === projection.live?.type,
+  )?.definition;
+  const presentation: ReconciliationPresentation =
+    proposal.targetEntityType === "DESIGN_DOC"
+      ? { kind: "design-doc" }
+      : { kind: "work-item", definition };
   const items = resolutionItems(
     projection,
     resolutionConflictPaths(projection, state),
@@ -72,8 +87,10 @@ export function ScopedResolutionEditor({
         value={value}
         original={undefined}
         branch={false}
-        section={undefined}
-        typeKey={undefined}
+        section={definition?.sections.find(
+          (section) => item.path === `sections.${section.key}`,
+        )}
+        typeKey={definition?.key}
       />
     );
   };
@@ -97,7 +114,7 @@ export function ScopedResolutionEditor({
             <Typography variant="subtitle2">
               {item.requirementId
                 ? "Requirement"
-                : item.path.replace("sections.", "")}
+                : reconciliationFieldLabel(item.path, presentation)}
             </Typography>
             <Box
               sx={{

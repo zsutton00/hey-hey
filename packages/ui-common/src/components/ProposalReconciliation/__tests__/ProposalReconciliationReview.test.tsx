@@ -53,6 +53,7 @@ vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
               schemaRef: "#/components/schemas/FeatureRequirementsSection",
             },
             { key: "description", label: "Description", kind: "markdown" },
+            { key: "settings", label: "Settings", kind: "json" },
           ],
         },
       },
@@ -749,6 +750,46 @@ describe("same-page staged recovery", () => {
       expect(apply).not.toHaveBeenCalled();
     },
   );
+  it("renders manual previews through registered section presentation", async () => {
+    const sections = (
+      settings: object,
+      unknown: object,
+      description: string,
+    ) => ({
+      sections: { settings, unregistered: unknown, description },
+    });
+    const live = sections({ mode: "live" }, { a: 1 }, "Live text");
+    const intended = sections({ mode: "proposed" }, { a: 2 }, "Proposed text");
+    mount({
+      ...conflict,
+      currentBases: [{ ...basis, content: { ...basis.content, ...live } }],
+      revisions: [{ ...ready.revisions[0], proposedResult: intended }],
+      overlaps: ["settings", "unregistered", "description"].map((key) => ({
+        path: `sections.${key}`,
+        currentValue: live.sections[key as keyof typeof live.sections],
+        proposedValue: intended.sections[key as keyof typeof intended.sections],
+        interveningProposalId: null,
+      })),
+    });
+    fireEvent.click(
+      await screen.findByTestId("proposal-reconciliation-edit-by-hand"),
+    );
+    const editor = screen.getByTestId("proposal-reconciliation-manual-editor");
+    const items = within(editor).getAllByTestId("resolution-item");
+    const item = (label: string) =>
+      items.find((entry) => within(entry).queryByText(label))!;
+    const settings = within(item("Settings"));
+    expect(settings.getAllByTestId("json-section-renderer")).toHaveLength(2);
+    expect(settings.queryByText(/specialized presentation/)).toBeNull();
+    const description = within(item("Description"));
+    expect(description.getByText("Live text")).toBeVisible();
+    expect(description.getByText("Proposed text")).toBeVisible();
+    expect(
+      within(item("Section change")).getAllByText(
+        "This content requires its specialized presentation.",
+      ),
+    ).toHaveLength(2);
+  });
   it("keeps the current and proposed conflict visible during manual editing", async () => {
     mount(conflict);
     fireEvent.click(
