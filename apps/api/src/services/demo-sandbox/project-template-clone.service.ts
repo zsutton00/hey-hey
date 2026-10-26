@@ -224,13 +224,9 @@ export class ProjectTemplateCloneService {
     }
 
     const remap = new TemplateCloneRemapper();
-    remap.diagnosticContext = {
-      sourceProjectId: source.id,
-      targetProjectId: target.id,
-      stage: 'graph-snapshot',
-    };
     remap.ids.set(source.id, target.id);
     remap.ids.set(source.organizationId, target.organizationId);
+    for (const id of omitted) remap.withheld.add(id);
     for (const table of tables)
       for (const row of table.rows) remap.collect(row);
     // CREATE proposals own reserved identities before their target rows exist.
@@ -321,19 +317,20 @@ export class ProjectTemplateCloneService {
           if (table.name === 'service') delete clean.repositoryId;
           delete clean.crdtSnapshotBytes;
           delete clean.crdtSnapshotSeq;
-          remap.diagnosticContext = {
-            sourceProjectId: source.id,
-            targetProjectId: target.id,
-            stage: 'record-copy',
-            sourceTable: table.name,
-            sourceRecordId: row.id as string,
-          };
+          const optional = relations.filter((field) => !field.isRequired);
+          // An optional foreign key to a row outside the copy would link the
+          // sandbox to another project's record, or to nothing. Clear it.
+          for (const relation of optional)
+            for (const field of relation.relationFromFields ?? [])
+              if (
+                typeof clean[field] === 'string' &&
+                !remap.ids.has(clean[field])
+              )
+                clean[field] = null;
           const data = remap.rewrite(clean);
           if (repositoryId !== undefined) data.repositoryId = repositoryId;
           const deferred: Row = {};
-          for (const relation of relations.filter(
-            (field) => !field.isRequired,
-          )) {
+          for (const relation of optional) {
             for (const field of relation.relationFromFields ?? []) {
               if (data[field] != null) {
                 deferred[field] = data[field];
@@ -365,11 +362,6 @@ export class ProjectTemplateCloneService {
         where: { id: update.id },
         data: update.data,
       });
-    remap.diagnosticContext = {
-      sourceProjectId: source.id,
-      targetProjectId: target.id,
-      stage: 'created-events',
-    };
     // Deliberately do not copy Project.config or any template approval policy.
     await runWithWorkflowContext(
       {

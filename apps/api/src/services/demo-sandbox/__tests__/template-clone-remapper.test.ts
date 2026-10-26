@@ -1,52 +1,41 @@
-import { Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { TemplateCloneRemapper } from '../template-clone-remapper';
 
-describe('Template clone failure diagnostics', () => {
-  afterEach(() => jest.restoreAllMocks());
-
-  it('locates a missing mention inside serialized content without logging the body', () => {
-    const error = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+describe('Template clone references outside the template', () => {
+  it('leaves values that are not copied records untouched, wherever they appear', () => {
     const remap = new TemplateCloneRemapper();
-    const missing = randomUUID();
-    remap.diagnosticContext = {
-      stage: 'record-copy',
-      sourceTable: 'taskSection',
-      sourceRecordId: randomUUID(),
+    const outside = randomUUID();
+    const body = `Prose @[task:${outside}|Elsewhere]`;
+    const record = {
+      providerId: 'not-a-record',
+      serviceIds: [outside],
+      content: JSON.stringify({ items: [{ body }] }),
     };
-    expect(() =>
-      remap.rewrite({
-        content: JSON.stringify({
-          items: [{ body: `Private prose @[task:${missing}|Private title]` }],
-        }),
-      }),
-    ).toThrow('Template clone contains an unmapped reference');
-    expect(error).toHaveBeenCalledWith(
-      'Template clone contains an unmapped reference',
-      expect.objectContaining({
-        ...remap.diagnosticContext,
-        fieldPath: '$.content[json].items[0].body',
-        referenceKind: 'mention',
-        unmappedReferenceId: missing,
-      }),
-    );
-    expect(JSON.stringify(error.mock.calls)).not.toContain('Private');
+    expect(remap.rewrite(record)).toEqual(record);
   });
 
-  it('redacts arbitrary values mistaken for identifiers and still rejects them', () => {
-    const error = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+  it('translates copied records by exact identity, whatever the field is called', () => {
     const remap = new TemplateCloneRemapper();
-    expect(() => remap.rewrite({ providerId: 'secret-payload' })).toThrow(
-      'unmapped reference',
-    );
-    expect(error).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        fieldPath: '$.providerId',
-        unmappedReferenceId: '[redacted non-UUID identifier]',
+    const task = randomUUID();
+    const copy = remap.allocate(task);
+    expect(
+      remap.rewrite({
+        about: task,
+        body: `See @[task:${task}|Capability]`,
       }),
-    );
-    expect(JSON.stringify(error.mock.calls)).not.toContain('secret-payload');
+    ).toEqual({ about: copy, body: `See @[task:${copy}|Capability]` });
+  });
+
+  it('drops references to template records withheld from the copy', () => {
+    const remap = new TemplateCloneRemapper();
+    const withheld = randomUUID();
+    remap.withheld.add(withheld);
+    expect(
+      remap.rewrite({
+        conversationId: withheld,
+        body: `See @[conversation:${withheld}|Old chat]`,
+      }),
+    ).toEqual({ conversationId: null, body: 'See Old chat' });
   });
 });
 

@@ -444,10 +444,40 @@ describe('ProjectTemplateCloneService', () => {
   it('does not treat an existing session outside the copy as deleted', async () => {
     const f = fixture();
     const sessionId = randomUUID();
-    f.state.conversation![0]!.workflowAboutType = 'agent-session';
-    f.state.conversation![0]!.workflowAboutId = sessionId;
+    const conversation = f.state.conversation![0]!;
+    conversation.workflowAboutType = 'agent-session';
+    conversation.workflowAboutId = sessionId;
     f.state.agentSession!.push({ id: sessionId, projectId: randomUUID() });
-    await expect(f.transaction()).rejects.toThrow('unmapped reference');
+    const result = await f.transaction();
+    const copied = f.state.conversation!.find(
+      (row) => row.id === result.idMap.get(conversation.id as string),
+    )!;
+    expect(copied.workflowAboutId).toBe(sessionId);
+  });
+
+  it('drops references to template records left out of the copy', async () => {
+    const f = fixture();
+    const orphan = f.state.conversation![0]!;
+    orphan.workflowAboutType = 'agent-session';
+    orphan.workflowAboutId = randomUUID();
+    f.state.taskSection![2]!.materializedMarkdown = `See @[conversation:${orphan.id}|Old chat]`;
+    f.state.workItemType![0]!.writingStandards = {
+      conversationId: orphan.id,
+    };
+    const warning = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const result = await f.transaction();
+      const section = f.state.taskSection!.find(
+        (row) =>
+          row.taskId === result.idMap.get(f.child) && row.key === 'description',
+      )!;
+      expect(section.materializedMarkdown).toBe('See Old chat');
+      expect(f.state.workItemType![1]!.writingStandards).toEqual({
+        conversationId: null,
+      });
+    } finally {
+      warning.mockRestore();
+    }
   });
 
   it('remaps unmaterialized CREATE reservations across proposals, group members and mentions', async () => {
@@ -598,13 +628,53 @@ describe('ProjectTemplateCloneService', () => {
     expect(f.state.task).toHaveLength(2);
   });
 
-  it('rejects an unmapped mention and rolls back all writes in the caller transaction', async () => {
+  it('completes the copy when records reference IDs that are not template records', async () => {
     const f = fixture();
-    f.state.taskSection![2]!.materializedMarkdown = `@[task:${randomUUID()}|Outside template]`;
-    await expect(f.transaction()).rejects.toThrow('unmapped reference');
-    expect(f.state.task).toHaveLength(2);
-    expect(f.state.outboxEvent).toHaveLength(0);
-    expect(f.state.demoGraphCopyIntent).toHaveLength(0);
+    const outsideTask = randomUUID();
+    const outsideConversation = randomUUID();
+    const operationId = randomUUID();
+    const sessionId = randomUUID();
+    const serviceId = randomUUID();
+    const trigger = f.state.message![0]!;
+    f.state.taskSection![2]!.materializedMarkdown = `@[task:${outsideTask}|Outside template]`;
+    f.state.task![1]!.sourceConversationId = outsideConversation;
+    trigger.data = {
+      triggersAgent: {
+        kind: 'start_run',
+        operationId,
+        triggerMessageId: trigger.id,
+        agentSessionId: sessionId,
+        serviceIds: [serviceId],
+        contextMetadata: {
+          projectId: f.sourceProject,
+          organizationId: f.sourceOrg,
+        },
+      },
+    };
+    const result = await f.transaction();
+    const copiedChild = f.state.task!.find(
+      (row) => row.id === result.idMap.get(f.child),
+    )!;
+    expect(copiedChild.sourceConversationId).toBeNull();
+    expect(
+      f.state.taskSection!.find(
+        (row) =>
+          row.taskId === result.idMap.get(f.child) && row.key === 'description',
+      )!.materializedMarkdown,
+    ).toBe(`@[task:${outsideTask}|Outside template]`);
+    expect(f.state.message![2]!.data).toEqual({
+      triggersAgent: {
+        kind: 'start_run',
+        operationId,
+        triggerMessageId: result.idMap.get(trigger.id as string),
+        agentSessionId: sessionId,
+        serviceIds: [serviceId],
+        contextMetadata: {
+          projectId: f.input.targetProjectId,
+          organizationId: f.input.targetOrganizationId,
+        },
+      },
+    });
   });
 
   it('preserves logical workflow node names and transport correlation without treating them as entity references', async () => {
