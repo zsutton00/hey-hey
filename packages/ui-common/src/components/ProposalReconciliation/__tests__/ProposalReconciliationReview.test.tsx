@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -55,15 +56,54 @@ vi.mock("../AgentFixConfirmDialog", () => ({
   AgentFixConfirmDialog: ({
     proposal,
     onClose,
+    onStarted,
   }: {
     proposal: ProposalResponseDto;
     onClose: () => void;
+    onStarted: (request: object) => void;
   }) => (
     <div data-testid="proposal-agent-fix-confirm">
       Agent fix starts an agent session for {proposal.id}
       <button onClick={onClose}>Cancel</button>
+      <button
+        onClick={() => {
+          onStarted({
+            organizationId: "org",
+            projectId: "project",
+            agentSessionId: "session",
+            conversationId: "conversation",
+          });
+          onClose();
+        }}
+      >
+        Launch recorded session
+      </button>
     </div>
   ),
+}));
+vi.mock("../../AgentSession/AgentConversationView", () => ({
+  AgentConversationView: ({
+    agentSessionId,
+    conversationId,
+    onProposalsAccepted,
+  }: {
+    agentSessionId: string;
+    conversationId: string;
+    onProposalsAccepted: () => void;
+  }) => (
+    <div>
+      Conversation {conversationId} for {agentSessionId}
+      <button onClick={onProposalsAccepted}>Accept proposed fix</button>
+      <button onClick={onProposalsAccepted}>Reject proposed fix</button>
+    </div>
+  ),
+}));
+vi.mock("../ReconciliationRefinementReview", () => ({
+  ReconciliationRefinementReview: ({
+    onReviewed,
+  }: {
+    onReviewed: () => void;
+  }) => <button onClick={onReviewed}>Review saved refinement</button>,
 }));
 vi.mock("../../SmarterTextAreaCard/MentionBadge", () => ({
   MentionBadgeInner: ({
@@ -381,7 +421,13 @@ describe("approved future recovery", () => {
         }),
       ),
     );
-    expect(await screen.findByText("Review revised result")).toBeVisible();
+    expect(
+      await screen.findByTestId("proposal-reconciliation-stages"),
+    ).toHaveTextContent("Resolve conflict");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(
+      screen.queryByTestId("proposal-reconciliation-open-replacement"),
+    ).toBeNull();
     expect(screen.getByText("Previously approved")).toBeVisible();
   });
   it("cancels manual editing without submitting", async () => {
@@ -524,7 +570,7 @@ it("keeps structured future overlaps legible while expanding and collapsing hist
   expect(
     overlap.querySelector('[data-testid="structured-requirements-inline"]'),
   ).toBeVisible();
-  expect(screen.getByText("Apply")).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
   expect(apply).not.toHaveBeenCalled();
 });
 
@@ -561,4 +607,91 @@ it("keeps Design Doc history readable without treating it as a registered work i
   expect(
     history.querySelector('[data-testid="diff-renderer-split-view"]'),
   ).toBeVisible();
+});
+
+describe("same-page staged recovery", () => {
+  const conflict = {
+    ...ready,
+    status: "AGENT_FIX_REQUIRED" as const,
+    overlaps: [
+      {
+        path: "name",
+        currentValue: "Current name",
+        proposedValue: "Future name",
+        interveningProposalId: null,
+      },
+    ],
+  };
+  it.each(["Accept proposed fix", "Reject proposed fix"])(
+    "keeps the conflict beside the agent until a persisted review outcome: %s",
+    async (action) => {
+      const apply = mount(conflict);
+      fireEvent.click(
+        await screen.findByTestId("proposal-reconciliation-agent-fix"),
+      );
+      fireEvent.click(screen.getByText("Launch recorded session"));
+      const panel = await screen.findByTestId(
+        "proposal-reconciliation-agent-panel",
+      );
+      await waitFor(() =>
+        expect(panel).toHaveTextContent(
+          "Conversation conversation for session",
+        ),
+      );
+      expect(
+        screen.getByTestId("proposal-reconciliation-overlap"),
+      ).toHaveTextContent("Current name");
+      expect(screen.getByText("Approve displayed revision")).toBeDisabled();
+      expect(
+        within(screen.getByTestId("proposal-reconciliation-stages")).getByText(
+          "Resolve conflict",
+        ),
+      ).toBeVisible();
+      const result = action === "Accept proposed fix" ? ready : conflict;
+      vi.mocked(proposalsClient.getProposalReconciliation).mockResolvedValue({
+        data: { data: result },
+      } as never);
+      const readsBefore = vi.mocked(proposalsClient.getProposalReconciliation)
+        .mock.calls.length;
+      fireEvent.click(within(panel).getByText(action));
+      await waitFor(() =>
+        expect(proposalsClient.getProposalReconciliation).toHaveBeenCalledTimes(
+          readsBefore + 1,
+        ),
+      );
+      if (action === "Accept proposed fix") {
+        await waitFor(() =>
+          expect(screen.getByText("Approve displayed revision")).toBeEnabled(),
+        );
+        expect(
+          screen.queryByTestId("proposal-reconciliation-overlap"),
+        ).toBeNull();
+        expect(
+          screen.getByTestId("proposal-reconciliation-stages"),
+        ).toHaveTextContent("Apply");
+        // Another writer can still send the same page back to Resolve.
+        vi.mocked(proposalsClient.getProposalReconciliation).mockResolvedValue({
+          data: { data: conflict },
+        } as never);
+        act(() => invalidateProposalReconciliation(proposal.id));
+        await screen.findByTestId("proposal-reconciliation-overlap");
+      }
+      expect(screen.getByText("Approve displayed revision")).toBeDisabled();
+      expect(apply).not.toHaveBeenCalled();
+    },
+  );
+  it("keeps the current and proposed conflict visible during manual editing", async () => {
+    mount(conflict);
+    fireEvent.click(
+      await screen.findByTestId("proposal-reconciliation-edit-by-hand"),
+    );
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(
+      screen.getByTestId("proposal-reconciliation-manual-editor"),
+    ).toBeVisible();
+    expect(
+      screen.getByTestId("proposal-reconciliation-overlap"),
+    ).toHaveTextContent("Future name");
+    expect(screen.getByText("Approve displayed revision")).toBeDisabled();
+  });
 });

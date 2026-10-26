@@ -6,6 +6,7 @@ import type {
   FutureApplyResponse,
   FutureRevisionResponse,
 } from "../../../api";
+import { ProposalReconciliationContext } from "../../ProposalReconciliation/ProposalReconciliationReview";
 import { FutureApplication } from "../FutureApplication";
 
 const api = vi.hoisted(() => ({
@@ -258,3 +259,32 @@ it.each(["BASELINE_CHANGED", "BASELINE_UNAVAILABLE"] as const)(
     expect(api.apply).not.toHaveBeenCalled();
   },
 );
+
+it("withholds Apply while a fix awaits review even when the last readiness read was eligible", async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const tree = (approvalDisabled: boolean) => (
+    <QueryClientProvider client={client}>
+      <ProposalReconciliationContext.Provider
+        value={{
+          approvalDisabled,
+          state: null,
+          standaloneUpdate: false,
+          future: true,
+          staged: true,
+          submit: vi.fn(),
+        }}
+      >
+        <FutureApplication future={future} onApplied={onApplied} />
+      </ProposalReconciliationContext.Provider>
+    </QueryClientProvider>
+  );
+  const view = render(tree(true));
+  await waitFor(() => expect(api.readiness).toHaveBeenCalled());
+  expect(screen.getByTestId("future-apply")).toBeDisabled();
+  expect(api.apply).not.toHaveBeenCalled();
+  view.rerender(tree(false));
+  await waitFor(() => expect(screen.getByTestId("future-apply")).toBeEnabled());
+  expect(api.apply).not.toHaveBeenCalled();
+});

@@ -23,6 +23,7 @@ import { FutureApplicationOfferDialog } from "../../ProposalDetail/FutureApplica
 import { FutureApplyFooter } from "../FutureApplyFooter";
 
 const mocks = vi.hoisted(() => ({
+  realControls: false,
   entities: {} as Record<
     string,
     | { type: "task"; data: TaskResponseDto }
@@ -181,10 +182,20 @@ vi.mock("../../SuggestedContent", () => ({
     </div>
   ),
 }));
-vi.mock("../ProposalStateIndicator", async (original) => ({
-  ...(await original<typeof import("../ProposalStateIndicator")>()),
-  ProposalStateIndicator: () => <div data-testid="proposal-state" />,
-}));
+vi.mock("../ProposalStateIndicator", async (original) => {
+  const actual = await original<typeof import("../ProposalStateIndicator")>();
+  return {
+    ...actual,
+    ProposalStateIndicator: (
+      props: import("../ProposalStateIndicator").ProposalStateIndicatorProps,
+    ) =>
+      mocks.realControls ? (
+        <actual.ProposalStateIndicator {...props} />
+      ) : (
+        <div data-testid="proposal-state" />
+      ),
+  };
+});
 vi.mock("../ProposalEdges", () => ({ ProposalEdges: () => null }));
 vi.mock("../../InteractionComponent", async (original) => ({
   ...(await original<object>()),
@@ -372,6 +383,7 @@ const mount = (proposal: ProposalResponseDto, footerTarget?: HTMLElement) => {
 };
 
 beforeEach(() => {
+  mocks.realControls = false;
   mocks.reconciliation.mockResolvedValue({
     data: {
       data: {
@@ -981,7 +993,11 @@ it("shows approved future drift through real shared review and hides the unresol
     ),
   ).toBeVisible();
   expect(screen.getByText("Intended")).toBeVisible();
-  expect(screen.getByText("Approved")).toBeVisible();
+  expect(
+    screen.getByTestId("proposal-reconciliation-stages"),
+  ).toHaveTextContent("Resolve conflict");
+  expect(screen.queryByText("Approved")).toBeNull();
+  expect(screen.getByTestId("future-linked-work")).toBeVisible();
   expect(screen.queryByTestId("general-diff")).toBeNull();
   expect(screen.getByTestId("future-apply")).toBeDisabled();
 });
@@ -1048,3 +1064,32 @@ it.each(["APPROVED", "DRAFT"] as const)(
     expect(screen.getByTestId("future-apply")).toBeDisabled();
   },
 );
+
+it("reviews a reconciliation refinement with the real shared comparison and approval controls inside Resolve", async () => {
+  mocks.realControls = true;
+  const proposal = futureProposal({ reviewedFuture });
+  mocks.proposal = proposal;
+  const approve = vi.fn();
+  const applied = vi.fn();
+  render(
+    <MemoryRouter>
+      <UpdateProposal
+        organizationId="org"
+        projectId="project"
+        proposals={[proposal]}
+        renderMode="reconciliation-refinement"
+        onApply={approve}
+        onApplied={applied}
+        onReject={vi.fn()}
+      />
+    </MemoryRouter>,
+  );
+  const approveButton = await screen.findByTestId("proposal-approve");
+  await waitFor(() => expect(approveButton).toBeEnabled());
+  expect(screen.queryByTestId("future-apply")).toBeNull();
+  expect(screen.getByText("Cap Open Items at 100")).toBeVisible();
+  fireEvent.click(approveButton);
+  await waitFor(() => expect(approve).toHaveBeenCalledWith(proposal.id, {}));
+  expect(applied).not.toHaveBeenCalled();
+  expect(mocks.apply).not.toHaveBeenCalled();
+});

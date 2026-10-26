@@ -1,6 +1,8 @@
 import { isAxiosError } from "axios";
 import React, {
   createContext,
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useRef,
@@ -15,12 +17,16 @@ import {
   Link,
   Paper,
   Stack,
+  Stepper,
+  Step,
+  StepLabel,
   Typography,
 } from "@mui/material";
 import { format, formatDistanceToNow } from "date-fns";
 import {
   ProposalStatus,
   type ProposalResponseDto,
+  type ProposalAgentFixRequest,
   type ProposalReconciliationIntervening,
   type ProposalReconciliationOverlap,
   type ProposalReconciliationState,
@@ -40,11 +46,23 @@ import { isFutureProposal } from "../ProposalDispatchers/futureAsUpdate";
 import { ManualReconciliationEditor } from "./ManualReconciliationEditor";
 import { AgentFixConfirmDialog } from "./AgentFixConfirmDialog";
 
+const AgentConversationView = lazy(() =>
+  import("../AgentSession/AgentConversationView").then((module) => ({
+    default: module.AgentConversationView,
+  })),
+);
+const ReconciliationRefinementReview = lazy(() =>
+  import("./ReconciliationRefinementReview").then((module) => ({
+    default: module.ReconciliationRefinementReview,
+  })),
+);
+
 export const ProposalReconciliationContext = createContext<{
   approvalDisabled: boolean;
   state: ProposalReconciliationState | null;
   standaloneUpdate: boolean;
   future: boolean;
+  staged: boolean;
   submit: () => void;
 } | null>(null);
 
@@ -131,18 +149,12 @@ function OverlapComparison({
 
 function InterveningEntry({
   entry,
-  overlaps,
   proposalHref,
-  resolve,
   presentation,
-  future,
 }: {
   presentation: ReconciliationPresentation;
-  future: boolean;
   entry: ProposalReconciliationIntervening;
-  overlaps: ProposalReconciliationOverlap[];
   proposalHref: string;
-  resolve: Resolve;
 }) {
   const [expanded, setExpanded] = useState(false);
   return (
@@ -172,15 +184,6 @@ function InterveningEntry({
           Approved{entry.approvedByName ? ` by ${entry.approvedByName}` : ""} ·{" "}
           {format(new Date(entry.approvedAt), "MMM d, yyyy · p")}
         </Typography>
-        {overlaps.map((overlap) => (
-          <OverlapComparison
-            key={overlap.path}
-            overlap={overlap}
-            resolve={resolve}
-            presentation={presentation}
-            future={future}
-          />
-        ))}
         {entry.changes.length ? (
           <Box>
             <Button
@@ -194,9 +197,6 @@ function InterveningEntry({
             {expanded ? (
               <Typography variant="caption" color="text.secondary">
                 What this approved change changed at the time.
-                {overlaps.length
-                  ? " Hiding this comparison keeps the overlap above visible for resolution."
-                  : ""}
               </Typography>
             ) : null}
             {expanded
@@ -254,16 +254,23 @@ function ChangedSinceList({
       ? { kind: "design-doc" }
       : { kind: "work-item", definition };
   const future = proposal.action === "VERSIONED_UPDATE";
-  const unattributed = state.overlaps.filter(
-    (overlap) => !overlap.interveningProposalId,
-  );
-  if (!state.interveningProposals.length && !unattributed.length) return null;
+  if (!state.interveningProposals.length && !state.overlaps.length) return null;
   return (
     <Stack
       spacing={1}
       sx={{ p: 1.5, bgcolor: "action.hover", borderRadius: 1 }}
       data-testid="proposal-reconciliation-changed-since"
     >
+      {state.overlaps.map((overlap) => (
+        <Paper key={overlap.path} variant="outlined" sx={{ p: 1.5 }}>
+          <OverlapComparison
+            overlap={overlap}
+            resolve={resolve}
+            presentation={presentation}
+            future={future}
+          />
+        </Paper>
+      ))}
       <Typography variant="subtitle2">
         {future
           ? "What’s changed since the baseline"
@@ -276,33 +283,12 @@ function ChangedSinceList({
             key={entry.proposalId}
             entry={entry}
             presentation={presentation}
-            future={future}
-            overlaps={state.overlaps.filter(
-              (overlap) => overlap.interveningProposalId === entry.proposalId,
-            )}
             proposalHref={paths.proposal({
               projectId: proposal.projectId,
               proposalId: entry.proposalId,
             })}
-            resolve={resolve}
           />
         ))}
-      {unattributed.map((overlap) => (
-        <Paper key={overlap.path} variant="outlined" sx={{ p: 1.5 }}>
-          <Chip
-            size="small"
-            color="warning"
-            label={`Overlaps: ${reconciliationFieldLabel(overlap.path, presentation)}`}
-            sx={{ mb: 1 }}
-          />
-          <OverlapComparison
-            overlap={overlap}
-            resolve={resolve}
-            presentation={presentation}
-            future={future}
-          />
-        </Paper>
-      ))}
     </Stack>
   );
 }
@@ -343,6 +329,9 @@ function PendingProposalReconciliationReview({
   const paths = usePathService();
   const invalidateReview = useInvalidateProposalReview();
   const [agentFixOpen, setAgentFixOpen] = useState(false);
+  const [agentRequest, setAgentRequest] =
+    useState<ProposalAgentFixRequest | null>(null);
+  const [wasResolving, setWasResolving] = useState(false);
   const [manualState, setManualState] =
     useState<ProposalReconciliationState | null>(null);
   const [state, setState] = useState<ProposalReconciliationState | null>(null);
@@ -364,7 +353,21 @@ function PendingProposalReconciliationReview({
         projectId: proposal.projectId,
         proposalId: proposal.id,
       });
-      if (requestSequence.current === sequence) setState(response.data.data);
+      if (requestSequence.current === sequence) {
+        const next = response.data.data;
+        setState(next);
+        if (
+          next.revisions.some(
+            (revision) =>
+              revision.source === "MANUAL" || revision.source === "AGENT_FIX",
+          ) ||
+          next.overlaps.length ||
+          next.status === "AGENT_FIX_REQUIRED" ||
+          (proposal.action === "VERSIONED_UPDATE" &&
+            next.status === "RECONCILIATION_REQUIRED")
+        )
+          setWasResolving(true);
+      }
     } catch (caught) {
       if (requestSequence.current === sequence)
         setError(
@@ -373,7 +376,12 @@ function PendingProposalReconciliationReview({
             : "Reconciliation could not be loaded.",
         );
     }
-  }, [proposal.id, proposal.organizationId, proposal.projectId]);
+  }, [
+    proposal.id,
+    proposal.organizationId,
+    proposal.projectId,
+    proposal.action,
+  ]);
   useEffect(() => {
     void refresh();
     const unsubscribe = subscribeProposalReconciliation(
@@ -389,6 +397,11 @@ function PendingProposalReconciliationReview({
     state?.status === "RECONCILIATION_REQUIRED" ||
     state?.status === "AGENT_FIX_REQUIRED";
   const hasOverlaps = !!state?.overlaps.length;
+  const staged = !grouped && wasResolving;
+  const reviewOutcome = async () => {
+    await invalidateReview(proposal.organizationId, proposal.projectId);
+    await refresh();
+  };
   const missingCandidate =
     state?.status === "READY_FOR_REVIEW" &&
     !state.revisions.some(
@@ -450,171 +463,260 @@ function PendingProposalReconciliationReview({
         state,
         standaloneUpdate: !grouped && proposal.action === "UPDATE",
         future: proposal.action === "VERSIONED_UPDATE",
+        staged,
       }}
     >
       <Stack spacing={1} data-testid="proposal-reconciliation-review">
-        {!state && !error ? (
-          <CircularProgress size={18} aria-label="Checking current content" />
-        ) : null}
-        {error ? (
-          <Alert
-            severity="error"
-            action={<Button onClick={() => void refresh()}>Refresh</Button>}
+        {staged ? (
+          <Stepper
+            activeStep={approvalDisabled ? 0 : 1}
+            data-testid="proposal-reconciliation-stages"
           >
-            {error}
-          </Alert>
+            <Step>
+              <StepLabel>Resolve conflict</StepLabel>
+            </Step>
+            <Step>
+              <StepLabel>Apply</StepLabel>
+            </Step>
+          </Stepper>
         ) : null}
-        {outOfDate ? (
-          <>
-            <OutOfDateHeadsUp state={state} />
-            <ChangedSinceList
-              state={state}
-              proposal={proposal}
-              resolve={resolve}
-            />
-          </>
-        ) : null}
-        {requiresReconciliation && !hasOverlaps && !hasReplacement ? (
-          <Stack spacing={1}>
-            {state.status === "AGENT_FIX_REQUIRED" ? (
-              <Typography variant="body2" color="text.secondary">
-                This change can&apos;t be merged into the current content
-                automatically.
-              </Typography>
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: { xs: "column", lg: "row" },
+            gap: 2,
+            minWidth: 0,
+          }}
+        >
+          <Stack spacing={1} sx={{ flex: 1, minWidth: 0 }}>
+            {!state && !error ? (
+              <CircularProgress
+                size={18}
+                aria-label="Checking current content"
+              />
             ) : null}
-            <Stack direction="row" spacing={1}>
-              {grouped ? (
-                <Button
-                  variant="contained"
-                  data-testid="proposal-reconciliation-merge"
-                  disabled={busy || state.status === "AGENT_FIX_REQUIRED"}
-                  onClick={() => void merge()}
-                >
-                  Merge with current content
-                </Button>
-              ) : null}
-              <Button
-                data-testid="proposal-reconciliation-edit-by-hand"
-                disabled={busy || !state.currentBases.length}
-                onClick={resolve.onEdit}
+            {error ? (
+              <Alert
+                severity="error"
+                action={<Button onClick={() => void refresh()}>Refresh</Button>}
               >
-                Edit by hand
-              </Button>
-              <Button
-                data-testid="proposal-reconciliation-agent-fix"
-                disabled={busy}
-                onClick={resolve.onAgentFix}
+                {error}
+              </Alert>
+            ) : null}
+            {outOfDate ? (
+              <>
+                <OutOfDateHeadsUp state={state} />
+                <ChangedSinceList
+                  state={state}
+                  proposal={proposal}
+                  resolve={resolve}
+                />
+              </>
+            ) : null}
+            {requiresReconciliation && !hasOverlaps && !hasReplacement ? (
+              <Stack spacing={1}>
+                {state.status === "AGENT_FIX_REQUIRED" ? (
+                  <Typography variant="body2" color="text.secondary">
+                    This change can&apos;t be merged into the current content
+                    automatically.
+                  </Typography>
+                ) : null}
+                <Stack direction="row" spacing={1}>
+                  {grouped ? (
+                    <Button
+                      variant="contained"
+                      data-testid="proposal-reconciliation-merge"
+                      disabled={busy || state.status === "AGENT_FIX_REQUIRED"}
+                      onClick={() => void merge()}
+                    >
+                      Merge with current content
+                    </Button>
+                  ) : null}
+                  <Button
+                    data-testid="proposal-reconciliation-edit-by-hand"
+                    disabled={busy || !state.currentBases.length}
+                    onClick={resolve.onEdit}
+                  >
+                    Edit by hand
+                  </Button>
+                  <Button
+                    data-testid="proposal-reconciliation-agent-fix"
+                    disabled={busy}
+                    onClick={resolve.onAgentFix}
+                  >
+                    Agent fix
+                  </Button>
+                </Stack>
+              </Stack>
+            ) : null}
+            {manualState ? (
+              <ManualReconciliationEditor
+                proposal={proposal}
+                state={manualState}
+                busy={busy}
+                error={error}
+                onClose={() => setManualState(null)}
+                onSave={(result) => {
+                  setBusy(true);
+                  setError(null);
+                  void proposalsClient
+                    .createProposalReconciliationCandidate({
+                      ...scope,
+                      createProposalReconciliationCandidate: {
+                        method: "MANUAL",
+                        expectedFutureRevision: manualState.futureRevision,
+                        proposedResult: result,
+                        expectedCurrentBases: manualState.currentBases,
+                      },
+                    })
+                    .then(async (response) => {
+                      // A pending refinement must leave the active conflict and approved result intact.
+                      if (proposal.action === "VERSIONED_UPDATE")
+                        await refresh();
+                      else setState(response.data.data);
+                      setManualState(null);
+                      void invalidateReview(
+                        proposal.organizationId,
+                        proposal.projectId,
+                      );
+                    })
+                    .catch(async (caught) => {
+                      if (
+                        isAxiosError(caught) &&
+                        caught.response?.status === 409
+                      ) {
+                        await refresh();
+                        setManualState(null);
+                      }
+                      setError(
+                        caught instanceof Error
+                          ? caught.message
+                          : "The result could not be prepared. Refresh and try again.",
+                      );
+                    })
+                    .finally(() => setBusy(false));
+                }}
+              />
+            ) : null}
+            {agentFixOpen ? (
+              <AgentFixConfirmDialog
+                proposal={proposal}
+                onClose={() => setAgentFixOpen(false)}
+                onStarted={setAgentRequest}
+              />
+            ) : null}
+            {!grouped &&
+            proposal.action === "VERSIONED_UPDATE" &&
+            state?.replacementProposalId ? (
+              <Suspense
+                fallback={
+                  <CircularProgress
+                    size={18}
+                    aria-label="Loading proposed fix"
+                  />
+                }
               >
-                Agent fix
+                <ReconciliationRefinementReview
+                  organizationId={proposal.organizationId}
+                  projectId={proposal.projectId}
+                  proposalId={state.replacementProposalId}
+                  onReviewed={reviewOutcome}
+                />
+              </Suspense>
+            ) : null}
+            {grouped && state?.replacementProposalId ? (
+              <Button
+                variant="contained"
+                data-testid="proposal-reconciliation-open-replacement"
+                href={paths.proposal({
+                  projectId: proposal.projectId,
+                  proposalId: state.replacementProposalId,
+                })}
+              >
+                Review revised result
               </Button>
-            </Stack>
-          </Stack>
-        ) : null}
-        {manualState ? (
-          <ManualReconciliationEditor
-            proposal={proposal}
-            state={manualState}
-            busy={busy}
-            error={error}
-            onClose={() => setManualState(null)}
-            onSave={(result) => {
-              setBusy(true);
-              setError(null);
-              void proposalsClient
-                .createProposalReconciliationCandidate({
-                  ...scope,
-                  createProposalReconciliationCandidate: {
-                    method: "MANUAL",
-                    expectedFutureRevision: manualState.futureRevision,
-                    proposedResult: result,
-                    expectedCurrentBases: manualState.currentBases,
-                  },
-                })
-                .then((response) => {
-                  setState(response.data.data);
-                  setManualState(null);
-                  void invalidateReview(
-                    proposal.organizationId,
-                    proposal.projectId,
-                  );
-                })
-                .catch(async (caught) => {
-                  if (isAxiosError(caught) && caught.response?.status === 409) {
-                    await refresh();
-                    setManualState(null);
-                  }
-                  setError(
-                    caught instanceof Error
-                      ? caught.message
-                      : "The result could not be prepared. Refresh and try again.",
-                  );
-                })
-                .finally(() => setBusy(false));
-            }}
-          />
-        ) : null}
-        {agentFixOpen ? (
-          <AgentFixConfirmDialog
-            proposal={proposal}
-            onClose={() => setAgentFixOpen(false)}
-          />
-        ) : null}
-        {usesReplacement && state?.replacementProposalId ? (
-          <Button
-            variant="contained"
-            data-testid="proposal-reconciliation-open-replacement"
-            href={paths.proposal({
-              projectId: proposal.projectId,
-              proposalId: state.replacementProposalId,
-            })}
-          >
-            Review revised result
-          </Button>
-        ) : null}
-        {usesReplacement && state?.replacementGroupId ? (
-          <Button
-            variant="contained"
-            href={paths.proposalGroup({
-              projectId: proposal.projectId,
-              groupId: state.replacementGroupId,
-            })}
-          >
-            Review replacement group
-          </Button>
-        ) : null}
-        {state?.status === "READY_FOR_REVIEW" ? (
-          <Typography
-            variant="subtitle2"
-            data-testid="proposal-reconciliation-merged-result"
-          >
-            {proposal.action === "VERSIONED_UPDATE"
-              ? "Complete revised result"
-              : "Merged result compared with current content"}
-          </Typography>
-        ) : null}
-        {outOfDate ? (
-          <Box sx={{ borderTop: 1, borderColor: "divider", pt: 2 }}>
-            <Typography
-              variant="subtitle2"
-              data-testid="proposal-reconciliation-under-review"
-            >
-              {proposal.action === "VERSIONED_UPDATE"
-                ? "Future under review"
-                : "This proposal’s change"}
-            </Typography>
-            {hasOverlaps ? (
-              <Typography variant="body2" color="text.secondary">
-                The complete revised result appears after resolution.{" "}
+            ) : null}
+            {usesReplacement && state?.replacementGroupId ? (
+              <Button
+                variant="contained"
+                href={paths.proposalGroup({
+                  projectId: proposal.projectId,
+                  groupId: state.replacementGroupId,
+                })}
+              >
+                Review replacement group
+              </Button>
+            ) : null}
+            {state?.status === "READY_FOR_REVIEW" ? (
+              <Typography
+                variant="subtitle2"
+                data-testid="proposal-reconciliation-merged-result"
+              >
                 {proposal.action === "VERSIONED_UPDATE"
-                  ? "Previous approval does not approve new edits. Review the revised future, then choose Apply separately."
-                  : "Resolve the overlap to approve."}
+                  ? "Complete revised result"
+                  : "Merged result compared with current content"}
               </Typography>
             ) : null}
-            {children}
-          </Box>
-        ) : (
-          children
-        )}
+            {outOfDate ? (
+              <Box sx={{ borderTop: 1, borderColor: "divider", pt: 2 }}>
+                <Typography
+                  variant="subtitle2"
+                  data-testid="proposal-reconciliation-under-review"
+                >
+                  {proposal.action === "VERSIONED_UPDATE"
+                    ? "Future under review"
+                    : "This proposal’s change"}
+                </Typography>
+                {hasOverlaps ? (
+                  <Typography variant="body2" color="text.secondary">
+                    The complete revised result appears after resolution.{" "}
+                    {proposal.action === "VERSIONED_UPDATE"
+                      ? "Previous approval does not approve new edits. Review the revised future, then choose Apply separately."
+                      : "Resolve the overlap to approve."}
+                  </Typography>
+                ) : null}
+                {children}
+              </Box>
+            ) : (
+              children
+            )}
+          </Stack>
+          {agentRequest ? (
+            <Stack
+              spacing={1}
+              sx={{ flex: 1, minWidth: 0 }}
+              data-testid="proposal-reconciliation-agent-panel"
+            >
+              <Stack
+                direction="row"
+                justifyContent="space-between"
+                alignItems="center"
+              >
+                <Typography variant="subtitle2">Agent fix</Typography>
+                <Button onClick={() => setAgentRequest(null)}>
+                  Close conversation
+                </Button>
+              </Stack>
+              <Suspense
+                fallback={
+                  <CircularProgress
+                    size={18}
+                    aria-label="Loading agent conversation"
+                  />
+                }
+              >
+                <AgentConversationView
+                  organizationId={agentRequest.organizationId}
+                  projectId={agentRequest.projectId}
+                  agentSessionId={agentRequest.agentSessionId}
+                  conversationId={agentRequest.conversationId}
+                  sessionResumability="resumable"
+                  onProposalsAccepted={() => void reviewOutcome()}
+                />
+              </Suspense>
+            </Stack>
+          ) : null}
+        </Box>
       </Stack>
     </ProposalReconciliationContext.Provider>
   );

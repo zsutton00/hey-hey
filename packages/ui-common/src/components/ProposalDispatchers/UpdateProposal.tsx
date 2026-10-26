@@ -1,6 +1,6 @@
 import { FutureGraphReview } from "./FutureGraphReview";
 import { Alert, Box, CircularProgress, Stack, Typography } from "@mui/material";
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useContext } from "react";
 import type { ProposalResponseDto, WorkItemTypeDefinitionDto } from "../../api";
 import {
   ProposalAction,
@@ -43,6 +43,7 @@ import {
   futureBaselineContent,
   isFutureProposal,
 } from "./futureAsUpdate";
+import { ProposalReconciliationContext } from "../ProposalReconciliation/ProposalReconciliationReview";
 import { FutureApplyFooter } from "./FutureApplyFooter";
 import type { EntityData } from "./useEntityData";
 
@@ -64,6 +65,7 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
   renderMode,
   renderFutureFooter,
 }) => {
+  const enclosingReview = useContext(ProposalReconciliationContext);
   const isEvaluationOutput = renderMode === "evaluation-output";
   const { getState, applyItem, rejectItem } = useProposalState(proposals);
   const markWorkItemTypeDataStale = useMarkWorkItemTypeDataStale();
@@ -249,30 +251,40 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
           ) : undefined;
         // Approve → linked work → Apply is shown from the start; before
         // approval the ordinary Approve/Reject fills the first step.
-        const futureFooter = !future ? undefined : original.status ===
-          ProposalStatus.Approved ? (
+        const approveControl = (
+          <ProposalStateIndicator
+            status={status}
+            action={ProposalAction.VersionedUpdate}
+            onApply={() => handleApply(original.id)}
+            onReject={
+              onReject
+                ? (reason: string) => handleReject(original.id, reason)
+                : undefined
+            }
+            disabled={disabled}
+            approvalProgress={getApprovalProgress(
+              original.requiredApprovals,
+              original.approvals,
+            )}
+          />
+        );
+        const futureFooter = !future ? undefined : renderMode ===
+            "reconciliation-refinement" || enclosingReview?.staged ? (
+          original.status === ProposalStatus.Draft ? (
+            approveControl
+          ) : (
+            <Typography variant="body2">
+              This fix has been reviewed. Live content changes only when you
+              choose Apply on the main comparison.
+            </Typography>
+          )
+        ) : original.status === ProposalStatus.Approved ? (
           <FutureApplyFooter proposal={original} onApplied={onApplied} />
         ) : future.updates.operation === "REVISE" &&
           status.state !== "rejected" ? (
           <FutureApplyFooter
             proposal={original}
-            approveControl={
-              <ProposalStateIndicator
-                status={status}
-                action={ProposalAction.VersionedUpdate}
-                onApply={() => handleApply(original.id)}
-                onReject={
-                  onReject
-                    ? (reason: string) => handleReject(original.id, reason)
-                    : undefined
-                }
-                disabled={disabled}
-                approvalProgress={getApprovalProgress(
-                  original.requiredApprovals,
-                  original.approvals,
-                )}
-              />
-            }
+            approveControl={approveControl}
           />
         ) : undefined;
         const overrides = getProposalRenderOverrides(

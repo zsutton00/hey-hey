@@ -1,13 +1,15 @@
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import CheckIcon from "@mui/icons-material/Check";
 import { Alert, Button, Chip, Stack, Typography } from "@mui/material";
-import { Fragment, type ReactNode } from "react";
+import { Fragment, useContext, type ReactNode } from "react";
 import type {
   FutureDependencyPresentation,
   ProposalResponseDto,
 } from "../../api";
 import { useProposal } from "../../data/hooks/useProposal";
 import { MentionCopyBoundary } from "../shared/MentionCopyBoundary";
+import { invalidateProposalReconciliation } from "../ProposalReconciliation/reconciliationInvalidation";
+import { ProposalReconciliationContext } from "../ProposalReconciliation/ProposalReconciliationReview";
 import { FutureApplication } from "../ProposalDetail/FutureApplication";
 import {
   FutureDependency,
@@ -51,6 +53,7 @@ function FutureApplyFooterContent({
   onApplied,
   approveControl,
 }: FutureApplyFooterProps) {
+  const reconciliation = useContext(ProposalReconciliationContext);
   const { organizationId, projectId } = initial;
   const { proposal, refetch, isReady, error } = useProposal(
     organizationId,
@@ -89,7 +92,9 @@ function FutureApplyFooterContent({
           }}
           useFlexGap
         >
-          {previous ? (
+          {reconciliation?.staged ? (
+            approveControl
+          ) : previous ? (
             <Chip
               icon={<CheckIcon />}
               label="Approved"
@@ -100,7 +105,7 @@ function FutureApplyFooterContent({
           ) : (
             approveControl
           )}
-          {linked.length > 0 && (
+          {!reconciliation?.staged && linked.length > 0 && (
             <ArrowForwardIcon fontSize="small" color="disabled" />
           )}
           {linked.length > 0 && (
@@ -123,7 +128,9 @@ function FutureApplyFooterContent({
               ))}
             </Stack>
           )}
-          <ArrowForwardIcon fontSize="small" color="disabled" />
+          {!reconciliation?.staged && (
+            <ArrowForwardIcon fontSize="small" color="disabled" />
+          )}
           <Button
             size="small"
             variant="contained"
@@ -134,7 +141,7 @@ function FutureApplyFooterContent({
             Apply
           </Button>
         </Stack>
-        {previous && approveControl}
+        {previous && !reconciliation?.staged && approveControl}
         <Typography
           variant="body2"
           color="text.secondary"
@@ -191,45 +198,69 @@ function FutureApplyFooterContent({
 
   return (
     <Stack spacing={1} data-testid="future-apply-footer">
+      {reconciliation?.staged && linked.length > 0 ? (
+        <Stack spacing={1}>
+          <Typography variant="body2" color="text.secondary">
+            Linked work
+          </Typography>
+          <Stack
+            direction="row"
+            spacing={1}
+            useFlexGap
+            flexWrap="wrap"
+            data-testid="future-linked-work"
+          >
+            {linked.map((dependency) => (
+              <FutureDependency
+                key={dependency.targetEntityId}
+                {...{ organizationId, projectId, dependency }}
+              />
+            ))}
+          </Stack>
+        </Stack>
+      ) : null}
       <FutureApplication
         key={future.id}
         future={future}
         onRefresh={async () => {
+          invalidateProposalReconciliation(initial.id);
           await refetch();
         }}
         reviewSteps={
-          <>
-            <Chip
-              icon={<CheckIcon />}
-              label="Approved"
-              size="small"
-              color="success"
-              variant="outlined"
-            />
-            {future.dependencies.length > 0 && (
-              <ArrowForwardIcon fontSize="small" color="disabled" />
-            )}
-            {linked.length > 0 && (
-              <Stack
-                direction="row"
-                spacing={1}
-                sx={{
-                  minWidth: 0,
-                  flex: 1,
-                  overflow: "hidden",
-                  "& > *": { flex: "1 1 0", minWidth: 0 },
-                }}
-                data-testid="future-linked-work"
-              >
-                {linked.map((dependency) => (
-                  <FutureDependency
-                    key={dependency.targetEntityId}
-                    {...{ organizationId, projectId, dependency }}
-                  />
-                ))}
-              </Stack>
-            )}
-          </>
+          reconciliation?.staged ? undefined : (
+            <>
+              <Chip
+                icon={<CheckIcon />}
+                label="Approved"
+                size="small"
+                color="success"
+                variant="outlined"
+              />
+              {future.dependencies.length > 0 && (
+                <ArrowForwardIcon fontSize="small" color="disabled" />
+              )}
+              {linked.length > 0 && (
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  sx={{
+                    minWidth: 0,
+                    flex: 1,
+                    overflow: "hidden",
+                    "& > *": { flex: "1 1 0", minWidth: 0 },
+                  }}
+                  data-testid="future-linked-work"
+                >
+                  {linked.map((dependency) => (
+                    <FutureDependency
+                      key={dependency.targetEntityId}
+                      {...{ organizationId, projectId, dependency }}
+                    />
+                  ))}
+                </Stack>
+              )}
+            </>
+          )
         }
         onApplied={async () => {
           await refetch();

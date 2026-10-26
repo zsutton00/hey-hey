@@ -1,7 +1,7 @@
 import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import { useState, type ReactNode } from "react";
+import { useContext, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
@@ -21,6 +21,7 @@ import type {
 } from "../../api";
 import { proposalsClient } from "../../clients/serviceClients";
 import { useApplyProposalFuture } from "../../data/hooks/useApplyProposalFuture";
+import { ProposalReconciliationContext } from "../ProposalReconciliation/ProposalReconciliationReview";
 import { FutureProposalLink } from "./FutureProposalLink";
 
 import {
@@ -60,6 +61,7 @@ export function FutureApplication({
   reviewSteps?: ReactNode;
   onRefresh?: () => Promise<void>;
 }) {
+  const reconciliation = useContext(ProposalReconciliationContext);
   const { organizationId, projectId, id: futureId } = future;
   const [response, setResponse] = useState<FutureApplyResponse | null>(null);
   const [confirmation, setConfirmation] =
@@ -90,6 +92,7 @@ export function FutureApplication({
   });
   const submit = async (confirmed?: FutureApplyConfirmation) => {
     setConfirmation(null);
+    let appliedSuccessfully = false;
     try {
       const result = await apply.mutate({
         organizationId,
@@ -108,16 +111,19 @@ export function FutureApplication({
           confirmed?.refinements.map((item) => item.proposalId) ?? [],
         );
         await onApplied();
+        appliedSuccessfully = true;
       }
     } catch {
       // The mutation retains the error; retry starts a fresh confirmation exchange.
     } finally {
+      if (!appliedSuccessfully) await onRefresh?.();
       await applicability.refetch();
     }
   };
   const applied =
     response?.status === "APPLIED" || future.outcome === "APPLIED";
   const ready =
+    !reconciliation?.approvalDisabled &&
     applicability.data?.canApply &&
     applicability.data.revision === future.revision;
   return (

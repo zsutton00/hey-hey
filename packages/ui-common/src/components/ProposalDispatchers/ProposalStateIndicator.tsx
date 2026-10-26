@@ -161,7 +161,10 @@ const ProposalStateIndicatorContent: React.FC<ProposalStateIndicatorProps> = ({
     [handleSubmitReject],
   );
 
-  const label = applyLabel ?? ACTION_LABELS[action];
+  const label =
+    (outOfDateReview?.staged && !outOfDateReview.future
+      ? "Apply"
+      : applyLabel) ?? ACTION_LABELS[action];
   const canSubmitReject = isRejectReasonValid(action, rejectReason);
 
   if (rejectState === "rejecting") {
@@ -269,12 +272,14 @@ const ProposalStateIndicatorContent: React.FC<ProposalStateIndicatorProps> = ({
   }
 
   const approveLabel =
-    action === ProposalAction.VersionedUpdate &&
-    !approvalProgress?.isMultiApproval
-      ? "Approve revision"
-      : approvalProgress
-        ? formatApprovalLabel(approvalProgress)
-        : (applyLabel ?? label);
+    outOfDateReview?.staged && !outOfDateReview.future
+      ? "Apply"
+      : action === ProposalAction.VersionedUpdate &&
+          !approvalProgress?.isMultiApproval
+        ? "Approve revision"
+        : approvalProgress
+          ? formatApprovalLabel(approvalProgress)
+          : (applyLabel ?? label);
 
   const approveButton = (
     <Button

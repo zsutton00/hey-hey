@@ -100,7 +100,11 @@ export type OnRejectProposal = (
  * when the attempt ran. Display only; the server refuses to apply it.
  */
 export type ProposalRenderMode =
-  "standalone" | "group-member" | "future-review" | "evaluation-output";
+  | "standalone"
+  | "group-member"
+  | "future-review"
+  | "reconciliation-refinement"
+  | "evaluation-output";
 
 /**
  * Props for the CreateProposal dispatcher component.

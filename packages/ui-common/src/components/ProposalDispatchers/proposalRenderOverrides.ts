@@ -57,6 +57,7 @@ export function getProposalRenderOverrides(
         hideHeader: true,
         hideStateIndicator: true,
       };
+    case "reconciliation-refinement":
     case "future-review":
       return overrides;
     case "evaluation-output":
