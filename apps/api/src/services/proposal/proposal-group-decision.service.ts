@@ -3,6 +3,7 @@ import { ProposalReconciliationService } from './proposal-reconciliation.service
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -97,6 +98,7 @@ export class ProposalGroupDecisionService {
     private readonly projectApprovalPolicyService: ProjectApprovalPolicyService,
     private readonly projectAccess: ProjectAccessService,
     @Optional()
+    @Inject(WorkItemTypeRegistryService)
     private readonly workItemTypeRegistry:
       | WorkItemTypeRegistryService
       | undefined,
