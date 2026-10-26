@@ -5,6 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { AxiosResponse } from 'axios';
+import { isAxiosError } from 'axios';
 import { Prisma, WorkItemTypeCascadeExecutionState } from '@prisma/client';
 import { firstValueFrom } from 'rxjs';
 import {
@@ -547,6 +548,11 @@ export class AgentEdgeClientService {
         downstream: axiosResponseToLoggable(error),
         agentEdgeId,
       });
+      if (
+        isAxiosError<string | object>(error) &&
+        error.response?.status === 409
+      )
+        throw new ConflictException(error.response.data);
       throw error;
     }
   }
@@ -605,6 +611,11 @@ export class AgentEdgeClientService {
         downstream: axiosResponseToLoggable(error),
         agentEdgeId,
       });
+      if (
+        isAxiosError<string | object>(error) &&
+        error.response?.status === 409
+      )
+        throw new ConflictException(error.response.data);
       throw error;
     }
   }

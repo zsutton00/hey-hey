@@ -3127,54 +3127,110 @@ describe('WorkItemChangeSetMaterializerService', () => {
     expect(claim).toHaveBeenCalledTimes(1);
   });
 
-  it('preserves the original typed conflict from the guarded write', async () => {
-    const { service } = createService();
-    const prepared = {
-      id: 'materialization-1',
-      status: 'PREPARED',
-      claimToken: 'claim-1',
-      targetProjection: { projection: { valid: true } },
-    };
-    jest.spyOn(service as any, 'prepareIntent').mockResolvedValue(prepared);
-    jest
-      .spyOn(service as any, 'claimPreparedIntent')
-      .mockResolvedValue(prepared);
-    jest.spyOn(service as any, 'assertRecoverableIntent').mockImplementation();
-    const conflict = new ConflictException({
-      message: 'Changed after review',
-      issues: [
+  it.each(['content', 'update', 'delete'] as const)(
+    'preserves the original typed %s conflict from the guarded write',
+    async (operation) => {
+      const { service, prisma } = createService();
+      const prepared = {
+        id: 'materialization-1',
+        status: 'PREPARED',
+        claimToken: 'claim-1',
+        targetProjection: { projection: { valid: true } },
+      };
+      jest.spyOn(service as any, 'prepareIntent').mockResolvedValue(prepared);
+      jest
+        .spyOn(service as any, 'claimPreparedIntent')
+        .mockResolvedValue(prepared);
+      jest
+        .spyOn(service as any, 'assertRecoverableIntent')
+        .mockImplementation();
+      const conflict = new ConflictException({
+        message: 'Changed after review',
+        issues: [
+          {
+            field: 'sections.description',
+            code: 'PROPOSAL_RECONCILIATION_REQUIRED',
+            reason: 'Changed',
+            layer: 'referential',
+          },
+        ],
+        correlationId: 'conflict-correlation',
+      });
+      const graphClient = new AgentEdgeClientService(
         {
-          field: 'sections.description',
-          code: 'PROPOSAL_RECONCILIATION_REQUIRED',
-          reason: 'Changed',
-          layer: 'referential',
-        },
-      ],
-      correlationId: 'conflict-correlation',
-    });
-    jest
-      .spyOn(service as any, 'applyPreparedIntent')
-      .mockRejectedValue(conflict);
-    const failed = jest
-      .spyOn(service as any, 'markIntentRecoverableFailure')
-      .mockResolvedValue(undefined);
-    const publish = jest.spyOn(service as any, 'publishPreparedIntent');
-    const params = {
-      proposalId: 'proposal-1',
-      organizationId: 'organization-1' as any,
-      projectId: 'project-1' as any,
-    };
-    const results = await Promise.allSettled([
-      service.materializeApprovedChangeSet(params),
-      service.materializeApprovedChangeSet(params),
-    ]);
-    expect(results).toEqual([
-      { status: 'rejected', reason: conflict },
-      { status: 'rejected', reason: conflict },
-    ]);
-    expect(failed).toHaveBeenCalledTimes(1);
-    expect(publish).not.toHaveBeenCalled();
-  });
+          updateAgentEdge: jest.fn().mockReturnValue(
+            throwError(() => ({
+              isAxiosError: true,
+              response: { status: 409, data: conflict.getResponse() },
+            })),
+          ),
+          deleteAgentEdge: jest.fn().mockReturnValue(
+            throwError(() => ({
+              isAxiosError: true,
+              response: { status: 409, data: conflict.getResponse() },
+            })),
+          ),
+        } as any,
+        prisma as any,
+      );
+      jest
+        .spyOn(service as any, 'applyPreparedIntent')
+        .mockImplementation(async () => {
+          if (operation === 'content') throw conflict;
+          if (operation === 'update') {
+            await graphClient.update(
+              'organization-1' as OrganizationId,
+              'project-1' as ProjectId,
+              'edge-1',
+              {
+                reasoning: 'Reviewed edit',
+                lastModifiedBySessionId: 'session-1',
+              },
+              'token',
+              undefined,
+              'reviewed-version',
+            );
+          } else {
+            await graphClient.delete(
+              'organization-1' as OrganizationId,
+              'project-1' as ProjectId,
+              'edge-1',
+              'token',
+              undefined,
+              undefined,
+              'reviewed-version',
+            );
+          }
+        });
+      const failed = jest
+        .spyOn(service as any, 'markIntentRecoverableFailure')
+        .mockResolvedValue(undefined);
+      const publish = jest.spyOn(service as any, 'publishPreparedIntent');
+      const params = {
+        proposalId: 'proposal-1',
+        organizationId: 'organization-1' as any,
+        projectId: 'project-1' as any,
+      };
+      const results = await Promise.allSettled([
+        service.materializeApprovedChangeSet(params),
+        service.materializeApprovedChangeSet(params),
+      ]);
+      expect(results).toEqual([
+        { status: 'rejected', reason: conflict },
+        { status: 'rejected', reason: conflict },
+      ]);
+      for (const result of results) {
+        expect(result.status).toBe('rejected');
+        if (result.status === 'rejected') {
+          expect(result.reason).toBeInstanceOf(ConflictException);
+          expect(result.reason.getStatus()).toBe(409);
+          expect(result.reason.getResponse()).toEqual(conflict.getResponse());
+        }
+      }
+      expect(failed).toHaveBeenCalledTimes(1);
+      expect(publish).not.toHaveBeenCalled();
+    },
+  );
 
   it('resumes an expired owner using the same selected intent', async () => {
     const { service, prisma } = createService();
