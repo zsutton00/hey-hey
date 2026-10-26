@@ -284,10 +284,10 @@ export const handleAssistantComplete = async (
     reportCount: completionArtifactIds.reportIds.length,
   });
 
-  const unsavedOutputFailure =
+  const unsavedOutputNotice =
     dispatchResult.matched || dispatchResult.incompatibleResponseType
       ? null
-      : (handler?.getUnsavedOutputFailure?.(event, eventTurn.payload, {
+      : (handler?.getUnsavedOutputNotice?.(event, eventTurn.payload, {
           codingPlanElementTypes: ctx.readCodingPlanElementTypes(eventTurn.turnId),
         }) ?? null);
 
@@ -397,40 +397,6 @@ export const handleAssistantComplete = async (
           });
         });
     }
-  } else if (unsavedOutputFailure !== null) {
-    deps.logger.error('local.handler.assistant_complete.required_output_unsaved', {
-      runId: ctx.runId,
-      turnId: eventTurn.turnId,
-      promptType: turnPromptType,
-      summaryLength: event.summary.length,
-      summaryPreview: event.summary.slice(0, 300),
-    });
-    try {
-      await deps.poster.createOutOfBand({
-        organizationId: ctx.organizationId,
-        projectId: ctx.projectId,
-        conversationId: ctx.conversationId,
-        dto: {
-          type: MessageType.System,
-          status: MessageStatus.Failed,
-          projectId: ctx.projectId,
-          data: {
-            type: SystemMessageDataTypeEnum.Agent,
-            response: unsavedOutputFailure,
-            detectedIntent: 'required_output_unsaved',
-            intentConfidence: 1,
-          } satisfies AgentSystemMessageData,
-        },
-        stamp,
-      });
-    } catch (error) {
-      deps.logger.error('local.handler.assistant_complete.unsaved_output_failure_post_failed', {
-        runId: ctx.runId,
-        error,
-      });
-    }
-    // Fails the Turn so Run state reports the failure, not a completed reply.
-    eventTurn.recordCompletionPublicationFailure();
   } else {
     const baseData = dispatchResult.incompatibleResponseType
       ? {
@@ -441,7 +407,25 @@ export const handleAssistantComplete = async (
             intentConfidence: 1,
           } satisfies AgentSystemMessageData,
         }
-      : buildCompletionData(event, handler, eventTurn.payload);
+      : unsavedOutputNotice !== null
+        ? {
+            // Kept as an ordinary completed reply so the user can answer and
+            // the next Turn retries; the notice makes the unsaved output plain.
+            data: {
+              type: SystemMessageDataTypeEnum.Agent,
+              response: `**${unsavedOutputNotice}**\n\n${event.summary}`,
+              detectedIntent: 'required_output_unsaved',
+              intentConfidence: 1,
+            } satisfies AgentSystemMessageData,
+          }
+        : buildCompletionData(event, handler, eventTurn.payload);
+    if (unsavedOutputNotice !== null) {
+      deps.logger.warn('local.handler.assistant_complete.required_output_unsaved', {
+        runId: ctx.runId,
+        turnId: eventTurn.turnId,
+        promptType: turnPromptType,
+      });
+    }
     const data = withFeatureVerificationSuggestion(
       addFeatureSyncAffordances(baseData, {
         promptType: turnPromptType,

@@ -119,6 +119,12 @@ export const CodingPlanEmissionInputSchema = z
   })
   .strict() satisfies z.ZodType<CodingPlanEmissionInput>;
 
+export const CodingPlanQuestionSchema = z
+  .object({
+    question: z.string().min(1),
+  })
+  .strict();
+
 export const CodingPlanConversationalApprovalSchema = z
   .object({
     responseType: z.literal('coding_plan_approval_v1'),

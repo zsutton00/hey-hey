@@ -797,11 +797,11 @@ export interface PromptTypeHandler<TPayload> {
   getCompletionAction?(event: AssistantCompleteEvent, payload?: unknown): CompletionAction | null;
 
   /**
-   * Returns a user-facing failure when a completion with no recognised
-   * response type left the Turn's required output unsaved. The Run posts it
-   * as a failed message and fails the Turn instead of an ordinary reply.
+   * Returns a user-facing notice when a completion with no recognised
+   * response type left the Turn's required output unsaved. The notice leads
+   * the ordinary reply; the Turn still completes so the user can retry.
    */
-  getUnsavedOutputFailure?(
+  getUnsavedOutputNotice?(
     event: AssistantCompleteEvent,
     payload: unknown,
     saved: { codingPlanElementTypes: readonly string[] },

@@ -23,7 +23,7 @@ import {
 } from './conversation-context';
 
 export const CODING_PLAN_NOT_SAVED_MESSAGE =
-  "The plan wasn't saved, so it can't be approved. Restart planning.";
+  "The plan wasn't saved, so it can't be approved yet. Reply to try saving it again.";
 
 /**
  * Restricted MCP tool allowlist for the coding-plan subagent. The planner may
@@ -264,13 +264,12 @@ export const codingPlanHandler: CodingPlanHandler = {
     });
   },
 
-  // Before any plan exists, a turn must save a plan or discrepancy, or ask the
-  // user something. Otherwise the plan likely went to chat text because the
-  // emit tools were unavailable, and nothing can be approved.
-  getUnsavedOutputFailure(event, payload, saved) {
+  // Before any plan exists, a turn must save a plan, a discrepancy or a
+  // question through its tools. Otherwise the plan likely went to chat text
+  // because the tools were unavailable; the reply says so and the user can retry.
+  getUnsavedOutputNotice(_event, payload, saved) {
     if (saved.codingPlanElementTypes.length > 0) return null;
     if ((payload as EnrichedCodingPlanPromptPayload | undefined)?._hasSavedPlanVersion) return null;
-    if (event.summary.includes('?')) return null;
     return CODING_PLAN_NOT_SAVED_MESSAGE;
   },
 

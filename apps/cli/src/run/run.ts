@@ -829,7 +829,7 @@ export class Run {
    * into the current handler span, then cleared.
    */
   private readonly _submittedTurnIds: Set<string> = new Set();
-  /** Coding Plan element types (plan version, discrepancy) each Turn persisted. */
+  /** Coding Plan items (plan version, discrepancy, question) each Turn persisted. */
   private readonly _codingPlanElementsByTurn: Map<string, Set<string>> = new Map();
   /**
    * Report-chain length at Turn start, keyed by `Turn.turnId`. Open's
@@ -6296,6 +6296,28 @@ export class Run {
       | import('../shared/api/generated/api').CodingPlanVersion
       | import('../shared/api/generated/api').CodingPlanDiscrepancy,
   ): Promise<string> {
+    return this.persistCodingPlanMessage(type, '', [
+      {
+        id: randomUUID(),
+        type,
+        label: type === 'coding_plan_version' ? 'Complete plan' : 'Planning issue',
+        required: false,
+        influences: [],
+        payload,
+      },
+    ]);
+  }
+
+  /** Posts a planner question as visible text; the user's reply starts the next Turn. */
+  public async persistCodingPlanQuestion(question: string): Promise<string> {
+    return this.persistCodingPlanMessage('coding_plan_question', question);
+  }
+
+  private async persistCodingPlanMessage(
+    savedType: string,
+    response: string,
+    uiElements?: AgentSystemMessageData['uiElements'],
+  ): Promise<string> {
     const turn = this.activeTurn;
     if (turn?.handler.promptType !== 'startup_session') {
       throw new Error('Planning conversation tools require the active planning handler.');
@@ -6311,30 +6333,21 @@ export class Run {
         projectId: session.contextMetadata.projectId,
         data: {
           type: SystemMessageDataTypeEnum.Agent,
-          response: '',
+          response,
           detectedIntent: 'coding_plan_conversation',
           intentConfidence: 1,
-          uiElements: [
-            {
-              id: randomUUID(),
-              type,
-              label: type === 'coding_plan_version' ? 'Complete plan' : 'Planning issue',
-              required: false,
-              influences: [],
-              payload,
-            },
-          ],
+          ...(uiElements ? { uiElements } : {}),
         },
       },
       stamp: null,
     });
     const saved = this._codingPlanElementsByTurn.get(turn.turnId) ?? new Set<string>();
-    saved.add(type);
+    saved.add(savedType);
     this._codingPlanElementsByTurn.set(turn.turnId, saved);
     this.logger.debug('local.coding_plan.conversation.persisted', {
       runId: this.runId,
       turnId: turn.turnId,
-      type,
+      type: savedType,
       messageId,
     });
     return messageId;

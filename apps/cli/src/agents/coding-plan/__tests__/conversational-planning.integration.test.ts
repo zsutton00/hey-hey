@@ -6,6 +6,7 @@ describe('conversational planning approval boundary', () => {
     expect(codingPlanHandler.reports ?? []).toEqual([]);
     expect(codingPlanHandler.submissionTools?.map((tool) => tool.name)).toEqual([
       'emit_coding_plan_discrepancy',
+      'ask_coding_plan_question',
       'emit_coding_plan',
     ]);
     expect(codingPlanHandler.submissionTools?.every((tool) => tool.kind === 'pass_through')).toBe(

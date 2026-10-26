@@ -618,6 +618,7 @@ describe('coding-plan registry wiring', () => {
     const fetched = registry.get('startup_session');
     expect(fetched?.submissionTools?.map((tool) => tool.name)).toEqual([
       'emit_coding_plan_discrepancy',
+      'ask_coding_plan_question',
       'emit_coding_plan',
     ]);
   });

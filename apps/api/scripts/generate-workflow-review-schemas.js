@@ -15,6 +15,7 @@ const generatedSchemaNames = [
   'CodingPlanVersion',
   'CodingPlanVersionApproval',
   'CodingPlanEmissionInput',
+  'CodingPlanQuestion',
   'CodingPlanConversationalApproval',
   'CodingPlanApprovalPayload',
   'CodingPlanWorkflowAnswer',
@@ -161,13 +162,34 @@ if (process.argv[2]) {
       Object.entries(schema).map(([key, value]) => [key, expand(value)]),
     );
   };
+  // MCP clients reject a tools/list entry whose inputSchema lacks a top-level
+  // `type: 'object'` (dropping every tool on that server), and the Anthropic
+  // API refuses top-level allOf. Flatten object compositions into one object.
+  const toToolInputSchema = (schema) => {
+    if (!Array.isArray(schema.allOf)) return schema;
+    const { allOf, description, ...rest } = schema;
+    const parts = allOf.map(toToolInputSchema);
+    if (parts.some((part) => part.type !== 'object')) {
+      throw new Error('Tool input allOf must compose object schemas only.');
+    }
+    const required = [...new Set(parts.flatMap((part) => part.required ?? []))];
+    const closed = parts.some((part) => part.additionalProperties === false);
+    return {
+      ...rest,
+      type: 'object',
+      ...(description ? { description } : {}),
+      ...(closed ? { additionalProperties: false } : {}),
+      required,
+      properties: Object.assign({}, ...parts.map((part) => part.properties ?? {})),
+    };
+  };
   fs.writeFileSync(
     process.argv[2].replace('.schemas.ts', '.tool-schemas.ts'),
     '/* Generated from OpenAPI; do not edit. */\n' +
-      ['CodingPlanEmissionInput', 'CodingPlanDiscrepancy']
+      ['CodingPlanEmissionInput', 'CodingPlanDiscrepancy', 'CodingPlanQuestion']
         .map(
           (name) =>
-            `export const ${name}ToolSchema = ${JSON.stringify(expand(schemas[name]), null, 2)};\n`,
+            `export const ${name}ToolSchema = ${JSON.stringify(toToolInputSchema(expand(schemas[name])), null, 2)};\n`,
         )
         .join('\n'),
   );
