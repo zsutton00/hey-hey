@@ -6258,6 +6258,71 @@ export const controllerActionRuntimeSchema = {
                 'READY_FOR_REVIEW',
               ],
             },
+            suggestions: {
+              type: 'array',
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                required: [
+                  'id',
+                  'proposalId',
+                  'organizationId',
+                  'projectId',
+                  'status',
+                  'candidateRevisionId',
+                  'proposedResult',
+                  'createdAt',
+                ],
+                properties: {
+                  id: {
+                    type: 'string',
+                    format: 'uuid',
+                  },
+                  organizationId: {
+                    type: 'string',
+                    format: 'uuid',
+                  },
+                  projectId: {
+                    type: 'string',
+                    format: 'uuid',
+                  },
+                  proposalId: {
+                    type: 'string',
+                    format: 'uuid',
+                  },
+                  status: {
+                    type: 'string',
+                    enum: [
+                      'PENDING',
+                      'ACCEPTED',
+                      'REJECTED',
+                      'SUPERSEDED',
+                      'OUT_OF_DATE',
+                    ],
+                  },
+                  candidateRevisionId: {
+                    type: 'string',
+                    format: 'uuid',
+                  },
+                  proposedResult: {
+                    type: 'object',
+                    additionalProperties: true,
+                  },
+                  messageId: {
+                    type: 'string',
+                    format: 'uuid',
+                  },
+                  legacyProposalId: {
+                    type: 'string',
+                    format: 'uuid',
+                  },
+                  createdAt: {
+                    type: 'string',
+                    format: 'date-time',
+                  },
+                },
+              },
+            },
             futureRevision: {
               type: 'integer',
               minimum: 0,

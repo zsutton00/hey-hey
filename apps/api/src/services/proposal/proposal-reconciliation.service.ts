@@ -1,3 +1,5 @@
+import { ProposalReconciliationSuggestion } from 'src/generated';
+import { ProposalReconciliationCandidatePipe } from '../../pipes/proposal-reconciliation-candidate.pipe';
 import { ConflictException, Inject, Injectable, Logger } from '@nestjs/common';
 import type {
   Prisma,
@@ -268,8 +270,28 @@ export class ProposalReconciliationService {
       proposal.status === 'REJECTED' ||
       (proposal.status === 'APPROVED' &&
         !(await this.isUnappliedFuture(tx, proposal)))
-    )
-      return this.state(tx, proposal);
+    ) {
+      const state = await this.state(tx, proposal);
+      const rows: StoredRevision[] =
+        await tx.proposalReconciliationRevision.findMany({
+          where: { proposalId: proposal.id },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        });
+      // Retain inspectable suggestion evidence after Apply without restoring eligibility.
+      return this.withSuggestions(tx, proposal, {
+        ...state,
+        revisions: rows.map((row) => ({
+          id: row.id,
+          proposalId: row.proposalId,
+          source: row.source as ProposalReconciliationRevision['source'],
+          previousRevisionId: row.previousRevisionId,
+          bases: row.bases as unknown as ProposalReconciliationBasis[],
+          proposedResult: row.proposedResult as Prisma.JsonObject,
+          intent: row.intent,
+          createdAt: row.createdAt.toISOString(),
+        })),
+      });
+    }
     const mutation = parseFutureRevisionMutation(proposal.updates);
     const future = await tx.proposalFuture.findFirst({
       where: {
@@ -310,8 +332,13 @@ export class ProposalReconciliationService {
         },
       }));
     }
-    return {
-      ...state,
+    const {
+      replacementProposalId: _legacyProposal,
+      replacementGroupId: _legacyGroup,
+      ...currentState
+    } = state;
+    return this.withSuggestions(tx, proposal, {
+      ...currentState,
       currentBases,
       futureRevision: future?.revision ?? 0,
       status: changed
@@ -319,6 +346,56 @@ export class ProposalReconciliationService {
         : state.revisions.at(-1)?.source === 'AUTHORING'
           ? 'CURRENT'
           : 'READY_FOR_REVIEW',
+    });
+  }
+
+  private async withSuggestions(
+    tx: AnyTransactionClient,
+    proposal: Proposal,
+    state: ProposalReconciliationState,
+  ): Promise<ProposalReconciliationState> {
+    const suggestions: import('@prisma/client').ProposalReconciliationSuggestion[] =
+      await tx.proposalReconciliationSuggestion.findMany({
+        where: { proposalId: proposal.id },
+        orderBy: { createdAt: 'asc' },
+      });
+    return {
+      ...state,
+      suggestions: suggestions.map((suggestion) => {
+        const request = new ProposalReconciliationCandidatePipe().transform(
+          suggestion.request,
+        );
+        if (request.method !== 'AGENT_FIX')
+          throw new ConflictException(
+            'Stored suggestion violates its authoring contract.',
+          );
+        const statuses = Object.values(
+          ProposalReconciliationSuggestion.StatusEnum,
+        );
+        const status = statuses.find((value) => value === suggestion.status);
+        if (!status)
+          throw new ConflictException(
+            'Stored suggestion has an invalid status.',
+          );
+        return {
+          id: suggestion.id,
+          proposalId: proposal.id,
+          organizationId: proposal.organizationId,
+          projectId: proposal.projectId,
+          status:
+            status === 'PENDING' &&
+            suggestion.candidateRevisionId !== state.candidateRevisionId
+              ? ('OUT_OF_DATE' as const)
+              : status,
+          candidateRevisionId: suggestion.candidateRevisionId,
+          proposedResult: request.proposedResult,
+          ...(suggestion.messageId ? { messageId: suggestion.messageId } : {}),
+          ...(suggestion.legacyProposalId
+            ? { legacyProposalId: suggestion.legacyProposalId }
+            : {}),
+          createdAt: suggestion.createdAt.toISOString(),
+        };
+      }),
     };
   }
 

@@ -14,10 +14,12 @@ import { ProposalReconciliationBasis } from '../models/ProposalReconciliationBas
 import { ProposalReconciliationIntervening } from '../models/ProposalReconciliationIntervening';
 import { ProposalReconciliationOverlap } from '../models/ProposalReconciliationOverlap';
 import { ProposalReconciliationRevision } from '../models/ProposalReconciliationRevision';
+import { ProposalReconciliationSuggestion } from '../models/ProposalReconciliationSuggestion';
 import { HttpFile } from '../http/http';
 
 export class ProposalReconciliationState {
   'status': ProposalReconciliationStateStatusEnum;
+  'suggestions'?: Array<ProposalReconciliationSuggestion>;
   /**
    * Stored future revision used to prepare this context; include as expectedFutureRevision when submitting future reconciliation.
    */
@@ -55,6 +57,12 @@ export class ProposalReconciliationState {
       name: 'status',
       baseName: 'status',
       type: 'ProposalReconciliationStateStatusEnum',
+      format: '',
+    },
+    {
+      name: 'suggestions',
+      baseName: 'suggestions',
+      type: 'Array<ProposalReconciliationSuggestion>',
       format: '',
     },
     {

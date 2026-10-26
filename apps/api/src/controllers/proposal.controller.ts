@@ -140,6 +140,9 @@ export class ProposalController {
         request,
         'POST /proposals/:id/reconciliation',
       ),
+      typeof request.headers['x-agent-session-id'] === 'string'
+        ? request.headers['x-agent-session-id']
+        : undefined,
     );
   }
 

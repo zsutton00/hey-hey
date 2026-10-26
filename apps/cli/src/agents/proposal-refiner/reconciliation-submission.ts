@@ -66,6 +66,7 @@ export class ProposalReconciliationSubmission implements PassThroughSubmissionTo
               ...input,
               expectedCurrentBases: scope.state.currentBases,
               expectedFutureRevision: scope.state.futureRevision,
+              expectedCandidateRevisionId: scope.state.candidateRevisionId,
             }
           : input,
       ),

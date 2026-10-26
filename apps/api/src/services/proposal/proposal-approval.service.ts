@@ -3505,6 +3505,21 @@ export class ProposalApprovalService {
   ): Promise<
     Proposal & { groupMembership: { groupId: string } | null | undefined }
   > {
+    const selected = await tx.proposal.findFirst({
+      where: { id: proposalId, organizationId, projectId },
+      select: { action: true, updates: true },
+    });
+    if (selected?.action === 'VERSIONED_UPDATE') {
+      if (
+        await tx.proposalReconciliationSuggestion.findUnique({
+          where: { legacyProposalId: proposalId },
+        })
+      )
+        throw new ConflictException(
+          'This saved correction is now a suggestion. Review and accept it on the original proposal.',
+        );
+      await tx.$queryRaw`SELECT f.id FROM proposal_futures f JOIN proposals p ON p.updates->>'futureId' = f.id WHERE p.id = ${proposalId} AND f.organization_id = ${organizationId} AND f.project_id = ${projectId} FOR UPDATE OF f`;
+    }
     // Acquire a pessimistic row lock. The raw query exists *solely* to get
     // `FOR UPDATE` — Prisma's typed API has no lock option. We select only
     // `id` and never read columns off the raw row: `$queryRaw` returns the

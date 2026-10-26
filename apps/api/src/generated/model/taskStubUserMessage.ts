@@ -18,6 +18,7 @@ import { TaskStub } from './taskStub';
 import { AgentTrigger } from './agentTrigger';
 import { ManualTaskStub } from './manualTaskStub';
 import { TaskStubReview } from './taskStubReview';
+import { ProposalReconciliationSuggestion } from './proposalReconciliationSuggestion';
 import { TaskStubSystemMessageData } from './taskStubSystemMessageData';
 
 

@@ -474,6 +474,7 @@ export * from './ProposalReconciliationIntervening';
 export * from './ProposalReconciliationOverlap';
 export * from './ProposalReconciliationRevision';
 export * from './ProposalReconciliationState';
+export * from './ProposalReconciliationSuggestion';
 export * from './Provider';
 export * from './ReadinessFocalEntityType';
 export * from './ReasoningEffort';

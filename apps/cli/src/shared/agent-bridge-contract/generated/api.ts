@@ -16542,6 +16542,12 @@ export interface ProposalReconciliationState {
      */
     'status': ProposalReconciliationStateStatusEnum;
     /**
+     *
+     * @type {Array<ProposalReconciliationSuggestion>}
+     * @memberof ProposalReconciliationState
+     */
+    'suggestions'?: Array<ProposalReconciliationSuggestion>;
+    /**
      * Stored future revision used to prepare this context; include as expectedFutureRevision when submitting future reconciliation.
      * @type {number}
      * @memberof ProposalReconciliationState
@@ -16612,6 +16618,84 @@ export const ProposalReconciliationStateStatusEnum = {
 } as const;
 
 export type ProposalReconciliationStateStatusEnum = typeof ProposalReconciliationStateStatusEnum[keyof typeof ProposalReconciliationStateStatusEnum];
+
+/**
+ *
+ * @export
+ * @interface ProposalReconciliationSuggestion
+ */
+export interface ProposalReconciliationSuggestion {
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'id': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'organizationId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'projectId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'proposalId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'status': ProposalReconciliationSuggestionStatusEnum;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'candidateRevisionId': string;
+    /**
+     *
+     * @type {{ [key: string]: any; }}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'proposedResult': { [key: string]: any; };
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'messageId'?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'legacyProposalId'?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'createdAt': string;
+}
+
+export const ProposalReconciliationSuggestionStatusEnum = {
+    Pending: 'PENDING',
+    Accepted: 'ACCEPTED',
+    Rejected: 'REJECTED',
+    Superseded: 'SUPERSEDED',
+    OutOfDate: 'OUT_OF_DATE'
+} as const;
+
+export type ProposalReconciliationSuggestionStatusEnum = typeof ProposalReconciliationSuggestionStatusEnum[keyof typeof ProposalReconciliationSuggestionStatusEnum];
 
 /**
  * Agent provider selected for the implementation run.

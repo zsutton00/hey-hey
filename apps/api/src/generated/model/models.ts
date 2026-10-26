@@ -2010,6 +2010,8 @@ export * from './proposalReconciliationMergeRequest';
 export * from './proposalReconciliationOverlap';
 export * from './proposalReconciliationRevision';
 export * from './proposalReconciliationState';
+export * from './proposalReconciliationSuggestion';
+export * from './proposalReconciliationSuggestionDecision';
 export * from './proposalResponseDto';
 export * from './proposalStatus';
 export * from './proposalType';

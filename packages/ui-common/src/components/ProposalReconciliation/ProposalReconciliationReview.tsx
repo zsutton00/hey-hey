@@ -1,7 +1,7 @@
+import { ProposalSuggestionReview } from "./ProposalSuggestionReview";
 import { DiffLabelsContext } from "../SuggestedContent/DiffRenderer";
 import { EditOutlined, SmartToyOutlined } from "@mui/icons-material";
 import { ThreeWayReview } from "./ThreeWayReview";
-import { isAxiosError } from "axios";
 import React, {
   createContext,
   lazy,
@@ -340,6 +340,7 @@ function PendingProposalReconciliationReview({
   const [state, setState] = useState<ProposalReconciliationState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
   const requestSequence = useRef(0);
   const scope = {
     organizationId: proposal.organizationId,
@@ -410,7 +411,7 @@ function PendingProposalReconciliationReview({
     !state.revisions.some(
       (revision) => revision.id === state.candidateRevisionId,
     );
-  const usesReplacement = grouped || proposal.action === "VERSIONED_UPDATE";
+  const usesReplacement = grouped;
   const approvalDisabled =
     !state ||
     !!error ||
@@ -469,6 +470,14 @@ function PendingProposalReconciliationReview({
       }}
     >
       <Stack spacing={1} data-testid="proposal-reconciliation-review">
+        {saved && state && (
+          <Alert severity={requiresReconciliation ? "warning" : "success"}>
+            {requiresReconciliation
+              ? `Proposal updated; conflicts remain: ${state.conflictingPaths.join(", ")}`
+              : "Proposal updated; reconciliation resolved."}{" "}
+            Fresh approvals are required. Live content is unchanged.
+          </Alert>
+        )}
         {outOfDate && !threeWay && (requiresReconciliation || !staged) ? (
           <OutOfDateHeadsUp state={state} />
         ) : null}
@@ -560,6 +569,14 @@ function PendingProposalReconciliationReview({
                 </Stack>
               </Stack>
             ) : null}
+            {state?.suggestions
+              ?.filter((suggestion) => suggestion.legacyProposalId)
+              .map((suggestion) => (
+                <ProposalSuggestionReview
+                  key={suggestion.id}
+                  suggestion={suggestion}
+                />
+              ))}
             {manualState ? (
               <ManualReconciliationEditor
                 proposal={proposal}
@@ -576,15 +593,15 @@ function PendingProposalReconciliationReview({
                       createProposalReconciliationCandidate: {
                         method: "MANUAL",
                         expectedFutureRevision: manualState.futureRevision,
+                        expectedCandidateRevisionId:
+                          manualState.candidateRevisionId,
                         proposedResult: result,
                         expectedCurrentBases: manualState.currentBases,
                       },
                     })
                     .then(async (response) => {
-                      // A pending refinement must leave the active conflict and approved result intact.
-                      if (proposal.action === "VERSIONED_UPDATE")
-                        await refresh();
-                      else setState(response.data.data);
+                      setState(response.data.data);
+                      setSaved(true);
                       setManualState(null);
                       void invalidateReview(
                         proposal.organizationId,
@@ -592,13 +609,6 @@ function PendingProposalReconciliationReview({
                       );
                     })
                     .catch(async (caught) => {
-                      if (
-                        isAxiosError(caught) &&
-                        caught.response?.status === 409
-                      ) {
-                        await refresh();
-                        setManualState(null);
-                      }
                       setError(
                         caught instanceof Error
                           ? caught.message

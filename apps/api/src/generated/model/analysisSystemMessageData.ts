@@ -17,6 +17,7 @@ import { SystemMessageData } from './systemMessageData';
 import { UIHints } from './uIHints';
 import { AnalysisSystemMessageDataAllOfAnalysis } from './analysisSystemMessageDataAllOfAnalysis';
 import { AgentTrigger } from './agentTrigger';
+import { ProposalReconciliationSuggestion } from './proposalReconciliationSuggestion';
 
 
 export interface AnalysisSystemMessageData extends SystemMessageData { 

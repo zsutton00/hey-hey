@@ -54,6 +54,11 @@ function fixture(outcome = 'STAGED') {
     createdAt: new Date(),
   };
   const tx = {
+    $queryRaw: jest.fn(),
+    proposalReconciliationSuggestion: {
+      findMany: jest.fn().mockResolvedValue([]),
+      updateMany: jest.fn(),
+    },
     proposalGroupMember: { findUnique: jest.fn().mockResolvedValue(null) },
     proposalFuture: {
       findFirst: jest.fn().mockResolvedValue({
@@ -63,6 +68,11 @@ function fixture(outcome = 'STAGED') {
       }),
     },
     proposal: {
+      update: jest.fn(async ({ data }) => ({
+        ...futureProposal,
+        id: 'latest',
+        ...data,
+      })),
       findMany: jest.fn().mockResolvedValue([]),
       findUnique: jest.fn().mockResolvedValue(null),
       findFirst: jest
@@ -100,7 +110,7 @@ function fixture(outcome = 'STAGED') {
   const service = Object.create(ProposalService.prototype) as ProposalService;
   Object.assign(service, {
     prisma: { db: tx },
-    logger: { debug: jest.fn(), warn: jest.fn() },
+    logger: { log: jest.fn(), debug: jest.fn(), warn: jest.fn() },
   });
   return { tx, owner, service };
 }
@@ -200,6 +210,32 @@ describe('approved future reconciliation recovery', () => {
       expect(tx.proposalReconciliationRevision.findMany).not.toHaveBeenCalled();
     },
   );
+  it('retains suggestion comparisons after application without reopening reconciliation', async () => {
+    const { tx, owner } = fixture('APPLIED');
+    tx.proposalReconciliationSuggestion.findMany.mockResolvedValue([
+      {
+        id: 'saved-suggestion',
+        candidateRevisionId: 'revision',
+        status: 'ACCEPTED',
+        createdAt: new Date(),
+        request: {
+          method: 'AGENT_FIX',
+          proposedResult: target,
+          expectedCurrentBases: [],
+        },
+      },
+    ] as never);
+    const state = await owner.stateForFuture(
+      tx as never,
+      futureProposal,
+      (futureProposal.updates as { baseline: never }).baseline,
+    );
+    expect(state.status).toBe('NOT_APPLICABLE');
+    expect(state.revisions).toHaveLength(1);
+    expect(state.suggestions).toEqual([
+      expect.objectContaining({ status: 'ACCEPTED', proposedResult: target }),
+    ]);
+  });
   it('lets guarded future application use its reviewed basis without permanent replacement bookkeeping', async () => {
     const { tx, owner } = fixture();
     await expect(
@@ -221,87 +257,302 @@ describe('approved future reconciliation recovery', () => {
       where: { id: 'latest', organizationId: 'org', projectId: 'project' },
     });
   });
-  it.each(['MANUAL', 'AGENT_FIX'] as const)(
-    'stages %s as a same-future refinement and rejects a newer future revision',
+  it('saves manual reconciliation on the same proposal and rejects a newer future revision', async () => {
+    const method = 'MANUAL' as const;
+    const { service, tx, owner } = fixture();
+    const state = await owner.stateForFuture(
+      tx as unknown as AnyTransactionClient,
+      futureProposal,
+      (futureProposal.updates as { baseline: never }).baseline,
+    );
+    Object.assign(service, {
+      reconciliation: owner,
+      workItemTypeRegistry: {},
+      prisma: {
+        db: {
+          ...tx,
+          $transaction: async (run: (db: typeof tx) => unknown) => run(tx),
+        },
+      },
+    });
+    jest.spyOn(service, 'reconciliationState').mockResolvedValue(state);
+    const create = jest
+      .spyOn(service, 'create')
+      .mockResolvedValue({ id: 'candidate' } as never);
+    jest
+      .spyOn(owner, 'currentFutureContent')
+      .mockResolvedValue({ ...target, name: 'Current' } as never);
+    const dependency = {
+      edgeType: 'DEPENDS_ON',
+      targetEntityType: 'TASK',
+      targetEntityId: '10000000-0000-4000-8000-000000000005',
+    };
+    tx.proposal.findFirst.mockResolvedValue({
+      ...futureProposal,
+      id: 'latest',
+      updates: {
+        ...futures.parseFutureRevisionMutation(futureProposal.updates),
+        dependencies: [dependency],
+      },
+    } as never);
+    const stored = {
+      id: '10000000-0000-4000-8000-000000000004',
+      revision: 2,
+      outcome: 'STAGED',
+      latestProposalId: 'latest',
+      dependencies: [dependency],
+    };
+    const read = jest
+      .spyOn(futures, 'readFutureRevision')
+      .mockResolvedValue(stored as never);
+    jest
+      .spyOn(futures, 'validateFutureRevision')
+      .mockImplementation(
+        async (_tx, _registry, proposal) => proposal.updates as never,
+      );
+    const capture = jest.spyOn(owner, 'captureAuthoring').mockResolvedValue();
+    const input = {
+      method,
+      expectedCandidateRevisionId: state.candidateRevisionId,
+      proposedResult: { ...target, name: 'Resolved' },
+      expectedCurrentBases: state.currentBases,
+      expectedFutureRevision: 2,
+    };
+    const submit = () =>
+      service.reconcile(
+        'origin',
+        'org' as OrganizationId,
+        'project' as ProjectId,
+        { userId: 'user' } as never,
+        input,
+        {} as never,
+      );
+    try {
+      await submit();
+      expect(create).not.toHaveBeenCalled();
+      expect(tx.proposal.update).toHaveBeenCalledWith({
+        where: { id: 'latest' },
+        data: {
+          status: 'DRAFT',
+          updates: expect.objectContaining({
+            futureId: stored.id,
+            expectedRevision: 2,
+            result: input.proposedResult,
+            dependencies: [dependency],
+          }),
+        },
+      });
+      expect(capture).toHaveBeenCalledWith(
+        tx,
+        expect.objectContaining({ id: 'latest', status: 'DRAFT' }),
+        expect.objectContaining({ source: 'MANUAL' }),
+      );
+      create.mockClear();
+      read.mockResolvedValue({ ...stored, revision: 3 } as never);
+      await expect(submit()).rejects.toThrow('future revision changed');
+      expect(create).not.toHaveBeenCalled();
+    } finally {
+      read.mockRestore();
+    }
+  });
+  it('records an agent suggestion in its conversation without changing proposal content or approvals', async () => {
+    const { service, tx, owner } = fixture();
+    const state = await owner.stateForFuture(
+      tx as unknown as AnyTransactionClient,
+      futureProposal,
+      (futureProposal.updates as { baseline: never }).baseline,
+    );
+    const candidate = { ...target, name: 'Suggested' };
+    const createSuggestion = jest.fn().mockResolvedValue({
+      id: 'suggestion',
+      candidateRevisionId: 'revision',
+      createdAt: new Date(),
+    });
+    const addMessage = jest.fn().mockResolvedValue({ id: 'message' });
+    Object.assign(tx, {
+      agentSession: {
+        findFirst: jest
+          .fn()
+          .mockResolvedValue({ conversationId: 'conversation' }),
+      },
+      proposalReconciliationSuggestion: {
+        ...tx.proposalReconciliationSuggestion,
+        create: createSuggestion,
+        update: jest.fn(),
+      },
+    });
+    Object.assign(tx.proposal, {
+      findUniqueOrThrow: jest
+        .fn()
+        .mockResolvedValue({ ...futureProposal, id: 'latest' }),
+    });
+    Object.assign(service, {
+      prisma: {
+        db: {
+          ...tx,
+          $transaction: async (run: (db: typeof tx) => unknown) => run(tx),
+        },
+      },
+      reconciliation: owner,
+      workItemTypeRegistry: {},
+      messages: { addMessageInTransaction: addMessage },
+    });
+    jest.spyOn(service, 'reconciliationState').mockResolvedValue(state);
+    jest
+      .spyOn(owner, 'currentFutureContent')
+      .mockResolvedValue(target as never);
+    const validate = jest
+      .spyOn(futures, 'validateFutureRevision')
+      .mockImplementation(
+        async (_tx, _registry, proposal) => proposal.updates as never,
+      );
+    try {
+      await service.reconcile(
+        'origin',
+        'org' as OrganizationId,
+        'project' as ProjectId,
+        { userId: 'user' } as never,
+        {
+          method: 'AGENT_FIX',
+          proposedResult: candidate,
+          expectedCurrentBases: state.currentBases,
+          expectedCandidateRevisionId: state.candidateRevisionId,
+          expectedFutureRevision: 2,
+        },
+        {} as never,
+        'session',
+      );
+      expect(createSuggestion).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          proposalId: 'latest',
+          agentSessionId: 'session',
+          candidateRevisionId: 'revision',
+        }),
+      });
+      expect(addMessage).toHaveBeenCalledWith(
+        tx,
+        expect.objectContaining({
+          conversationId: 'conversation',
+          data: expect.objectContaining({
+            proposalSuggestion: expect.objectContaining({
+              proposedResult: candidate,
+              status: 'PENDING',
+            }),
+          }),
+        }),
+        'org',
+        'proposal-reconciliation-suggestion',
+      );
+      expect(tx.proposal.update).not.toHaveBeenCalled();
+      expect(
+        tx.proposalReconciliationReplacement.create,
+      ).not.toHaveBeenCalled();
+    } finally {
+      validate.mockRestore();
+    }
+  });
+  it.each(['ACCEPT_SUGGESTION', 'REJECT_SUGGESTION'] as const)(
+    '%s preserves the separate proposal approval boundary',
     async (method) => {
       const { service, tx, owner } = fixture();
-      const state = await owner.stateForFuture(
-        tx as unknown as AnyTransactionClient,
-        futureProposal,
-        (futureProposal.updates as { baseline: never }).baseline,
-      );
+      const version = '10000000-0000-4000-8000-000000000010';
+      const state = {
+        ...(await owner.stateForFuture(
+          tx as unknown as AnyTransactionClient,
+          futureProposal,
+          (futureProposal.updates as { baseline: never }).baseline,
+        )),
+        candidateRevisionId: version,
+      };
+      const suggestion = {
+        id: 'saved-suggestion',
+        proposalId: 'latest',
+        status: 'PENDING',
+        request: {
+          method: 'AGENT_FIX',
+          expectedCandidateRevisionId: version,
+          expectedFutureRevision: 2,
+          expectedCurrentBases: state.currentBases,
+          proposedResult: { ...target, name: 'Accepted suggestion' },
+        },
+      };
+      const updateSuggestion = jest.fn();
+      Object.assign(tx.proposalReconciliationSuggestion, {
+        findFirst: jest.fn().mockResolvedValue(suggestion),
+        findUniqueOrThrow: jest.fn().mockResolvedValue(suggestion),
+        update: updateSuggestion,
+      });
       Object.assign(service, {
-        reconciliation: owner,
-        workItemTypeRegistry: {},
         prisma: {
           db: {
             ...tx,
             $transaction: async (run: (db: typeof tx) => unknown) => run(tx),
           },
         },
+        reconciliation: owner,
+        workItemTypeRegistry: {},
       });
       jest.spyOn(service, 'reconciliationState').mockResolvedValue(state);
-      const create = jest
-        .spyOn(service, 'create')
-        .mockResolvedValue({ id: 'candidate' } as never);
+      jest.spyOn(owner, 'stateForFuture').mockResolvedValue(state);
       jest
         .spyOn(owner, 'currentFutureContent')
-        .mockResolvedValue({ ...target, name: 'Current' } as never);
-      const dependency = {
-        edgeType: 'DEPENDS_ON',
-        targetEntityType: 'TASK',
-        targetEntityId: '10000000-0000-4000-8000-000000000005',
-      };
-      const stored = {
+        .mockResolvedValue(target as never);
+      const capture = jest.spyOn(owner, 'captureAuthoring').mockResolvedValue();
+      const validate = jest
+        .spyOn(futures, 'validateFutureRevision')
+        .mockImplementation(
+          async (_tx, _registry, proposal) => proposal.updates as never,
+        );
+      const read = jest.spyOn(futures, 'readFutureRevision').mockResolvedValue({
         id: '10000000-0000-4000-8000-000000000004',
         revision: 2,
         outcome: 'STAGED',
         latestProposalId: 'latest',
-        dependencies: [dependency],
-      };
-      const read = jest
-        .spyOn(futures, 'readFutureRevision')
-        .mockResolvedValue(stored as never);
-      const input = {
-        method,
-        proposedResult: { ...target, name: 'Resolved' },
-        expectedCurrentBases: state.currentBases,
-        expectedFutureRevision: 2,
-      };
-      const submit = () =>
-        service.reconcile(
-          'origin',
+        dependencies: [],
+      } as never);
+      try {
+        await service.reconcile(
+          'latest',
           'org' as OrganizationId,
           'project' as ProjectId,
           { userId: 'user' } as never,
-          input,
+          { method, suggestionId: suggestion.id },
           {} as never,
         );
-      try {
-        expect(await submit()).toMatchObject({
-          replacementProposalId: 'candidate',
-        });
-        expect(create).toHaveBeenCalledWith(
-          'org',
-          'project',
-          'user',
-          expect.objectContaining({
-            action: 'VERSIONED_UPDATE',
-            updates: expect.objectContaining({
-              futureId: stored.id,
-              expectedRevision: 2,
-              result: input.proposedResult,
-              dependencies: [dependency],
-              baseline: expect.objectContaining({ kind: 'LIVE' }),
+        if (method === 'ACCEPT_SUGGESTION') {
+          expect(tx.proposal.update).toHaveBeenCalledWith({
+            where: { id: 'latest' },
+            data: expect.objectContaining({
+              status: 'DRAFT',
+              updates: expect.objectContaining({
+                result: suggestion.request.proposedResult,
+              }),
             }),
-          }),
-          expect.objectContaining({ source: method }),
-        );
-        create.mockClear();
-        read.mockResolvedValue({ ...stored, revision: 3 } as never);
-        await expect(submit()).rejects.toThrow('future revision changed');
-        expect(create).not.toHaveBeenCalled();
+          });
+          expect(capture).toHaveBeenCalledWith(
+            tx,
+            expect.objectContaining({ status: 'DRAFT' }),
+            expect.objectContaining({ source: 'AGENT_FIX' }),
+          );
+          expect(updateSuggestion).toHaveBeenCalledWith({
+            where: { id: suggestion.id },
+            data: { status: 'ACCEPTED' },
+          });
+        } else {
+          expect(tx.proposal.update).not.toHaveBeenCalled();
+          expect(capture).not.toHaveBeenCalled();
+          expect(
+            tx.proposalReconciliationSuggestion.updateMany,
+          ).toHaveBeenCalledWith({
+            where: { id: suggestion.id, status: 'PENDING' },
+            data: { status: 'REJECTED' },
+          });
+        }
+        expect(
+          tx.proposalReconciliationReplacement.create,
+        ).not.toHaveBeenCalled();
       } finally {
+        validate.mockRestore();
         read.mockRestore();
       }
     },

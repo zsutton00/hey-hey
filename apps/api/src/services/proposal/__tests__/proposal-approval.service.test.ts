@@ -220,6 +220,9 @@ describe('ProposalApprovalService', () => {
     mockPrisma = TestUtils.createMockPrismaService();
 
     txMock = {
+      proposalReconciliationSuggestion: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
       $queryRaw: jest.fn(),
       proposalGroupMember: {
         findFirst: jest.fn(),

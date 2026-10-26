@@ -3660,6 +3660,7 @@ model Proposal {
   groupMembership                  ProposalGroupMember?
   messageReferences                MessageProposalReference[]
   reconciliationRevisions          ProposalReconciliationRevision[]
+  legacyReconciliationSuggestion ProposalReconciliationSuggestion? @relation("LegacyCorrection")
 
   @@index([organizationId])
   @@index([organizationId, projectId])
@@ -3699,12 +3700,14 @@ model ProposalFuture {
 model ProposalFutureRevision {
   futureId   String         @map("future_id")
   revision   Int
-  proposalId String         @unique @map("proposal_id")
+  proposalId String         @map("proposal_id")
+  candidateRevisionId String? @map("candidate_revision_id")
   reviewedAt DateTime       @default(now()) @map("reviewed_at")
   mutation   Json
   future     ProposalFuture @relation(fields: [futureId], references: [id], onDelete: Cascade)
 
   @@id([futureId, revision])
+  @@unique([proposalId, candidateRevisionId])
   @@map("proposal_future_revisions")
 }
 
@@ -4791,4 +4794,19 @@ model ProposalReconciliationReplacement {
 
   @@index([proposalId, createdAt])
   @@map("proposal_reconciliation_replacements")
+}
+
+model ProposalReconciliationSuggestion {
+  id String @id @default(uuid()) @db.Uuid
+  proposalId String @map("proposal_id")
+  candidateRevisionId String @map("candidate_revision_id") @db.Uuid
+  agentSessionId String? @map("agent_session_id")
+  messageId String? @map("message_id")
+  legacyProposalId String? @unique @map("legacy_proposal_id")
+  legacyProposal Proposal? @relation("LegacyCorrection", fields: [legacyProposalId], references: [id])
+  status String @default("PENDING")
+  request Json
+  createdAt DateTime @default(now()) @map("created_at")
+  @@index([proposalId, status])
+  @@map("proposal_reconciliation_suggestions")
 }

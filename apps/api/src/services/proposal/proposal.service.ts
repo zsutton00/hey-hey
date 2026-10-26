@@ -1,3 +1,5 @@
+import { MessageService } from '../message.service';
+import { ProposalReconciliationCandidatePipe } from '../../pipes/proposal-reconciliation-candidate.pipe';
 import { futureGraph, graphChangeSet } from './future-graph';
 import { isEqual } from 'lodash';
 import {
@@ -7,6 +9,7 @@ import {
 import {
   parseFutureRevisionMutation,
   readFutureRevision,
+  validateFutureRevision,
 } from './future-revision';
 import {
   materializeFutureRevision,
@@ -41,7 +44,13 @@ import type { Proposal } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { withApiSpan } from 'src/telemetry/api-tracing';
 import { AnyTransactionClient, PrismaService } from 'src/prisma/prisma.service';
-import { OrganizationId, ProjectId, UserId } from 'src/types';
+import {
+  OrganizationId,
+  ProjectId,
+  UserId,
+  MessageId,
+  ConversationId,
+} from 'src/types';
 import {
   PROPOSAL_RESPONSE_RELATIONS_INCLUDE,
   type ProposalWithResponseRelations,
@@ -155,6 +164,7 @@ export class ProposalService {
     private readonly reconciliationGroups: ProposalReconciliationGroupService,
     @Optional()
     private readonly evalOutputAdmission: EvalOutputAdmissionService = new EvalOutputAdmissionService(),
+    @Optional() private readonly messages?: MessageService,
   ) {}
 
   private async assertMayAuthorProposals(
@@ -637,6 +647,83 @@ export class ProposalService {
     return this.reconciliation.state(tx, updated);
   }
 
+  private async publishProposalReviewChanged(
+    tx: AnyTransactionClient,
+    proposal: Proposal,
+  ): Promise<void> {
+    if (!this.messages) return;
+    const references: Array<{ messageId: string }> =
+      await tx.messageProposalReference.findMany({
+        where: { proposalId: proposal.id },
+        select: { messageId: true },
+      });
+    const ids = [
+      ...new Set([
+        ...references.map((ref) => ref.messageId),
+        ...(proposal.messageId ? [proposal.messageId] : []),
+      ]),
+    ];
+    for (const id of ids) {
+      const message = await tx.message.update({
+        where: { id },
+        data: { contentUpdatedAt: new Date() },
+      });
+      await this.messages.publishMessageUpdatedEvent(tx, {
+        messageId: id as MessageId,
+        conversationId: message.conversationId as ConversationId,
+        organizationId: proposal.organizationId as OrganizationId,
+        projectId: proposal.projectId as ProjectId,
+        update: {
+          data: message.data as import('src/generated').SystemMessageData,
+        },
+      });
+    }
+  }
+
+  private async publishSuggestionDecisions(
+    tx: AnyTransactionClient,
+    proposal: Proposal,
+  ): Promise<void> {
+    if (!this.messages) return;
+    const state = await this.reconciliation.stateForFuture(
+      tx,
+      proposal,
+      (() => {
+        const mutation = parseFutureRevisionMutation(proposal.updates);
+        if (mutation.operation !== 'REVISE')
+          throw new ConflictException(
+            'Cancelled future has no suggestion basis.',
+          );
+        return mutation.baseline;
+      })(),
+    );
+    for (const suggestion of state.suggestions ?? []) {
+      if (!suggestion.messageId || suggestion.status === 'PENDING') continue;
+      const message = await tx.message.findUniqueOrThrow({
+        where: { id: suggestion.messageId },
+      });
+      const data = {
+        type: 'AGENT',
+        response: 'Suggested reconciliation',
+        proposalSuggestion: suggestion,
+      } satisfies import('src/generated').SystemMessageData;
+      await tx.message.update({
+        where: { id: message.id },
+        data: {
+          data: data as unknown as Prisma.InputJsonValue,
+          contentUpdatedAt: new Date(),
+        },
+      });
+      await this.messages.publishMessageUpdatedEvent(tx, {
+        messageId: message.id as MessageId,
+        conversationId: message.conversationId as ConversationId,
+        organizationId: proposal.organizationId as OrganizationId,
+        projectId: proposal.projectId as ProjectId,
+        update: { data },
+      });
+    }
+  }
+
   async reconcile(
     id: string,
     organizationId: OrganizationId,
@@ -644,7 +731,49 @@ export class ProposalService {
     user: AuthenticatedUser,
     input: import('src/generated').CreateProposalReconciliationCandidate,
     requestorContext: StampedCreateProposalDto['requestorContext'],
+    agentSessionId?: string,
   ): Promise<import('src/generated').ProposalReconciliationState> {
+    if ('suggestionId' in input) {
+      const suggestion =
+        await this.prisma.db.proposalReconciliationSuggestion.findFirst({
+          where: { id: input.suggestionId, proposalId: id },
+        });
+      const owner = await this.prisma.db.proposal.findFirst({
+        where: { id, organizationId, projectId },
+      });
+      if (!suggestion || !owner)
+        throw new NotFoundException('Suggestion not found');
+      if (agentSessionId)
+        throw new BadRequestException('Suggestion decisions require a user.');
+      if (input.method === 'REJECT_SUGGESTION') {
+        await this.prisma.db.$transaction(async (tx) => {
+          await tx.$queryRaw`SELECT id FROM proposals WHERE id = ${id} FOR UPDATE`;
+          await tx.proposalReconciliationSuggestion.updateMany({
+            where: { id: suggestion.id, status: 'PENDING' },
+            data: { status: 'REJECTED' },
+          });
+          await this.publishSuggestionDecisions(tx, owner);
+        });
+        return this.reconciliationState(id, organizationId, projectId);
+      }
+      const candidate = new ProposalReconciliationCandidatePipe().transform(
+        suggestion.request,
+      );
+      if (candidate.method !== 'AGENT_FIX')
+        throw new ConflictException(
+          'The saved suggestion is not an agent candidate.',
+        );
+      return this.reconcileFuture(
+        owner,
+        await this.reconciliationState(id, organizationId, projectId),
+        organizationId,
+        projectId,
+        user,
+        candidate,
+        requestorContext,
+        suggestion.id,
+      );
+    }
     const found = await this.prisma.db.proposal.findFirst({
       where: { id, organizationId, projectId },
       include: { groupMembership: true },
@@ -666,6 +795,144 @@ export class ProposalService {
       !original.groupMembership
     )
       return state;
+    if (
+      input.method === 'AGENT_FIX' &&
+      original.action === 'VERSIONED_UPDATE'
+    ) {
+      if (!agentSessionId)
+        throw new BadRequestException(
+          'An authorized refiner session is required.',
+        );
+      const session = await this.prisma.db.agentSession.findFirst({
+        where: {
+          id: agentSessionId,
+          organizationId,
+          projectId,
+          userId: user.userId,
+          entityId: id,
+          entityType: 'PROPOSAL',
+          type: 'PROPOSAL_REFINING',
+        },
+      });
+      if (!session?.conversationId || !this.messages)
+        throw new BadRequestException(
+          'The refiner conversation is unavailable.',
+        );
+      const conversationId = session.conversationId as ConversationId;
+      await this.prisma.db.$transaction(async (tx) => {
+        const selectedMutation = parseFutureRevisionMutation(original.updates);
+        await tx.$queryRaw`SELECT id FROM proposal_futures WHERE id = ${selectedMutation.futureId} AND organization_id = ${organizationId} AND project_id = ${projectId} FOR UPDATE`;
+
+        await tx.$queryRaw`SELECT id FROM proposals WHERE id = ${original.id} FOR UPDATE`;
+        const current = await tx.proposal.findUniqueOrThrow({
+          where: { id: original.id },
+        });
+        const mutation = parseFutureRevisionMutation(current.updates);
+        if (mutation.operation !== 'REVISE')
+          throw new ConflictException(
+            'Cancelled futures cannot receive suggestions.',
+          );
+        const latest = await this.reconciliation.stateForFuture(
+          tx,
+          current,
+          mutation.baseline,
+        );
+        if (
+          !input.expectedCandidateRevisionId ||
+          input.expectedCandidateRevisionId !== latest.candidateRevisionId
+        )
+          throw new ConflictException(
+            'The proposal changed. Prepare a new suggestion.',
+          );
+        if (latest.futureRevision !== input.expectedFutureRevision)
+          throw new ConflictException(
+            'The future changed. Prepare a new suggestion.',
+          );
+        if (
+          current.targetEntityType !== 'TASK' &&
+          current.targetEntityType !== 'DESIGN_DOC'
+        )
+          throw new BadRequestException(
+            'A future requires a task or design document.',
+          );
+        this.reconciliation.assertFutureReviewedBasisCurrent(
+          input.expectedCurrentBases,
+          latest.currentBases,
+          current.targetEntityType,
+        );
+        const content = await this.reconciliation.currentFutureContent({
+          organizationId,
+          projectId,
+          targetEntityType: current.targetEntityType,
+          targetEntityId: current.targetEntityId,
+        });
+        const candidate = parseFutureRevisionMutation({
+          ...mutation,
+          expectedRevision: latest.futureRevision,
+          baseline: {
+            kind: 'LIVE',
+            revision: latest.currentBases[0]!.version,
+            content,
+          },
+          result: input.proposedResult,
+        });
+        await validateFutureRevision(
+          tx,
+          this.workItemTypeRegistry,
+          {
+            targetEntityId: current.targetEntityId,
+            targetEntityType: current.targetEntityType,
+            updates: candidate,
+          },
+          organizationId,
+          projectId,
+        );
+        await tx.proposalReconciliationSuggestion.updateMany({
+          where: { proposalId: current.id, agentSessionId, status: 'PENDING' },
+          data: { status: 'SUPERSEDED' },
+        });
+        await this.publishSuggestionDecisions(tx, current);
+        const suggestion = await tx.proposalReconciliationSuggestion.create({
+          data: {
+            proposalId: current.id,
+            candidateRevisionId: input.expectedCandidateRevisionId,
+            agentSessionId,
+            request: input as unknown as Prisma.InputJsonValue,
+          },
+        });
+        const message = await this.messages!.addMessageInTransaction(
+          tx,
+          {
+            conversationId,
+            projectId,
+            userId: user.userId,
+            type: 'SYSTEM',
+            data: {
+              type: 'AGENT',
+              response:
+                'Review this suggested reconciliation. Accepting replaces proposal content and clears approvals; live content stays unchanged.',
+              proposalSuggestion: {
+                id: suggestion.id,
+                proposalId: current.id,
+                organizationId,
+                projectId,
+                status: 'PENDING',
+                candidateRevisionId: suggestion.candidateRevisionId,
+                proposedResult: input.proposedResult,
+                createdAt: suggestion.createdAt.toISOString(),
+              },
+            },
+          },
+          organizationId,
+          'proposal-reconciliation-suggestion',
+        );
+        await tx.proposalReconciliationSuggestion.update({
+          where: { id: suggestion.id },
+          data: { messageId: message.id },
+        });
+      });
+      return this.reconciliationState(original.id, organizationId, projectId);
+    }
     if (original.action === 'VERSIONED_UPDATE')
       return this.reconcileFuture(
         original,
@@ -830,8 +1097,12 @@ export class ProposalService {
     organizationId: OrganizationId,
     projectId: ProjectId,
     user: AuthenticatedUser,
-    input: import('src/generated').CreateProposalReconciliationCandidate,
+    input: Exclude<
+      import('src/generated').CreateProposalReconciliationCandidate,
+      import('src/generated').ProposalReconciliationSuggestionDecision
+    >,
     requestorContext: StampedCreateProposalDto['requestorContext'],
+    suggestionId?: string,
   ): Promise<import('src/generated').ProposalReconciliationState> {
     if (state.status === 'NOT_APPLICABLE')
       throw new ConflictException(
@@ -858,15 +1129,31 @@ export class ProposalService {
       state.currentBases,
       original.targetEntityType,
     );
-    const future = await this.prisma.db.$transaction((tx) =>
-      readFutureRevision(
-        tx,
-        this.workItemTypeRegistry,
-        authoredMutation.futureId,
-        organizationId,
-        projectId,
-      ),
-    );
+    const storedFuture = await this.prisma.db.proposalFuture.findFirst({
+      where: { id: authoredMutation.futureId, organizationId, projectId },
+    });
+    if (
+      !storedFuture &&
+      (original.status !== 'DRAFT' || authoredMutation.expectedRevision !== 0)
+    )
+      throw new ConflictException('The reviewed future is unavailable.');
+    const future = storedFuture
+      ? await this.prisma.db.$transaction((tx) =>
+          readFutureRevision(
+            tx,
+            this.workItemTypeRegistry,
+            authoredMutation.futureId,
+            organizationId,
+            projectId,
+          ),
+        )
+      : {
+          id: authoredMutation.futureId,
+          revision: 0,
+          outcome: 'STAGED',
+          latestProposalId: original.id,
+          dependencies: authoredMutation.dependencies,
+        };
     if (input.expectedFutureRevision !== future.revision) {
       this.logger.warn(
         `Rejected stale future reconciliation for ${future.id}: expected revision ${input.expectedFutureRevision}, current revision ${future.revision}`,
@@ -914,9 +1201,11 @@ export class ProposalService {
         content: currentContent,
       },
       result: input.proposedResult!,
-      dependencies: future.dependencies,
+      dependencies: authoredMutation.dependencies,
     });
-    if (updates.operation === 'REVISE') {
+    if (updates.operation !== 'REVISE')
+      throw new BadRequestException('Reconciliation must revise a future.');
+    {
       const before = futureGraph(updates.baseline.content);
       const after = futureGraph(updates.result);
       if (before && after)
@@ -927,50 +1216,102 @@ export class ProposalService {
       previousRevisionId: state.candidateRevisionId ?? null,
       expectedBases: state.currentBases,
     };
-    const replacement = await this.create(
-      organizationId,
-      projectId,
-      user.userId,
-      {
-        type: original.type,
-        action: 'VERSIONED_UPDATE',
-        targetEntityId: original.targetEntityId,
-        targetEntityType: original.targetEntityType,
-        title: original.title,
-        eli5: original.eli5 ?? original.title ?? 'Reconcile future revision',
-        updates,
-        requestorContext,
-        ...(original.conversationId
-          ? { conversationId: original.conversationId }
-          : {}),
-        influences: [
-          {
-            entityType: 'PROPOSAL',
-            entityId: original.id,
-            entityTitle: original.title,
-            reasonType: 'derived',
-            reasoning:
-              'Reconciles the complete future result against current content for fresh review.',
+    return this.prisma.db.$transaction(async (tx) => {
+      // Match Apply's lock order: future, proposal, then authoritative target.
+      await tx.$queryRaw`SELECT id FROM proposal_futures WHERE id = ${future.id} AND organization_id = ${organizationId} AND project_id = ${projectId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM proposals WHERE id = ${original.id} AND organization_id = ${organizationId} AND project_id = ${projectId} FOR UPDATE`;
+      if (suggestionId) {
+        const suggestion = await tx.proposalReconciliationSuggestion.findFirst({
+          where: {
+            id: suggestionId,
+            proposalId: original.id,
+            status: 'PENDING',
           },
-        ],
-      },
-      provenance,
-    );
-    await this.prisma.db.proposalReconciliationReplacement.create({
-      data: {
-        proposalId: original.id,
-        replacementProposalId: replacement.id,
-        sourceState: { updatedAt: original.updatedAt.toISOString() },
-      },
-    });
-    return {
-      ...(await this.reconciliationState(
-        replacement.id,
+        });
+        if (!suggestion)
+          throw new ConflictException('This suggestion is no longer pending.');
+      }
+      const current = await tx.proposal.findFirst({
+        where: { id: original.id, organizationId, projectId },
+        include: { groupMembership: true },
+      });
+      if (!current || current.status === 'REJECTED' || current.groupMembership)
+        throw new ConflictException(
+          'This proposal is no longer available for standalone reconciliation.',
+        );
+      const currentMutation = parseFutureRevisionMutation(current.updates);
+      if (currentMutation.operation !== 'REVISE')
+        throw new ConflictException('Cancelled futures cannot be reconciled.');
+      const latest = await this.reconciliation.stateForFuture(
+        tx,
+        current,
+        currentMutation.baseline,
+      );
+      if (
+        !input.expectedCandidateRevisionId ||
+        input.expectedCandidateRevisionId !== latest.candidateRevisionId
+      )
+        throw new ConflictException(
+          'The proposal changed. Your edits have not been saved; review the current proposal.',
+        );
+      if (latest.futureRevision !== input.expectedFutureRevision)
+        throw new ConflictException(
+          'The reviewed future changed. Your edits have not been saved.',
+        );
+      this.reconciliation.assertFutureReviewedBasisCurrent(
+        expectedCurrentBases,
+        latest.currentBases,
+        original.targetEntityType as 'TASK' | 'DESIGN_DOC',
+      );
+      updates.dependencies = currentMutation.dependencies;
+      await validateFutureRevision(
+        tx,
+        this.workItemTypeRegistry,
+        {
+          targetEntityId: current.targetEntityId,
+          targetEntityType: current.targetEntityType,
+          updates,
+        },
         organizationId,
         projectId,
-      )),
-      replacementProposalId: replacement.id,
-    };
+      );
+      const updated = await tx.proposal.update({
+        where: { id: current.id },
+        data: {
+          updates: updates as unknown as Prisma.InputJsonValue,
+          status: 'DRAFT',
+        },
+      });
+      // captureAuthoring retires votes before appending the new content version;
+      // the database retains their attribution against the preceding version.
+      await this.reconciliation.captureAuthoring(tx, updated, provenance);
+      if (suggestionId) {
+        const accepted =
+          await tx.proposalReconciliationSuggestion.findUniqueOrThrow({
+            where: { id: suggestionId },
+          });
+        if (accepted.legacyProposalId)
+          await tx.proposal.update({
+            where: { id: accepted.legacyProposalId },
+            data: { applicationEligible: false },
+          });
+      }
+      if (suggestionId)
+        await tx.proposalReconciliationSuggestion.update({
+          where: { id: suggestionId },
+          data: { status: 'ACCEPTED' },
+        });
+      await tx.proposalReconciliationSuggestion.updateMany({
+        where: { proposalId: current.id, status: 'PENDING' },
+        data: { status: 'OUT_OF_DATE' },
+      });
+      await this.publishSuggestionDecisions(tx, updated);
+      await this.publishProposalReviewChanged(tx, updated);
+      this.logger.log(
+        `Updated reconciliation content on proposal ${current.id}; fresh approvals required`,
+      );
+      return this.reconciliation.stateForFuture(tx, updated, updates.baseline);
+    });
   }
 
   async findOne(

@@ -296,8 +296,15 @@ export async function stageFutureRevision(
   proposal: Proposal,
 ): Promise<void> {
   const db = tx as Prisma.TransactionClient;
-  const replay = await db.proposalFutureRevision.findUnique({
+  const candidate = await db.proposalReconciliationRevision.findFirst({
     where: { proposalId: proposal.id },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+  });
+  const replay = await db.proposalFutureRevision.findFirst({
+    where: {
+      proposalId: proposal.id,
+      candidateRevisionId: candidate?.id ?? null,
+    },
   });
   if (replay) return;
   const mutation = await validateFutureRevision(
@@ -359,6 +366,7 @@ export async function stageFutureRevision(
       futureId: mutation.futureId,
       revision,
       proposalId: proposal.id,
+      candidateRevisionId: candidate?.id ?? null,
       reviewedAt,
       mutation: mutation as unknown as Prisma.InputJsonValue,
     },
@@ -457,6 +465,7 @@ export async function readFutureRevisions(
           projectId,
           action: 'VERSIONED_UPDATE',
           status: 'DRAFT',
+          legacyReconciliationSuggestion: null,
           OR: futureIds.map((futureId) => ({
             updates: { path: ['futureId'], equals: futureId },
           })),
@@ -574,6 +583,7 @@ export async function readFutureRevision(
       targetEntityType: future.targetEntityType,
       action: 'VERSIONED_UPDATE',
       status: 'DRAFT',
+      legacyReconciliationSuggestion: null,
       updates: { path: ['futureId'], equals: future.id },
       ...ORDINARY_PROPOSAL_VISIBILITY_WHERE,
     },

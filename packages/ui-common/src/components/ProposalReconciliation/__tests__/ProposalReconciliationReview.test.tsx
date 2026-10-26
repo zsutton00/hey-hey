@@ -459,11 +459,11 @@ describe("approved future recovery", () => {
     vi.mocked(
       proposalsClient.createProposalReconciliationCandidate,
     ).mockResolvedValue({
-      data: { data: { ...ready, replacementProposalId: "review" } },
+      data: { data: ready },
     } as never);
     render(
       <ProposalReconciliationReview proposal={future} onApply={vi.fn()}>
-        <span>Previously approved</span>
+        <span>Saved comparison</span>
       </ProposalReconciliationReview>,
     );
     fireEvent.click(
@@ -483,6 +483,7 @@ describe("approved future recovery", () => {
           createProposalReconciliationCandidate: {
             method: "MANUAL",
             expectedFutureRevision: 3,
+            expectedCandidateRevisionId: stale.candidateRevisionId,
             expectedCurrentBases: stale.currentBases,
             proposedResult: {
               name: "Resolved by hand",
@@ -499,8 +500,11 @@ describe("approved future recovery", () => {
     expect(
       screen.queryByTestId("proposal-reconciliation-open-replacement"),
     ).toBeNull();
-    expect(screen.queryByText("Previously approved")).toBeNull();
-    expect(screen.getByTestId("proposal-three-way-review")).toBeVisible();
+    expect(screen.getByText("Saved comparison")).toBeVisible();
+    expect(screen.queryByTestId("proposal-three-way-review")).toBeNull();
+    expect(
+      screen.getByText(/Proposal updated; reconciliation resolved/),
+    ).toBeVisible();
   });
   it("discards modal edits on Cancel before preparing the result", async () => {
     mount({ ...ready, status: "RECONCILIATION_REQUIRED" });

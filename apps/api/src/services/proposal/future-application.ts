@@ -44,6 +44,7 @@ export async function readFutureApplyConfirmation(
       targetEntityId: future.targetEntityId,
       action: 'VERSIONED_UPDATE',
       status: 'DRAFT',
+      legacyReconciliationSuggestion: null,
       updates: { path: ['futureId'], equals: future.id },
       ...ORDINARY_PROPOSAL_VISIBILITY_WHERE,
     },

@@ -1,3 +1,4 @@
+import { invalidateProposalReconciliation } from "../../components/ProposalReconciliation/reconciliationInvalidation";
 import { invalidateProjectQueries } from "../query/projectOrganizationInvalidation";
 import type {
   InvalidateQueryFilters,
@@ -23,6 +24,8 @@ import {
   type WebSocketMessageDeletedEvent,
   type WebSocketMessageRealtimeEvent,
   type WebSocketMessageUpdatedEvent,
+  type MessageRecordDto,
+  type ProposalResponseDto,
   type WebSocketProjectCreatedEvent,
   type WebSocketProjectStatusChangedEvent,
   type WebSocketProjectUpdatedEvent,
@@ -68,7 +71,7 @@ import {
   removeWorkItem,
 } from "../collections/workItemLists";
 import { isProposalGroupLifecycleEventForScope } from "../collections/proposalGroups";
-import { proposalKeys } from "../collections/proposals";
+import { proposalKeys, type ProposalListData } from "../collections/proposals";
 import {
   applyEvalAttemptUpdated,
   applyEvalRunUpdated,
@@ -518,6 +521,7 @@ export class WebSocketHandler {
           break;
         case "message.updated":
           this.markConversationMessagesStale(event);
+          this.invalidateMessageProposals(event);
           break;
         case "message.created":
         case "message.deleted":
@@ -1137,6 +1141,69 @@ export class WebSocketHandler {
    * in-flight read per key, and an event arriving mid-read cancels and
    * restarts it, so the read that lands starts after the event.
    */
+  private invalidateMessageProposals(event: WebSocketMessageUpdatedEvent) {
+    const { organizationId, projectId, conversationId, messageId } = event;
+    if (!projectId) return;
+    // Notifications carry message identity, not proposal identity. Use only
+    // known attachments; an unrelated or uncached message is not a broadcast.
+    const messages: MessageRecordDto[] = [];
+    const direct = this.queryClient.getQueryData<MessageRecordDto>(
+      messageKeys.byId(organizationId, projectId, messageId),
+    );
+    if (direct) messages.push(direct);
+    if (conversationId) {
+      const list = this.queryClient.getQueryData<MessageRecordDto[]>(
+        messageKeys.list(organizationId, projectId, conversationId),
+      );
+      messages.push(
+        ...(list ?? []).filter((message) => message.id === messageId),
+      );
+      const latest = this.queryClient.getQueryData<MessageRecordDto | null>(
+        messageKeys.latest(organizationId, projectId, conversationId),
+      );
+      if (latest?.id === messageId) messages.push(latest);
+    }
+    const proposalIds = new Set(
+      messages.flatMap((message) => [
+        ...(message.proposals ?? []).map((proposal) => proposal.id),
+        ...(message.type === "SYSTEM" && message.data?.proposalSuggestion
+          ? [message.data.proposalSuggestion.proposalId]
+          : []),
+      ]),
+    );
+    // A standalone review can be mounted without its conversation being loaded.
+    for (const [
+      ,
+      proposal,
+    ] of this.queryClient.getQueriesData<ProposalResponseDto>({
+      queryKey: [...proposalKeys.project(organizationId, projectId), "detail"],
+    })) {
+      if (proposal?.messageId === messageId) proposalIds.add(proposal.id);
+    }
+    const lists = this.queryClient.getQueriesData<ProposalListData>({
+      queryKey: proposalKeys.lists(organizationId, projectId),
+      // Standard list keys carry their filters here; other projections have
+      // their own data contracts (for example ready-future lists).
+      predicate: (query) => typeof query.queryKey[4] === "object",
+    });
+    for (const [, list] of lists) {
+      for (const proposal of list?.proposals ?? []) {
+        if (proposal.messageId === messageId) proposalIds.add(proposal.id);
+      }
+    }
+    for (const [key, list] of lists) {
+      if (list?.proposals.some((proposal) => proposalIds.has(proposal.id))) {
+        this.invalidateQueryKey(key);
+      }
+    }
+    for (const proposalId of proposalIds) {
+      this.invalidateQueryKey(
+        proposalKeys.detail(organizationId, projectId, proposalId),
+      );
+      invalidateProposalReconciliation(proposalId);
+    }
+  }
+
   private markConversationMessagesStale(
     event: WebSocketConversationUpdatedEvent | WebSocketMessageUpdatedEvent,
   ) {

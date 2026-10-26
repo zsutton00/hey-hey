@@ -4295,6 +4295,8 @@ SystemMessageData:
         - TASK_MONITOR_SUPERVISION
         - CARRIER
       description: Type identifier for system message data
+    proposalSuggestion:
+      $ref: './proposals.yaml#/ProposalReconciliationSuggestion'
     flowId:
       type: string
       description: ID of the conversational flow this message belongs to

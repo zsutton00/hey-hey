@@ -2523,6 +2523,8 @@ Class | Method | HTTP request | Description
  - [ProposalReconciliationOverlap](docs/ProposalReconciliationOverlap.md)
  - [ProposalReconciliationRevision](docs/ProposalReconciliationRevision.md)
  - [ProposalReconciliationState](docs/ProposalReconciliationState.md)
+ - [ProposalReconciliationSuggestion](docs/ProposalReconciliationSuggestion.md)
+ - [ProposalReconciliationSuggestionDecision](docs/ProposalReconciliationSuggestionDecision.md)
  - [ProposalResponseDto](docs/ProposalResponseDto.md)
  - [ProposalStatus](docs/ProposalStatus.md)
  - [ProposalType](docs/ProposalType.md)

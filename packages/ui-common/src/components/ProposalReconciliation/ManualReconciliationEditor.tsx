@@ -105,8 +105,8 @@ export function ManualReconciliationEditor({
       <Typography variant="h6">Edit resolved content</Typography>
       <Stack spacing={2}>
         <Typography>
-          Keep the current changes that still apply, then prepare the complete
-          result for review. Saving does not approve or apply it.
+          This replaces the proposal’s current content and clears its approvals.
+          Live content will not change.
         </Typography>
         {error && <Alert severity="error">{error}</Alert>}
         {registryError && (
@@ -163,7 +163,7 @@ export function ManualReconciliationEditor({
           onClick={save}
           data-testid="proposal-reconciliation-manual-save"
         >
-          Prepare for review
+          Update proposal
         </Button>
       </Stack>
     </Paper>

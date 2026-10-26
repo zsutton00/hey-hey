@@ -1,3 +1,4 @@
+import { ProposalSuggestionReview } from "../../ProposalReconciliation/ProposalSuggestionReview";
 import { useModalState } from "../../Modals/useModalState";
 import { ModalWorkOwner } from "../../Modals/ModalWorkOwner";
 import type { AnimationConfig } from "../../../animations/config";
@@ -343,6 +344,9 @@ export const SystemMessage: React.FC<SystemMessageProps> = (props) => {
 
   return (
     <FadeIn duration="medium" layout={false}>
+      {messageData?.proposalSuggestion && (
+        <ProposalSuggestionReview suggestion={messageData.proposalSuggestion} />
+      )}
       {/* Show message content if available and not just an error */}
       {(displayText || hasInlineReports) && (
         <Box sx={composeSx(base, sx)} data-testid={`system-message-${type}`}>

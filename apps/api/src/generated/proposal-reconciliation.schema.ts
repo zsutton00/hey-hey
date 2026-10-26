@@ -32,6 +32,11 @@ export const proposalReconciliationCandidateSchema = {
             "AGENT_FIX"
           ]
         },
+        "expectedCandidateRevisionId": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Required for future reconciliation; the exact persisted proposal content revision reviewed by the editor."
+        },
         "expectedFutureRevision": {
           "type": "integer",
           "minimum": 0,
@@ -101,6 +106,11 @@ export const proposalReconciliationCandidateSchema = {
             "MANUAL"
           ]
         },
+        "expectedCandidateRevisionId": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Required for future reconciliation; the exact persisted proposal content revision reviewed by the editor."
+        },
         "expectedFutureRevision": {
           "type": "integer",
           "minimum": 0,
@@ -154,6 +164,27 @@ export const proposalReconciliationCandidateSchema = {
           "description": "The server-issued current bases used to prepare a manual resolution; further drift rejects submission."
         }
       }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "suggestionId"
+      ],
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "ACCEPT_SUGGESTION",
+            "REJECT_SUGGESTION"
+          ]
+        },
+        "suggestionId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
     }
   ]
 } as const;
@@ -178,6 +209,71 @@ export const proposalReconciliationStateSchema = {
         "AGENT_FIX_REQUIRED",
         "READY_FOR_REVIEW"
       ]
+    },
+    "suggestions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "proposalId",
+          "organizationId",
+          "projectId",
+          "status",
+          "candidateRevisionId",
+          "proposedResult",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "proposalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "ACCEPTED",
+              "REJECTED",
+              "SUPERSEDED",
+              "OUT_OF_DATE"
+            ]
+          },
+          "candidateRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "proposedResult": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "messageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "legacyProposalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
     },
     "futureRevision": {
       "type": "integer",

@@ -17,6 +17,7 @@ import { SystemMessageData } from './systemMessageData';
 import { UIHints } from './uIHints';
 import { TaskStub } from './taskStub';
 import { AgentTrigger } from './agentTrigger';
+import { ProposalReconciliationSuggestion } from './proposalReconciliationSuggestion';
 
 
 export interface TaskStubSystemMessageData extends SystemMessageData { 

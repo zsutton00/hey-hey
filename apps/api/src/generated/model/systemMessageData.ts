@@ -15,6 +15,7 @@ import { Action } from './action';
 import { UIElement } from './uIElement';
 import { UIHints } from './uIHints';
 import { AgentTrigger } from './agentTrigger';
+import { ProposalReconciliationSuggestion } from './proposalReconciliationSuggestion';
 
 
 export interface SystemMessageData { 
@@ -22,6 +23,7 @@ export interface SystemMessageData {
      * Type identifier for system message data
      */
     type: SystemMessageData.TypeEnum;
+    proposalSuggestion?: ProposalReconciliationSuggestion;
     /**
      * ID of the conversational flow this message belongs to
      */
