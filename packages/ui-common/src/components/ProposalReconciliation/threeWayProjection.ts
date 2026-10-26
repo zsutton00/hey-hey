@@ -1,7 +1,9 @@
 import isEqual from "lodash/isEqual.js";
 import type {
+  ProjectedWorkItemChangeSetResponse,
   ProposalResponseDto,
   ProposalReconciliationState,
+  WorkItemChangeSetIdentity,
 } from "../../api";
 
 export const isContentRecord = (
@@ -111,8 +113,8 @@ export function threeWayFields(projection: ThreeWayProjection): string[] {
   ].filter((path) => {
     const values = states.map((value) => threeWayValue(value, path));
     return (
-      !isEqual(values[0] ?? null, values[1] ?? null) ||
-      !isEqual(values[0] ?? null, values[2] ?? null)
+      !equivalentContent(values[0], values[1]) ||
+      !equivalentContent(values[0], values[2])
     );
   });
 }
@@ -129,8 +131,95 @@ export function threeWayValue(
 }
 
 export function branchChange(original: unknown, value: unknown): string {
-  if (isEqual(original ?? null, value ?? null)) return "Unchanged";
-  if (original == null) return "Added";
-  if (value == null) return "Removed";
+  if (equivalentContent(original, value)) return "Unchanged";
+  if (storedValue(original) == null) return "Added";
+  if (storedValue(value) == null) return "Removed";
   return "Changed";
+}
+
+/**
+ * Mirrors the API's drift comparison: an unset value stored as null or '', and
+ * structured content stored as JSON text or as the parsed value, are the same
+ * content. A full graph projection compares by its editable content basis.
+ */
+export function equivalentContent(a: unknown, b: unknown): boolean {
+  return isEqual(storedValue(a), storedValue(b));
+}
+
+function storedValue(value: unknown): unknown {
+  if (value === undefined || value === "") return null;
+  if (isProjectedGraph(value)) return graphContentBasis(value);
+  if (typeof value !== "string") return value;
+  const text = value.trim();
+  if (!text.startsWith("{") && !text.startsWith("[")) return value;
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return parsed !== null && typeof parsed === "object" ? parsed : value;
+  } catch {
+    return value;
+  }
+}
+
+export function isProjectedGraph(
+  value: unknown,
+): value is ProjectedWorkItemChangeSetResponse {
+  return (
+    isContentRecord(value) &&
+    isContentRecord(value.projectedRoot) &&
+    Array.isArray(value.children) &&
+    Array.isArray(value.incidentRelationships)
+  );
+}
+
+const graphIdentityKey = (ref: WorkItemChangeSetIdentity) =>
+  ref.refType === "existing" ? `existing:${ref.id}` : `temporary:${ref.tempId}`;
+
+/** Same shape as the API's graphContentBasis, which live graph content arrives in. */
+function graphContentBasis(graph: ProjectedWorkItemChangeSetResponse) {
+  const nodes = [graph.projectedRoot, ...graph.children]
+    .filter((node) => !node.deleted)
+    .map((node) => [
+      graphIdentityKey(node.identity),
+      {
+        type: node.type,
+        name: node.name,
+        parent: node.parent ?? null,
+        status: node.status ?? null,
+        priority: node.priority ?? null,
+        dueDate: node.dueDate ?? null,
+        assigneeId: node.assigneeId ?? null,
+        tag: node.tag ?? null,
+        serviceIds: [...(node.serviceIds ?? [])].sort(),
+        sections: Object.fromEntries(
+          node.sections
+            .filter((section) => storedValue(section.content) !== null)
+            .map((section) => [section.key, storedValue(section.content)]),
+        ),
+      },
+    ]);
+  const relationships = graph.incidentRelationships
+    .filter((edge) => !edge.deleted)
+    .map((edge) => [
+      graphIdentityKey(edge.identity),
+      {
+        source: edge.source,
+        target: edge.target,
+        sourceEntityType: edge.sourceEntityType ?? "TASK",
+        targetEntityType: edge.targetEntityType ?? "TASK",
+        edgeType: edge.edgeType,
+        category:
+          edge.category ??
+          (["STANDARD", "CONDITIONAL", "LOOP"].includes(edge.edgeType)
+            ? "flow"
+            : "meta"),
+        direction: edge.direction ?? null,
+        predicate: edge.predicate ?? null,
+        reasoning: edge.reasoning ?? null,
+        metadata: edge.metadata ?? null,
+      },
+    ]);
+  return {
+    nodes: Object.fromEntries(nodes),
+    relationships: Object.fromEntries(relationships),
+  };
 }

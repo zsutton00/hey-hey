@@ -17,6 +17,8 @@ import {
   threeWayFields,
   threeWayValue,
   branchChange,
+  equivalentContent,
+  isProjectedGraph,
 } from "./threeWayProjection";
 import {
   reconciliationFieldLabel,
@@ -24,6 +26,9 @@ import {
 } from "./reconciliationPresentation";
 import { ThreeWayRequirements } from "./ThreeWayRequirements";
 import { ReconciliationValue } from "./ReconciliationValue";
+import { useWorkItemGraph } from "../../data/hooks/useWorkItemGraph";
+import { WorkflowGraphSurface } from "../shared/WorkflowMentionInlineRenderer";
+import { hydrateValidatedWorkItemGraphProjection } from "../shared/workItemGraphDraft";
 
 export function ThreeWayReview({
   proposal,
@@ -62,7 +67,16 @@ export function ThreeWayReview({
       ? { kind: "design-doc" }
       : { kind: "work-item", definition };
   const states = [projection.original, projection.live, projection.intended];
-  const fields = threeWayFields(projection);
+  // Where current content already says what the proposal says, there is nothing to decide.
+  const fields = threeWayFields(projection).filter(
+    (path) =>
+      !projection.live ||
+      !projection.intended ||
+      !equivalentContent(
+        threeWayValue(projection.live, path),
+        threeWayValue(projection.intended, path),
+      ),
+  );
   const sectionOrder = new Map(
     definition?.sections.map((section, index) => [
       `sections.${section.key}`,
@@ -94,7 +108,9 @@ export function ThreeWayReview({
         >
           {headings.map(([heading, help]) => (
             <Box key={heading} sx={{ p: 2, bgcolor: "action.hover" }}>
-              <Typography variant="subtitle2">{heading}</Typography>
+              <Typography variant="subtitle2" component="h3">
+                {heading}
+              </Typography>
               <Typography variant="body2">{help}</Typography>
             </Box>
           ))}
@@ -134,7 +150,7 @@ export function ThreeWayReview({
                     borderColor: "divider",
                   }}
                 >
-                  <Typography variant="subtitle2">
+                  <Typography variant="subtitle1" component="h3">
                     {reconciliationFieldLabel(path, presentation)}
                   </Typography>
                 </Box>
@@ -163,7 +179,11 @@ export function ThreeWayReview({
                 ) : (
                   values.map((value, index) => (
                     <Box key={index} sx={{ p: 2, minWidth: 0 }}>
-                      <Typography variant="caption">
+                      <Typography
+                        variant="subtitle2"
+                        component="h4"
+                        sx={{ mb: 1 }}
+                      >
                         {index === 0
                           ? "Original"
                           : projection.original
@@ -181,6 +201,13 @@ export function ThreeWayReview({
                           Requirements cannot be compared without valid retained
                           evidence.
                         </Alert>
+                      ) : path === "graph" ? (
+                        <ReconciliationGraph
+                          value={value}
+                          organizationId={proposal.organizationId}
+                          projectId={proposal.projectId}
+                          targetEntityId={proposal.targetEntityId}
+                        />
                       ) : typeof value === "string" && path.endsWith("Id") ? (
                         <ReconciliationReference
                           entityId={value}
@@ -263,9 +290,67 @@ export function ThreeWayReview({
             <Alert sx={{ gridColumn: "1 / -1" }} severity="warning">
               Original evidence is unavailable.
             </Alert>
+          ) : fields.length === 0 ? (
+            <Alert sx={{ gridColumn: "1 / -1" }} severity="info">
+              The current content already matches this proposal.
+            </Alert>
           ) : null}
         </Box>
       </Box>
     </Stack>
+  );
+}
+
+/**
+ * Reviewed graphs arrive as full projections; live graph content arrives only as
+ * its comparison basis, so the live column shows the published graph itself.
+ */
+function ReconciliationGraph({
+  value,
+  organizationId,
+  projectId,
+  targetEntityId,
+}: {
+  value: unknown;
+  organizationId: string;
+  projectId: string;
+  targetEntityId: string;
+}) {
+  const projected = isProjectedGraph(value);
+  const published = useWorkItemGraph(
+    organizationId,
+    projectId,
+    targetEntityId,
+    {
+      enabled: !projected,
+    },
+  );
+  if (projected)
+    return (
+      <WorkflowGraphSurface
+        mode="view"
+        organizationId={organizationId}
+        projectId={projectId}
+        projection={hydrateValidatedWorkItemGraphProjection(value, [])}
+        allowFullscreen
+      />
+    );
+  if (published.data)
+    return (
+      <WorkflowGraphSurface
+        graphData={{
+          workflow: published.data.root,
+          steps: published.data.children,
+          edges: published.data.relationships,
+          participation: published.data.participation,
+          layout: published.data.layout,
+        }}
+        allowFullscreen
+      />
+    );
+  return published.error ? (
+    <Alert severity="warning">The current diagram could not be loaded.</Alert>
+  ) : (
+    <Typography color="text.secondary">Loading current diagram…</Typography>
   );
 }

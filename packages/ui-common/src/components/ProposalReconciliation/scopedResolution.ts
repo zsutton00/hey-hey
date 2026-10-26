@@ -9,6 +9,7 @@ import {
   isContentRecord,
   threeWayFields,
   threeWayValue,
+  equivalentContent,
   type ThreeWayProjection,
 } from "./threeWayProjection";
 
@@ -51,7 +52,7 @@ export function resolutionConflictPaths(
   // new conflicts or alter API-owned application eligibility.
   return threeWayFields(projection).filter(
     (path) =>
-      !isEqual(
+      !equivalentContent(
         threeWayValue(projection.original, path),
         threeWayValue(projection.live, path),
       ),

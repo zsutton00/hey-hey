@@ -7,6 +7,7 @@ import {
   projectThreeWayReview,
   threeWayFields,
   branchChange,
+  equivalentContent,
 } from "../threeWayProjection";
 const proposal = {
   id: "selected",
@@ -142,5 +143,100 @@ describe("retained three-way evidence", () => {
     expect(branchChange(undefined, "new")).toBe("Added");
     expect(branchChange("old", undefined)).toBe("Removed");
     expect(branchChange("same", "same")).toBe("Unchanged");
+  });
+});
+
+describe("storage-form equivalence", () => {
+  const graph = (description: string, metadata: unknown) => ({
+    projectedRoot: {
+      identity: { refType: "existing", id: "diagram" },
+      type: "DIAGRAM",
+      name: "Diagram",
+      sections: [
+        { key: "graphLayout", content: "" },
+        { key: "diagramMetadata", content: metadata },
+      ],
+    },
+    children: [
+      {
+        identity: { refType: "existing", id: "element" },
+        type: "DIAGRAM_ELEMENT",
+        name: "Element",
+        sections: [{ key: "description", content: description }],
+      },
+    ],
+    incidentRelationships: [],
+  });
+  const basis = {
+    nodes: {
+      "existing:diagram": {
+        type: "DIAGRAM",
+        name: "Diagram",
+        parent: null,
+        status: null,
+        priority: null,
+        dueDate: null,
+        assigneeId: null,
+        tag: null,
+        serviceIds: [],
+        sections: { diagramMetadata: { kind: "PROCESS", level: "OVERVIEW" } },
+      },
+      "existing:element": {
+        type: "DIAGRAM_ELEMENT",
+        name: "Element",
+        parent: null,
+        status: null,
+        priority: null,
+        dueDate: null,
+        assigneeId: null,
+        tag: null,
+        serviceIds: [],
+        sections: { description: "Reviewed" },
+      },
+    },
+    relationships: {},
+  };
+  // The partly applied staging future: live already holds the reviewed result in other storage forms.
+  const original = {
+    sections: {
+      description: "Before",
+      graphLayout: null,
+      diagramMetadata: '{"kind":"PROCESS","level":"OVERVIEW"}',
+    },
+    graph: graph("Before", '{"kind":"PROCESS","level":"OVERVIEW"}'),
+  };
+  const live = {
+    sections: {
+      description: "After",
+      graphLayout: null,
+      diagramMetadata: { kind: "PROCESS", level: "OVERVIEW" },
+    },
+    graph: basis,
+  };
+  const intended = {
+    sections: {
+      description: "After",
+      graphLayout: "",
+      diagramMetadata: '{ "kind": "PROCESS", "level": "OVERVIEW" }',
+    },
+    graph: graph("Reviewed", '{"kind":"PROCESS","level":"OVERVIEW"}'),
+  };
+
+  it("does not count null versus '' or JSON text versus object as a change", () => {
+    expect(branchChange(null, "")).toBe("Unchanged");
+    expect(branchChange('{"kind":"PROCESS"}', { kind: "PROCESS" })).toBe(
+      "Unchanged",
+    );
+    expect(branchChange(null, "text")).toBe("Added");
+    expect(branchChange("text", "")).toBe("Removed");
+    expect(threeWayFields({ original, live, intended })).toEqual([
+      "graph",
+      "sections.description",
+    ]);
+  });
+
+  it("compares a reviewed graph projection with the live graph basis", () => {
+    expect(equivalentContent(intended.graph, live.graph)).toBe(true);
+    expect(equivalentContent(original.graph, live.graph)).toBe(false);
   });
 });
