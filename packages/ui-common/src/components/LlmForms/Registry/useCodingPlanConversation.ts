@@ -80,7 +80,7 @@ export function useCodingPlanConversation(context: FieldComponentContext) {
           agentSessionId: context.agentSessionId,
           workflowName: WorkflowName.FeatureSync,
           nodeId: CODING_PLAN_REVIEW_NODE,
-          parentMessageId: gate.triggerMessageId,
+          parentMessageId: context.messageId,
           action: "APPROVED",
           payload: { ...input.approval },
         });

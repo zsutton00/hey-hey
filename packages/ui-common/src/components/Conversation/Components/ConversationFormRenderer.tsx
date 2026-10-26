@@ -283,6 +283,7 @@ export const ConversationFormRenderer: React.FC<ConversationFormRendererProps> =
               initialData={prepareFormInitialData(
                 conversationMessage,
                 formUiElements,
+                messages,
               )}
               showSkeleton={showSkeleton}
               disabled={isFormReadOnly}

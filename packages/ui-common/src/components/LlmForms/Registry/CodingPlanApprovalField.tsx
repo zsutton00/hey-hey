@@ -13,20 +13,29 @@ import {
 } from "./StartupPlanStructuredField";
 import { useCodingPlanConversation } from "./useCodingPlanConversation";
 import type { FieldComponentProps } from "./types";
+import { isSubmittedCodingPlanApproval } from "./codingPlanApprovalEvidence";
 
 export function CodingPlanApprovalField({
   config,
   context,
   disabled,
+  value,
 }: FieldComponentProps) {
   const planning = config.payload as CodingPlanVersion;
   const conversation = useCodingPlanConversation(context);
+  const submitted =
+    isSubmittedCodingPlanApproval(value) &&
+    value.versionMessageId === context.messageId
+      ? value
+      : undefined;
   const [feedback, setFeedback] = useState("");
   const [runtimeChoice, setRuntimeChoice] = useAtom(
     codingPlanRuntimeChoice(context.conversationId),
   );
   const { provider, model, reasoningEffort, fastMode } = runtimeChoice;
-  const [approved, setApproved] = useState(false);
+  const [approvedMessageId, setApproved] = useState<string | null>(null);
+  const approved =
+    Boolean(submitted) || approvedMessageId === context.messageId;
   const inFlight = useRef(false);
   const services = useServices(context.organizationId, {
     projectId: context.projectId,
@@ -81,7 +90,7 @@ export function CodingPlanApprovalField({
           },
         })
       )
-        setApproved(true);
+        setApproved(context.messageId);
     } finally {
       inFlight.current = false;
     }
@@ -108,7 +117,7 @@ export function CodingPlanApprovalField({
         </MarkdownRenderer>
       </Paper>
       <StartupServiceScopeSection review={scope} />
-      {context.codingPlanVersionMessageId === context.messageId ? (
+      {approved || context.codingPlanVersionMessageId === context.messageId ? (
         <>
           <RuntimeModelSelector
             testIdPrefix="coding-plan-approval"
@@ -137,7 +146,7 @@ export function CodingPlanApprovalField({
           <TextField
             label="Feedback to include with approval"
             multiline
-            value={feedback}
+            value={submitted?.feedback ?? feedback}
             onChange={(event) => setFeedback(event.target.value)}
             disabled={locked}
           />

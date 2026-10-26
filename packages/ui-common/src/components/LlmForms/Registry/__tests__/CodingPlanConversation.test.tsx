@@ -1,3 +1,9 @@
+import { prepareFormInitialData } from "../../../Conversation/utils/conversationFormHelpers";
+import {
+  MessageType,
+  MessageStatus,
+  type MessageResponseDto,
+} from "../../../../api";
 import { getDefaultStore } from "jotai";
 import {
   codingPlanRuntimeChoice,
@@ -7,6 +13,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CodingPlanApprovalField } from "../CodingPlanApprovalField";
 import { CodingPlanDiscrepancyField } from "../CodingPlanDiscrepancyField";
+import { submitPromptForRun } from "../../../AgentSession/runtime/hooks/usePromptRunSubmission";
+import { LocalPromptType } from "../../../../api";
 import { useCodingPlanConversation } from "../useCodingPlanConversation";
 import { renderHook, act } from "@testing-library/react";
 
@@ -15,6 +23,7 @@ const state = vi.hoisted(() => ({
   answer: vi.fn(),
   node: vi.fn(),
   gate: vi.fn(),
+  scope: vi.fn(),
 }));
 vi.mock("../../../AgentSession/capabilityCatalog", async (importOriginal) => ({
   ...(await importOriginal<
@@ -69,13 +78,16 @@ vi.mock("../../../AgentSession/RuntimeModelSelector", () => ({
     </button>
   ),
 }));
-vi.mock("../StartupPlanStructuredField", () => ({
-  classifyStartupServiceScope: () => ({ status: "valid" }),
+vi.mock("../StartupPlanStructuredField", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../StartupPlanStructuredField")>()),
+  classifyStartupServiceScope: (...args: unknown[]) => state.scope(...args),
   StartupServiceScopeSection: () => <div>Required Services</div>,
   StartupSourceReferenceInline: () => <div>Source reference</div>,
 }));
-vi.mock("../../../SmarterTextAreaCard/renderInlineMentions", () => ({
-  renderInlineMentions: (value: string) => value,
+vi.mock("../../../SmarterTextAreaCard/MentionBadge", () => ({
+  MentionBadgeInner: ({ mention }: { mention: { entityName: string } }) => (
+    <a href="/mentioned-entity">{mention.entityName}</a>
+  ),
 }));
 
 const context = {
@@ -100,6 +112,7 @@ beforeEach(() => {
     currentCodingPlanRuntime,
   );
   vi.clearAllMocks();
+  state.scope.mockReturnValue({ status: "valid" });
   state.node.mockResolvedValue({
     data: { data: { currentNodeId: "feature-sync-coding-plan" } },
   });
@@ -117,6 +130,132 @@ beforeEach(() => {
 });
 
 describe("conversational planning controls", () => {
+  it.each(["context", "original-review"])(
+    "restores approval after reopening from evidence under %s",
+    async (parentMessageId) => {
+      const config = {
+        field: "plan",
+        description: "",
+        type: "coding_plan_version",
+        payload: planning,
+      };
+      const first = render(
+        <CodingPlanApprovalField
+          config={config}
+          context={context}
+          isSubmitted={false}
+        />,
+      );
+      fireEvent.change(
+        screen.getByLabelText("Feedback to include with approval"),
+        { target: { value: "Preserve keyboard access." } },
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      await screen.findByRole("button", { name: "Approved" });
+      const request = state.answer.mock.calls[0][0];
+      const planMessage: MessageResponseDto = {
+        id: "context",
+        projectId: "project",
+        conversationId: "conversation",
+        createdAt: "2026-10-26T00:00:00Z",
+        type: MessageType.System,
+        status: MessageStatus.Completed,
+        awaitingResponse: false,
+        data: { type: "QUESTIONS" },
+      };
+      const evidence: MessageResponseDto = {
+        ...planMessage,
+        id: "answer",
+        type: MessageType.User,
+        parentMessageId,
+        data: { action: request.action, payload: request.payload },
+      };
+      const persisted = JSON.parse(
+        JSON.stringify([planMessage, evidence]),
+      ) as MessageResponseDto[];
+      const initial = prepareFormInitialData(
+        { message: planMessage, canEdit: true, state: "completed" },
+        [{ id: "plan", type: "coding_plan_version", payload: planning }],
+        persisted,
+      );
+      first.unmount();
+      render(
+        <CodingPlanApprovalField
+          config={config}
+          context={{ ...context, codingPlanVersionMessageId: null }}
+          value={initial.plan}
+          isSubmitted={true}
+        />,
+      );
+      expect(screen.getByRole("button", { name: "Approved" })).toBeDisabled();
+      expect(
+        screen.getByLabelText("Feedback to include with approval"),
+      ).toHaveValue("Preserve keyboard access.");
+      expect(
+        screen.getByLabelText("Feedback to include with approval"),
+      ).toBeDisabled();
+      expect(state.answer).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each([
+    {
+      action: "APPROVED",
+      payload: {
+        responseType: "coding_plan_version_approval_v1",
+        versionMessageId: "another-version",
+      },
+    },
+    { comment: "Approved in ordinary discussion" },
+    {
+      action: "REFINE",
+      payload: {
+        responseType: "coding_plan_version_approval_v1",
+        versionMessageId: "context",
+      },
+    },
+  ])("does not approve from unrelated evidence %j", (data) => {
+    const message: MessageResponseDto = {
+      id: "context",
+      projectId: "project",
+      conversationId: "conversation",
+      createdAt: "2026-10-26T00:00:00Z",
+      type: MessageType.System,
+      status: MessageStatus.Completed,
+      awaitingResponse: false,
+      data: { type: "QUESTIONS" },
+    };
+    const answer: MessageResponseDto = {
+      ...message,
+      id: "answer",
+      type: MessageType.User,
+      parentMessageId: "context",
+      data,
+    };
+    const initial = prepareFormInitialData(
+      {
+        message: { ...message, responses: [answer] },
+        canEdit: true,
+        state: "completed",
+      },
+      [{ id: "plan", type: "coding_plan_version", payload: planning }],
+    );
+    render(
+      <CodingPlanApprovalField
+        config={{
+          field: "plan",
+          type: "coding_plan_version",
+          description: "",
+          payload: planning,
+        }}
+        context={context}
+        value={initial.plan}
+        isSubmitted={false}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled();
+  });
+
   it("shows a rejected stale approval without reporting success or sending chat", async () => {
     state.answer.mockRejectedValue({
       response: {
@@ -181,40 +320,127 @@ describe("conversational planning controls", () => {
     },
   );
 
-  it("submits an issue reply exactly once as direct planning input", async () => {
-    render(
-      <CodingPlanDiscrepancyField
-        config={{
-          field: "issue",
-          description: "",
-          type: "coding_plan_discrepancy",
-          payload: {
-            sourceRef: { sourceType: "task", sourceId: "task" },
-            sourceField: "description",
-            sourceExcerpt: "The recorded promise requires approval.",
-            discrepancyText: "The current behavior approves from text.",
-            reasoning: "Preserve explicit approval.",
-            severity: "high",
-          },
-        }}
-        context={context}
-        isSubmitted={false}
-      />,
-    );
-    fireEvent.change(screen.getByLabelText("Reply to this issue"), {
-      target: { value: "Keep the approval button." },
+  it.each([
+    {
+      severity: "high",
+      label: "High",
+      icon: "ErrorIcon",
+      color: "rgb(211, 47, 47)",
+    },
+    {
+      severity: "medium",
+      label: "Medium",
+      icon: "WarningIcon",
+      color: "rgb(237, 108, 2)",
+    },
+    {
+      severity: "low",
+      label: "Low",
+      icon: "InfoIcon",
+      color: "rgb(2, 136, 209)",
+    },
+  ])(
+    "shows a display-only $label issue with its intended action",
+    ({ severity, label, icon, color }) => {
+      render(
+        <CodingPlanDiscrepancyField
+          config={{
+            field: "issue",
+            type: "coding_plan_discrepancy",
+            payload: {
+              sourceRef: { sourceType: "task", sourceId: "hidden-task-id" },
+              sourceField: "description",
+              sourceExcerpt: "The recorded promise requires approval.",
+              discrepancyText:
+                "The current behavior in @[task:48a742a7-f8c6-4eeb-b898-c3ee77c5f9c6|Issue task] approves from text.",
+              reasoning:
+                "Preserve @[feature:7e5c5654-f9fa-445d-aa7e-09b2081555f7|Coding Plan] explicit approval.",
+              severity,
+            },
+          }}
+          context={context}
+        />,
+      );
+      expect(screen.getByText(label)).toBeVisible();
+      expect(
+        screen.getByRole("img", { name: `${label} severity` }),
+      ).toHaveAttribute("data-testid", icon);
+      expect(screen.getByTestId(icon)).toHaveStyle({ color });
+      expect(screen.getByText("What I will do")).toBeVisible();
+      expect(screen.getByRole("link", { name: "Issue task" })).toHaveAttribute(
+        "href",
+      );
+      expect(screen.getByRole("link", { name: "Coding Plan" })).toHaveAttribute(
+        "href",
+      );
+      expect(
+        screen.queryByText(
+          /hidden-task-id|Source reference|Source field|recorded promise|description/,
+        ),
+      ).toBeNull();
+      expect(screen.queryByRole("textbox")).toBeNull();
+      expect(screen.queryByRole("button")).toBeNull();
+      expect(screen.queryByText("Reply to this issue")).toBeNull();
+      expect(state.submit).not.toHaveBeenCalled();
+      expect(state.answer).not.toHaveBeenCalled();
+    },
+  );
+
+  it("sends ordinary conversation feedback once to planning without a workflow answer", async () => {
+    const result = await submitPromptForRun({
+      interactions: { startSession: vi.fn(), submitMessage: state.submit },
+      run: {
+        runId: "run",
+        provider: "codex",
+        providerRunId: "provider-run",
+        status: "running",
+      },
+      organizationId: context.organizationId,
+      projectId: context.projectId,
+      conversationId: context.conversationId,
+      agentSessionId: context.agentSessionId,
+      promptDraft: "Keep explicit approval for these issues.",
+      startupPrompt: null,
+      localPromptType: LocalPromptType.StartupSession,
     });
-    fireEvent.click(screen.getByRole("button", { name: "Reply" }));
-    await waitFor(() => expect(state.submit).toHaveBeenCalledTimes(1));
+    expect(result.ok).toBe(true);
+    expect(state.submit).toHaveBeenCalledTimes(1);
     expect(state.submit.mock.calls[0][0].intent.data.agentInput).toEqual({
       promptType: "startup_session",
-      userMessage: "Keep the approval button.",
+      userMessage: "Keep explicit approval for these issues.",
     });
-    expect(state.submit.mock.calls[0][0].intent.parentMessageId).toBe(
-      "context",
-    );
     expect(state.answer).not.toHaveBeenCalled();
   });
+
+  it.each(["loading", "invalid"])(
+    "blocks approval while required Services are %s",
+    (status) => {
+      state.scope.mockReturnValue({
+        status,
+        message: "Required Services are unavailable.",
+      });
+      render(
+        <CodingPlanApprovalField
+          config={{
+            field: "plan",
+            type: "coding_plan_version",
+            payload: planning,
+          }}
+          context={context}
+        />,
+      );
+      expect(state.scope).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requiredServiceIds: planning.requiredServiceIds,
+        }),
+      );
+      expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      expect(state.answer).not.toHaveBeenCalled();
+      expect(state.submit).not.toHaveBeenCalled();
+    },
+  );
+
   it("keeps Approve and feedback with no Revise control", async () => {
     render(
       <CodingPlanApprovalField
@@ -243,7 +469,7 @@ describe("conversational planning controls", () => {
     await waitFor(() => expect(state.answer).toHaveBeenCalledTimes(1));
     expect(state.answer.mock.calls[0][0]).toMatchObject({
       action: "APPROVED",
-      parentMessageId: "original-review",
+      parentMessageId: "context",
       nodeId: "feature-sync-coding-plan",
       payload: {
         responseType: "coding_plan_version_approval_v1",

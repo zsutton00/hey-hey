@@ -1,4 +1,5 @@
 import React from "react";
+import { findCodingPlanApproval } from "../../LlmForms/Registry/codingPlanApprovalEvidence";
 import type {
   QuestionsSystemMessageData,
   SecondaryActionConfig,
@@ -6,6 +7,7 @@ import type {
   SystemMessageData,
   UIElement,
   UserMessageData,
+  MessageResponseDto,
 } from "../../../api";
 import {
   MessageType,
@@ -48,6 +50,7 @@ import type { LatestTurnToolCallsState } from "../../AgentSession/runtime/hooks/
 export const prepareFormInitialData = (
   conversationMessage: ConversationMessage,
   uiElements: Array<Pick<UIElement, "type" | "id" | "payload">> = [],
+  messages: readonly MessageResponseDto[] = [],
 ): Record<string, FormValue> => {
   const messageData = conversationMessage.message
     .data as QuestionsSystemMessageData;
@@ -79,6 +82,13 @@ export const prepareFormInitialData = (
   }
 
   uiElements.forEach((element) => {
+    if (element.type === "coding_plan_version") {
+      const approval = findCodingPlanApproval(
+        [...messages, conversationMessage.message],
+        conversationMessage.message.id,
+      );
+      if (approval) baseData[element.id] = approval;
+    }
     const registryType = getRegistryType(element);
     const entry = registryType ? FIELD_REGISTRY[registryType] : undefined;
     if (!entry?.prepareInitialValue) {
