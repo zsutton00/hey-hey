@@ -2,7 +2,7 @@ import { CreateReportTool } from '../agents/submission-tools/create-report-tool'
 import { makeCreateReportProxy } from '../agents/submission-tools/create-report-proxy.test-support';
 import { reportChangedFilesTool } from '../agents/submission-tools/report-changed-files-tool';
 import { execFileSync } from 'node:child_process';
-import { writeFileSync, readFileSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -63,6 +63,9 @@ const RUN_ID = 'run-review-identity';
 const reviewerSdk = vi.hoisted(() => ({
   startSessionConfigs: [] as Array<Record<string, unknown>>,
   codexStartSessionConfigs: [] as Array<Record<string, unknown>>,
+  permission: null as
+    | null
+    | ((tool: string, input: Record<string, unknown>) => Promise<{ behavior: string }>),
   script: null as null | ((emit: (event: Record<string, unknown>) => void) => void | Promise<void>),
 }));
 
@@ -76,7 +79,9 @@ vi.mock('../agent-runtime/index', async () => {
       onEvent(handler: ((event: Record<string, unknown>) => void) | null) {
         this.handler = handler;
       }
-      onPermissionRequest = vi.fn();
+      onPermissionRequest(handler: typeof reviewerSdk.permission) {
+        reviewerSdk.permission = handler;
+      }
       startSession(config: Record<string, unknown>): Promise<void> {
         reviewerSdk.startSessionConfigs.push(config);
         const emit = (event: Record<string, unknown>) => this.handler?.(event);
@@ -143,38 +148,14 @@ afterEach(async () => {
 
 /** A reviewer that narrates once, then finishes, all under its own SDK session. */
 const scriptReviewer = (repairPath?: string): void => {
-  reviewerSdk.script = (emit) => {
+  reviewerSdk.script = async (emit) => {
     emit({ type: 'system', subtype: 'init', session_id: REVIEWER_SESSION });
     if (repairPath) {
-      emit({
-        type: 'assistant',
-        session_id: REVIEWER_SESSION,
-        message: {
-          content: [
-            {
-              type: 'tool_use',
-              id: 'review-write',
-              name: 'Write',
-              input: { file_path: repairPath, content: 'required repair' },
-            },
-          ],
-        },
+      const decision = await reviewerSdk.permission!('Write', {
+        file_path: repairPath,
+        content: 'required repair',
       });
-      writeFileSync(repairPath, 'required repair');
-      emit({
-        type: 'user',
-        session_id: REVIEWER_SESSION,
-        message: {
-          content: [
-            {
-              type: 'tool_result',
-              tool_use_id: 'review-write',
-              content: 'File created.',
-              is_error: false,
-            },
-          ],
-        },
-      });
+      expect(decision.behavior).toBe('deny');
     }
     emit({
       type: 'assistant',
@@ -184,7 +165,16 @@ const scriptReviewer = (repairPath?: string): void => {
     emit({
       type: 'assistant',
       session_id: REVIEWER_SESSION,
-      message: { content: [{ type: 'text', text: 'Review complete: no issues found.' }] },
+      message: {
+        content: [
+          {
+            type: 'text',
+            text: repairPath
+              ? 'Assessment: requirements not fulfilled. Findings: High — persistence is lost on restart; add durable storage. Verification: confirmed by inspection; no repairs applied.'
+              : 'Review complete: no issues found.',
+          },
+        ],
+      },
     });
     emit({ type: 'result', subtype: 'success', session_id: REVIEWER_SESSION });
   };
@@ -572,8 +562,8 @@ describe.each([
   });
 });
 
-describe.each(['human', 'automation'])('Review Service repair authority (%s)', (launch) => {
-  it('repairs a noncanonical in-scope file through the shared Review handler', async () => {
+describe.each(['human', 'automation'])('Review non-editing authority (%s)', (launch) => {
+  it('denies a noncanonical in-scope edit through the shared Review handler', async () => {
     const harness = await makeHarness();
     const repair = path.join(harness.repoDir, 'required-regression.ts');
     expect(harness.run.getFileChangeProjection()).toEqual([]);
@@ -588,19 +578,34 @@ describe.each(['human', 'automation'])('Review Service repair authority (%s)', (
       });
       await harness.run.awaitIdle();
     }
-    expect(readFileSync(repair, 'utf8')).toBe('required repair');
+    expect(existsSync(repair)).toBe(false);
+    expect(
+      harness.writesBy(LocalPromptType.CodeReview).map((write) => String(write.data['response'])),
+    ).toContain(
+      'Assessment: requirements not fulfilled. Findings: High — persistence is lost on restart; add durable storage. Verification: confirmed by inspection; no repairs applied.',
+    );
+    const config = reviewerSdk.startSessionConfigs[0];
+    expect(config?.['builtinTools']).toEqual(['Read', 'Bash', 'Glob', 'Grep']);
+    expect(config?.['workspaceContainment']).toMatchObject({
+      settings: {
+        sandbox: {
+          enabled: true,
+          failIfUnavailable: true,
+          allowUnsandboxedCommands: false,
+          filesystem: { allowWrite: [], denyWrite: [realpathSync(harness.repoDir)] },
+        },
+      },
+    });
     expect(reviewerSdk.startSessionConfigs).toHaveLength(1);
     expect(String(reviewerSdk.startSessionConfigs[0]?.['prompt'])).toContain(
-      'without individual-file approval',
+      'Severity determines prominence and urgency; it never authorizes edits',
     );
     expect(JSON.stringify(reviewerSdk.startSessionConfigs)).not.toContain(
       'request_review_file_scope',
     );
     expect(harness.run.session.reviewFileScopeRequestPresentations).toBeUndefined();
     expect(harness.run.providerSessionId).toBe(IMPLEMENTER_SESSION);
-    expect(harness.run.getFileChangeProjection()).toEqual([
-      { serviceId: 'service-1', repoRelativePath: 'required-regression.ts' },
-    ]);
+    expect(harness.run.getFileChangeProjection()).toEqual([]);
   });
 });
 

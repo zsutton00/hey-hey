@@ -322,7 +322,7 @@ Good: "Turning Shared Browser off now stays off after you restart the CLI."`;
     } satisfies WorkItemTypeDefinitionDto;
     const prompt = buildPlatformSystemPrompt([...sampleDefs, customType]);
     const paragraph =
-      '**Other work items carry the project too.** Features are the backbone, but every work-item type fills a role in the project topology — a Mockup shows how an interface should look and behave, a Diagram shows how the parts of a system relate, and every other type fills the role its description defines. Its contextual type guidance and maintenance guidance explain how it fits. Applicable items matter at every stage — research, planning, implementation, and verification: read their content, honor what they establish, and surface conflicts instead of routing around them.';
+      '**Other work items carry the project too.** Features are the backbone, but every work-item type fills a role in the project topology — a Mockup shows how an interface should look and behave, a Diagram shows how the parts of a system relate, and every other type fills the role its description defines. Its contextual type guidance and maintenance guidance explain how it fits. Applicable items govern research, planning, implementation and verification. Read their content, follow their requirements, and surface conflicts instead of routing around them. Judge completion against governing Feature requirements and Contracts, using evidence of delivered behavior. Passing checks alone do not establish fulfillment.';
     const definition =
       'The project\'s configurable item types, Features included; "work item" in this prompt means any of them.';
     const blocks = [paragraph, '**Work-item types.**', definition];
@@ -1265,28 +1265,22 @@ describe('buildFinalAssessmentPrompt', () => {
 describe('buildReviewPrompt', () => {
   const expectContainedReviewScope = (result: string): void => {
     expect(result).toContain(
-      "the target Run's durable canonical touched-file list: evidence of actual correlated changes, not a write boundary",
+      "the target Run's durable canonical touched-file list: evidence of actual correlated changes",
     );
     expect(result).toContain(
-      'Required repairs may modify other files inside approved Service workspace roots',
+      'neither this list nor approved Service workspace roots authorize edits',
     );
+    expect(result).toContain('Follow relevant dependencies beyond the changed lines');
     expect(result).toContain(
-      "The finding was introduced by the originating session's change or directly blocks the correctness of that change",
+      'Severity determines prominence and urgency; it never authorizes edits',
     );
+    expect(result).toContain('They do not permit edits or expand approved Service workspaces');
     expect(result).toContain(
-      'The repair is required by the originating task and latest applicable user intent and is not excluded by any available Plan or Report evidence',
-    );
-    expect(result).toContain('Severity never expands scope');
-    expect(result).toContain(
-      'They do not expand semantic repair scope or approved Service workspaces. Checks are evidence, not work queues',
+      'Do not repair failures or treat passing checks alone as proof of fulfillment',
     );
     expect(result).not.toContain('request_review_file_scope');
-    expect(result).toContain(
-      'iterate only when the failure is attributable to the reviewed session and its repair remains inside both the semantic scope gate and approved Service workspace boundary',
-    );
-    expect(result).toContain('Report every other failure without changing more code');
-    expect(result).not.toContain('Treat this as a helpful starting point');
-    expect(result).not.toContain('the list may be incomplete');
+    expect(result).not.toContain('fix it directly');
+    expect(result).not.toContain('If you applied no fixes');
   };
 
   it('declares the agent strictly one-shot with no mid-turn user interaction', () => {
@@ -1296,14 +1290,13 @@ describe('buildReviewPrompt', () => {
     expect(result).not.toMatch(/ask the user/i);
   });
 
-  it('allows required noncanonical repairs only inside approved Service roots', () => {
+  it('uses Service roots for inspection without allowing repairs or attribution expansion', () => {
     const result = buildReviewPrompt({ touchedFiles: ['src/current.ts'] });
-    expect(result).toContain('without individual-file approval');
-    expect(result).toContain('including files absent from canonical Run membership');
-    expect(result).toContain('Host checkouts outside resolved worktree roots remain unauthorized');
-    expect(result).toContain('Another Service requires the existing Service authorization process');
-    expect(result).toContain('Authorization never establishes changed-file membership');
-    expect(result).not.toContain('request_review_file_scope');
+    expectContainedReviewScope(result);
+    expect(result).toContain('host checkouts outside resolved worktree roots remain unauthorized');
+    expect(result).toContain(
+      'Saving reports through the existing submission path remains permitted',
+    );
     expect(result).toMatchSnapshot();
   });
 
@@ -1394,7 +1387,7 @@ describe('buildReviewPrompt', () => {
     expect(result).toContain(
       'Do not treat behavior explicitly requested here as a revert candidate',
     );
-    expect(result).toContain('does not authorize unrelated work');
+    expect(result).toContain('does not permit edits');
     expect(result).toContain('approved Service scope');
     expect(result).toContain('Service scope');
   });
@@ -1851,18 +1844,24 @@ describe('buildEntityConversationPrompt', () => {
   it('treats need-style statements as requests to propose work items', () => {
     const result = buildEntityConversationPrompt(makeEntityPayload());
     expect(result).toContain(
-      'This conversation exists to produce work items: when the user says something needs to change ("we need to do X", "we need to update this to Y"), review the project and propose the right work item (task, bug, or other type).',
+      'Propose work items for need-style discussion ("we need to change X").',
     );
   });
 
-  it('requires an explicit, confirmed edit request despite access or discussion conclusions', () => {
+  it('honors clear edit instructions and retains consent within authorized scope', () => {
     const result = buildEntityConversationPrompt(makeEntityPayload());
     expect(result).toContain(
-      'Change files, code, or repository state only after the user explicitly asks for an edit, you confirm that request with them, and they agree in a later message;',
+      'Clear instructions to edit or write tests authorize that work within admitted Service scope',
     );
-    expect(result).toContain(
-      'repository or Service access and your own conclusion that code should change are not permission to edit.',
+    expect(result).toContain('including agreed follow-ups, without repeated confirmation');
+    expect(result).toContain('Access alone or your own conclusions do not authorize edits');
+    expect(result).toContain('reads need no edit consent');
+    expect(result).toContain('Interpret the whole request despite isolated transcription errors');
+    expect(result).toContain('clarify only material ambiguity about action or scope');
+    expect(result).not.toContain(
+      'you confirm that request with them, and they agree in a later message',
     );
+    expect(result).not.toContain('you have confirmed, and they have agreed to');
   });
 
   it('omits the structural-correction reflection rule', () => {

@@ -33,6 +33,7 @@ import { applyCodexSessionReviewerPolicy } from '../agents/providers/codex/codex
  */
 
 import path from 'node:path';
+import { RunWorkspaceWriteBoundary } from '../agents/workspace-write-boundary';
 import { randomUUID } from 'node:crypto';
 import {
   ClaudeCodeSdkClient,
@@ -692,6 +693,7 @@ export class SubAgent {
     const allowedMcpTools = mcpAllowedShortNames.map((tool) => `mcp__${MCP_SERVER_NAME}__${tool}`);
     const allowedMcpToolsSet = new Set(allowedMcpTools);
     const allowedBuiltinSet = new Set(config.builtinAllowedTools);
+    const readOnlyFilesystem = handler.readOnlyFilesystem === true;
     const touchedFilesSet = new Set(touchedFiles);
 
     // Use the Run-resolved roots verbatim when present. In worktree-backed
@@ -841,6 +843,7 @@ export class SubAgent {
         touchedFilesSet,
         allowedRepoRoots,
         enforceWorkspaceContainment: allowedRepositoryRoots !== undefined,
+        readOnlyFilesystem,
         onAgentOutput,
         logger,
         signal: sessionSignal,
@@ -1082,7 +1085,24 @@ export class SubAgent {
       mcpServerCount: Object.keys(mcpServers).length,
     });
 
+    let readOnlyBoundary: RunWorkspaceWriteBoundary | undefined;
     try {
+      if (readOnlyFilesystem) {
+        readOnlyBoundary = await RunWorkspaceWriteBoundary.create({
+          ok: true,
+          runMode: 'default',
+          repositoryPathForRunStarted: cwd,
+          cwd,
+          allowedRepositoryRoots: [...allowedRepoRoots],
+          bindingRepositoryPath: cwd,
+          workspaceRoot: null,
+        });
+        requestContext.log(logger, 'debug', 'local.subagent.read_only.enforced', {
+          runId,
+          adapterId: config.adapterId,
+          provider: providerId,
+        });
+      }
       emit({
         source: 'local',
         eventType: 'processing_status',
@@ -1093,7 +1113,15 @@ export class SubAgent {
       });
 
       await client.startSession(
-        startSessionConfig,
+        {
+          ...startSessionConfig,
+          ...(readOnlyBoundary
+            ? {
+                builtinTools: [...config.builtinAllowedTools],
+                workspaceContainment: readOnlyBoundary.claudeReadOnlyContainment(),
+              }
+            : {}),
+        },
         sessionSignal ? { signal: sessionSignal } : undefined,
       );
 
@@ -1142,6 +1170,7 @@ export class SubAgent {
         });
       }
 
+      await readOnlyBoundary?.dispose();
       await client.disconnect().catch((error: unknown) => {
         requestContext.log(logger, 'warn', 'local.subagent.disconnect_failed', {
           runId,
@@ -1177,6 +1206,7 @@ export class SubAgent {
     touchedFilesSet: ReadonlySet<string>;
     allowedRepoRoots: ReadonlySet<string>;
     enforceWorkspaceContainment: boolean;
+    readOnlyFilesystem: boolean;
     onAgentOutput: AgentOutputHandler;
     logger: ServerLogger;
     signal?: AbortSignal | undefined;
@@ -1203,6 +1233,7 @@ export class SubAgent {
       touchedFilesSet,
       allowedRepoRoots,
       enforceWorkspaceContainment,
+      readOnlyFilesystem,
       onAgentOutput,
       logger,
       signal,
@@ -1226,7 +1257,7 @@ export class SubAgent {
       return null;
     })();
     const codexPermissionPlan: CodexPermissionPlan =
-      config.codexSandboxMode === 'read-only'
+      readOnlyFilesystem || config.codexSandboxMode === 'read-only'
         ? {
             sandboxMode: 'read-only',
             cwd,
@@ -1328,6 +1359,16 @@ export class SubAgent {
           accepted: false,
           kind: 'mcp_elicitation',
           reason: 'External MCP elicitations are not supported for ephemeral subagents.',
+        };
+      }
+
+      // A read-only sandbox must never be upgraded by an approval request.
+      // Normal inspection/check commands execute inside it without escalation.
+      if (codexPermissionPlan.sandboxMode === 'read-only') {
+        return {
+          accepted: false,
+          kind: 'approval',
+          reason: 'This subagent cannot authorize filesystem writes or sandbox escalation.',
         };
       }
 

@@ -40,7 +40,7 @@ afterEach(async () => {
 });
 
 describe('RunWorkspaceWriteBoundary', () => {
-  it('allows new Review files in resolved worktrees while denying host and other-Service writes', async () => {
+  it('allows authorized implementation files in resolved worktrees while denying host and other-Service writes', async () => {
     const base = await makeDirectory();
     const host = path.join(base, 'host');
     const worktree = path.join(base, 'worktree');
@@ -310,7 +310,11 @@ describe('RunWorkspaceWriteBoundary', () => {
           failIfUnavailable: true,
           allowUnsandboxedCommands: false,
           excludedCommands: [],
-          filesystem: { allowWrite: [], allowRead: [] },
+          filesystem: {
+            allowWrite: [],
+            denyWrite: [canonicalLaunchRoot, canonicalAdditionalRoot],
+            allowRead: [],
+          },
           network: { allowUnixSockets: [] },
         },
       },
@@ -431,6 +435,62 @@ describe('RunWorkspaceWriteBoundary', () => {
     expect(symlinkEscape.status).not.toBe(0);
     await expect(fs.access(path.join(outside, 'symlink.txt'))).rejects.toThrow();
     await boundary.dispose();
+  });
+
+  it('runs checks while denying shell edits, auto-fixes, commits and nested writes in a read-only workspace', async () => {
+    const base = await makeDirectory();
+    const repository = path.join(base, 'repository');
+    await fs.mkdir(repository);
+    const source = path.join(repository, 'source.js');
+    await fs.writeFile(source, 'module.exports = 42;');
+    const boundary = await RunWorkspaceWriteBoundary.create(
+      makeWorkspace(repository, [repository]),
+    );
+    try {
+      const containment = boundary.readOnlyProcessContainment();
+      // Exercise the actual Claude filesystem settings with an implicit cwd grant,
+      // as well as the process sandbox used for read-only OpenCode execution.
+      for (const provider of ['claude', 'opencode']) {
+        const argsPrefix = [...containment.argsPrefix];
+        if (provider === 'claude') {
+          const settings = JSON.parse(await fs.readFile(argsPrefix[1]!, 'utf8'));
+          settings.filesystem = {
+            ...settings.filesystem,
+            ...boundary.claudeReadOnlyContainment().settings.sandbox.filesystem,
+            allowWrite: [repository],
+          };
+          argsPrefix[1] = path.join(base, 'claude-sandbox.json');
+          await fs.writeFile(argsPrefix[1], JSON.stringify(settings));
+        }
+        const run = (command: string, args: string[]) =>
+          spawnSync(containment.command, [...argsPrefix, command, ...args], {
+            cwd: repository,
+            env: { ...process.env, ...containment.env },
+            encoding: 'utf8',
+          });
+        const check = run(process.execPath, [
+          '-e',
+          "if(require('./source.js') !== 42) process.exit(1)",
+        ]);
+        expect(check.status, check.stderr).toBe(0);
+        const edit = run('/bin/sh', ['-c', 'echo repair > source.js']);
+        expect(edit.status).not.toBe(0);
+        const fix = run(process.execPath, [
+          '-e',
+          "require('node:fs').writeFileSync('source.js', 'fixed')",
+        ]);
+        expect(fix.status).not.toBe(0);
+        expect(run('git', ['init']).status).not.toBe(0);
+        const nested = run(process.execPath, [
+          '-e',
+          "const r=require('node:child_process').spawnSync(process.execPath,['-e',\"require('node:fs').writeFileSync('source.js', 'nested')\"]);process.exit(r.status ?? 1)",
+        ]);
+        expect(nested.status).not.toBe(0);
+        expect(await fs.readFile(source, 'utf8')).toBe('module.exports = 42;');
+      }
+    } finally {
+      await boundary.dispose();
+    }
   });
 
   it('OS-enforces the repository-research boundary for parent and child processes', async () => {

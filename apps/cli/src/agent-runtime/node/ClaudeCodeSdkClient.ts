@@ -67,6 +67,7 @@ export interface ClaudeCodeSessionConfig {
 
 type ClaudeCodeSandboxFilesystemSettings = {
   readonly allowWrite: readonly string[];
+  readonly denyWrite?: readonly string[];
   readonly allowRead?: readonly string[] | undefined;
 };
 

@@ -379,6 +379,51 @@ describe('SubAgent — unified runtime contract', () => {
     }
   });
 
+  it('keeps Review read-only on each fresh Codex helper, including approval requests', async () => {
+    const registry = new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES);
+    const handler = registry.get(LocalPromptType.CodeReview)!;
+    const requests = [
+      { id: 101, method: 'applyPatchApproval', params: { changes: {} } },
+      { id: 102, method: 'item/fileChange/requestApproval', params: {} },
+      {
+        id: 103,
+        method: 'execCommandApproval',
+        params: { command: ['sh', '-c', 'echo repair > source.ts'] },
+      },
+      {
+        id: 104,
+        method: 'item/commandExecution/requestApproval',
+        params: { command: 'git commit -am repair' },
+      },
+    ];
+    for (let launch = 0; launch < 2; launch++) {
+      codexStartSessionMock.mockImplementationOnce(async () => {
+        const request = codexOnServerRequestMock.mock.calls.at(-1)?.[0] as (input: object) => void;
+        requests.forEach(request);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      await makeSubAgent({
+        session: makeSession({ provider: 'codex' }),
+        handler,
+        config: handler.subagentConfig!,
+        payload: {},
+        touchedFiles: [],
+        onAgentOutput: vi.fn(),
+        oauthClient: makeOauth(),
+        logger: makeLogger(),
+        cwd: '/tmp',
+        priorReports: [],
+      }).execute();
+      expect(codexStartSessionMock.mock.calls.at(-1)?.[0]).toMatchObject({
+        sandbox: 'read-only',
+        config: { approvals_reviewer: 'user' },
+      });
+      for (const { id } of requests) {
+        expect(codexSubmitClientResponseMock).toHaveBeenCalledWith(id, { decision: 'decline' });
+      }
+    }
+  });
+
   it('invokes a UserLaunchable handler in order: buildPrompt → addUserMessage → run_started → startSession', async () => {
     const callOrder: string[] = [];
 
