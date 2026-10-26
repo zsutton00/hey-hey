@@ -107,7 +107,7 @@ export const TaskUpdateRenderer: React.FC<{
   footer,
   workItemTypeDefinition,
 }) => {
-  const { proposal, existing, hideDiff, reviewedServiceIds } =
+  const { proposal, existing, hideDiff, staged, reviewedServiceIds } =
     useReconciledUpdate(inputProposal, inputExisting);
   const presentationRegistry = useWorkItemTypeByKey(
     proposal.organizationId,
@@ -458,7 +458,7 @@ export const TaskUpdateRenderer: React.FC<{
 
   const content = (
     <Stack spacing={1.5}>
-      {!overrides?.hideHeader && (
+      {!overrides?.hideHeader && !staged && (
         <ProposalTitle
           presentationAction={presentationAction}
           proposal={proposal}

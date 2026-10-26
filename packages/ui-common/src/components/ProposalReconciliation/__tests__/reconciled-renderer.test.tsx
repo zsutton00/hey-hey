@@ -161,7 +161,7 @@ describe("ordinary renderer reconciliation seam", () => {
         },
       ],
     });
-    await screen.findByTestId("proposal-reconciliation-overlap");
+    await screen.findByTestId("proposal-three-way-review");
     expect(screen.getByTestId("actual-diff")).not.toBeVisible();
     expect(screen.getByTestId("proposal-approve")).toBeDisabled();
   });

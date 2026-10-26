@@ -1,3 +1,6 @@
+import { DiffLabelsContext } from "../SuggestedContent/DiffRenderer";
+import { EditOutlined, SmartToyOutlined } from "@mui/icons-material";
+import { ThreeWayReview } from "./ThreeWayReview";
 import { isAxiosError } from "axios";
 import React, {
   createContext,
@@ -49,11 +52,6 @@ import { AgentFixConfirmDialog } from "./AgentFixConfirmDialog";
 const AgentConversationView = lazy(() =>
   import("../AgentSession/AgentConversationView").then((module) => ({
     default: module.AgentConversationView,
-  })),
-);
-const ReconciliationRefinementReview = lazy(() =>
-  import("./ReconciliationRefinementReview").then((module) => ({
-    default: module.ReconciliationRefinementReview,
   })),
 );
 
@@ -234,7 +232,9 @@ function ChangedSinceList({
   state,
   proposal,
   resolve,
+  historyOnly = false,
 }: {
+  historyOnly?: boolean;
   state: ProposalReconciliationState;
   proposal: ProposalResponseDto;
   resolve: Resolve;
@@ -261,20 +261,23 @@ function ChangedSinceList({
       sx={{ p: 1.5, bgcolor: "action.hover", borderRadius: 1 }}
       data-testid="proposal-reconciliation-changed-since"
     >
-      {state.overlaps.map((overlap) => (
-        <Paper key={overlap.path} variant="outlined" sx={{ p: 1.5 }}>
-          <OverlapComparison
-            overlap={overlap}
-            resolve={resolve}
-            presentation={presentation}
-            future={future}
-          />
-        </Paper>
-      ))}
+      {!historyOnly &&
+        state.overlaps.map((overlap) => (
+          <Paper key={overlap.path} variant="outlined" sx={{ p: 1.5 }}>
+            <OverlapComparison
+              overlap={overlap}
+              resolve={resolve}
+              presentation={presentation}
+              future={future}
+            />
+          </Paper>
+        ))}
       <Typography variant="subtitle2">
-        {future
-          ? "What’s changed since the baseline"
-          : "What’s changed since this was written"}
+        {historyOnly
+          ? "Approval history"
+          : future
+            ? "What’s changed since the baseline"
+            : "What’s changed since this was written"}
       </Typography>
       {[...state.interveningProposals]
         .sort((a, b) => a.approvedAt.localeCompare(b.approvedAt))
@@ -447,14 +450,13 @@ function PendingProposalReconciliationReview({
     }
   };
   const outOfDate = !!state && OUT_OF_DATE_STATUSES.has(state.status);
+  const threeWay =
+    !grouped && !!state && staged && (requiresReconciliation || hasOverlaps);
   const resolve: Resolve = {
     onEdit: () => setManualState(state),
     onAgentFix: () => setAgentFixOpen(true),
     busy,
   };
-  const hasReplacement =
-    usesReplacement &&
-    (!!state?.replacementProposalId || !!state?.replacementGroupId);
   return (
     <ProposalReconciliationContext.Provider
       value={{
@@ -467,6 +469,9 @@ function PendingProposalReconciliationReview({
       }}
     >
       <Stack spacing={1} data-testid="proposal-reconciliation-review">
+        {outOfDate && !threeWay && (requiresReconciliation || !staged) ? (
+          <OutOfDateHeadsUp state={state} />
+        ) : null}
         {staged ? (
           <Stepper
             activeStep={approvalDisabled ? 0 : 1}
@@ -503,9 +508,8 @@ function PendingProposalReconciliationReview({
                 {error}
               </Alert>
             ) : null}
-            {outOfDate ? (
+            {outOfDate && !threeWay && !staged ? (
               <>
-                <OutOfDateHeadsUp state={state} />
                 <ChangedSinceList
                   state={state}
                   proposal={proposal}
@@ -513,7 +517,10 @@ function PendingProposalReconciliationReview({
                 />
               </>
             ) : null}
-            {requiresReconciliation && !hasOverlaps && !hasReplacement ? (
+            {threeWay ? (
+              <ThreeWayReview proposal={proposal} state={state} />
+            ) : null}
+            {requiresReconciliation && (threeWay || !hasOverlaps) ? (
               <Stack spacing={1}>
                 {state.status === "AGENT_FIX_REQUIRED" ? (
                   <Typography variant="body2" color="text.secondary">
@@ -533,6 +540,8 @@ function PendingProposalReconciliationReview({
                     </Button>
                   ) : null}
                   <Button
+                    variant="outlined"
+                    startIcon={<EditOutlined />}
                     data-testid="proposal-reconciliation-edit-by-hand"
                     disabled={busy || !state.currentBases.length}
                     onClick={resolve.onEdit}
@@ -540,6 +549,8 @@ function PendingProposalReconciliationReview({
                     Edit by hand
                   </Button>
                   <Button
+                    variant="outlined"
+                    startIcon={<SmartToyOutlined />}
                     data-testid="proposal-reconciliation-agent-fix"
                     disabled={busy}
                     onClick={resolve.onAgentFix}
@@ -605,25 +616,6 @@ function PendingProposalReconciliationReview({
                 onStarted={setAgentRequest}
               />
             ) : null}
-            {!grouped &&
-            proposal.action === "VERSIONED_UPDATE" &&
-            state?.replacementProposalId ? (
-              <Suspense
-                fallback={
-                  <CircularProgress
-                    size={18}
-                    aria-label="Loading proposed fix"
-                  />
-                }
-              >
-                <ReconciliationRefinementReview
-                  organizationId={proposal.organizationId}
-                  projectId={proposal.projectId}
-                  proposalId={state.replacementProposalId}
-                  onReviewed={reviewOutcome}
-                />
-              </Suspense>
-            ) : null}
             {grouped && state?.replacementProposalId ? (
               <Button
                 variant="contained"
@@ -647,7 +639,7 @@ function PendingProposalReconciliationReview({
                 Review replacement group
               </Button>
             ) : null}
-            {state?.status === "READY_FOR_REVIEW" ? (
+            {state?.status === "READY_FOR_REVIEW" && !staged ? (
               <Typography
                 variant="subtitle2"
                 data-testid="proposal-reconciliation-merged-result"
@@ -657,28 +649,25 @@ function PendingProposalReconciliationReview({
                   : "Merged result compared with current content"}
               </Typography>
             ) : null}
-            {outOfDate ? (
-              <Box sx={{ borderTop: 1, borderColor: "divider", pt: 2 }}>
-                <Typography
-                  variant="subtitle2"
-                  data-testid="proposal-reconciliation-under-review"
-                >
-                  {proposal.action === "VERSIONED_UPDATE"
-                    ? "Future under review"
-                    : "This proposal’s change"}
-                </Typography>
-                {hasOverlaps ? (
-                  <Typography variant="body2" color="text.secondary">
-                    The complete revised result appears after resolution.{" "}
-                    {proposal.action === "VERSIONED_UPDATE"
-                      ? "Previous approval does not approve new edits. Review the revised future, then choose Apply separately."
-                      : "Resolve the overlap to approve."}
+            {threeWay ? (
+              proposal.action === "VERSIONED_UPDATE" ? null : (
+                children
+              )
+            ) : (
+              <DiffLabelsContext.Provider
+                value={
+                  staged
+                    ? { before: "Live now", after: "After applying" }
+                    : undefined
+                }
+              >
+                {staged && state && !approvalDisabled ? (
+                  <Typography variant="h6">
+                    Review what Apply will change
                   </Typography>
                 ) : null}
                 {children}
-              </Box>
-            ) : (
-              children
+              </DiffLabelsContext.Provider>
             )}
           </Stack>
           {agentRequest ? (

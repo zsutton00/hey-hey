@@ -15,7 +15,6 @@ import {
   FutureDependency,
   FutureDependencyName,
 } from "../ProposalDetail/FutureDependency";
-import { FutureProposalLink } from "../ProposalDetail/FutureProposalLink";
 
 const joinNames = (dependencies: readonly FutureDependencyPresentation[]) =>
   dependencies.map((dependency, index) => (
@@ -194,31 +193,9 @@ function FutureApplyFooterContent({
   const waitingOn = linked.filter((dependency) =>
     waitingIds.has(dependency.targetEntityId),
   );
-  const refinements = Array.from(future.outstandingRefinementProposalIds);
 
   return (
     <Stack spacing={1} data-testid="future-apply-footer">
-      {reconciliation?.staged && linked.length > 0 ? (
-        <Stack spacing={1}>
-          <Typography variant="body2" color="text.secondary">
-            Linked work
-          </Typography>
-          <Stack
-            direction="row"
-            spacing={1}
-            useFlexGap
-            flexWrap="wrap"
-            data-testid="future-linked-work"
-          >
-            {linked.map((dependency) => (
-              <FutureDependency
-                key={dependency.targetEntityId}
-                {...{ organizationId, projectId, dependency }}
-              />
-            ))}
-          </Stack>
-        </Stack>
-      ) : null}
       <FutureApplication
         key={future.id}
         future={future}
@@ -227,8 +204,8 @@ function FutureApplyFooterContent({
           await refetch();
         }}
         reviewSteps={
-          reconciliation?.staged ? undefined : (
-            <>
+          <>
+            {!reconciliation?.staged && (
               <Chip
                 icon={<CheckIcon />}
                 label="Approved"
@@ -236,31 +213,31 @@ function FutureApplyFooterContent({
                 color="success"
                 variant="outlined"
               />
-              {future.dependencies.length > 0 && (
-                <ArrowForwardIcon fontSize="small" color="disabled" />
-              )}
-              {linked.length > 0 && (
-                <Stack
-                  direction="row"
-                  spacing={1}
-                  sx={{
-                    minWidth: 0,
-                    flex: 1,
-                    overflow: "hidden",
-                    "& > *": { flex: "1 1 0", minWidth: 0 },
-                  }}
-                  data-testid="future-linked-work"
-                >
-                  {linked.map((dependency) => (
-                    <FutureDependency
-                      key={dependency.targetEntityId}
-                      {...{ organizationId, projectId, dependency }}
-                    />
-                  ))}
-                </Stack>
-              )}
-            </>
-          )
+            )}
+            {!reconciliation?.staged && future.dependencies.length > 0 && (
+              <ArrowForwardIcon fontSize="small" color="disabled" />
+            )}
+            {linked.length > 0 && (
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{
+                  minWidth: 0,
+                  flex: 1,
+                  overflow: "hidden",
+                  "& > *": { flex: "1 1 0", minWidth: 0 },
+                }}
+                data-testid="future-linked-work"
+              >
+                {linked.map((dependency) => (
+                  <FutureDependency
+                    key={dependency.targetEntityId}
+                    {...{ organizationId, projectId, dependency }}
+                  />
+                ))}
+              </Stack>
+            )}
+          </>
         }
         onApplied={async () => {
           await refetch();
@@ -276,19 +253,6 @@ function FutureApplyFooterContent({
           ) : undefined
         }
       />
-      {refinements.length > 0 && (
-        <Stack spacing={0.5}>
-          <Typography variant="body2" color="text.secondary">
-            Pending changes to this approved revision:
-          </Typography>
-          {refinements.map((proposalId) => (
-            <FutureProposalLink
-              key={proposalId}
-              {...{ organizationId, projectId, proposalId }}
-            />
-          ))}
-        </Stack>
-      )}
     </Stack>
   );
 }

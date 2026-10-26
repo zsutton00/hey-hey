@@ -1,3 +1,5 @@
+import { preserveUnaffectedRequirements } from "./scopedResolution";
+import { projectThreeWayReview } from "./threeWayProjection";
 import { manualReconciliationContent } from "./manualReconciliationContent";
 import { useCallback, useState } from "react";
 import { Alert, Button, Paper, Stack, Typography } from "@mui/material";
@@ -7,9 +9,7 @@ import {
 } from "../../api";
 import { useMentionEntitySearch } from "../../data/hooks/useMentionEntitySearch";
 import { useWorkItemTypes } from "../../data/hooks/useWorkItemTypes";
-import { ManualReconciliationSection } from "./ManualReconciliationSection";
-import type { EditorSection, EditorTemplate } from "../../types/editorTemplate";
-import { ManualReconciliationFields } from "./ManualReconciliationFields";
+import { ScopedResolutionEditor } from "./ScopedResolutionEditor";
 import { ManualGraphResolutionEditor } from "./ManualGraphResolutionEditor";
 import { isFutureProposal } from "../ProposalDispatchers/futureAsUpdate";
 import type { ProjectedWorkItemChangeSetResponse } from "../../api";
@@ -34,7 +34,10 @@ export function ManualReconciliationEditor({
     (revision) => revision.id === state.candidateRevisionId,
   )?.proposedResult;
   const [result, setResult] = useState<Record<string, unknown>>(() =>
-    manualReconciliationContent(proposal, state),
+    preserveUnaffectedRequirements(
+      manualReconciliationContent(proposal, state),
+      projectThreeWayReview(proposal, state),
+    ),
   );
   const {
     workItemTypes,
@@ -92,53 +95,6 @@ export function ManualReconciliationEditor({
       })),
     [],
   );
-  const arraySections = Array.isArray(result.sections);
-  const sections = arraySections
-    ? (result.sections as {
-        key: string;
-        order: number;
-        materializedMarkdown: string;
-      }[])
-    : Object.entries((result.sections ?? {}) as Record<string, unknown>).map(
-        ([key, value]) => ({
-          key,
-          order: (result.sectionOrder as Record<string, number>)[key],
-          materializedMarkdown:
-            typeof value === "string" ? value : JSON.stringify(value),
-        }),
-      );
-  const template: EditorTemplate = {
-    id: "reconciliation",
-    name: "Resolved content",
-    sections: sections.map((section) => {
-      const declared = definition?.sections.find(
-        (entry) => entry.key === section.key,
-      );
-      return {
-        id: section.key,
-        kind: declared?.kind,
-        definition: declared,
-        header: {
-          text: declared?.label ?? section.key,
-          level: 2,
-          editable: false,
-        },
-        content: { initialText: section.materializedMarkdown },
-        editable: true,
-      } satisfies EditorSection;
-    }),
-  };
-  const changeSection = (key: string, content: string) =>
-    setResult((current) => ({
-      ...current,
-      sections: arraySections
-        ? sections.map((section) =>
-            section.key === key
-              ? { ...section, materializedMarkdown: content }
-              : section,
-          )
-        : { ...(current.sections as Record<string, unknown>), [key]: content },
-    }));
   const save = () => onSave(result);
   return (
     <Paper
@@ -173,59 +129,24 @@ export function ManualReconciliationEditor({
           </Alert>
         ) : null}
         {!graph && (
-          <ManualReconciliationFields
+          <ScopedResolutionEditor
             proposal={proposal}
+            state={state}
             result={result}
-            current={state.currentBases[0]?.content ?? {}}
+            onChange={setResult}
             disabled={busy}
-            onChange={(key, value) =>
-              setResult((current) => ({ ...current, [key]: value }))
-            }
+            context={{
+              organizationId: proposal.organizationId,
+              projectId: proposal.projectId,
+              featureId: proposal.targetEntityId,
+              parentId:
+                typeof result.parentTaskId === "string"
+                  ? result.parentTaskId
+                  : null,
+              onSearchEntities: searchEntities,
+            }}
           />
         )}
-        {!graph &&
-          template.sections.map((section, index) => (
-            <ManualReconciliationSection
-              key={section.id}
-              current={(() => {
-                const current = (
-                  state.currentBases[0]?.content.sections as
-                    Record<string, unknown> | undefined
-                )?.[section.id];
-                return typeof current === "string"
-                  ? current
-                  : current == null
-                    ? ""
-                    : JSON.stringify(current);
-              })()}
-              section={section}
-              template={template}
-              index={index}
-              isLoading={false}
-              disabled={busy}
-              getContentForSection={(key) =>
-                sections.find((entry) => entry.key === key)
-                  ?.materializedMarkdown ?? ""
-              }
-              handleSectionChange={changeSection}
-              workItemId={proposal.targetEntityId}
-              requirementsEditorConfig={
-                typeof result.type === "string"
-                  ? {
-                      typeKey: result.type,
-                      organizationId: proposal.organizationId,
-                      projectId: proposal.projectId,
-                      featureId: proposal.targetEntityId,
-                      parentId:
-                        typeof result.parentTaskId === "string"
-                          ? result.parentTaskId
-                          : null,
-                      onSearchEntities: searchEntities,
-                    }
-                  : undefined
-              }
-            />
-          ))}
       </Stack>
       <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
         <Button disabled={busy} onClick={onClose}>

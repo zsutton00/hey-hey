@@ -1,4 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { invalidateProposalReconciliation } from "../../ProposalReconciliation/reconciliationInvalidation";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -497,7 +504,7 @@ it("edits a future's structured overlap by hand and shows the complete revised r
     ...updates,
     action: "VERSIONED_UPDATE",
     status: "APPROVED",
-    reviewedFuture: { outcome: "STAGED" },
+    reviewedFuture: { outcome: "STAGED", latestProposalId: updates.id, result },
     updates: {
       operation: "REVISE",
       baseline: { content: existing },
@@ -534,7 +541,7 @@ it("edits a future's structured overlap by hand and shows the complete revised r
       {
         id: "original",
         proposalId: future.id,
-        source: "ORIGINAL",
+        source: "AUTHORING",
         bases: [basis],
         proposedResult: result,
         intent: "Readable future",
@@ -600,6 +607,42 @@ it("edits a future's structured overlap by hand and shows the complete revised r
       screen.queryByTestId("proposal-reconciliation-manual-editor"),
     ).toBeNull(),
   );
+  expect(screen.getByTestId("proposal-three-way-review")).toBeVisible();
+  // Saving only prepares a refinement. A persisted approval supplies the accepted revision.
+  const accepted = {
+    ...state,
+    status: "READY_FOR_REVIEW",
+    overlaps: [],
+    conflictingPaths: [],
+    candidateRevisionId: "resolved",
+    revisions: [
+      ...state.revisions,
+      {
+        ...state.revisions[0],
+        id: "resolved",
+        source: "MANUAL",
+        proposedResult: {
+          ...basis.content,
+          sections: {
+            requirements: {
+              records: [
+                {
+                  ...existingRecords[0],
+                  statement: "Reviewed wording preserves current work",
+                },
+                existingRecords[1],
+              ],
+            },
+          },
+        },
+      },
+    ],
+  };
+  vi.mocked(proposalsClient.getProposalReconciliation).mockResolvedValue({
+    data: { data: accepted },
+  } as never);
+  act(() => invalidateProposalReconciliation(future.id));
+  await screen.findByTestId("structured-requirements-diff");
   const diff = screen.getByTestId("structured-requirements-diff");
   expect(
     diff.querySelector('[data-testid="structured-requirements-current"]'),
@@ -610,7 +653,7 @@ it("edits a future's structured overlap by hand and shows the complete revised r
   expect(
     diff.querySelector(`[data-entity-id="${id("2")}"]`),
   ).toBeInTheDocument();
-  expect(screen.queryByTestId("proposal-reconciliation-overlap")).toBeNull();
+  expect(screen.queryByTestId("proposal-three-way-review")).toBeNull();
   expect(
     proposalsClient.createProposalReconciliationCandidate,
   ).toHaveBeenCalledWith(

@@ -33,6 +33,7 @@ export function useReconciledUpdate<
     return {
       proposal,
       existing,
+      staged: !!review?.staged,
       reviewedServiceIds: undefined,
       hideDiff: futureReview
         ? !futureReview.state ||
@@ -111,6 +112,7 @@ export function useReconciledUpdate<
     })),
   } as T;
   return {
+    staged: !!review?.staged,
     proposal: { ...proposal, updates },
     existing: baseline,
     reviewedServiceIds: before.serviceIds as string[] | undefined,

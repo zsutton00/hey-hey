@@ -10,7 +10,13 @@ import {
   useTheme,
 } from "@mui/material";
 import { type Change, diffLines } from "diff";
-import React, { useCallback, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useCallback,
+  useMemo,
+  useState,
+} from "react";
 import type { Components } from "react-markdown";
 import {
   type InlineNode,
@@ -21,6 +27,11 @@ import { calculateWordDiff } from "../../utils/textDiff";
 import type { DiffOperation } from "../../utils/textDiff";
 import { MarkdownRenderer } from "../shared/MarkdownRenderer";
 import { renderMentionNode } from "../shared/WorkflowMentionInlineRenderer";
+
+/** Snapshot names shared by all specialized comparisons in one review. */
+export const DiffLabelsContext = createContext<
+  { before: string; after: string } | undefined
+>(undefined);
 
 export type DiffOperationDecision = "accepted" | "rejected";
 export type DiffViewMode = "inline" | "split" | "split-code";
@@ -1269,8 +1280,10 @@ export const DiffRenderer: React.FC<DiffRendererProps> = ({
   defaultViewMode,
   onViewModeChange,
   contentRenderers,
-  splitLabels,
+  splitLabels: explicitSplitLabels,
 }) => {
+  const inheritedSplitLabels = useContext(DiffLabelsContext);
+  const splitLabels = explicitSplitLabels ?? inheritedSplitLabels;
   const operations = useMemo(() => {
     return calculateWordDiff(oldContent, newContent).operations;
   }, [oldContent, newContent]);

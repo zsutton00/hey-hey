@@ -43,8 +43,6 @@ import {
 import { getProposalDisplayTitle } from "../ProposalDispatchers/getProposalDisplayTitle";
 import { RefinerChat } from "../AgentSession/RefinerChat";
 import { CapsuleAction } from "../ActionsCapsule";
-import { ProposalPlacementBlock } from "./ProposalPlacementBlock";
-import { ProposalInfluencesBlock } from "./ProposalInfluencesBlock";
 import { ProposalGroupReview } from "../ProposalGroupReview";
 import { formatProposalAction } from "../ProposalDispatchers/ProposalHeader";
 
@@ -371,20 +369,7 @@ const ProposalDetailLoaded: React.FC<ProposalDetailLoadedProps> = ({
         entityId={proposal.id}
         entityName={getProposalDisplayTitle(proposal)}
       />
-    ) : (
-      <Stack spacing={2} sx={{ p: 3 }}>
-        <ProposalPlacementBlock
-          organizationId={organizationId}
-          projectId={projectId}
-          proposal={proposal}
-        />
-        <ProposalInfluencesBlock
-          organizationId={organizationId}
-          projectId={projectId}
-          proposal={proposal}
-        />
-      </Stack>
-    );
+    ) : null;
 
   return (
     <>

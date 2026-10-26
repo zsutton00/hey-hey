@@ -18,6 +18,24 @@ import type {
   ProposalResponseDto,
   ProposalReconciliationState,
 } from "../../../api";
+// Modal tests exercise the adapter; shared editor mention parsing is covered by its own suite.
+vi.mock("../../SmarterTextAreaCard/SmarterTextAreaEditor", () => ({
+  SmarterTextAreaEditor: ({
+    initialValue,
+    onChange,
+    presentation,
+  }: {
+    initialValue: string;
+    onChange: (value: string) => void;
+    presentation: { contentEditableAriaLabel: string };
+  }) => (
+    <textarea
+      aria-label={presentation.contentEditableAriaLabel}
+      defaultValue={initialValue}
+      onChange={(event) => onChange(event.target.value)}
+    />
+  ),
+}));
 vi.mock("../../../data/hooks/useInvalidateProposalReview", () => ({
   useInvalidateProposalReview: () => vi.fn(),
 }));
@@ -51,6 +69,9 @@ vi.mock("../../../clients/serviceClients", () => ({
     getProposalReconciliation: vi.fn(),
     createProposalReconciliationCandidate: vi.fn(),
   },
+}));
+vi.mock("../../ProposalDispatchers/FutureApplyFooter", () => ({
+  FutureApplyFooter: () => <button disabled>Apply</button>,
 }));
 vi.mock("../AgentFixConfirmDialog", () => ({
   AgentFixConfirmDialog: ({
@@ -115,6 +136,8 @@ vi.mock("../../SmarterTextAreaCard/MentionBadge", () => ({
 const proposal = {
   id: "proposal",
   targetEntityId: "target",
+  targetEntityType: "TASK",
+  action: "UPDATE",
   organizationId: "org",
   projectId: "project",
   updates: {},
@@ -298,7 +321,7 @@ describe("out-of-date review", () => {
     expect(
       screen.getByTestId("proposal-reconciliation-changed-since"),
     ).toHaveTextContent("Change the dessert");
-    expect(screen.getByText(/Approved by Zac/)).toBeVisible();
+    expect(screen.getByText(/Approved by Zac/)).toBeInTheDocument();
     fireEvent.click(screen.getByText("Show its changes"));
     expect(
       screen.getByTestId("proposal-reconciliation-intervening-diff"),
@@ -321,6 +344,12 @@ describe("out-of-date review", () => {
     mount({
       ...ready,
       status: "RECONCILIATION_REQUIRED",
+      currentBases: [
+        { ...basis, content: { ...basis.content, status: "ACTIVE" } },
+      ],
+      revisions: [
+        { ...ready.revisions[0], proposedResult: { status: "COMPLETED" } },
+      ],
       conflictingPaths: ["status"],
       interveningProposals: [
         {
@@ -338,12 +367,10 @@ describe("out-of-date review", () => {
         },
       ],
     });
-    const overlap = await screen.findByTestId(
-      "proposal-reconciliation-overlap",
-    );
+    const overlap = await screen.findByTestId("proposal-three-way-review");
     expect(overlap).toHaveTextContent("ACTIVE");
     expect(overlap).toHaveTextContent("COMPLETED");
-    expect(screen.getByText("Overlaps: Status")).toBeVisible();
+    expect(screen.queryByText("Approval history")).toBeNull();
     expect(
       screen.getByTestId("proposal-reconciliation-edit-by-hand"),
     ).toBeVisible();
@@ -371,13 +398,55 @@ describe("out-of-date review", () => {
 });
 
 describe("approved future recovery", () => {
+  it("does not nest a pending correction inside the current future review", async () => {
+    vi.mocked(proposalsClient.getProposalReconciliation).mockResolvedValue({
+      data: {
+        data: {
+          ...ready,
+          status: "RECONCILIATION_REQUIRED",
+          replacementProposalId: "pending-correction",
+        },
+      },
+    } as never);
+    render(
+      <ProposalReconciliationReview
+        proposal={
+          {
+            ...proposal,
+            action: "VERSIONED_UPDATE",
+            status: "APPROVED",
+            reviewedFuture: { outcome: "STAGED" },
+          } as ProposalResponseDto
+        }
+        onApply={vi.fn()}
+      >
+        <span>Previously approved</span>
+      </ProposalReconciliationReview>,
+    );
+    await screen.findByTestId("proposal-three-way-review");
+    expect(
+      screen.getAllByTestId("proposal-reconciliation-stages"),
+    ).toHaveLength(1);
+    expect(screen.queryByText("Review saved refinement")).toBeNull();
+    expect(screen.queryByText("Review the fix")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Apply" })).toBeNull();
+    expect(screen.queryByText("Approval history")).toBeNull();
+    expect(
+      screen.getByTestId("proposal-reconciliation-edit-by-hand"),
+    ).toBeVisible();
+  });
   it("exposes manual resolution after earlier approval and submits the displayed bases and future revision", async () => {
     const future = {
       ...proposal,
       action: "VERSIONED_UPDATE",
       status: "APPROVED",
-      reviewedFuture: { outcome: "STAGED" },
-    } as ProposalResponseDto;
+      reviewedFuture: {
+        outcome: "STAGED",
+        latestProposalId: proposal.id,
+        baseline: { content: basis.content },
+        result: ready.revisions[0].proposedResult,
+      },
+    } as unknown as ProposalResponseDto;
     const stale = {
       ...ready,
       status: "RECONCILIATION_REQUIRED",
@@ -400,9 +469,11 @@ describe("approved future recovery", () => {
     fireEvent.click(
       await screen.findByTestId("proposal-reconciliation-edit-by-hand"),
     );
-    fireEvent.change(screen.getByLabelText("name"), {
+    fireEvent.click(screen.getByRole("button", { name: "Edit", exact: true }));
+    fireEvent.change(screen.getByLabelText("Proposed content"), {
       target: { value: "Resolved by hand" },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Save edit" }));
     fireEvent.click(screen.getByTestId("proposal-reconciliation-manual-save"));
     await waitFor(() =>
       expect(
@@ -428,7 +499,30 @@ describe("approved future recovery", () => {
     expect(
       screen.queryByTestId("proposal-reconciliation-open-replacement"),
     ).toBeNull();
-    expect(screen.getByText("Previously approved")).toBeVisible();
+    expect(screen.queryByText("Previously approved")).toBeNull();
+    expect(screen.getByTestId("proposal-three-way-review")).toBeVisible();
+  });
+  it("discards modal edits on Cancel before preparing the result", async () => {
+    mount({ ...ready, status: "RECONCILIATION_REQUIRED" });
+    fireEvent.click(
+      await screen.findByTestId("proposal-reconciliation-edit-by-hand"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Edit", exact: true }));
+    fireEvent.change(screen.getByLabelText("Proposed content"), {
+      target: { value: "Discard this" },
+    });
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Cancel",
+      }),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.queryByText("Discard this")).toBeNull();
+    expect(
+      proposalsClient.createProposalReconciliationCandidate,
+    ).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Edit", exact: true }));
+    expect(screen.getByLabelText("Proposed content")).toHaveValue("Candidate");
   });
   it("cancels manual editing without submitting", async () => {
     mount({ ...ready, status: "RECONCILIATION_REQUIRED" });
@@ -475,102 +569,69 @@ const intended = {
   group: "Recovery",
 };
 
-it("keeps structured future overlaps legible while expanding and collapsing historical changes", async () => {
-  const records = [first, unchanged];
-  const futureRecords = [intended, unchanged];
-  const future = {
-    ...proposal,
-    targetEntityId: "target",
-    action: "VERSIONED_UPDATE",
-    status: "APPROVED",
-    reviewedFuture: { outcome: "STAGED" },
-  } as ProposalResponseDto;
-  vi.mocked(proposalsClient.getProposalReconciliation).mockResolvedValue({
-    data: {
-      data: {
-        ...ready,
-        status: "RECONCILIATION_REQUIRED",
-        interveningProposals: [
-          {
-            ...intervening,
-            changedPaths: ["sections.requirements"],
-            overlappingPaths: ["sections.requirements.records"],
-            changes: [
-              {
-                path: "sections.requirements",
-                before: { records: [unchanged] },
-                after: { records },
-              },
-            ],
-          },
-        ],
-        overlaps: [
-          {
-            path: "sections.requirements.records",
-            currentValue: records,
-            proposedValue: futureRecords,
-            interveningProposalId: intervening.proposalId,
-          },
-        ],
-      },
-    },
-  } as never);
-  const apply = vi.fn();
-  render(
-    <ProposalReconciliationReview proposal={future} onApply={apply}>
-      <span>Previously approved</span>
-      <button disabled>Apply</button>
-    </ProposalReconciliationReview>,
+it("aligns original, live and intended requirements including additions and group changes", async () => {
+  const added = requirement(
+    "00000000-0000-4000-8000-000000000003",
+    "Show import progress",
   );
-  const overlap = await screen.findByTestId("proposal-reconciliation-overlap");
-  expect(overlap).toHaveTextContent("Show readable dated history");
-  expect(overlap).toHaveTextContent("Previously approved future");
-  expect(overlap).toHaveTextContent("1 unchanged requirement hidden");
-  expect(
-    overlap.querySelector(`[data-requirement-id="${first.id}"]`),
-  ).toHaveAttribute("data-requirement-change", "group-changed");
-  expect(overlap.querySelector("a")).toHaveAttribute(
+  const original = { ...first, statement: "Original history" };
+  const content = (records: ReturnType<typeof requirement>[]) => ({
+    type: "FEATURE",
+    sections: { requirements: { records } },
+  });
+  const stale: ProposalReconciliationState = {
+    ...ready,
+    status: "RECONCILIATION_REQUIRED",
+    currentBases: [{ ...basis, content: content([first, unchanged]) }],
+    revisions: [
+      {
+        ...ready.revisions[0],
+        bases: [{ ...basis, content: content([original, unchanged]) }],
+        proposedResult: content([intended, unchanged, added]),
+      },
+    ],
+    overlaps: [
+      {
+        path: "sections.requirements.records",
+        currentValue: [first, unchanged],
+        proposedValue: [intended, unchanged, added],
+        interveningProposalId: null,
+      },
+    ],
+  };
+  const apply = mount(stale);
+  const comparison = await screen.findByTestId("proposal-three-way-review");
+  expect(comparison).toHaveTextContent("When this was proposed");
+  expect(comparison).toHaveTextContent("Current");
+  expect(screen.queryByTestId("proposal-reconciliation-heads-up")).toBeNull();
+  expect(comparison).toHaveTextContent("been applied since this was proposed");
+  expect(comparison).toHaveTextContent(
+    "prevent applying it without confirmation",
+  );
+  expect(comparison).toHaveTextContent("Proposal");
+  expect(comparison).toHaveTextContent("Original history");
+  expect(comparison).toHaveTextContent("1 unchanged requirements hidden");
+  expect(comparison).toHaveTextContent("Added · Check it still belongs");
+  expect(comparison).toHaveTextContent("Show import progress");
+  const cells = comparison.querySelectorAll(
+    `[data-testid="three-way-requirement-cell"][data-requirement-id="${first.id}"]`,
+  );
+  expect(cells).toHaveLength(3);
+  expect(cells[1]).toHaveTextContent("Review");
+  expect(cells[2]).toHaveTextContent("Recovery");
+  expect(comparison.querySelector("a")).toHaveAttribute(
     "href",
     "/items/00000000-0000-4000-8000-000000000099",
   );
-  expect(screen.getByText("Overlaps: Requirements")).toBeVisible();
-  expect(screen.getByText(/What’s changed since the baseline/)).toBeVisible();
-  expect(screen.getByText(/Sep 27, 2026/)).toBeVisible();
-  expect(screen.getByText("Future under review")).toBeVisible();
+  expect(screen.queryByText("Future under review")).toBeNull();
+  expect(screen.queryByText("What’s changed since the baseline")).toBeNull();
+  fireEvent.click(screen.getByTestId("three-way-show-all"));
   expect(
-    screen.queryByText(
-      /entity Id:|sections.requirements.records|fulfilled By:/,
+    comparison.querySelectorAll(
+      `[data-testid="three-way-requirement-cell"][data-requirement-id="${unchanged.id}"]`,
     ),
-  ).toBeNull();
-  expect(
-    screen.queryByTestId("proposal-reconciliation-intervening-diff"),
-  ).toBeNull();
-  fireEvent.click(screen.getByTestId("proposal-reconciliation-history-toggle"));
-  const historical = screen.getByTestId(
-    "proposal-reconciliation-intervening-diff",
-  );
-  expect(
-    historical.querySelector('[data-testid="structured-requirements-diff"]'),
-  ).toBeInTheDocument();
-  expect(historical).toHaveTextContent("Show dated history");
-  fireEvent.click(screen.getByTestId("proposal-reconciliation-history-toggle"));
-  expect(
-    screen.queryByTestId("proposal-reconciliation-intervening-diff"),
-  ).toBeNull();
-  expect(overlap).toBeVisible();
-  fireEvent.click(
-    overlap.querySelector(
-      '[data-testid="structured-requirements-diff-show-all"]',
-    )!,
-  );
-  expect(overlap).toHaveTextContent("Preserve explicit Apply");
-  fireEvent.click(
-    overlap.querySelector('[data-testid="diff-renderer-view-mode-inline"]')!,
-  );
-  expect(
-    overlap.querySelector('[data-testid="structured-requirements-inline"]'),
-  ).toBeVisible();
-  expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+  ).toHaveLength(3);
+  expect(screen.getByText("Approve displayed revision")).toBeDisabled();
   expect(apply).not.toHaveBeenCalled();
 });
 
@@ -613,6 +674,12 @@ describe("same-page staged recovery", () => {
   const conflict = {
     ...ready,
     status: "AGENT_FIX_REQUIRED" as const,
+    currentBases: [
+      { ...basis, content: { ...basis.content, name: "Current name" } },
+    ],
+    revisions: [
+      { ...ready.revisions[0], proposedResult: { name: "Future name" } },
+    ],
     overlaps: [
       {
         path: "name",
@@ -638,9 +705,9 @@ describe("same-page staged recovery", () => {
           "Conversation conversation for session",
         ),
       );
-      expect(
-        screen.getByTestId("proposal-reconciliation-overlap"),
-      ).toHaveTextContent("Current name");
+      expect(screen.getByTestId("proposal-three-way-review")).toHaveTextContent(
+        "Current name",
+      );
       expect(screen.getByText("Approve displayed revision")).toBeDisabled();
       expect(
         within(screen.getByTestId("proposal-reconciliation-stages")).getByText(
@@ -663,9 +730,7 @@ describe("same-page staged recovery", () => {
         await waitFor(() =>
           expect(screen.getByText("Approve displayed revision")).toBeEnabled(),
         );
-        expect(
-          screen.queryByTestId("proposal-reconciliation-overlap"),
-        ).toBeNull();
+        expect(screen.queryByTestId("proposal-three-way-review")).toBeNull();
         expect(
           screen.getByTestId("proposal-reconciliation-stages"),
         ).toHaveTextContent("Apply");
@@ -674,7 +739,7 @@ describe("same-page staged recovery", () => {
           data: { data: conflict },
         } as never);
         act(() => invalidateProposalReconciliation(proposal.id));
-        await screen.findByTestId("proposal-reconciliation-overlap");
+        await screen.findByTestId("proposal-three-way-review");
       }
       expect(screen.getByText("Approve displayed revision")).toBeDisabled();
       expect(apply).not.toHaveBeenCalled();
@@ -689,9 +754,9 @@ describe("same-page staged recovery", () => {
     expect(
       screen.getByTestId("proposal-reconciliation-manual-editor"),
     ).toBeVisible();
-    expect(
-      screen.getByTestId("proposal-reconciliation-overlap"),
-    ).toHaveTextContent("Future name");
+    expect(screen.getByTestId("proposal-three-way-review")).toHaveTextContent(
+      "Future name",
+    );
     expect(screen.getByText("Approve displayed revision")).toBeDisabled();
   });
 });

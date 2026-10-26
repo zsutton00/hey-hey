@@ -58,7 +58,7 @@ export const DesignDocUpdateRenderer: React.FC<{
   notice,
   footer,
 }) => {
-  const { proposal, existing, hideDiff } = useReconciledUpdate(
+  const { proposal, existing, hideDiff, staged } = useReconciledUpdate(
     inputProposal,
     inputExisting,
   );
@@ -86,7 +86,7 @@ export const DesignDocUpdateRenderer: React.FC<{
 
   const content = (
     <Stack spacing={1.5}>
-      {!overrides?.hideHeader && (
+      {!overrides?.hideHeader && !staged && (
         <ProposalTitle
           presentationAction={presentationAction}
           proposal={proposal}

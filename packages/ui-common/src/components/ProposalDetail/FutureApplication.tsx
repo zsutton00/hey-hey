@@ -9,8 +9,6 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  IconButton,
-  Tooltip,
   Stack,
   Typography,
 } from "@mui/material";
@@ -154,7 +152,7 @@ export function FutureApplication({
             spacing={1}
             alignItems="center"
             sx={{
-              flexWrap: "nowrap",
+              flexWrap: reconciliation?.staged ? "wrap" : "nowrap",
               minWidth: 0,
               overflow: "hidden",
               "& > :not([data-testid=future-linked-work])": { flexShrink: 0 },
@@ -165,6 +163,23 @@ export function FutureApplication({
             {reviewSteps && (
               <ArrowForwardIcon fontSize="small" color="disabled" />
             )}
+            {reconciliation?.staged ? (
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                data-testid="future-readiness"
+              >
+                {applicability.isPending
+                  ? "Checking readiness…"
+                  : ready
+                    ? "Ready to apply"
+                    : applicability.data?.blockers.includes(
+                          "COMPLETION_INCOMPLETE",
+                        )
+                      ? "Waiting for linked work"
+                      : "Not ready to apply"}
+              </Typography>
+            ) : null}
             <Button
               variant="contained"
               color="success"
@@ -178,24 +193,23 @@ export function FutureApplication({
             </Button>
           </Stack>
           {!ready && (
-            <Tooltip title="Refresh linked work status">
-              <span>
-                <IconButton
-                  size="small"
-                  aria-label="Refresh linked work status"
-                  data-testid="future-refresh-readiness"
-                  disabled={applicability.isFetching}
-                  onClick={() =>
-                    void (async () => {
-                      await onRefresh?.();
-                      await applicability.refetch();
-                    })()
-                  }
-                >
-                  <RefreshIcon fontSize="small" />
-                </IconButton>
-              </span>
-            </Tooltip>
+            <span>
+              <Button
+                size="small"
+                aria-label="Refresh linked work status"
+                data-testid="future-refresh-readiness"
+                disabled={applicability.isFetching}
+                onClick={() =>
+                  void (async () => {
+                    await onRefresh?.();
+                    await applicability.refetch();
+                  })()
+                }
+              >
+                <RefreshIcon fontSize="small" sx={{ mr: 0.5 }} /> Refresh linked
+                work
+              </Button>
+            </span>
           )}
           {applicability.isPending && (
             <Typography variant="body2">
@@ -215,13 +229,15 @@ export function FutureApplication({
               >
                 {waitingNote ?? blockerLabels[blocker]}
               </Typography>
-            ) : (
+            ) : reconciliation?.staged &&
+              (blocker === "BASELINE_CHANGED" ||
+                blocker === "BASELINE_UNAVAILABLE") ? null : (
               <Alert key={blocker} severity="warning">
                 {blockerLabels[blocker]}
               </Alert>
             ),
           )}
-          {ready && (
+          {ready && !reconciliation?.staged && (
             <Typography variant="body2" color="text.secondary">
               The linked work is done. Apply when you're ready.
             </Typography>

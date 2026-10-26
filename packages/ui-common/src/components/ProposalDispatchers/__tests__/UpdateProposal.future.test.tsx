@@ -987,19 +987,20 @@ it("shows approved future drift through real shared review and hides the unresol
     await screen.findByTestId("proposal-reconciliation-edit-by-hand"),
   ).toBeVisible();
   expect(screen.getByTestId("proposal-reconciliation-agent-fix")).toBeVisible();
-  expect(
-    within(screen.getByTestId("proposal-reconciliation-overlap")).getByTestId(
-      "diff-renderer-split-pane-old",
-    ),
-  ).toBeVisible();
-  expect(screen.getByText("Intended")).toBeVisible();
+  expect(screen.getByTestId("proposal-three-way-review")).toBeVisible();
+  expect(screen.getByText("When this was proposed")).toBeVisible();
+  expect(screen.queryByText(/Original evidence is unavailable/)).toBeNull();
+  expect(screen.getByTestId("proposal-three-way-review")).toHaveTextContent(
+    "Open Items",
+  );
+  expect(screen.getByText("Proposal")).toBeVisible();
   expect(
     screen.getByTestId("proposal-reconciliation-stages"),
   ).toHaveTextContent("Resolve conflict");
   expect(screen.queryByText("Approved")).toBeNull();
-  expect(screen.getByTestId("future-linked-work")).toBeVisible();
+  expect(screen.queryByTestId("future-linked-work")).toBeNull();
   expect(screen.queryByTestId("general-diff")).toBeNull();
-  expect(screen.getByTestId("future-apply")).toBeDisabled();
+  expect(screen.queryByTestId("future-apply")).toBeNull();
 });
 
 it("keeps previous approval and authoritative linked work visible while a revised future awaits review", async () => {
