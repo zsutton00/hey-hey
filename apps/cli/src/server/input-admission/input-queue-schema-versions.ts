@@ -1,5 +1,7 @@
 import { inputQueueV9Schemas } from './storage-schema/v9';
 import { migrateSessionFileV8ToV9 } from './storage-schema/v8-to-v9';
+import { inputQueueV10Schemas } from './storage-schema/v10';
+import { migrateSessionFileV9ToV10 } from './storage-schema/v9-to-v10';
 import { createHash } from 'node:crypto';
 import { z } from 'zod/v4';
 import type { JsonValue } from '../../durable-data';
@@ -29,6 +31,7 @@ export const INPUT_QUEUE_MIGRATIONS: ReadonlyMap<number, (body: JsonValue) => Js
   [6, migrateSessionFileV6ToV7],
   [7, migrateSessionFileV7ToV8],
   [8, migrateSessionFileV8ToV9],
+  [9, migrateSessionFileV9ToV10],
 ]);
 
 /** SHA-256 of the canonical JSON Schema of every schema that reads one stored version. */
@@ -117,9 +120,16 @@ export const SHIPPED_INPUT_QUEUE_VERSIONS: readonly ShippedInputQueueVersion[] =
   },
   {
     schemaVersion: 9,
-    fixture: null,
+    fixture: '__fixtures__/input-queue-v9.json',
     expectedQuarantinedKeys: [],
     schemas: inputQueueV9Schemas,
+    fingerprint: 'b011c919e4c486ea8c7ed6b7d69aaec0ac98effe510ea2cf807c80cef3c7bed6',
+  },
+  {
+    schemaVersion: 10,
+    fixture: null,
+    expectedQuarantinedKeys: [],
+    schemas: inputQueueV10Schemas,
     fingerprint: 'b011c919e4c486ea8c7ed6b7d69aaec0ac98effe510ea2cf807c80cef3c7bed6',
   },
 ];

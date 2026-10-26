@@ -1749,6 +1749,97 @@ describe('createTestRouter', () => {
     ]);
   });
 
+  it('admits and delivers a repository enrichment trigger whose reviewed candidates are the hierarchy object', async () => {
+    const hierarchy = {
+      topLevels: [
+        {
+          id: 'imports',
+          name: 'Repository Imports',
+          description: 'Import repository capabilities.',
+          tag: 'product',
+          children: [
+            { id: 'review', name: 'Import Review', description: 'Review imports.', tag: 'frontend' },
+          ],
+        },
+      ],
+    };
+    const body = {
+      promptType: LocalPromptType.RepositoryFeatureEnrichment,
+      nodeId: 'onboarding-repository-feature-enrichment',
+      triggerMessageId: 'trigger-msg-enrichment',
+      payload: {
+        promptType: LocalPromptType.RepositoryFeatureEnrichment,
+        projectId: '11111111-1111-4111-8111-111111111111',
+        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        workflowId: '33333333-3333-4333-8333-333333333333',
+        workflowNodeId: 'onboarding-repository-feature-enrichment',
+        serviceId: '44444444-4444-4444-8444-444444444444',
+        machineId: '55555555-5555-4555-8555-555555555555',
+        provider: 'codex',
+        resolvedFrontierModel: 'gpt-6-astra',
+        reasoningEffort: 'high',
+        analysis: {
+          outcome: 'success',
+          serviceId: '44444444-4444-4444-8444-444444444444',
+          provider: 'codex',
+          resolvedFrontierModel: 'gpt-6-astra',
+          narrative: 'Repository discovery.',
+          hierarchy,
+          evidence: [{ path: 'src/import.ts', summary: 'Repository import behavior.' }],
+          briefDiscrepancies: [],
+        },
+        reviewedCandidates: { topLevels: [{ ...hierarchy.topLevels[0]!, name: 'Reviewed Imports' }] },
+        completedRounds: 0,
+        answerBatches: [],
+      },
+    };
+    const verified: VerifiedTriggerFrame = {
+      kind: 'trigger.conversation',
+      frame: {
+        organizationId: 'org-1',
+        projectId: 'proj-1',
+        conversationId: 'c0000000-0000-4000-8000-000000000001',
+      },
+      envelope: {
+        machineId: 'm-1',
+        userId: 'u-1',
+        nonce: 'n-enrichment',
+        timestampMs: 0,
+        signature: 'sig',
+        event: body as unknown as never,
+      },
+      body: body as never,
+    };
+    const sendMessage = vi.fn().mockResolvedValue(undefined);
+    const logger = noopLogger();
+    const router = createTestRouter({
+      verifier: buildVerifier({ ok: true, verified }),
+      resolveConversationRun: () => ({
+        runId: 'run-1',
+        conversationId: 'c0000000-0000-4000-8000-000000000001',
+      }),
+      sendMessage,
+      createRun: vi.fn(),
+      stopRun: vi.fn().mockResolvedValue(undefined),
+      compactRun: vi.fn().mockResolvedValue(undefined),
+      submitPermissionDecision: noopSubmitPermissionDecision(),
+      logger,
+    });
+
+    await router.handlePlatformEvent(conversationFrameEvent);
+
+    expect(logger.infoCalls).toContainEqual([
+      'input_admission.accepted',
+      expect.objectContaining({ promptType: LocalPromptType.RepositoryFeatureEnrichment }),
+    ]);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    const [, request] = sendMessage.mock.calls[0] as [string, Record<string, unknown>];
+    expect(request['promptType']).toBe(LocalPromptType.RepositoryFeatureEnrichment);
+    expect(request['payload']).toMatchObject({
+      reviewedCandidates: body.payload.reviewedCandidates,
+    });
+  });
+
   it('threads each envelope triggerMessageId independently when the same Run is re-entered', async () => {
     const first = buildVerifiedConversation({
       triggerMessageId: 'trigger-msg-first',
