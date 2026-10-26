@@ -9,10 +9,7 @@ import { Box, Alert, Button, Stack } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
 import { useNavigate } from "react-router-dom";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  type SessionMethodContext,
-  type SessionMethodSelection,
-} from "../../agents/prompts";
+import { type SessionMethodSelection } from "../../agents/prompts";
 import {
   AgentSessionConfigV1TypeEnum,
   AgentSessionConfigV2TypeEnum,
@@ -567,19 +564,6 @@ const CodingSessionActive = memo(
       sessionServiceIds,
     ]);
 
-    // Project-mode follow-ups are ordinary freeform turns. Keep the follow-up
-    // router's built-in method context separate from the project-mode startup
-    // selection, whose method discriminator is intentionally undefined.
-    const sessionMethod = useMemo<SessionMethodContext | undefined>(() => {
-      const method = sessionMethodSelection?.method;
-      if (!method || method === "validation") return undefined;
-      return {
-        method,
-        serviceIds: sessionMethodSelection.serviceIds,
-        services: sessionMethodSelection.services,
-      };
-    }, [sessionMethodSelection]);
-
     // V2 launch-context fields are surfaced from the session here, alongside
     // the `method` read above. Wizard-driven launches take precedence over the
     // launch-time props because `config` carries the user's most recent
@@ -773,7 +757,7 @@ const CodingSessionActive = memo(
       setSubmissionError,
       setSubmittingPrompt,
       setSubmittingFollowupAction,
-      sessionMethod,
+      sessionMethod: sessionMethodSelection,
       interactionAccess,
       organizationId,
       agentSessionId,

@@ -1,7 +1,7 @@
 import { workflowsClient } from "../../clients/serviceClients";
 import type { Stable } from "../../types";
 import { useCallback, type Dispatch, type SetStateAction } from "react";
-import { type SessionMethodContext } from "../../agents/prompts";
+import { type SessionMethodSelection } from "../../agents/coordination/types";
 import { getMethodConfig } from "../../agents/coordination/sessionMethodRegistry";
 import { LocalPromptType } from "../../api";
 import type { RunAttachmentReference, AgentSkillSelection } from "../../api";
@@ -13,6 +13,21 @@ import { type SubmitPromptResult } from "./runtime/hooks/usePromptRunSubmission"
 import { submitFreeformViaPlatform } from "./runtime/hooks/submitFreeformViaPlatform";
 import type { AgentProvider } from "./runtime/index";
 import type { AgentSessionInteractionAccess } from "./operations/AgentOperationCoordinator";
+
+const resolveFollowupPromptType = (
+  selection: SessionMethodSelection | undefined,
+): LocalPromptType => {
+  if (selection?.projectModeSelection) return LocalPromptType.ProjectMode;
+  const method = selection?.method;
+  if (
+    method &&
+    method !== "validation" &&
+    getMethodConfig(method).dispatch.kind === "workflow"
+  ) {
+    return LocalPromptType.WorkflowDefined;
+  }
+  return LocalPromptType.CodingFreeform;
+};
 
 export function useSubmitFollowupByText({
   runId,
@@ -38,7 +53,7 @@ export function useSubmitFollowupByText({
   setSubmittingFollowupAction: Dispatch<
     SetStateAction<FollowupSubmissionAction | null>
   >;
-  sessionMethod: SessionMethodContext | undefined;
+  sessionMethod: SessionMethodSelection | undefined;
   interactionAccess: AgentSessionInteractionAccess;
   organizationId: string;
   agentSessionId: string;
@@ -80,14 +95,9 @@ export function useSubmitFollowupByText({
       setSubmissionError(null);
 
       try {
-        // Workflow-bound methods leave continuation selection with the active
-        // workflow. Every ordinary coding-session follow-up is deliberately
-        // mode-agnostic, regardless of the handler used to start the run.
-        let followupLocalPromptType: LocalPromptType = sessionMethod
-          ? getMethodConfig(sessionMethod.method).dispatch.kind === "workflow"
-            ? LocalPromptType.WorkflowDefined
-            : LocalPromptType.CodingFreeform
-          : LocalPromptType.CodingFreeform;
+        // The captured project mode owns ordinary replies for the whole session.
+        // Built-in workflow methods leave continuation selection with the workflow.
+        let followupLocalPromptType = resolveFollowupPromptType(sessionMethod);
 
         if (followupLocalPromptType === LocalPromptType.WorkflowDefined) {
           const node = (

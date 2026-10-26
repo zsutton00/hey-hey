@@ -160,7 +160,10 @@ const modeConfig = {
     modeId: MODE_ID,
     catalogDescription: 'Captured mode',
     applicableWorkItemTypeKeys: ['STANDARD'],
-    files: { schemaVersion: 'project-mode-files.v1', files: { 'MODE.md': MODE_ENTRY } },
+    files: {
+      schemaVersion: 'project-mode-files.v1',
+      files: { 'MODE.md': MODE_ENTRY, 'references/review.md': 'Captured supporting guidance.' },
+    },
     snapshotHash: 'a'.repeat(64),
   },
 };
@@ -400,6 +403,8 @@ const makeHarness = async (options: {
     errorEvents,
     poster,
     repoDir,
+    runStore,
+    sessionRunnerFacade,
   };
 };
 
@@ -416,12 +421,44 @@ const expectOneModeBoundary = async (
   expect(boundary!.readOnlyDirectories).toHaveLength(1);
   const bundleDirectory = boundary!.readOnlyDirectories[0]!;
   await expect(readFile(path.join(bundleDirectory, 'MODE.md'), 'utf8')).resolves.toBe(MODE_ENTRY);
+  await expect(readFile(path.join(bundleDirectory, 'references/review.md'), 'utf8')).resolves.toBe(
+    'Captured supporting guidance.',
+  );
   await expect(
     boundary!.resolveWriteTarget(path.join(bundleDirectory, 'MODE.md')),
   ).rejects.toThrow();
 };
 
 describe('write boundary across turn types in a mode-backed Run', () => {
+  it('keeps ordinary replies on the captured owner and transcript across persisted restoration', async () => {
+    const h = await makeHarness({ skipProjectAssistant: true, sessionRole: SessionRole.Review });
+    try {
+      await h.send(h.projectModeMessage('Start the mode work.'));
+      const providerSessionId = h.run.providerSessionId;
+      await h.send(h.freeformMessage('An ordinary reply.'));
+      await expectOneModeBoundary(h.turns, h.repoDir);
+      const bundleDirectory = h.turns[0]!.boundary!.readOnlyDirectories[0]!;
+      await rm(bundleDirectory, { recursive: true, force: true });
+      await h.restore();
+      await h.send(h.freeformMessage('Another reply after restart.'));
+
+      expect(h.turns.map((turn) => turn.handlerId)).toEqual([
+        'project_mode',
+        'project_mode',
+        'project_mode',
+      ]);
+      expect(h.turns.map((turn) => turn.effectiveRole)).toEqual(['review', 'review', 'review']);
+      expect(h.sessionRunnerFacade.runPrompt).toHaveBeenCalledTimes(1);
+      expect(h.sessionRunnerFacade.resumeSession).toHaveBeenCalledTimes(2);
+      expect(h.run.providerSessionId).toBe(providerSessionId);
+      const persisted = await h.runStore.getRun(RUN_ID);
+      expect(persisted?.provider_session_agent_id).toBe('project_mode');
+      expect(persisted?.provider_session_id).toBe(providerSessionId);
+      await expectOneModeBoundary(h.turns.slice(2), h.repoDir);
+    } finally {
+      h.run.cleanup();
+    }
+  });
   it.each(
     Object.values(SessionRole).flatMap((sessionRole) =>
       [false, true].map((restoreBeforeFirst) => ({ sessionRole, restoreBeforeFirst })),
@@ -447,8 +484,9 @@ describe('write boundary across turn types in a mode-backed Run', () => {
           'project_mode',
           'project_mode',
         ]);
-        await h.send(h.freeformMessage('Use a separate handler.'));
-        expect(h.turns.at(-1)?.effectiveRole).toBe('implementation');
+        await h.send(h.freeformMessage('Continue with the captured mode.'));
+        expect(h.turns.at(-1)?.effectiveRole).toBe(options.sessionRole);
+        expect(h.turns.at(-1)?.handlerId).toBe('project_mode');
         expect(h.errorEvents()).not.toContain('local.run.drain.failed');
         await expectOneModeBoundary(h.turns.slice(0, 2), h.repoDir);
         await expectOneModeBoundary(h.turns.slice(2), h.repoDir);

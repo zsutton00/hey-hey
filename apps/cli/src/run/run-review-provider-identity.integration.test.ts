@@ -200,7 +200,11 @@ interface RunSettings {
   reasoningEffort: 'low' | 'medium' | 'high';
 }
 
-const makeHarness = async (reportTool?: CreateReportTool, runSettings?: RunSettings) => {
+const makeHarness = async (
+  reportTool?: CreateReportTool,
+  runSettings?: RunSettings,
+  projectMode = false,
+) => {
   const baseDir = await mkdtemp(path.join(os.tmpdir(), 'heyhey-review-identity-'));
   tempDirs.push(baseDir);
   vi.spyOn(os, 'homedir').mockReturnValue(baseDir);
@@ -227,7 +231,33 @@ const makeHarness = async (reportTool?: CreateReportTool, runSettings?: RunSetti
     provider: 'claude',
     provider_session_id: IMPLEMENTER_SESSION,
     provider_conversation_id: null,
-    provider_session_agent_id: 'coding_freeform',
+    provider_session_agent_id: projectMode ? 'project_mode' : 'coding_freeform',
+    ...(projectMode
+      ? {
+          config: {
+            type: 'CODING_SESSION',
+            version: 'v2',
+            model: 'claude-opus',
+            projectModeSelection: {
+              schemaVersion: 'project-mode-selection.v1',
+              modeId: '11111111-1111-4111-8111-111111111111',
+            },
+            projectModeSnapshot: {
+              schemaVersion: 'project-mode-snapshot.v3',
+              modeId: '11111111-1111-4111-8111-111111111111',
+              catalogDescription: 'Captured mode',
+              applicableWorkItemTypeKeys: ['STANDARD'],
+              files: {
+                schemaVersion: 'project-mode-files.v1',
+                files: { 'MODE.md': 'Retain this mode.' },
+              },
+              snapshotHash: 'a'.repeat(64),
+              projectAssistant: { enabled: false },
+              sessionRole: 'implementation',
+            },
+          },
+        }
+      : {}),
     ...(runSettings
       ? { model: runSettings.model, reasoningEffort: runSettings.reasoningEffort }
       : {}),
@@ -637,6 +667,33 @@ describe.each(['saved', 'unavailable'] as const)('Review walkthrough persistence
 describe.each(['code_review', 'commit'] as const)(
   '%s follow-up with a runtime selection',
   (handlerPromptType) => {
+    it('returns ordinary replies to the captured project-mode provider session', async () => {
+      const harness = await makeHarness(undefined, undefined, true);
+      scriptReviewer();
+      await harness.code('Continue the captured work.');
+      await harness.sendFollowUp(handlerPromptType);
+      await harness.code('Continue after the sub-agent.');
+
+      expect(reviewerSdk.startSessionConfigs).toHaveLength(1);
+      expect(harness.implementerStarts).toEqual(['resume', 'resume']);
+      const writes = harness.writesBy(LocalPromptType.ProjectMode);
+      expect(writes.length).toBeGreaterThan(0);
+      expect(writes.every((write) => write.data['providerSessionId'] === IMPLEMENTER_SESSION)).toBe(
+        true,
+      );
+      expect(harness.writesBy(LocalPromptType.CodingFreeform)).toHaveLength(0);
+      const persisted = await harness.runStore.getRun(RUN_ID);
+      expect(persisted?.provider_session_agent_id).toBe('project_mode');
+      expect(persisted?.provider_session_id).toBe(IMPLEMENTER_SESSION);
+      expect(persisted?.provider_session_history).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            providerSessionAgentId: handlerPromptType,
+            providerSessionId: REVIEWER_SESSION,
+          }),
+        ]),
+      );
+    });
     const runSettings: RunSettings = { model: 'claude-sonnet-4-6', reasoningEffort: 'high' };
 
     it("runs the sub-agent on exactly the selection for that Turn and leaves the Run's runtime", async () => {

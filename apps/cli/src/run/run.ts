@@ -149,6 +149,7 @@ import { CODING_AGENT_REPORT_TYPES } from '../agents/prompts/report-chain';
 import { evaluateDeclaredReports } from './report-enforcement';
 import { emitOpenImplementReportIfNeeded } from './open-implement-report';
 import { resolvePrompt } from './resolve-prompt';
+import { resolveProjectModeFollowup } from '../agents/project-mode/resolve-project-mode-followup';
 import type { RunnerContext } from './runners/types';
 import { RunWorkspaceWriteBoundary } from '../agents/workspace-write-boundary';
 import {
@@ -3767,6 +3768,16 @@ export class Run {
     input: InternalRunPromptRequest,
     options?: SendMessageOptions,
   ): Promise<void> {
+    const modeInput = resolveProjectModeFollowup(this.session.config, input);
+    if (modeInput !== input) {
+      this.logger.debug('local.run.project_mode.followup_owner_retained', {
+        runId: this.runId,
+        requestedPromptType: input.promptType,
+        resolvedPromptType: modeInput.promptType,
+        providerSessionAgentId: this.session.provider_session_agent_id,
+      });
+      input = modeInput;
+    }
     const timelineTurnId = options?.admittedInput?.turnId;
     if (timelineTurnId) {
       this.operationTimeline?.updateMetadata(timelineTurnId, {
