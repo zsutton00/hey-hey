@@ -109,6 +109,7 @@ export async function readProjectReadyCandidates(
   const candidates: {
     item: ProjectReadyFuture;
     baseline: FutureRevisionBaseline;
+    result: FutureRevisionContent;
   }[] = [];
   let unavailableCount = 0;
   for (const future of futures) {
@@ -176,6 +177,7 @@ export async function readProjectReadyCandidates(
       if (approvals < required) continue;
       candidates.push({
         baseline,
+        result: future.result as unknown as FutureRevisionContent,
         item: {
           futureId: future.id,
           proposalId: future.latestProposalId,

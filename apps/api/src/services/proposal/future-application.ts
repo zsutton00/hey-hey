@@ -109,10 +109,12 @@ export async function futureBaselineBlocker(
     | 'projectId'
     | 'targetEntityId'
     | 'targetEntityType'
-  >,
+  > &
+    Partial<Pick<FutureRevisionResponse, 'result' | 'latestProposalId'>>,
   reconciliation: ProposalReconciliationService,
 ): Promise<FutureApplyResponse['blocker'] | undefined> {
   let baseline = future.baseline;
+  let resultGraph = future.result && futureGraph(future.result);
   if (future.baseline.kind === 'FUTURE') {
     const parent = await db.proposalFuture.findFirst({
       where: {
@@ -147,8 +149,32 @@ export async function futureBaselineBlocker(
           ),
         },
       };
+      if (resultGraph)
+        resultGraph = remapGraphProjection(
+          resultGraph,
+          intent.workItemIdMappings as Record<string, string>,
+          intent.relationshipIdMappings as Record<string, string>,
+          true,
+        );
     }
   }
+  if (resultGraph && future.latestProposalId) {
+    // An interrupted Apply may already have created the result's new graph items.
+    const own = await db.workItemChangeSetMaterialization.findUnique({
+      where: { proposalId: future.latestProposalId },
+    });
+    if (own)
+      resultGraph = remapGraphProjection(
+        resultGraph,
+        own.workItemIdMappings as Record<string, string>,
+        own.relationshipIdMappings as Record<string, string>,
+        true,
+      );
+  }
+  const result =
+    future.result && resultGraph && 'type' in future.result
+      ? { ...future.result, graph: resultGraph }
+      : future.result;
   const where = {
     id: future.targetEntityId,
     organizationId: future.organizationId,
@@ -174,6 +200,7 @@ export async function futureBaselineBlocker(
       targetEntityId: future.targetEntityId,
     },
     baseline,
+    result,
   ))
     ? 'BASELINE_CHANGED'
     : undefined;

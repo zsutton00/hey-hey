@@ -329,6 +329,83 @@ describe('manual future application', () => {
     expect(materializer.materializeApprovedChangeSet).not.toHaveBeenCalled();
   });
 
+  function partlyAppliedGraph() {
+    const scenario = graphScenario();
+    const metadata = { kind: 'PROCESS', level: 'OVERVIEW' };
+    // Stored reviewed result: structured sections as JSON text, unset layout as ''.
+    state.future.result.graph.projectedRoot.sections = [
+      { key: 'diagramMetadata', content: JSON.stringify(metadata) },
+      { key: 'graphLayout', content: '' },
+      { key: 'graphLayoutPreference', content: '' },
+    ];
+    state.future.result.graph.children[0]!.sections = [
+      { key: 'description', content: 'Reviewed element text' },
+    ];
+    // The interrupted Apply already wrote every reviewed value to the live graph.
+    const live = scenario.graph as any;
+    live.projectedRoot.name = state.future.result.name;
+    live.projectedRoot.sections = [
+      { key: 'diagramMetadata', content: metadata },
+      { key: 'graphLayout', content: null },
+    ];
+    live.children[0].name = 'Reviewed element';
+    live.children[0].sections = [
+      { key: 'description', content: 'Reviewed element text' },
+    ];
+    state.target.name = state.future.result.name;
+    state.intent = {
+      id: randomUUID(),
+      status: 'APPLYING',
+      workItemIdMappings: {},
+      relationshipIdMappings: {},
+    };
+    return scenario;
+  }
+
+  it('treats a live graph already equal to the reviewed result as applicable and resumes publication without reconciliation', async () => {
+    const { materializer } = partlyAppliedGraph();
+    expect(
+      await futureBaselineBlocker(db, state.future, reconciliation),
+    ).toBeUndefined();
+    const response = await apply();
+    expect(response).toMatchObject({
+      status: 'APPLIED',
+      future: { outcome: 'APPLIED' },
+    });
+    expect(materializer.enqueuePreparedIntent).not.toHaveBeenCalled();
+    expect(materializer.materializeApprovedChangeSet).toHaveBeenCalledTimes(1);
+  });
+
+  it('applies a live graph already equal to the reviewed result when no stored intent exists', async () => {
+    const { materializer } = partlyAppliedGraph();
+    delete state.intent;
+    expect(await apply()).toMatchObject({
+      status: 'APPLIED',
+      future: { outcome: 'APPLIED' },
+    });
+    expect(materializer.enqueuePreparedIntent).toHaveBeenCalledTimes(1);
+    expect(materializer.materializeApprovedChangeSet).toHaveBeenCalledTimes(1);
+  });
+
+  it('lists a live graph already equal to the reviewed result as ready to apply', async () => {
+    partlyAppliedGraph();
+    dependent();
+    state.proposal.title = 'Reviewed knowledge';
+    expect(await readyList()()).toMatchObject({
+      items: [{ futureId, applicability: { canApply: true, blockers: [] } }],
+    });
+  });
+
+  it('still reports drift when live content differs from both the baseline and the reviewed result', async () => {
+    const { graph } = partlyAppliedGraph();
+    (graph.children[0] as any).sections = [
+      { key: 'description', content: 'Someone else rewrote this' },
+    ];
+    expect(await futureBaselineBlocker(db, state.future, reconciliation)).toBe(
+      'BASELINE_CHANGED',
+    );
+  });
+
   it('leaves a failed graph application staged and resumes its stored intent on explicit retry', async () => {
     const { materializer } = graphScenario();
     materializer.materializeApprovedChangeSet.mockRejectedValueOnce(

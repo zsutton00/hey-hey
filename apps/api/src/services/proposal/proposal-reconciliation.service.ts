@@ -174,6 +174,11 @@ export class ProposalReconciliationService {
       targetEntityId: string;
     },
     baseline: FutureRevisionBaseline,
+    /**
+     * Live content already equal to the reviewed result is the future's own
+     * (possibly partly published) application, not newer content to reconcile.
+     */
+    reviewedResult?: FutureRevisionContent,
   ): Promise<boolean> {
     const current =
       target.targetEntityType === 'TASK'
@@ -184,31 +189,43 @@ export class ProposalReconciliationService {
             target.targetEntityId,
             false,
           );
-    const graph = futureGraph(baseline.content);
-    if (graph) {
-      const currentGraph = await this.adapter.readFutureGraph(
-        target.organizationId,
-        target.projectId,
-        target.targetEntityId,
-        tx,
+    const currentGraph =
+      futureGraph(baseline.content) ||
+      (reviewedResult && futureGraph(reviewedResult))
+        ? await this.adapter.readFutureGraph(
+            target.organizationId,
+            target.projectId,
+            target.targetEntityId,
+            tx,
+          )
+        : undefined;
+    const matches = (content: FutureRevisionContent) => {
+      const graph = futureGraph(content);
+      if (
+        graph &&
+        currentGraph &&
+        !isEqual(graphContentBasis(graph), graphContentBasis(currentGraph))
+      )
+        return false;
+      return isEqual(
+        reviewedTargetContent(
+          this.adapter.futureContentBasis(
+            target.targetEntityType,
+            content,
+            target.projectId,
+          ),
+        ),
+        reviewedTargetContent(
+          this.adapter.currentFutureBasisContent(
+            target.targetEntityType,
+            current,
+          ),
+        ),
       );
-      if (!isEqual(graphContentBasis(graph), graphContentBasis(currentGraph)))
-        return true;
-    }
-    return !isEqual(
-      reviewedTargetContent(
-        this.adapter.futureContentBasis(
-          target.targetEntityType,
-          baseline.content,
-          target.projectId,
-        ),
-      ),
-      reviewedTargetContent(
-        this.adapter.currentFutureBasisContent(
-          target.targetEntityType,
-          current,
-        ),
-      ),
+    };
+    return (
+      !matches(baseline.content) &&
+      !(reviewedResult !== undefined && matches(reviewedResult))
     );
   }
 
@@ -309,6 +326,7 @@ export class ProposalReconciliationService {
         targetEntityId: proposal.targetEntityId,
       },
       baseline,
+      'result' in mutation ? mutation.result : undefined,
     );
     const state = await this.state(tx, proposal, changed);
     if (!state.revisions.length || state.status === 'NOT_APPLICABLE')

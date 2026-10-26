@@ -36,8 +36,13 @@ export function graphContentBasis(graph: ProjectedWorkItemChangeSetResponse) {
         serviceIds: [...(node.serviceIds ?? [])].sort(),
         sections: Object.fromEntries(
           node.sections
-            .filter((section) => section.content !== null)
-            .map((section) => [section.key, section.content]),
+            .filter(
+              (section) => section.content !== null && section.content !== '',
+            )
+            .map((section) => [
+              section.key,
+              structuredSectionValue(section.content),
+            ]),
         ),
       },
     ]);
@@ -66,6 +71,22 @@ export function graphContentBasis(graph: ProjectedWorkItemChangeSetResponse) {
     nodes: Object.fromEntries(nodes),
     relationships: Object.fromEntries(relationships),
   };
+}
+
+/**
+ * Structured sections reach a graph either as parsed values or as their persisted
+ * JSON text, and an unset section as null or ''. Storage form is not content.
+ */
+function structuredSectionValue(content: unknown): unknown {
+  if (typeof content !== 'string') return content;
+  const text = content.trim();
+  if (!text.startsWith('{') && !text.startsWith('[')) return content;
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return parsed !== null && typeof parsed === 'object' ? parsed : content;
+  } catch {
+    return content;
+  }
 }
 
 const scalarFields = [

@@ -543,7 +543,7 @@ export class ProposalApprovalService {
     let unavailableCount = selection.unavailableCount;
     // Baseline checks cannot change membership: drift remains reviewable.
     // Restrict this expensive reconciliation work to the requested page.
-    for (const { item, baseline } of selection.candidates.slice(
+    for (const { item, baseline, result } of selection.candidates.slice(
       offset,
       offset + limit,
     )) {
@@ -557,6 +557,8 @@ export class ProposalApprovalService {
             organizationId,
             projectId,
             baseline,
+            result,
+            latestProposalId: item.proposalId,
             targetEntityId: item.targetEntityId,
             targetEntityType: item.targetEntityType,
           },
