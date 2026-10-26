@@ -262,8 +262,11 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: true,
           configure: (proxy) => {
+            // The backend only accepts browser-session changes (e.g. token
+            // refresh) from an allowed origin, so present the target's own.
+            const targetOrigin = new URL(apiProxyTarget).origin;
             proxy.on("proxyReq", (proxyReq) => {
-              proxyReq.removeHeader("origin");
+              proxyReq.setHeader("origin", targetOrigin);
             });
           },
         },
