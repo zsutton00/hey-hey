@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { ProjectTemplateCloneService } from '../project-template-clone.service';
@@ -359,6 +360,96 @@ function fixture() {
 }
 
 describe('ProjectTemplateCloneService', () => {
+  it('skips orphan session conversations, dependent history and graph edges while retaining work', async () => {
+    const f = fixture();
+    const orphan = f.state.conversation![0]!;
+    const missingSessionId = randomUUID();
+    orphan.workflowAboutType = 'agent-session';
+    orphan.workflowAboutId = missingSessionId;
+    const orphanMessages = f.state.message!.map((row) => row.id);
+    const validConversation = {
+      ...orphan,
+      id: randomUUID(),
+      workflowAboutType: 'TASK',
+      workflowAboutId: f.feature,
+    };
+    f.state.conversation!.push(validConversation);
+    f.snapshot.nodes.push({ id: orphan.id as string, label: 'Conversation' });
+    f.snapshot.edges.push({
+      ...f.snapshot.edges[0]!,
+      id: randomUUID(),
+      sourceNodeId: orphan.id as string,
+    });
+    const warning = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const result = await f.transaction();
+      expect(result.idMap.has(orphan.id as string)).toBe(false);
+      expect(result.idMap.has(validConversation.id)).toBe(true);
+      for (const id of orphanMessages)
+        expect(result.idMap.has(id as string)).toBe(false);
+      expect(f.state.message).toHaveLength(2);
+      expect(f.state.messageMention).toHaveLength(1);
+      expect(f.state.messageProposalReference).toHaveLength(1);
+      const child = f.state.task!.find(
+        (row) => row.id === result.idMap.get(f.child),
+      )!;
+      expect(child.sourceConversationId).toBeNull();
+      expect(f.state.task).toHaveLength(4);
+      const command = f.state.demoGraphCopyIntent![0]!.command as {
+        snapshot: TemplateGraphSnapshot;
+      };
+      expect(command.snapshot.nodes).toHaveLength(3);
+      expect(command.snapshot.edges).toHaveLength(1);
+      expect(warning).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          sourceConversationId: orphan.id,
+          missingAgentSessionId: missingSessionId,
+        }),
+      );
+      expect(orphan.workflowAboutId).toBe(missingSessionId);
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
+  it('copies a conversation and its history when its agent session still exists', async () => {
+    const f = fixture();
+    const conversation = f.state.conversation![0]!;
+    const sessionId = randomUUID();
+    conversation.workflowAboutType = 'agent-session';
+    conversation.workflowAboutId = sessionId;
+    f.state.agentSession!.push({
+      id: sessionId,
+      projectId: f.sourceProject,
+      organizationId: f.sourceOrg,
+      userId: f.input.actorUserId,
+      conversationId: conversation.id,
+      title: 'Existing session',
+      type: 'CODING',
+      status: 'COMPLETED',
+      sessionDate: now,
+      createdAt: now,
+      updatedAt: now,
+      hasUnsyncedChanges: false,
+    });
+    const result = await f.transaction();
+    const copied = f.state.conversation!.find(
+      (row) => row.id === result.idMap.get(conversation.id as string),
+    )!;
+    expect(copied.workflowAboutId).toBe(result.idMap.get(sessionId));
+    expect(f.state.message).toHaveLength(4);
+  });
+
+  it('does not treat an existing session outside the copy as deleted', async () => {
+    const f = fixture();
+    const sessionId = randomUUID();
+    f.state.conversation![0]!.workflowAboutType = 'agent-session';
+    f.state.conversation![0]!.workflowAboutId = sessionId;
+    f.state.agentSession!.push({ id: sessionId, projectId: randomUUID() });
+    await expect(f.transaction()).rejects.toThrow('unmapped reference');
+  });
+
   it('remaps unmaterialized CREATE reservations across proposals, group members and mentions', async () => {
     const f = fixture();
     const reservedTarget = randomUUID();
