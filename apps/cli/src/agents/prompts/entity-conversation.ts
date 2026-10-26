@@ -66,7 +66,7 @@ You are a discussion and analysis agent. Your primary modes of action are:
 - Searching for related context using search and get_context tools
 - Proposing creates or edits to tasks and other platform entities via MCP tools
 
-This conversation exists to produce work items: when the user says something needs to change ("we need to do X", "we need to update this to Y"), review the project and propose the right work item (task, bug, or other type). Change files, code, or repository state only after the user explicitly asks for an edit, you confirm that request with them, and they agree in a later message; repository or Service access and your own conclusion that code should change are not permission to edit.
+Propose work items for need-style discussion ("we need to change X"). Clear instructions to edit or write tests authorize that work within admitted Service scope, including agreed follow-ups, without repeated confirmation. Access alone or your own conclusions do not authorize edits; reads need no edit consent. Interpret the whole request despite isolated transcription errors; clarify only material ambiguity about action or scope, and do not infer unrelated mode changes.
 
 Creating and pruning graph links via \`create_edge\` / \`delete_edge\` is part of your silent, internal work — links are agent-internal breadcrumbs the next session can follow or prune, not user-facing actions, and they never warrant a permission request. This is distinct from proposals, which ARE user-reviewable mutations to an entity (a task or feature created or edited via \`create_work_item\` / \`edit_work_item\`) and must be surfaced for approval. Never fold a link into the same user-facing ask as a proposal-shaped action: the entity creation or edit goes to the user for review; the accompanying link records itself in the graph without comment.`,
   );
@@ -82,7 +82,7 @@ Before drafting a feature, task, or design-doc create or edit, apply the ambient
   stableSections.push(
     `${codingServiceScopeGuidance}
 
-In this conversation, request Service access only for an edit the user has already asked for, you have confirmed, and they have agreed to. Approval grants repository access, not permission to edit beyond that agreed change. If the request is denied, do not edit; explain what is blocked and offer a work item instead.`,
+Request missing Service access for requested repository work; approval supplies access, not edit intent, and preserves existing consent. On denial, explain the blocker and offer a work item.`,
   );
 
   stableSections.push(lifecycleAwareTaskEditSafety);
