@@ -10,10 +10,13 @@ export function FutureDependency({
   organizationId,
   projectId,
   dependency,
+  showStatus = true,
 }: {
   organizationId: string;
   projectId: string;
   dependency: FutureDependencyPresentation;
+  /** Before approval linked work is named only; live status follows approval. */
+  showStatus?: boolean;
 }) {
   const navigate = useNavigate();
   if (dependency.availability === "UNAVAILABLE") {
@@ -59,7 +62,7 @@ export function FutureDependency({
           }}
         />
       </MentionEditorContext.Provider>
-      {dependency.status && (
+      {showStatus && dependency.status && (
         <Typography
           variant="caption"
           color="text.secondary"

@@ -1,7 +1,5 @@
-import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
-import CheckIcon from "@mui/icons-material/Check";
-import { Alert, Button, Chip, Stack, Typography } from "@mui/material";
-import { Fragment, useContext, type ReactNode } from "react";
+import { Alert, Button, Stack, Typography } from "@mui/material";
+import { useContext, type ReactNode } from "react";
 import type {
   FutureDependencyPresentation,
   ProposalResponseDto,
@@ -11,22 +9,49 @@ import { MentionCopyBoundary } from "../shared/MentionCopyBoundary";
 import { invalidateProposalReconciliation } from "../ProposalReconciliation/reconciliationInvalidation";
 import { ProposalReconciliationContext } from "../ProposalReconciliation/ProposalReconciliationReview";
 import { FutureApplication } from "../ProposalDetail/FutureApplication";
+import { FutureDependency } from "../ProposalDetail/FutureDependency";
 import {
-  FutureDependency,
-  FutureDependencyName,
-} from "../ProposalDetail/FutureDependency";
+  FutureRevisionSteps,
+  FutureStepDone,
+} from "../ProposalDetail/FutureRevisionSteps";
 
-const joinNames = (dependencies: readonly FutureDependencyPresentation[]) =>
-  dependencies.map((dependency, index) => (
-    <Fragment key={dependency.targetEntityId}>
-      {index > 0 && (index === dependencies.length - 1 ? " and " : ", ")}
-      <FutureDependencyName dependency={dependency} />
-    </Fragment>
-  ));
+/** Linked work stays on one line; each mention truncates, never scrolls. */
+function LinkedWork({
+  organizationId,
+  projectId,
+  linked,
+  showStatus,
+}: {
+  organizationId: string;
+  projectId: string;
+  linked: readonly FutureDependencyPresentation[];
+  showStatus: boolean;
+}) {
+  return (
+    <Stack
+      direction="row"
+      spacing={1.5}
+      sx={{
+        minWidth: 0,
+        flex: "0 1 auto",
+        overflow: "hidden",
+        "& > *": { flex: "0 1 auto", minWidth: 0 },
+      }}
+      data-testid="future-linked-work"
+    >
+      {linked.map((dependency) => (
+        <FutureDependency
+          key={dependency.targetEntityId}
+          {...{ organizationId, projectId, dependency, showStatus }}
+        />
+      ))}
+    </Stack>
+  );
+}
 
 /**
- * A future revision's footer: Approve → linked work → Apply, shown in every
- * state. Before approval, `approveControl` (the ordinary Approve/Reject) fills
+ * A future revision's footer: the numbered Approve / Condition / Apply list,
+ * shown in every state. Before approval, `approveControl` (the ordinary Approve/Reject) fills
  * the first step, linked work is a preview from the proposal (no status
  * checks) and Apply is disabled. After approval, linked work shows live status
  * and Apply follows the API (completion eligibility and applicability); this
@@ -78,85 +103,54 @@ function FutureApplyFooterContent({
     if (!linked) return linkedWorkUnavailable;
     return (
       <Stack spacing={1} data-testid="future-apply-footer" data-state="preview">
-        <Stack
-          direction="row"
-          spacing={1}
-          alignItems="center"
-          flexWrap="nowrap"
-          data-testid="future-review-sequence"
-          sx={{
-            minWidth: 0,
-            overflow: "hidden",
-            "& > :not([data-testid=future-linked-work])": { flexShrink: 0 },
-          }}
-          useFlexGap
-        >
-          {reconciliation?.staged ? (
-            approveControl
-          ) : previous ? (
-            <Chip
-              icon={<CheckIcon />}
-              label="Approved"
-              size="small"
-              color="success"
-              variant="outlined"
+        <FutureRevisionSteps
+          approve={
+            previous && !reconciliation?.staged ? (
+              <FutureStepDone>Approved</FutureStepDone>
+            ) : (
+              approveControl
+            )
+          }
+          conditionCount={linked.length}
+          conditions={
+            <LinkedWork
+              {...{ organizationId, projectId, linked }}
+              showStatus={!!previous}
             />
-          ) : (
-            approveControl
-          )}
-          {!reconciliation?.staged && linked.length > 0 && (
-            <ArrowForwardIcon fontSize="small" color="disabled" />
-          )}
-          {linked.length > 0 && (
-            <Stack
-              direction="row"
-              spacing={1}
-              sx={{
-                minWidth: 0,
-                flex: 1,
-                overflow: "hidden",
-                "& > *": { flex: "1 1 0", minWidth: 0 },
-              }}
-              data-testid="future-linked-work"
+          }
+          apply={
+            <Button
+              size="small"
+              variant="contained"
+              color="success"
+              disabled
+              data-testid="future-apply"
             >
-              {linked.map((dependency) => (
-                <FutureDependency
-                  key={dependency.targetEntityId}
-                  {...{ organizationId, projectId, dependency }}
-                />
-              ))}
-            </Stack>
-          )}
-          {!reconciliation?.staged && (
-            <ArrowForwardIcon fontSize="small" color="disabled" />
-          )}
-          <Button
-            size="small"
-            variant="contained"
-            color="success"
-            disabled
-            data-testid="future-apply"
-          >
-            Apply
-          </Button>
-        </Stack>
+              Apply
+            </Button>
+          }
+        />
         {previous && !reconciliation?.staged && approveControl}
-        <Typography
-          variant="body2"
-          color="text.secondary"
-          data-testid="future-waiting"
-        >
-          {previous ? (
-            "Review this revised result. Approval stores the same future and leaves live content unchanged; then choose Apply separately."
-          ) : linked.length > 0 ? (
-            <>
-              Once approved, this change waits for {joinNames(linked)} to reach
-              Verifying. You'll be asked to apply it then.
-            </>
-          ) : (
-            "Once approved, you can apply this change."
-          )}
-        </Typography>
+        {previous ? (
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            data-testid="future-waiting"
+          >
+            Review this revised result. Approval stores the same future and
+            leaves live content unchanged; then choose Apply separately.
+          </Typography>
+        ) : (
+          linked.length === 0 && (
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              data-testid="future-waiting"
+            >
+              Once approved, you can apply this change.
+            </Typography>
+          )
+        )}
       </Stack>
     );
   }
@@ -185,15 +179,6 @@ function FutureApplyFooterContent({
   const linked = future.dependencyPresentation;
   if (!linked) return linkedWorkUnavailable;
 
-  const waitingIds = new Set(
-    future.completionEligibility.blockers.map(
-      (blocker) => blocker.dependency.targetEntityId,
-    ),
-  );
-  const waitingOn = linked.filter((dependency) =>
-    waitingIds.has(dependency.targetEntityId),
-  );
-
   return (
     <Stack spacing={1} data-testid="future-apply-footer">
       <FutureApplication
@@ -203,55 +188,19 @@ function FutureApplyFooterContent({
           invalidateProposalReconciliation(initial.id);
           await refetch();
         }}
-        reviewSteps={
-          <>
-            {!reconciliation?.staged && (
-              <Chip
-                icon={<CheckIcon />}
-                label="Approved"
-                size="small"
-                color="success"
-                variant="outlined"
-              />
-            )}
-            {!reconciliation?.staged && future.dependencies.length > 0 && (
-              <ArrowForwardIcon fontSize="small" color="disabled" />
-            )}
-            {linked.length > 0 && (
-              <Stack
-                direction="row"
-                spacing={1}
-                sx={{
-                  minWidth: 0,
-                  flex: 1,
-                  overflow: "hidden",
-                  "& > *": { flex: "1 1 0", minWidth: 0 },
-                }}
-                data-testid="future-linked-work"
-              >
-                {linked.map((dependency) => (
-                  <FutureDependency
-                    key={dependency.targetEntityId}
-                    {...{ organizationId, projectId, dependency }}
-                  />
-                ))}
-              </Stack>
-            )}
-          </>
+        approveStep={
+          reconciliation?.staged ? null : (
+            <FutureStepDone>Approved</FutureStepDone>
+          )
+        }
+        conditionCount={linked.length}
+        conditions={
+          <LinkedWork {...{ organizationId, projectId, linked }} showStatus />
         }
         onApplied={async () => {
           await refetch();
           await onApplied?.(current.id);
         }}
-        waitingNote={
-          waitingOn.length > 0 ? (
-            <>
-              Waiting for {joinNames(waitingOn)}. You'll be asked to apply this
-              change when {waitingOn.length > 1 ? "they reach" : "it reaches"}{" "}
-              Verifying. Refresh checks the status again.
-            </>
-          ) : undefined
-        }
       />
     </Stack>
   );

@@ -153,7 +153,7 @@ describe("manual future application", () => {
   it("shows an already applied API outcome without an Apply action", async () => {
     mount({ ...future, outcome: "APPLIED", appliedRevision: 2 });
 
-    expect(await screen.findByText("Applied")).toBeInTheDocument();
+    expect(await screen.findByText("✓ Applied")).toBeInTheDocument();
     expect(screen.queryByTestId("future-apply")).not.toBeInTheDocument();
     expect(api.apply).not.toHaveBeenCalled();
   });
@@ -181,7 +181,7 @@ describe("manual future application", () => {
       }),
     );
     fireEvent.click(screen.getByTestId("future-apply-confirm"));
-    await screen.findByText("Applied");
+    await screen.findByText("✓ Applied");
     expect(api.apply.mock.lastCall?.[0].futureApplyRequest).toEqual({
       expectedRevision: 2,
       confirmation,

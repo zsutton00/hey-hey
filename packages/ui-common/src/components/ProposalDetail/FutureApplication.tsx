@@ -1,5 +1,4 @@
 import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
-import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { useContext, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -21,6 +20,7 @@ import { proposalsClient } from "../../clients/serviceClients";
 import { useApplyProposalFuture } from "../../data/hooks/useApplyProposalFuture";
 import { ProposalReconciliationContext } from "../ProposalReconciliation/ProposalReconciliationReview";
 import { FutureProposalLink } from "./FutureProposalLink";
+import { FutureRevisionSteps, FutureStepDone } from "./FutureRevisionSteps";
 
 import {
   extractProposalApprovalFailureDiagnostic,
@@ -47,16 +47,22 @@ const blockerLabels = {
 export function FutureApplication({
   future,
   onApplied,
-  waitingNote,
-  reviewSteps,
+  approveStep,
+  conditions,
+  conditionCount = 0,
   onRefresh,
 }: {
   future: FutureRevisionResponse;
   onApplied: () => Promise<void>;
-  /** Replaces the generic waiting-on-linked-work message. */
-  waitingNote?: ReactNode;
-  /** Approval and linked work share the action row. */
-  reviewSteps?: ReactNode;
+  /**
+   * When present, Apply renders as the last stage of the numbered
+   * Approve / Condition / Apply list; the list's explainer replaces the
+   * generic waiting-on-linked-work message.
+   */
+  approveStep?: ReactNode;
+  /** Linked work shown in the Condition stage, beside Refresh. */
+  conditions?: ReactNode;
+  conditionCount?: number;
   onRefresh?: () => Promise<void>;
 }) {
   const reconciliation = useContext(ProposalReconciliationContext);
@@ -124,92 +130,80 @@ export function FutureApplication({
     !reconciliation?.approvalDisabled &&
     applicability.data?.canApply &&
     applicability.data.revision === future.revision;
+  const stepped = approveStep !== undefined;
+  const refresh = !applied && !ready && (
+    <Button
+      size="small"
+      aria-label="Refresh linked work status"
+      data-testid="future-refresh-readiness"
+      disabled={applicability.isFetching}
+      sx={{ flexShrink: 0 }}
+      onClick={() =>
+        void (async () => {
+          await onRefresh?.();
+          await applicability.refetch();
+        })()
+      }
+    >
+      <RefreshIcon fontSize="small" sx={{ mr: 0.5 }} />
+      {stepped && conditionCount > 0 ? "Refresh" : "Refresh linked work"}
+    </Button>
+  );
+  const applyAction = applied ? (
+    <FutureStepDone>Applied</FutureStepDone>
+  ) : (
+    <>
+      <Button
+        variant="contained"
+        color="success"
+        size="small"
+        sx={{ flexShrink: 0 }}
+        data-testid="future-apply"
+        disabled={!ready || apply.isPending || applicability.isFetching}
+        onClick={() => void submit()}
+      >
+        {apply.isPending ? "Applying…" : "Apply"}
+      </Button>
+      {reconciliation?.staged && (
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          data-testid="future-readiness"
+        >
+          {applicability.isPending
+            ? "Checking readiness…"
+            : ready
+              ? "Ready to apply"
+              : applicability.data?.blockers.includes("COMPLETION_INCOMPLETE")
+                ? "Waiting for linked work"
+                : "Not ready to apply"}
+        </Typography>
+      )}
+    </>
+  );
   return (
     <Stack spacing={1} data-testid="future-application">
-      {applied ? (
-        <Stack
-          direction="row"
-          spacing={1}
-          alignItems="center"
-          data-testid="future-review-sequence"
-          sx={{
-            minWidth: 0,
-            flexWrap: "nowrap",
-            overflow: "hidden",
-            "& > :not([data-testid=future-linked-work])": { flexShrink: 0 },
-          }}
-        >
-          {reviewSteps}
-          {reviewSteps && (
-            <ArrowForwardIcon fontSize="small" color="disabled" />
-          )}
-          <Alert severity="success">Applied</Alert>
-        </Stack>
+      {stepped ? (
+        <FutureRevisionSteps
+          approve={approveStep}
+          conditionCount={conditionCount}
+          conditions={
+            <>
+              {conditions}
+              {refresh}
+            </>
+          }
+          apply={applyAction}
+        />
       ) : (
+        <Stack direction="row" spacing={1} alignItems="center">
+          {applyAction}
+        </Stack>
+      )}
+      {!applied && (
         <>
-          <Stack
-            direction="row"
-            spacing={1}
-            alignItems="center"
-            sx={{
-              flexWrap: reconciliation?.staged ? "wrap" : "nowrap",
-              minWidth: 0,
-              overflow: "hidden",
-              "& > :not([data-testid=future-linked-work])": { flexShrink: 0 },
-            }}
-            data-testid="future-review-sequence"
-          >
-            {reviewSteps}
-            {reviewSteps && (
-              <ArrowForwardIcon fontSize="small" color="disabled" />
-            )}
-            {reconciliation?.staged ? (
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                data-testid="future-readiness"
-              >
-                {applicability.isPending
-                  ? "Checking readiness…"
-                  : ready
-                    ? "Ready to apply"
-                    : applicability.data?.blockers.includes(
-                          "COMPLETION_INCOMPLETE",
-                        )
-                      ? "Waiting for linked work"
-                      : "Not ready to apply"}
-              </Typography>
-            ) : null}
-            <Button
-              variant="contained"
-              color="success"
-              size="small"
-              sx={{ flexShrink: 0 }}
-              data-testid="future-apply"
-              disabled={!ready || apply.isPending || applicability.isFetching}
-              onClick={() => void submit()}
-            >
-              {apply.isPending ? "Applying…" : "Apply"}
-            </Button>
-          </Stack>
-          {!ready && (
-            <span>
-              <Button
-                size="small"
-                aria-label="Refresh linked work status"
-                data-testid="future-refresh-readiness"
-                disabled={applicability.isFetching}
-                onClick={() =>
-                  void (async () => {
-                    await onRefresh?.();
-                    await applicability.refetch();
-                  })()
-                }
-              >
-                <RefreshIcon fontSize="small" sx={{ mr: 0.5 }} /> Refresh linked
-                work
-              </Button>
-            </span>
+          {(!stepped || conditionCount === 0) && refresh && (
+            <span>{refresh}</span>
           )}
           {applicability.isPending && (
             <Typography variant="body2">
@@ -221,14 +215,16 @@ export function FutureApplication({
           )}
           {applicability.data?.blockers.map((blocker) =>
             blocker === "COMPLETION_INCOMPLETE" ? (
-              <Typography
-                key={blocker}
-                variant="body2"
-                color="text.secondary"
-                data-testid="future-waiting"
-              >
-                {waitingNote ?? blockerLabels[blocker]}
-              </Typography>
+              stepped ? null : (
+                <Typography
+                  key={blocker}
+                  variant="body2"
+                  color="text.secondary"
+                  data-testid="future-waiting"
+                >
+                  {blockerLabels[blocker]}
+                </Typography>
+              )
             ) : reconciliation?.staged &&
               (blocker === "BASELINE_CHANGED" ||
                 blocker === "BASELINE_UNAVAILABLE") ? null : (
@@ -237,7 +233,7 @@ export function FutureApplication({
               </Alert>
             ),
           )}
-          {ready && !reconciliation?.staged && (
+          {ready && !stepped && !reconciliation?.staged && (
             <Typography variant="body2" color="text.secondary">
               The linked work is done. Apply when you're ready.
             </Typography>

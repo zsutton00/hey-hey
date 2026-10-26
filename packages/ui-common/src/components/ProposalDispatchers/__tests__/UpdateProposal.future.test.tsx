@@ -559,14 +559,16 @@ describe("UpdateProposal future revisions", () => {
       </MemoryRouter>
     );
     const { rerender } = render(ui());
-    expect(screen.getByText("Approve")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
     expect(mocks.readiness).not.toHaveBeenCalled();
     mocks.proposal = { ...initial, status: "APPROVED", reviewedFuture };
     rerender(ui());
     await waitFor(() =>
-      expect(screen.getByText("Approved")).toBeInTheDocument(),
+      expect(screen.getByText("✓ Approved")).toBeInTheDocument(),
     );
-    expect(screen.queryByText("Approve")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Approve" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/Once approved/)).not.toBeInTheDocument();
     expect(screen.getByTestId("mention-badge")).toHaveAttribute(
       "data-entity-type",
@@ -687,7 +689,7 @@ describe("UpdateProposal future revisions", () => {
     // Nothing else changed, so no title/status/description diff appears.
     expect(screen.queryByTestId("general-diff")).not.toBeInTheDocument();
     expect(card.textContent).not.toContain('"records"');
-    // Approve → linked work (preview) → greyed-out Apply, before approval.
+    // 1. Approve, 2. Condition (named, no status), 3. greyed-out Apply.
     const footer = within(card).getByTestId("future-apply-footer");
     expect(footer).toHaveAttribute("data-state", "preview");
     expect(within(footer).getByTestId("proposal-state")).toBeInTheDocument();
@@ -696,9 +698,15 @@ describe("UpdateProposal future revisions", () => {
     );
     expect(within(footer).queryByText("In progress")).not.toBeInTheDocument();
     expect(within(footer).getByTestId("future-apply")).toBeDisabled();
-    expect(within(footer).getByTestId("future-waiting")).toHaveTextContent(
-      "Once approved, this change waits for Cap Open Items at 100 to reach Verifying. You'll be asked to apply it then.",
+    expect(
+      within(footer)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent?.slice(0, 10)),
+    ).toEqual(["1Approve", "2Condition", "3ApplyAppl"]);
+    expect(within(footer).getByTestId("future-explainer")).toHaveTextContent(
+      "An update that can be applied when the condition is met.",
     );
+    expect(within(footer).queryByTestId("future-waiting")).toBeNull();
     expect(mocks.readiness).not.toHaveBeenCalled();
   });
 
@@ -803,7 +811,7 @@ describe("UpdateProposal future revisions", () => {
     });
     mocks.offers.mockResolvedValue({ data: { data: offerList.slice(1) } });
     fireEvent.click(apply);
-    await within(screen.getByRole("tabpanel")).findByText("Applied");
+    await within(screen.getByRole("tabpanel")).findByText("✓ Applied");
     expect(mocks.apply).toHaveBeenLastCalledWith({
       organizationId: "org",
       projectId: "project",
@@ -848,7 +856,7 @@ describe("UpdateProposal future revisions", () => {
     expect(
       screen.getByTestId("future-apply-footer").parentElement?.parentElement,
     ).toBeTruthy();
-    expect(within(footerTarget).getByText("Approved")).toBeInTheDocument();
+    expect(within(footerTarget).getByText("✓ Approved")).toBeInTheDocument();
     expect(screen.getAllByTestId("future-apply")).toHaveLength(1);
     await waitFor(() =>
       expect(within(footerTarget).getByTestId("future-apply")).toBeDisabled(),
@@ -864,31 +872,36 @@ describe("UpdateProposal future revisions", () => {
     footerTarget.remove();
   });
 
-  it("swaps the footer for Approved → linked work → Apply once approved", async () => {
+  it("shows the numbered Approved / Condition / Apply list once approved", async () => {
     mount(futureProposal({ status: "APPROVED", reviewedFuture }));
 
     const footer = screen.getByTestId("future-apply-footer");
     expect(screen.queryByTestId("proposal-state")).not.toBeInTheDocument();
-    expect(within(footer).getByText("Approved")).toBeInTheDocument();
+    expect(within(footer).getByText("✓ Approved")).toBeInTheDocument();
     expect(within(footer).getByTestId("future-dependency")).toHaveTextContent(
       "Cap Open Items at 100In progress",
     );
-    await waitFor(() =>
-      expect(within(footer).getByTestId("future-waiting")).toHaveTextContent(
-        "Waiting for Cap Open Items at 100. You'll be asked to apply this change when it reaches Verifying. Refresh checks the status again.",
-      ),
-    );
     const sequence = within(footer).getByTestId("future-review-sequence");
-    expect(within(sequence).getByText("Approved")).toBeInTheDocument();
+    expect(sequence.querySelector("ol")).not.toBeNull();
     expect(
-      within(sequence).getByTestId("future-dependency"),
-    ).toBeInTheDocument();
+      within(sequence).getByTestId("future-step-approve"),
+    ).toHaveTextContent("1Approve✓ Approved");
+    const condition = within(sequence).getByTestId("future-step-condition");
+    expect(condition).toHaveTextContent(/^2Condition/);
+    expect(within(condition).getByTestId("future-dependency")).toBeVisible();
     expect(
-      within(sequence).queryByRole("button", {
+      await within(condition).findByRole("button", {
         name: "Refresh linked work status",
       }),
-    ).not.toBeInTheDocument();
-    expect(within(sequence).getByTestId("future-apply")).toBeDisabled();
+    ).toBeInTheDocument();
+    expect(
+      within(within(sequence).getByTestId("future-step-apply")).getByTestId(
+        "future-apply",
+      ),
+    ).toBeDisabled();
+    expect(within(sequence).getByTestId("future-explainer")).toHaveTextContent(
+      "An update that can be applied when the condition is met.",
+    );
     expect(
       within(sequence).queryByTestId("future-waiting"),
     ).not.toBeInTheDocument();
@@ -929,8 +942,19 @@ describe("UpdateProposal future revisions", () => {
         middle.querySelector('[data-testid="work-item-inline-mention"]'),
       ).toBeNull();
       expect(sequence).not.toHaveTextContent("Previously approved");
+      expect(
+        within(sequence).getByTestId("future-step-condition"),
+      ).toHaveTextContent(/^2Conditions/);
+      expect(
+        within(sequence).getByTestId("future-explainer"),
+      ).toHaveTextContent(
+        "An update that can be applied when the conditions are met.",
+      );
+      expect(within(middle).queryAllByText(/In progress/)).toHaveLength(
+        state === "pending" ? 0 : 2,
+      );
       if (state === "applied") {
-        expect(within(sequence).getByText("Applied")).toBeVisible();
+        expect(within(sequence).getByText("✓ Applied")).toBeVisible();
         expect(sequence).not.toHaveTextContent(/Applied version/);
       }
     },
@@ -997,7 +1021,7 @@ it("shows approved future drift through real shared review and hides the unresol
   expect(
     screen.getByTestId("proposal-reconciliation-stages"),
   ).toHaveTextContent("Resolve conflict");
-  expect(screen.queryByText("Approved")).toBeNull();
+  expect(screen.queryByText("✓ Approved")).toBeNull();
   expect(screen.queryByTestId("future-linked-work")).toBeNull();
   expect(screen.queryByTestId("general-diff")).toBeNull();
   expect(screen.queryByTestId("future-apply")).toBeNull();
@@ -1015,7 +1039,7 @@ it("keeps previous approval and authoritative linked work visible while a revise
   });
   mocks.proposal = proposal;
   mount(proposal);
-  expect(await screen.findByText("Approved")).toBeVisible();
+  expect(await screen.findByText("✓ Approved")).toBeVisible();
   expect(screen.getByTestId("future-apply")).toBeDisabled();
   expect(screen.getByTestId("future-waiting")).toHaveTextContent(
     "Approval stores the same future and leaves live content unchanged",
