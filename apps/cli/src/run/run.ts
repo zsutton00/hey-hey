@@ -6176,6 +6176,16 @@ export class Run {
       !session.contextMetadata.projectId ||
       !session.conversationId
     ) {
+      this.logger.info('local.run.submission_tools.registration_skipped', {
+        runId: this.runId,
+        turnId,
+        promptType: handler.promptType,
+        toolCount: tools.length,
+        hasOrganizationId: Boolean(session.contextMetadata.organizationId),
+        hasProjectId: Boolean(session.contextMetadata.projectId),
+        hasConversationId: Boolean(session.conversationId),
+        awaitingUserReview,
+      });
       // A turn awaiting a user review may end up with no tools to mount (the
       // routed handlers — coding_freeform and the feature-sync review
       // persona — declare none) yet a prior turn's registration on the same

@@ -71,6 +71,7 @@ import {
 } from '../agents/providers/codex/codex-permissions';
 import { emitNormalizedSubagentEvent } from '../agents/subagent-event-pipe';
 import { buildSubmissionToolsMcpConfig } from '../agents/submission-tools/mcp-config';
+import { summarizeClaudeInitToolExposure } from '../agents/providers/claude/init-tool-exposure';
 import type { SubmissionToolRegistry } from '../agents/submission-tools/registry';
 import type { LocalAgentEndpoint } from '../server/local-base-url';
 import type { ServerLogger } from '../server/logger';
@@ -768,11 +769,21 @@ export class SubAgent {
       });
       mcpServers = { ...mcpServers, [submissionConfig.serverName]: submissionConfig.serverEntry };
       submissionAllowedTools = submissionConfig.allowedTools;
-      requestContext.log(logger, 'debug', 'local.subagent.submission_tools.attached', {
+      requestContext.log(logger, 'info', 'local.subagent.submission_tools.attached', {
         runId,
         adapterId: config.adapterId,
         toolCount: runRegistration.tools.length,
         allowedTools: submissionConfig.allowedTools,
+      });
+    } else {
+      requestContext.log(logger, 'info', 'local.subagent.submission_tools.not_attached', {
+        runId,
+        adapterId: config.adapterId,
+        promptType: handler.promptType,
+        optedOut: config.submissionTools === 'none',
+        hasRunRegistration: runRegistration !== undefined && runRegistration !== null,
+        registeredToolCount: runRegistration?.tools.length ?? 0,
+        hasCliBaseUrl: Boolean(cliBaseUrl),
       });
     }
     const submissionAllowedSet = new Set(submissionAllowedTools);
@@ -1001,6 +1012,15 @@ export class SubAgent {
           sessionId: eventSessionId,
           agentId: AGENT_ID,
           payload: { kind: 'loading.update', loadingText: 'Thinking...', phase: 'thinking' },
+        });
+      }
+
+      if (eventType === 'system' && event['subtype'] === 'init') {
+        requestContext.log(logger, 'info', 'local.subagent.tool_search.init_diff', {
+          runId,
+          adapterId: config.adapterId,
+          promptType: handler.promptType,
+          ...summarizeClaudeInitToolExposure(event, allowedTools, []),
         });
       }
 
