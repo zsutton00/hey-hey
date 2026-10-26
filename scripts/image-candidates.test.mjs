@@ -83,13 +83,14 @@ test("publication evidence preserves the verified build and refuses missing smok
     `${built.intendedRepository}@sha256:${"c".repeat(64)}`,
   );
 });
-test("single workflow gates publication after checks, one build and smoke", () => {
+test("single workflow publishes after one build and smoke without standalone checks", () => {
   const workflow = fs.readFileSync(
     new URL("../.github/workflows/publish-images.yml", import.meta.url),
     "utf8",
   );
   assert.match(workflow, /branches: \["release\/\*\*"\]/);
-  assert.match(workflow, /needs: \[select, checks\]/);
+  assert.match(workflow, /needs: select/);
+  assert.doesNotMatch(workflow, /needs\.checks|^  checks:|CHECK_COMMAND/m);
   assert.match(workflow, /outputs.images != '\[\]'/);
   assert.match(workflow, /cancel-in-progress: true/);
   assert.equal(
