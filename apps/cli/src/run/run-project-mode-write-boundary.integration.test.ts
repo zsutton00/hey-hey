@@ -1,8 +1,10 @@
+import type { Request, Response } from 'express';
+import { SubmissionToolsHttpController } from '../agents/submission-tools/http-mcp';
 import { WorkItemTypesApi } from '../shared/api/generated/api';
 import { readActiveWorkItemTypeDefinitions } from '../agents/prompts/work-item-type-registry';
 import { reportChangedFilesTool } from '../agents/submission-tools/report-changed-files-tool';
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -34,6 +36,7 @@ import {
   createTestRunChangedFilesReader,
   createTestRunEventPublisher,
   createTestRunOwnership,
+  createTestRunRegistry,
   createTestSessionRunnerFacade,
 } from './run.test-support';
 
@@ -181,6 +184,7 @@ const makeHarness = async (options: {
   skipProjectAssistant: boolean;
   sessionRole?: SessionRole;
   restoreBeforeFirst?: boolean;
+  exerciseReporting?: boolean;
 }) => {
   const baseDir = await mkdtemp(path.join(os.tmpdir(), 'heyhey-mode-boundary-'));
   tempDirs.push(baseDir);
@@ -198,6 +202,22 @@ const makeHarness = async (options: {
   const repoDir = path.join(baseDir, 'repo');
   await mkdir(repoDir);
   execFileSync('git', ['init', '--quiet'], { cwd: repoDir });
+  if (options.exerciseReporting) {
+    execFileSync(
+      'git',
+      [
+        '-c',
+        'user.name=Test',
+        '-c',
+        'user.email=test@example.com',
+        'commit',
+        '--allow-empty',
+        '-m',
+        'baseline',
+      ],
+      { cwd: repoDir },
+    );
+  }
   await runStore.createRun({
     entity: { entityType: 'TASK', entityId: TASK_ID },
     agentic_session_id: RUN_ID,
@@ -259,7 +279,66 @@ const makeHarness = async (options: {
         payload: { messageType: 'provider_event' },
       },
     });
-    if (live.run.activeTurn?.handler.requiresChangedFileReporting) {
+    if (options.exerciseReporting) {
+      const run = live.run;
+      const registration = ownership.submissionToolRegistry.getByRunId(run.runId);
+      const tool = registration?.tools.find((tool) => tool.name === 'report_changed_files');
+      expect(registration?.activeToolNames).toContain('report_changed_files');
+      expect(tool?.kind).toBe('pass_through');
+      if (!tool || tool.kind !== 'pass_through') throw new Error('Reporting tool missing');
+      const runRegistry = createTestRunRegistry();
+      vi.spyOn(runRegistry, 'get').mockReturnValue(run);
+      const endpoint = new SubmissionToolsHttpController(
+        ownership.submissionToolRegistry,
+        runRegistry,
+        poster,
+        logger,
+      );
+      const rpc = async (method: string, params: object = {}) => {
+        let body: unknown;
+        const response = {
+          status() {
+            return this;
+          },
+          json(value: unknown) {
+            body = value;
+            return this;
+          },
+        } as unknown as Response;
+        await endpoint.handle(
+          {
+            params: { token: registration!.token },
+            body: { jsonrpc: '2.0', id: 1, method, params },
+          } as unknown as Request,
+          response,
+        );
+        return body;
+      };
+      expect(JSON.stringify(await rpc('tools/list'))).toContain('report_changed_files');
+      const submit = (changedFiles: object[], turnId = run.activeTurn!.turnId) =>
+        rpc('tools/call', {
+          name: 'report_changed_files',
+          arguments: { turnId, providerSessionId: run.providerSessionId, changedFiles },
+        });
+      const filename = `edited-${String(turns.length)}.ts`;
+      await writeFile(path.join(repoDir, filename), 'actual edit\n');
+      const stale = await submit([], 'previous-turn');
+      expect(JSON.stringify(stale)).toContain('context_rejected');
+      const rejected = await submit([
+        { serviceId: 'service-1', path: filename },
+        { serviceId: 'service-1', path: '../outside.ts' },
+      ]);
+      expect(JSON.stringify(rejected)).toContain('needs_correction');
+      expect(JSON.stringify(rejected)).toContain('accepted');
+      expect(JSON.stringify(rejected)).toContain('invalid_path');
+      const accepted = await submit([{ serviceId: 'service-1', path: filename }]);
+      expect(JSON.stringify(accepted)).toContain('validated');
+      expect(run.getFileChangeProjection()).toContainEqual({
+        serviceId: 'service-1',
+        repoRelativePath: filename,
+      });
+    }
+    if (!options.exerciseReporting && live.run.activeTurn?.handler.requiresChangedFileReporting) {
       await reportChangedFilesTool.execute({
         runId: live.run.runId,
         run: live.run,
@@ -372,6 +451,7 @@ const makeHarness = async (options: {
   const send = async (input: InternalRunPromptRequest): Promise<void> => {
     await run.handleMessage(input);
     await run.awaitIdle();
+    if (options.exerciseReporting) expect(vi.mocked(logger.error).mock.calls).toEqual([]);
   };
   const projectModeMessage = (userMessage: string): InternalRunPromptRequest =>
     ({
@@ -430,6 +510,29 @@ const expectOneModeBoundary = async (
 };
 
 describe('write boundary across turn types in a mode-backed Run', () => {
+  it('delivers callable reporting on fresh and persisted resumed Agent Mode turns', async () => {
+    const h = await makeHarness({ skipProjectAssistant: true, exerciseReporting: true });
+    try {
+      await h.send(h.projectModeMessage('Edit and report.'));
+      expect(h.turns).toHaveLength(1);
+      expect(h.run.getFileChangeProjection()).toContainEqual({
+        serviceId: 'service-1',
+        repoRelativePath: 'edited-1.ts',
+      });
+      await h.restore();
+      await h.send(h.freeformMessage('Edit and report again.'));
+      expect(h.turns).toHaveLength(2);
+      expect(h.turns.map((turn) => turn.handlerId)).toEqual(['project_mode', 'project_mode']);
+      expect(h.run.getFileChangeProjection()).toContainEqual({
+        serviceId: 'service-1',
+        repoRelativePath: 'edited-2.ts',
+      });
+      expect(h.errorEvents()).toEqual([]);
+    } finally {
+      h.run.cleanup();
+    }
+  });
+
   it('keeps ordinary replies on the captured owner and transcript across persisted restoration', async () => {
     const h = await makeHarness({ skipProjectAssistant: true, sessionRole: SessionRole.Review });
     try {

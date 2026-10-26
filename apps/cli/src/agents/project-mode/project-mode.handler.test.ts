@@ -212,8 +212,10 @@ describe('project-mode handler', () => {
       runnerKind: 'provider_session',
       mcpToolUseCase: 'coding',
       reports: [],
+      requiresChangedFileReporting: true,
     });
     expect(projectModeHandler.submissionTools?.map((tool) => tool.name)).toEqual([
+      'report_changed_files',
       'request_agent_session_service_scope',
     ]);
     expect(Object.isFrozen(projectModeHandler)).toBe(true);

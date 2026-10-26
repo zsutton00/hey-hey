@@ -21,6 +21,8 @@ Research tells you which work items and design docs govern this work; read their
 
 The approved plan sets scope and approach; the work items and design docs its steps cite still govern how the result must look and behave. Before finishing, read them and compare the whole delivered result against them, not only the lines you edited. In your report, separate what you inspected from what you inferred. If the result and a cited source disagree, raise a \`DECISION_NEEDED\` report instead of shipping either version silently.
 
+From the start of this turn, keep track of every file you create, modify or delete. Record them as you work rather than reconstructing them at the end. List only files you changed in this turn. Do not list files you only read, files another run changed, or files you have already committed. Each changedFiles entry submitted through report_changed_files names the Service ID from the session's Services in scope and the path relative to that Service's repository root. When no files changed, no submission is required. Correct rejected claims in any submitted report until validated. Later edits require another report. Supply the active Turn and provider session identities; context rejection returns the expected values.
+
 ## Captured MODE bundle
 
 Bundle location: /runtime/project-modes/session-1
@@ -64,6 +66,8 @@ Research tells you which work items and design docs govern this work; read their
 ## Honoring governing sources
 
 The approved plan sets scope and approach; the work items and design docs its steps cite still govern how the result must look and behave. Before finishing, read them and compare the whole delivered result against them, not only the lines you edited. In your report, separate what you inspected from what you inferred. If the result and a cited source disagree, raise a \`DECISION_NEEDED\` report instead of shipping either version silently.
+
+From the start of this turn, keep track of every file you create, modify or delete. Record them as you work rather than reconstructing them at the end. List only files you changed in this turn. Do not list files you only read, files another run changed, or files you have already committed. Each changedFiles entry submitted through report_changed_files names the Service ID from the session's Services in scope and the path relative to that Service's repository root. When no files changed, no submission is required. Correct rejected claims in any submitted report until validated. Later edits require another report. Supply the active Turn and provider session identities; context rejection returns the expected values.
 
 ## Captured MODE bundle
 

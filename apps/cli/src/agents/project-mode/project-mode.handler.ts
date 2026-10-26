@@ -1,3 +1,5 @@
+import { changedFileReportingDuty } from '../completion-reconciliation/message-mapper';
+import { reportChangedFilesTool } from '../submission-tools/report-changed-files-tool';
 import { projectModeSettingsJsonSchema } from '../../generated/project-mode-contract.schema';
 import type { SessionRole } from '../../shared/agent-bridge-contract/generated/api';
 import type { AgenticSession } from '../../session/types';
@@ -54,7 +56,8 @@ const handlerDefinition: UserLaunchablePromptTypeHandler<RunCreatePayloadProject
   providerSessionCountsForContext: true,
   reports: [],
   mcpToolUseCase: 'coding',
-  submissionTools: [requestAgentSessionServiceScopeTool],
+  ...changedFileReportingDuty,
+  submissionTools: [reportChangedFilesTool, requestAgentSessionServiceScopeTool],
   projectAssistant: PROJECT_MODE_PROJECT_ASSISTANT_POLICY,
 
   resolveProjectAssistant(session, logger): ProjectAssistantPolicy | undefined {
