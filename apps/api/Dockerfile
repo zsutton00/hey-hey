@@ -28,7 +28,7 @@ COPY openapi/package.json openapi/
 
 FROM base AS build
 
-RUN pnpm install --frozen-lockfile --filter hey-hey-api --config.node-linker=hoisted
+RUN pnpm install --frozen-lockfile --filter hey-hey-api --filter hey-hey-openapi --config.node-linker=hoisted
 
 COPY . .
 
