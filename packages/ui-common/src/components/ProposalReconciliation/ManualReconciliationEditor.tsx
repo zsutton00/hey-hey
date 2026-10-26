@@ -1,15 +1,6 @@
-import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import { manualReconciliationContent } from "./manualReconciliationContent";
 import { useCallback, useState } from "react";
-import {
-  Alert,
-  Button,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Stack,
-  Typography,
-} from "@mui/material";
+import { Alert, Button, Paper, Stack, Typography } from "@mui/material";
 import {
   type ProposalResponseDto,
   type ProposalReconciliationState,
@@ -150,97 +141,93 @@ export function ManualReconciliationEditor({
     }));
   const save = () => onSave(result);
   return (
-    <Dialog
-      open
-      fullWidth
-      maxWidth="lg"
-      onClose={busy ? undefined : onClose}
+    <Paper
+      variant="outlined"
+      sx={{ p: 2 }}
       data-testid="proposal-reconciliation-manual-editor"
     >
-      <DialogTitle>Edit resolved content</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2}>
-          <Typography>
-            Keep the current changes that still apply, then prepare the complete
-            result for review. Saving does not approve or apply it.
-          </Typography>
-          {error && <Alert severity="error">{error}</Alert>}
-          {registryError && (
-            <Alert severity="error">{registryError.message}</Alert>
-          )}
-          {graph && definition && childDefinition ? (
-            <ManualGraphResolutionEditor
-              graph={graph}
-              definition={definition}
-              childDefinition={childDefinition}
-              organizationId={proposal.organizationId}
-              projectId={proposal.projectId}
+      <Typography variant="h6">Edit proposed content</Typography>
+      <Stack spacing={2}>
+        <Typography>
+          Keep the current changes that still apply. Saving updates this
+          proposal in place without applying it.
+        </Typography>
+        {error && <Alert severity="error">{error}</Alert>}
+        {registryError && (
+          <Alert severity="error">{registryError.message}</Alert>
+        )}
+        {graph && definition && childDefinition ? (
+          <ManualGraphResolutionEditor
+            graph={graph}
+            definition={definition}
+            childDefinition={childDefinition}
+            organizationId={proposal.organizationId}
+            projectId={proposal.projectId}
+            disabled={busy}
+            onChange={changeGraph}
+          />
+        ) : graph ? (
+          <Alert severity="error">
+            The graph's type definitions are unavailable. Refresh before
+            editing.
+          </Alert>
+        ) : null}
+        {!graph && (
+          <ManualReconciliationFields
+            proposal={proposal}
+            result={result}
+            current={state.currentBases[0]?.content ?? {}}
+            disabled={busy}
+            onChange={(key, value) =>
+              setResult((current) => ({ ...current, [key]: value }))
+            }
+          />
+        )}
+        {!graph &&
+          template.sections.map((section, index) => (
+            <ManualReconciliationSection
+              key={section.id}
+              current={(() => {
+                const current = (
+                  state.currentBases[0]?.content.sections as
+                    Record<string, unknown> | undefined
+                )?.[section.id];
+                return typeof current === "string"
+                  ? current
+                  : current == null
+                    ? ""
+                    : JSON.stringify(current);
+              })()}
+              section={section}
+              template={template}
+              index={index}
+              isLoading={false}
               disabled={busy}
-              onChange={changeGraph}
-            />
-          ) : graph ? (
-            <Alert severity="error">
-              The graph's type definitions are unavailable. Refresh before
-              editing.
-            </Alert>
-          ) : null}
-          {!graph && (
-            <ManualReconciliationFields
-              proposal={proposal}
-              result={result}
-              current={state.currentBases[0]?.content ?? {}}
-              disabled={busy}
-              onChange={(key, value) =>
-                setResult((current) => ({ ...current, [key]: value }))
+              getContentForSection={(key) =>
+                sections.find((entry) => entry.key === key)
+                  ?.materializedMarkdown ?? ""
+              }
+              handleSectionChange={changeSection}
+              workItemId={proposal.targetEntityId}
+              requirementsEditorConfig={
+                typeof result.type === "string"
+                  ? {
+                      typeKey: result.type,
+                      organizationId: proposal.organizationId,
+                      projectId: proposal.projectId,
+                      featureId: proposal.targetEntityId,
+                      parentId:
+                        typeof result.parentTaskId === "string"
+                          ? result.parentTaskId
+                          : null,
+                      onSearchEntities: searchEntities,
+                    }
+                  : undefined
               }
             />
-          )}
-          {!graph &&
-            template.sections.map((section, index) => (
-              <ManualReconciliationSection
-                key={section.id}
-                current={(() => {
-                  const current = (
-                    state.currentBases[0]?.content.sections as
-                      Record<string, unknown> | undefined
-                  )?.[section.id];
-                  return typeof current === "string"
-                    ? current
-                    : current == null
-                      ? ""
-                      : JSON.stringify(current);
-                })()}
-                section={section}
-                template={template}
-                index={index}
-                isLoading={false}
-                disabled={busy}
-                getContentForSection={(key) =>
-                  sections.find((entry) => entry.key === key)
-                    ?.materializedMarkdown ?? ""
-                }
-                handleSectionChange={changeSection}
-                workItemId={proposal.targetEntityId}
-                requirementsEditorConfig={
-                  typeof result.type === "string"
-                    ? {
-                        typeKey: result.type,
-                        organizationId: proposal.organizationId,
-                        projectId: proposal.projectId,
-                        featureId: proposal.targetEntityId,
-                        parentId:
-                          typeof result.parentTaskId === "string"
-                            ? result.parentTaskId
-                            : null,
-                        onSearchEntities: searchEntities,
-                      }
-                    : undefined
-                }
-              />
-            ))}
-        </Stack>
-      </DialogContent>
-      <DialogActions>
+          ))}
+      </Stack>
+      <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
         <Button disabled={busy} onClick={onClose}>
           Cancel
         </Button>
@@ -255,9 +242,9 @@ export function ManualReconciliationEditor({
           onClick={save}
           data-testid="proposal-reconciliation-manual-save"
         >
-          Prepare for review
+          Save changes
         </Button>
-      </DialogActions>
-    </Dialog>
+      </Stack>
+    </Paper>
   );
 }
