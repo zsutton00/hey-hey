@@ -272,11 +272,13 @@ export const makeTestTurn = (
   handler: PromptTypeHandler<unknown> = defaultTestTurnHandler,
   turnId = 'turn-1',
   platformMcpProxy: TurnPlatformMcpProxy | null = null,
+  payload?: unknown,
 ): Turn => {
   const owner = makeTestRun();
   const turn = new Turn({
     effectiveRole: 'implementation',
     turnId,
+    payload,
     runId: owner.runId,
     resolvedPrompt: '',
     handler,

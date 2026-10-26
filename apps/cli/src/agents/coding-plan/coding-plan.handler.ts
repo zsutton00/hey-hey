@@ -16,7 +16,14 @@ import { buildCodingPlanPrompt } from '../prompts/coding-plan';
 import { buildStartingMessage as buildStartingMessageForPromptType } from '../prompts/starting-message';
 import { fetchPlanDesignDocReference } from './plan-design-doc-reference';
 import { codingPlanSubmissionTools } from './submission-tools';
-import { fetchCodingPlanConversation, renderCodingPlanConversation } from './conversation-context';
+import {
+  fetchCodingPlanConversation,
+  latestCodingPlanVersion,
+  renderCodingPlanConversation,
+} from './conversation-context';
+
+export const CODING_PLAN_NOT_SAVED_MESSAGE =
+  "The plan wasn't saved, so it can't be approved. Restart planning.";
 
 /**
  * Restricted MCP tool allowlist for the coding-plan subagent. The planner may
@@ -53,12 +60,14 @@ export const CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
 /**
  * Built-in Claude Code tools the planner uses to read the codebase.
  * `Write`/`Edit`/`Bash` are deliberately omitted — planning must not mutate
- * the working tree or run shell commands.
+ * the working tree or run shell commands. `ToolSearch` loads deferred tool
+ * schemas; it grants no permission to call them.
  */
 export const CODING_PLAN_SUBAGENT_BUILTIN_ALLOWED_TOOLS: readonly string[] = [
   'Read',
   'Glob',
   'Grep',
+  'ToolSearch',
 ];
 
 /**
@@ -83,6 +92,8 @@ export interface EnrichedCodingPlanPromptPayload extends LocalStartupSessionProm
    */
   _researchMemo?: string;
   _planningConversation?: string;
+  /** True once the planning conversation holds a saved plan version. */
+  _hasSavedPlanVersion?: boolean;
 }
 
 type CodingPlanHandler = UserLaunchablePromptTypeHandler<LocalStartupSessionPromptPayload>;
@@ -210,6 +221,7 @@ export const codingPlanHandler: CodingPlanHandler = {
     );
     const enrich = (): EnrichedCodingPlanPromptPayload => ({
       _planningConversation: renderCodingPlanConversation(conversation),
+      _hasSavedPlanVersion: latestCodingPlanVersion(conversation) !== null,
       ...payload,
       ...(hasLaunchPlan ? { launchPlanId, launchStepId, launchStageId } : {}),
       _recentUserReplies: supplementalReplies,
@@ -250,6 +262,16 @@ export const codingPlanHandler: CodingPlanHandler = {
         ? { planDesignDocReference: enriched._planDesignDocReference }
         : {}),
     });
+  },
+
+  // Before any plan exists, a turn must save a plan or discrepancy, or ask the
+  // user something. Otherwise the plan likely went to chat text because the
+  // emit tools were unavailable, and nothing can be approved.
+  getUnsavedOutputFailure(event, payload, saved) {
+    if (saved.codingPlanElementTypes.length > 0) return null;
+    if ((payload as EnrichedCodingPlanPromptPayload | undefined)?._hasSavedPlanVersion) return null;
+    if (event.summary.includes('?')) return null;
+    return CODING_PLAN_NOT_SAVED_MESSAGE;
   },
 
   // The rebuilt prompt already carries persisted replies and any unsaved current feedback.

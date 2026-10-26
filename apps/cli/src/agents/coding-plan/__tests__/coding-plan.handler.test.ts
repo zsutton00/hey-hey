@@ -254,6 +254,42 @@ describe('codingPlanHandler', () => {
       expect(enriched._recentUserReplies).toEqual([]);
     });
 
+    it('records whether the planning conversation already holds a saved plan version', async () => {
+      const session = makeSession({
+        conversationId: 'conv-1',
+        contextMetadata: { organizationId: 'org-1', projectId: 'proj-1' },
+      } as Partial<AgenticSession>);
+      const planMessage = {
+        id: 'plan-1',
+        type: 'SYSTEM',
+        data: {
+          uiElements: [
+            {
+              type: 'coding_plan_version',
+              payload: {
+                responseType: 'coding_plan_version_v1',
+                markdown: '# Plan',
+                requiredServiceIds: ['a8fb6fbb-5747-4480-89e3-fc4a43ab7745'],
+              },
+            },
+          ],
+        },
+      };
+      const prepareWith = async (data: object[]) =>
+        (
+          await codingPlanHandler.prepare!(
+            session,
+            makePayload(),
+            makeDeps(makeLogger(), {
+              fetchImpl: vi.fn(async () => jsonResponse({ data })) as unknown as typeof fetch,
+            }),
+          )
+        ).payload as EnrichedCodingPlanPromptPayload;
+
+      expect((await prepareWith([]))._hasSavedPlanVersion).toBe(false);
+      expect((await prepareWith([planMessage]))._hasSavedPlanVersion).toBe(true);
+    });
+
     it('does not rebuild startup input from stale cached identity on follow-up', async () => {
       const session = makeSession({
         sessionContext: {

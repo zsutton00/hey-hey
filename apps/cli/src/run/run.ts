@@ -829,6 +829,8 @@ export class Run {
    * into the current handler span, then cleared.
    */
   private readonly _submittedTurnIds: Set<string> = new Set();
+  /** Coding Plan element types (plan version, discrepancy) each Turn persisted. */
+  private readonly _codingPlanElementsByTurn: Map<string, Set<string>> = new Map();
   /**
    * Report-chain length at Turn start, keyed by `Turn.turnId`. Open's
    * changed-workspace report helper reads the slice from this index to avoid
@@ -4723,6 +4725,7 @@ export class Run {
         this._stagedFileChanges.clear();
       }
       this._submittedTurnIds.delete(turn.turnId);
+      this._codingPlanElementsByTurn.delete(turn.turnId);
       this._reportChainStartByTurn.delete(turn.turnId);
       // Seal the Turn's coalesced narration row: dropping the slot means the
       // next Turn's first segment authors a fresh row instead of updating this
@@ -6293,7 +6296,8 @@ export class Run {
       | import('../shared/api/generated/api').CodingPlanVersion
       | import('../shared/api/generated/api').CodingPlanDiscrepancy,
   ): Promise<string> {
-    if (this.activeTurn?.handler.promptType !== 'startup_session') {
+    const turn = this.activeTurn;
+    if (turn?.handler.promptType !== 'startup_session') {
       throw new Error('Planning conversation tools require the active planning handler.');
     }
     const session = this.session;
@@ -6324,13 +6328,20 @@ export class Run {
       },
       stamp: null,
     });
+    const saved = this._codingPlanElementsByTurn.get(turn.turnId) ?? new Set<string>();
+    saved.add(type);
+    this._codingPlanElementsByTurn.set(turn.turnId, saved);
     this.logger.debug('local.coding_plan.conversation.persisted', {
       runId: this.runId,
-      turnId: this.activeTurn?.turnId,
+      turnId: turn.turnId,
       type,
       messageId,
     });
     return messageId;
+  }
+
+  public readCodingPlanElementTypes(turnId: string): readonly string[] {
+    return [...(this._codingPlanElementsByTurn.get(turnId) ?? [])];
   }
 
   private async postAgentSystemMessage(
@@ -6385,6 +6396,7 @@ export class Run {
     this._activeProviderThreadId = null;
     this._activeProviderTurnId = null;
     this._submittedTurnIds.clear();
+    this._codingPlanElementsByTurn.clear();
     this._reportChainStartByTurn.clear();
     this._narrationByTurn.clear();
     this.agentSessionCurrentState.cleanup(

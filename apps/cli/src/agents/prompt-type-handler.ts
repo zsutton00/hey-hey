@@ -797,6 +797,17 @@ export interface PromptTypeHandler<TPayload> {
   getCompletionAction?(event: AssistantCompleteEvent, payload?: unknown): CompletionAction | null;
 
   /**
+   * Returns a user-facing failure when a completion with no recognised
+   * response type left the Turn's required output unsaved. The Run posts it
+   * as a failed message and fails the Turn instead of an ordinary reply.
+   */
+  getUnsavedOutputFailure?(
+    event: AssistantCompleteEvent,
+    payload: unknown,
+    saved: { codingPlanElementTypes: readonly string[] },
+  ): string | null;
+
+  /**
    * Maps a provider-runner failure into an EXTERNAL_AGENT action when the
    * handler owns a typed workflow handoff. This is called only after the
    * runner fails before it can emit `assistant_complete`, so handlers can

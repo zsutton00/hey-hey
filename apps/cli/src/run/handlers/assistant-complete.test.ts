@@ -1060,6 +1060,9 @@ describe('assistant_complete end-to-end', () => {
       },
       recordPendingCompletion,
     });
+    vi.spyOn(ctx, 'readCodingPlanElementTypes').mockReturnValue([
+      ExtendedUIFieldType.CodingPlanVersion,
+    ]);
 
     await handleAssistantComplete(
       normalizeEvent(makeRawAssistantComplete(summary), 'claude') as AssistantCompleteEvent,
@@ -1079,6 +1082,75 @@ describe('assistant_complete end-to-end', () => {
     expect(outOfBandDto(poster).data?.['responseType']).toBeUndefined();
     expect(outOfBandDto(poster).data?.['uiElements']).toBeUndefined();
     expect(recordPendingCompletion).not.toHaveBeenCalled();
+  });
+
+  describe('Coding Plan turn that ends without saving a plan', () => {
+    const complete = async (
+      summary: string,
+      saved: string[] = [],
+      payload: unknown = { _hasSavedPlanVersion: false },
+    ) => {
+      const poster = makePoster();
+      const turn = makeTestTurn(
+        codingPlanHandler as unknown as PromptTypeHandler<unknown>,
+        'turn-1',
+        null,
+        payload,
+      );
+      // Save through the Run's real planning-element path so it records the Turn.
+      const ctx = makeTestRun({ activeTurn: turn });
+      for (const type of saved) {
+        await ctx.persistCodingPlanElement(type as ExtendedUIFieldType, {} as never);
+      }
+      await handleAssistantComplete(
+        normalizeEvent(makeRawAssistantComplete(summary), 'claude') as AssistantCompleteEvent,
+        ctx,
+        makeDeps(poster),
+        turn,
+      );
+      return { poster, turn };
+    };
+
+    it('posts a visible failure and fails the Turn when the plan went to chat instead', async () => {
+      const { poster, turn } = await complete(
+        "I couldn't record this plan in the app. The emit_coding_plan tools aren't loaded.\n\n# Plan\n1. Do it.",
+      );
+
+      expect(poster.createOutOfBand).toHaveBeenCalledOnce();
+      expect(outOfBandDto(poster)).toMatchObject({
+        status: MessageStatus.Failed,
+        data: {
+          type: SystemMessageDataTypeEnum.Agent,
+          response: "The plan wasn't saved, so it can't be approved. Restart planning.",
+        },
+      });
+      expect(outOfBandDto(poster).data?.['actionHint']).toBeUndefined();
+      expect(turn.completedAssistantMessageId).toBeNull();
+      expect(turn.terminalOutcome).toBe('FAILED');
+    });
+
+    it.each([
+      [
+        'a discrepancy was saved',
+        'Recorded one issue.',
+        [ExtendedUIFieldType.CodingPlanDiscrepancy],
+        undefined,
+      ],
+      ['a plan already exists', 'Agreed, that stays the same.', [], { _hasSavedPlanVersion: true }],
+      ['the planner asked a question', 'Should it reopen on its own?', [], undefined],
+    ])('ends normally when %s', async (_case, summary, saved, payload) => {
+      const { poster, turn } = await complete(
+        summary,
+        saved,
+        payload ?? { _hasSavedPlanVersion: false },
+      );
+
+      expect(outOfBandDto(poster)).toMatchObject({
+        status: MessageStatus.Completed,
+        data: { response: summary },
+      });
+      expect(turn.completedAssistantMessageId).not.toBeNull();
+    });
   });
 
   it('posts only the plan message when a startup_plan_v1 body has no nextAction (first-turn shape)', async () => {
