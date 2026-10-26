@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { ReportService } from '../report.service';
+import { ReportRelatedEntityType, ReportType } from 'src/generated';
 
 const ORG = 'org-1' as never;
 const PROJECT = 'project-1';
@@ -166,5 +167,64 @@ describe('eval run-record reports', () => {
       } as never),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(tx.report.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('eval evidence lookup by target session', () => {
+  it('finds historical attempts by recorded target while retaining project and expiry constraints', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const service = new ReportService(
+      { db: { report: { findMany } } } as never,
+      { publishInTransaction: jest.fn() } as never,
+      { resolveEntityNames: jest.fn().mockResolvedValue(new Map()) } as never,
+    );
+    await service.findAll(ORG, {
+      projectId: PROJECT as never,
+      reportType: ReportType.EvalAttempt,
+      entityType: ReportRelatedEntityType.AgentSession,
+      entityId: 'target-session',
+      accessibleProjectIds: [PROJECT] as never,
+    });
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          organizationId: ORG,
+          projectId: PROJECT,
+          payload: { path: ['targetSessionId'], equals: 'target-session' },
+          AND: expect.any(Array),
+          OR: expect.any(Array),
+        }),
+      }),
+    );
+    const where = findMany.mock.calls[0][0].where;
+    expect(where).not.toHaveProperty('reportEntities');
+    // Completed attempts remain discoverable: no in-flight status condition.
+    expect(JSON.stringify(where)).not.toContain('RUNNING');
+  });
+  it('preserves ordinary entity report relationships for non-eval report reads', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const service = new ReportService(
+      { db: { report: { findMany } } } as never,
+      { publishInTransaction: jest.fn() } as never,
+      { resolveEntityNames: jest.fn().mockResolvedValue(new Map()) } as never,
+    );
+    await service.findAll(ORG, {
+      projectId: PROJECT as never,
+      reportType: ReportType.Snapshot,
+      entityType: ReportRelatedEntityType.AgentSession,
+      entityId: 'ordinary-session',
+    });
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          reportEntities: {
+            some: {
+              entityType: 'AGENT_SESSION',
+              entityId: 'ordinary-session',
+            },
+          },
+        }),
+      }),
+    );
   });
 });

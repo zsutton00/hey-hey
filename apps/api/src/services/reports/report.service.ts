@@ -586,22 +586,31 @@ export class ReportService {
         ...(!includeExpired
           ? { OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] }
           : {}),
-        ...(filters.entityType && filters.entityId
+        ...(filters.entityType === ReportRelatedEntityType.AgentSession &&
+        filters.entityId &&
+        filters.reportType === PrismaReportType.EVAL_ATTEMPT &&
+        !filters.relation
           ? {
-              reportEntities: {
-                some: {
-                  entityType: this.requireReportEntityType(filters.entityType),
-                  entityId: filters.entityId,
-                  ...(filters.relation
-                    ? {
-                        relation:
-                          filters.relation as PrismaReportEntityRelation,
-                      }
-                    : {}),
-                },
-              },
+              payload: { path: ['targetSessionId'], equals: filters.entityId },
             }
-          : {}),
+          : filters.entityType && filters.entityId
+            ? {
+                reportEntities: {
+                  some: {
+                    entityType: this.requireReportEntityType(
+                      filters.entityType,
+                    ),
+                    entityId: filters.entityId,
+                    ...(filters.relation
+                      ? {
+                          relation:
+                            filters.relation as PrismaReportEntityRelation,
+                        }
+                      : {}),
+                  },
+                },
+              }
+            : {}),
       },
       include: {
         reportEntities: {

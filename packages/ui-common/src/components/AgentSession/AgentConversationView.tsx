@@ -272,7 +272,7 @@ const AgentConversationViewInner = ({
     organizationId,
     projectId,
     normalizedConversationId,
-    { enabled: shouldFetch || hasPreview },
+    { enabled: !readOnly && (shouldFetch || hasPreview) },
   );
   const recoveryState =
     sessionResumability === "legacy_non_resumable"
