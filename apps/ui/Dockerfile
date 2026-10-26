@@ -22,7 +22,7 @@ COPY apps/cli/package.json apps/cli/
 COPY apps/graph-search/package.json apps/graph-search/
 COPY packages/ui-common/package.json packages/ui-common/
 COPY openapi/package.json openapi/
-RUN pnpm install --frozen-lockfile --filter hey-hey...
+RUN pnpm install --frozen-lockfile --filter hey-hey... --filter hey-hey-openapi
 
 COPY . .
 
