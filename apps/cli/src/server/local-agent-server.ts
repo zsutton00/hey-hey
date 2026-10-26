@@ -295,6 +295,10 @@ export class LocalAgentServerBootstrap {
       machineActions: createMachineActions(infrastructure),
     });
     const router = new LocalAgentRouter({
+      toolCalls: {
+        sessionActivity: runRuntime.sessionActivitySource,
+        isRemoteToolCallViewingEnabled: runRuntime.isRemoteToolCallViewingEnabled,
+      },
       allowedOrigins: [resolvePairingWebOrigin()],
       keyPairStore: infrastructure.keyPairStore,
       logger: infrastructure.logger,

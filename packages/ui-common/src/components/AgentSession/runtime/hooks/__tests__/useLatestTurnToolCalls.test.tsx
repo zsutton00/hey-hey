@@ -15,7 +15,24 @@ import {
   useLatestTurnToolCalls,
 } from "../useLatestTurnToolCalls";
 
-const { authorize } = vi.hoisted(() => ({ authorize: vi.fn() }));
+const { authorize, localRead, localState } = vi.hoisted(() => ({
+  authorize: vi.fn(),
+  localRead: vi.fn(),
+  localState: {
+    current: {
+      status: "unavailable",
+      reason: "cli-unreachable",
+    } as import("../useLocalCliForSession").LocalCliForSessionState,
+  },
+}));
+vi.mock("../useLocalCliForSession", () => ({
+  useLocalCliForSession: () => localState.current,
+}));
+vi.mock("../../../../../local-agent-api/generated/api", () => ({
+  RunToolCallsLatestTurnApi: class {
+    readLocalRunToolCallsLatestTurn = localRead;
+  },
+}));
 
 vi.mock("../../../../../clients/serviceClients", () => ({
   unifiedApiClient: { readAgentSessionCliState: vi.fn() },
@@ -108,6 +125,7 @@ describe("useLatestTurnToolCalls", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.clearAllMocks();
+    localState.current = { status: "unavailable", reason: "cli-unreachable" };
     authorize.mockImplementation(async ({ submit }) => ({
       outcome: "ADMITTED",
       data: await submit({
@@ -117,6 +135,74 @@ describe("useLatestTurnToolCalls", () => {
   });
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("uses one local poller without platform reads or controller prompts", async () => {
+    localState.current = { status: "local", machineId: "machine-1" };
+    localRead.mockResolvedValue({
+      data: {
+        operation: "run.tool_calls.latest_turn",
+        status: "success",
+        result: available,
+      },
+    });
+    const { result } = renderHook(() => useLatestTurnToolCalls(baseParams));
+    await flush();
+    expect(result.current).toEqual({ status: "available", result: available });
+    await tick();
+    expect(localRead).toHaveBeenCalledTimes(2);
+    expect(localRead).toHaveBeenCalledWith({
+      runId: sessionId,
+      localRunToolCallsLatestTurnRequest: { machineId: "machine-1" },
+    });
+    expect(authorize).not.toHaveBeenCalled();
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it("never falls back after local rejection and clears previous content", async () => {
+    localState.current = { status: "local", machineId: "machine-1" };
+    localRead
+      .mockResolvedValueOnce({
+        data: {
+          operation: "run.tool_calls.latest_turn",
+          status: "success",
+          result: available,
+        },
+      })
+      .mockRejectedValue(new Error("blocked"));
+    const { result } = renderHook(() => useLatestTurnToolCalls(baseParams));
+    await flush();
+    await tick();
+    expect(result.current.status).toBe("unavailable");
+    await tick();
+    expect(localRead).toHaveBeenCalledTimes(2);
+    expect(authorize).not.toHaveBeenCalled();
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it("rejects a reached CLI with the wrong identity without remote fallback", async () => {
+    localState.current = { status: "unavailable", reason: "different-machine" };
+    const { result } = renderHook(() => useLatestTurnToolCalls(baseParams));
+    await flush();
+    expect(result.current.status).toBe("unavailable");
+    expect(localRead).not.toHaveBeenCalled();
+    expect(authorize).not.toHaveBeenCalled();
+  });
+
+  it("halts local reads when viewing is disabled", async () => {
+    localState.current = { status: "local", machineId: "machine-1" };
+    localRead.mockResolvedValue({
+      data: {
+        operation: "run.tool_calls.latest_turn",
+        status: "success",
+        result: { state: "disabled", runId: sessionId },
+      },
+    });
+    const { result } = renderHook(() => useLatestTurnToolCalls(baseParams));
+    await flush();
+    await tick();
+    expect(result.current.status).toBe("disabled");
+    expect(localRead).toHaveBeenCalledTimes(1);
   });
 
   it("reads immediately when the Turn is active, without any narration", async () => {

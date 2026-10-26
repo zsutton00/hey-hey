@@ -1,3 +1,7 @@
+import { RunToolCallsLatestTurnApi } from "../../../../local-agent-api/generated/api";
+import { Configuration } from "../../../../local-agent-api/generated/configuration";
+import { resolveLocalDirectoryRuntimeBaseUrl } from "../directoryBindingApi";
+import { useLocalCliForSession } from "./useLocalCliForSession";
 import {
   useCallback,
   useEffect,
@@ -5,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { AxiosResponse } from "axios";
+import { isAxiosError, type AxiosResponse } from "axios";
 import {
   CliReadRunToolCallsLatestTurnRequestOperationEnum,
   HostActionCategory,
@@ -49,7 +53,7 @@ const idleState: LatestTurnToolCallsState = { status: "idle" };
  *
  * While `enabled` (the Turn is active) the hook reads immediately and then on
  * a fixed interval; `activityKey` changes trigger an extra debounced read.
- * Every read is controller-authorized and may prompt, so at most one read is
+ * Remote reads are controller-authorized; verified local reads use loopback. At most one read is
  * in flight (ticks that land mid-read are skipped), and reading halts for the
  * rest of the Turn after a disabled result or a declined/cancelled
  * authorization. Each response is a whole snapshot and replaces the last.
@@ -91,6 +95,11 @@ export const useLatestTurnToolCalls = (params: {
     agentSessionId ?? "",
     { enabled: active },
   );
+  const localCli = useLocalCliForSession(
+    active ? (agentSession?.machineId ?? null) : null,
+  );
+  const localCliRef = useRef(localCli);
+  localCliRef.current = localCli;
   const { machines } = useUserPairedMachines();
   const { mutate: authorize } =
     useControllerAuthorizedAction<
@@ -112,7 +121,25 @@ export const useLatestTurnToolCalls = (params: {
 
   const readNow = useCallback(() => {
     const currentMachine = machineRef.current;
-    if (!agentSessionId || !currentMachine) return;
+    const local = localCliRef.current;
+    if (
+      !agentSessionId ||
+      !currentMachine ||
+      local.status === "checking" ||
+      (local.status === "unavailable" && local.reason === "no-session-machine")
+    )
+      return;
+    if (
+      (local.status === "unavailable" && local.reason !== "cli-unreachable") ||
+      (local.status === "local" && local.machineId !== currentMachine.machineId)
+    ) {
+      haltedRef.current = true;
+      setState({
+        status: "unavailable",
+        error: "The local CLI machine identity does not match the Run owner.",
+      });
+      return;
+    }
     if (haltedRef.current || inFlightRef.current) return;
     inFlightRef.current = true;
     const generation = generationRef.current;
@@ -125,56 +152,91 @@ export const useLatestTurnToolCalls = (params: {
         CliReadRunToolCallsLatestTurnRequestOperationEnum.RunToolCallsLatestTurn,
       runId,
     } as const;
-    void authorize({
-      cause: {
-        operation:
-          "read the current Turn's tool calls from the connected computer",
-        purpose: "Show what the agent is doing in this coding session.",
-      },
-      organizationId,
-      projectId,
-      machine: currentMachine,
-      action: {
-        requestId: crypto.randomUUID(),
-        actionCategory: HostActionCategory.CliRead,
-        actionType: HostAffectingActionType.CliRead,
-        targetKind: HostActionTargetKind.AgentSession,
-        targetId: agentSessionId,
-        inputs: {
-          kind: "CLI_READ",
-          body: {
-            requestId: crypto.randomUUID(),
-            agentSessionId: agentSessionId,
-            ...controllerReadInputs,
+    const readRemote = () =>
+      authorize({
+        cause: {
+          operation:
+            "read the current Turn's tool calls from the connected computer",
+          purpose: "Show what the agent is doing in this coding session.",
+        },
+        organizationId,
+        projectId,
+        machine: currentMachine,
+        action: {
+          requestId: crypto.randomUUID(),
+          actionCategory: HostActionCategory.CliRead,
+          actionType: HostAffectingActionType.CliRead,
+          targetKind: HostActionTargetKind.AgentSession,
+          targetId: agentSessionId,
+          inputs: {
+            kind: "CLI_READ",
+            body: {
+              requestId: crypto.randomUUID(),
+              agentSessionId: agentSessionId,
+              ...controllerReadInputs,
+            },
           },
         },
-      },
-      submit: ({ authorization }) =>
-        unifiedApiClient.readAgentSessionCliState({
-          organizationId,
-          projectId,
-          agentSessionId,
-          cliReadRequestDto: { ...controllerReadInputs, authorization },
-        }),
-    })
-      .then((response): LatestTurnToolCallsState => {
-        if (!isCurrent()) return idleState;
-        if (response.outcome === "DENIED") {
-          if (!response.retryable) haltedRef.current = true;
-          return {
-            status: "unavailable",
-            error: "The controller denied this protected read.",
-          };
+        submit: ({ authorization }) =>
+          unifiedApiClient.readAgentSessionCliState({
+            organizationId,
+            projectId,
+            agentSessionId,
+            cliReadRequestDto: { ...controllerReadInputs, authorization },
+          }),
+      });
+    const readResult = async () => {
+      if (local.status === "local") {
+        const api = new RunToolCallsLatestTurnApi(
+          new Configuration({
+            basePath: `${resolveLocalDirectoryRuntimeBaseUrl()}/api/local`,
+          }),
+        );
+        try {
+          const response = await api.readLocalRunToolCallsLatestTurn({
+            runId,
+            localRunToolCallsLatestTurnRequest: { machineId: local.machineId },
+          });
+          return response.data;
+        } catch (error) {
+          if (isCurrent()) {
+            if (isAxiosError(error) && !error.response) {
+              // Keep the selected local transport across a network interruption.
+              setState(idleState);
+            } else {
+              haltedRef.current = true;
+            }
+          }
+          throw new Error("The local tool-call read failed.");
         }
-        const result = response.data.data.data;
+      }
+      const response = await readRemote();
+      if (response.outcome === "DENIED") {
+        if (isCurrent() && !response.retryable) haltedRef.current = true;
+        throw new Error("The controller denied this protected read.");
+      }
+      return response.data.data.data;
+    };
+    void readResult()
+      .then((result): LatestTurnToolCallsState => {
+        if (!isCurrent()) return idleState;
         if (!result || result.operation !== "run.tool_calls.latest_turn") {
+          haltedRef.current = true;
           return {
             status: "unavailable",
             error: "The CLI returned a different read result.",
           };
         }
         if ("error" in result) {
+          haltedRef.current = true;
           return { status: "unavailable", error: result.error.message };
+        }
+        if (result.result.runId !== runId) {
+          haltedRef.current = true;
+          return {
+            status: "unavailable",
+            error: "The CLI returned a different Run.",
+          };
         }
         if (result.result.state === "disabled") {
           haltedRef.current = true;
@@ -224,7 +286,9 @@ export const useLatestTurnToolCalls = (params: {
         if (!isCurrent()) return;
         // Keep the last good list on a transient failure.
         setState((previous) =>
-          next.status === "unavailable" && previous.status === "available"
+          next.status === "unavailable" &&
+          !haltedRef.current &&
+          previous.status === "available"
             ? previous
             : next,
         );
@@ -270,7 +334,30 @@ export const useLatestTurnToolCalls = (params: {
       LATEST_TURN_TOOL_CALLS_POLL_INTERVAL_MS,
     );
     return () => clearInterval(interval);
-  }, [active, machineId, readNow]);
+  }, [active, machineId, localCli.status, readNow]);
+
+  // Reconnecting must reread transient content; never keep a pre-reconnect snapshot.
+  useEffect(() => {
+    const clear = () => {
+      generationRef.current += 1;
+      setState(idleState);
+    };
+    const reconnect = () => {
+      clear();
+      if (active && !haltedRef.current) readNow();
+    };
+    window.addEventListener("offline", clear);
+    window.addEventListener("online", reconnect);
+    return () => {
+      window.removeEventListener("offline", clear);
+      window.removeEventListener("online", reconnect);
+    };
+  }, [active, readNow]);
+
+  useLayoutEffect(() => {
+    generationRef.current += 1;
+    setState(idleState);
+  }, [machine?.active]);
 
   const lastActivityKeyRef = useRef(activityKey);
   useEffect(() => {

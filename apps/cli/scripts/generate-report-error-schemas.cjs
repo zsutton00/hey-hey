@@ -27,6 +27,15 @@ const reports = path.join(root, 'specs/schemas/reports.yaml');
 const entityContext = path.join(root, 'specs/schemas/entity-context.yaml');
 const local = path.join(root, 'specs/local/openapi.yaml');
 const schemas = {
+  LocalRunToolCallsLatestTurnRequest: resolve(
+    yaml.load(fs.readFileSync(local, 'utf8')).components.schemas.LocalRunToolCallsLatestTurnRequest,
+    local,
+  ),
+  LocalRunToolCallsLatestTurnRunId: resolve(
+    yaml.load(fs.readFileSync(local, 'utf8')).paths['/runs/{runId}/tool-calls/latest-turn'].post
+      .parameters[0].schema,
+    local,
+  ),
   LocalWalkthroughSourceRequest: resolve(
     yaml.load(fs.readFileSync(local, 'utf8')).components.schemas.LocalWalkthroughSourceRequest,
     local,
