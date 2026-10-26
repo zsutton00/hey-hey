@@ -109,6 +109,149 @@ function fixture() {
 }
 
 describe('reviewed reconciliation application', () => {
+  it.each(['TASK', 'DESIGN_DOC'] as const)(
+    'compares only name and authored sections for %s, including stored wide snapshots',
+    (entityType) => {
+      const f = fixture();
+      const reviewed = {
+        ...original,
+        entityType,
+        content: {
+          ...original.content,
+          priority: 'LOW',
+          tag: 'backend',
+          parentTaskId: 'old-parent',
+          serviceIds: ['old-service'],
+        },
+      };
+      const current = {
+        ...reviewed,
+        version: 'metadata-write',
+        content: {
+          ...reviewed.content,
+          priority: 'HIGH',
+          tag: 'frontend',
+          parentTaskId: 'new-parent',
+          serviceIds: ['new-service'],
+          sectionOrder: { description: 1, notes: 0 },
+        },
+      };
+      expect(() =>
+        f.owner.assertReviewedBasisCurrent([reviewed], [current]),
+      ).not.toThrow();
+      expect(() =>
+        f.owner.assertReviewedBasisCurrent(
+          [reviewed],
+          [
+            {
+              ...current,
+              content: { ...current.content, name: 'Changed title' },
+            },
+          ],
+        ),
+      ).toThrow(ConflictException);
+      expect(() =>
+        f.owner.assertReviewedBasisCurrent(
+          [reviewed],
+          [
+            {
+              ...current,
+              content: {
+                ...current.content,
+                sections: {
+                  description: 'Changed description',
+                  notes: 'Notes',
+                },
+              },
+            },
+          ],
+        ),
+      ).toThrow(ConflictException);
+      expect(reviewed.content.priority).toBe('LOW');
+      expect(current.content.priority).toBe('HIGH');
+    },
+  );
+
+  it('does not replay or reject a completed effect after someone edits its result', async () => {
+    const f = fixture();
+    const write = jest.fn(async () => {
+      f.change({ ...original.content, name: 'Applied' }, 'own-write');
+    });
+    await f.owner.guardTaskEffect(
+      f.tx,
+      proposal,
+      'intent',
+      'target',
+      0,
+      false,
+      write,
+    );
+    f.change({ ...original.content, name: 'Later user edit' }, 'later-write');
+    await expect(
+      f.owner.guardTaskEffect(
+        f.tx,
+        proposal,
+        'intent',
+        'target',
+        0,
+        false,
+        write,
+      ),
+    ).resolves.toBeUndefined();
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(f.getCurrent().content.name).toBe('Later user edit');
+    await expect(
+      f.owner.guardTaskEffect(
+        f.tx,
+        proposal,
+        'intent',
+        'target',
+        1,
+        false,
+        write,
+      ),
+    ).rejects.toThrow(ConflictException);
+    expect(write).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not compare a shared parent or endpoints when only creating records and edges', async () => {
+    const f = fixture();
+    const request = {
+      ...proposal,
+      action: 'CREATE' as const,
+      updates: {
+        root: { refType: 'existing', id: 'parent' },
+        operations: [
+          {
+            op: 'workItem.create',
+            ref: { refType: 'temporary', tempId: 'new-task' },
+            parent: { refType: 'existing', id: 'parent' },
+            name: 'New task',
+            type: 'STANDARD',
+          },
+          {
+            op: 'relationship.create',
+            ref: { refType: 'temporary', tempId: 'new-edge' },
+            source: { refType: 'existing', id: 'parent' },
+            target: { refType: 'existing', id: 'endpoint' },
+            edgeType: 'RELATED_TO',
+            category: 'meta',
+          },
+        ],
+      },
+    } as unknown as Proposal;
+    f.revision.bases = [];
+    await expect(f.owner.currentBases(f.tx, request, true)).resolves.toEqual(
+      [],
+    );
+    await expect(
+      f.owner.assertApplicable(f.tx, request),
+    ).resolves.toBeUndefined();
+    expect(
+      f.db.proposalReconciliationRevision.findFirst,
+    ).not.toHaveBeenCalled();
+  });
+
   it('applies persisted type content with unset optionals but names genuine definition drift', async () => {
     const f = fixture();
     const live = {

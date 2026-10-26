@@ -1086,6 +1086,7 @@ export class ProposalApprovalService {
     proposalId: string,
     error: unknown,
   ): Promise<ApprovalResult> {
+    if (error instanceof ConflictException) throw error;
     const response = await this.toResponseDto(proposal, projectPolicy);
     if (
       response.status !== 'APPROVED' ||

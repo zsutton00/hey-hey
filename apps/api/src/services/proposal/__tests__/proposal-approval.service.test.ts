@@ -4014,6 +4014,65 @@ describe('ProposalApprovalService', () => {
       ).not.toHaveBeenCalled();
     });
 
+    it('preserves the reconciliation 409 body after generic approval and explicit retry', async () => {
+      const draft = makeStoredProposal({
+        updates: {
+          root: { refType: 'existing', id: testIds.task },
+          operations: [
+            {
+              op: 'section.replace',
+              ref: { refType: 'existing', id: testIds.task },
+              key: 'description',
+              content: 'Reviewed result',
+            },
+          ],
+        },
+      });
+      setupForApproval(draft);
+      const conflict = new ConflictException({
+        message: 'Content changed after review.',
+        issues: [
+          {
+            field: 'sections.description',
+            code: 'PROPOSAL_RECONCILIATION_REQUIRED',
+            reason: 'Changed after review',
+            layer: 'referential',
+          },
+        ],
+        correlationId: 'conflict-correlation',
+      });
+      mockWorkItemChangeSetMaterializer.materializeApprovedChangeSet.mockRejectedValue(
+        conflict,
+      );
+      const response = jest
+        .spyOn(service as any, 'toResponseDto')
+        .mockResolvedValue({
+          status: 'APPROVED',
+          materialization: { state: 'RECOVERABLE_FAILURE' },
+        });
+      await expect(
+        service.approve(
+          proposalId,
+          testIds.organization,
+          testIds.project,
+          approvingUserId,
+        ),
+      ).rejects.toBe(conflict);
+      (mockPrisma.db.proposal.findFirst as jest.Mock).mockResolvedValue({
+        ...draft,
+        status: 'APPROVED',
+        workItemChangeSetMaterialization: { id: 'intent' },
+      });
+      await expect(
+        service.retryApprovedGenericProposal({
+          proposalId,
+          organizationId: testIds.organization,
+          projectId: testIds.project,
+        }),
+      ).rejects.toBe(conflict);
+      expect(response).not.toHaveBeenCalled();
+    });
+
     it('preserves durable approval and surfaces the concrete generic enactment failure', async () => {
       const durableEdges = [
         {

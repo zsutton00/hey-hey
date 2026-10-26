@@ -194,12 +194,19 @@ export class ProposalReconciliationService {
         return true;
     }
     return !isEqual(
-      this.adapter.futureContentBasis(
-        target.targetEntityType,
-        baseline.content,
-        target.projectId,
+      reviewedTargetContent(
+        this.adapter.futureContentBasis(
+          target.targetEntityType,
+          baseline.content,
+          target.projectId,
+        ),
       ),
-      this.adapter.currentFutureBasisContent(target.targetEntityType, current),
+      reviewedTargetContent(
+        this.adapter.currentFutureBasisContent(
+          target.targetEntityType,
+          current,
+        ),
+      ),
     );
   }
 
@@ -332,8 +339,12 @@ export class ProposalReconciliationService {
       expected.entityId !== actual.entityId ||
       !isEqual(expected.content.graph ?? null, actual.content.graph ?? null) ||
       !isEqual(
-        this.adapter.currentFutureBasisContent(targetEntityType, expected),
-        this.adapter.currentFutureBasisContent(targetEntityType, actual),
+        reviewedTargetContent(
+          this.adapter.currentFutureBasisContent(targetEntityType, expected),
+        ),
+        reviewedTargetContent(
+          this.adapter.currentFutureBasisContent(targetEntityType, actual),
+        ),
       )
     ) {
       throw new ConflictException(
@@ -1224,6 +1235,7 @@ export class ProposalReconciliationService {
     const receipt = await tx.proposalReconciliationEffect.findUnique({
       where: { materializationId_entityType_entityId: identity },
     });
+    if (receipt?.operationIndexes.includes(operationIndex)) return undefined;
     if (!createsTarget || receipt) {
       const current = await this.adapter.task(tx, proposal, taskId, true);
       const revision = await tx.proposalReconciliationRevision.findFirst({
@@ -1256,7 +1268,6 @@ export class ProposalReconciliationService {
         [current],
         proposal.id,
       );
-      if (receipt?.operationIndexes.includes(operationIndex)) return undefined;
     }
     const result = await write();
     const basis = await this.adapter.task(tx, proposal, taskId, true);
@@ -1492,7 +1503,10 @@ export class ProposalReconciliationService {
         mismatches.push({ ...mismatch, kind: 'version', differingKeys: [] });
         continue;
       }
-      const differingKeys = differingContentKeys(basis.content, actual.content);
+      const differingKeys = differingContentKeys(
+        reviewedContent(basis),
+        reviewedContent(actual),
+      );
       if (differingKeys.length > 0)
         mismatches.push({ ...mismatch, kind: 'content', differingKeys });
     }
@@ -1578,3 +1592,14 @@ const differingContentKeys = (
         : [`${prefix}${key}`],
   );
 };
+
+// Full snapshots remain available for candidate construction and writes.
+const reviewedContent = (basis: ProposalReconciliationBasis): unknown =>
+  basis.entityType === 'TASK' || basis.entityType === 'DESIGN_DOC'
+    ? reviewedTargetContent(basis.content)
+    : basis.content;
+
+const reviewedTargetContent = (content: Prisma.JsonObject) => ({
+  name: content.name,
+  sections: content.sections,
+});

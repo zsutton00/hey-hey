@@ -106,6 +106,66 @@ function fixture(outcome = 'STAGED') {
 }
 
 describe('approved future reconciliation recovery', () => {
+  it('ignores metadata-only future drift but still requires reconciliation for section changes', async () => {
+    const { tx, owner } = fixture();
+    const reviewed = {
+      entityType: 'TASK' as const,
+      entityId: 'target',
+      version: 'v1',
+      content: {
+        name: 'Original',
+        sections: {},
+        priority: 'LOW',
+        parentTaskId: 'old-parent',
+        sectionOrder: {},
+      },
+    };
+    const current = {
+      ...reviewed,
+      version: 'v2',
+      content: {
+        ...reviewed.content,
+        priority: 'HIGH',
+        parentTaskId: 'new-parent',
+        sectionOrder: { description: 1 },
+      },
+    };
+    const adapter = (owner as any).adapter;
+    adapter.task.mockResolvedValue(current);
+    const baseline = (futureProposal.updates as any).baseline;
+    await expect(
+      owner.futureBaselineChanged(
+        tx as never,
+        {
+          organizationId: 'org',
+          projectId: 'project',
+          targetEntityType: 'TASK',
+          targetEntityId: 'target',
+        },
+        baseline,
+      ),
+    ).resolves.toBe(false);
+    expect(() =>
+      owner.assertFutureReviewedBasisCurrent([reviewed], [current], 'TASK'),
+    ).not.toThrow();
+    current.content.sections = { description: 'New content' };
+    await expect(
+      owner.futureBaselineChanged(
+        tx as never,
+        {
+          organizationId: 'org',
+          projectId: 'project',
+          targetEntityType: 'TASK',
+          targetEntityId: 'target',
+        },
+        baseline,
+      ),
+    ).resolves.toBe(true);
+    expect(() =>
+      owner.assertFutureReviewedBasisCurrent([reviewed], [current], 'TASK'),
+    ).toThrow(ConflictException);
+  });
+
   it('keeps recovery and readable overlaps available after approval', async () => {
     const { tx, owner } = fixture();
     const mutation = futureProposal.updates as { baseline: never };

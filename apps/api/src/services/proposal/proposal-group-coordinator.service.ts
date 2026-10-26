@@ -292,6 +292,8 @@ export class ProposalGroupCoordinatorService {
         diagnostic: toProposalApprovalFailureDiagnostic(error),
       };
       await this.recordFailure(claim, error, failure);
+      if (error instanceof HttpException && error.getStatus() === 409)
+        throw error;
       throw error instanceof HttpException
         ? new HttpException(failure, error.getStatus())
         : new InternalServerErrorException(failure);

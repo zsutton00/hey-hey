@@ -43,6 +43,7 @@ import {
 } from '@prisma/client';
 import { createHash } from 'crypto';
 import { performance } from 'node:perf_hooks';
+import { setTimeout as delay } from 'node:timers/promises';
 import { withApiSpan } from 'src/telemetry/api-tracing';
 import type {
   CreateTaskDto,
@@ -240,6 +241,10 @@ const FEATURE_REQUIREMENTS_SECTION_KEY = 'requirements';
 @Injectable()
 export class WorkItemChangeSetMaterializerService {
   private static readonly CLAIM_TTL_MS = 15 * 60 * 1000;
+  private readonly runningAttempts = new Map<
+    string,
+    Promise<WorkItemChangeSetMaterializationResult>
+  >();
   private readonly logger = new Logger(
     WorkItemChangeSetMaterializerService.name,
   );
@@ -287,12 +292,18 @@ export class WorkItemChangeSetMaterializerService {
     reservedRootWorkItemId?: TaskId;
     request?: WorkItemChangeSetValidationRequest;
   }): Promise<WorkItemChangeSetMaterializationResult> {
+    const key = `${params.organizationId}:${params.projectId}:${params.proposalId}`;
+    const running = this.runningAttempts.get(key);
+    if (running) return running;
     const startedAt = performance.now();
+    const attempt = withApiSpan('proposal.change_set.materialize', () =>
+      this.materializeApprovedChangeSetInternal(params),
+    );
+    this.runningAttempts.set(key, attempt);
     try {
-      return await withApiSpan('proposal.change_set.materialize', () =>
-        this.materializeApprovedChangeSetInternal(params),
-      );
+      return await attempt;
     } finally {
+      this.runningAttempts.delete(key);
       this.logger.log('Generic materialization timing', {
         proposalId: params.proposalId,
         totalElapsedMs: performance.now() - startedAt,
@@ -355,48 +366,45 @@ export class WorkItemChangeSetMaterializerService {
     }
     if (prepared.status !== WorkItemChangeSetMaterializationStatus.PUBLISHED) {
       const claimed = await withApiSpan('proposal.change_set.claim', () =>
-        this.claimPreparedIntent(params, prepared.id),
+        this.claimOrObserveIntent(params, prepared.id),
       );
-      if (!claimed) {
-        this.logger.log(
-          'Generic materialization claim unavailable; reading current result',
-          { proposalId: params.proposalId, materializationId: prepared.id },
-        );
-        return this.requireCurrentResult(prepared.id);
-      }
-      try {
-        this.assertRecoverableIntent(claimed);
-        await withApiSpan('proposal.change_set.apply', () =>
-          this.applyPreparedIntent(params, claimed, claimed.claimToken!),
-        );
-        await withApiSpan('proposal.change_set.publish', () =>
-          this.publishPreparedIntent(params, claimed.id, claimed.claimToken!),
-        );
-        await withApiSpan('proposal.change_set.release_fences', () =>
-          this.releaseFences(claimed.id, claimed.claimToken!),
-        );
-      } catch (error) {
-        const failure = normalizedFailure(error);
-        const postconditionIssue = failure.diagnostic.issues.find(
-          (issue) => issue.code === 'POSTCONDITION_MISMATCH',
-        );
-        this.logger.error('Generic materialization attempt failed', {
-          proposalId: params.proposalId,
-          materializationId: claimed.id,
-          failureCode: postconditionIssue?.code ?? 'MATERIALIZATION_FAILED',
-          fieldPath: postconditionIssue?.field,
-          reason: postconditionIssue?.reason,
-          diagnosticCorrelationId: failure.diagnostic.correlationId,
-        });
-        await this.markIntentRecoverableFailure(
-          claimed.id,
-          claimed.claimToken!,
-          error,
-          failure,
-        );
-        throw error instanceof HttpException
-          ? new HttpException(failure, error.getStatus())
-          : new InternalServerErrorException(failure);
+      if (claimed) {
+        try {
+          this.assertRecoverableIntent(claimed);
+          await withApiSpan('proposal.change_set.apply', () =>
+            this.applyPreparedIntent(params, claimed, claimed.claimToken!),
+          );
+          await withApiSpan('proposal.change_set.publish', () =>
+            this.publishPreparedIntent(params, claimed.id, claimed.claimToken!),
+          );
+          await withApiSpan('proposal.change_set.release_fences', () =>
+            this.releaseFences(claimed.id, claimed.claimToken!),
+          );
+        } catch (error) {
+          const failure = normalizedFailure(error);
+          const postconditionIssue = failure.diagnostic.issues.find(
+            (issue) => issue.code === 'POSTCONDITION_MISMATCH',
+          );
+          this.logger.error('Generic materialization attempt failed', {
+            proposalId: params.proposalId,
+            materializationId: claimed.id,
+            failureCode: postconditionIssue?.code ?? 'MATERIALIZATION_FAILED',
+            fieldPath: postconditionIssue?.field,
+            reason: postconditionIssue?.reason,
+            diagnosticCorrelationId: failure.diagnostic.correlationId,
+          });
+          await this.markIntentRecoverableFailure(
+            claimed.id,
+            claimed.claimToken!,
+            error,
+            failure,
+          );
+          if (error instanceof HttpException && error.getStatus() === 409)
+            throw error;
+          throw error instanceof HttpException
+            ? new HttpException(failure, error.getStatus())
+            : new InternalServerErrorException(failure);
+        }
       }
     }
     this.logger.debug('Generic materialization verifying published result', {
@@ -424,33 +432,52 @@ export class WorkItemChangeSetMaterializerService {
     };
   }
 
-  private async requireCurrentResult(
+  /** Wait only on the selected intent when another API process owns it. */
+  private async claimOrObserveIntent(
+    params: {
+      proposalId: string;
+      organizationId: OrganizationId;
+      projectId: ProjectId;
+    },
     materializationId: string,
-  ): Promise<WorkItemChangeSetMaterializationResult> {
-    const current =
-      await this.prisma.db.workItemChangeSetMaterialization.findUniqueOrThrow({
-        where: { id: materializationId },
-        include: {
-          checkpoints: true,
-          proposal: { include: PROPOSAL_RESPONSE_BASE_RELATIONS_INCLUDE },
-        },
-      });
-    if (current.proposal.status !== 'APPROVED') {
-      throw new ConflictException(
-        'Generic change-set materialization is not bound to an approved proposal.',
-      );
+  ): Promise<MaterializationWithCheckpoints | null> {
+    for (;;) {
+      const claimed = await this.claimPreparedIntent(params, materializationId);
+      if (claimed) return claimed;
+      // Never return unfinished work as the outcome or retry an owner's failure.
+      for (;;) {
+        const current =
+          await this.prisma.db.workItemChangeSetMaterialization.findUniqueOrThrow(
+            { where: { id: materializationId } },
+          );
+        if (current.status === WorkItemChangeSetMaterializationStatus.PUBLISHED)
+          return null;
+        if (
+          current.status === WorkItemChangeSetMaterializationStatus.PREPARED &&
+          current.lastError
+        ) {
+          const failure = parseProposalApprovalFailure(current.lastError);
+          if (
+            failure?.diagnostic.issues.some(
+              (issue) => issue.code === 'PROPOSAL_RECONCILIATION_REQUIRED',
+            )
+          ) {
+            throw new ConflictException({
+              message: failure.message,
+              issues: failure.diagnostic.issues,
+              correlationId: failure.diagnostic.correlationId,
+            });
+          }
+          throw new InternalServerErrorException(
+            failure ?? { message: current.lastError },
+          );
+        }
+        if (!current.claimExpiresAt || current.claimExpiresAt <= new Date())
+          break;
+        await delay(250);
+      }
+      // Resume an expired owner with stable identities and completed effects.
     }
-    const { proposal, ...materialization } = current;
-    return {
-      proposal: {
-        ...proposal,
-        workItemChangeSetMaterialization: materialization,
-      },
-      rootWorkItemId: current.rootWorkItemId,
-      status: current.status,
-      enacted:
-        current.status === WorkItemChangeSetMaterializationStatus.PUBLISHED,
-    };
   }
 
   private async requirePublishedResult(materializationId: string): Promise<{
@@ -1571,7 +1598,7 @@ export class WorkItemChangeSetMaterializerService {
     return this.prisma.db.$transaction(async (tx) => {
       await withApiSpan('proposal.change_set.advisory_lock', () =>
         tx.$queryRaw(
-          Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${params.organizationId}:${params.projectId}`}, 0))::text AS "lockAcquired"`,
+          Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`materialization:${params.organizationId}:${params.projectId}:${params.proposalId}`}, 0))::text AS "lockAcquired"`,
         ),
       );
       const membership = await tx.proposalGroupMember.findUnique({
@@ -1602,19 +1629,6 @@ export class WorkItemChangeSetMaterializerService {
         }
       }
       const now = new Date();
-      const active = await tx.workItemChangeSetMaterialization.findMany({
-        where: {
-          organizationId: params.organizationId,
-          projectId: params.projectId,
-          status: WorkItemChangeSetMaterializationStatus.APPLYING,
-          claimExpiresAt: { gt: now },
-        },
-        select: {
-          id: true,
-          affectedWorkItemIds: true,
-          affectedRelationshipIds: true,
-        },
-      });
       const selected = await tx.workItemChangeSetMaterialization.findFirst({
         where: {
           id: materializationId,
@@ -1632,15 +1646,6 @@ export class WorkItemChangeSetMaterializerService {
         include: { checkpoints: true },
       });
       if (!selected) return null;
-      if (
-        active.some(
-          (candidate) =>
-            candidate.id === selected.id ||
-            this.materializationFootprintsOverlap(candidate, selected),
-        )
-      ) {
-        return null;
-      }
       const claimToken = uuidv4();
       return tx.workItemChangeSetMaterialization.update({
         where: { id: selected.id },
@@ -1654,45 +1659,6 @@ export class WorkItemChangeSetMaterializerService {
         include: { checkpoints: true },
       });
     });
-  }
-
-  private materializationFootprintsOverlap(
-    left: Pick<
-      WorkItemChangeSetMaterialization,
-      'affectedWorkItemIds' | 'affectedRelationshipIds'
-    >,
-    right: Pick<
-      WorkItemChangeSetMaterialization,
-      'affectedWorkItemIds' | 'affectedRelationshipIds'
-    >,
-  ): boolean {
-    const leftWorkItems = this.readFootprintIds(left.affectedWorkItemIds);
-    const rightWorkItems = this.readFootprintIds(right.affectedWorkItemIds);
-    const leftRelationships = this.readFootprintIds(
-      left.affectedRelationshipIds,
-    );
-    const rightRelationships = this.readFootprintIds(
-      right.affectedRelationshipIds,
-    );
-    if (
-      !leftWorkItems ||
-      !rightWorkItems ||
-      !leftRelationships ||
-      !rightRelationships
-    ) {
-      return true;
-    }
-    return (
-      leftWorkItems.some((id) => rightWorkItems.includes(id)) ||
-      leftRelationships.some((id) => rightRelationships.includes(id))
-    );
-  }
-
-  private readFootprintIds(value: Prisma.JsonValue | null): string[] | null {
-    if (!Array.isArray(value) || value.some((id) => typeof id !== 'string')) {
-      return null;
-    }
-    return value as string[];
   }
 
   private async applyPreparedIntent(
