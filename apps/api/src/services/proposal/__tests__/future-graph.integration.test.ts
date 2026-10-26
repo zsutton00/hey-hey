@@ -555,4 +555,52 @@ describe('future Diagram graph round trip through the generic projector', () => 
     });
     expect(h.rows[1]!.name).toBe('Keep');
   });
+
+  it('rehydrates written Diagram metadata equal to the reviewed graph whether supplied as an object or JSON text', async () => {
+    const h = await setup();
+    const reviewed = await h.projector.project({
+      organizationId,
+      projectId,
+      request: {
+        root,
+        operations: [
+          {
+            op: 'section.replace',
+            ref: root,
+            key: 'diagramMetadata',
+            content: { kind: 'PROCESS', level: 'OVERVIEW' },
+          },
+          {
+            op: 'section.replace',
+            ref: unchanged,
+            key: 'diagramElementMetadata',
+            content: JSON.stringify({ role: 'DIAGRAM_REFERENCE' }),
+          },
+        ],
+      },
+      view: rootChildrenView,
+    });
+
+    // Materialization persists structured sections as JSON text.
+    h.rows[0]!.sections[0]!.materializedMarkdown = JSON.stringify({
+      kind: 'PROCESS',
+      level: 'OVERVIEW',
+    });
+    h.rows[1]!.sections[0]!.materializedMarkdown = JSON.stringify({
+      role: 'DIAGRAM_REFERENCE',
+    });
+    const rehydrated = await h.projector.project({
+      organizationId,
+      projectId,
+      request: { root, operations: [] },
+      view: rootChildrenView,
+    });
+
+    expect(graphContentBasis(rehydrated)).toEqual(graphContentBasis(reviewed));
+    expect(
+      rehydrated.projectedRoot.sections.find(
+        (section) => section.key === 'diagramMetadata',
+      )?.content,
+    ).toEqual({ kind: 'PROCESS', level: 'OVERVIEW' });
+  });
 });

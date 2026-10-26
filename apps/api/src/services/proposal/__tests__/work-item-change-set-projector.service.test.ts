@@ -1660,7 +1660,7 @@ describe('WorkItemChangeSetProjectorService', () => {
     expect(projected.valid).toBe(true);
     expect(projected.sections).toEqual(
       expect.arrayContaining([
-        { key: 'graphLayout', content: JSON.stringify(savedLayout) },
+        { key: 'graphLayout', content: savedLayout },
         {
           key: 'graphLayoutPreference',
           content: {

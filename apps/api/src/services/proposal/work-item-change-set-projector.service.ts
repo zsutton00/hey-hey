@@ -36,7 +36,10 @@ import {
 } from 'src/generated/graphs/model/agentEdgeType';
 import { PrismaService } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId } from 'src/types';
-import { TaskSectionSchemaValidatorRegistry } from '../tasks/task-section-schema-validator.registry';
+import {
+  TaskSectionSchemaValidatorRegistry,
+  resolveWorkItemSectionContentKind,
+} from '../tasks/task-section-schema-validator.registry';
 import { WorkItemTypeRegistryService } from '../tasks/work-item-type-registry.service';
 import { WorkItemParentageValidator } from '../tasks/work-item-parentage-validator.service';
 import { validateFeatureRequirementsSection } from '../tasks/feature-requirements-section.validator';
@@ -1434,7 +1437,7 @@ export class WorkItemChangeSetProjectorService {
         .filter((section) => section.materializedMarkdown !== null)
         .map((section) => ({
           key: section.key,
-          content: this.projectPersistedSectionContent(
+          content: this.projectSectionContent(
             task.type,
             projectId,
             section.key,
@@ -1445,20 +1448,26 @@ export class WorkItemChangeSetProjectorService {
     };
   }
 
-  private projectPersistedSectionContent(
+  /**
+   * Structured sections are persisted as JSON text but reviewed as values, so
+   * every projected structured section holds the parsed value. Otherwise a
+   * rehydrated graph never equals the reviewed graph it materialized.
+   */
+  private projectSectionContent(
     taskType: string,
     projectId: ProjectId,
     sectionKey: string,
-    content: string,
+    content: unknown,
   ): unknown {
+    if (typeof content !== 'string') return content;
     // Deleting an orphan preserves its persisted sections without interpreting
     // them using a type definition that no longer exists.
     const definition = this.workItemTypeRegistry
       .getRulesForProject(taskType, projectId)
       ?.sectionDefinitions.find((section) => section.key === sectionKey);
     if (
-      definition?.kind !== 'html/css' &&
-      definition?.kind !== 'structured-mockup'
+      !definition ||
+      resolveWorkItemSectionContentKind(definition) === 'markdown'
     ) {
       return content;
     }
@@ -1514,7 +1523,7 @@ export class WorkItemChangeSetProjectorService {
             this.applyDelete(operation, state, outcomes);
             break;
           case 'section.replace':
-            this.applySectionReplace(operation, state, outcomes);
+            this.applySectionReplace(operation, projectId, state, outcomes);
             break;
           case 'section.clear':
             this.applySectionClear(operation, projectId, state, outcomes);
@@ -1647,6 +1656,7 @@ export class WorkItemChangeSetProjectorService {
 
   private applySectionReplace(
     operation: WorkItemSectionReplaceOperation,
+    projectId: ProjectId,
     state: ProjectionState,
     outcomes: ApplyOutcome[],
   ): void {
@@ -1662,7 +1672,12 @@ export class WorkItemChangeSetProjectorService {
     );
     sections.set(operation.key, {
       key: operation.key,
-      content: operation.content,
+      content: this.projectSectionContent(
+        node.type,
+        projectId,
+        operation.key,
+        operation.content,
+      ),
     });
     node.sections = this.sortedSections([...sections.values()]);
   }
