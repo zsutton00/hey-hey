@@ -24609,6 +24609,18 @@ components:
       $ref: "../schemas/entity-context.yaml#/FullEntityContextDto"
     EntityContentDto:
       $ref: "../schemas/entity-context.yaml#/EntityContentDto"
+    ConversationContextDto:
+      $ref: "../schemas/entity-context.yaml#/ConversationContextDto"
+    ConversationAboutDto:
+      $ref: "../schemas/entity-context.yaml#/ConversationAboutDto"
+    ConversationContextSessionDto:
+      $ref: "../schemas/entity-context.yaml#/ConversationContextSessionDto"
+    ConversationContextProposalDto:
+      $ref: "../schemas/entity-context.yaml#/ConversationContextProposalDto"
+    ConversationContextReportDto:
+      $ref: "../schemas/entity-context.yaml#/ConversationContextReportDto"
+    ConversationContextMessageDto:
+      $ref: "../schemas/entity-context.yaml#/ConversationContextMessageDto"
     PlanContextDto:
       $ref: "../schemas/entity-context.yaml#/PlanContextDto"
     PlanContextEntryDto:

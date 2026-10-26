@@ -361,6 +361,56 @@ const featureRequirementsSectionSchema = z
       'each record preserves its durable ID, statement, group, and typed citation slots.',
   );
 
+const conversationContextSchema = z.object({
+  conversationId: z
+    .string()
+    .describe('The owning conversation. Never a message id.'),
+  conversationTitle: z.string().nullable().optional(),
+  about: z
+    .object({ entityType: z.string(), entityId: z.string() })
+    .optional()
+    .describe('The entity this conversation is about, when recorded.'),
+  agentSessions: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      status: z.string(),
+      type: z.string(),
+    }),
+  ),
+  proposals: z
+    .array(
+      z.object({
+        id: z.string(),
+        title: z.string().nullable().optional(),
+        status: z.string(),
+        action: z.string(),
+        targetEntityType: z.string(),
+        targetEntityId: z.string().nullable().optional(),
+      }),
+    )
+    .describe(
+      'Newest proposals raised from this conversation (or, for a MESSAGE ' +
+        'seed, from that message), capped.',
+    ),
+  reports: z.array(
+    z.object({ id: z.string(), reportType: z.string(), createdAt: z.string() }),
+  ),
+  message: z
+    .object({
+      messageId: z.string(),
+      type: z.string(),
+      createdAt: z.string().nullable().optional(),
+      excerpt: z.string(),
+      truncated: z
+        .boolean()
+        .describe('True when excerpt is shorter than the full message.'),
+      length: z.number().int(),
+    })
+    .optional()
+    .describe('MESSAGE seeds only: a capped excerpt of the message body.'),
+});
+
 const entityContentSchema = z.object({
   sections: z
     .record(z.string())
@@ -489,6 +539,13 @@ export const getContextOutput = z.object({
       "The entity's own content body — sections plus work-tracking " +
         'metadata. Present for TASK (including Plan and Stage work items) ' +
         'and DESIGN_DOC seeds. Absent for entity types with no content body.',
+    ),
+  conversationContext: conversationContextSchema
+    .optional()
+    .describe(
+      'CONVERSATION and MESSAGE seeds: owning conversation, agent ' +
+        'sessions, subject entity, related proposals and reports, and a ' +
+        'capped message excerpt. Read the full thread with get_agent_session.',
     ),
 });
 
@@ -854,6 +911,9 @@ export class GetContextToolsProvider {
         ? { futureProposalDependencies }
         : {}),
       ...(fullContext.content ? { content: fullContext.content } : {}),
+      ...(fullContext.conversationContext
+        ? { conversationContext: fullContext.conversationContext }
+        : {}),
     };
 
     return output;
