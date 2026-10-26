@@ -1,5 +1,5 @@
 import { Button, DialogTitle, TextField } from "@mui/material";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { FunctionalDialog } from "./FunctionalDialog";
@@ -42,7 +42,7 @@ function Owner({ initialized }: { initialized: () => void }) {
 }
 
 describe("reopening minimized work", () => {
-  it("uses the original entry point to restore the same form without reinitializing it", async () => {
+  it("does not offer Minimize to a page-owned form", async () => {
     const user = userEvent.setup();
     const initialized = vi.fn();
     render(<Owner initialized={initialized} />);
@@ -50,10 +50,7 @@ describe("reopening minimized work", () => {
     const input = screen.getByLabelText("Values");
     await user.type(input, "Original values");
     const initializations = initialized.mock.calls.length;
-    await user.click(screen.getByTestId("modal-minimize"));
-    await user.click(screen.getByRole("button", { name: "Open form" }));
-    await waitFor(() => expect(input).toBeVisible());
-    expect(screen.getByLabelText("Values")).toBe(input);
+    expect(screen.queryByTestId("modal-minimize")).not.toBeInTheDocument();
     expect(input).toHaveValue("Original values");
     expect(initialized).toHaveBeenCalledTimes(initializations);
     await user.click(screen.getByTestId("modal-close"));

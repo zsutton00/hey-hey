@@ -5,7 +5,6 @@ import {
   useState,
   type SetStateAction,
 } from "react";
-import { restoreModalWork } from "./modalWorkRegistry";
 
 /** Opening existing work restores its presentation without changing its lifetime. */
 export function useModalState(initialState: boolean | (() => boolean) = false) {
@@ -17,7 +16,6 @@ export function useModalState(initialState: boolean | (() => boolean) = false) {
     (update: SetStateAction<boolean>) => {
       const next =
         typeof update === "function" ? update(current.current) : update;
-      if (next) restoreModalWork(ownerKey);
       current.current = next;
       setOpen(next);
     },

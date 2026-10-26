@@ -1,10 +1,11 @@
 import { Box, Button, Portal, Tooltip } from "@mui/material";
 import OpenInFullIcon from "@mui/icons-material/OpenInFull";
 import { useOptionalActionsCapsule } from "../ActionsCapsule/ActionsCapsuleContext";
-import { useMinimizedModalWork } from "./modalWorkRegistry";
+import { useModal } from "../../contexts/ModalContext";
 
 export function ModalRestoreControls() {
-  const work = useMinimizedModalWork();
+  const modal = useModal();
+  const work = modal?.modalInstances.filter((item) => item.minimized) ?? [];
   const capsule = useOptionalActionsCapsule();
   if (work.length === 0) return null;
   const left = capsule?.anchor === "bottom-left";
@@ -42,7 +43,7 @@ export function ModalRestoreControls() {
               <Button
                 data-testid="modal-restore"
                 aria-label={`Restore ${label}`}
-                onClick={item.restore}
+                onClick={() => modal?.openModal(item.config)}
                 variant="contained"
                 sx={{
                   minHeight: 44,

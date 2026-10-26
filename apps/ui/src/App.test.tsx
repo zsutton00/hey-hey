@@ -230,9 +230,9 @@ describe("guided walkthrough mounting", () => {
     renderShell();
 
     expect(
-      within(screen.getByTestId("canonical-page-provider")).getByTestId(
-        "canonical-walkthrough-events",
-      ),
+      within(
+        screen.getAllByTestId("canonical-page-provider").at(-1)!,
+      ).getByTestId("canonical-walkthrough-events"),
     ).toBeInTheDocument();
   });
 });

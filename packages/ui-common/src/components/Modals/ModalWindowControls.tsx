@@ -10,7 +10,7 @@ import RemoveIcon from "@mui/icons-material/Remove";
 
 export interface ModalWindowControlsProps {
   title: string;
-  minimize: () => void;
+  minimize: (() => void) | null;
   onClose: DialogProps["onClose"];
   closeControl: ReactElement<IconButtonProps> | undefined;
 }
@@ -39,14 +39,16 @@ export function ModalWindowControls({
         },
       }}
     >
-      <IconButton
-        data-testid="modal-minimize"
-        aria-label={`Minimize ${title}`}
-        onClick={minimize}
-        sx={{ minWidth: 44, minHeight: 44 }}
-      >
-        <RemoveIcon />
-      </IconButton>
+      {minimize && (
+        <IconButton
+          data-testid="modal-minimize"
+          aria-label={`Minimize ${title}`}
+          onClick={minimize}
+          sx={{ minWidth: 44, minHeight: 44 }}
+        >
+          <RemoveIcon />
+        </IconButton>
+      )}
       {closeControl ? (
         cloneElement(closeControl, {
           "aria-label": closeControl.props["aria-label"] ?? `Close ${title}`,

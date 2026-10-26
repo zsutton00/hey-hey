@@ -1,22 +1,41 @@
 import React from "react";
-import { useModal } from "@hey-hey/ui-common/context";
-import { ModalWorkOwner } from "@hey-hey/ui-common/components/Modals";
+import {
+  useModal,
+  copyPersistentModalRequest,
+} from "@hey-hey/ui-common/context";
+import { HostedModalBoundary } from "@hey-hey/ui-common/components/Modals";
 import { HeyHeyModalInstance } from "./HeyHeyModalInstance";
+import { HostedModalInstance } from "./HostedModalInstance";
 
-/** Each configuration owns its mounted content until its own accepted close. */
+/** The application owns each content tree until its consumer accepts close. */
 export function HeyHeyModal(): React.ReactElement | null {
   const context = useModal();
   if (!context) return null;
   return (
     <>
-      {context.modalInstances.map((instance) => (
-        <ModalWorkOwner.Provider key={instance.id} value={instance.id}>
+      {context.modalInstances.map((instance) => {
+        const request = copyPersistentModalRequest(instance.config);
+        const close = () => context.closeModal(instance.id);
+        if (request)
+          return (
+            <HostedModalBoundary key={instance.id} instanceId={instance.id}>
+              <HostedModalInstance
+                request={request}
+                instanceId={instance.id}
+                onClose={close}
+              />
+            </HostedModalBoundary>
+          );
+        return instance.config.type !== "discuss" &&
+          instance.config.type !== "triage" &&
+          instance.config.type !== "preview" ? (
           <HeyHeyModalInstance
+            key={instance.id}
             currentModal={instance.config}
-            closeModal={() => context.closeModal(instance.id)}
+            closeModal={close}
           />
-        </ModalWorkOwner.Provider>
-      ))}
+        ) : null;
+      })}
     </>
   );
 }

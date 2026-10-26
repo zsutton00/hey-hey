@@ -160,7 +160,7 @@ describe("NewTaskModal registry sections", () => {
     );
   });
 
-  it("preserves a creation form without invoking submit or the close/reset handler", async () => {
+  it("keeps a page-owned creation form without Minimize and does not invoke actions on opening", () => {
     const onClose = vi.fn();
     const onSubmit = vi.fn();
     render(
@@ -181,8 +181,7 @@ describe("NewTaskModal registry sections", () => {
     );
     fillTitle();
     const title = screen.getByRole("textbox", { name: "tasks.form.title" });
-    await userEvent.click(screen.getByTestId("modal-minimize"));
-    await userEvent.click(screen.getByRole("button", { name: /Restore/ }));
+    expect(screen.queryByTestId("modal-minimize")).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "tasks.form.title" })).toBe(
       title,
     );

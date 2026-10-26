@@ -1,3 +1,4 @@
+import { HostedModalFixture } from "../test/HostedModalFixture";
 import { ModalRestoreControls } from "@hey-hey/ui-common/components/Modals";
 import {
   fireEvent,
@@ -27,11 +28,13 @@ describe("PreviewModal", () => {
     const close = vi.fn();
     render(
       <MemoryRouter initialEntries={["/original"]}>
-        <PreviewModal open onClose={close}>
-          <input aria-label="Reply draft" defaultValue="Review this" />
-          <a href="/target">Target</a>
-        </PreviewModal>
-        <ModalRestoreControls />
+        <HostedModalFixture>
+          <PreviewModal open onClose={close}>
+            <input aria-label="Reply draft" defaultValue="Review this" />
+            <a href="/target">Target</a>
+          </PreviewModal>
+          <ModalRestoreControls />
+        </HostedModalFixture>
         <LocationProbe />
       </MemoryRouter>,
     );

@@ -12,6 +12,9 @@ export function useModalFocus(visible: boolean, root: HTMLElement | null) {
   const previousFocus = useRef<HTMLElement | null>(null);
   const wasVisible = useRef(false);
   useEffect(() => {
+    // MUI may attach the portal root after visibility changes. Wait for it
+    // before consuming the hidden-to-visible transition.
+    if (visible && !root) return;
     if (!visible && wasVisible.current)
       previousFocus.current = lastContentFocus.current;
     const restoring =
@@ -36,6 +39,7 @@ export function useModalFocus(visible: boolean, root: HTMLElement | null) {
   const rememberFocus = (event: FocusEvent<HTMLDivElement>) => {
     if (
       event.target instanceof HTMLElement &&
+      event.target.closest(".MuiDialog-paper") &&
       !event.target.closest('[data-testid="modal-window-controls"]')
     )
       lastContentFocus.current = event.target;

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -6,36 +5,36 @@ import { describe, expect, it, vi } from "vitest";
 import { ModalProvider, ModalType, useModal } from "@hey-hey/ui-common/context";
 import { ModalRestoreControls } from "@hey-hey/ui-common/components/Modals";
 import { HeyHeyModal } from "./HeyHeyModal";
-
 vi.mock("@hey-hey/ui-common/hooks", async (original) => ({
   ...(await original<typeof import("@hey-hey/ui-common/hooks")>()),
   useUserIdentity: () => ({ currentOrgId: "org" }),
 }));
 vi.mock("../hooks", () => ({ useActiveProjectId: () => "project" }));
 vi.mock("@hey-hey/ui-common/components/AdvancedSearch", () => ({
-  AdvancedSearch: () => <input aria-label="Search draft" defaultValue="" />,
-}));
-vi.mock("@hey-hey/ui-common/components/DesignDoc", () => ({
-  CreateDocumentContent: () => (
-    <input aria-label="Document draft" defaultValue="" />
+  AdvancedSearch: ({ onSelect }: { onSelect: (value: []) => void }) => (
+    <>
+      <input aria-label="Search draft" />
+      <button onClick={() => onSelect([])}>Select results</button>
+    </>
   ),
 }));
-
+vi.mock("@hey-hey/ui-common/components/DesignDoc", () => ({
+  CreateDocumentContent: () => <input aria-label="Document draft" />,
+}));
+const selected = vi.fn();
 function Openers() {
   const modal = useModal();
-  const [searchRequests, setSearchRequests] = useState(0);
   return (
     <>
       <button
-        onClick={() => {
-          setSearchRequests((count) => count + 1);
+        onClick={() =>
           modal?.openModal({
             type: ModalType.ADVANCED_SEARCH,
             organizationId: "org",
             projectId: "project",
-            onSelect: () => {},
-          });
-        }}
+            onSelect: selected,
+          })
+        }
       >
         Search
       </button>
@@ -51,13 +50,11 @@ function Openers() {
       >
         Create document
       </button>
-      <output data-testid="search-requests">{searchRequests}</output>
     </>
   );
 }
-
-describe("dispatcher preservation", () => {
-  it("retains search and creation work independently and reopens an existing configuration without resetting it", async () => {
+describe("legacy shared-host eligibility", () => {
+  it("keeps callback actions working without offering Minimize", async () => {
     const user = userEvent.setup();
     render(
       <MemoryRouter>
@@ -68,25 +65,17 @@ describe("dispatcher preservation", () => {
         </ModalProvider>
       </MemoryRouter>,
     );
-    await user.click(screen.getByRole("button", { name: "Search" }));
-    const search = screen.getByLabelText("Search draft");
-    await user.type(search, "Find the review");
-    await user.click(screen.getByTestId("modal-minimize"));
-    await user.click(screen.getByRole("button", { name: "Create document" }));
-    const document = screen.getByLabelText("Document draft");
-    await user.type(document, "New design decisions");
-    await user.click(screen.getAllByTestId("modal-minimize")[1]);
-    await user.click(screen.getByRole("button", { name: "Search" }));
-    await waitFor(() => expect(search).toBeVisible());
-    expect(screen.getAllByLabelText("Search draft")).toHaveLength(1);
-    expect(search).toHaveValue("Find the review");
-    expect(document).toHaveValue("New design decisions");
-    await user.click(screen.getAllByTestId("modal-close")[0]);
-    await user.click(
-      screen.getByRole("button", { name: "Restore Create Document" }),
+    await user.click(screen.getByText("Search"));
+    await user.type(screen.getByLabelText("Search draft"), "Search values");
+    expect(screen.queryByTestId("modal-minimize")).not.toBeInTheDocument();
+    await user.click(screen.getByText("Select results"));
+    expect(selected).toHaveBeenCalledWith([]);
+    await user.click(screen.getByTestId("modal-close"));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
-    await waitFor(() => expect(document).toBeVisible());
-    expect(screen.getByLabelText("Document draft")).toBe(document);
-    expect(document).toHaveValue("New design decisions");
+    await user.click(screen.getByText("Create document"));
+    expect(screen.getByLabelText("Document draft")).toBeVisible();
+    expect(screen.queryByTestId("modal-minimize")).not.toBeInTheDocument();
   });
 });

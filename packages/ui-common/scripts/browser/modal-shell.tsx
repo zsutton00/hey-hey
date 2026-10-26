@@ -1,3 +1,5 @@
+import { ModalProvider, useModal } from "../../src/contexts/ModalContext";
+import { HostedModalBoundary } from "../../src/components/Modals/HostedModalBoundary";
 import { useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -16,6 +18,15 @@ import { useActionsCapsule } from "../../src/components/ActionsCapsule/ActionsCa
 
 function Fixture() {
   const capsule = useActionsCapsule();
+  const modal = useModal();
+  useLayoutEffect(() => {
+    modal?.openModal({
+      type: "triage",
+      organizationId: "org",
+      projectId: "project",
+    });
+  }, [modal?.openModal]);
+  const instance = modal?.modalInstances[0];
   const [open, setOpen] = useState(true);
   const [confirmation, setConfirmation] = useState(false);
   const [clicks, setClicks] = useState(0);
@@ -67,43 +78,51 @@ function Fixture() {
           Actions
         </button>
       </Box>
-      <FunctionalDialog open={open} onClose={() => setOpen(false)}>
-        <DialogTitle>Browser draft</DialogTitle>
-        <DialogContent>
-          <TextField
-            label="Draft"
-            slotProps={{ htmlInput: { "data-testid": "browser-draft" } }}
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            fullWidth
-          />
-        </DialogContent>
-        <ModalActions contextualActions={<Button>Attach files</Button>}>
-          <Button onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={() => setConfirmation(true)}>Review changes</Button>
-          <Button>Start Conversation</Button>
-        </ModalActions>
-        <FunctionalDialog
-          open={confirmation}
-          onClose={() => setConfirmation(false)}
-        >
-          <DialogTitle>Pending review</DialogTitle>
-          <DialogContent>Selection remains pending.</DialogContent>
-          <ModalActions>
-            <Button onClick={() => setConfirmation(false)}>
-              Keep reviewing
-            </Button>
-          </ModalActions>
-        </FunctionalDialog>
-      </FunctionalDialog>
+      {instance && (
+        <HostedModalBoundary instanceId={instance.id}>
+          <FunctionalDialog open={open} onClose={() => setOpen(false)}>
+            <DialogTitle>Browser draft</DialogTitle>
+            <DialogContent>
+              <TextField
+                label="Draft"
+                slotProps={{ htmlInput: { "data-testid": "browser-draft" } }}
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                fullWidth
+              />
+            </DialogContent>
+            <ModalActions contextualActions={<Button>Attach files</Button>}>
+              <Button onClick={() => setOpen(false)}>Cancel</Button>
+              <Button onClick={() => setConfirmation(true)}>
+                Review changes
+              </Button>
+              <Button>Start Conversation</Button>
+            </ModalActions>
+            <FunctionalDialog
+              open={confirmation}
+              onClose={() => setConfirmation(false)}
+            >
+              <DialogTitle>Pending review</DialogTitle>
+              <DialogContent>Selection remains pending.</DialogContent>
+              <ModalActions>
+                <Button onClick={() => setConfirmation(false)}>
+                  Keep reviewing
+                </Button>
+              </ModalActions>
+            </FunctionalDialog>
+          </FunctionalDialog>
+        </HostedModalBoundary>
+      )}
     </>
   );
 }
 
 createRoot(document.getElementById("root")!).render(
   <ThemeProvider theme={createTheme()}>
-    <ActionsCapsuleProvider>
-      <Fixture />
-    </ActionsCapsuleProvider>
+    <ModalProvider>
+      <ActionsCapsuleProvider>
+        <Fixture />
+      </ActionsCapsuleProvider>
+    </ModalProvider>
   </ThemeProvider>,
 );

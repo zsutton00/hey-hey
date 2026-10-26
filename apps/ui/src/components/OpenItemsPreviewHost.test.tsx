@@ -1,8 +1,23 @@
+import type { ReactNode } from "react";
+vi.mock("../contexts/OpenItemsContext", () => ({
+  OpenItemsProvider: ({ children }: { children: ReactNode }) => children,
+}));
+vi.mock("@hey-hey/ui-common/context", async (original) => ({
+  ...(await original<typeof import("@hey-hey/ui-common/context")>()),
+  useAuth: () => ({ user: { id: "user" } }),
+}));
+import { ModalProvider } from "@hey-hey/ui-common/context";
+import { HeyHeyModal } from "./HeyHeyModal";
 import {
   usePreviewHost,
   type PreviewRequest,
 } from "@hey-hey/ui-common/context";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render as renderView,
+  screen,
+  within,
+} from "@testing-library/react";
 import React from "react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
@@ -202,6 +217,7 @@ describe("CanonicalEntityPreview", () => {
             <CollectionPreviewTrigger collection={collection} />
             <LocationProbe />
           </OpenItemsPreviewHost>
+          <HeyHeyModal />
         </MemoryRouter>,
       );
 
@@ -225,6 +241,7 @@ describe("CanonicalEntityPreview", () => {
         <OpenItemsPreviewHost organizationId="org-1" projectId="project-1">
           <CollectionPreviewTrigger collection="features" />
         </OpenItemsPreviewHost>
+        <HeyHeyModal />
       </MemoryRouter>,
     );
 
@@ -242,6 +259,7 @@ describe("CanonicalEntityPreview", () => {
           <CollectionPreviewTrigger collection="features" />
           <CollectionPreviewTrigger collection="goals" />
         </OpenItemsPreviewHost>
+        <HeyHeyModal />
       </MemoryRouter>,
     );
     fireEvent.click(screen.getByRole("button", { name: "Preview features" }));
@@ -269,6 +287,7 @@ describe("CanonicalEntityPreview", () => {
           <PreviewTrigger />
           <LocationProbe />
         </OpenItemsPreviewHost>
+        <HeyHeyModal />
       </MemoryRouter>,
     );
 
@@ -286,3 +305,9 @@ describe("CanonicalEntityPreview", () => {
     expect(window.history.length).toBe(initialHistoryLength);
   });
 });
+
+const render: typeof renderView = (ui, options) =>
+  renderView(ui, {
+    ...options,
+    wrapper: ({ children }) => <ModalProvider>{children}</ModalProvider>,
+  });

@@ -389,36 +389,40 @@ export const AppRouteShell = () => {
   const projectId =
     location.pathname.match(/^\/projects\/([^/]+)/)?.[1] ?? null;
   return (
-    <OpenItemsProvider
-      key={`${user?.id}:${currentOrganization?.id}:${projectId}`}
-      projectId={projectId}
-      organizationId={currentOrganization?.id ?? null}
-      userId={user?.id ?? null}
-    >
-      <OpenItemsActivationBridge>
-        <CanonicalPageProvider>
-          <CanonicalWalkthroughEvents />
-          <NuqsAdapter>
-            <OpenItemsPreviewHost
-              organizationId={currentOrganization?.id ?? ""}
-              projectId={projectId}
-            >
-              <LazyAnimatePresence mode="wait">
-                <Layout />
-                {showActionsCapsule && (
-                  <Suspense fallback={null}>
-                    <ActionsCapsule />
-                  </Suspense>
-                )}
-              </LazyAnimatePresence>
-
-              {/* Modal renderer */}
-              <HeyHeyModal />
-            </OpenItemsPreviewHost>
-          </NuqsAdapter>
-        </CanonicalPageProvider>
-      </OpenItemsActivationBridge>
-    </OpenItemsProvider>
+    <>
+      <CanonicalPageProvider>
+        <NuqsAdapter>
+          <HeyHeyModal />
+        </NuqsAdapter>
+      </CanonicalPageProvider>
+      <OpenItemsProvider
+        key={`${user?.id}:${currentOrganization?.id}:${projectId}`}
+        projectId={projectId}
+        organizationId={currentOrganization?.id ?? null}
+        userId={user?.id ?? null}
+      >
+        <OpenItemsActivationBridge>
+          <CanonicalPageProvider>
+            <CanonicalWalkthroughEvents />
+            <NuqsAdapter>
+              <OpenItemsPreviewHost
+                organizationId={currentOrganization?.id ?? ""}
+                projectId={projectId}
+              >
+                <LazyAnimatePresence mode="wait">
+                  <Layout />
+                  {showActionsCapsule && (
+                    <Suspense fallback={null}>
+                      <ActionsCapsule />
+                    </Suspense>
+                  )}
+                </LazyAnimatePresence>
+              </OpenItemsPreviewHost>
+            </NuqsAdapter>
+          </CanonicalPageProvider>
+        </OpenItemsActivationBridge>
+      </OpenItemsProvider>
+    </>
   );
 };
 

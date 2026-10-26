@@ -1,5 +1,11 @@
+import { DiscussTestApplication } from "../../../test/DiscussTestHost";
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render as renderView,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ThemeProvider } from "@mui/material/styles";
@@ -46,7 +52,11 @@ vi.mock("../../../data/hooks/useEntityStars", () => ({
 }));
 
 vi.mock("../../../data/hooks/useWorkItem", () => ({
-  useWorkItem: vi.fn(() => ({ workItem: undefined })),
+  useWorkItem: vi.fn(() => ({
+    workItem: { type: "STANDARD" },
+    isFetching: false,
+    refetch: async () => null,
+  })),
 }));
 
 const mockGetEntityNames = vi.fn().mockResolvedValue({ data: [] });
@@ -141,21 +151,38 @@ describe("ContextMenu — contribution submenu", () => {
     const onAction = vi.fn();
     const onClose = vi.fn();
     const user = userEvent.setup();
-    render(<ContextMenu
-      position={{ x: 20, y: 20 }}
-      contributions={[{ id: "groups", section: "primary", order: 0, items: [{
-        action: "add", label: "Add to group", testId: "parent",
-        submenu: [{ action: "group-one", label: "One", testId: "child" }],
-      }] }]}
-      onAction={onAction}
-      onClose={onClose}
-      onViewHistory={vi.fn()}
-      onNavigateToEntity={vi.fn()}
-      onNavigateToConversation={vi.fn()}
-    />);
+    render(
+      <ContextMenu
+        position={{ x: 20, y: 20 }}
+        contributions={[
+          {
+            id: "groups",
+            section: "primary",
+            order: 0,
+            items: [
+              {
+                action: "add",
+                label: "Add to group",
+                testId: "parent",
+                submenu: [
+                  { action: "group-one", label: "One", testId: "child" },
+                ],
+              },
+            ],
+          },
+        ]}
+        onAction={onAction}
+        onClose={onClose}
+        onViewHistory={vi.fn()}
+        onNavigateToEntity={vi.fn()}
+        onNavigateToConversation={vi.fn()}
+      />,
+    );
     const parent = screen.getByTestId("parent");
     expect(parent).toHaveAttribute("aria-haspopup", "menu");
-    expect(screen.getByTestId("interaction-menu-submenu-arrow")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("interaction-menu-submenu-arrow"),
+    ).toBeInTheDocument();
     await user.hover(parent);
     expect(screen.getByTestId("child")).toBeInTheDocument();
     await user.hover(screen.getByTestId("child"));
@@ -172,16 +199,27 @@ describe("ContextMenu — contribution submenu", () => {
   });
 
   it("has no arrow when there are no child entries", () => {
-    render(<ContextMenu
-      position={{ x: 20, y: 20 }}
-      contributions={[{ id: "groups", section: "primary", order: 0, items: [{ action: "add", label: "Add to group" }] }]}
-      onAction={vi.fn()}
-      onClose={vi.fn()}
-      onViewHistory={vi.fn()}
-      onNavigateToEntity={vi.fn()}
-      onNavigateToConversation={vi.fn()}
-    />);
-    expect(screen.queryByTestId("interaction-menu-submenu-arrow")).not.toBeInTheDocument();
+    render(
+      <ContextMenu
+        position={{ x: 20, y: 20 }}
+        contributions={[
+          {
+            id: "groups",
+            section: "primary",
+            order: 0,
+            items: [{ action: "add", label: "Add to group" }],
+          },
+        ]}
+        onAction={vi.fn()}
+        onClose={vi.fn()}
+        onViewHistory={vi.fn()}
+        onNavigateToEntity={vi.fn()}
+        onNavigateToConversation={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByTestId("interaction-menu-submenu-arrow"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByTestId("interaction-submenu")).not.toBeInTheDocument();
   });
 });
@@ -197,7 +235,7 @@ const PROJECT_ID = "proj-1";
 const CREATED_AT = "2026-01-15T10:00:00.000Z";
 
 function buildProps(
-  overrides: Partial<InteractionComponentProps> = {}
+  overrides: Partial<InteractionComponentProps> = {},
 ): InteractionComponentProps {
   return {
     entityId: ENTITY_ID,
@@ -231,7 +269,7 @@ function buildOriginInfluence(overrides: Partial<Influence> = {}): Influence {
 }
 
 function buildProposal(
-  overrides: Partial<ProposalResponseDto> = {}
+  overrides: Partial<ProposalResponseDto> = {},
 ): ProposalResponseDto {
   return {
     id: "proposal-1",
@@ -254,7 +292,7 @@ function buildProposal(
 }
 
 function buildEntityContext(
-  overrides: Partial<EntityContextDto> = {}
+  overrides: Partial<EntityContextDto> = {},
 ): EntityContextDto {
   return {
     entityId: ENTITY_ID,
@@ -303,7 +341,7 @@ describe("ContextMenu — loading state", () => {
     openMenu();
 
     expect(
-      screen.queryByTestId("interaction-menu-view-all-history")
+      screen.queryByTestId("interaction-menu-view-all-history"),
     ).not.toBeInTheDocument();
   });
 });
@@ -328,7 +366,7 @@ describe("ContextMenu — empty proposals", () => {
 
     expect(screen.queryByTestId("provenance-summary")).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId("interaction-menu-view-all-history")
+      screen.queryByTestId("interaction-menu-view-all-history"),
     ).not.toBeInTheDocument();
   });
 });
@@ -350,7 +388,7 @@ describe("ContextMenu — removed legacy UI", () => {
     openMenu();
 
     expect(
-      screen.queryByTestId("interaction-menu-view-history")
+      screen.queryByTestId("interaction-menu-view-history"),
     ).not.toBeInTheDocument();
   });
 
@@ -410,7 +448,7 @@ describe("ContextMenu — Created block (only CREATE)", () => {
     expect(entityLink.tagName).toBe("BUTTON");
 
     const conversationLink = screen.getByTestId(
-      "provenance-created-conversation-link"
+      "provenance-created-conversation-link",
     );
     expect(conversationLink).toHaveTextContent("Conversation");
     expect(conversationLink.tagName).toBe("BUTTON");
@@ -421,7 +459,7 @@ describe("ContextMenu — Created block (only CREATE)", () => {
     openMenu();
 
     expect(
-      screen.queryByTestId("provenance-last-updated")
+      screen.queryByTestId("provenance-last-updated"),
     ).not.toBeInTheDocument();
   });
 });
@@ -481,10 +519,10 @@ describe("ContextMenu — Last Updated picks the most recent UPDATE", () => {
     // Conversation link on the Last Updated row should route to the most
     // recent UPDATE proposal's conversation.
     await user.click(
-      screen.getByTestId("provenance-last-updated-conversation-link")
+      screen.getByTestId("provenance-last-updated-conversation-link"),
     );
     expect(mockNavigate).toHaveBeenCalledWith(
-      expect.stringContaining("conv-update-new")
+      expect.stringContaining("conv-update-new"),
     );
   });
 });
@@ -515,14 +553,14 @@ describe("ContextMenu — missing origin influence", () => {
     openMenu();
 
     expect(
-      screen.queryByTestId("provenance-created-entity-link")
+      screen.queryByTestId("provenance-created-entity-link"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId("provenance-created-entity-text")
+      screen.queryByTestId("provenance-created-entity-text"),
     ).not.toBeInTheDocument();
 
     const conversationLink = screen.getByTestId(
-      "provenance-created-conversation-link"
+      "provenance-created-conversation-link",
     );
     expect(conversationLink).toHaveTextContent("Conversation");
 
@@ -578,7 +616,7 @@ describe("ContextMenu — provenance navigation", () => {
           type: "task",
         }),
         projectId: PROJECT_ID,
-      })
+      }),
     );
   });
 
@@ -607,14 +645,14 @@ describe("ContextMenu — provenance navigation", () => {
     openMenu();
 
     expect(
-      screen.queryByTestId("provenance-created-entity-link")
+      screen.queryByTestId("provenance-created-entity-link"),
     ).not.toBeInTheDocument();
 
     const entityText = screen.getByTestId("provenance-created-entity-text");
     expect(entityText).toHaveTextContent("Message");
 
     const conversationLink = screen.getByTestId(
-      "provenance-created-conversation-link"
+      "provenance-created-conversation-link",
     );
     const row = screen.getByTestId("provenance-created");
     expect(row).toContainElement(entityText);
@@ -644,12 +682,12 @@ describe("ContextMenu — provenance navigation", () => {
     openMenu();
 
     await user.click(
-      screen.getByTestId("provenance-created-conversation-link")
+      screen.getByTestId("provenance-created-conversation-link"),
     );
 
     expect(mockNavigate).toHaveBeenCalledOnce();
     expect(mockNavigate).toHaveBeenCalledWith(
-      `/projects/${PROJECT_ID}/resolve-agent-session/conv-xyz`
+      `/projects/${PROJECT_ID}/resolve-agent-session/conv-xyz`,
     );
   });
 });
@@ -673,7 +711,7 @@ describe("ContextMenu — View All History", () => {
     openMenu();
 
     expect(
-      screen.getByTestId("interaction-menu-view-all-history")
+      screen.getByTestId("interaction-menu-view-all-history"),
     ).toBeInTheDocument();
   });
 
@@ -735,11 +773,11 @@ describe("ContextMenu — MCP tools from entity context response", () => {
     openMenu();
 
     expect(
-      screen.getByTestId("interaction-menu-edit_task")
+      screen.getByTestId("interaction-menu-edit_task"),
     ).toBeInTheDocument();
     expect(screen.getByText("Edit Task...")).toBeInTheDocument();
     expect(
-      screen.getByTestId("interaction-menu-split_task")
+      screen.getByTestId("interaction-menu-split_task"),
     ).toBeInTheDocument();
     expect(screen.getByText("Split Task...")).toBeInTheDocument();
   });
@@ -796,7 +834,7 @@ describe("ContextMenu — MCP tools from entity context response", () => {
     openMenu();
 
     expect(
-      screen.getByTestId("interaction-menu-edit_task")
+      screen.getByTestId("interaction-menu-edit_task"),
     ).toBeInTheDocument();
     expect(screen.getByTestId("interaction-menu-discuss")).toBeInTheDocument();
   });
@@ -826,7 +864,7 @@ describe("ContextMenu — dismiss behaviors", () => {
     fireEvent.keyDown(container, { key: "Escape" });
 
     expect(
-      screen.queryByTestId("interaction-context-menu")
+      screen.queryByTestId("interaction-context-menu"),
     ).not.toBeInTheDocument();
   });
 
@@ -836,7 +874,7 @@ describe("ContextMenu — dismiss behaviors", () => {
       <div>
         <InteractionComponent {...buildProps()} />
         <button data-testid="outside-element">Outside</button>
-      </div>
+      </div>,
     );
 
     openMenu();
@@ -846,7 +884,7 @@ describe("ContextMenu — dismiss behaviors", () => {
 
     await waitFor(() => {
       expect(
-        screen.queryByTestId("interaction-context-menu")
+        screen.queryByTestId("interaction-context-menu"),
       ).not.toBeInTheDocument();
     });
   });
@@ -908,6 +946,7 @@ describe("ContextMenu — Discuss action", () => {
       context: {
         entityId: ENTITY_ID,
         entityType: ENTITY_TYPE,
+        entitySubtype: "STANDARD",
       },
       provider: ConversationStartRunRequestDtoProviderEnum.Claude,
       model: null,
@@ -975,7 +1014,7 @@ describe("ContextMenu — View All History influence navigation", () => {
     });
     expect(link).toHaveAttribute(
       "href",
-      `/projects/${PROJECT_ID}/tasks/task-xyz`
+      `/projects/${PROJECT_ID}/tasks/task-xyz`,
     );
     // Reasoning continues to render beneath the title.
     expect(screen.getByText("Related task context")).toBeInTheDocument();
@@ -1010,7 +1049,7 @@ describe("ContextMenu — View All History influence navigation", () => {
     await user.click(screen.getByTestId("interaction-menu-view-all-history"));
 
     await user.click(
-      await screen.findByRole("link", { name: "Refactor auth flow" })
+      await screen.findByRole("link", { name: "Refactor auth flow" }),
     );
 
     expect(mockNavigateToEntity).toHaveBeenCalledOnce();
@@ -1018,7 +1057,7 @@ describe("ContextMenu — View All History influence navigation", () => {
       expect.objectContaining({
         entity: expect.objectContaining({ id: "task-xyz", type: "task" }),
         projectId: PROJECT_ID,
-      })
+      }),
     );
     expect(screen.queryByTestId("view-history-modal")).not.toBeInTheDocument();
   });
@@ -1073,7 +1112,7 @@ describe("ContextMenu — View All History influence navigation", () => {
               }),
             ]),
           }),
-        })
+        }),
       );
     });
 
@@ -1082,7 +1121,7 @@ describe("ContextMenu — View All History influence navigation", () => {
     });
     expect(link).toHaveAttribute(
       "href",
-      `/projects/${PROJECT_ID}/tasks/task-legacy`
+      `/projects/${PROJECT_ID}/tasks/task-legacy`,
     );
   });
 
@@ -1116,7 +1155,7 @@ describe("ContextMenu — View All History influence navigation", () => {
 
     expect(screen.getByText("Some message")).toBeInTheDocument();
     expect(
-      screen.queryByRole("link", { name: "Some message" })
+      screen.queryByRole("link", { name: "Some message" }),
     ).not.toBeInTheDocument();
     expect(screen.getByText("A message influenced this")).toBeInTheDocument();
   });
@@ -1152,7 +1191,7 @@ describe("ContextMenu — static-first ordering", () => {
     // DOCUMENT_POSITION_FOLLOWING (4) means mcpItem follows discuss in the DOM
     expect(
       discuss.compareDocumentPosition(mcpItem) &
-        Node.DOCUMENT_POSITION_FOLLOWING
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
@@ -1172,7 +1211,7 @@ describe("ContextMenu — static-first ordering", () => {
     // Loading indicator must follow Discuss in the DOM
     expect(
       discuss.compareDocumentPosition(loadingText) &
-        Node.DOCUMENT_POSITION_FOLLOWING
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
@@ -1218,7 +1257,7 @@ describe("ContextMenu — static-first ordering", () => {
     render(
       <PreviewHostProvider host={{ openPreview: vi.fn() }}>
         <OpenItemInteractionComponent
-        selection={{ selectedIdentities: [], onRemoveSelected: vi.fn() }}
+          selection={{ selectedIdentities: [], onRemoveSelected: vi.fn() }}
           {...buildProps({ entityType: TargetEntityType.AgentSession })}
           openItemActions={{
             pin: { hasTargets: true, onSelect: vi.fn() },
@@ -1233,7 +1272,7 @@ describe("ContextMenu — static-first ordering", () => {
             whyOpen: { kind: "add", onSelect: vi.fn() },
           }}
         />
-      </PreviewHostProvider>
+      </PreviewHostProvider>,
     );
     openMenu();
 
@@ -1244,69 +1283,77 @@ describe("ContextMenu — static-first ordering", () => {
     const activeOnly = screen.getByTestId("interaction-menu-show-active-only");
     const sort = screen.getByTestId("interaction-menu-sort-open-items");
     const removeOthers = screen.getByTestId(
-      "interaction-menu-remove-open-others"
+      "interaction-menu-remove-open-others",
     );
     const removeAbove = screen.getByTestId(
-      "interaction-menu-remove-open-above"
+      "interaction-menu-remove-open-above",
     );
     const removeBelow = screen.getByTestId(
-      "interaction-menu-remove-open-below"
+      "interaction-menu-remove-open-below",
     );
     const removeAll = screen.getByTestId("interaction-menu-remove-all-open");
     const whyOpen = screen.getByTestId("interaction-menu-why-open");
     const discuss = screen.getByTestId("interaction-menu-discuss");
     const star = screen.getByTestId("interaction-menu-star");
-    expect(screen.getByTestId("interaction-menu-discuss-icon")).toBeInTheDocument();
-    expect(screen.getByTestId("interaction-menu-star-outline-icon")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("interaction-menu-discuss-icon"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("interaction-menu-star-outline-icon"),
+    ).toBeInTheDocument();
 
     expect(mockUseEntityContext).not.toHaveBeenCalled();
     expect(discuss).toHaveTextContent("Discuss Agent Session");
     expect(
-      screen.queryByTestId("interaction-menu-edit_task")
+      screen.queryByTestId("interaction-menu-edit_task"),
     ).not.toBeInTheDocument();
     expect(screen.queryByTestId("provenance-summary")).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId("interaction-menu-view-all-history")
+      screen.queryByTestId("interaction-menu-view-all-history"),
     ).not.toBeInTheDocument();
     expect(
-      preview.compareDocumentPosition(remove) & Node.DOCUMENT_POSITION_FOLLOWING
+      preview.compareDocumentPosition(remove) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      pin.compareDocumentPosition(whyOpen) & Node.DOCUMENT_POSITION_FOLLOWING
+      pin.compareDocumentPosition(whyOpen) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
       whyOpen.compareDocumentPosition(discuss) &
-        Node.DOCUMENT_POSITION_FOLLOWING
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      discuss.compareDocumentPosition(star) & Node.DOCUMENT_POSITION_FOLLOWING
+      discuss.compareDocumentPosition(star) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      star.compareDocumentPosition(select) & Node.DOCUMENT_POSITION_FOLLOWING
+      star.compareDocumentPosition(select) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      select.compareDocumentPosition(activeOnly) & Node.DOCUMENT_POSITION_FOLLOWING
+      select.compareDocumentPosition(activeOnly) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      activeOnly.compareDocumentPosition(sort) & Node.DOCUMENT_POSITION_FOLLOWING
+      activeOnly.compareDocumentPosition(sort) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      sort.compareDocumentPosition(remove) & Node.DOCUMENT_POSITION_FOLLOWING
+      sort.compareDocumentPosition(remove) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      remove.compareDocumentPosition(removeOthers) & Node.DOCUMENT_POSITION_FOLLOWING
+      remove.compareDocumentPosition(removeOthers) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
       removeOthers.compareDocumentPosition(removeAbove) &
-        Node.DOCUMENT_POSITION_FOLLOWING
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
       removeAbove.compareDocumentPosition(removeBelow) &
-        Node.DOCUMENT_POSITION_FOLLOWING
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
       removeBelow.compareDocumentPosition(removeAll) &
-        Node.DOCUMENT_POSITION_FOLLOWING
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     const menu = screen.getByTestId("interaction-context-menu");
     const separators = Array.from(menu.querySelectorAll('[role="separator"]'));
@@ -1315,12 +1362,12 @@ describe("ContextMenu — static-first ordering", () => {
         (separator) =>
           Boolean(
             first.compareDocumentPosition(separator) &
-              Node.DOCUMENT_POSITION_FOLLOWING
+            Node.DOCUMENT_POSITION_FOLLOWING,
           ) &&
           Boolean(
             separator.compareDocumentPosition(second) &
-              Node.DOCUMENT_POSITION_FOLLOWING
-          )
+            Node.DOCUMENT_POSITION_FOLLOWING,
+          ),
       );
     expect(hasSeparatorBetween(select, activeOnly)).toBe(false);
     expect(hasSeparatorBetween(activeOnly, sort)).toBe(false);
@@ -1328,3 +1375,6 @@ describe("ContextMenu — static-first ordering", () => {
     expect(hasSeparatorBetween(remove, removeOthers)).toBe(false);
   });
 });
+
+const render: typeof renderView = (ui, options) =>
+  renderView(ui, { ...options, wrapper: DiscussTestApplication });

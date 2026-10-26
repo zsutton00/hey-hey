@@ -1,75 +1,23 @@
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useId,
-  useRef,
-  useState,
-} from "react";
+import React, { createContext, useContext, useMemo } from "react";
 import type { ModalConfig } from "./types/modalTypes";
-import { restoreModalWork } from "../components/Modals/modalWorkRegistry";
-
-export interface ModalInstance {
-  id: string;
-  config: ModalConfig;
-}
-
+import type { PersistentModalRequest } from "./types/persistentModalRequest";
+import { modalDomain, type ModalInstance } from "../state/modalDomain";
+export type { ModalInstance } from "../state/modalDomain";
 export interface ModalContextValue {
-  currentModal: ModalConfig | null;
+  currentModal: ModalConfig | PersistentModalRequest | null;
   modalInstances: readonly ModalInstance[];
-  openModal: (config: ModalConfig) => void;
+  openModal: (config: ModalConfig | PersistentModalRequest) => void;
   closeModal: (instanceId?: string) => void;
 }
-
 const ModalContext = createContext<ModalContextValue | null>(null);
 export interface ModalProviderProps {
   children: React.ReactNode;
 }
-
-// Callback identity does not identify a new document/search. Keep the original
-// configuration and callbacks with an existing draft until it actually closes.
-const configIdentity = (config: ModalConfig) =>
-  JSON.stringify(config, (_key, value: unknown) =>
-    value !== null && typeof value === "object" && !Array.isArray(value)
-      ? Object.fromEntries(
-          Object.entries(value).sort(([left], [right]) =>
-            left.localeCompare(right),
-          ),
-        )
-      : value,
-  );
-
-export function ModalProvider({
-  children,
-}: ModalProviderProps): React.ReactElement {
-  const ownerId = useId();
-  const sequence = useRef(0);
-  const [instances, setInstances] = useState<readonly ModalInstance[]>([]);
-  const instancesRef = useRef(instances);
-  instancesRef.current = instances;
-  const openModal = useCallback(
-    (config: ModalConfig) => {
-      const existing = instancesRef.current.find(
-        (item) => configIdentity(item.config) === configIdentity(config),
-      );
-      if (existing) {
-        restoreModalWork(existing.id);
-        return;
-      }
-      const instance = { id: `${ownerId}-${++sequence.current}`, config };
-      instancesRef.current = [...instancesRef.current, instance];
-      setInstances(instancesRef.current);
-    },
-    [ownerId],
-  );
-  const closeModal = useCallback((instanceId?: string) => {
-    const closing = instanceId ?? instancesRef.current.at(-1)?.id;
-    instancesRef.current = instancesRef.current.filter(
-      (item) => item.id !== closing,
-    );
-    setInstances(instancesRef.current);
-  }, []);
-  const value = React.useMemo<ModalContextValue>(
+function ModalContextBridge({ children }: ModalProviderProps) {
+  const instances = modalDomain.useSelector((state) => state.instances);
+  const openModal = modalDomain.useSelector((state) => state.open);
+  const closeModal = modalDomain.useSelector((state) => state.acceptedClose);
+  const value = useMemo(
     () => ({
       currentModal: instances.at(-1)?.config ?? null,
       modalInstances: instances,
@@ -82,7 +30,13 @@ export function ModalProvider({
     <ModalContext.Provider value={value}>{children}</ModalContext.Provider>
   );
 }
-
-export function useModal(): ModalContextValue | null {
+export function ModalProvider({ children }: ModalProviderProps) {
+  return (
+    <modalDomain.Provider>
+      <ModalContextBridge>{children}</ModalContextBridge>
+    </modalDomain.Provider>
+  );
+}
+export function useModal() {
   return useContext(ModalContext);
 }

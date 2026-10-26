@@ -1,3 +1,26 @@
+import { ModalProvider, useModal } from "@hey-hey/ui-common/context";
+import { HostedModalBoundary } from "@hey-hey/ui-common/components/Modals";
+import { OpenItemsTriageReview } from "./HostedTriageOwner";
+function TestHost() {
+  const modal = useModal();
+  return (
+    <>
+      {modal?.modalInstances.map((item) =>
+        item.config.type === "triage" ? (
+          <HostedModalBoundary key={item.id} instanceId={item.id}>
+            <OpenItemsTriageReview
+              organizationId={item.config.organizationId}
+              projectId={item.config.projectId}
+              open
+              onClosed={() => modal.closeModal(item.id)}
+              ownerKey={item.id}
+            />
+          </HostedModalBoundary>
+        ) : null,
+      )}
+    </>
+  );
+}
 import { ModalRestoreControls } from "@hey-hey/ui-common/components/Modals";
 import { useEffect } from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
@@ -25,7 +48,7 @@ vi.mock("@hey-hey/ui-common/data", async (original) => ({
     error: mocks.agentSessionError,
   }),
 }));
-vi.mock("../../pages/AgentSession/OpenItemsTriagePage", () => ({
+vi.mock("./OpenItemsTriageContent", () => ({
   OpenItemsTriagePage: ({
     agentSession,
     pageIdentity,
@@ -93,11 +116,14 @@ const mount = () => {
   const onHeaderClick = vi.fn();
   render(
     <MemoryRouter initialEntries={["/projects/project-1/tasks/t"]}>
-      <div data-testid="header" onClick={onHeaderClick}>
-        <OpenItemsTriageAction organizationId="org-1" projectId="project-1" />
-      </div>
-      <Location />
-      <ModalRestoreControls />
+      <ModalProvider>
+        <div data-testid="header" onClick={onHeaderClick}>
+          <OpenItemsTriageAction organizationId="org-1" projectId="project-1" />
+        </div>
+        <Location />
+        <TestHost />
+        <ModalRestoreControls />
+      </ModalProvider>
     </MemoryRouter>,
   );
   return { onHeaderClick };

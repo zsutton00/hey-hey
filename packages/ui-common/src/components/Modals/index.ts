@@ -4,7 +4,7 @@ export type { SuggestedActionTaskModalProps } from "./SuggestedActionTaskModal";
 export { FunctionalDialog } from "./FunctionalDialog";
 export type { FunctionalDialogProps } from "./FunctionalDialog";
 export { ModalRestoreControls } from "./ModalRestoreControls";
-export { restoreModalWork } from "./modalWorkRegistry";
+export { HostedModalBoundary } from "./HostedModalBoundary";
 
 export { ModalWorkOwner } from "./ModalWorkOwner";
 

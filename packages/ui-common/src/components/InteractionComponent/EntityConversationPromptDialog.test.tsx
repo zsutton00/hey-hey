@@ -97,7 +97,7 @@ describe("EntityConversationPromptDialog", () => {
       },
     });
 
-    expect(screen.getByTestId("modal-minimize")).toBeEnabled();
+    expect(screen.queryByTestId("modal-minimize")).not.toBeInTheDocument();
     expect(screen.getByTestId("modal-close")).toBeDisabled();
     expect(screen.getByTestId("prompt-dialog-cancel")).toBeDisabled();
     expect(screen.getByTestId("prompt-dialog-secondary")).toBeDisabled();

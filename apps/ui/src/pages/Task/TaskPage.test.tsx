@@ -1,3 +1,4 @@
+import { HostedModalFixture } from "../../test/HostedModalFixture";
 import { ModalRestoreControls } from "@hey-hey/ui-common/components/Modals";
 import { PreviewModal } from "../../components/PreviewModal";
 import type {
@@ -204,7 +205,8 @@ vi.mock("@hey-hey/ui-common/components", () => ({
   MentionBadgeInner: () => null,
 }));
 
-vi.mock("@hey-hey/ui-common/context", () => ({
+vi.mock("@hey-hey/ui-common/context", async (original) => ({
+  ...(await original<typeof import("@hey-hey/ui-common/context")>()),
   CanonicalPageBoundary: ({ children }: { children: React.ReactNode }) =>
     children,
   createCanonicalPageDescriptor: mockCreateCanonicalPageDescriptor,
@@ -629,15 +631,17 @@ describe("TaskPage data debug tab", () => {
     render(
       <MemoryRouter initialEntries={["/underlying?tab=notes"]}>
         <LocationProbe />
-        <PreviewModal open onClose={vi.fn()}>
-          <TaskPage
-            organizationId="org-1"
-            projectId="project-1"
-            taskId="task-1"
-            preview
-          />
-        </PreviewModal>
-        <ModalRestoreControls />
+        <HostedModalFixture>
+          <PreviewModal open onClose={vi.fn()}>
+            <TaskPage
+              organizationId="org-1"
+              projectId="project-1"
+              taskId="task-1"
+              preview
+            />
+          </PreviewModal>
+          <ModalRestoreControls />
+        </HostedModalFixture>
       </MemoryRouter>,
     );
     const composition = screen.getByTestId("status-action-owner");

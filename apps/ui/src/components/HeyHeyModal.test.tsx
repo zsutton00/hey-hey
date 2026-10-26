@@ -55,6 +55,7 @@ vi.mock("@hey-hey/ui-common/components/Modals", async (original) => ({
 }));
 
 vi.mock("react-i18next", () => ({
+  initReactI18next: { type: "3rdParty", init: () => {} },
   useTranslation: () => ({ t: (_key: string, fallback?: string) => fallback }),
 }));
 

@@ -1,3 +1,4 @@
+import { HostedModalContext } from "./HostedModalBoundary";
 import { useState } from "react";
 import { Dialog, DialogTitle, type DialogProps } from "@mui/material";
 import { ModalMinimizeContext } from "./ModalMinimizeContext";
@@ -42,70 +43,75 @@ export function FunctionalDialog({
     useModalPresentation(open, title || workTitle || "Dialog", root, ownerKey);
 
   return (
-    <ModalMinimizeContext.Provider value={minimize}>
-      <ModalShellContext.Provider value={true}>
-        <ModalVisibilityContext.Provider value={childrenHidden}>
-          <Dialog
-            {...props}
-            ref={setRoot}
-            inert={hidden}
-            onFocusCapture={(event) => {
-              props.onFocusCapture?.(event);
-              rememberFocus(event);
-            }}
-            open={visible}
-            closeAfterTransition={
-              hidden ? false : (props.closeAfterTransition ?? true)
-            }
-            onClose={onClose}
-            keepMounted={open || keepMounted}
-            disableEnforceFocus={hidden || props.disableEnforceFocus}
-            disableScrollLock={hidden || props.disableScrollLock}
-            aria-label={
-              props["aria-labelledby"] ? undefined : title || workTitle
-            }
-            sx={[
-              {
-                "& .MuiDialog-paper": {
-                  border: 1,
-                  borderColor: "divider",
-                  borderRadius: 2,
-                },
-                "& .MuiDialogTitle-root": { pr: 13, minHeight: 64 },
-                "& .MuiDialogActions-root": {
-                  flexWrap: "wrap",
-                  gap: 1,
-                  justifyContent: "flex-end",
-                  px: 3,
-                  py: 2,
-                  "& .MuiButton-root": { whiteSpace: "nowrap", flexShrink: 0 },
-                },
-              },
-              ...(Array.isArray(sx) ? sx : sx ? [sx] : []),
-              ...(hidden
-                ? [
-                    {
-                      visibility: "hidden",
-                      pointerEvents: "none",
-                      "& .MuiBackdrop-root": { display: "none" },
-                    },
-                  ]
-                : []),
-            ]}
-          >
-            <ModalWindowControls
-              title={title || workTitle || "dialog"}
-              minimize={minimize}
+    <HostedModalContext.Provider value={null}>
+      <ModalMinimizeContext.Provider value={minimize}>
+        <ModalShellContext.Provider value={true}>
+          <ModalVisibilityContext.Provider value={childrenHidden}>
+            <Dialog
+              {...props}
+              ref={setRoot}
+              inert={hidden}
+              onFocusCapture={(event) => {
+                props.onFocusCapture?.(event);
+                rememberFocus(event);
+              }}
+              open={visible}
+              closeAfterTransition={
+                hidden ? false : (props.closeAfterTransition ?? true)
+              }
               onClose={onClose}
-              closeControl={closeControl}
-            />
-            {needsHeading && (
-              <DialogTitle data-modal-title>{title}</DialogTitle>
-            )}
-            {children}
-          </Dialog>
-        </ModalVisibilityContext.Provider>
-      </ModalShellContext.Provider>
-    </ModalMinimizeContext.Provider>
+              keepMounted={open || keepMounted}
+              disableEnforceFocus={hidden || props.disableEnforceFocus}
+              disableScrollLock={hidden || props.disableScrollLock}
+              aria-label={
+                props["aria-labelledby"] ? undefined : title || workTitle
+              }
+              sx={[
+                {
+                  "& .MuiDialog-paper": {
+                    border: 1,
+                    borderColor: "divider",
+                    borderRadius: 2,
+                  },
+                  "& .MuiDialogTitle-root": { pr: 13, minHeight: 64 },
+                  "& .MuiDialogActions-root": {
+                    flexWrap: "wrap",
+                    gap: 1,
+                    justifyContent: "flex-end",
+                    px: 3,
+                    py: 2,
+                    "& .MuiButton-root": {
+                      whiteSpace: "nowrap",
+                      flexShrink: 0,
+                    },
+                  },
+                },
+                ...(Array.isArray(sx) ? sx : sx ? [sx] : []),
+                ...(hidden
+                  ? [
+                      {
+                        visibility: "hidden",
+                        pointerEvents: "none",
+                        "& .MuiBackdrop-root": { display: "none" },
+                      },
+                    ]
+                  : []),
+              ]}
+            >
+              <ModalWindowControls
+                title={title || workTitle || "dialog"}
+                minimize={minimize}
+                onClose={onClose}
+                closeControl={closeControl}
+              />
+              {needsHeading && (
+                <DialogTitle data-modal-title>{title}</DialogTitle>
+              )}
+              {children}
+            </Dialog>
+          </ModalVisibilityContext.Provider>
+        </ModalShellContext.Provider>
+      </ModalMinimizeContext.Provider>
+    </HostedModalContext.Provider>
   );
 }
