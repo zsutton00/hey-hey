@@ -295,7 +295,6 @@ export * from './LocalHtmlCssMockupRevisionBounds';
 export * from './LocalHtmlCssMockupRevisionElementTarget';
 export * from './LocalHtmlCssMockupRevisionPositionTarget';
 export * from './LocalHtmlCssMockupRevisionPromptPayload';
-export * from './LocalHtmlCssMockupRevisionPromptPayload1';
 export * from './LocalHtmlCssMockupRevisionRenderedContext';
 export * from './LocalHtmlCssMockupRevisionRenderedSize';
 export * from './LocalHtmlCssMockupRevisionSection';

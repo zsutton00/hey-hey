@@ -1939,7 +1939,6 @@ Class | Method | HTTP request | Description
  - [LocalHtmlCssMockupRevisionBounds](docs/LocalHtmlCssMockupRevisionBounds.md)
  - [LocalHtmlCssMockupRevisionElementTarget](docs/LocalHtmlCssMockupRevisionElementTarget.md)
  - [LocalHtmlCssMockupRevisionPositionTarget](docs/LocalHtmlCssMockupRevisionPositionTarget.md)
- - [LocalHtmlCssMockupRevisionPromptPayload](docs/LocalHtmlCssMockupRevisionPromptPayload.md)
  - [LocalHtmlCssMockupRevisionRenderedContext](docs/LocalHtmlCssMockupRevisionRenderedContext.md)
  - [LocalHtmlCssMockupRevisionRenderedSize](docs/LocalHtmlCssMockupRevisionRenderedSize.md)
  - [LocalHtmlCssMockupRevisionSection](docs/LocalHtmlCssMockupRevisionSection.md)

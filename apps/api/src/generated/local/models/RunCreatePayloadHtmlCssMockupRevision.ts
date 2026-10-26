@@ -16,11 +16,11 @@ import { RunEntityReference } from '../models/RunEntityReference';
 import { HttpFile } from '../http/http';
 
 export class RunCreatePayloadHtmlCssMockupRevision {
+  'promptType': RunCreatePayloadHtmlCssMockupRevisionPromptTypeEnum;
+  'entity': RunEntityReference;
   'payloadVersion': RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum;
   'section': LocalHtmlCssMockupRevisionSection1;
   'annotations': Array<LocalHtmlCssMockupRevisionAnnotation1>;
-  'promptType': RunCreatePayloadHtmlCssMockupRevisionPromptTypeEnum;
-  'entity': RunEntityReference;
 
   static readonly discriminator: string | undefined = undefined;
 
@@ -32,6 +32,18 @@ export class RunCreatePayloadHtmlCssMockupRevision {
     type: string;
     format: string;
   }> = [
+    {
+      name: 'promptType',
+      baseName: 'promptType',
+      type: 'RunCreatePayloadHtmlCssMockupRevisionPromptTypeEnum',
+      format: '',
+    },
+    {
+      name: 'entity',
+      baseName: 'entity',
+      type: 'RunEntityReference',
+      format: '',
+    },
     {
       name: 'payloadVersion',
       baseName: 'payloadVersion',
@@ -50,18 +62,6 @@ export class RunCreatePayloadHtmlCssMockupRevision {
       type: 'Array<LocalHtmlCssMockupRevisionAnnotation1>',
       format: '',
     },
-    {
-      name: 'promptType',
-      baseName: 'promptType',
-      type: 'RunCreatePayloadHtmlCssMockupRevisionPromptTypeEnum',
-      format: '',
-    },
-    {
-      name: 'entity',
-      baseName: 'entity',
-      type: 'RunEntityReference',
-      format: '',
-    },
   ];
 
   static getAttributeTypeMap() {
@@ -71,9 +71,9 @@ export class RunCreatePayloadHtmlCssMockupRevision {
   public constructor() {}
 }
 
-export enum RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum {
-  NUMBER_1 = 1,
-}
 export enum RunCreatePayloadHtmlCssMockupRevisionPromptTypeEnum {
   html_css_mockup_revision = 'html_css_mockup_revision',
+}
+export enum RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum {
+  NUMBER_1 = 1,
 }

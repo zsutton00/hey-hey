@@ -1426,7 +1426,6 @@ export * from './localHtmlCssMockupRevisionAnnotation';
 export * from './localHtmlCssMockupRevisionBounds';
 export * from './localHtmlCssMockupRevisionElementTarget';
 export * from './localHtmlCssMockupRevisionPositionTarget';
-export * from './localHtmlCssMockupRevisionPromptPayload';
 export * from './localHtmlCssMockupRevisionRenderedContext';
 export * from './localHtmlCssMockupRevisionRenderedSize';
 export * from './localHtmlCssMockupRevisionSection';

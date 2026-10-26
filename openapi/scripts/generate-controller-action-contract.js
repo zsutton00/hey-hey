@@ -4,11 +4,15 @@ const path = require("node:path");
 const {
   generateRuntimeSchema,
 } = require("./generate-repository-feature-enrichment-runtime-schema");
+const CONTROLLER_ROOT_DEFINITIONS = [
+  "HostActionPreparation",
+  "ControllerActionInputs",
+];
 
 async function generateControllerActionContract(output, typeImport) {
   await generateRuntimeSchema(
     [output],
-    ["HostActionPreparation", "ControllerActionInputs"],
+    CONTROLLER_ROOT_DEFINITIONS,
     "controllerActionRuntimeSchema",
     typeImport,
   );
@@ -108,4 +112,7 @@ if (require.main === module) {
     );
   }
 }
-module.exports = { generateControllerActionContract };
+module.exports = {
+  generateControllerActionContract,
+  CONTROLLER_ROOT_DEFINITIONS,
+};

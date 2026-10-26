@@ -2992,24 +2992,66 @@ export const controllerActionRuntimeSchema = {
           ],
         },
         {
-          allOf: [
-            {
-              type: 'object',
-              required: ['promptType', 'entity'],
-              properties: {
-                promptType: {
-                  type: 'string',
-                  enum: ['plan_shaping_visual_preview'],
-                },
-                entity: {
-                  $ref: '#/definitions/RunEntityReference',
-                },
+          type: 'object',
+          additionalProperties: false,
+          'x-heyhey-prompt-payload': {
+            $ref: '#/definitions/PlanShapingVisualPreviewPromptPayload',
+          },
+          required: [
+            'promptType',
+            'entity',
+            'designDocId',
+            'planId',
+            'featureId',
+            'refinementRound',
+            'entries',
+          ],
+          properties: {
+            promptType: {
+              type: 'string',
+              enum: ['plan_shaping_visual_preview'],
+            },
+            entity: {
+              $ref: '#/definitions/RunEntityReference',
+            },
+            designDocId: {
+              type: 'string',
+              format: 'uuid',
+            },
+            planId: {
+              type: 'string',
+              format: 'uuid',
+            },
+            featureId: {
+              type: 'string',
+              format: 'uuid',
+            },
+            refinementRound: {
+              type: 'integer',
+              minimum: 0,
+            },
+            entries: {
+              type: 'array',
+              items: {
+                $ref: '#/definitions/PlanShapingVisualPreviewPromptPayload/properties/entries/items',
               },
             },
-            {
-              $ref: '#/definitions/PlanShapingVisualPreviewPromptPayload',
+            acceptedProposalIds: {
+              type: 'array',
+              items: {
+                type: 'string',
+                format: 'uuid',
+              },
             },
-          ],
+            feedback: {
+              type: 'string',
+            },
+            userMessage: {
+              type: 'string',
+              description:
+                'Optional user-authored refinement note for the current turn.',
+            },
+          },
         },
         {
           allOf: [
@@ -3098,24 +3140,62 @@ export const controllerActionRuntimeSchema = {
           ],
         },
         {
-          allOf: [
-            {
-              type: 'object',
-              required: ['promptType', 'entity'],
-              properties: {
-                promptType: {
-                  type: 'string',
-                  enum: ['task_monitor'],
-                },
-                entity: {
-                  $ref: '#/definitions/RunEntityReference',
-                },
-              },
-            },
-            {
-              $ref: '#/definitions/TaskMonitorPromptPayload',
-            },
+          type: 'object',
+          additionalProperties: false,
+          'x-heyhey-prompt-payload': {
+            $ref: '#/definitions/TaskMonitorPromptPayload',
+          },
+          required: [
+            'promptType',
+            'entity',
+            'monitorId',
+            'cause',
+            'correlationId',
           ],
+          properties: {
+            promptType: {
+              type: 'string',
+              enum: ['task_monitor'],
+            },
+            entity: {
+              $ref: '#/definitions/RunEntityReference',
+            },
+            monitorId: {
+              type: 'string',
+              format: 'uuid',
+            },
+            cause: {
+              $ref: '#/definitions/TaskMonitorLifecycleCause',
+            },
+            correlationId: {
+              type: 'string',
+              format: 'uuid',
+            },
+            coordinatorAttemptId: {
+              type: 'string',
+              format: 'uuid',
+              description:
+                'Stable committed delivery identity; independent of released Turn correlation.',
+            },
+            correction: {
+              $ref: '#/definitions/TaskMonitorPromptPayload/properties/correction',
+            },
+            userMessage: {
+              type: 'string',
+              maxLength: 5000,
+            },
+            launchConfig: {
+              $ref: '#/definitions/TaskMonitorLaunchConfig',
+            },
+            judgment: {
+              $ref: '#/definitions/TaskMonitorJudgmentResponse',
+            },
+            settledTurn: {
+              $ref: '#/definitions/SessionMonitorSettledTurnEvidence',
+              description:
+                'Canonical settled-Turn evidence supplied for CONTINUE. The correlationId is the same stable turnId; Reports are optional evidence references and never select Task Monitor admission.\n',
+            },
+          },
         },
         {
           $ref: '#/definitions/RunCreatePayloadHtmlCssMockupRevision',
@@ -6735,24 +6815,53 @@ export const controllerActionRuntimeSchema = {
         'Run Again and the first turn ask for a fresh suggestion pass from current context; Send asks a follow-up about the existing suggestions.\n',
     },
     RunCreatePayloadVerifyFeature: {
-      allOf: [
-        {
-          type: 'object',
-          required: ['promptType', 'userMessage', 'entity'],
-          properties: {
-            promptType: {
-              type: 'string',
-              enum: ['verify_feature'],
-            },
-            entity: {
-              $ref: '#/definitions/RunEntityReference',
-            },
+      type: 'object',
+      additionalProperties: false,
+      'x-heyhey-prompt-payload': {
+        $ref: '#/definitions/VerifyFeaturePromptPayload',
+      },
+      required: [
+        'promptType',
+        'entity',
+        'concern',
+        'parentAgentSessionId',
+        'userMessage',
+      ],
+      properties: {
+        promptType: {
+          type: 'string',
+          enum: ['verify_feature'],
+        },
+        entity: {
+          $ref: '#/definitions/RunEntityReference',
+        },
+        concern: {
+          type: 'string',
+          minLength: 1,
+          description:
+            'The flagged discrepancy this session investigates, and nothing else.',
+        },
+        parentAgentSessionId: {
+          type: 'string',
+          format: 'uuid',
+          description:
+            'The session whose conversation, Project Assistant findings and Feature Sync outcome the mode reads.\n',
+        },
+        impactedEntities: {
+          type: 'array',
+          default: [],
+          description:
+            'Possibly impacted entities named by the session that raised the concern, in its order. Starting points for the investigation, not its boundary. May be empty; launches from suggestions saved before the field existed omit it and read as empty.\n',
+          items: {
+            $ref: '#/definitions/VerifyFeaturePromptPayload/properties/impactedEntities/items',
           },
         },
-        {
-          $ref: '#/definitions/VerifyFeaturePromptPayload',
+        userMessage: {
+          type: 'string',
+          description:
+            "The opening message (or the user's follow-up) for this turn.",
         },
-      ],
+      },
     },
     VerifyFeaturePromptPayload: {
       type: 'object',
@@ -8337,24 +8446,41 @@ export const controllerActionRuntimeSchema = {
         'Lifecycle cause delivered to the Task Monitor handler through the signed start-run or user-message dispatch rail.\n',
     },
     RunCreatePayloadHtmlCssMockupRevision: {
-      allOf: [
-        {
-          type: 'object',
-          required: ['promptType', 'entity'],
-          properties: {
-            promptType: {
-              type: 'string',
-              enum: ['html_css_mockup_revision'],
-            },
-            entity: {
-              $ref: '#/definitions/RunEntityReference',
-            },
+      type: 'object',
+      additionalProperties: false,
+      'x-heyhey-prompt-payload': {
+        $ref: '#/definitions/LocalHtmlCssMockupRevisionPromptPayload',
+      },
+      required: [
+        'promptType',
+        'entity',
+        'payloadVersion',
+        'section',
+        'annotations',
+      ],
+      properties: {
+        promptType: {
+          type: 'string',
+          enum: ['html_css_mockup_revision'],
+        },
+        entity: {
+          $ref: '#/definitions/RunEntityReference',
+        },
+        payloadVersion: {
+          type: 'integer',
+          enum: [1],
+        },
+        section: {
+          $ref: '#/definitions/LocalHtmlCssMockupRevisionSection',
+        },
+        annotations: {
+          type: 'array',
+          minItems: 1,
+          items: {
+            $ref: '#/definitions/LocalHtmlCssMockupRevisionAnnotation',
           },
         },
-        {
-          $ref: '#/definitions/LocalHtmlCssMockupRevisionPromptPayload',
-        },
-      ],
+      },
     },
     LocalHtmlCssMockupRevisionPromptPayload: {
       type: 'object',

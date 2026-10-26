@@ -38,7 +38,8 @@ export function candidateSelection(
   if (selection.images.length)
     selection.checks.push({
       target: "contracts",
-      command: "pnpm test:scripts && pnpm generate:check",
+      command:
+        "pnpm test:scripts && pnpm generate:check && pnpm check:controller-producers",
     });
   return selection;
 }

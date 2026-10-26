@@ -1,6 +1,9 @@
 name: Contracts
 
 on:
+  pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -23,4 +26,9 @@ jobs:
       - name: Resolver tests
         run: pnpm test:scripts
       - name: Validate specs, regenerate every consumer and check for drift
+        if: github.event_name == 'workflow_dispatch'
         run: pnpm generate:check
+      - name: Verify recorded contracts and controller schema compatibility
+        run: pnpm generate:verify
+      - name: Check actual controller payload producers
+        run: pnpm check:controller-producers

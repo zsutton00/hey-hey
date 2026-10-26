@@ -15,6 +15,8 @@ import { RunEntityReference } from '../models/RunEntityReference';
 import { HttpFile } from '../http/http';
 
 export class RunCreatePayloadPlanShapingVisualPreview {
+  'promptType': RunCreatePayloadPlanShapingVisualPreviewPromptTypeEnum;
+  'entity': RunEntityReference;
   'designDocId': string;
   'planId': string;
   'featureId': string;
@@ -26,8 +28,6 @@ export class RunCreatePayloadPlanShapingVisualPreview {
    * Optional user-authored refinement note for the current turn.
    */
   'userMessage'?: string;
-  'promptType': RunCreatePayloadPlanShapingVisualPreviewPromptTypeEnum;
-  'entity': RunEntityReference;
 
   static readonly discriminator: string | undefined = undefined;
 
@@ -39,6 +39,18 @@ export class RunCreatePayloadPlanShapingVisualPreview {
     type: string;
     format: string;
   }> = [
+    {
+      name: 'promptType',
+      baseName: 'promptType',
+      type: 'RunCreatePayloadPlanShapingVisualPreviewPromptTypeEnum',
+      format: '',
+    },
+    {
+      name: 'entity',
+      baseName: 'entity',
+      type: 'RunEntityReference',
+      format: '',
+    },
     {
       name: 'designDocId',
       baseName: 'designDocId',
@@ -85,18 +97,6 @@ export class RunCreatePayloadPlanShapingVisualPreview {
       name: 'userMessage',
       baseName: 'userMessage',
       type: 'string',
-      format: '',
-    },
-    {
-      name: 'promptType',
-      baseName: 'promptType',
-      type: 'RunCreatePayloadPlanShapingVisualPreviewPromptTypeEnum',
-      format: '',
-    },
-    {
-      name: 'entity',
-      baseName: 'entity',
-      type: 'RunEntityReference',
       format: '',
     },
   ];

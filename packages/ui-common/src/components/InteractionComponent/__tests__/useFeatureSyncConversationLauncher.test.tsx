@@ -1,10 +1,14 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import Ajv from "ajv";
+import addFormats from "ajv-formats";
+import { controllerActionRuntimeSchema } from "../../../../../../apps/api/src/generated/controller-action-contract";
 import {
   AgentSessionType,
   MessageType,
   WorkflowName,
   type AgentSessionConfigEntityConversationV1,
+  type RunCreatePayloadVerifyFeature,
 } from "../../../api";
 import {
   useFeatureSyncConversationLauncher,
@@ -80,6 +84,13 @@ const renderLauncher = () =>
     }),
   );
 
+const ajv = new Ajv({ strict: false, allErrors: true });
+addFormats(ajv);
+const validateLaunchPayload = ajv.compile<RunCreatePayloadVerifyFeature>({
+  ...controllerActionRuntimeSchema,
+  $ref: "#/definitions/RunCreatePayloadVerifyFeature",
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.create.mockResolvedValue({
@@ -101,6 +112,33 @@ beforeEach(() => {
 });
 
 describe("fresh feature verification", () => {
+  it.each(["", "Investigate the changed behavior."])(
+    "constructs a payload accepted by the generated controller contract with guidance %j",
+    async (prompt) => {
+      const { result } = renderLauncher();
+      await act(async () => {
+        expect(await result.current.launch({ ...input, prompt })).toBe(true);
+      });
+      const payload: RunCreatePayloadVerifyFeature =
+        mocks.start.mock.calls[0]![0].intent.payload;
+      expect(
+        validateLaunchPayload(payload),
+        JSON.stringify(validateLaunchPayload.errors),
+      ).toBe(true);
+      // Closing the complete object must still prohibit unknown executable inputs.
+      expect(validateLaunchPayload({ ...payload, undeclaredInput: true })).toBe(
+        false,
+      );
+      expect(validateLaunchPayload.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            keyword: "additionalProperties",
+            params: { additionalProperty: "undeclaredInput" },
+          }),
+        ]),
+      );
+    },
+  );
   it("launches the dedicated Verify Feature mode on the affected feature with the full reviewed context", async () => {
     const config: AgentSessionConfigEntityConversationV1 = {
       type: "ENTITY_CONVERSATION",

@@ -10641,38 +10641,6 @@ export const LocalHtmlCssMockupRevisionPromptPayloadPayloadVersionEnum = {
 export type LocalHtmlCssMockupRevisionPromptPayloadPayloadVersionEnum = typeof LocalHtmlCssMockupRevisionPromptPayloadPayloadVersionEnum[keyof typeof LocalHtmlCssMockupRevisionPromptPayloadPayloadVersionEnum];
 
 /**
- * Immutable authoritative HTML/CSS snapshot and selected open, current review annotations used to request one source-plus-resolution proposal. The run entity is the focal task identity.
- * @export
- * @interface LocalHtmlCssMockupRevisionPromptPayload1
- */
-export interface LocalHtmlCssMockupRevisionPromptPayload1 {
-    /**
-     *
-     * @type {number}
-     * @memberof LocalHtmlCssMockupRevisionPromptPayload1
-     */
-    'payloadVersion': LocalHtmlCssMockupRevisionPromptPayload1PayloadVersionEnum;
-    /**
-     *
-     * @type {LocalHtmlCssMockupRevisionSection1}
-     * @memberof LocalHtmlCssMockupRevisionPromptPayload1
-     */
-    'section': LocalHtmlCssMockupRevisionSection1;
-    /**
-     *
-     * @type {Array<LocalHtmlCssMockupRevisionAnnotation1>}
-     * @memberof LocalHtmlCssMockupRevisionPromptPayload1
-     */
-    'annotations': Array<LocalHtmlCssMockupRevisionAnnotation1>;
-}
-
-export const LocalHtmlCssMockupRevisionPromptPayload1PayloadVersionEnum = {
-    NUMBER_1: 1
-} as const;
-
-export type LocalHtmlCssMockupRevisionPromptPayload1PayloadVersionEnum = typeof LocalHtmlCssMockupRevisionPromptPayload1PayloadVersionEnum[keyof typeof LocalHtmlCssMockupRevisionPromptPayload1PayloadVersionEnum];
-
-/**
  *
  * @export
  * @interface LocalHtmlCssMockupRevisionRenderedContext
@@ -19514,6 +19482,18 @@ export type RunCreatePayloadGoalPmPromptTypeEnum = typeof RunCreatePayloadGoalPm
 export interface RunCreatePayloadHtmlCssMockupRevision {
     /**
      *
+     * @type {string}
+     * @memberof RunCreatePayloadHtmlCssMockupRevision
+     */
+    'promptType': RunCreatePayloadHtmlCssMockupRevisionPromptTypeEnum;
+    /**
+     *
+     * @type {RunEntityReference}
+     * @memberof RunCreatePayloadHtmlCssMockupRevision
+     */
+    'entity': RunEntityReference;
+    /**
+     *
      * @type {number}
      * @memberof RunCreatePayloadHtmlCssMockupRevision
      */
@@ -19530,30 +19510,18 @@ export interface RunCreatePayloadHtmlCssMockupRevision {
      * @memberof RunCreatePayloadHtmlCssMockupRevision
      */
     'annotations': Array<LocalHtmlCssMockupRevisionAnnotation1>;
-    /**
-     *
-     * @type {string}
-     * @memberof RunCreatePayloadHtmlCssMockupRevision
-     */
-    'promptType': RunCreatePayloadHtmlCssMockupRevisionPromptTypeEnum;
-    /**
-     *
-     * @type {RunEntityReference}
-     * @memberof RunCreatePayloadHtmlCssMockupRevision
-     */
-    'entity': RunEntityReference;
 }
 
-export const RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum = {
-    NUMBER_1: 1
-} as const;
-
-export type RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum = typeof RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum[keyof typeof RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum];
 export const RunCreatePayloadHtmlCssMockupRevisionPromptTypeEnum = {
     HtmlCssMockupRevision: 'html_css_mockup_revision'
 } as const;
 
 export type RunCreatePayloadHtmlCssMockupRevisionPromptTypeEnum = typeof RunCreatePayloadHtmlCssMockupRevisionPromptTypeEnum[keyof typeof RunCreatePayloadHtmlCssMockupRevisionPromptTypeEnum];
+export const RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum = {
+    NUMBER_1: 1
+} as const;
+
+export type RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum = typeof RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum[keyof typeof RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum];
 
 /**
  *
@@ -20052,6 +20020,18 @@ export interface RunCreatePayloadPlanShapingVisualPreview {
      * @type {string}
      * @memberof RunCreatePayloadPlanShapingVisualPreview
      */
+    'promptType': RunCreatePayloadPlanShapingVisualPreviewPromptTypeEnum;
+    /**
+     *
+     * @type {RunEntityReference}
+     * @memberof RunCreatePayloadPlanShapingVisualPreview
+     */
+    'entity': RunEntityReference;
+    /**
+     *
+     * @type {string}
+     * @memberof RunCreatePayloadPlanShapingVisualPreview
+     */
     'designDocId': string;
     /**
      *
@@ -20095,18 +20075,6 @@ export interface RunCreatePayloadPlanShapingVisualPreview {
      * @memberof RunCreatePayloadPlanShapingVisualPreview
      */
     'userMessage'?: string;
-    /**
-     *
-     * @type {string}
-     * @memberof RunCreatePayloadPlanShapingVisualPreview
-     */
-    'promptType': RunCreatePayloadPlanShapingVisualPreviewPromptTypeEnum;
-    /**
-     *
-     * @type {RunEntityReference}
-     * @memberof RunCreatePayloadPlanShapingVisualPreview
-     */
-    'entity': RunEntityReference;
 }
 
 export const RunCreatePayloadPlanShapingVisualPreviewPromptTypeEnum = {
@@ -21012,6 +20980,18 @@ export interface RunCreatePayloadTaskMonitor {
      * @type {string}
      * @memberof RunCreatePayloadTaskMonitor
      */
+    'promptType': RunCreatePayloadTaskMonitorPromptTypeEnum;
+    /**
+     *
+     * @type {RunEntityReference}
+     * @memberof RunCreatePayloadTaskMonitor
+     */
+    'entity': RunEntityReference;
+    /**
+     *
+     * @type {string}
+     * @memberof RunCreatePayloadTaskMonitor
+     */
     'monitorId': string;
     /**
      *
@@ -21061,18 +21041,6 @@ export interface RunCreatePayloadTaskMonitor {
      * @memberof RunCreatePayloadTaskMonitor
      */
     'settledTurn'?: SessionMonitorSettledTurnEvidence;
-    /**
-     *
-     * @type {string}
-     * @memberof RunCreatePayloadTaskMonitor
-     */
-    'promptType': RunCreatePayloadTaskMonitorPromptTypeEnum;
-    /**
-     *
-     * @type {RunEntityReference}
-     * @memberof RunCreatePayloadTaskMonitor
-     */
-    'entity': RunEntityReference;
 }
 
 export const RunCreatePayloadTaskMonitorPromptTypeEnum = {
@@ -21177,6 +21145,18 @@ export type RunCreatePayloadValidationWalkthroughPromptTypeEnum = typeof RunCrea
  */
 export interface RunCreatePayloadVerifyFeature {
     /**
+     *
+     * @type {string}
+     * @memberof RunCreatePayloadVerifyFeature
+     */
+    'promptType': RunCreatePayloadVerifyFeaturePromptTypeEnum;
+    /**
+     *
+     * @type {RunEntityReference}
+     * @memberof RunCreatePayloadVerifyFeature
+     */
+    'entity': RunEntityReference;
+    /**
      * The flagged discrepancy this session investigates, and nothing else.
      * @type {string}
      * @memberof RunCreatePayloadVerifyFeature
@@ -21200,18 +21180,6 @@ export interface RunCreatePayloadVerifyFeature {
      * @memberof RunCreatePayloadVerifyFeature
      */
     'userMessage': string;
-    /**
-     *
-     * @type {string}
-     * @memberof RunCreatePayloadVerifyFeature
-     */
-    'promptType': RunCreatePayloadVerifyFeaturePromptTypeEnum;
-    /**
-     *
-     * @type {RunEntityReference}
-     * @memberof RunCreatePayloadVerifyFeature
-     */
-    'entity': RunEntityReference;
 }
 
 export const RunCreatePayloadVerifyFeaturePromptTypeEnum = {
