@@ -607,7 +607,10 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
                     machines={machines}
                     selectedMachineId={selectedMachineId}
                     onSelect={setSelectedMachineId}
-                    disabled={isLoading}
+                    disabled={
+                      isLoading ||
+                      (machineMode === "one" && selectedMachineId !== null)
+                    }
                     mobileMode="editor"
                   />
                 ) : undefined

@@ -1,3 +1,4 @@
+import { HostedModalFixture } from "../../test/HostedModalFixture";
 import { ModalRestoreControls } from "../Modals/ModalRestoreControls";
 import type { AgentComposerContext } from "../SmarterTextAreaCard/slashCommands/types";
 import React from "react";
@@ -1190,8 +1191,10 @@ describe("DiscussModal submit and close behavior", () => {
     };
     render(
       <MemoryRouter>
-        <DiscussModal {...props} />
-        <ModalRestoreControls />
+        <HostedModalFixture>
+          <DiscussModal {...props} />
+          <ModalRestoreControls />
+        </HostedModalFixture>
       </MemoryRouter>,
     );
     const input = screen.getByTestId("mock-editor-input");
@@ -1237,8 +1240,10 @@ describe("DiscussModal submit and close behavior", () => {
       const props = defaultProps();
       render(
         <MemoryRouter>
-          <DiscussModal {...props} />
-          <ModalRestoreControls />
+          <HostedModalFixture>
+            <DiscussModal {...props} />
+            <ModalRestoreControls />
+          </HostedModalFixture>
         </MemoryRouter>,
       );
       await userEvent.upload(
@@ -1517,6 +1522,9 @@ describe("DiscussModal machine selection", () => {
     });
 
     expect(screen.getByTestId("machine-picker")).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("machine-picker")).getByRole("combobox"),
+    ).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByTestId("discuss-service-selector")).toBeInTheDocument();
     expect(screen.getByTestId("mock-service-selection")).toHaveTextContent(
       "None",

@@ -10,7 +10,8 @@
     "./project-report.tsx",
     "./conversation-scroll.tsx",
     "../../src/types/vite-env.d.ts",
-    "./modal-shell.tsx"
+    "./modal-shell.tsx",
+    "./model-selector.tsx"
   ],
   "exclude": [],
   "references": [
