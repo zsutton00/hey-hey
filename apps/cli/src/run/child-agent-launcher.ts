@@ -4,6 +4,7 @@ import { resolveRunWorkspace, resolveServiceBindingsForIds } from '../agents/run
 import type {
   AgentStartupPromptInputResult,
   PromptTypeHandler,
+  PromptTypeHandlerDeps,
 } from '../agents/prompt-type-handler';
 import type { PromptTypeRegistry } from '../agents/prompt-type-registry';
 import type { SubmissionToolRegistry } from '../agents/submission-tools/registry';
@@ -15,6 +16,8 @@ import { SubAgent, type SubAgentResult } from './subagent';
 import type { AgentOutputHandler } from '../agents/agent-event-stream';
 import type { ReportChainEntry } from './types';
 import type { EvalExecutionContext } from '../agents/run-eval/eval-execution-context';
+import { EvalChildExecution } from '../agents/run-eval/eval-child-execution';
+import type { RunEntityReference } from '../shared/agent-bridge-contract/contract';
 
 export interface ChildLaunchRequest {
   parentSession: AgenticSession;
@@ -38,6 +41,9 @@ export interface ChildLaunchRequest {
   tokenBudget?: number;
   /** Runs the child as one eval attempt: mutation tools withheld, eval reports hidden. */
   evalExecution?: EvalExecutionContext;
+  /** The case's focal entity and normal preparation dependencies, isolated from its coordinator. */
+  entity?: RunEntityReference;
+  handlerDeps?: PromptTypeHandlerDeps;
 }
 
 export type RegisteredChildLaunchRequest = Omit<ChildLaunchRequest, 'handler'>;
@@ -146,6 +152,19 @@ export class ChildAgentLauncher {
         });
       }
     }
+    if (
+      !workspace &&
+      request.handler.service === 'optional' &&
+      (session.services?.length ?? 0) === 0
+    ) {
+      workspace = { cwd: process.cwd() };
+      this.deps.logger.debug('local.child_agent_launcher.workspace.selected', {
+        decision: 'graph_only_current_directory',
+        handlerId: request.handler.id,
+        cwd: workspace.cwd,
+        serviceIds: [],
+      });
+    }
     if (!workspace) {
       const resolved = await resolveRunWorkspace({
         session: request.parentSession,
@@ -156,6 +175,20 @@ export class ChildAgentLauncher {
       workspace = resolved;
     }
     if (request.provider) session = { ...session, provider: request.provider };
+    if (request.model) session = { ...session, model: request.model };
+    if (request.reasoningEffort) session = { ...session, reasoningEffort: request.reasoningEffort };
+    const evalChild = request.evalExecution
+      ? new EvalChildExecution({ ...request, evalExecution: request.evalExecution }, session, this)
+      : undefined;
+    try {
+      await evalChild?.prepare();
+    } catch (error) {
+      if (evalChild?.execution.tokenBudget?.isExhausted)
+        return { assistantCompleted: false, budgetExhausted: true, usage: {} };
+      throw error;
+    }
+    if (evalChild) session = evalChild.session;
+    const startupPromptInput = evalChild?.startupPromptInput ?? request.startupPromptInput;
     this.deps.logger.debug('local.child_agent_launcher.start', {
       handlerId: request.handler.id,
       provider: session.provider,
@@ -165,7 +198,7 @@ export class ChildAgentLauncher {
       session,
       handler: request.handler,
       config,
-      payload: request.payload,
+      payload: evalChild?.payload ?? request.payload,
       touchedFiles: request.touchedFiles ?? [],
       onAgentOutput: request.onAgentOutput ?? (() => {}),
       oauthClient: this.deps.oauthClient,
@@ -176,15 +209,18 @@ export class ChildAgentLauncher {
         ? { allowedRepositoryRoots: workspace.allowedRepositoryRoots }
         : {}),
       priorReports: request.priorReports ?? [],
-      ...(request.startupPromptInput ? { startupPromptInput: request.startupPromptInput } : {}),
+      ...(startupPromptInput ? { startupPromptInput } : {}),
       submissionToolRegistry: this.deps.submissionToolRegistry,
       localAgentEndpoint: this.deps.localAgentEndpoint,
       ...(request.model ? { model: request.model } : {}),
       ...(request.reasoningEffort ? { reasoningEffort: request.reasoningEffort } : {}),
       ...(request.fastMode !== undefined ? { fastMode: request.fastMode } : {}),
       ...(request.tokenBudget !== undefined ? { tokenBudget: request.tokenBudget } : {}),
-      ...(request.evalExecution ? { evalExecution: request.evalExecution } : {}),
+      ...(evalChild ? { evalExecution: evalChild.execution } : {}),
+      ...(evalChild?.researchTools ? { researchTools: evalChild.researchTools } : {}),
     });
-    return child.execute();
+    const startedAt = Date.now();
+    const result = await child.execute();
+    return evalChild?.complete(result, Date.now() - startedAt) ?? result;
   }
 }

@@ -1,4 +1,4 @@
-import { HINT_READ_MCP_TOOLS } from '../mcp-server-config';
+import { HINT_READ_MCP_TOOLS, resolveMcpToolNames } from '../mcp-server-config';
 import type { AgenticSession } from '../../session/types';
 import { LocalPromptType, SessionRole } from '../../shared/agent-bridge-contract/generated/api';
 import type { RunCreatePayloadResearch } from '../../shared/agent-bridge-contract/generated/api';
@@ -50,7 +50,7 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
   public readonly id = 'project_assistant';
   public readonly sessionRole = SessionRole.Research;
   public readonly promptType = LocalPromptType.ProjectAssistant;
-  public readonly service = 'required';
+  public readonly service = 'optional';
   public readonly launchEntity = 'none';
   public readonly implementationReadiness = 'none';
   public readonly runnerKind = 'provider_session' as const;
@@ -75,6 +75,17 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
   // investigation surface. The prompt does not need a code-gate conditional
   // because there is nothing to gate.
   public readonly builtinTools = [];
+  public readonly childConfig = {
+    adapterId: 'eval-project-assistant',
+    mcpAllowedTools: resolveMcpToolNames({
+      useCase: 'research',
+      additionalTools: this.additionalAllowedTools,
+    }),
+    builtinAllowedTools: [],
+    submissionTools: 'none' as const,
+    codexSandboxMode: 'read-only' as const,
+    includePriorReports: false,
+  };
   public readonly reports: readonly ReportSpec[] = [
     {
       reportType: ReportType.CodingResearch,

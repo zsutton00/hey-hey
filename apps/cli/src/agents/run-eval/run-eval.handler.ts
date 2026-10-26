@@ -3,10 +3,7 @@ import {
   type LocalRunEvalPromptPayload,
 } from '../../shared/agent-bridge-contract/generated';
 import { LocalReasoningEffort } from '../../shared/agent-bridge-contract/contract';
-import type {
-  EvalModelSetting,
-  EvalRecordedAttempt,
-} from '../../shared/api/generated/api';
+import type { EvalModelSetting, EvalRecordedAttempt } from '../../shared/api/generated/api';
 import type { RegisteredChildLaunchRequest } from '../../run/child-agent-launcher';
 import {
   defaultAddUserMessage,
@@ -17,7 +14,7 @@ import { EVAL_JUDGE_HANDLER_ID, parseEvalJudgeOutput } from './eval-judge.handle
 import type { EvalExecutionContext } from './eval-execution-context';
 import { EvalReportRecorder } from './eval-report-recorder';
 import { runEvalAttempts, type EvalRunnerPorts, type EvalRunTally } from './eval-runner';
-import { buildEvalTargetPayload } from './eval-targets';
+import { buildEvalTargetPayload, resolveEvalTargetHandlerId } from './eval-targets';
 
 const EVAL_WORK_ITEM_TYPE_KEY = 'EVAL' as const;
 
@@ -73,13 +70,17 @@ const runRecordedAttempts = async (
     now: () => new Date(),
     async launchTarget(attempt, { signal: attemptSignal, tokenBudget }) {
       const target = attempt.caseInput.target;
-      return launcher.launchRegistered(target.targetHandler, {
+      return launcher.launchRegistered(resolveEvalTargetHandlerId(target.targetHandler), {
         parentSession: session,
         payload: buildEvalTargetPayload(target),
         signal: attemptSignal,
         ...toLaunchSettings(attempt.configuration.target),
         ...(tokenBudget !== undefined ? { tokenBudget } : {}),
         evalExecution: toEvalExecution(attempt),
+        handlerDeps: deps,
+        ...(target.focalItemId
+          ? { entity: { entityType: 'TASK' as const, entityId: target.focalItemId } }
+          : {}),
       });
     },
     async judge(attempt, outputText, judgeSignal) {
@@ -135,7 +136,7 @@ const runRecordedAttempts = async (
 export const runEvalHandler: UserLaunchablePromptTypeHandler<LocalRunEvalPromptPayload> = {
   id: 'run_eval',
   promptType: LocalPromptType.RunEval,
-  service: 'required',
+  service: 'optional',
   launchEntity: 'required',
   implementationReadiness: 'none',
   eligibleWorkItemTypeKeys: [EVAL_WORK_ITEM_TYPE_KEY],
@@ -144,6 +145,32 @@ export const runEvalHandler: UserLaunchablePromptTypeHandler<LocalRunEvalPromptP
   reports: [],
 
   runProcedure: runRecordedAttempts,
+
+  async onStartupFailure(payload, { session, deps }, message) {
+    const recorder = EvalReportRecorder.create({
+      accessToken: await deps.auth.getAccessToken(),
+      apiBaseUrl: deps.apiBaseUrl,
+      organizationId: session.contextMetadata.organizationId,
+      evalRunId: payload.evalRunId,
+    });
+    const results = await Promise.allSettled(
+      payload.attempts.map((attempt) =>
+        recorder.updateAttempt(attempt.attemptId, {
+          status: 'ERROR',
+          completedAt: new Date().toISOString(),
+          error: { code: 'EVAL_STARTUP_FAILED', message },
+        }),
+      ),
+    );
+    const failed = results.find((result) => result.status === 'rejected');
+    if (failed?.status === 'rejected') throw failed.reason;
+    await recorder.setRunStatus('FINISHED');
+    deps.logger.error('run_eval.startup_failed', {
+      evalRunId: payload.evalRunId,
+      attemptCount: payload.attempts.length,
+      message,
+    });
+  },
 
   // The procedure owns the Turn; no provider reads a prompt.
   buildPrompt(): string {

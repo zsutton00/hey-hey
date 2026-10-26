@@ -152,14 +152,7 @@ const codingResearchReadinessEvidenceSchema = {
   properties: {
     category: {
       type: 'string',
-      enum: [
-        'behavior',
-        'data_lifecycle',
-        'authority',
-        'security',
-        'isolation',
-        'integration',
-      ],
+      enum: ['behavior', 'data_lifecycle', 'authority', 'security', 'isolation', 'integration'],
     },
     statement: { type: 'string', minLength: 1 },
     sourceRef: { type: 'string', minLength: 1 },
@@ -258,11 +251,12 @@ export class CodingResearchTool implements PassThroughSubmissionToolDeclaration 
 
   public readonly execute = async (ctx: SubmissionToolExecuteContext) => {
     const run = ctx.run;
-    if (!run) {
+    const evalResearch = ctx.evalResearch;
+    if (!run && !evalResearch) {
       throw new Error('create_coding_research wrapper: ctx.run is required for pass-through tools');
     }
 
-    const phase = run.session.promptType as LocalPromptType | undefined;
+    const phase = (evalResearch?.session ?? run!.session).promptType as LocalPromptType | undefined;
     if (!phase) {
       throw new Error(
         'create_coding_research wrapper: run.session.promptType is required to derive chain entry phase',
@@ -306,9 +300,8 @@ export class CodingResearchTool implements PassThroughSubmissionToolDeclaration 
       );
     }
 
-    const parsedReadinessEvidence = codingResearchReadinessEvidenceValidatorArray.safeParse(
-      readinessEvidence,
-    );
+    const parsedReadinessEvidence =
+      codingResearchReadinessEvidenceValidatorArray.safeParse(readinessEvidence);
     if (!parsedReadinessEvidence.success) {
       throw new Error(
         'create_coding_research wrapper: readinessEvidence must be a bounded typed evidence array',
@@ -335,6 +328,19 @@ export class CodingResearchTool implements PassThroughSubmissionToolDeclaration 
       audience: 'PROJECT_VISIBLE',
       payload: reportPayload,
     };
+
+    if (evalResearch) {
+      await this.proxy.create({
+        runId: evalResearch.session.agentic_session_id,
+        args: platformArgs,
+        conversationId: evalResearch.session.conversationId,
+        projectId: evalResearch.session.contextMetadata.projectId,
+      });
+      evalResearch.recordOutput(reportPayload);
+      return { content: [{ type: 'text', text: analysis }] };
+    }
+
+    if (!run) throw new Error('Project Assistant report has no owning Run.');
 
     const result = await this.proxy.create({
       runId: ctx.runId,

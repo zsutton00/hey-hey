@@ -600,6 +600,12 @@ export interface PromptTypeHandler<TPayload> {
    * the Run is stopped.
    */
   runProcedure?(payload: TPayload, ctx: ProceduralRunContext, signal: AbortSignal): Promise<string>;
+  /** Persist an actionable, terminal result when this handler cannot start its Turn. */
+  onStartupFailure?(
+    payload: TPayload,
+    context: { session: AgenticSession; deps: PromptTypeHandlerBaseDeps },
+    message: string,
+  ): Promise<void>;
 
   /** Feature-owned work performed after an isolated subagent returns. */
   onSubagentComplete?(ctx: OnSubagentCompleteContext): Promise<void>;

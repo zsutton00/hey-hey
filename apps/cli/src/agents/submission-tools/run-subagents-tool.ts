@@ -102,6 +102,10 @@ export class RunSubagentsTool implements PassThroughSubmissionToolDeclaration {
   public readonly execute = async (
     ctx: SubmissionToolExecuteContext,
   ): Promise<SubmissionToolPassThroughResult> => {
+    if (ctx.evalResearch) {
+      const results = await ctx.evalResearch.runChildren(readObjectives(ctx.args['objectives']));
+      return { content: [{ type: 'text', text: formatResults(results) }] };
+    }
     const run = ctx.run;
     if (!run) throw new Error('run_subagents: ctx.run is required for pass-through tools');
     const objectives = readObjectives(ctx.args['objectives']);

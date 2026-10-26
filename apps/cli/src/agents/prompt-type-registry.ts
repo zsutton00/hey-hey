@@ -60,6 +60,7 @@ import { reviewHandler } from './review-subagent/review.handler';
 import { rollupProposalHandler } from './rollup-proposal/rollup-proposal.handler';
 import { runEvalHandler } from './run-eval';
 import { evalJudgeHandler } from './run-eval/eval-judge.handler';
+import { evalPreparationHandler } from './run-eval/eval-preparation.handler';
 import { EVAL_TARGET_HANDLER_IDS } from './run-eval/eval-targets';
 import { SessionMonitorHandler } from './session-monitor';
 import { setSplittingHandler } from './set-splitting/set-splitting.handler';
@@ -208,6 +209,7 @@ const createHandlerBuilders = (
  * declare a child configuration and are never dispatched by prompt type.
  */
 const CHILD_ONLY_HANDLERS: readonly PromptTypeHandler<unknown>[] = [
+  evalPreparationHandler,
   projectReportSectionHandler,
   evalJudgeHandler,
 ];

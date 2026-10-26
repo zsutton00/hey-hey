@@ -4124,6 +4124,29 @@ export class Run {
       }
       if (this.activeTurnInput !== null || this._processing) this.settleTurnPreparation();
       const admission = this.inputAdmissionFor(input);
+      const failedHandler = this.promptTypeRegistry.get(input.promptType);
+      if (failedHandler?.onStartupFailure) {
+        await failedHandler.onStartupFailure(
+          input.payload,
+          {
+            session: this.session,
+            deps: this.handlerDeps,
+          },
+          error instanceof Error ? error.message : 'The session could not start.',
+        );
+        if (admission) {
+          await admission.onRejected();
+          this.projectedInputStartTurnIds.delete(admission.turnId);
+        }
+        this.logger.error('local.run.start_turn.failure_reported', {
+          turnId,
+          runId: this.runId,
+          promptType: input.promptType,
+          error,
+        });
+        void this.drainQueue();
+        return;
+      }
       const definitiveRejection =
         error instanceof RunAttachmentNotFoundError ||
         (error instanceof LocalAgentApiError && error.statusCode === 400);

@@ -10,6 +10,43 @@ export interface EvalExecutionContext {
   readonly attemptId: string;
   readonly targetSessionId: string;
   readonly targetConversationId: string;
+  readonly tokenBudget?: EvalTokenBudget;
+}
+
+/** One user-set budget shared by the target and all of its research children. */
+export class EvalTokenBudget {
+  private readonly controller = new AbortController();
+  private readonly counts = new Map<string, number>();
+  private exhausted = false;
+
+  public constructor(
+    private readonly limit: number,
+    parent: AbortSignal,
+  ) {
+    if (parent.aborted) this.controller.abort(parent.reason);
+    parent.addEventListener('abort', () => this.controller.abort(parent.reason), {
+      once: true,
+      signal: this.controller.signal,
+    });
+  }
+
+  public get signal(): AbortSignal {
+    return this.controller.signal;
+  }
+  public get isExhausted(): boolean {
+    return this.exhausted;
+  }
+
+  public record(childId: string, cumulativeTokens: number): void {
+    this.counts.set(childId, Math.max(this.counts.get(childId) ?? 0, cumulativeTokens));
+    if (
+      !this.exhausted &&
+      [...this.counts.values()].reduce((sum, tokens) => sum + tokens, 0) > this.limit
+    ) {
+      this.exhausted = true;
+      this.controller.abort(new Error('Eval attempt token budget exhausted.'));
+    }
+  }
 }
 
 /**
@@ -45,6 +82,7 @@ const isJsonObject = (value: JsonValue): value is Record<string, JsonValue> =>
 
 const isEvalReport = (value: JsonValue): boolean => {
   if (!isJsonObject(value)) return false;
+  if (value['ragEnabled'] === false) return true;
   const reportType = value['reportType'];
   if (typeof reportType === 'string' && EVAL_REPORT_TYPES.has(reportType)) return true;
   const payload = value['payload'];

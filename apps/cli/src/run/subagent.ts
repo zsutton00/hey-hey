@@ -33,6 +33,7 @@ import { applyCodexSessionReviewerPolicy } from '../agents/providers/codex/codex
  */
 
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import {
   ClaudeCodeSdkClient,
   CodexSdkClient,
@@ -84,6 +85,7 @@ import {
 import { EvalChildPlatformMcpProxy } from '../agents/platform-mcp-proxy/eval-child-proxy';
 import { childPlatformMcpProxies } from '../agents/platform-mcp-proxy/child-proxy-registry';
 import { buildPlatformMcpProxyMcpConfig } from '../agents/platform-mcp-proxy/mcp-config';
+import type { EvalResearchTools } from '../agents/run-eval/eval-research-tools';
 
 const MCP_SERVER_NAME = 'heyhey-platform';
 const AGENT_ID = 'claude-subagent';
@@ -327,6 +329,7 @@ const applyCodexWorkspaceContainment = (
 });
 
 export interface SubAgentArgs {
+  researchTools?: EvalResearchTools;
   session: AgenticSession;
   handler: PromptTypeHandler<unknown>;
   config: SubagentConfig;
@@ -363,6 +366,8 @@ export interface SubAgentContextReading {
 }
 
 export interface SubAgentResult {
+  preparationMeasurements?: import('../shared/api/generated/api').EvalMeasurement[];
+  handlerElapsedMs?: number;
   assistantCompleted: boolean;
   outputText?: string;
   /** Present only for a handler whose session counts for context; null when unreadable. */
@@ -523,6 +528,7 @@ const readContextBeforeDisconnect = async (input: {
 };
 
 export class SubAgent {
+  private readonly budgetIdentity = randomUUID();
   private readonly usageMeter = new ChildUsageMeter();
   private releaseEvalProxy: (() => void) | null = null;
 
@@ -533,6 +539,7 @@ export class SubAgent {
       return await this.executeSession();
     } finally {
       this.releaseEvalProxy?.();
+      await this.args.researchTools?.settle();
     }
   }
 
@@ -546,7 +553,7 @@ export class SubAgent {
       onAgentOutput,
       oauthClient,
       logger,
-      signal,
+      signal: parentSignal,
       cwd,
       allowedRepositoryRoots,
       priorReports,
@@ -558,7 +565,9 @@ export class SubAgent {
       localAgentEndpoint,
       tokenBudget,
       evalExecution,
+      researchTools,
     } = this.args;
+    const signal = evalExecution?.tokenBudget?.signal ?? parentSignal;
     const runId = session.agentic_session_id;
 
     // Build the prompt the runtime way: handler.buildPrompt + service-context
@@ -679,7 +688,7 @@ export class SubAgent {
 
     const mcpAllowedShortNames = evalExecution
       ? withholdEvalMutationTools(config.mcpAllowedTools)
-      : config.mcpAllowedTools;
+      : [...config.mcpAllowedTools];
     const allowedMcpTools = mcpAllowedShortNames.map((tool) => `mcp__${MCP_SERVER_NAME}__${tool}`);
     const allowedMcpToolsSet = new Set(allowedMcpTools);
     const allowedBuiltinSet = new Set(config.builtinAllowedTools);
@@ -718,6 +727,32 @@ export class SubAgent {
         unregister();
       };
       mcpServers = buildPlatformMcpProxyMcpConfig({ mount: proxy.mount, cliBaseUrl }).mcpServers;
+      if (researchTools) {
+        const researchProxy = new EvalChildPlatformMcpProxy({
+          runId,
+          attemptId: evalExecution.attemptId,
+          context: mcpContext,
+          allowedTools: [],
+          activeHandlerPromptType: handler.promptType,
+          logger,
+          researchTools,
+        });
+        const unregisterResearch = childPlatformMcpProxies.register(researchProxy);
+        this.releaseEvalProxy = () => {
+          proxy.close();
+          unregister();
+          researchProxy.close();
+          unregisterResearch();
+        };
+        const researchConfig = buildPlatformMcpProxyMcpConfig({
+          mount: researchProxy.mount,
+          cliBaseUrl,
+        });
+        mcpServers = { ...mcpServers, 'heyhey-submission-tools': researchConfig.serverEntry };
+        submissionAllowedTools = researchTools.toolNames.map(
+          (name) => `mcp__heyhey-submission-tools__${name}`,
+        );
+      }
     } else if (
       config.submissionTools !== 'none' &&
       runRegistration &&
@@ -910,6 +945,7 @@ export class SubAgent {
           let tokensUsed = 0;
           for (const tokens of tokensByMessage.values()) tokensUsed += tokens;
           budgetGuard.record(tokensUsed);
+          this.args.evalExecution?.tokenBudget?.record(this.budgetIdentity, tokensUsed);
         }
       }
       const eventTimestamp =
@@ -1067,7 +1103,7 @@ export class SubAgent {
         assistantCompleted,
       });
     } catch (error) {
-      if (!budgetGuard?.isExhausted) {
+      if (!budgetGuard?.isExhausted && !this.args.evalExecution?.tokenBudget?.isExhausted) {
         requestContext.log(logger, 'error', 'local.subagent.failed', {
           runId,
           adapterId: config.adapterId,
@@ -1119,7 +1155,9 @@ export class SubAgent {
       assistantCompleted,
       outputText: lastAssistantText,
       ...(contextReading !== undefined ? { contextReading } : {}),
-      ...(budgetGuard?.isExhausted ? { budgetExhausted: true } : {}),
+      ...(budgetGuard?.isExhausted || this.args.evalExecution?.tokenBudget?.isExhausted
+        ? { budgetExhausted: true }
+        : {}),
       usage: this.usageMeter.read(),
     };
   }
@@ -1465,6 +1503,10 @@ export class SubAgent {
       budgetGuard?.record(
         (usage.inputTokens ?? 0) + (usage.cacheReadInputTokens ?? 0) + usage.outputTokens,
       );
+      this.args.evalExecution?.tokenBudget?.record(
+        this.budgetIdentity,
+        (usage.inputTokens ?? 0) + (usage.cacheReadInputTokens ?? 0) + usage.outputTokens,
+      );
     });
 
     client.onServerRequest((request: CodexSdkServerRequest) => {
@@ -1559,7 +1601,7 @@ export class SubAgent {
         signal ? { signal } : undefined,
       );
     } catch (error) {
-      if (!budgetGuard?.isExhausted) {
+      if (!budgetGuard?.isExhausted && !this.args.evalExecution?.tokenBudget?.isExhausted) {
         requestContext.log(logger, 'error', 'local.subagent.codex.failed', {
           runId,
           adapterId: config.adapterId,
@@ -1571,7 +1613,10 @@ export class SubAgent {
       client.onEvent(null);
       client.onServerRequest(null);
       client.onTokenUsage(null);
-      if (budgetGuard?.isExhausted && lastAssistantText.length === 0) {
+      if (
+        (budgetGuard?.isExhausted || this.args.evalExecution?.tokenBudget?.isExhausted) &&
+        lastAssistantText.length === 0
+      ) {
         lastAssistantText = bufferedAssistantText;
       }
       if (bufferedAssistantText.length > 0) {
@@ -1613,7 +1658,9 @@ export class SubAgent {
       assistantCompleted,
       outputText: lastAssistantText,
       ...(contextReading !== undefined ? { contextReading } : {}),
-      ...(budgetGuard?.isExhausted ? { budgetExhausted: true } : {}),
+      ...(budgetGuard?.isExhausted || this.args.evalExecution?.tokenBudget?.isExhausted
+        ? { budgetExhausted: true }
+        : {}),
       usage: this.usageMeter.read(),
     };
   }

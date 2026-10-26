@@ -9,6 +9,8 @@ import type { SubAgentUsage } from '../../run/subagent';
 
 /** What one target child produced. */
 export interface EvalTargetResult {
+  preparationMeasurements?: EvalMeasurement[];
+  handlerElapsedMs?: number;
   assistantCompleted: boolean;
   outputText?: string;
   budgetExhausted?: boolean;
@@ -149,8 +151,13 @@ export const runEvalAttempts = async (
         }
         return;
       }
+      measurements.push(...(target.preparationMeasurements ?? []));
       measurements.push(
-        toMeasurement('TARGET_HANDLER', ports.now().getTime() - startedAt.getTime(), target.usage),
+        toMeasurement(
+          'TARGET_HANDLER',
+          target.handlerElapsedMs ?? ports.now().getTime() - startedAt.getTime(),
+          target.usage,
+        ),
       );
       if (target.budgetExhausted) stopped.reason ??= 'TOKEN_LIMIT';
       const summary = target.outputText ? { outputText: target.outputText } : undefined;

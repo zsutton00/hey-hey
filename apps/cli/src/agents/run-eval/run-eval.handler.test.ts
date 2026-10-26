@@ -46,6 +46,7 @@ describe('runEvalHandler', () => {
       promptType: LocalPromptType.RunEval,
       eligibleWorkItemTypeKeys: ['EVAL'],
       runnerKind: 'procedural',
+      service: 'optional',
       reports: [],
     });
   });

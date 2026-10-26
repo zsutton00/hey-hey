@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ChildAgentLauncher, type ChildAgentLauncherDependencies } from './child-agent-launcher';
 import { researchHandler } from '../agents/research/research.handler';
+import { agentSearchHandler } from '../agents/agent-search/agent-search.handler';
 import type { AgenticSession } from '../session/types';
 import { LocalPromptType } from '../shared/agent-bridge-contract/generated';
 
@@ -61,6 +62,19 @@ const sourceSession = {
 } as AgenticSession;
 
 describe('ChildAgentLauncher', () => {
+  it('launches a Service-optional child without resolving a missing parent repository', async () => {
+    harness.resolveWorkspace.mockClear();
+    harness.construct.mockClear();
+    await makeLauncher().launch({
+      parentSession: { ...session, services: [] },
+      handler: agentSearchHandler,
+      payload: { payloadVersion: 1, userMessage: 'Search the project' },
+      signal: new AbortController().signal,
+    });
+    expect(harness.resolveWorkspace).not.toHaveBeenCalled();
+    expect(harness.construct).toHaveBeenCalledWith(expect.objectContaining({ cwd: process.cwd() }));
+  });
+
   it('launches the registered research handler with its read-only configuration', async () => {
     harness.construct.mockClear();
     const result = await makeLauncher().launchRegistered('research', {

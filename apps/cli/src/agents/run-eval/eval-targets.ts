@@ -3,6 +3,7 @@ import type {
   LocalEntityConversationPromptPayload,
 } from '../../shared/agent-bridge-contract/generated/api';
 import type { EvalCaseTarget } from '../../shared/api/generated/api';
+import type { ProjectAssistantPromptPayload } from '../project-assistant/project-assistant.handler';
 
 /**
  * The text a target receives: the case's situation, the items it concerns and
@@ -32,6 +33,25 @@ const EVAL_TARGETS: ReadonlyMap<string, EvalTargetPayloadBuilder> = new Map<
   EvalTargetPayloadBuilder
 >([
   [
+    'project_assistant',
+    (target): ProjectAssistantPromptPayload => {
+      if (!target.focalItemId) throw new Error('A Project Assistant case needs a focal item.');
+      return {
+        promptType: 'research',
+        entity: { entityType: 'TASK', entityId: target.focalItemId },
+        userMessage: buildEvalTargetMessage(target),
+        projectAssistantHandoff: {
+          consumerHandlerId: 'run_eval',
+          policy: {
+            allowEdgeUpdates: false,
+            notifyDiscrepancies: true,
+            workItemProposalMode: 'none',
+          },
+        },
+      };
+    },
+  ],
+  [
     'agent_search',
     (target): LocalAgentSearchPromptPayload => ({
       payloadVersion: 1,
@@ -54,9 +74,20 @@ const EVAL_TARGETS: ReadonlyMap<string, EvalTargetPayloadBuilder> = new Map<
 
 export const EVAL_TARGET_HANDLER_IDS: readonly string[] = [...EVAL_TARGETS.keys()];
 
+/** Compatibility for the reviewed research cases authored before registry keys were exposed. */
+export const resolveEvalTargetHandlerId = (value: string): string => {
+  if (
+    /^Project Assistant research, run with the request above as the user's prompt and .+ as the focal item\.$/.test(
+      value,
+    )
+  )
+    return 'project_assistant';
+  return value;
+};
+
 /** Builds the target payload, or throws when the case names a handler evals cannot run. */
 export const buildEvalTargetPayload = (target: EvalCaseTarget): unknown => {
-  const build = EVAL_TARGETS.get(target.targetHandler);
+  const build = EVAL_TARGETS.get(resolveEvalTargetHandlerId(target.targetHandler));
   if (!build) {
     throw new Error(
       `Handler "${target.targetHandler}" cannot be evaluated yet. Evaluable handlers: ${EVAL_TARGET_HANDLER_IDS.join(', ')}.`,
