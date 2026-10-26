@@ -159,6 +159,11 @@ export class ProjectTemplateCloneService {
     await read('proposalGroupDependency', { groupId: { in: ids(groups) } });
 
     const remap = new TemplateCloneRemapper();
+    remap.diagnosticContext = {
+      sourceProjectId: source.id,
+      targetProjectId: target.id,
+      stage: 'graph-snapshot',
+    };
     remap.ids.set(source.id, target.id);
     remap.ids.set(source.organizationId, target.organizationId);
     for (const table of tables)
@@ -247,6 +252,13 @@ export class ProjectTemplateCloneService {
           if (table.name === 'service') delete clean.repositoryId;
           delete clean.crdtSnapshotBytes;
           delete clean.crdtSnapshotSeq;
+          remap.diagnosticContext = {
+            sourceProjectId: source.id,
+            targetProjectId: target.id,
+            stage: 'record-copy',
+            sourceTable: table.name,
+            sourceRecordId: row.id as string,
+          };
           const data = remap.rewrite(clean);
           if (repositoryId !== undefined) data.repositoryId = repositoryId;
           const deferred: Row = {};
@@ -284,6 +296,11 @@ export class ProjectTemplateCloneService {
         where: { id: update.id },
         data: update.data,
       });
+    remap.diagnosticContext = {
+      sourceProjectId: source.id,
+      targetProjectId: target.id,
+      stage: 'created-events',
+    };
     // Deliberately do not copy Project.config or any template approval policy.
     await runWithWorkflowContext(
       {
