@@ -1,11 +1,15 @@
-import { useAtom } from "jotai";
-import { codingPlanRuntimeChoice } from "./codingPlanRuntimeChoice";
 import { supportsFastMode } from "../../AgentSession/capabilityCatalog";
 import { Alert, Button, Paper, Stack, TextField } from "@mui/material";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { CodingPlanVersion } from "../../../api";
 import { useServices } from "../../../data/hooks/useServices";
 import { RuntimeModelSelector } from "../../AgentSession/RuntimeModelSelector";
+import {
+  PLAN_APPROVAL_SURFACE_ID,
+  type SurfaceSelection,
+  writeSurfaceSelection,
+} from "../../AgentSession/surfaceSelectionMemory";
+import { useSurfaceSelection } from "../../AgentSession/useSurfaceSelection";
 import { MarkdownRenderer } from "../../shared/MarkdownRenderer";
 import {
   classifyStartupServiceScope,
@@ -29,10 +33,6 @@ export function CodingPlanApprovalField({
       ? value
       : undefined;
   const [feedback, setFeedback] = useState("");
-  const [runtimeChoice, setRuntimeChoice] = useAtom(
-    codingPlanRuntimeChoice(context.conversationId),
-  );
-  const { provider, model, reasoningEffort, fastMode } = runtimeChoice;
   const [approvedMessageId, setApproved] = useState<string | null>(null);
   const approved =
     Boolean(submitted) || approvedMessageId === context.messageId;
@@ -62,6 +62,28 @@ export function CodingPlanApprovalField({
       conversation.agentSession?.machineId,
     ],
   );
+  const { selection, updateSelection: patchSelection } = useSurfaceSelection({
+    surfaceId: PLAN_APPROVAL_SURFACE_ID,
+    catalogSource,
+    resetKey: null,
+    fallbackProvider:
+      (conversation.agentSession?.provider as
+        SurfaceSelection["provider"] | undefined) ?? null,
+  });
+  const updateSelection = useCallback(
+    (patch: (prev: SurfaceSelection) => SurfaceSelection) => {
+      patchSelection((prev) => {
+        const next = patch(prev);
+        writeSurfaceSelection(PLAN_APPROVAL_SURFACE_ID, next);
+        return next;
+      });
+    },
+    [patchSelection],
+  );
+  const provider = selection?.provider ?? null;
+  const model = selection?.model ?? null;
+  const reasoningEffort = selection?.reasoningEffort ?? null;
+  const fastMode = selection?.fastMode ?? false;
   const locked =
     disabled ||
     approved ||
@@ -128,19 +150,19 @@ export function CodingPlanApprovalField({
             fastMode={fastMode}
             disabled={locked}
             onProviderChange={(value) =>
-              setRuntimeChoice((current) => ({ ...current, provider: value }))
+              updateSelection((current) => ({ ...current, provider: value }))
             }
             onModelChange={(value) =>
-              setRuntimeChoice((current) => ({ ...current, model: value }))
+              updateSelection((current) => ({ ...current, model: value }))
             }
             onReasoningEffortChange={(value) =>
-              setRuntimeChoice((current) => ({
+              updateSelection((current) => ({
                 ...current,
                 reasoningEffort: value,
               }))
             }
             onFastModeChange={(value) =>
-              setRuntimeChoice((current) => ({ ...current, fastMode: value }))
+              updateSelection((current) => ({ ...current, fastMode: value }))
             }
           />
           <TextField

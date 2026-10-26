@@ -4,11 +4,6 @@ import {
   MessageStatus,
   type MessageResponseDto,
 } from "../../../../api";
-import { getDefaultStore } from "jotai";
-import {
-  codingPlanRuntimeChoice,
-  currentCodingPlanRuntime,
-} from "../codingPlanRuntimeChoice";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CodingPlanApprovalField } from "../CodingPlanApprovalField";
@@ -24,7 +19,26 @@ const state = vi.hoisted(() => ({
   node: vi.fn(),
   gate: vi.fn(),
   scope: vi.fn(),
+  catalog: "ready" as "idle" | "ready",
+  stored: null as unknown,
+  remember: vi.fn(),
 }));
+vi.mock("../../../AgentSession/useRuntimeModelCatalog", () => ({
+  useRuntimeModelCatalog: () => ({ status: state.catalog }),
+}));
+vi.mock(
+  "../../../AgentSession/surfaceSelectionMemory",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("../../../AgentSession/surfaceSelectionMemory")
+    >()),
+    readSurfaceSelection: () => state.stored,
+    writeSurfaceSelection: (surfaceId: string, selection: unknown) => {
+      state.stored = selection;
+      state.remember(surfaceId, selection);
+    },
+  }),
+);
 vi.mock("../../../AgentSession/capabilityCatalog", async (importOriginal) => ({
   ...(await importOriginal<
     typeof import("../../../AgentSession/capabilityCatalog")
@@ -107,11 +121,13 @@ const planning = {
 };
 
 beforeEach(() => {
-  getDefaultStore().set(
-    codingPlanRuntimeChoice(context.conversationId),
-    currentCodingPlanRuntime,
-  );
   vi.clearAllMocks();
+  state.catalog = "ready";
+  state.stored = {
+    provider: "claude",
+    model: "default-model",
+    reasoningEffort: null,
+  };
   state.scope.mockReturnValue({ status: "valid" });
   state.node.mockResolvedValue({
     data: { data: { currentNodeId: "feature-sync-coding-plan" } },
@@ -540,6 +556,57 @@ describe("conversational planning controls", () => {
         reasoningEffort: "high",
         fastMode: true,
       },
+    });
+  });
+  it("restores the remembered plan-approval runtime after a reload", async () => {
+    state.stored = {
+      provider: "codex",
+      model: "remembered-model",
+      reasoningEffort: "low",
+      fastMode: true,
+    };
+    render(
+      <CodingPlanApprovalField
+        config={{
+          field: "context",
+          description: "",
+          type: "coding_plan_version",
+          payload: planning as never,
+        }}
+        context={context}
+        isSubmitted={false}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    await waitFor(() => expect(state.answer).toHaveBeenCalledTimes(1));
+    expect(state.answer.mock.calls[0][0].payload.runtime).toEqual({
+      provider: "codex",
+      model: "remembered-model",
+      reasoningEffort: "low",
+      fastMode: true,
+    });
+  });
+  it("remembers a chosen runtime for the plan-approval surface only", () => {
+    render(
+      <CodingPlanApprovalField
+        config={{
+          field: "context",
+          description: "",
+          type: "coding_plan_version",
+          payload: planning as never,
+        }}
+        context={context}
+        isSubmitted={false}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Pick implementation runtime" }),
+    );
+    expect(state.remember).toHaveBeenLastCalledWith("plan-approval", {
+      provider: "codex",
+      model: "implementation-model",
+      reasoningEffort: "high",
+      fastMode: true,
     });
   });
   it("disables approval on an older planning context", () => {
