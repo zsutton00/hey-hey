@@ -2,6 +2,10 @@ import { useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { LaunchEvalRunRequest } from "../../api";
 import {
+  readRetainedResearch,
+  type RetainedResearch,
+} from "../collections/evalRetainedResearch";
+import {
   evalAttemptOutputQueryOptions,
   evalAttemptsQueryOptions,
   evalHumanReviewsQueryOptions,
@@ -119,6 +123,12 @@ export interface UseEvalAttemptOutputReturn extends DataHookReturn<EvalAttemptOu
    * before attempts had their own sessions): there is no output to read.
    */
   hasRecordedConversation: boolean;
+  /**
+   * The research the attempt's own record kept. Independent of the
+   * conversation: attempts run before messages were saved hold their research
+   * here while the conversation has no report attached.
+   */
+  retainedResearch: RetainedResearch;
 }
 
 /**
@@ -152,10 +162,16 @@ export function useEvalAttemptOutput(
       !!projectId &&
       !!conversationId,
   });
+  const summary: unknown = attempt?.payload.summary;
+  const retainedResearch = useMemo(
+    () => readRetainedResearch(summary),
+    [summary],
+  );
   return {
     ...state,
     data: result.data ?? null,
     hasRecordedConversation: !!conversationId,
+    retainedResearch,
   };
 }
 

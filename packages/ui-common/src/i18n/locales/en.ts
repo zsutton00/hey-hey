@@ -31,7 +31,6 @@ export const en = {
   "demo.consent.botCheckUnavailable":
     "The bot check couldn't be loaded, so a demo can't be started right now. Please try again later.",
   "demo.consent.start": "Start my demo",
-  "demo.consent.starting": "Setting up your demo…",
   "demo.consent.error.RATE_LIMITED":
     "You've started several demos recently. Please wait a little and try again.",
   "demo.consent.error.BOT_CHECK_FAILED":
@@ -42,6 +41,20 @@ export const en = {
     "The demo terms have been updated. Reload this page to review and accept them.",
   "demo.consent.error.UNKNOWN":
     "Something went wrong starting your demo. Please try again.",
+  "demo.setup.title": "Setting up your demo",
+  "demo.setup.stage.COPYING": "Copying your project…",
+  "demo.setup.stage.CONNECTING": "Connecting your project…",
+  "demo.setup.stage.READY": "Ready. Taking you to your demo…",
+  "demo.setup.features": "{{connected}} of {{total}} features connected",
+  "demo.setup.note":
+    "This can take a minute. You can refresh or come back to this page and pick up where you left off.",
+  "demo.setup.unreachable":
+    "We can't check your demo's progress right now. We'll keep trying.",
+  "demo.setup.checkAgain": "Check again",
+  "demo.setup.failed.title": "We couldn't set up your demo",
+  "demo.setup.failed.body":
+    "Setup didn't finish, so nothing from this attempt was kept. Please try again.",
+  "demo.setup.failed.retry": "Try again",
   "demo.unavailable.title": "Demo unavailable right now",
   "demo.unavailable.body":
     "We're not starting new demos at the moment. Please try again later.",
@@ -1389,7 +1402,7 @@ export const en = {
   "eval.results.observationNote":
     "These are observations on your current project and cases, not a general ranking of models.",
   "eval.results.columns.setup": "Setup",
-  "eval.results.columns.recognition": "Noticed the need",
+  "eval.results.columns.recognition": "Recognition",
   "eval.results.columns.quality": "Quality",
   "eval.results.columns.checks": "Checks",
   "eval.results.columns.elapsed": "Elapsed (prep / handler)",
@@ -1401,32 +1414,51 @@ export const en = {
     "Judge: {{judge}} · Coordinator: {{coordinator}} (not included above)",
   "eval.results.overheadMeasures":
     "{{elapsed}} · {{tokens}} tokens · {{toolCalls}} tool calls",
-  "eval.results.attempts.title": "Attempts",
-  "eval.results.attempts.case": "Case",
-  "eval.results.attempts.setup": "Setup",
-  "eval.results.attempts.status": "Status",
-  "eval.results.attempts.open": "Open",
-  "eval.results.attempts.status.QUEUED": "Waiting",
-  "eval.results.attempts.status.PREPARING": "Preparing",
-  "eval.results.attempts.status.RUNNING": "Running",
-  "eval.results.attempts.status.JUDGING": "Judging",
-  "eval.results.attempts.status.COMPLETED": "Finished",
-  "eval.results.attempts.status.ERROR": "Error",
-  "eval.results.attempts.status.STOPPED": "Stopped",
-  "eval.results.attempt.heading": "{{setup}} — {{case}}",
-  "eval.results.attempt.unknownCase": "Unrecorded case",
-  "eval.results.attempt.openSession": "Open session",
+  "eval.results.cases.title": "Cases",
+  "eval.results.cases.help":
+    "Each row is one case run with one setup. The case name opens that attempt's session; the arrow opens the specifics. Recognition says whether the agent correctly decided what the case needed, including correctly doing nothing when no work was needed.",
+  "eval.results.cases.col.case": "Case",
+  "eval.results.cases.col.recognition": "Recognition",
+  "eval.results.cases.col.quality": "Quality",
+  "eval.results.cases.col.checks": "Checks",
+  "eval.results.cases.col.elapsed": "Elapsed",
+  "eval.results.cases.col.tokens": "Tokens",
+  "eval.results.cases.col.toolCalls": "Tool calls",
+  "eval.results.cases.unknownCase": "Unrecorded case",
+  "eval.results.cases.noSession": "No session was recorded for this attempt.",
+  "eval.results.cases.expand": "Show details for {{case}}",
+  "eval.results.cases.collapse": "Hide details for {{case}}",
+  "eval.results.cases.errored": "Errored before finishing",
+  "eval.results.cases.partial": "{{value}} (part reported)",
+  "eval.results.recognition.correct": "Correct",
+  "eval.results.recognition.missed": "Missed",
+  "eval.results.recognition.pending": "Not assessed",
+  "eval.results.detail.expected": "Expected",
+  "eval.results.detail.noExpectation":
+    "This case recorded no expectation text.",
+  "eval.results.detail.result": "Result",
+  "eval.results.detail.noResult": "The judge hasn't assessed this attempt.",
+  "eval.results.detail.openEvalCase": "Open the Eval Case",
+  "eval.results.work.scope": "Work done",
+  "eval.results.work.TARGET_PREPARATION": "Preparing context",
+  "eval.results.work.TARGET_HANDLER": "Handler (the tested work)",
   "eval.results.attempt.produced": "What this attempt produced",
   "eval.results.attempt.savedNote":
     "Shown read-only, as saved when the attempt ran.",
   "eval.results.attempt.openProposal": "Open in proposal view",
   "eval.results.attempt.openLiveItem": "Open the live item",
+  "eval.results.attempt.retainedNote":
+    "This is the final research report as saved on the attempt. It is not the complete record of everything the agent did.",
   "eval.results.attempt.noOutput":
-    "This attempt produced no proposals or reports.",
+    "This attempt saved no proposals, reports or research.",
   "eval.results.attempt.outputsUnavailable":
-    "This attempt's outputs couldn't be read.",
+    "This attempt's saved outputs couldn't be read.",
   "eval.results.attempt.noConversation":
-    "This attempt didn't record a session, so there is no output to show.",
+    "This attempt recorded no session conversation, so nothing is attached to it.",
+  "eval.results.attempt.noAttachments":
+    "No proposals or reports are attached to this attempt's session.",
+  "eval.results.attempt.researchUnreadable":
+    "This attempt saved a result, but it can't be shown as a research report: {{reason}}",
   "eval.results.assessment.title": "Automated assessment",
   "eval.results.assessment.pending": "The judge hasn't assessed this attempt.",
   "eval.results.assessment.checks": "Checks",
@@ -1434,9 +1466,9 @@ export const en = {
   "eval.results.assessment.passed": "Passed",
   "eval.results.assessment.failed": "Failed",
   "eval.results.assessment.rubric": "Rubric",
-  "eval.results.assessment.recognition": "Noticed the need",
-  "eval.results.assessment.recognized": "Yes",
-  "eval.results.assessment.notRecognized": "No",
+  "eval.results.assessment.recognition": "Recognition",
+  "eval.results.assessment.recognized": "Correct",
+  "eval.results.assessment.notRecognized": "Missed",
   "eval.results.assessment.unscored": "not scored",
   "eval.results.review.title": "Your review",
   "eval.results.review.score": "Score out of 5",

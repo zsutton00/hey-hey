@@ -64,6 +64,10 @@ export type {
   EvalHumanReviewReport,
   EvalRunReport,
 } from "./collections/evalRuns";
+export {
+  readRetainedResearch,
+  type RetainedResearch,
+} from "./collections/evalRetainedResearch";
 export * from "./collections/organizationsDirectory";
 export * from "./collections/adminOrganizationDetail";
 export * from "./collections/adminOrganizationMembers";

@@ -13,7 +13,8 @@ import {
 
 export interface CodingResearchUpdatesSectionProps {
   updates?: CodingResearchUpdate[];
-  report: ReportDto;
+  /** Without a report there is nothing to discuss, so no action is shown. */
+  report?: ReportDto;
   frameModel: CodingResearchFrameModel;
   reportTestId: string;
 }
@@ -51,15 +52,19 @@ export const CodingResearchUpdatesSection: React.FC<
             ))}
           </Stack>
           <Stack alignItems="flex-start" spacing={0.75} sx={{ pt: 0.25 }}>
-            <Typography color="text.secondary" variant="caption">
-              Open a new conversation to review the reasoning and decide what
-              should change.
-            </Typography>
-            <CodingResearchDiscussionAction
-              frameModel={frameModel}
-              report={report}
-              testId={`${testId}-discuss`}
-            />
+            {report && (
+              <>
+                <Typography color="text.secondary" variant="caption">
+                  Open a new conversation to review the reasoning and decide
+                  what should change.
+                </Typography>
+                <CodingResearchDiscussionAction
+                  frameModel={frameModel}
+                  report={report}
+                  testId={`${testId}-discuss`}
+                />
+              </>
+            )}
           </Stack>
         </Stack>
       </ReportPanel>
