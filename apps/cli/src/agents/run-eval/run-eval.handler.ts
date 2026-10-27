@@ -14,7 +14,12 @@ import { EVAL_JUDGE_HANDLER_ID, parseEvalJudgeOutput } from './eval-judge.handle
 import type { EvalExecutionContext } from './eval-execution-context';
 import { EvalReportRecorder } from './eval-report-recorder';
 import { runEvalAttempts, type EvalRunnerPorts, type EvalRunTally } from './eval-runner';
-import { buildEvalTargetPayload, resolveEvalTargetHandlerId } from './eval-targets';
+import { EvalTargetMessages } from './eval-target-messages';
+import {
+  buildEvalTargetMessage,
+  buildEvalTargetPayload,
+  resolveEvalTargetHandlerId,
+} from './eval-targets';
 
 const EVAL_WORK_ITEM_TYPE_KEY = 'EVAL' as const;
 
@@ -70,18 +75,32 @@ const runRecordedAttempts = async (
     now: () => new Date(),
     async launchTarget(attempt, { signal: attemptSignal, tokenBudget }) {
       const target = attempt.caseInput.target;
-      return launcher.launchRegistered(resolveEvalTargetHandlerId(target.targetHandler), {
-        parentSession: session,
-        payload: buildEvalTargetPayload(target),
-        signal: attemptSignal,
-        ...toLaunchSettings(attempt.configuration.target),
-        ...(tokenBudget !== undefined ? { tokenBudget } : {}),
-        evalExecution: toEvalExecution(attempt),
-        handlerDeps: deps,
-        ...(target.focalItemId
-          ? { entity: { entityType: 'TASK' as const, entityId: target.focalItemId } }
-          : {}),
-      });
+      const handlerId = resolveEvalTargetHandlerId(target.targetHandler);
+      const targetPayload = buildEvalTargetPayload(target);
+      const messages = await EvalTargetMessages.create(
+        session,
+        toEvalExecution(attempt),
+        handlerId,
+        deps,
+      );
+      await messages.savePrompt(buildEvalTargetMessage(target));
+      try {
+        return await launcher.launchRegistered(handlerId, {
+          parentSession: session,
+          payload: targetPayload,
+          onAgentOutput: messages.onAgentOutput,
+          signal: attemptSignal,
+          ...toLaunchSettings(attempt.configuration.target),
+          ...(tokenBudget !== undefined ? { tokenBudget } : {}),
+          evalExecution: toEvalExecution(attempt),
+          handlerDeps: deps,
+          ...(target.focalItemId
+            ? { entity: { entityType: 'TASK' as const, entityId: target.focalItemId } }
+            : {}),
+        });
+      } finally {
+        await messages.drain();
+      }
     },
     async judge(attempt, outputText, judgeSignal) {
       const startedAt = Date.now();

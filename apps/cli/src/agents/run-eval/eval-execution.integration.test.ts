@@ -20,7 +20,7 @@ import { ReportEmissionEvents } from '../submission-tools/report-emission-events
 import { createPromptTypeHandlerTestAuth } from '../prompt-type-handler.test-support';
 import { childPlatformMcpProxies } from '../platform-mcp-proxy/child-proxy-registry';
 import { PlatformMcpForwarder } from '../platform-mcp-proxy/forwarder';
-import { ReportsApi } from '../../shared/api/generated';
+import { ConversationsApi, ReportsApi, type PostMessageRequest } from '../../shared/api/generated';
 import type { LocalRunEvalPromptPayload } from '../../shared/agent-bridge-contract/generated';
 
 const sdk = vi.hoisted(() => ({
@@ -102,6 +102,15 @@ describe('graph-only eval execution through the real child runtime', () => {
       const attemptId = '33333333-3333-4333-8333-333333333333';
       const targetSessionId = '44444444-4444-4444-8444-444444444444';
       const targetConversationId = '55555555-5555-4555-8555-555555555555';
+      const messages: PostMessageRequest[] = [];
+      vi.spyOn(ConversationsApi.prototype, 'postMessage').mockImplementation(
+        async (request, options) => {
+          expect(options?.headers).toMatchObject({ 'X-Agent-Session-ID': targetSessionId });
+          expect(request.postMessageRequest.conversationId).toBe(targetConversationId);
+          messages.push(structuredClone(request.postMessageRequest));
+          return { data: { data: { id: `message-${messages.length}` } } } as never;
+        },
+      );
       const evalRunId = '66666666-6666-4666-8666-666666666666';
       const focalItemId = '77777777-7777-4777-8777-777777777777';
       const token = `header.${Buffer.from(JSON.stringify({ organizationId })).toString('base64url')}.signature`;
@@ -367,6 +376,7 @@ describe('graph-only eval execution through the real child runtime', () => {
         run.cleanup();
       }
       if (startupFailure) {
+        expect(messages).toHaveLength(0);
         expect(sdk.start).not.toHaveBeenCalled();
         expect(reports.get(attemptId)).toMatchObject({
           status: 'ERROR',
@@ -375,6 +385,18 @@ describe('graph-only eval execution through the real child runtime', () => {
         expect(reports.get(evalRunId)).toMatchObject({ status: 'FINISHED' });
         return;
       }
+      expect(messages[0]?.data).toMatchObject({
+        title: 'Starting Prompt',
+        response: expect.stringContaining('Research the pairing flow.'),
+        ragEnabled: false,
+      });
+      expect(JSON.stringify(messages)).not.toContain('SECRET-GRADING');
+      expect(messages.every((message) => message.parentMessageId === null)).toBe(true);
+      expect(messages).toHaveLength(2);
+      expect(messages[1]?.data).toMatchObject({
+        response: 'Research submitted.',
+        ragEnabled: false,
+      });
       expect(reports.get(invalidAttemptId)).toMatchObject({
         status: 'ERROR',
         error: { message: expect.stringContaining('cannot be evaluated yet') },

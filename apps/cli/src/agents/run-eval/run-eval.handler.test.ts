@@ -4,6 +4,7 @@ import {
   type LocalRunEvalPromptPayload,
 } from '../../shared/agent-bridge-contract/generated';
 import type { ProceduralRunContext } from '../prompt-type-handler';
+import type { AgentOutputHandler } from '../agent-event-stream';
 import { runEvalHandler } from './run-eval.handler';
 
 const attempt = {
@@ -57,6 +58,16 @@ describe('runEvalHandler', () => {
     const launchRegistered = vi.fn(async (handlerId: string, request: Record<string, unknown>) => {
       launches.push({ handlerId, payload: request['payload'], request });
       if (handlerId === 'agent_search') {
+        (request['onAgentOutput'] as AgentOutputHandler | undefined)?.({
+          event: {
+            source: 'provider',
+            eventType: 'agent_output',
+            timestamp: new Date().toISOString(),
+            sessionId: 'provider-session',
+            agentId: 'agent_search',
+            payload: { messageType: 'assistant', summary: 'Found it.', taskComplete: true },
+          },
+        });
         return {
           assistantCompleted: true,
           outputText: 'Found it.',
@@ -78,6 +89,14 @@ describe('runEvalHandler', () => {
       [attempt.attemptId, { reportType: 'EVAL_ATTEMPT', status: 'QUEUED', measurements: [] }],
     ]);
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const saved: Record<string, unknown>[] = [];
+    const { ConversationsApi } = await import('../../shared/api/generated');
+    vi.spyOn(ConversationsApi.prototype, 'postMessage').mockImplementation(
+      async (request, options) => {
+        saved.push({ ...request.postMessageRequest, headers: options?.headers });
+        return { data: { data: { id: `message-${saved.length}` } } } as never;
+      },
+    );
     const { ReportsApi } = await import('../../shared/api/generated');
     vi.spyOn(ReportsApi.prototype, 'getReport').mockImplementation(
       async (request) =>
@@ -94,7 +113,10 @@ describe('runEvalHandler', () => {
     });
 
     const ctx = {
-      session: { agentic_session_id: 'run-1', contextMetadata: { organizationId: 'org-1' } },
+      session: {
+        agentic_session_id: 'run-1',
+        contextMetadata: { organizationId: 'org-1', projectId: 'project-1' },
+      },
       deps: {
         auth: { getAccessToken: async () => 'token' },
         apiBaseUrl: 'http://api.test',
@@ -133,6 +155,21 @@ describe('runEvalHandler', () => {
       reports.get(attempt.attemptId)!['measurements'] as Record<string, unknown>[]
     )[1]!;
     expect(judgeMeasurement).not.toHaveProperty('inputTokens');
+    expect(saved).toHaveLength(2);
+    expect(saved[0]).toMatchObject({
+      conversationId: attempt.targetConversationId,
+      parentMessageId: null,
+      data: { response: expect.stringContaining('Find what is out of date.'), ragEnabled: false },
+      headers: { 'X-Agent-Session-ID': attempt.targetSessionId },
+    });
+    expect(saved[1]).toMatchObject({
+      conversationId: attempt.targetConversationId,
+      parentMessageId: null,
+      data: { response: 'Found it.', ragEnabled: false },
+      headers: { 'X-Agent-Session-ID': attempt.targetSessionId },
+    });
+    expect(JSON.stringify(saved)).not.toMatch(/SECRET/);
+    expect(launches[1]!.request).not.toHaveProperty('onAgentOutput');
     expect(fetchSpy).not.toHaveBeenCalled();
     vi.restoreAllMocks();
   });

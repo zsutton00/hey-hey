@@ -1,3 +1,8 @@
+import { ChildAgentLauncher, type ChildAgentLauncherDependencies } from './child-agent-launcher';
+import { EvalTargetMessages } from '../agents/run-eval/eval-target-messages';
+import { agentSearchHandler } from '../agents/agent-search/agent-search.handler';
+import { createPromptTypeHandlerTestDeps } from '../agents/prompt-type-handler.test-support';
+import { ConversationsApi, type PostMessageRequest } from '../shared/api/generated/api';
 import { EntityContextApi, WorkItemTypesApi } from '../shared/api/generated/api';
 import { researchHandler } from '../agents/research/research.handler';
 import { LocalPromptType } from '../shared/agent-bridge-contract/generated';
@@ -177,6 +182,118 @@ const makeSubAgent = (
   });
 
 describe('SubAgent — unified runtime contract', () => {
+  it.each(['claude', 'codex'] as const)(
+    'persists isolated eval prompts and all %s replies through real child launch and message transport',
+    async (provider) => {
+      const stored = new Map<string, PostMessageRequest[]>();
+      const post = vi
+        .spyOn(ConversationsApi.prototype, 'postMessage')
+        .mockImplementation(async (request, options) => {
+          expect(options?.headers).toMatchObject({
+            'X-Agent-Session-ID': `target-${request.postMessageRequest.conversationId}`,
+          });
+          await new Promise((resolve) => setTimeout(resolve, 1));
+          const rows = stored.get(request.postMessageRequest.conversationId) ?? [];
+          rows.push(structuredClone(request.postMessageRequest));
+          stored.set(request.postMessageRequest.conversationId, rows);
+          return { data: { data: { id: `message-${rows.length}` } } } as never;
+        });
+      const session = makeSession({ provider, services: [] });
+      const deps = createPromptTypeHandlerTestDeps();
+      const localAgentEndpoint = new LocalAgentEndpoint();
+      localAgentEndpoint.set('http://127.0.0.1:3849');
+      const launcher = new ChildAgentLauncher({
+        promptTypeRegistry: new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES),
+        repoStore: {},
+        oauthClient: makeOauth(),
+        submissionToolRegistry: new SubmissionToolRegistry(),
+        localAgentEndpoint,
+        logger: makeLogger(),
+      } as ChildAgentLauncherDependencies);
+      try {
+        await Promise.all(
+          ['a', 'b'].map(async (conversation) => {
+            const execution = {
+              attemptId: `attempt-${conversation}`,
+              targetSessionId: `target-${conversation}`,
+              targetConversationId: conversation,
+            };
+            const messages = await EvalTargetMessages.create(
+              session,
+              execution,
+              agentSearchHandler.id,
+              deps,
+            );
+            await messages.savePrompt(`Request ${conversation}`);
+            if (provider === 'claude') {
+              startSessionMock.mockImplementationOnce(async () => {
+                const emit = onEventMock.mock.calls.at(-1)![0] as (event: object) => void;
+                emit({
+                  type: 'assistant',
+                  message: { content: [{ type: 'text', text: `Looking ${conversation}` }] },
+                });
+                emit({
+                  type: 'assistant',
+                  message: { content: [{ type: 'text', text: `Answer ${conversation}` }] },
+                });
+                emit({ type: 'result', subtype: 'success' });
+              });
+            } else {
+              codexStartSessionMock.mockImplementationOnce(async () => {
+                const emit = codexOnEventMock.mock.calls.at(-1)![0] as (event: object) => void;
+                emit({
+                  method: 'item/completed',
+                  params: {
+                    item: {
+                      id: `first-${conversation}`,
+                      type: 'agentMessage',
+                      text: `Looking ${conversation}`,
+                    },
+                  },
+                });
+                emit({
+                  method: 'item/completed',
+                  params: {
+                    item: {
+                      id: `last-${conversation}`,
+                      type: 'agentMessage',
+                      text: `Answer ${conversation}`,
+                    },
+                  },
+                });
+                emit({
+                  method: 'turn/completed',
+                  params: { turn: { id: `turn-${conversation}`, status: 'completed' } },
+                });
+              });
+            }
+            await launcher.launchRegistered(agentSearchHandler.id, {
+              parentSession: session,
+              payload: { payloadVersion: 1, userMessage: `Request ${conversation}` },
+              evalExecution: execution,
+              signal: new AbortController().signal,
+              onAgentOutput: messages.onAgentOutput,
+            });
+            await messages.drain();
+          }),
+        );
+        expect(stored.size).toBe(2);
+        for (const conversation of ['a', 'b']) {
+          const rows = stored.get(conversation)!;
+          expect(rows.map((row) => row.data)).toEqual([
+            expect.objectContaining({ response: `Request ${conversation}`, ragEnabled: false }),
+            expect.objectContaining({ response: `Looking ${conversation}`, ragEnabled: false }),
+            expect.objectContaining({ response: `Answer ${conversation}`, ragEnabled: false }),
+          ]);
+          expect(rows.every((row) => row.parentMessageId === null)).toBe(true);
+        }
+        expect(stored.has(session.conversationId)).toBe(false);
+      } finally {
+        post.mockRestore();
+      }
+    },
+  );
+
   beforeEach(() => {
     startSessionMock.mockClear();
     disconnectMock.mockClear();
