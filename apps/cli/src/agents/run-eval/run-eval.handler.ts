@@ -42,6 +42,9 @@ const toLaunchSettings = (
   };
 };
 
+const describeFailure = (error: unknown): string =>
+  error instanceof Error ? (error.stack ?? error.message) : String(error);
+
 /** Every child of an attempt reaches the platform as that attempt's target session. */
 const toEvalExecution = (attempt: EvalRecordedAttempt): EvalExecutionContext => ({
   attemptId: attempt.attemptId,
@@ -84,6 +87,13 @@ const runRecordedAttempts = async (
         deps,
       );
       await messages.savePrompt(buildEvalTargetMessage(target));
+      deps.logger.info('run_eval.attempt.target_started', {
+        runId: session.agentic_session_id,
+        attemptId: attempt.attemptId,
+        handlerId,
+        provider: attempt.configuration.target.provider,
+        model: attempt.configuration.target.model,
+      });
       try {
         return await launcher.launchRegistered(handlerId, {
           parentSession: session,
@@ -98,19 +108,36 @@ const runRecordedAttempts = async (
             ? { entity: { entityType: 'TASK' as const, entityId: target.focalItemId } }
             : {}),
         });
+      } catch (error) {
+        deps.logger.error('run_eval.attempt.target_failed', {
+          runId: session.agentic_session_id,
+          attemptId: attempt.attemptId,
+          handlerId,
+          error: describeFailure(error),
+        });
+        throw error;
       } finally {
         await messages.drain();
       }
     },
     async judge(attempt, outputText, judgeSignal) {
       const startedAt = Date.now();
-      const result = await launcher.launchRegistered(EVAL_JUDGE_HANDLER_ID, {
-        parentSession: session,
-        payload: { caseInput: attempt.caseInput, outputText },
-        signal: judgeSignal,
-        ...toLaunchSettings(payload.judgeSetup),
-        evalExecution: toEvalExecution(attempt),
-      });
+      const result = await launcher
+        .launchRegistered(EVAL_JUDGE_HANDLER_ID, {
+          parentSession: session,
+          payload: { caseInput: attempt.caseInput, outputText },
+          signal: judgeSignal,
+          ...toLaunchSettings(payload.judgeSetup),
+          evalExecution: toEvalExecution(attempt),
+        })
+        .catch((error: unknown) => {
+          deps.logger.error('run_eval.attempt.judge_failed', {
+            runId: session.agentic_session_id,
+            attemptId: attempt.attemptId,
+            error: describeFailure(error),
+          });
+          throw error;
+        });
       const elapsedMs = Date.now() - startedAt;
       if (!result.assistantCompleted || !result.outputText) {
         throw new Error('The judge ended without an assessment.');
