@@ -58,6 +58,32 @@ describe('approved Markdown handoff storage', () => {
     expect(restored).toMatchObject({ record: { payload: frame } });
   });
 
+  it('admits an approved version that carries its discrepancies', () => {
+    const withDiscrepancies = {
+      ...payload,
+      approvedVersion: {
+        ...payload.approvedVersion,
+        discrepancies: [
+          {
+            sourceRef: { sourceType: 'task', sourceId: id },
+            sourceField: 'description',
+            sourceExcerpt: 'The task says A.',
+            reasoning: 'The code does B.',
+            discrepancyText: 'Spec and code disagree.',
+            severity: 'medium',
+          },
+        ],
+      },
+    } satisfies ImplementPromptPayload;
+    const discrepancyEvent = { ...event, payload: withDiscrepancies };
+    const admitted = toStoredTriggerFrame(id, discrepancyEvent, withDiscrepancies);
+    expect(storedInput('trigger_frame', 'trigger_message', admitted).payload).toEqual({
+      conversationId: id,
+      signedEvent: discrepancyEvent,
+      event: discrepancyEvent,
+    });
+  });
+
   it('still rejects undeclared fields rather than widening saved implementation inputs', () => {
     expect(() =>
       storedInput('trigger_frame', 'trigger_message', {
