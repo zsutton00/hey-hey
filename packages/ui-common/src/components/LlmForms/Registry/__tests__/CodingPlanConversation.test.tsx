@@ -4,7 +4,13 @@ import {
   MessageStatus,
   type MessageResponseDto,
 } from "../../../../api";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CodingPlanApprovalField } from "../CodingPlanApprovalField";
 import { CodingPlanDiscrepancyField } from "../CodingPlanDiscrepancyField";
@@ -104,6 +110,23 @@ vi.mock("../../../SmarterTextAreaCard/MentionBadge", () => ({
   ),
 }));
 
+vi.mock("../../../SmarterTextAreaCard/SmarterTextAreaEditor", () => ({
+  SmarterTextAreaEditor: ({
+    initialValue,
+    onChange,
+    editable,
+    context: editorContext,
+  }: import("../../../SmarterTextAreaCard/SmarterTextAreaEditor").SmarterTextAreaEditorProps) => (
+    <textarea
+      aria-label="Feedback to include with approval"
+      defaultValue={initialValue}
+      disabled={!editable}
+      data-conversation-id={editorContext?.conversationId}
+      onChange={(event) => onChange(event.target.value, {} as never)}
+    />
+  ),
+}));
+
 const context = {
   organizationId: "org",
   projectId: "project",
@@ -164,7 +187,12 @@ describe("conversational planning controls", () => {
       );
       fireEvent.change(
         screen.getByLabelText("Feedback to include with approval"),
-        { target: { value: "Preserve keyboard access." } },
+        {
+          target: {
+            value:
+              "Preserve @[task:48a742a7-f8c6-4eeb-b898-c3ee77c5f9c6|Issue task] access.",
+          },
+        },
       );
       fireEvent.click(screen.getByRole("button", { name: "Approve" }));
       await screen.findByRole("button", { name: "Approved" });
@@ -206,7 +234,9 @@ describe("conversational planning controls", () => {
       expect(screen.getByRole("button", { name: "Approved" })).toBeDisabled();
       expect(
         screen.getByLabelText("Feedback to include with approval"),
-      ).toHaveValue("Preserve keyboard access.");
+      ).toHaveValue(
+        "Preserve @[task:48a742a7-f8c6-4eeb-b898-c3ee77c5f9c6|Issue task] access.",
+      );
       expect(
         screen.getByLabelText("Feedback to include with approval"),
       ).toBeDisabled();
@@ -335,6 +365,50 @@ describe("conversational planning controls", () => {
       expect(state.answer).not.toHaveBeenCalled();
     },
   );
+
+  it("keeps each version's discrepancies inside its own plan document", () => {
+    const issue = (text: string) => ({
+      severity: "high",
+      discrepancyText: text,
+      reasoning: "Address it",
+    });
+    const config = {
+      field: "plan",
+      type: "coding_plan_version",
+      payload: { ...planning, discrepancies: [issue("Earlier concern")] },
+    };
+    const { rerender } = render(
+      <CodingPlanApprovalField
+        config={config}
+        context={{ ...context, codingPlanVersionMessageId: "newer" }}
+      />,
+    );
+    const document = screen.getByTestId("coding-plan-document");
+    expect(within(document).getByText(/Agree on the result/)).toBeVisible();
+    expect(within(document).getByText("Earlier concern")).toBeVisible();
+    rerender(
+      <CodingPlanApprovalField
+        config={{
+          ...config,
+          payload: { ...planning, discrepancies: [issue("Current concern")] },
+        }}
+        context={context}
+      />,
+    );
+    expect(
+      within(screen.getByTestId("coding-plan-document")).getByText(
+        "Current concern",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText("Earlier concern")).toBeNull();
+    rerender(
+      <CodingPlanApprovalField
+        config={{ ...config, payload: planning }}
+        context={context}
+      />,
+    );
+    expect(screen.queryByTestId("coding-plan-discrepancies")).toBeNull();
+  });
 
   it.each([
     {
@@ -479,7 +553,12 @@ describe("conversational planning controls", () => {
     ).toBeVisible();
     fireEvent.change(
       screen.getByLabelText("Feedback to include with approval"),
-      { target: { value: "Preserve keyboard access." } },
+      {
+        target: {
+          value:
+            "Preserve @[task:48a742a7-f8c6-4eeb-b898-c3ee77c5f9c6|Issue task] access.",
+        },
+      },
     );
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
     await waitFor(() => expect(state.answer).toHaveBeenCalledTimes(1));
@@ -490,7 +569,8 @@ describe("conversational planning controls", () => {
       payload: {
         responseType: "coding_plan_version_approval_v1",
         versionMessageId: "context",
-        feedback: "Preserve keyboard access.",
+        feedback:
+          "Preserve @[task:48a742a7-f8c6-4eeb-b898-c3ee77c5f9c6|Issue task] access.",
       },
     });
     expect(state.submit).not.toHaveBeenCalled();

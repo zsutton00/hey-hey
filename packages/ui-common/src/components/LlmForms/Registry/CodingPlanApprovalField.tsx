@@ -1,5 +1,5 @@
 import { supportsFastMode } from "../../AgentSession/capabilityCatalog";
-import { Alert, Button, Paper, Stack, TextField } from "@mui/material";
+import { Alert, Button, Paper, Stack, Typography } from "@mui/material";
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { CodingPlanVersion } from "../../../api";
 import { useServices } from "../../../data/hooks/useServices";
@@ -10,6 +10,8 @@ import {
   writeSurfaceSelection,
 } from "../../AgentSession/surfaceSelectionMemory";
 import { useSurfaceSelection } from "../../AgentSession/useSurfaceSelection";
+import { SmarterTextAreaEditor } from "../../SmarterTextAreaCard/SmarterTextAreaEditor";
+import { CodingPlanDiscrepancyCard } from "./CodingPlanDiscrepancyField";
 import { MarkdownRenderer } from "../../shared/MarkdownRenderer";
 import {
   classifyStartupServiceScope,
@@ -137,6 +139,17 @@ export function CodingPlanApprovalField({
         >
           {planning.markdown}
         </MarkdownRenderer>
+        {Boolean(planning.discrepancies?.length) && (
+          <Stack
+            spacing={2}
+            sx={{ mt: 3 }}
+            data-testid="coding-plan-discrepancies"
+          >
+            {planning.discrepancies?.map((issue, index) => (
+              <CodingPlanDiscrepancyCard key={index} issue={issue} />
+            ))}
+          </Stack>
+        )}
       </Paper>
       <StartupServiceScopeSection review={scope} />
       {approved || context.codingPlanVersionMessageId === context.messageId ? (
@@ -165,12 +178,32 @@ export function CodingPlanApprovalField({
               updateSelection((current) => ({ ...current, fastMode: value }))
             }
           />
-          <TextField
-            label="Feedback to include with approval"
-            multiline
-            value={submitted?.feedback ?? feedback}
-            onChange={(event) => setFeedback(event.target.value)}
-            disabled={locked}
+          <Typography component="div" variant="body2">
+            Feedback to include with approval
+          </Typography>
+          <SmarterTextAreaEditor
+            context={{
+              organizationId: context.organizationId,
+              projectId: context.projectId,
+              conversationId: context.conversationId,
+            }}
+            initialValue={submitted?.feedback ?? feedback}
+            onChange={setFeedback}
+            editable={!locked}
+            presentation={{
+              contentEditableAriaLabel: "Feedback to include with approval",
+              contentEditableTestId: "coding-plan-feedback",
+              containerSx: {
+                border: 1,
+                borderColor: "divider",
+                borderRadius: 1,
+              },
+              contentEditableStyle: {
+                minHeight: 100,
+                padding: 16,
+                outline: "none",
+              },
+            }}
           />
           <Button
             data-testid="coding-plan-approve"

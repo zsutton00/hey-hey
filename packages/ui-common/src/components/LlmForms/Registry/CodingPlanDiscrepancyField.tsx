@@ -15,6 +15,14 @@ const severityPresentation = {
 
 export function CodingPlanDiscrepancyField({ config }: FieldComponentProps) {
   const issue = config.payload as CodingPlanDiscrepancy;
+  return <CodingPlanDiscrepancyCard issue={issue} />;
+}
+
+export function CodingPlanDiscrepancyCard({
+  issue,
+}: {
+  issue: CodingPlanDiscrepancy;
+}) {
   const { Icon, color, label } = severityPresentation[issue.severity];
 
   return (
