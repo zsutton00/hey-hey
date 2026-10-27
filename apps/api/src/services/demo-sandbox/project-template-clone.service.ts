@@ -74,6 +74,8 @@ export class ProjectTemplateCloneService {
     },
   ): Promise<{
     idMap: ReadonlyMap<string, string>;
+    /** Destination IDs of exactly the FEATURE tasks this clone copied. */
+    copiedFeatureIds: string[];
     graphCopyIntentId: string;
   }> {
     const template = await tx.demoTemplate.findFirstOrThrow({
@@ -406,6 +408,17 @@ export class ProjectTemplateCloneService {
         command: command as unknown as Prisma.InputJsonValue,
       },
     });
-    return { idMap: remap.ids, graphCopyIntentId: intentId };
+    // Derived from the rows this clone read, so a template edited mid-admission
+    // cannot copy a feature that readiness never waits for.
+    const copiedFeatureIds = tasks.flatMap((row) => {
+      const copied =
+        row.type === 'FEATURE' ? remap.ids.get(row.id as string) : undefined;
+      return copied ? [copied] : [];
+    });
+    return {
+      idMap: remap.ids,
+      copiedFeatureIds,
+      graphCopyIntentId: intentId,
+    };
   }
 }

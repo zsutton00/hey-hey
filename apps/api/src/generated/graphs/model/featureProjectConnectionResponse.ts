@@ -11,5 +11,8 @@
  */
 
 export interface FeatureProjectConnectionResponse {
-  connected: boolean;
+  /**
+   * Distinct listed features connected to the project
+   */
+  connectedCount: number;
 }

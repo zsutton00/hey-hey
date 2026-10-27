@@ -8,9 +8,14 @@ import {
 import { GraphsClientService } from '../graphs-client.service';
 
 describe('GraphsClientService projection deletion', () => {
-  it('checks the typed feature connection with the scoped service token', async () => {
-    const request = { featureId: '128754cc-10ca-4ff3-9fe5-3e6ae4b41fc3' };
-    const response = { connected: true };
+  it('counts the typed feature connections with the scoped service token', async () => {
+    const request = {
+      featureIds: [
+        '128754cc-10ca-4ff3-9fe5-3e6ae4b41fc3',
+        '6a0f1d2e-3b4c-4d5e-8f60-718293a4b5c6',
+      ],
+    };
+    const response = { connectedCount: 1 };
     const queries = {
       checkFeatureProjectConnection: jest
         .fn()

@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => {
   return {
     resume: vi.fn(),
     provision: vi.fn(),
+    followSetup: vi.fn(),
     available: vi.fn(),
     siteKey: "site-key" as string | undefined,
     DemoSandboxProvisionError,
@@ -28,6 +29,7 @@ vi.mock("@hey-hey/ui-common/data", () => ({
   useDemoSandboxAdmission: () => ({
     resume: mocks.resume,
     provision: mocks.provision,
+    followSetup: mocks.followSetup,
   }),
 }));
 
@@ -108,6 +110,7 @@ describe("DemoStartPage", () => {
   beforeEach(() => {
     mocks.resume.mockReset();
     mocks.provision.mockReset();
+    mocks.followSetup.mockReset().mockReturnValue(new Promise(() => {}));
     mocks.available.mockReset().mockResolvedValue(true);
     mocks.siteKey = "site-key";
   });
@@ -115,7 +118,7 @@ describe("DemoStartPage", () => {
   afterEach(cleanup);
 
   it("routes a returning browser with an unexpired sandbox to its Project Page without the terms screen", async () => {
-    mocks.resume.mockResolvedValue({ outcome: "resumed", sandbox });
+    mocks.resume.mockResolvedValue({ outcome: "ready", sandbox });
 
     renderPage();
 
@@ -139,7 +142,7 @@ describe("DemoStartPage", () => {
   });
 
   it("still returns a browser to its unexpired sandbox when the demo is switched off", async () => {
-    mocks.resume.mockResolvedValue({ outcome: "resumed", sandbox });
+    mocks.resume.mockResolvedValue({ outcome: "ready", sandbox });
     mocks.available.mockResolvedValue(false);
 
     renderPage();
@@ -228,7 +231,7 @@ describe("DemoStartPage", () => {
   it("provisions with one combined consent and lands on the new Project Page", async () => {
     const user = userEvent.setup();
     mocks.resume.mockResolvedValue({ outcome: "none" });
-    mocks.provision.mockResolvedValue(sandbox);
+    mocks.provision.mockResolvedValue({ outcome: "ready", sandbox });
 
     renderPage();
     await screen.findByTestId("demo-consent");
@@ -274,7 +277,7 @@ describe("DemoStartPage", () => {
       mocks.resume.mockResolvedValue({ outcome: "none" });
       mocks.provision
         .mockRejectedValueOnce(new mocks.DemoSandboxProvisionError(code))
-        .mockResolvedValueOnce(sandbox);
+        .mockResolvedValueOnce({ outcome: "ready", sandbox });
 
       renderPage();
       await screen.findByTestId("demo-consent");
@@ -304,11 +307,127 @@ describe("DemoStartPage", () => {
     },
   );
 
+  it("shows the setup screen with the connected feature count after Start, then takes the visitor into the sandbox", async () => {
+    const user = userEvent.setup();
+    mocks.resume.mockResolvedValue({ outcome: "none" });
+    mocks.provision.mockResolvedValue({
+      outcome: "provisioning",
+      progress: {
+        stage: "COPYING",
+        connectedFeatureCount: 0,
+        totalFeatureCount: 0,
+      },
+    });
+    let finish!: (result: unknown) => void;
+    mocks.followSetup.mockImplementation(
+      (onProgress: (progress: unknown) => void) => {
+        onProgress({
+          stage: "CONNECTING",
+          connectedFeatureCount: 3,
+          totalFeatureCount: 8,
+        });
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      },
+    );
+
+    renderPage();
+    await screen.findByTestId("demo-consent");
+    await completeConsent(user);
+    await user.click(screen.getByTestId("demo-start-button"));
+
+    expect(await screen.findByTestId("demo-setup")).toBeInTheDocument();
+    expect(screen.queryByTestId("demo-consent")).not.toBeInTheDocument();
+    expect(await screen.findByTestId("demo-setup-features")).toHaveTextContent(
+      "3 of 8 features connected",
+    );
+    expect(screen.getByText(/can take a minute/i)).toBeInTheDocument();
+
+    finish({ outcome: "ready", sandbox });
+    expect(await screen.findByTestId("project-page")).toHaveTextContent(
+      "/projects/project-1",
+    );
+  });
+
+  it("returns a reloaded page to the setup screen instead of the terms screen", async () => {
+    mocks.resume.mockResolvedValue({
+      outcome: "provisioning",
+      progress: {
+        stage: "CONNECTING",
+        connectedFeatureCount: 5,
+        totalFeatureCount: 8,
+      },
+    });
+
+    renderPage();
+
+    expect(await screen.findByTestId("demo-setup-features")).toHaveTextContent(
+      "5 of 8 features connected",
+    );
+    expect(screen.queryByTestId("demo-consent")).not.toBeInTheDocument();
+    expect(mocks.provision).not.toHaveBeenCalled();
+    expect(mocks.followSetup).toHaveBeenCalled();
+  });
+
+  it("tells the visitor when progress can't be checked and lets them check again", async () => {
+    const user = userEvent.setup();
+    mocks.resume.mockResolvedValue({
+      outcome: "provisioning",
+      progress: {
+        stage: "CONNECTING",
+        connectedFeatureCount: 1,
+        totalFeatureCount: 4,
+      },
+    });
+    mocks.followSetup
+      .mockImplementationOnce(
+        (_onProgress: unknown, onReachable: (reachable: boolean) => void) => {
+          onReachable(false);
+          return new Promise(() => {});
+        },
+      )
+      .mockResolvedValueOnce({ outcome: "ready", sandbox });
+
+    renderPage();
+
+    expect(
+      await screen.findByTestId("demo-setup-unreachable"),
+    ).toBeInTheDocument();
+    // The visitor keeps their place: same setup screen, same counts.
+    expect(screen.getByTestId("demo-setup-features")).toHaveTextContent(
+      "1 of 4 features connected",
+    );
+    await user.click(screen.getByTestId("demo-setup-check-again"));
+
+    expect(await screen.findByTestId("project-page")).toBeInTheDocument();
+    expect(mocks.followSetup).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows a failed setup with a Try again that opens the terms screen", async () => {
+    const user = userEvent.setup();
+    mocks.resume.mockResolvedValue({
+      outcome: "provisioning",
+      progress: {
+        stage: "COPYING",
+        connectedFeatureCount: 0,
+        totalFeatureCount: 0,
+      },
+    });
+    mocks.followSetup.mockResolvedValue({ outcome: "failed" });
+
+    renderPage();
+
+    expect(await screen.findByTestId("demo-setup-failed")).toBeInTheDocument();
+    await user.click(screen.getByTestId("demo-setup-retry"));
+    expect(await screen.findByTestId("demo-consent")).toBeInTheDocument();
+  });
+
   it("offers a retry when the existing-demo check fails", async () => {
     const user = userEvent.setup();
     mocks.resume
       .mockRejectedValueOnce(new Error("network"))
-      .mockResolvedValueOnce({ outcome: "resumed", sandbox });
+      .mockResolvedValueOnce({ outcome: "ready", sandbox });
 
     renderPage();
 

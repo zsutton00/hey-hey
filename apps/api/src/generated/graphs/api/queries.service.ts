@@ -55,8 +55,8 @@ export class QueriesService {
   }
 
   /**
-   * Check one feature\&#39;s stored project connection
-   * Checks only the exact SCOPED_TO_PROJECT edge from the scoped FEATURE task to this project. Does not establish readiness of other projections.
+   * Count listed features with a stored project connection
+   * Counts the distinct listed FEATURE tasks that have the exact SCOPED_TO_PROJECT edge to this project. Does not establish readiness of other projections.
    * @param organizationId Organization identifier
    * @param projectId Project identifier
    * @param featureProjectConnectionRequest

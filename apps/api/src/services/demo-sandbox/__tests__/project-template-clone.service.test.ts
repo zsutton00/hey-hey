@@ -602,6 +602,41 @@ describe('ProjectTemplateCloneService', () => {
     );
   });
 
+  it('reports exactly the FEATURE tasks it copied, including one added to the template just before the clone', async () => {
+    const f = fixture();
+    const source = f.state.task!.find((row) => row.id === f.feature)!;
+    // Added after admission started, e.g. by a template editor; it is copied,
+    // so readiness must wait for it too.
+    const late = { ...source, id: randomUUID() };
+    f.state.task!.push(late);
+    for (const section of f.state.taskSection!.filter(
+      (row) => row.taskId === f.feature,
+    )) {
+      f.state.taskSection!.push({
+        ...section,
+        id: randomUUID(),
+        taskId: late.id,
+      });
+    }
+
+    const result = await f.transaction();
+
+    const sourceFeatures = f.state
+      .task!.filter(
+        (row) => row.projectId === f.sourceProject && row.type === 'FEATURE',
+      )
+      .map((row) => row.id as string);
+    expect(sourceFeatures).toContain(late.id);
+    expect([...result.copiedFeatureIds].sort()).toEqual(
+      sourceFeatures.map((id) => result.idMap.get(id)!).sort(),
+    );
+    for (const id of result.copiedFeatureIds) {
+      expect(f.state.task!.find((row) => row.id === id)?.projectId).toBe(
+        f.input.targetProjectId,
+      );
+    }
+  });
+
   it('fetches the graph snapshot before the clone and never during it', async () => {
     const f = fixture();
 

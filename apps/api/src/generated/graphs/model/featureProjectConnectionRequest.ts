@@ -11,5 +11,5 @@
  */
 
 export interface FeatureProjectConnectionRequest {
-  featureId: string;
+  featureIds: Array<string>;
 }

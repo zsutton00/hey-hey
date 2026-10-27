@@ -1,5 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { DemoSandboxStatus } from '@prisma/client';
 import { GraphsClientService } from '../graphs-client.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import {
   SERVICE_TOKEN_FACTORY,
   type ServiceTokenFactory,
@@ -8,45 +10,77 @@ import type { OrganizationId, ProjectId } from '../../types';
 import { errorToLoggable } from '../../utils/logging.util';
 import { READINESS_POLL_INTERVAL_MILLISECONDS } from './demo-sandbox.constants';
 
-export interface ReadinessAttempt {
+/** The persisted readiness inputs of one prepared attempt. */
+interface ReadinessAttempt {
   organizationId: string;
   projectId: string;
-  readinessFeatureId: string;
+  readinessFeatureIds: string[];
   provisioningDeadline: Date;
 }
 
-/** Waits for one sampled copied feature to be connected to its project in Graph. */
+/** Waits for every copied feature to be connected to its project in Graph. */
 @Injectable()
 export class DemoSandboxReadinessService {
   private readonly logger = new Logger(DemoSandboxReadinessService.name);
 
   constructor(
+    private readonly prisma: PrismaService,
     private readonly graphs: GraphsClientService,
     @Inject(SERVICE_TOKEN_FACTORY)
     private readonly tokenFactory: ServiceTokenFactory,
   ) {}
 
-  async isConnected(attempt: ReadinessAttempt): Promise<boolean> {
+  private async connectedCount(attempt: ReadinessAttempt): Promise<number> {
     const organizationId = attempt.organizationId as OrganizationId;
     const projectId = attempt.projectId as ProjectId;
     const result = await this.graphs.checkFeatureProjectConnection(
       organizationId,
       projectId,
-      {
-        featureId: attempt.readinessFeatureId,
-      },
+      { featureIds: attempt.readinessFeatureIds },
       this.tokenFactory(organizationId, projectId),
     );
-    return result.connected;
+    return result.connectedCount;
   }
 
-  /** Polls once per second until the sample matches or the persisted deadline passes. */
-  async waitUntilConnected(attempt: ReadinessAttempt): Promise<boolean> {
+  /**
+   * Polls once per second until every persisted feature is connected or the
+   * persisted deadline passes, recording the connected count for resume. The
+   * feature IDs and deadline are read from the row, so a fresh instance never
+   * recomputes or extends them.
+   */
+  async waitUntilConnected(sandboxId: string): Promise<boolean> {
+    const row = await this.prisma.db.demoSandbox.findUnique({
+      where: { id: sandboxId },
+      select: {
+        organizationId: true,
+        projectId: true,
+        readinessFeatureIds: true,
+        provisioningDeadline: true,
+      },
+    });
+    if (!row?.organizationId || !row.projectId) return false;
+    const attempt: ReadinessAttempt = {
+      organizationId: row.organizationId,
+      projectId: row.projectId,
+      readinessFeatureIds: row.readinessFeatureIds,
+      provisioningDeadline: row.provisioningDeadline,
+    };
+    const total = attempt.readinessFeatureIds.length;
+    let recorded = 0;
     for (;;) {
-      const remaining = attempt.provisioningDeadline.getTime() - Date.now();
-      if (remaining <= 0) return false;
+      if (attempt.provisioningDeadline.getTime() - Date.now() <= 0) {
+        return false;
+      }
       try {
-        if (await this.isConnected(attempt)) return true;
+        const connected = await this.connectedCount(attempt);
+        if (connected !== recorded) {
+          recorded = connected;
+          await this.prisma.db.demoSandbox.updateMany({
+            where: { id: sandboxId, status: DemoSandboxStatus.PROVISIONING },
+            data: { connectedFeatureCount: connected },
+          });
+        }
+        if (connected >= total) return true;
       } catch (error) {
         this.logger.warn('Demo sandbox readiness check unavailable', {
           projectId: attempt.projectId,

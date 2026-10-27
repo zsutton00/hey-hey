@@ -839,7 +839,7 @@ export {
   useDemoSandbox,
   useDemoSandboxAdmission,
   type DemoSandboxProvisionFailure,
-  type DemoSandboxResumeResult,
+  type DemoSandboxStatusResult,
   type UseDemoSandboxAdmissionReturn,
   type UseDemoSandboxOptions,
   type UseDemoSandboxReturn,
