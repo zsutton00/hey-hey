@@ -40,6 +40,7 @@ import {
   getChangedFilesFailureClassification,
   getChangedFilesExitCode,
   safeChangedFilesErrorName,
+  safeRunReadPreparationDetails,
   stableWorkspaceIdentity,
   type ChangedFilesReadFailureDiagnostic,
   type ChangedFilesReadPhase,
@@ -209,7 +210,11 @@ export class CliReadHandler {
         logger.error('cli-read.operation.failed', {
           requestId: body.requestId,
           operation: body.operation,
-          error: resolvedError.message,
+          error:
+            resolvedError instanceof RunReadPreparationError
+              ? safeChangedFilesErrorName(resolvedError)
+              : resolvedError.message,
+          ...safeRunReadPreparationDetails(resolvedError),
         });
         return this.toErrorResponse(verification.verified, resolvedError);
       }
@@ -265,7 +270,9 @@ export class CliReadHandler {
         operation: body.operation,
         agentSessionId: 'agentSessionId' in body ? body.agentSessionId : null,
         runId: 'runId' in body ? body.runId : null,
+        ...safeRunReadPreparationDetails(resolvedError),
         error:
+          resolvedError instanceof RunReadPreparationError ||
           body.operation === 'run.changed_files.count' ||
           body.operation === 'run.changed_files.inventory' ||
           body.operation === 'run.changed_files.detail'

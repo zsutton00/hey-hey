@@ -599,6 +599,62 @@ describe('CliReadHandler', () => {
     expect(diagnostics[0]?.result).toEqual({ changedFilesCount: 0, files: [] });
   });
 
+  it.each([false, true])('logs safe preparation details (cause: %s)', async (withCause) => {
+    const logger = {
+      trace: vi.fn(),
+      debug: vi.fn(),
+      info: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+      child: () => NOOP_LOGGER,
+    } satisfies ServerLogger;
+    const failure = new RunReadPreparationError(
+      'READ_FAILED',
+      'Private /repository/file.ts message',
+      withCause ? { cause: new TypeError('Private /repository/cause.ts message') } : undefined,
+    );
+    const restore = vi.fn<(requestedRunId: string) => Promise<Run>>().mockRejectedValue(failure);
+    await createSubject(
+      restore,
+      verified,
+      undefined,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { logger },
+    ).handle({});
+    expect(logger.error).toHaveBeenCalledWith('cli-read.operation.failed', {
+      requestId,
+      operation: 'run.changed_files.count',
+      agentSessionId,
+      runId,
+      error: 'RunReadPreparationError',
+      errorCode: 'READ_FAILED',
+      ...(withCause ? { causeErrorName: 'TypeError' } : {}),
+    });
+    vi.restoreAllMocks();
+    const runStore = createTestRunStore();
+    const registry = createTestRunRegistryWiring({ runStore }).runRegistry;
+    vi.spyOn(runStore, 'getRunMetadata').mockRejectedValue(failure);
+    await expect(new RunFileContextReader(runStore, registry, logger).read(runId)).rejects.toBe(
+      failure,
+    );
+    expect(logger.warn).toHaveBeenCalledWith('local.changed_files_read.failed', {
+      runId,
+      errorName: 'RunReadPreparationError',
+      errorCode: 'READ_FAILED',
+      ...(withCause ? { causeErrorName: 'TypeError' } : {}),
+    });
+    expect(JSON.stringify([logger.error.mock.calls, logger.warn.mock.calls])).not.toContain(
+      'Private',
+    );
+    expect(JSON.stringify([logger.error.mock.calls, logger.warn.mock.calls])).not.toContain(
+      '/repository',
+    );
+  });
+
   it('returns the coordinator typed error', async () => {
     const restore = vi
       .fn<(requestedRunId: string) => Promise<Run>>()
