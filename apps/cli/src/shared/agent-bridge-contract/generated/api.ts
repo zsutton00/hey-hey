@@ -6123,6 +6123,58 @@ export const CodingPlanActionSchemasREFINEActionEnum = {
 export type CodingPlanActionSchemasREFINEActionEnum = typeof CodingPlanActionSchemasREFINEActionEnum[keyof typeof CodingPlanActionSchemasREFINEActionEnum];
 
 /**
+ * One evidence-bearing, individually replyable planning issue.
+ * @export
+ * @interface CodingPlanDiscrepancy
+ */
+export interface CodingPlanDiscrepancy {
+    /**
+     *
+     * @type {CodingPromptStartupSourceRef}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'sourceRef': CodingPromptStartupSourceRef;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'sourceField': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'sourceExcerpt': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'reasoning': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'discrepancyText': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'severity': CodingPlanDiscrepancySeverityEnum;
+}
+
+export const CodingPlanDiscrepancySeverityEnum = {
+    Low: 'low',
+    Medium: 'medium',
+    High: 'high'
+} as const;
+
+export type CodingPlanDiscrepancySeverityEnum = typeof CodingPlanDiscrepancySeverityEnum[keyof typeof CodingPlanDiscrepancySeverityEnum];
+
+/**
  *
  * @export
  * @interface CodingPlanEmissionInput
@@ -6140,6 +6192,12 @@ export interface CodingPlanEmissionInput {
      * @memberof CodingPlanEmissionInput
      */
     'requiredServiceIds': Array<string>;
+    /**
+     * Complete discrepancy list for this plan version. A replacement plan re-lists the discrepancies that still hold.
+     * @type {Array<CodingPlanDiscrepancy>}
+     * @memberof CodingPlanEmissionInput
+     */
+    'discrepancies'?: Array<CodingPlanDiscrepancy>;
 }
 /**
  *
@@ -6165,6 +6223,12 @@ export interface CodingPlanVersion {
      * @memberof CodingPlanVersion
      */
     'requiredServiceIds': Array<string>;
+    /**
+     * Complete discrepancy list for this plan version. A replacement plan re-lists the discrepancies that still hold.
+     * @type {Array<CodingPlanDiscrepancy>}
+     * @memberof CodingPlanVersion
+     */
+    'discrepancies'?: Array<CodingPlanDiscrepancy>;
 }
 
 export const CodingPlanVersionResponseTypeEnum = {
@@ -6172,6 +6236,96 @@ export const CodingPlanVersionResponseTypeEnum = {
 } as const;
 
 export type CodingPlanVersionResponseTypeEnum = typeof CodingPlanVersionResponseTypeEnum[keyof typeof CodingPlanVersionResponseTypeEnum];
+
+/**
+ * Input discrepancy captured in startup-plan output
+ * @export
+ * @interface CodingPromptStartupDiscrepancy
+ */
+export interface CodingPromptStartupDiscrepancy {
+    /**
+     *
+     * @type {CodingPromptStartupSourceRef}
+     * @memberof CodingPromptStartupDiscrepancy
+     */
+    'sourceRef': CodingPromptStartupSourceRef;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPromptStartupDiscrepancy
+     */
+    'sourceField'?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPromptStartupDiscrepancy
+     */
+    'sourceExcerpt': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPromptStartupDiscrepancy
+     */
+    'reasoning': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPromptStartupDiscrepancy
+     */
+    'discrepancyText': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPromptStartupDiscrepancy
+     */
+    'severity': CodingPromptStartupDiscrepancySeverityEnum;
+}
+
+export const CodingPromptStartupDiscrepancySeverityEnum = {
+    Low: 'low',
+    Medium: 'medium',
+    High: 'high'
+} as const;
+
+export type CodingPromptStartupDiscrepancySeverityEnum = typeof CodingPromptStartupDiscrepancySeverityEnum[keyof typeof CodingPromptStartupDiscrepancySeverityEnum];
+
+/**
+ * Source reference used by startup-plan structured responses
+ * @export
+ * @interface CodingPromptStartupSourceRef
+ */
+export interface CodingPromptStartupSourceRef {
+    /**
+     *
+     * @type {CodingPromptStartupSourceType}
+     * @memberof CodingPromptStartupSourceRef
+     */
+    'sourceType': CodingPromptStartupSourceType;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPromptStartupSourceRef
+     */
+    'sourceId': string;
+}
+
+
+/**
+ * Source types used by startup-plan structured responses
+ * @export
+ * @enum {string}
+ */
+
+export const CodingPromptStartupSourceType = {
+    EvidenceItem: 'evidenceItem',
+    Task: 'task',
+    DesignDoc: 'designDoc',
+    Plan: 'plan',
+    Initiative: 'initiative'
+} as const;
+
+export type CodingPromptStartupSourceType = typeof CodingPromptStartupSourceType[keyof typeof CodingPromptStartupSourceType];
+
 
 /**
  *

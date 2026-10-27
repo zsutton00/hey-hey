@@ -42,7 +42,6 @@ import { VerifyFeaturePayload } from './verifyFeaturePayload';
 import { AgentRequestServiceScopePayload } from './agentRequestServiceScopePayload';
 import { MultipleChoicePayload } from './multipleChoicePayload';
 import { RepositoryPlacementReviewPayload } from './repositoryPlacementReviewPayload';
-import { CodingPromptStartupDiscrepancy } from './codingPromptStartupDiscrepancy';
 import { CodingPromptStartupPrimaryImplementation } from './codingPromptStartupPrimaryImplementation';
 import { FileDiffEntry } from './fileDiffEntry';
 import { ImplementationReadinessPayload } from './implementationReadinessPayload';

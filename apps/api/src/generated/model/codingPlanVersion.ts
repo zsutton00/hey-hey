@@ -11,6 +11,7 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
+import { CodingPlanDiscrepancy } from './codingPlanDiscrepancy';
 
 
 export interface CodingPlanVersion { 
@@ -20,6 +21,10 @@ export interface CodingPlanVersion {
      */
     markdown: string;
     requiredServiceIds: Array<string>;
+    /**
+     * Complete discrepancy list for this plan version. A replacement plan re-lists the discrepancies that still hold.
+     */
+    discrepancies?: Array<CodingPlanDiscrepancy>;
 }
 export namespace CodingPlanVersion {
     export type ResponseTypeEnum = 'coding_plan_version_v1';

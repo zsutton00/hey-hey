@@ -11,6 +11,7 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
+import { CodingPlanDiscrepancy } from './codingPlanDiscrepancy';
 
 
 export interface CodingPlanEmissionInput { 
@@ -19,5 +20,9 @@ export interface CodingPlanEmissionInput {
      */
     markdown: string;
     requiredServiceIds: Array<string>;
+    /**
+     * Complete discrepancy list for this plan version. A replacement plan re-lists the discrepancies that still hold.
+     */
+    discrepancies?: Array<CodingPlanDiscrepancy>;
 }
 

@@ -10,6 +10,7 @@
  * Do not edit the class manually.
  */
 
+import { CodingPlanDiscrepancy } from '../models/CodingPlanDiscrepancy';
 import { HttpFile } from '../http/http';
 
 export class CodingPlanVersion {
@@ -19,6 +20,10 @@ export class CodingPlanVersion {
    */
   'markdown': string;
   'requiredServiceIds': Set<string>;
+  /**
+   * Complete discrepancy list for this plan version. A replacement plan re-lists the discrepancies that still hold.
+   */
+  'discrepancies'?: Array<CodingPlanDiscrepancy>;
 
   static readonly discriminator: string | undefined = undefined;
 
@@ -47,6 +52,12 @@ export class CodingPlanVersion {
       baseName: 'requiredServiceIds',
       type: 'Set<string>',
       format: 'uuid',
+    },
+    {
+      name: 'discrepancies',
+      baseName: 'discrepancies',
+      type: 'Array<CodingPlanDiscrepancy>',
+      format: '',
     },
   ];
 
