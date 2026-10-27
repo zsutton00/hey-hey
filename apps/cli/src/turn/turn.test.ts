@@ -299,6 +299,35 @@ describe('Turn.run() error + abort semantics', () => {
     );
   });
 
+  it('logs a rejected aborted turn once while preserving failure notification and outcome', async () => {
+    const error = new Error('Aborted');
+    const { turn, logger, onRunnerFailed, onEnd } = build({
+      runnerImpl: async () => {
+        turn.abort();
+        throw error;
+      },
+    });
+    await turn.begin();
+    await turn.run();
+    expect(logger.error).not.toHaveBeenCalled();
+    expect(logger.warn).not.toHaveBeenCalled();
+    const cancellations = vi
+      .mocked(logger.info)
+      .mock.calls.filter(([event]) => event === 'runtime.turn.run.cancelled');
+    expect(cancellations).toEqual([
+      [
+        'runtime.turn.run.cancelled',
+        expect.objectContaining({
+          runId: 'run-1',
+          turnId: 'turn-1',
+        }),
+      ],
+    ]);
+    expect(turn.terminalOutcome).toBe('ABORTED');
+    expect(onRunnerFailed).toHaveBeenCalledWith(turn, error);
+    expect(onEnd).toHaveBeenCalledOnce();
+  });
+
   it('aborts during run() by firing turn.abort() — runner sees an aborted signal and end() fires', async () => {
     let signalAtStart: boolean | undefined;
     let signalAtEnd: boolean | undefined;
@@ -329,6 +358,13 @@ describe('Turn.run() error + abort semantics', () => {
     expect(onEnd).toHaveBeenCalledTimes(1);
     expect(onRunnerFailed).not.toHaveBeenCalled();
     expect(logger.error).not.toHaveBeenCalledWith('runtime.turn.run_failed', expect.anything());
+    expect(logger.info).toHaveBeenCalledWith(
+      'runtime.turn.run.cancelled',
+      expect.objectContaining({
+        runId: 'run-1',
+        turnId: 'turn-1',
+      }),
+    );
   });
 });
 

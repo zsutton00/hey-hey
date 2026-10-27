@@ -2776,9 +2776,9 @@ describe('session-runner-codex', () => {
       }),
     ).rejects.toMatchObject({ code: 'RUN_FAILED' });
 
-    expect(error).toHaveBeenCalledWith(
+    expect(error).not.toHaveBeenCalledWith(
       'local.runner.codex.run_prompt.failed',
-      expect.objectContaining({ error: expect.objectContaining({ code: 'RUN_FAILED' }) }),
+      expect.anything(),
     );
     expect(runStore.updateRunStatus).toHaveBeenLastCalledWith('agentic-1', 'idle');
   });
@@ -2813,9 +2813,9 @@ describe('session-runner-codex', () => {
       }),
     ).rejects.toMatchObject({ code: 'RUN_FAILED', message: 'Provider transport failed.' });
 
-    expect(error).toHaveBeenCalledWith(
+    expect(error).not.toHaveBeenCalledWith(
       'local.runner.codex.run_prompt.failed',
-      expect.objectContaining({ error: expect.objectContaining({ code: 'RUN_FAILED' }) }),
+      expect.anything(),
     );
     expect(
       vi
@@ -2855,9 +2855,9 @@ describe('session-runner-codex', () => {
       }),
     ).rejects.toMatchObject({ code: 'RUN_FAILED' });
 
-    expect(error).toHaveBeenCalledWith(
+    expect(error).not.toHaveBeenCalledWith(
       'local.runner.codex.run_prompt.failed',
-      expect.objectContaining({ error: expect.objectContaining({ code: 'RUN_FAILED' }) }),
+      expect.anything(),
     );
     expect(runStore.updateRunStatus).toHaveBeenLastCalledWith('agentic-1', 'idle');
   });

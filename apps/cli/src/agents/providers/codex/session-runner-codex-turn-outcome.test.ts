@@ -725,9 +725,7 @@ describe('Codex turn outcome', () => {
     expect(outcome.failure).toEqual({ code: 'RUN_FAILED', message: 'Aborted' });
     expect(outcome.runCompleted).toMatchObject({ error: 'Aborted', code: 'RUN_FAILED' });
     expect(outcome.statuses).toEqual(['running', 'idle']);
-    expect(outcome.logFields('local.runner.codex.run_prompt.failed')).toMatchObject({
-      error: expect.objectContaining({ code: 'RUN_FAILED' }),
-    });
+    expect(outcome.logFields('local.runner.codex.run_prompt.failed')).toBeNull();
   });
 
   it('resolves a Service-scope cancellation quietly without a completion record', async () => {

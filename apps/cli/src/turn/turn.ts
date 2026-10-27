@@ -413,13 +413,15 @@ export class Turn {
           message: formatRunEventAppendLockGuidance(),
         });
       }
-      this.logger.error('runtime.turn.run_failed', {
-        turnId: this.turnId,
-        runId: this.runId,
-        promptType: this.handler.promptType,
-        triggerMessageId: this.triggerMessageId,
-        error,
-      });
+      if (!this.abortSignal.aborted) {
+        this.logger.error('runtime.turn.run_failed', {
+          turnId: this.turnId,
+          runId: this.runId,
+          promptType: this.handler.promptType,
+          triggerMessageId: this.triggerMessageId,
+          error,
+        });
+      }
       try {
         await this.owner.onTurnRunnerFailed(this, error);
       } catch (publishError) {
@@ -432,6 +434,14 @@ export class Turn {
         });
       }
     } finally {
+      if (this.abortSignal.aborted) {
+        this.logger.info('runtime.turn.run.cancelled', {
+          turnId: this.turnId,
+          runId: this.runId,
+          promptType: this.handler.promptType,
+          triggerMessageId: this.triggerMessageId,
+        });
+      }
       await this.end();
     }
   }

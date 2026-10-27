@@ -2436,13 +2436,15 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
       await withSessionWriteLockRetry('set_status_idle', async () =>
         this.runStore.updateRunStatus(session.agentic_session_id, 'idle'),
       );
-      requestContext.log(this.logger, 'error', 'local.runner.codex.run_prompt.failed', {
-        runId,
-        sessionId: session.agentic_session_id,
-        durationMs: Date.now() - startedAt,
-        error: mapped,
-        ...(isModelCapacityFailure ? { rawProviderErrorMessage: rawErrorMessage } : {}),
-      });
+      if (!signal?.aborted) {
+        requestContext.log(this.logger, 'error', 'local.runner.codex.run_prompt.failed', {
+          runId,
+          sessionId: session.agentic_session_id,
+          durationMs: Date.now() - startedAt,
+          error: mapped,
+          ...(isModelCapacityFailure ? { rawProviderErrorMessage: rawErrorMessage } : {}),
+        });
+      }
       await this.client.disconnect().catch(() => undefined);
       throw mapped;
     } finally {

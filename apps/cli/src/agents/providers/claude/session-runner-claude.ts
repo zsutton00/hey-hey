@@ -2080,6 +2080,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
             runId,
           }),
         (err: unknown) =>
+          !signal?.aborted &&
           requestContext.log(this.logger, 'warn', 'local.runner.claude.session_promise.rejected', {
             runId,
             error: err,
@@ -2091,6 +2092,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
             runId,
           }),
         (err: unknown) =>
+          !signal?.aborted &&
           requestContext.log(this.logger, 'warn', 'local.runner.claude.events_done.rejected', {
             runId,
             error: err,
@@ -2285,12 +2287,14 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
         },
       });
       await this.runStore.updateRunStatus(session.agentic_session_id, 'idle');
-      requestContext.log(this.logger, 'error', 'local.runner.claude.run_prompt.failed', {
-        runId,
-        sessionId: session.agentic_session_id,
-        durationMs: Date.now() - startedAt,
-        error: mapped,
-      });
+      if (!signal?.aborted) {
+        requestContext.log(this.logger, 'error', 'local.runner.claude.run_prompt.failed', {
+          runId,
+          sessionId: session.agentic_session_id,
+          durationMs: Date.now() - startedAt,
+          error: mapped,
+        });
+      }
       throw mapped;
     } finally {
       await this.executionCapture?.session.end();

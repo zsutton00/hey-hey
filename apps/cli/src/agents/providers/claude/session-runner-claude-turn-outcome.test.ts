@@ -594,9 +594,9 @@ describe('Claude turn outcome', () => {
     expect(outcome.failure).toEqual({ code: 'RUN_FAILED', message: 'Aborted' });
     expect(outcome.runCompleted).toEqual({ mode: 'prompt', error: 'Aborted', code: 'RUN_FAILED' });
     expect(outcome.statuses).toEqual(['running', 'idle']);
-    expect(outcome.logFields('local.runner.claude.run_prompt.failed')).toMatchObject({
-      error: expect.objectContaining({ code: 'RUN_FAILED', message: 'Aborted' }),
-    });
+    for (const event of ['run_prompt.failed', 'session_promise.rejected', 'events_done.rejected']) {
+      expect(outcome.logFields(`local.runner.claude.${event}`)).toBeNull();
+    }
   });
 
   it('settles a canceled turn as a failed run even when the provider never sends a result', async () => {
@@ -612,9 +612,9 @@ describe('Claude turn outcome', () => {
     expect(outcome.liveAssistant).toEqual([]);
     expect(outcome.runCompleted).toEqual({ mode: 'prompt', error: 'Aborted', code: 'RUN_FAILED' });
     expect(outcome.statuses).toEqual(['running', 'idle']);
-    expect(outcome.logFields('local.runner.claude.events_done.rejected')).toMatchObject({
-      error: expect.objectContaining({ message: 'Aborted' }),
-    });
+    for (const event of ['run_prompt.failed', 'session_promise.rejected', 'events_done.rejected']) {
+      expect(outcome.logFields(`local.runner.claude.${event}`)).toBeNull();
+    }
   });
 
   it('resolves a Service-scope cancellation quietly without a completion record', async () => {
