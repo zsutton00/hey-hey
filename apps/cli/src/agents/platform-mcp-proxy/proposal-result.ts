@@ -121,6 +121,32 @@ export const readCreatedProposalIds = (
   return Array.from(new Set(found));
 };
 
+// Only update_proposal defines its top-level `id` as an existing Proposal.
+// Do not recursively collect IDs: its target and group also have identities.
+export const readUpdatedProposal = (
+  toolName: string,
+  response: PlatformMcpProxyResult,
+): { proposalId: string; memberId?: string } | null => {
+  if (toolName !== 'update_proposal') return null;
+  const result = readSuccessfulResult(response);
+  if (!result) return null;
+  const candidates: JsonValue[] = [result['structuredContent'] ?? null];
+  if (Array.isArray(result['content'])) {
+    for (const block of result['content']) candidates.push(readJsonText(block));
+  }
+  candidates.push(result);
+  for (const value of candidates) {
+    if (!isJsonObject(value) || value['status'] === 'invalid_change_set') continue;
+    const id = value['id'];
+    if (typeof id !== 'string' || !UUID_PATTERN.test(id)) continue;
+    const group = value['groupedAuthoring'];
+    const member = isJsonObject(group) ? group['member'] : undefined;
+    const memberId = isJsonObject(member) ? member['memberId'] : undefined;
+    return typeof memberId === 'string' ? { proposalId: id, memberId } : { proposalId: id };
+  }
+  return null;
+};
+
 export interface CreatedProposalGroupMember {
   memberId: string;
   proposalId: string;

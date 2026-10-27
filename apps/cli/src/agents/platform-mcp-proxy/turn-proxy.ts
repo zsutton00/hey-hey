@@ -14,6 +14,7 @@ import {
   readCreatedProposalIds,
   readDeletedProposalId,
   readRemovedProposalGroupMemberId,
+  readUpdatedProposal,
 } from './proposal-result';
 
 export interface TurnPlatformMcpProxyInput {
@@ -132,6 +133,10 @@ export class TurnPlatformMcpProxy {
         for (const membership of readCreatedProposalGroupMembers(normalizedName, response)) {
           this.proposalIdByGroupMemberId.set(membership.memberId, membership.proposalId);
         }
+        const updated = readUpdatedProposal(normalizedName, response);
+        if (updated?.memberId)
+          this.proposalIdByGroupMemberId.set(updated.memberId, updated.proposalId);
+        if (updated) this.proposalIdentityObserver?.(updated.proposalId);
         if (this.proposalIdentityObserver) {
           for (const proposalId of readCreatedProposalIds(normalizedName, response)) {
             this.proposalIdentityObserver(proposalId);

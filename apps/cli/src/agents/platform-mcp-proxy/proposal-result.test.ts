@@ -5,6 +5,7 @@ import {
   readCreatedProposalIds,
   readDeletedProposalId,
   readRemovedProposalGroupMemberId,
+  readUpdatedProposal,
 } from './proposal-result';
 import type { JsonObject, PlatformMcpProxyResult } from './session';
 
@@ -22,6 +23,38 @@ const futureRevisionOutput = (operation: 'REVISE' | 'CANCEL'): JsonObject => ({
   targetEntityType: 'TASK',
   targetEntityId: SECOND_ID,
   createdAt: '2026-10-22T08:00:00.000Z',
+});
+
+describe('readUpdatedProposal', () => {
+  const output = { id: FIRST_ID, status: 'DRAFT', targetEntityId: SECOND_ID };
+  it('reads structured and text updates, including group membership', () => {
+    expect(readUpdatedProposal('update_proposal', success({ structuredContent: output }))).toEqual({
+      proposalId: FIRST_ID,
+    });
+    const grouped = { ...output, groupedAuthoring: { member: { memberId: 'member-1' } } };
+    expect(
+      readUpdatedProposal(
+        'update_proposal',
+        success({ content: [{ type: 'text', text: JSON.stringify(grouped) }] }),
+      ),
+    ).toEqual({ proposalId: FIRST_ID, memberId: 'member-1' });
+  });
+  it('ignores failures, validation results, malformed IDs and unrelated tools', () => {
+    expect(readUpdatedProposal('update_proposal', { statusCode: 500 })).toBeNull();
+    expect(
+      readUpdatedProposal('update_proposal', success({ isError: true, structuredContent: output })),
+    ).toBeNull();
+    expect(
+      readUpdatedProposal(
+        'update_proposal',
+        success({ structuredContent: { ...output, status: 'invalid_change_set' } }),
+      ),
+    ).toBeNull();
+    expect(
+      readUpdatedProposal('update_proposal', success({ structuredContent: { id: 'bad' } })),
+    ).toBeNull();
+    expect(readUpdatedProposal('get_context', success({ structuredContent: output }))).toBeNull();
+  });
 });
 
 const success = (result: JsonObject): PlatformMcpProxyResult => ({
