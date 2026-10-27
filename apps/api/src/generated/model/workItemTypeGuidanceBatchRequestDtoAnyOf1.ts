@@ -14,7 +14,7 @@
 
 
 export interface WorkItemTypeGuidanceBatchRequestDtoAnyOf1 { 
-    purpose: WorkItemTypeGuidanceBatchRequestDtoAnyOf1.PurposeEnum;
+    purpose?: WorkItemTypeGuidanceBatchRequestDtoAnyOf1.PurposeEnum;
 }
 export namespace WorkItemTypeGuidanceBatchRequestDtoAnyOf1 {
     export type PurposeEnum = 'role';

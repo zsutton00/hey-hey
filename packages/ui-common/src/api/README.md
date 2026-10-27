@@ -193,8 +193,8 @@ Class | Method | HTTP request | Description
 *DebugAdminApi* | [**upsertDebugTopologySchedule**](docs/DebugAdminApi.md#upsertdebugtopologyschedule) | **POST** /debug/topology/schedule | Create or update scheduled topology consolidation config
 *DemoSandboxesApi* | [**getCurrentDemoSandbox**](docs/DemoSandboxesApi.md#getcurrentdemosandbox) | **GET** /demo-sandboxes/current | Get the signed-in demo user\&#39;s sandbox
 *DemoSandboxesApi* | [**getDemoSandboxAvailability**](docs/DemoSandboxesApi.md#getdemosandboxavailability) | **GET** /demo-sandboxes/availability | Whether visitors can start a demo
-*DemoSandboxesApi* | [**provisionDemoSandbox**](docs/DemoSandboxesApi.md#provisiondemosandbox) | **POST** /demo-sandboxes | Provision a demo sandbox, or return this browser\&#39;s existing one
-*DemoSandboxesApi* | [**resumeDemoSandbox**](docs/DemoSandboxesApi.md#resumedemosandbox) | **POST** /demo-sandboxes/resume | Return a browser to its unexpired demo sandbox
+*DemoSandboxesApi* | [**provisionDemoSandbox**](docs/DemoSandboxesApi.md#provisiondemosandbox) | **POST** /demo-sandboxes | Start provisioning a demo sandbox, or return this browser\&#39;s existing one
+*DemoSandboxesApi* | [**resumeDemoSandbox**](docs/DemoSandboxesApi.md#resumedemosandbox) | **POST** /demo-sandboxes/resume | Return a browser to its demo sandbox or report its setup
 *DesignDocsApi* | [**archiveDesignDoc**](docs/DesignDocsApi.md#archivedesigndoc) | **DELETE** /organizations/{organizationId}/design-docs/{designDocId} | Archive a design document
 *DesignDocsApi* | [**createDesignDoc**](docs/DesignDocsApi.md#createdesigndoc) | **POST** /organizations/{organizationId}/design-docs | Create a design document
 *DesignDocsApi* | [**createDesignDocLink**](docs/DesignDocsApi.md#createdesigndoclink) | **POST** /organizations/{organizationId}/design-docs/{designDocId}/links | Create design document links
@@ -1234,12 +1234,16 @@ Class | Method | HTTP request | Description
  - [DeleteConversationRequest](docs/DeleteConversationRequest.md)
  - [DeleteOpenItemGroupRequest](docs/DeleteOpenItemGroupRequest.md)
  - [DemoSandboxAdminOverviewDto](docs/DemoSandboxAdminOverviewDto.md)
+ - [DemoSandboxAdmissionDto](docs/DemoSandboxAdmissionDto.md)
+ - [DemoSandboxAdmissionState](docs/DemoSandboxAdmissionState.md)
  - [DemoSandboxAvailabilityDto](docs/DemoSandboxAvailabilityDto.md)
  - [DemoSandboxProgramDto](docs/DemoSandboxProgramDto.md)
  - [DemoSandboxResponseDto](docs/DemoSandboxResponseDto.md)
  - [DemoSandboxResumeMissDto](docs/DemoSandboxResumeMissDto.md)
  - [DemoSandboxResumeMissDtoAllOfData](docs/DemoSandboxResumeMissDtoAllOfData.md)
  - [DemoSandboxResumeState](docs/DemoSandboxResumeState.md)
+ - [DemoSandboxSetupProgressDto](docs/DemoSandboxSetupProgressDto.md)
+ - [DemoSandboxSetupStage](docs/DemoSandboxSetupStage.md)
  - [DemoSandboxUnavailableCode](docs/DemoSandboxUnavailableCode.md)
  - [DemoSandboxUnavailableDto](docs/DemoSandboxUnavailableDto.md)
  - [DemoTemplateDto](docs/DemoTemplateDto.md)
@@ -1591,6 +1595,7 @@ Class | Method | HTTP request | Description
  - [GetConversationVersion200Response](docs/GetConversationVersion200Response.md)
  - [GetConversationWorkflowNode200Response](docs/GetConversationWorkflowNode200Response.md)
  - [GetCorrelatedActivity200Response](docs/GetCorrelatedActivity200Response.md)
+ - [GetCurrentDemoSandbox200Response](docs/GetCurrentDemoSandbox200Response.md)
  - [GetDebugTopologyLifecycleSummary200Response](docs/GetDebugTopologyLifecycleSummary200Response.md)
  - [GetDebugTopologySchedule200Response](docs/GetDebugTopologySchedule200Response.md)
  - [GetDemoSandboxAdminOverview200Response](docs/GetDemoSandboxAdminOverview200Response.md)
@@ -3588,14 +3593,12 @@ Class | Method | HTTP request | Description
  - [WorkItemStructuredMockupWidthFlexible](docs/WorkItemStructuredMockupWidthFlexible.md)
  - [WorkItemSystemResponse](docs/WorkItemSystemResponse.md)
  - [WorkItemType](docs/WorkItemType.md)
- - [WorkItemTypeAgentGuidance](docs/WorkItemTypeAgentGuidance.md)
  - [WorkItemTypeArchiveRequestDto](docs/WorkItemTypeArchiveRequestDto.md)
  - [WorkItemTypeCapabilities](docs/WorkItemTypeCapabilities.md)
  - [WorkItemTypeCascadeDeleteUpdatesPayload](docs/WorkItemTypeCascadeDeleteUpdatesPayload.md)
  - [WorkItemTypeCascadeImpactConflictDto](docs/WorkItemTypeCascadeImpactConflictDto.md)
  - [WorkItemTypeCascadeImpactConflictDtoAllOfData](docs/WorkItemTypeCascadeImpactConflictDtoAllOfData.md)
  - [WorkItemTypeCascadeImpactDto](docs/WorkItemTypeCascadeImpactDto.md)
- - [WorkItemTypeContextualGuidanceDto](docs/WorkItemTypeContextualGuidanceDto.md)
  - [WorkItemTypeDefinitionDto](docs/WorkItemTypeDefinitionDto.md)
  - [WorkItemTypeEdgeTarget](docs/WorkItemTypeEdgeTarget.md)
  - [WorkItemTypeEditRequestDto](docs/WorkItemTypeEditRequestDto.md)
@@ -3618,9 +3621,6 @@ Class | Method | HTTP request | Description
  - [WorkItemTypeGuidanceBatchRequestDtoAnyOf](docs/WorkItemTypeGuidanceBatchRequestDtoAnyOf.md)
  - [WorkItemTypeGuidanceBatchRequestDtoAnyOf1](docs/WorkItemTypeGuidanceBatchRequestDtoAnyOf1.md)
  - [WorkItemTypeGuidanceBatchResultDto](docs/WorkItemTypeGuidanceBatchResultDto.md)
- - [WorkItemTypeGuidanceContext](docs/WorkItemTypeGuidanceContext.md)
- - [WorkItemTypeGuidanceDto](docs/WorkItemTypeGuidanceDto.md)
- - [WorkItemTypeGuidanceExample](docs/WorkItemTypeGuidanceExample.md)
  - [WorkItemTypeGuidancePurpose](docs/WorkItemTypeGuidancePurpose.md)
  - [WorkItemTypeLifecycleProposalOperation](docs/WorkItemTypeLifecycleProposalOperation.md)
  - [WorkItemTypeLifecycleStatus](docs/WorkItemTypeLifecycleStatus.md)

@@ -17,9 +17,8 @@ export interface WorkItemTypeGuidanceBatchRequestDtoAnyOf {
     purpose?: WorkItemTypeGuidanceBatchRequestDtoAnyOf.PurposeEnum;
 }
 export namespace WorkItemTypeGuidanceBatchRequestDtoAnyOf {
-    export type PurposeEnum = 'semantic' | 'maintenance';
+    export type PurposeEnum = 'maintenance';
     export const PurposeEnum = {
-        Semantic: 'semantic' as PurposeEnum,
         Maintenance: 'maintenance' as PurposeEnum
     };
 }

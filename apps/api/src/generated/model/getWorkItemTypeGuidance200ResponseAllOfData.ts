@@ -11,11 +11,8 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
-import { WorkItemTypeGuidanceExample } from './workItemTypeGuidanceExample';
 import { WorkItemTypeRoleGuidanceDto } from './workItemTypeRoleGuidanceDto';
-import { WorkItemTypeGuidanceDto } from './workItemTypeGuidanceDto';
 import { WorkItemTypeMaintenanceGuidanceDto } from './workItemTypeMaintenanceGuidanceDto';
-import { WorkItemTypeContextualGuidanceDto } from './workItemTypeContextualGuidanceDto';
 import { SessionRole } from './sessionRole';
 
 
@@ -23,5 +20,5 @@ import { SessionRole } from './sessionRole';
  * @type GetWorkItemTypeGuidance200ResponseAllOfData
  * @export
  */
-export type GetWorkItemTypeGuidance200ResponseAllOfData = WorkItemTypeGuidanceDto | WorkItemTypeMaintenanceGuidanceDto | WorkItemTypeRoleGuidanceDto;
+export type GetWorkItemTypeGuidance200ResponseAllOfData = WorkItemTypeMaintenanceGuidanceDto | WorkItemTypeRoleGuidanceDto;
 
