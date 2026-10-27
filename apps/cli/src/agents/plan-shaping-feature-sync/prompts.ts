@@ -18,7 +18,7 @@ import { futureRevisionAuthoring } from '../prompts/common';
  *   2. Internal mechanics — the tool-call instructions the agent needs to do
  *      its job (read the design doc, walk the tree, suggest remediations,
  *      terminate via the registered submission tools). The analyze turn
- *      may draft settled non-live remediations alongside findings.
+ *      records findings and waits for the user before drafting remediations.
  *
  * Termination is tool-enforced via the shared
  * `withSubmissionToolTerminationSuffix` tail.
@@ -108,7 +108,7 @@ const ANALYZE_WHEN_OFF = `## When something is off (present and record)
 
 When you find one or more things to flag, present the findings to the user, then record them by calling \`submit_discrepancies\` on the **same turn**. Do not emit any terminal JSON block.
 
-For a concrete undelivered knowledge discrepancy whose intended outcome is settled by the design doc, draft a non-live future remediation and present its review card alongside the finding. Leave unresolved product choices as findings; never guess content. Drafting never resolves a finding or approves a proposal.
+Do not draft any proposal or future revision during Analyze, even when the design doc settles the intended outcome. Present and record the recommended remedies, then wait for the user to choose before drafting. The shared future-authoring guidance determines the kind of proposal to draft after that choice; it does not authorize drafting before the reply. A follow-up turn may draft the chosen remedy as a future dependent on the Plan. Leave unresolved product choices as findings; never guess content.
 
 1. **Prepare the decision content internally.** Build the full discrepancy set and reconciliation options in memory. Each discrepancy needs the affected feature or task, a one-sentence product-language description, and a concrete recommendation. Each reconciliation option needs a stable 1-based option number and the row index or indices it resolves. Do not render this as a markdown table or a numbered option list in your user-visible text — the report carries the detailed rows and options.
 
