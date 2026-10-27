@@ -11,8 +11,6 @@ import { OnboardingRepositoryGroundingStartNode } from '../onboarding/repository
 import { OnboardingRepositoryGroundingAnalysisNode } from '../onboarding/repository-grounding-analysis.node';
 import { OnboardingRepositoryGroundingRecoveryNode } from '../onboarding/repository-grounding-recovery.node';
 import { RepositoryFeatureEnrichmentNode } from '../onboarding/repository-feature-enrichment.node';
-import { RepositoryFeatureEnrichmentQuestionsNode } from '../onboarding/repository-feature-enrichment-questions.node';
-import { RepositoryFeatureEnrichmentRecoveryNode } from '../onboarding/repository-feature-enrichment-recovery.node';
 import { RepositoryGroundingPlacementStrategyNode } from '../onboarding/repository-grounding-placement-strategy.node';
 import { RepositoryGroundingPlacementNode } from '../onboarding/repository-grounding-placement.node';
 import { RepositoryGroundingPlacementReviewNode } from '../onboarding/repository-grounding-placement-review.node';
@@ -37,8 +35,6 @@ const providers = [
   OnboardingRepositoryGroundingAnalysisNode,
   OnboardingRepositoryGroundingRecoveryNode,
   RepositoryFeatureEnrichmentNode,
-  RepositoryFeatureEnrichmentQuestionsNode,
-  RepositoryFeatureEnrichmentRecoveryNode,
   RepositoryImportGenerateFeaturesNode,
   RepositoryGroundingPlacementStrategyNode,
   RepositoryGroundingPlacementNode,
@@ -66,8 +62,6 @@ export class RepositoryImportNodesModule implements OnModuleInit {
     private readonly recovery: OnboardingRepositoryGroundingRecoveryNode,
     private readonly enrichmentChoice: RepositoryImportEnrichmentChoiceNode,
     private readonly enrichment: RepositoryFeatureEnrichmentNode,
-    private readonly enrichmentQuestions: RepositoryFeatureEnrichmentQuestionsNode,
-    private readonly enrichmentRecovery: RepositoryFeatureEnrichmentRecoveryNode,
     private readonly generateFeatures: RepositoryImportGenerateFeaturesNode,
     private readonly placementStrategy: RepositoryGroundingPlacementStrategyNode,
     private readonly placement: RepositoryGroundingPlacementNode,
@@ -89,8 +83,6 @@ export class RepositoryImportNodesModule implements OnModuleInit {
       this.recovery,
       this.enrichmentChoice,
       this.enrichment,
-      this.enrichmentQuestions,
-      this.enrichmentRecovery,
       this.generateFeatures,
       this.placementStrategy,
       this.placement,

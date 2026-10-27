@@ -16952,25 +16952,6 @@ export interface RepositoryFeatureEnrichmentAnswer {
     'answer': string;
 }
 /**
- *
- * @export
- * @interface RepositoryFeatureEnrichmentAnswerBatch
- */
-export interface RepositoryFeatureEnrichmentAnswerBatch {
-    /**
-     *
-     * @type {number}
-     * @memberof RepositoryFeatureEnrichmentAnswerBatch
-     */
-    'round': number;
-    /**
-     *
-     * @type {Array<RepositoryFeatureEnrichmentAnswer>}
-     * @memberof RepositoryFeatureEnrichmentAnswerBatch
-     */
-    'answers': Array<RepositoryFeatureEnrichmentAnswer>;
-}
-/**
  * @type RepositoryFeatureEnrichmentCompletion
  * @export
  */
@@ -17022,7 +17003,7 @@ export const RepositoryFeatureEnrichmentQuestionsOutcomeEnum = {
 export type RepositoryFeatureEnrichmentQuestionsOutcomeEnum = typeof RepositoryFeatureEnrichmentQuestionsOutcomeEnum[keyof typeof RepositoryFeatureEnrichmentQuestionsOutcomeEnum];
 
 /**
- * Stateless enrichment request. Each turn consumes the latest accepted repository analysis snapshot, while the API owns runtime identity, the ordered round count, and answer history. Enrichment is user-selected and may succeed without questions when repository evidence is sufficient.
+ *
  * @export
  * @interface RepositoryFeatureEnrichmentRequest
  */
@@ -17104,19 +17085,19 @@ export interface RepositoryFeatureEnrichmentRequest {
      * @type {RepositoryGroundingHierarchy}
      * @memberof RepositoryFeatureEnrichmentRequest
      */
-    'reviewedCandidates': RepositoryGroundingHierarchy;
+    'reviewedCandidates'?: RepositoryGroundingHierarchy;
     /**
-     *
-     * @type {number}
+     * Approved Features created by this import. Enrichment proposes edits only to these Features.
+     * @type {Array<string>}
      * @memberof RepositoryFeatureEnrichmentRequest
      */
-    'completedRounds': number;
+    'materializedFeatureIds': Array<string>;
     /**
-     *
-     * @type {Array<RepositoryFeatureEnrichmentAnswerBatch>}
+     * Optional user reply within the continuing enrichment conversation.
+     * @type {string}
      * @memberof RepositoryFeatureEnrichmentRequest
      */
-    'answerBatches': Array<RepositoryFeatureEnrichmentAnswerBatch>;
+    'userMessage'?: string;
 }
 
 export const RepositoryFeatureEnrichmentRequestPromptTypeEnum = {
@@ -20492,19 +20473,19 @@ export interface RunCreatePayloadRepositoryFeatureEnrichment {
      * @type {RepositoryGroundingHierarchy}
      * @memberof RunCreatePayloadRepositoryFeatureEnrichment
      */
-    'reviewedCandidates': RepositoryGroundingHierarchy;
+    'reviewedCandidates'?: RepositoryGroundingHierarchy;
     /**
-     *
-     * @type {number}
+     * Approved Features created by this import. Enrichment proposes edits only to these Features.
+     * @type {Array<string>}
      * @memberof RunCreatePayloadRepositoryFeatureEnrichment
      */
-    'completedRounds': number;
+    'materializedFeatureIds': Array<string>;
     /**
-     *
-     * @type {Array<RepositoryFeatureEnrichmentAnswerBatch>}
+     * Optional user reply within the continuing enrichment conversation.
+     * @type {string}
      * @memberof RunCreatePayloadRepositoryFeatureEnrichment
      */
-    'answerBatches': Array<RepositoryFeatureEnrichmentAnswerBatch>;
+    'userMessage'?: string;
 }
 
 export const RunCreatePayloadRepositoryFeatureEnrichmentPromptTypeEnum = {

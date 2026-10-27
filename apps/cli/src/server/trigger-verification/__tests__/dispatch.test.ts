@@ -1749,7 +1749,7 @@ describe('createTestRouter', () => {
     ]);
   });
 
-  it('admits and delivers a repository enrichment trigger whose reviewed candidates are the hierarchy object', async () => {
+  it('admits and delivers the created-Feature conversation handoff', async () => {
     const hierarchy = {
       topLevels: [
         {
@@ -1758,7 +1758,12 @@ describe('createTestRouter', () => {
           description: 'Import repository capabilities.',
           tag: 'product',
           children: [
-            { id: 'review', name: 'Import Review', description: 'Review imports.', tag: 'frontend' },
+            {
+              id: 'review',
+              name: 'Import Review',
+              description: 'Review imports.',
+              tag: 'frontend',
+            },
           ],
         },
       ],
@@ -1788,9 +1793,7 @@ describe('createTestRouter', () => {
           evidence: [{ path: 'src/import.ts', summary: 'Repository import behavior.' }],
           briefDiscrepancies: [],
         },
-        reviewedCandidates: { topLevels: [{ ...hierarchy.topLevels[0]!, name: 'Reviewed Imports' }] },
-        completedRounds: 0,
-        answerBatches: [],
+        materializedFeatureIds: ['66666666-6666-4666-8666-666666666666'],
       },
     };
     const verified: VerifiedTriggerFrame = {
@@ -1836,7 +1839,7 @@ describe('createTestRouter', () => {
     const [, request] = sendMessage.mock.calls[0] as [string, Record<string, unknown>];
     expect(request['promptType']).toBe(LocalPromptType.RepositoryFeatureEnrichment);
     expect(request['payload']).toMatchObject({
-      reviewedCandidates: body.payload.reviewedCandidates,
+      materializedFeatureIds: body.payload.materializedFeatureIds,
     });
   });
 

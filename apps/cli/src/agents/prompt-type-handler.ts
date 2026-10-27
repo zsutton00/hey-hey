@@ -550,6 +550,8 @@ export interface PromptTypeHandler<TPayload> {
    *   accumulated conversation history.
    */
   providerSessionLifetime?: 'run' | 'turn';
+  /** Continue ordinary replies in this handler after its originating workflow finishes. */
+  retainsConversationAfterWorkflow?: true;
   /** Replace provider defaults with the platform prompt on fresh sessions. */
   replaceProviderSystemPrompt?: boolean;
 

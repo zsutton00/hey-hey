@@ -83,7 +83,7 @@ describe('input queue storage versions', () => {
       expect(INPUT_QUEUE_MIGRATIONS.has(entry.schemaVersion), SHIP_A_NEW_VERSION).toBe(true);
       expect(entry.fixture, SHIP_A_NEW_VERSION).not.toBeNull();
     }
-    expect([...INPUT_QUEUE_MIGRATIONS.keys()].sort()).toEqual(versions.slice(0, -1));
+    expect([...INPUT_QUEUE_MIGRATIONS.keys()].sort((a, b) => a - b)).toEqual(versions.slice(0, -1));
   });
 
   it.each(SHIPPED_INPUT_QUEUE_VERSIONS.filter((entry) => entry.schemas !== null))(

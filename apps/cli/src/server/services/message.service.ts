@@ -509,7 +509,13 @@ export class MessageService {
       };
     }
 
-    const resolved = verdict.promptType;
+    const currentHandler = session.promptType
+      ? this.dependencies.promptTypeRegistry.get(session.promptType)
+      : undefined;
+    const resolved =
+      verdict.state === 'terminal' && currentHandler?.retainsConversationAfterWorkflow
+        ? currentHandler.promptType
+        : verdict.promptType;
     if (resolved === null) {
       this.log('warn', 'local.service.send_message.workflow_defined_resolution_null', {
         runId: session.agentic_session_id,

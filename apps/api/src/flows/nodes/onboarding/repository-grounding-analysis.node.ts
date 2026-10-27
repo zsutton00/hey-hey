@@ -227,13 +227,14 @@ export class OnboardingRepositoryGroundingAnalysisNode extends ExternalAgentNode
     tracker.mutate((draft) => {
       draft.repositoryGroundingCompletion = completion;
       if (completion.outcome === 'success') {
-        draft.repositoryFeatureEnrichmentAcceptedAnalysis = completion;
-        draft.repositoryGroundingBaseline = undefined;
-        draft.repositoryFeatureEnrichmentCompletedRounds = 0;
-        draft.repositoryFeatureEnrichmentAnswerBatches = [];
+        draft.repositoryGroundingBaseline = completion;
+        draft.repositoryFeatureEnrichmentAcceptedAnalysis = undefined;
+        draft.repositoryFeatureEnrichmentCompletedRounds = undefined;
+        draft.repositoryFeatureEnrichmentAnswerBatches = undefined;
         draft.repositoryFeatureEnrichmentLatestOutcome = undefined;
         draft.repositoryFeatureEnrichmentFinal = undefined;
         draft.repositoryFeatureEnrichmentChoice = undefined;
+        draft.repositoryFeatureEnrichmentFinishRequested = undefined;
         draft.repositoryFeatureEnrichmentReviewedCandidates = undefined;
       }
       draft.repositoryGroundingPaused = false;

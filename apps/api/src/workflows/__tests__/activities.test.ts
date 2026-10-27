@@ -25,10 +25,7 @@ import { OnboardingWelcomeNode } from '../../flows/nodes/onboarding/onboarding-w
 import type { FeatureFlagService } from '../../services/feature-flag/feature-flag.service';
 import type { ContextResolutionService } from '../../context/services/context-resolution.service';
 import { OnboardingRepositoryGroundingAnalysisNode } from '../../flows/nodes/onboarding/repository-grounding-analysis.node';
-import {
-  REPOSITORY_FEATURE_ENRICHMENT_QUESTION_FIELD,
-  RepositoryFeatureEnrichmentQuestionsNode,
-} from '../../flows/nodes/onboarding/repository-feature-enrichment-questions.node';
+
 import {
   RepositoryImportEnrichmentChoiceNode,
   ENRICHMENT_CHOICE_FIELD,
@@ -1886,16 +1883,14 @@ describe('Flow Activities - Queue-based Execution', () => {
         ReturnType<typeof TestUtils.createMockConversationNode>
       >);
 
-    it('routes analysis to outline review and selected enrichment back to content review', async () => {
+    it('routes analysis to outline review and hands created Features to a conversation', async () => {
       const analysisNode = new OnboardingRepositoryGroundingAnalysisNode();
       const enrichmentNode = new RepositoryFeatureEnrichmentNode();
-      const questionsNode = new RepositoryFeatureEnrichmentQuestionsNode();
       const choiceNode = new RepositoryImportEnrichmentChoiceNode();
       const nodes = new Map<string, INode>([
         [analysisNode.id, analysisNode],
         [choiceNode.id, choiceNode],
         [enrichmentNode.id, enrichmentNode],
-        [questionsNode.id, questionsNode],
       ]);
       (mockFlowEngine.getNode as jest.Mock).mockImplementation(
         (flowId: string, nodeId: string) => {
@@ -1973,9 +1968,7 @@ describe('Flow Activities - Queue-based Execution', () => {
         REPOSITORY_IMPORT_NODES.GENERATE_FEATURES,
       );
       expect(analysis.updatedContext).toMatchObject({
-        repositoryFeatureEnrichmentAcceptedAnalysis: baseline,
-        repositoryFeatureEnrichmentCompletedRounds: 0,
-        repositoryFeatureEnrichmentAnswerBatches: [],
+        repositoryGroundingBaseline: baseline,
       });
       const outlineReview = new OnboardingGenerateFeaturesNode(
         {} as FeatureListLifecycleService,
@@ -1992,7 +1985,9 @@ describe('Flow Activities - Queue-based Execution', () => {
       });
       const reviewedContext: OnboardingFlowContext = {
         ...(analysis.updatedContext as OnboardingFlowContext),
-        repositoryFeatureEnrichmentReviewedCandidates: baseline.hierarchy,
+        repositoryImportMaterializedFeatureIds: [
+          '66666666-6666-4666-8666-666666666666',
+        ],
       };
       const chosen = await activities.processNodeResponse({
         flowId: repositoryImportFlow.id,
@@ -2006,118 +2001,26 @@ describe('Flow Activities - Queue-based Execution', () => {
       expect(chosen.updatedContext).toMatchObject({
         repositoryFeatureEnrichmentChoice: 'ENRICH',
       });
-      const trigger = await enrichmentNode.buildTriggerMessage(
-        createMutableContextHandle(
-          chosen.updatedContext as OnboardingFlowContext,
-        ),
+      const handoffContext = {
+        ...chosen.updatedContext,
+        repositoryImportMaterializedFeatureIds: [
+          '66666666-6666-4666-8666-666666666666',
+        ],
+      } as OnboardingFlowContext;
+      const result = await enrichmentNode.execute(
+        createMutableContextHandle(handoffContext),
       );
-      expect(trigger.triggersAgent).toMatchObject({
-        promptType: 'repository_feature_enrichment',
-        nodeId: ONBOARDING_NODES.REPOSITORY_FEATURE_ENRICHMENT,
-        payload: { analysis: baseline, reviewedCandidates: baseline.hierarchy },
-      });
-
-      const questionGroup = [
-        'Which users approve imported Features?',
-        'Which teams rely on imported Features?',
-        'Which detail is missing from the discovery?',
-      ];
-      const questions = await activities.processNodeResponse({
-        flowId: repositoryImportFlow.id,
-        nodeId: enrichmentNode.id,
-        context: chosen.updatedContext,
-        userMessage: agentMessage({
-          action: 'questions',
+      expect(result).toMatchObject({
+        type: NodeType.FINALIZE,
+        triggersAgent: {
+          promptType: 'repository_feature_enrichment',
           payload: {
-            outcome: 'questions',
-            questionGroup: { questions: questionGroup },
-          },
-        }),
-      });
-      expect(questions.nextNodeId).toBe(
-        ONBOARDING_NODES.REPOSITORY_FEATURE_ENRICHMENT_QUESTIONS,
-      );
-
-      const answered = await activities.processNodeResponse({
-        flowId: repositoryImportFlow.id,
-        nodeId: questionsNode.id,
-        context: questions.updatedContext,
-        userMessage: agentMessage({
-          [REPOSITORY_FEATURE_ENRICHMENT_QUESTION_FIELD]: {
-            clarifyingAnswers: [
-              ...questionGroup.map((question) => ({
-                question,
-                answer: 'Workspace administrators.',
-              })),
-            ],
-          },
-        }),
-      });
-      expect(answered.nextNodeId).toBe(
-        ONBOARDING_NODES.REPOSITORY_FEATURE_ENRICHMENT,
-      );
-
-      const success = await activities.processNodeResponse({
-        flowId: repositoryImportFlow.id,
-        nodeId: enrichmentNode.id,
-        context: answered.updatedContext,
-        userMessage: agentMessage({
-          action: 'success',
-          payload: {
-            ...baseline,
-            narrative: 'Agent-enriched repository capabilities.',
-            support: [],
-          },
-        }),
-      });
-      expect(success.nextNodeId).toBe(
-        REPOSITORY_IMPORT_NODES.GENERATE_FEATURES,
-      );
-
-      const generator = new OnboardingGenerateFeaturesNode(
-        {} as FeatureListLifecycleService,
-      );
-      const refinementPrompt = generator.promptConfig.systemPromptTemplate({
-        ...(success.updatedContext as OnboardingFlowContext),
-        onboardingFeatureProposal: {
-          proposalGroupId: '66666666-6666-4666-8666-666666666666',
-          proposalGroupRevision: 1,
-          narrative: 'Previously reviewed capabilities.',
-          topLevels: [],
-          structuredRefinement: {
-            sections: {},
-            overall: 'Make the hierarchy more concise.',
+            analysis: baseline,
+            materializedFeatureIds:
+              handoffContext.repositoryImportMaterializedFeatureIds,
           },
         },
       });
-      expect(refinementPrompt).toContain(
-        'Agent-enriched repository capabilities.',
-      );
-      expect(refinementPrompt).not.toContain(
-        'Repository-backed product capabilities.',
-      );
-
-      for (const [action, code] of [
-        ['retryable_failure', 'provider_timeout'],
-        ['terminal_failure', 'invalid_completion'],
-      ] as const) {
-        const failure = await activities.processNodeResponse({
-          flowId: repositoryImportFlow.id,
-          nodeId: enrichmentNode.id,
-          context: analysis.updatedContext,
-          userMessage: agentMessage({
-            action,
-            payload: {
-              outcome: action,
-              code,
-              message: `${action} message`,
-            },
-          }),
-        });
-        expect(failure.nextNodeId).toBe(
-          ONBOARDING_NODES.REPOSITORY_FEATURE_ENRICHMENT_RECOVERY,
-        );
-      }
     });
 
     it('routes to the per-action transition on a valid action + payload', async () => {

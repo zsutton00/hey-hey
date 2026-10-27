@@ -14,13 +14,9 @@ import { ConversationId, ProjectId, WorkflowId } from '../../types';
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { RepositoryGroundingHierarchy } from './repositoryGroundingHierarchy';
-import { RepositoryFeatureEnrichmentAnswerBatch } from './repositoryFeatureEnrichmentAnswerBatch';
 import { RepositoryGroundingSuccess } from './repositoryGroundingSuccess';
 
 
-/**
- * Stateless enrichment request. Each turn consumes the latest accepted repository analysis snapshot, while the API owns runtime identity, the ordered round count, and answer history. Enrichment is user-selected and may succeed without questions when repository evidence is sufficient.
- */
 export interface RepositoryFeatureEnrichmentRequest { 
     promptType?: RepositoryFeatureEnrichmentRequest.PromptTypeEnum;
     /**
@@ -49,9 +45,15 @@ export interface RepositoryFeatureEnrichmentRequest {
     reasoningEffort: RepositoryFeatureEnrichmentRequest.ReasoningEffortEnum;
     fastMode?: boolean;
     analysis: RepositoryGroundingSuccess;
-    reviewedCandidates: RepositoryGroundingHierarchy;
-    completedRounds: number;
-    answerBatches: Array<RepositoryFeatureEnrichmentAnswerBatch>;
+    reviewedCandidates?: RepositoryGroundingHierarchy;
+    /**
+     * Approved Features created by this import. Enrichment proposes edits only to these Features.
+     */
+    materializedFeatureIds: Array<string>;
+    /**
+     * Optional user reply within the continuing enrichment conversation.
+     */
+    userMessage?: string;
 }
 export namespace RepositoryFeatureEnrichmentRequest {
     export type PromptTypeEnum = 'repository_feature_enrichment';

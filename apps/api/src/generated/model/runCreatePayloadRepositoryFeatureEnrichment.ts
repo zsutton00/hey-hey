@@ -14,7 +14,6 @@ import { ConversationId, ProjectId, WorkflowId } from '../../types';
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { RepositoryGroundingHierarchy } from './repositoryGroundingHierarchy';
-import { RepositoryFeatureEnrichmentAnswerBatch } from './repositoryFeatureEnrichmentAnswerBatch';
 import { RepositoryGroundingSuccess } from './repositoryGroundingSuccess';
 
 
@@ -46,9 +45,15 @@ export interface RunCreatePayloadRepositoryFeatureEnrichment {
     reasoningEffort: RunCreatePayloadRepositoryFeatureEnrichment.ReasoningEffortEnum;
     fastMode?: boolean;
     analysis: RepositoryGroundingSuccess;
-    reviewedCandidates: RepositoryGroundingHierarchy;
-    completedRounds: number;
-    answerBatches: Array<RepositoryFeatureEnrichmentAnswerBatch>;
+    reviewedCandidates?: RepositoryGroundingHierarchy;
+    /**
+     * Approved Features created by this import. Enrichment proposes edits only to these Features.
+     */
+    materializedFeatureIds: Array<string>;
+    /**
+     * Optional user reply within the continuing enrichment conversation.
+     */
+    userMessage?: string;
 }
 export namespace RunCreatePayloadRepositoryFeatureEnrichment {
     export type PromptTypeEnum = 'repository_feature_enrichment';

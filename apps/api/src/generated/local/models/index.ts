@@ -484,7 +484,6 @@ export * from './RepositoryFeatureEnrichmentActionSchemasRetryableFailure';
 export * from './RepositoryFeatureEnrichmentActionSchemasSuccess';
 export * from './RepositoryFeatureEnrichmentActionSchemasTerminalFailure';
 export * from './RepositoryFeatureEnrichmentAnswer';
-export * from './RepositoryFeatureEnrichmentAnswerBatch';
 export * from './RepositoryFeatureEnrichmentCompletion';
 export * from './RepositoryFeatureEnrichmentDecisionCompletion';
 export * from './RepositoryFeatureEnrichmentQuestionGroup';

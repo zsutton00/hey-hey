@@ -19562,6 +19562,25 @@ export const ControllerStartInputsKindEnum = {
 export type ControllerStartInputsKindEnum = typeof ControllerStartInputsKindEnum[keyof typeof ControllerStartInputsKindEnum];
 
 /**
+ * 
+ * @export
+ * @interface ConversationAboutDto
+ */
+export interface ConversationAboutDto {
+    /**
+     * 
+     * @type {string}
+     * @memberof ConversationAboutDto
+     */
+    'entityType': string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ConversationAboutDto
+     */
+    'entityId': string;
+}
+/**
  * @type ConversationAuthorityIncreasingControlBody
  * @export
  */
@@ -19606,6 +19625,197 @@ export interface ConversationCliStatusResponseDto {
 }
 
 
+/**
+ * Bounded orientation around a conversation. Lists are capped; a message excerpt reports when it was cut. 
+ * @export
+ * @interface ConversationContextDto
+ */
+export interface ConversationContextDto {
+    /**
+     * The owning conversation. Never a message id.
+     * @type {string}
+     * @memberof ConversationContextDto
+     */
+    'conversationId': string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ConversationContextDto
+     */
+    'conversationTitle'?: string | null;
+    /**
+     * 
+     * @type {ConversationAboutDto}
+     * @memberof ConversationContextDto
+     */
+    'about'?: ConversationAboutDto;
+    /**
+     * 
+     * @type {Array<ConversationContextSessionDto>}
+     * @memberof ConversationContextDto
+     */
+    'agentSessions': Array<ConversationContextSessionDto>;
+    /**
+     * Newest proposals raised from this conversation (or, for a MESSAGE seed, from that message), capped. 
+     * @type {Array<ConversationContextProposalDto>}
+     * @memberof ConversationContextDto
+     */
+    'proposals': Array<ConversationContextProposalDto>;
+    /**
+     * Newest reports linked to the conversation or its sessions, capped.
+     * @type {Array<ConversationContextReportDto>}
+     * @memberof ConversationContextDto
+     */
+    'reports': Array<ConversationContextReportDto>;
+    /**
+     * 
+     * @type {ConversationContextMessageDto}
+     * @memberof ConversationContextDto
+     */
+    'message'?: ConversationContextMessageDto;
+}
+/**
+ * 
+ * @export
+ * @interface ConversationContextMessageDto
+ */
+export interface ConversationContextMessageDto {
+    /**
+     * 
+     * @type {string}
+     * @memberof ConversationContextMessageDto
+     */
+    'messageId': string;
+    /**
+     * USER or SYSTEM.
+     * @type {string}
+     * @memberof ConversationContextMessageDto
+     */
+    'type': string;
+    /**
+     * Null while the message is a queued input not yet started.
+     * @type {string}
+     * @memberof ConversationContextMessageDto
+     */
+    'createdAt'?: string | null;
+    /**
+     * The start of the message text, capped.
+     * @type {string}
+     * @memberof ConversationContextMessageDto
+     */
+    'excerpt': string;
+    /**
+     * True when excerpt is shorter than the full message text.
+     * @type {boolean}
+     * @memberof ConversationContextMessageDto
+     */
+    'truncated': boolean;
+    /**
+     * Character length of the full message text.
+     * @type {number}
+     * @memberof ConversationContextMessageDto
+     */
+    'length': number;
+}
+/**
+ * 
+ * @export
+ * @interface ConversationContextProposalDto
+ */
+export interface ConversationContextProposalDto {
+    /**
+     * 
+     * @type {string}
+     * @memberof ConversationContextProposalDto
+     */
+    'id': string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ConversationContextProposalDto
+     */
+    'title'?: string | null;
+    /**
+     * 
+     * @type {string}
+     * @memberof ConversationContextProposalDto
+     */
+    'status': string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ConversationContextProposalDto
+     */
+    'action': string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ConversationContextProposalDto
+     */
+    'targetEntityType': string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ConversationContextProposalDto
+     */
+    'targetEntityId'?: string | null;
+}
+/**
+ * 
+ * @export
+ * @interface ConversationContextReportDto
+ */
+export interface ConversationContextReportDto {
+    /**
+     * 
+     * @type {string}
+     * @memberof ConversationContextReportDto
+     */
+    'id': string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ConversationContextReportDto
+     */
+    'reportType': string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ConversationContextReportDto
+     */
+    'createdAt': string;
+}
+/**
+ * 
+ * @export
+ * @interface ConversationContextSessionDto
+ */
+export interface ConversationContextSessionDto {
+    /**
+     * 
+     * @type {string}
+     * @memberof ConversationContextSessionDto
+     */
+    'id': string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ConversationContextSessionDto
+     */
+    'title': string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ConversationContextSessionDto
+     */
+    'status': string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ConversationContextSessionDto
+     */
+    'type': string;
+}
 /**
  * @type ConversationControlBody
  * The closed, `kind`-discriminated control body that a SignedConversationControlEnvelope wraps. Every variant has shape `{ kind, ...fields }`. `stop_run`, `compact_run`, `permission_decision`, and `question_answer` are the control kinds defined today; further control kinds extend the union via a new variant plus a new discriminator-mapping entry. The kind allowlist enforced by the CLI verifier is intentionally distinct from the `trigger.conversation` promptType allowlist — control kinds and prompt types do not share namespace.
@@ -37644,6 +37854,12 @@ export interface FullEntityContextDto {
      * @memberof FullEntityContextDto
      */
     'content'?: EntityContentDto;
+    /**
+     * 
+     * @type {ConversationContextDto}
+     * @memberof FullEntityContextDto
+     */
+    'conversationContext'?: ConversationContextDto;
 }
 
 
@@ -76247,7 +76463,7 @@ export interface RepositoryFeatureEnrichmentAnswerBatch {
     'answers': Array<RepositoryFeatureEnrichmentAnswer>;
 }
 /**
- * Explicit choice after outline review. SKIP proceeds to placement and final approval without enrichment.
+ * Choice after Feature creation. ENRICH starts a continuing CLI conversation; SKIP completes the import.
  * @export
  * @enum {string}
  */
@@ -76306,7 +76522,7 @@ export const RepositoryFeatureEnrichmentQuestionsOutcomeEnum = {
 export type RepositoryFeatureEnrichmentQuestionsOutcomeEnum = typeof RepositoryFeatureEnrichmentQuestionsOutcomeEnum[keyof typeof RepositoryFeatureEnrichmentQuestionsOutcomeEnum];
 
 /**
- * Stateless enrichment request. Each turn consumes the latest accepted repository analysis snapshot, while the API owns runtime identity, the ordered round count, and answer history. Enrichment is user-selected and may succeed without questions when repository evidence is sufficient.
+ * 
  * @export
  * @interface RepositoryFeatureEnrichmentRequest
  */
@@ -76388,19 +76604,19 @@ export interface RepositoryFeatureEnrichmentRequest {
      * @type {RepositoryGroundingHierarchy}
      * @memberof RepositoryFeatureEnrichmentRequest
      */
-    'reviewedCandidates': RepositoryGroundingHierarchy;
+    'reviewedCandidates'?: RepositoryGroundingHierarchy;
     /**
-     * 
-     * @type {number}
+     * Approved Features created by this import. Enrichment proposes edits only to these Features.
+     * @type {Array<string>}
      * @memberof RepositoryFeatureEnrichmentRequest
      */
-    'completedRounds': number;
+    'materializedFeatureIds': Array<string>;
     /**
-     * 
-     * @type {Array<RepositoryFeatureEnrichmentAnswerBatch>}
+     * Optional user reply within the continuing enrichment conversation.
+     * @type {string}
      * @memberof RepositoryFeatureEnrichmentRequest
      */
-    'answerBatches': Array<RepositoryFeatureEnrichmentAnswerBatch>;
+    'userMessage'?: string;
 }
 
 export const RepositoryFeatureEnrichmentRequestPromptTypeEnum = {
@@ -81118,19 +81334,19 @@ export interface RunCreatePayloadRepositoryFeatureEnrichment {
      * @type {RepositoryGroundingHierarchy}
      * @memberof RunCreatePayloadRepositoryFeatureEnrichment
      */
-    'reviewedCandidates': RepositoryGroundingHierarchy;
+    'reviewedCandidates'?: RepositoryGroundingHierarchy;
     /**
-     * 
-     * @type {number}
+     * Approved Features created by this import. Enrichment proposes edits only to these Features.
+     * @type {Array<string>}
      * @memberof RunCreatePayloadRepositoryFeatureEnrichment
      */
-    'completedRounds': number;
+    'materializedFeatureIds': Array<string>;
     /**
-     * 
-     * @type {Array<RepositoryFeatureEnrichmentAnswerBatch>}
+     * Optional user reply within the continuing enrichment conversation.
+     * @type {string}
      * @memberof RunCreatePayloadRepositoryFeatureEnrichment
      */
-    'answerBatches': Array<RepositoryFeatureEnrichmentAnswerBatch>;
+    'userMessage'?: string;
 }
 
 export const RunCreatePayloadRepositoryFeatureEnrichmentPromptTypeEnum = {

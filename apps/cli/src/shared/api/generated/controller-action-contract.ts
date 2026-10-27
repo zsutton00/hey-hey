@@ -6896,9 +6896,7 @@ export const controllerActionRuntimeSchema = {
         'resolvedFrontierModel',
         'reasoningEffort',
         'analysis',
-        'reviewedCandidates',
-        'completedRounds',
-        'answerBatches',
+        'materializedFeatureIds',
       ],
       properties: {
         promptType: {
@@ -6942,41 +6940,26 @@ export const controllerActionRuntimeSchema = {
         analysis: {
           $ref: '#/definitions/RepositoryGroundingSuccess',
           description:
-            'Latest accepted repository analysis snapshot. Continuing candidate IDs are preserved when a candidate remains in the analysis; candidates may be added, removed, reparented, or retagged within the two-level hierarchy.',
+            'Repository discovery evidence supplied once at the handoff to a continuing CLI conversation.',
         },
         reviewedCandidates: {
           $ref: '#/definitions/WorkTrackerImportSuccess/properties/hierarchy',
+          deprecated: true,
           description:
-            'User-reviewed candidates with stable analysis identities that guide deeper research, including accepted outline corrections.',
+            'Legacy stored-input reader projection only. New handoffs use materializedFeatureIds.',
         },
-        completedRounds: {
-          type: 'integer',
-          minimum: 0,
-          maximum: 2,
-        },
-        answerBatches: {
+        materializedFeatureIds: {
           type: 'array',
-          maxItems: 2,
+          minItems: 1,
           items: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['round', 'answers'],
-            properties: {
-              round: {
-                type: 'integer',
-                minimum: 1,
-                maximum: 2,
-              },
-              answers: {
-                type: 'array',
-                minItems: 1,
-                maxItems: 3,
-                items: {
-                  $ref: '#/definitions/RepositoryFirstWorkRequest/properties/followUpAnswers/items',
-                },
-              },
-            },
+            $ref: '#/definitions/RepositoryFirstWorkRequest/properties/materializedFeatureIds/items',
           },
+          description:
+            'Approved Features created by this import. Enrichment proposes edits only to these Features.',
+        },
+        userMessage: {
+          type: 'string',
+          description: 'Optional user reply within the continuing enrichment conversation.',
         },
       },
     },

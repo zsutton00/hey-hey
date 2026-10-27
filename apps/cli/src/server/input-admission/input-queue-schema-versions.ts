@@ -1,3 +1,7 @@
+import { inputQueueV12Schemas } from './storage-schema/v12';
+import { migrateSessionFileV11ToV12 } from './storage-schema/v11-to-v12';
+import { inputQueueV11Schemas } from './storage-schema/v11';
+import { migrateSessionFileV10ToV11 } from './storage-schema/v10-to-v11';
 import { inputQueueV9Schemas } from './storage-schema/v9';
 import { migrateSessionFileV8ToV9 } from './storage-schema/v8-to-v9';
 import { inputQueueV10Schemas } from './storage-schema/v10';
@@ -32,6 +36,8 @@ export const INPUT_QUEUE_MIGRATIONS: ReadonlyMap<number, (body: JsonValue) => Js
   [7, migrateSessionFileV7ToV8],
   [8, migrateSessionFileV8ToV9],
   [9, migrateSessionFileV9ToV10],
+  [10, migrateSessionFileV10ToV11],
+  [11, migrateSessionFileV11ToV12],
 ]);
 
 /** SHA-256 of the canonical JSON Schema of every schema that reads one stored version. */
@@ -127,9 +133,23 @@ export const SHIPPED_INPUT_QUEUE_VERSIONS: readonly ShippedInputQueueVersion[] =
   },
   {
     schemaVersion: 10,
-    fixture: null,
-    expectedQuarantinedKeys: [],
+    fixture: '__fixtures__/input-queue-v10.json',
+    expectedQuarantinedKeys: ['00000000-0000-4000-8000-000000000020'],
     schemas: inputQueueV10Schemas,
     fingerprint: 'b011c919e4c486ea8c7ed6b7d69aaec0ac98effe510ea2cf807c80cef3c7bed6',
+  },
+  {
+    schemaVersion: 11,
+    fixture: '__fixtures__/input-queue-v11.json',
+    expectedQuarantinedKeys: ['00000000-0000-4000-8000-000000000020'],
+    schemas: inputQueueV11Schemas,
+    fingerprint: 'fa36d3c9126218e7827b974c5a849fde811edbc4e970520e98152b2c898c0f4c',
+  },
+  {
+    schemaVersion: 12,
+    fixture: null,
+    expectedQuarantinedKeys: [],
+    schemas: inputQueueV12Schemas,
+    fingerprint: '6206c12811b9d6c199769b3c6a402c8752abecebb868bb74d95383e44ff68f65',
   },
 ];

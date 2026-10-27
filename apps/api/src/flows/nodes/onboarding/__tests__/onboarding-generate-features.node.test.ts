@@ -119,16 +119,15 @@ describe('OnboardingGenerateFeaturesNode placement routing', () => {
     return { node: new OnboardingGenerateFeaturesNode(lifecycle), lifecycle };
   };
 
-  it('accepts the reviewed outline without materialization and asks about enrichment', async () => {
+  it('accepts the reviewed outline without materialization and continues to placement', async () => {
     const { node, lifecycle } = makeNode();
     const tracker = createMutableContextHandle(context('existing_project'));
     await node.processUserResponse(tracker, approvedMessage);
     expect(lifecycle.approve).not.toHaveBeenCalled();
     expect(
-      tracker.getContext().repositoryFeatureEnrichmentReviewedCandidates
-        ?.topLevels[0],
+      tracker.getContext().onboardingFeatureProposal?.topLevels[0],
     ).toMatchObject({
-      id: ids.root,
+      rootKey: ids.root,
       name: 'Ordering',
       description: 'Customer ordering capability.',
     });
@@ -137,7 +136,7 @@ describe('OnboardingGenerateFeaturesNode placement routing', () => {
         tracker.getContext(),
         approvedMessage,
       ),
-    ).resolves.toBe(REPOSITORY_IMPORT_NODES.ENRICHMENT_CHOICE);
+    ).resolves.toBe(REPOSITORY_IMPORT_NODES.PLACEMENT_STRATEGY);
   });
 
   it.each([
@@ -145,10 +144,7 @@ describe('OnboardingGenerateFeaturesNode placement routing', () => {
       RepositoryFeatureEnrichmentChoice.Enrich,
       REPOSITORY_IMPORT_NODES.ENRICHMENT,
     ],
-    [
-      RepositoryFeatureEnrichmentChoice.Skip,
-      REPOSITORY_IMPORT_NODES.PLACEMENT_STRATEGY,
-    ],
+    [RepositoryFeatureEnrichmentChoice.Skip, REPOSITORY_IMPORT_NODES.END],
   ])(
     'persists %s and resumes the selected branch without approving',
     async (choice, destination) => {
@@ -189,9 +185,11 @@ describe('OnboardingGenerateFeaturesNode placement routing', () => {
     const tracker = createMutableContextHandle(initial);
     await node.processUserResponse(tracker, approvedMessage);
     expect(
-      tracker.getContext().repositoryFeatureEnrichmentReviewedCandidates
-        ?.topLevels[0],
-    ).toMatchObject({ id: 'analysis-ordering', name: 'Order Management' });
+      tracker.getContext().onboardingFeatureProposal?.topLevels[0],
+    ).toMatchObject({
+      candidateId: 'analysis-ordering',
+      name: 'Order Management',
+    });
   });
 
   it('approves a new-project import immediately at project root', async () => {
