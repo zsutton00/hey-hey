@@ -8,6 +8,7 @@ import {
   customTypeDrafting,
   focalContextOrientation,
   futureRevisionAuthoring,
+  futureRevisionTimingQuestion,
   lifecycleAwareTaskEditSafety,
   planVsTasksFork,
 } from './common';
@@ -87,7 +88,7 @@ Request missing Service access for requested repository work; approval supplies 
 
   stableSections.push(lifecycleAwareTaskEditSafety);
 
-  stableSections.push(futureRevisionAuthoring);
+  stableSections.push(`${futureRevisionAuthoring}\n\n${futureRevisionTimingQuestion}`);
 
   stableSections.push(planVsTasksFork);
 
