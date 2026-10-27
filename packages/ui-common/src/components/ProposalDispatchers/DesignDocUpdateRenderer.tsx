@@ -1,7 +1,8 @@
+import { useUpdateProposalExpansion } from "./useUpdateProposalExpansion";
 import { useReconciledUpdate } from "../ProposalReconciliation/useReconciledUpdate";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { Box, Collapse, IconButton, Paper, Stack } from "@mui/material";
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { ProposalAction } from "../../api";
 import type {
   ProposalResponseDto,
@@ -62,8 +63,13 @@ export const DesignDocUpdateRenderer: React.FC<{
     inputProposal,
     inputExisting,
   );
-  const isApplied = status.state === "applied";
-  const [expanded, setExpanded] = useState(!isApplied);
+  const { isApplied, collapsible, expanded, toggleExpanded } =
+    useUpdateProposalExpansion(
+      inputProposal,
+      status,
+      presentationAction,
+      hideDiff,
+    );
 
   const pathService = usePathService();
   const href = useMemo(
@@ -104,10 +110,13 @@ export const DesignDocUpdateRenderer: React.FC<{
               : undefined
           }
           endAdornment={
-            isApplied ? (
+            collapsible ? (
               <IconButton
                 size="small"
-                onClick={() => setExpanded((prev) => !prev)}
+                onClick={toggleExpanded}
+                aria-label={expanded ? "Collapse update" : "Expand update"}
+                aria-expanded={expanded}
+                data-testid="update-proposal-expand"
                 sx={{
                   transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
                   transition: "transform 0.2s",
@@ -119,9 +128,19 @@ export const DesignDocUpdateRenderer: React.FC<{
           }
         />
       )}
-      {!hideDiff && notice}
+      {overrides?.hideHeader && collapsible && (
+        <IconButton
+          onClick={toggleExpanded}
+          aria-label={expanded ? "Collapse update" : "Expand update"}
+          aria-expanded={expanded}
+          data-testid="update-proposal-expand"
+        >
+          <ExpandMoreIcon fontSize="small" />
+        </IconButton>
+      )}
       <Collapse in={expanded && !hideDiff}>
         <Stack spacing={1.5}>
+          {notice}
           {isApplied ? (
             <Box sx={{ px: 1 }}>
               <MarkdownRenderer allowMentionEscapes>

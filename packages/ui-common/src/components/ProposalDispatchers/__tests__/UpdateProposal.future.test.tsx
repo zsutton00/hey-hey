@@ -1,3 +1,4 @@
+import { __resetForTests as resetProposalState } from "../proposalSelectedStateCache";
 import { createPortal } from "react-dom";
 import {
   fireEvent,
@@ -355,7 +356,12 @@ const futureProposal = (
     ...extra,
   }) as ProposalResponseDto;
 
-const mount = (proposal: ProposalResponseDto, footerTarget?: HTMLElement) => {
+const mount = (
+  proposal: ProposalResponseDto,
+  footerTarget?: HTMLElement,
+  onApply = vi.fn(),
+  grouped = false,
+) => {
   mocks.proposal = proposal;
   return render(
     <QueryClientProvider
@@ -365,14 +371,20 @@ const mount = (proposal: ProposalResponseDto, footerTarget?: HTMLElement) => {
     >
       <MemoryRouter>
         <UpdateProposal
-          renderMode={footerTarget ? "future-review" : undefined}
+          renderMode={
+            grouped
+              ? "group-member"
+              : footerTarget
+                ? "future-review"
+                : undefined
+          }
           renderFutureFooter={
             footerTarget
               ? (content) => createPortal(content, footerTarget)
               : undefined
           }
           proposals={[proposal]}
-          onApply={vi.fn()}
+          onApply={onApply}
           onReject={vi.fn()}
           organizationId="org"
           projectId="project"
@@ -383,6 +395,7 @@ const mount = (proposal: ProposalResponseDto, footerTarget?: HTMLElement) => {
 };
 
 beforeEach(() => {
+  resetProposalState();
   mocks.realControls = false;
   mocks.reconciliation.mockResolvedValue({
     data: {
@@ -499,53 +512,113 @@ describe("UpdateProposal future revisions", () => {
     expect(screen.getByTestId("proposal-state")).toBeInTheDocument();
   });
 
-  it("carries deferred timing into the Design Doc comparison header", () => {
-    const doc = {
-      id: "doc",
-      name: "Review notes",
-      organizationId: "org",
-      projectId: "project",
-      status: "DRAFT",
-      template: "PLAN_DOCUMENT",
-      tags: [],
-      sections: [
-        {
-          id: "section",
-          key: "content",
-          order: 0,
-          materializedMarkdown: "Before",
-          materializedProposalId: "p0",
-        },
-      ],
-    } as DesignDocResponseDto;
-    mocks.entities.doc = { type: "designDoc", data: doc };
-    mount(
-      futureProposal({
-        targetEntityType: "DESIGN_DOC",
-        targetEntityId: "doc",
-        updates: {
-          operation: "REVISE",
-          futureId: "doc-future",
-          expectedRevision: 0,
-          baseline: { kind: "LIVE", revision: "doc-r1", content: doc },
-          result: {
-            ...doc,
-            sections: [{ ...doc.sections[0], materializedMarkdown: "After" }],
-          },
-          dependencies: new Set(reviewedFuture.dependencies),
-        },
-      }),
-    );
-    expect(screen.getByTestId("proposal-header-action")).toHaveTextContent(
-      "Updates after linked work",
-    );
-    expect(screen.getByTestId("proposal-title")).toHaveTextContent(
-      "Review notes",
-    );
-    expect(screen.getByTestId("general-diff")).toHaveTextContent(
-      /Before.*→.*After/,
-    );
+  it("collapses immediately after approval and stays collapsed after remount, preserving the diff for expansion", async () => {
+    mocks.realControls = true;
+    const initial = futureProposal();
+    const approved = {
+      ...initial,
+      status: "APPROVED" as const,
+      reviewedFuture,
+    };
+    const approve = vi.fn().mockImplementation(async () => {
+      mocks.proposal = approved;
+      return approved;
+    });
+    const view = mount(initial, undefined, approve);
+    expect(
+      screen.queryByRole("button", { name: "Expand update" }),
+    ).not.toBeInTheDocument();
+    const approveButton = screen.getByRole("button", { name: /Approve/ });
+    await waitFor(() => expect(approveButton).toBeEnabled());
+    fireEvent.click(approveButton);
+    const expand = await screen.findByRole("button", { name: "Expand update" });
+    expect(approve).toHaveBeenCalledOnce();
+    expect(expand).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByTestId("future-apply-footer")).toBeVisible();
+    expect(mocks.apply).not.toHaveBeenCalled();
+    fireEvent.click(expand);
+    expect(
+      screen.getByRole("button", { name: "Collapse update" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("structured-requirements-diff")).toBeVisible();
+    view.unmount();
+    mount(approved);
+    expect(
+      await screen.findByRole("button", { name: "Expand update" }),
+    ).toHaveAttribute("aria-expanded", "false");
   });
+
+  it("keeps an expand control in grouped review when the shared header is hidden", async () => {
+    mount(
+      futureProposal({ status: "APPROVED", reviewedFuture }),
+      undefined,
+      vi.fn(),
+      true,
+    );
+    const expand = await screen.findByRole("button", { name: "Expand update" });
+    expect(expand).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(expand);
+    expect(screen.getByTestId("structured-requirements-diff")).toBeVisible();
+  });
+
+  it.each(["DRAFT", "APPROVED"] as const)(
+    "keeps deferred timing and the Design Doc comparison available when %s",
+    async (status) => {
+      const doc = {
+        id: "doc",
+        name: "Review notes",
+        organizationId: "org",
+        projectId: "project",
+        status: "DRAFT",
+        template: "PLAN_DOCUMENT",
+        tags: [],
+        sections: [
+          {
+            id: "section",
+            key: "content",
+            order: 0,
+            materializedMarkdown: "Before",
+            materializedProposalId: "p0",
+          },
+        ],
+      } as DesignDocResponseDto;
+      mocks.entities.doc = { type: "designDoc", data: doc };
+      mount(
+        futureProposal({
+          status,
+          targetEntityType: "DESIGN_DOC",
+          targetEntityId: "doc",
+          updates: {
+            operation: "REVISE",
+            futureId: "doc-future",
+            expectedRevision: 0,
+            baseline: { kind: "LIVE", revision: "doc-r1", content: doc },
+            result: {
+              ...doc,
+              sections: [{ ...doc.sections[0], materializedMarkdown: "After" }],
+            },
+            dependencies: new Set(reviewedFuture.dependencies),
+          },
+        }),
+      );
+      expect(screen.getByTestId("proposal-header-action")).toHaveTextContent(
+        "Updates after linked work",
+      );
+      expect(screen.getByTestId("proposal-title")).toHaveTextContent(
+        "Review notes",
+      );
+      if (status === "APPROVED") {
+        const expand = await screen.findByRole("button", {
+          name: "Expand update",
+        });
+        expect(expand).toHaveAttribute("aria-expanded", "false");
+        fireEvent.click(expand);
+      }
+      expect(screen.getByTestId("general-diff")).toHaveTextContent(
+        /Before.*→.*After/,
+      );
+    },
+  );
 
   it("replaces the preview with approved work status when approval refreshes before the parent", async () => {
     const initial = futureProposal();
@@ -801,13 +874,23 @@ describe("UpdateProposal future revisions", () => {
     fireEvent.click(apply);
     await screen.findByText(/Application failed/);
     await waitFor(() => expect(apply).toBeEnabled());
-    mocks.apply.mockResolvedValueOnce({
-      data: {
-        data: {
-          status: "APPLIED",
-          future: { ...readyFuture, outcome: "APPLIED", appliedRevision: 1 },
-        },
-      },
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Expand update" }),
+    );
+    expect(
+      within(panel).getByRole("button", { name: "Collapse update" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    mocks.apply.mockImplementationOnce(async () => {
+      const appliedFuture = {
+        ...readyFuture,
+        outcome: "APPLIED" as const,
+        appliedRevision: 1,
+      };
+      mocks.proposals.set(first.id, {
+        ...first,
+        reviewedFuture: appliedFuture,
+      });
+      return { data: { data: { status: "APPLIED", future: appliedFuture } } };
     });
     mocks.offers.mockResolvedValue({ data: { data: offerList.slice(1) } });
     fireEvent.click(apply);
@@ -822,10 +905,15 @@ describe("UpdateProposal future revisions", () => {
       screen.getByRole("tab", { name: /Open Items cap requirement Applied/ }),
     ).toBeInTheDocument();
     expect(
-      within(screen.getByRole("tabpanel")).getByTestId(
+      within(screen.getByRole("tabpanel")).queryByTestId(
         "structured-requirements-diff",
       ),
-    ).toBeInTheDocument();
+    ).not.toBeInTheDocument();
+    expect(
+      within(screen.getByRole("tabpanel")).getByRole("button", {
+        name: "Expand update",
+      }),
+    ).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(
       screen.getByRole("tab", { name: /Third revision Ready to apply/ }),
     );
@@ -846,7 +934,7 @@ describe("UpdateProposal future revisions", () => {
     });
   });
 
-  it("keeps the full ordinary comparison and moves the single guarded action to a persistent footer", async () => {
+  it("collapses the comparison and keeps the single guarded action in a persistent footer", async () => {
     const footerTarget = document.createElement("div");
     document.body.appendChild(footerTarget);
     const view = mount(
@@ -864,6 +952,10 @@ describe("UpdateProposal future revisions", () => {
     expect(
       screen.getByTestId("structured-requirements-diff"),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Expand update" }),
+    ).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(screen.getByRole("button", { name: "Expand update" }));
     expect(view.container.textContent).toContain("100");
     expect(
       view.container.querySelector('[data-testid="future-apply"]'),

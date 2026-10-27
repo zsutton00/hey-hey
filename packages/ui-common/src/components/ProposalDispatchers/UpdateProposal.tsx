@@ -215,11 +215,19 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
               }
             : incoming;
         // Approval stores a future; it has not applied the target changes.
-        // This review keeps its complete comparison open even after Apply.
+        // Keep approval separate from application while sharing collapse behavior.
         const status =
           isFutureProposal(original) &&
           original.status !== ProposalStatus.Rejected
-            ? { state: "pending" as const }
+            ? {
+                state:
+                  original.reviewedFuture?.outcome === "APPLIED"
+                    ? ("applied" as const)
+                    : ("pending" as const),
+                reviewAccepted:
+                  original.status === ProposalStatus.Approved ||
+                  getState(original.id).state === "applied",
+              }
             : getState(original.id);
         const liveEntity = entities[original.targetEntityId];
         // A future revision renders as an ordinary update against the content

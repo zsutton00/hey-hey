@@ -34,6 +34,8 @@ export type ProposalItemState =
   "pending" | "applying" | "applied" | "rejected" | "failed";
 
 export interface ProposalItemStatus {
+  /** Approval can precede application for a future revision. */
+  reviewAccepted?: boolean;
   state: ProposalItemState;
   error?: string;
   diagnostic?: ProposalApprovalFailureDiagnostic;

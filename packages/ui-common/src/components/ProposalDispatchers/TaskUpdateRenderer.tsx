@@ -1,3 +1,4 @@
+import { useUpdateProposalExpansion } from "./useUpdateProposalExpansion";
 import { useReconciledUpdate } from "../ProposalReconciliation/useReconciledUpdate";
 import { useFeatureLookup } from "../../data/hooks/useFeatureHierarchy";
 import { useWorkItemTypeByKey } from "../../data/hooks/useWorkItemTypes";
@@ -13,7 +14,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { ProposalAction } from "../../api";
 import type {
@@ -114,13 +115,18 @@ export const TaskUpdateRenderer: React.FC<{
     proposal.projectId,
     existing.type,
   );
-  const isApplied = status.state === "applied";
+  const { isApplied, collapsible, expanded, toggleExpanded } =
+    useUpdateProposalExpansion(
+      inputProposal,
+      status,
+      presentationAction,
+      hideDiff,
+    );
   const resolvedDiffMode = resolveDiffDefaultViewMode(
     existing.type,
     diffDefaultViewMode,
   );
   const navigate = useNavigate();
-  const [expanded, setExpanded] = useState(!isApplied);
   const modeMentionConfig = useMemo(
     () => ({
       organizationId: proposal.organizationId,
@@ -480,10 +486,13 @@ export const TaskUpdateRenderer: React.FC<{
               : undefined
           }
           endAdornment={
-            isApplied ? (
+            collapsible ? (
               <IconButton
                 size="small"
-                onClick={() => setExpanded((prev) => !prev)}
+                onClick={toggleExpanded}
+                aria-label={expanded ? "Collapse update" : "Expand update"}
+                aria-expanded={expanded}
+                data-testid="update-proposal-expand"
                 sx={{
                   transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
                   transition: "transform 0.2s",
@@ -496,9 +505,19 @@ export const TaskUpdateRenderer: React.FC<{
         />
       )}
       {existing.type !== "MODE" || isApplied ? availability : null}
-      {!hideDiff && notice}
+      {overrides?.hideHeader && collapsible && (
+        <IconButton
+          onClick={toggleExpanded}
+          aria-label={expanded ? "Collapse update" : "Expand update"}
+          aria-expanded={expanded}
+          data-testid="update-proposal-expand"
+        >
+          <ExpandMoreIcon fontSize="small" />
+        </IconButton>
+      )}
       <Collapse in={expanded && !hideDiff}>
         <Stack spacing={1.5}>
+          {notice}
           {proposedServiceIds !== undefined && servicesQuery.isLoading ? (
             <Box
               sx={{ display: "flex", alignItems: "center", gap: 1, px: 1 }}
