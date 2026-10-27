@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { DomainEventPublisher } from '../../core/events/domain-event-publisher';
 import { runWithWorkflowContext } from '../../core/events/context-utils';
-import { OrganizationId, ProjectId, UserId } from '../../types';
+import { OrganizationId, ProjectId } from '../../types';
 import {
   TemplateGraphCopyCommand,
   TemplateGraphSnapshot,
@@ -69,7 +69,6 @@ export class ProjectTemplateCloneService {
     input: {
       targetOrganizationId: string;
       targetProjectId: string;
-      actorUserId: string;
       templateSnapshot: TemplateSnapshot;
     },
   ): Promise<{
@@ -372,7 +371,6 @@ export class ProjectTemplateCloneService {
         context: {
           organizationId: target.organizationId as OrganizationId,
           projectId: target.id as ProjectId,
-          userId: input.actorUserId as UserId,
         },
         eventContext: {
           conversationId: null,
@@ -382,23 +380,16 @@ export class ProjectTemplateCloneService {
         },
       },
       () =>
-        publishCloneCreatedEvents(
-          tx,
-          this.events,
-          target,
-          input.actorUserId,
-          remap,
-          {
-            tasks,
-            docs,
-            conversations,
-            messages,
-            proposals,
-            services,
-            types,
-            sessions,
-          },
-        ),
+        publishCloneCreatedEvents(tx, this.events, target, remap, {
+          tasks,
+          docs,
+          conversations,
+          messages,
+          proposals,
+          services,
+          types,
+          sessions,
+        }),
     );
     await tx.demoGraphCopyIntent.create({
       data: {

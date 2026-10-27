@@ -33,7 +33,6 @@ function fixture() {
   const input = {
     targetOrganizationId: targetOrg,
     targetProjectId: targetProject,
-    actorUserId: actor,
   };
   const state: Record<string, Row[]> = {};
   for (const model of Prisma.dmmf.datamodel.models) {
@@ -349,6 +348,7 @@ function fixture() {
     db,
     state,
     input,
+    actor,
     transaction,
     sourceProject,
     sourceOrg,
@@ -423,7 +423,7 @@ describe('ProjectTemplateCloneService', () => {
       id: sessionId,
       projectId: f.sourceProject,
       organizationId: f.sourceOrg,
-      userId: f.input.actorUserId,
+      userId: f.actor,
       conversationId: conversation.id,
       title: 'Existing session',
       type: 'CODING',
@@ -575,6 +575,8 @@ describe('ProjectTemplateCloneService', () => {
     for (const row of f.state.outboxEvent!) {
       expect(row.organizationId).toBe(f.input.targetOrganizationId);
       expect(row.projectId).toBe(f.input.targetProjectId);
+      // The sandbox has no human actor; Graph rejects non-UUID event user IDs.
+      expect(row.payload).not.toHaveProperty('userId');
     }
     const copiedMessageEvent = f.state.outboxEvent!.find(
       (row) => row.eventType === 'message.created',
@@ -751,7 +753,7 @@ describe('ProjectTemplateCloneService', () => {
         source: 'agent',
         action: 'UPDATE',
         authorId: randomUUID(),
-        eligibleProjectMemberIds: [f.input.actorUserId],
+        eligibleProjectMemberIds: [f.actor],
         toolName: null,
         changedFields: ['sections.description'],
       },

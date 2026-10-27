@@ -1,7 +1,10 @@
 import type { ConfigService } from '@nestjs/config';
 
-/** Server-owned identity of the principal that owns every sandbox organization. */
-export const DEMO_SYSTEM_USER_ID = 'demo-system';
+/**
+ * Server-owned identity of the principal that owns every sandbox organization.
+ * A UUID because user ids travel in domain events whose schema requires one.
+ */
+export const DEMO_SYSTEM_USER_ID = '00000000-0000-4000-8000-000000000001';
 
 /** Marks a password hash that no bcrypt comparison can ever match. */
 export const UNUSABLE_PASSWORD_HASH = '!';

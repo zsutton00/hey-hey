@@ -399,7 +399,6 @@ export class DemoSandboxAdmissionService {
             await this.clone.cloneInto(tx, {
               targetOrganizationId: organization.id,
               targetProjectId: project.id,
-              actorUserId: DEMO_SYSTEM_USER_ID,
               templateSnapshot,
             });
           // Every copied feature must reach the graph before activation.

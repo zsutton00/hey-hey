@@ -549,7 +549,6 @@ describe('DemoSandboxAdmissionService', () => {
       expect(t.clone.cloneInto).toHaveBeenCalledWith(t.db, {
         targetOrganizationId: 'org-new',
         targetProjectId: 'project-new',
-        actorUserId: DEMO_SYSTEM_USER_ID,
         templateSnapshot: t.templateSnapshot,
       });
       expect(t.db.user.create).toHaveBeenCalledWith({
