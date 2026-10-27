@@ -1843,21 +1843,22 @@ describe('buildEntityConversationPrompt', () => {
 
   it('treats need-style statements as requests to propose work items', () => {
     const result = buildEntityConversationPrompt(makeEntityPayload());
-    expect(result).toContain(
-      'Propose work items for need-style discussion ("we need to change X").',
-    );
+    expect(result).toContain('Research, update the project and propose work items by default.');
   });
 
   it('honors clear edit instructions and retains consent within authorized scope', () => {
     const result = buildEntityConversationPrompt(makeEntityPayload());
+    expect(result).toContain('Edit files only on a direct instruction to change them');
+    expect(result).toContain('within admitted Service scope');
+    expect(result).toContain('agreed follow-ups without repeated confirmation');
+    expect(result).toContain('later observations never authorize further edits');
     expect(result).toContain(
-      'Clear instructions to edit or write tests authorize that work within admitted Service scope',
+      'Questions ("why does this happen?"), bug reports ("there\'s a bug here") and statements of need ("we need a test") never authorize repository edits',
     );
-    expect(result).toContain('including agreed follow-ups, without repeated confirmation');
-    expect(result).toContain('Access alone or your own conclusions do not authorize edits');
+    expect(result).toContain('Access and inferred intent are insufficient');
     expect(result).toContain('reads need no edit consent');
-    expect(result).toContain('Interpret the whole request despite isolated transcription errors');
-    expect(result).toContain('clarify only material ambiguity about action or scope');
+    expect(result).toContain('Interpret the whole request despite transcription errors');
+    expect(result).toContain('clarify material ambiguity');
     expect(result).not.toContain(
       'you confirm that request with them, and they agree in a later message',
     );
