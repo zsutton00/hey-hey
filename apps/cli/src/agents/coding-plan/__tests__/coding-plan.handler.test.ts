@@ -585,7 +585,7 @@ describe('codingPlanHandler', () => {
       expect(prompt).toContain('emit_coding_plan');
       expect(prompt).not.toContain('emit_coding_plan_discrepancy');
       expect(prompt).toContain("emit_coding_plan's discrepancies list");
-      expect(prompt).toContain('A plan describes how to do the work, never when it may start.');
+      expect(prompt).toContain('It contains no gates of any kind');
       expect(prompt).toContain('Every replacement re-lists the discrepancies that still apply');
       expect(prompt).toContain(
         'Only the explicit Approve control on the current complete emitted plan authorizes implementation',

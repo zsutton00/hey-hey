@@ -273,7 +273,10 @@ describe('implementHandler', () => {
       expect(fetchImpl).not.toHaveBeenCalled();
       const prompt = implementHandler.buildPrompt(result.payload);
       expect(prompt).toContain(
-        `## Approved plan\n${approvedVersion.markdown}\n\n## Supporting planning discussion\nFirst reply`,
+        `treat a listed discrepancy as a blocker`,
+      );
+      expect(prompt).toContain(
+        `\n\n${approvedVersion.markdown}\n\n## Supporting planning discussion\nFirst reply`,
       );
       expect(prompt).toContain('First reply: keyboard support. Second reply: keep approval.');
       expect(prompt).toContain('Approval feedback: Use the selected runtime.');

@@ -101,7 +101,7 @@ Before your task-complete message, persist a summary of what you did this turn a
 
 const appendApprovedPlan = (prompt: string, approvedPlan: string | null | undefined): string => {
   if (!approvedPlan || !approvedPlan.trim()) return prompt;
-  return `${prompt}\n\n## Approved plan\n${approvedPlan}`;
+  return `${prompt}\n\n## Approved plan\nThe user approved this plan with its discrepancies in view, so carry it out. Do not stop to wait on other tasks, re-check readiness, or treat a listed discrepancy as a blocker. Stop only if what you find in the code contradicts what the plan assumed, for example the work lives in a different Service or file than the plan says; then raise a \`DECISION_NEEDED\` report explaining the difference.\n\n${approvedPlan}`;
 };
 
 const appendSessionContext = (
