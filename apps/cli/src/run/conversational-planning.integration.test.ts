@@ -301,24 +301,25 @@ async function makeHarness(rejectFirstContext = false) {
     expect(
       ownership.submissionToolRegistry.getByRunId(RUN_ID)?.tools.map((tool) => tool.name),
     ).toContain('emit_coding_plan');
-    if (prompts.length === 1)
-      expect(
-        (
-          await callTool('emit_coding_plan_discrepancy', {
-            sourceRef: { sourceType: 'task', sourceId: TASK_ID },
-            sourceField: 'description',
-            sourceExcerpt: 'Approval is required before implementation.',
-            discrepancyText: 'The prior implementation accepts approval from text.',
-            reasoning: 'Retain explicit approval.',
-            severity: 'high',
-          })
-        ).isError,
-      ).not.toBe(true);
     if (prompts.length === 2 || prompts.length === 3) return undefined as never;
     const context = {
       markdown:
         '# Complete plan\n\nMake discussion replyable before approval. Keep exact agreed context and required Services.',
       requiredServiceIds: [SERVICE_ID],
+      // The first version carries a discrepancy; the replacement drops it as moot.
+      discrepancies:
+        prompts.length === 1
+          ? [
+              {
+                sourceRef: { sourceType: 'task' as const, sourceId: TASK_ID },
+                sourceField: 'description',
+                sourceExcerpt: 'Approval is required before implementation.',
+                discrepancyText: 'The prior implementation accepts approval from text.',
+                reasoning: 'Retain explicit approval.',
+                severity: 'high' as const,
+              },
+            ]
+          : [],
     };
     if (rejectFirstContext && prompts.length === 1)
       await expect(callTool('emit_coding_plan', context)).rejects.toThrow(

@@ -85,8 +85,11 @@ export function resolveReviewedCodingPlan(
           context: CodingPlanVersionSchema.safeParse(element.payload),
         };
         unreviewedReply = false;
-        if (latest.context.success)
+        if (latest.context.success) {
           discussion.push(`Plan (${row.id}): ${latest.context.data.markdown}`);
+          for (const issue of latest.context.data.discrepancies ?? [])
+            discussion.push(`Issue (${row.id}): ${JSON.stringify(issue)}`);
+        }
       } else if (element.type === 'coding_plan_discrepancy') {
         const issue = CodingPlanDiscrepancySchema.safeParse(element.payload);
         discussion.push(

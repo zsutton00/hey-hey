@@ -88,7 +88,13 @@ export function renderCodingPlanConversation(
       ...(message.data.uiElements ?? []).flatMap((element) => {
         if (element.type === 'coding_plan_version') {
           const version = CodingPlanVersionSchema.safeParse(element.payload);
-          return version.success ? [`Plan (${message.id}): ${version.data.markdown}`] : [];
+          if (!version.success) return [];
+          return [
+            `Plan (${message.id}): ${version.data.markdown}`,
+            ...(version.data.discrepancies ?? []).map(
+              (issue) => `Issue (${message.id}): ${JSON.stringify(issue)}`,
+            ),
+          ];
         }
         if (element.type !== 'coding_plan_discrepancy') return [];
         const issue = CodingPlanDiscrepancySchema.safeParse(element.payload);

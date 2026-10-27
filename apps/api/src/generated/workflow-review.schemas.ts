@@ -7,53 +7,13 @@ import type {
   CodingPlanEmissionInput,
 } from './model/models';
 
-export const CodingPlanVersionSchema = z
-  .object({
-    responseType: z.literal('coding_plan_version_v1'),
-    markdown: z.string().min(1),
-    requiredServiceIds: z
-      .array(z.string().uuid())
-      .min(1)
-      .refine(
-        (items) =>
-          new Set(items.map((item) => JSON.stringify(item))).size ===
-          items.length,
-        'Array items must be unique',
-      ),
-  })
-  .strict() satisfies z.ZodType<CodingPlanVersion>;
-
-const ImplementRuntimeSelectionSchema = z
-  .object({
-    provider: z.enum(['claude', 'codex', 'opencode']),
-    model: z.string().min(1),
-    reasoningEffort: z
-      .enum([
-        'none',
-        'minimal',
-        'low',
-        'medium',
-        'high',
-        'xhigh',
-        'max',
-        'ultra',
-        'default',
-      ])
-      .optional(),
-    fastMode: z.boolean().optional(),
-  })
-  .strict();
-
-export const ImplementPromptPayloadSchema = z
-  .object({
-    approvedVersion: CodingPlanVersionSchema.optional(),
-    versionMessageId: z.string().uuid().optional(),
-    approvalFeedback: z.string().optional(),
-    planningDiscussion: z.string().optional(),
-    runtime: ImplementRuntimeSelectionSchema.optional(),
-    userMessage: z.string().optional(),
-  })
-  .strict();
+// Zod optional output includes undefined, which exactOptionalPropertyTypes rejects for the OpenAPI types.
+type OptionalKeys<T> = {
+  [K in keyof T]-?: object extends Pick<T, K> ? K : never;
+}[keyof T];
+type ZodShaped<T> = Omit<T, OptionalKeys<T>> & {
+  [K in OptionalKeys<T>]?: T[K] | undefined;
+};
 
 const CodingPromptStartupSourceTypeSchema = z.enum([
   'evidenceItem',
@@ -89,6 +49,55 @@ export const CodingPlanDiscrepancySchema = z.intersection(
     })
     .passthrough(),
 );
+
+export const CodingPlanVersionSchema = z
+  .object({
+    responseType: z.literal('coding_plan_version_v1'),
+    markdown: z.string().min(1),
+    requiredServiceIds: z
+      .array(z.string().uuid())
+      .min(1)
+      .refine(
+        (items) =>
+          new Set(items.map((item) => JSON.stringify(item))).size ===
+          items.length,
+        'Array items must be unique',
+      ),
+    discrepancies: z.array(CodingPlanDiscrepancySchema).optional(),
+  })
+  .strict() satisfies z.ZodType<ZodShaped<CodingPlanVersion>>;
+
+const ImplementRuntimeSelectionSchema = z
+  .object({
+    provider: z.enum(['claude', 'codex', 'opencode']),
+    model: z.string().min(1),
+    reasoningEffort: z
+      .enum([
+        'none',
+        'minimal',
+        'low',
+        'medium',
+        'high',
+        'xhigh',
+        'max',
+        'ultra',
+        'default',
+      ])
+      .optional(),
+    fastMode: z.boolean().optional(),
+  })
+  .strict();
+
+export const ImplementPromptPayloadSchema = z
+  .object({
+    approvedVersion: CodingPlanVersionSchema.optional(),
+    versionMessageId: z.string().uuid().optional(),
+    approvalFeedback: z.string().optional(),
+    planningDiscussion: z.string().optional(),
+    runtime: ImplementRuntimeSelectionSchema.optional(),
+    userMessage: z.string().optional(),
+  })
+  .strict();
 
 const CodingPlanIssueResolutionSchema = z
   .object({
@@ -137,8 +146,9 @@ export const CodingPlanEmissionInputSchema = z
           items.length,
         'Array items must be unique',
       ),
+    discrepancies: z.array(CodingPlanDiscrepancySchema).optional(),
   })
-  .strict() satisfies z.ZodType<CodingPlanEmissionInput>;
+  .strict() satisfies z.ZodType<ZodShaped<CodingPlanEmissionInput>>;
 
 export const CodingPlanQuestionSchema = z
   .object({

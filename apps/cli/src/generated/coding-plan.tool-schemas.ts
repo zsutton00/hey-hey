@@ -19,6 +19,64 @@ export const CodingPlanEmissionInputToolSchema = {
         format: 'uuid',
       },
     },
+    discrepancies: {
+      type: 'array',
+      description:
+        'Complete discrepancy list for this plan version. A replacement plan re-lists the discrepancies that still hold.',
+      items: {
+        allOf: [
+          {
+            type: 'object',
+            required: ['sourceRef', 'sourceExcerpt', 'reasoning', 'discrepancyText', 'severity'],
+            properties: {
+              sourceRef: {
+                type: 'object',
+                required: ['sourceType', 'sourceId'],
+                properties: {
+                  sourceType: {
+                    type: 'string',
+                    enum: ['evidenceItem', 'task', 'designDoc', 'plan', 'initiative'],
+                    description: 'Source types used by startup-plan structured responses',
+                  },
+                  sourceId: {
+                    type: 'string',
+                  },
+                },
+                description: 'Source reference used by startup-plan structured responses',
+              },
+              sourceField: {
+                type: 'string',
+              },
+              sourceExcerpt: {
+                type: 'string',
+              },
+              reasoning: {
+                type: 'string',
+              },
+              discrepancyText: {
+                type: 'string',
+              },
+              severity: {
+                type: 'string',
+                enum: ['low', 'medium', 'high'],
+              },
+            },
+            description: 'Input discrepancy captured in startup-plan output',
+          },
+          {
+            type: 'object',
+            required: ['sourceField'],
+            properties: {
+              sourceField: {
+                type: 'string',
+                minLength: 1,
+              },
+            },
+          },
+        ],
+        description: 'One evidence-bearing, individually replyable planning issue.',
+      },
+    },
   },
 };
 

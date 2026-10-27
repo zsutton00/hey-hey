@@ -38,6 +38,45 @@ describe('planning conversation recovery', () => {
   });
 });
 
+it("lists each plan version's own discrepancies right after its Markdown", () => {
+  const issue = (text: string) => ({
+    sourceRef: { sourceType: 'task', sourceId: 'task' },
+    sourceField: 'description',
+    sourceExcerpt: 'Plans carry their discrepancies.',
+    reasoning: 'Keep the plan reviewable.',
+    discrepancyText: text,
+    severity: 'medium',
+  });
+  const version = (id: string, markdown: string, discrepancies?: unknown[]) => ({
+    id,
+    type: 'SYSTEM',
+    data: {
+      uiElements: [
+        {
+          type: 'coding_plan_version',
+          payload: {
+            responseType: 'coding_plan_version_v1',
+            markdown,
+            requiredServiceIds: ['a8fb6fbb-5747-4480-89e3-fc4a43ab7745'],
+            ...(discrepancies ? { discrepancies } : {}),
+          },
+        },
+      ],
+    },
+  });
+  const text = renderCodingPlanConversation([
+    version('v0', 'Historical plan without discrepancies.'),
+    version('v1', 'First plan.', [issue('Dropped concern.')]),
+    version('v2', 'Second plan.', [issue('Still-valid concern.')]),
+  ]);
+  expect(text).toContain('Plan (v0): Historical plan without discrepancies.');
+  expect(text).not.toContain('Issue (v0)');
+  expect(text).toMatch(/Issue \(v1\): .*Dropped concern\./);
+  expect(text).toMatch(/Issue \(v2\): .*Still-valid concern\./);
+  expect(text).not.toMatch(/Issue \(v2\): .*Dropped concern/);
+  expect(text.indexOf('Plan (v2)')).toBeLessThan(text.indexOf('Issue (v2)'));
+});
+
 it('recovers all ordered planner and user discussion, deduplicating threaded copies', async () => {
   const { fetchCodingPlanConversation } = await import('../conversation-context');
   const rows = Array.from({ length: 25 }, (_, index) => ({

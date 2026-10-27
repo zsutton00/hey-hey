@@ -126,7 +126,7 @@ function emitSchema(name, exported) {
 
   emitted.add(name);
   declarations.push(
-    `${generatedSchemaNames.includes(name) ? 'export ' : ''}const ${name}Schema = ${expression}${checkedSchemas.includes(name) ? ` satisfies z.ZodType<${name}>` : ''};`,
+    `${generatedSchemaNames.includes(name) ? 'export ' : ''}const ${name}Schema = ${expression}${checkedSchemas.includes(name) ? ` satisfies z.ZodType<ZodShaped<${name}>>` : ''};`,
   );
 }
 
@@ -136,6 +136,10 @@ const output = [
   '/* This file is generated from OpenAPI by scripts/generate-workflow-review-schemas.js. */',
   "import { z } from 'zod';",
   `import type { ${checkedSchemas.join(', ')} } from '${process.argv[2] ? '../shared/api/generated/api' : './model/models'}';`,
+  '',
+  '// Zod optional output includes undefined, which exactOptionalPropertyTypes rejects for the OpenAPI types.',
+  'type OptionalKeys<T> = { [K in keyof T]-?: object extends Pick<T, K> ? K : never }[keyof T];',
+  'type ZodShaped<T> = Omit<T, OptionalKeys<T>> & { [K in OptionalKeys<T>]?: T[K] | undefined };',
   '',
   ...declarations.flatMap((declaration) => [declaration, '']),
 ].join('\n');

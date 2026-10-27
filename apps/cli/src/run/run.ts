@@ -6292,15 +6292,13 @@ export class Run {
 
   public async persistCodingPlanElement(
     type: import('../shared/api/generated/api').ExtendedUIFieldType,
-    payload:
-      | import('../shared/api/generated/api').CodingPlanVersion
-      | import('../shared/api/generated/api').CodingPlanDiscrepancy,
+    payload: import('../shared/api/generated/api').CodingPlanVersion,
   ): Promise<string> {
     return this.persistCodingPlanMessage(type, '', [
       {
         id: randomUUID(),
         type,
-        label: type === 'coding_plan_version' ? 'Complete plan' : 'Planning issue',
+        label: 'Complete plan',
         required: false,
         influences: [],
         payload,

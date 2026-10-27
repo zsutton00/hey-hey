@@ -73,6 +73,50 @@ describe('reviewed conversational planning context', () => {
       'reviewed planning context',
     );
   });
+  it('hands over the approved version with only its own discrepancies, keeping older versions and standalone issues in the discussion', () => {
+    const issue = (text: string) => ({
+      sourceRef: {
+        sourceType: 'task',
+        sourceId: 'bd97d1f3-f673-44b3-ba05-1e8724b11c94',
+      },
+      sourceField: 'description',
+      sourceExcerpt: 'Plans carry their discrepancies.',
+      reasoning: 'Keep the plan reviewable.',
+      discrepancyText: text,
+      severity: 'low',
+    });
+    const v1 = { ...context, discrepancies: [issue('Dropped concern.')] };
+    const v2 = { ...context, discrepancies: [issue('Still-valid concern.')] };
+    const rows = [
+      row('legacy-issue', {
+        uiElements: [
+          {
+            type: 'coding_plan_discrepancy',
+            payload: issue('Legacy concern.'),
+          },
+        ],
+      }),
+      row('v1', { uiElements: [{ type: 'coding_plan_version', payload: v1 }] }),
+      {
+        ...row(
+          'moot',
+          { agentInput: { userMessage: 'That concern no longer matters.' } },
+          'USER',
+        ),
+        parentMessageId: 'v1',
+      },
+      row('v2', { uiElements: [{ type: 'coding_plan_version', payload: v2 }] }),
+    ];
+    const result = resolveReviewedCodingPlan(rows as never, 'v2');
+    expect(result.approvedVersion.discrepancies).toEqual(v2.discrepancies);
+    const text = result.planningDiscussion;
+    expect(text).toContain('Issue (legacy-issue)');
+    expect(text).toMatch(/Issue \(v1\): .*Dropped concern\./);
+    expect(text).toContain('reply to v1');
+    expect(text).toMatch(/Issue \(v2\): .*Still-valid concern\./);
+    expect(text).not.toMatch(/Issue \(v2\): .*Dropped concern/);
+    expect(text.indexOf('Plan (v2)')).toBeLessThan(text.indexOf('Issue (v2)'));
+  });
   it('isolates invalid historical evidence while requiring the current context to be valid', () => {
     const rows = [
       row('invalid-old-context', {

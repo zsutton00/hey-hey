@@ -1140,12 +1140,6 @@ describe('assistant_complete end-to-end', () => {
     });
 
     it.each([
-      [
-        'a discrepancy was saved',
-        'Recorded one issue.',
-        [ExtendedUIFieldType.CodingPlanDiscrepancy],
-        undefined,
-      ],
       ['a plan already exists', 'Agreed, that stays the same.', [], { _hasSavedPlanVersion: true }],
       [
         'the planner asked a question',

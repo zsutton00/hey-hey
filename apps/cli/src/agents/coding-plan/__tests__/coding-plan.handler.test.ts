@@ -583,7 +583,10 @@ describe('codingPlanHandler', () => {
     it('persists conversational context and reserves approval for explicit user control', () => {
       const prompt = codingPlanHandler.buildPrompt(makePayload());
       expect(prompt).toContain('emit_coding_plan');
-      expect(prompt).toContain('emit_coding_plan_discrepancy');
+      expect(prompt).not.toContain('emit_coding_plan_discrepancy');
+      expect(prompt).toContain("emit_coding_plan's discrepancies list");
+      expect(prompt).toContain('A plan describes how to do the work, never when it may start.');
+      expect(prompt).toContain('Every replacement re-lists the discrepancies that still apply');
       expect(prompt).toContain(
         'Only the explicit Approve control on the current complete emitted plan authorizes implementation',
       );
@@ -617,7 +620,6 @@ describe('coding-plan registry wiring', () => {
   it('the registered handler carries the explicit completion tools', async () => {
     const fetched = registry.get('startup_session');
     expect(fetched?.submissionTools?.map((tool) => tool.name)).toEqual([
-      'emit_coding_plan_discrepancy',
       'ask_coding_plan_question',
       'emit_coding_plan',
     ]);
