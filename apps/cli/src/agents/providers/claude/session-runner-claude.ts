@@ -1,3 +1,4 @@
+import { toolResultLogLevel } from './tool-result-log-level';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { buildBrowserToolsMcpConfig, BROWSER_ALLOWED_TOOLS } from '../../browser-tools/mcp-config';
 import { researchHandler } from '../../research/research.handler';
@@ -1365,32 +1366,32 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
             });
           }
 
-          // Tool-result errors are 5-alarm: Claude only surfaces them as
-          // assistant-level prose in the next turn, which is lossy. Log every
-          // tool_result with is_error=true at error level with full correlation
-          // so operators can diagnose rejection causes (auth failures, MCP
-          // errors, permission denials, runtime crashes) without trawling the
-          // raw event dump.
+          // Keep rejection diagnostics and correlation at the appropriate severity.
           for (const result of normalizedProviderEvent.facts?.toolResults ?? []) {
             if (!result.isError) continue;
             const toolUseId = result.toolUseId;
             const origin = toolUseId ? (toolUseRegistry.get(toolUseId) ?? null) : null;
             const contentText = result.content;
-            requestContext.log(this.logger, 'error', 'local.runner.claude.tool_result.error', {
-              runId,
-              agenticSessionId: session.agentic_session_id,
-              providerSessionId: eventSessionId,
-              conversationId: session.conversationId,
-              eventType,
-              toolUseId,
-              toolName: origin?.toolName ?? null,
-              toolInput: origin?.input ?? null,
-              toolCallTimestamp: origin?.timestamp ?? null,
-              correlated: origin !== null,
-              errorText: contentText,
-              contentRaw: null,
-              rawEvent: redactAgentEventForLog(eventRecord, this.redactionConfig),
-            });
+            requestContext.log(
+              this.logger,
+              toolResultLogLevel(origin?.toolName ?? null, toolUseId, contentText, eventRecord),
+              'local.runner.claude.tool_result.error',
+              {
+                runId,
+                agenticSessionId: session.agentic_session_id,
+                providerSessionId: eventSessionId,
+                conversationId: session.conversationId,
+                eventType,
+                toolUseId,
+                toolName: origin?.toolName ?? null,
+                toolInput: origin?.input ?? null,
+                toolCallTimestamp: origin?.timestamp ?? null,
+                correlated: origin !== null,
+                errorText: contentText,
+                contentRaw: null,
+                rawEvent: redactAgentEventForLog(eventRecord, this.redactionConfig),
+              },
+            );
           }
 
           const backgroundTasks = normalizedProviderEvent.facts?.backgroundTasks ?? null;
