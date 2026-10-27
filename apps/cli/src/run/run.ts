@@ -73,9 +73,11 @@ import type {
   RecentUserReply,
 } from '../agents/prompt-type-handler';
 import type { PromptTypeRegistry } from '../agents/prompt-type-registry';
-import { resolveProjectAssistantPolicy } from '../agents/project-assistant/proactive-behavior';
+import {
+  resolveProjectAssistantBootstrap,
+  resolveProjectAssistantConfig,
+} from '../agents/project-assistant/proactive-behavior';
 import { ProjectAssistantPreparationError } from '../agents/project-assistant/nearest-parent-feature';
-import type { ProjectAssistantPromptPayload } from '../agents/project-assistant/project-assistant.handler';
 import {
   AgentStartupPromptInputError,
   isEntityPromptTemplateFocalType,
@@ -123,7 +125,6 @@ import type {
   InternalRunPromptRequest,
   LocalAnyPromptPayload,
   LocalRunScope,
-  ProjectAssistantConfig,
   ResolvedServiceBinding,
   SendMessageOptions,
 } from '../shared/agent-bridge-contract/contract';
@@ -561,25 +562,6 @@ const readCodexCommandLifecycle = (
       failed: status === 'failed' || (exitCode !== null && exitCode !== 0),
     },
   };
-};
-
-/**
- * Reads Project Assistant intent only from session-config variants that own
- * that setting. The Entity Conversation variant is part of the same durable
- * config boundary even when an older generated client has not emitted its
- * discriminator yet, so the runtime check remains deliberately structural.
- */
-const resolveProjectAssistantConfig = (
-  config: AgenticSession['config'],
-): ProjectAssistantConfig | undefined => {
-  if (!config) return undefined;
-
-  const configType: string = config.type;
-  if (configType !== 'CODING_SESSION' && configType !== 'ENTITY_CONVERSATION') {
-    return undefined;
-  }
-
-  return 'projectAssistant' in config ? config.projectAssistant : undefined;
 };
 
 type EventProducer = { kind: 'run-provider-session' } | { kind: 'active-turn'; turnId: string };
@@ -3884,11 +3866,12 @@ export class Run {
     }
     const consumerHandler = this.promptTypeRegistry.get(stamped.promptType);
     const projectAssistantConfig = resolveProjectAssistantConfig(this.session.config);
-    const projectAssistantPolicy = resolveProjectAssistantPolicy(
-      consumerHandler?.resolveProjectAssistant
-        ? consumerHandler.resolveProjectAssistant(this.session, this.logger)
-        : consumerHandler?.projectAssistant,
-      projectAssistantConfig,
+    const projectAssistantBootstrap = resolveProjectAssistantBootstrap(
+      consumerHandler,
+      this.session,
+      this.entity,
+      resolvePromptText(stamped) ?? '',
+      this.logger,
     );
     if (projectAssistantConfig?.enabled === false) {
       this.logger.debug('local.run.project_assistant.disabled_by_session_config', {
@@ -3929,13 +3912,14 @@ export class Run {
     // One-shot Project Assistant subagent: the consuming handler owns both
     // participation and the maximum capability policy. Carry the exact object
     // resolved above through tools and prompt construction.
-    const focalEntity = this.entity;
-    if (
-      !this._projectAssistantDone &&
-      focalEntity !== null &&
-      consumerHandler !== undefined &&
-      projectAssistantPolicy !== undefined
-    ) {
+    if (!this._projectAssistantDone && projectAssistantBootstrap !== undefined) {
+      const { policy: projectAssistantPolicy, payload: projectAssistantPayload } =
+        projectAssistantBootstrap;
+      this.logger.debug('local.run.project_assistant_payload.task_context_resolved', {
+        runId: this.runId,
+        entityId: projectAssistantPayload.entity.entityId,
+        runEntityType: projectAssistantPayload.entity.entityType,
+      });
       this.logger.info('local.run.project_assistant.bootstrap_started', {
         runId: this.runId,
         consumerPromptType: stamped.promptType,
@@ -3960,12 +3944,7 @@ export class Run {
         promptType: LocalPromptType.ProjectAssistant,
         references: stamped.references,
         triggerContext: null,
-        payload: this.buildProjectAssistantPayload(
-          focalEntity,
-          stamped,
-          consumerHandler.id,
-          projectAssistantPolicy,
-        ),
+        payload: projectAssistantPayload,
         // Research is execution of the admitted input, so it projects the
         // input's start. It deliberately omits inputAdmissionTurnId: the main
         // Turn keeps the admission's Turn identity and owns settlement.
@@ -4030,31 +4009,6 @@ export class Run {
       ...input,
       [TRIGGER_PARENT_MESSAGE_ID_MARKER]: triggerParentMessageId,
     } as InternalRunPromptRequest;
-  }
-
-  /** Build the Project Assistant payload from the persisted Run identity. The
-   * provider startup path supplies the canonical focal entity projection. */
-  private buildProjectAssistantPayload(
-    focalEntity: RunEntityReference,
-    stamped: InternalRunPromptRequest,
-    consumerHandlerId: string,
-    policy: NonNullable<PromptTypeHandler<unknown>['projectAssistant']>,
-  ): ProjectAssistantPromptPayload {
-    const userMessage = resolvePromptText(stamped) ?? '';
-    this.logger.debug('local.run.project_assistant_payload.task_context_resolved', {
-      runId: this.runId,
-      entityId: focalEntity.entityId,
-      runEntityType: focalEntity.entityType,
-    });
-    return {
-      promptType: LocalPromptType.Research,
-      entity: focalEntity,
-      userMessage,
-      projectAssistantHandoff: {
-        consumerHandlerId,
-        policy,
-      },
-    };
   }
 
   /**
