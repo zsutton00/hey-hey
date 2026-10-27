@@ -69,8 +69,9 @@ describe('hint tool registration', () => {
     jest.resetModules();
   });
 
-  const loadProviders = (enabled: string) => {
-    process.env.HINTS_ENABLED = enabled;
+  const loadProviders = (enabled: string | undefined) => {
+    if (enabled === undefined) delete process.env.HINTS_ENABLED;
+    else process.env.HINTS_ENABLED = enabled;
     let providers: unknown[] = [];
     jest.isolateModules(() => {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -83,15 +84,12 @@ describe('hint tool registration', () => {
     return providers.map((p) => (p as { name?: string }).name);
   };
 
-  it('offers no hint tools when the deployment switch is off', () => {
-    const names = loadProviders('false');
-    expect(names).not.toContain('HintWriteToolsProvider');
-    expect(names).not.toContain('HintReadToolsProvider');
-  });
-
-  it('offers write and read hint tools as separate sets when on', () => {
-    const names = loadProviders('true');
-    expect(names).toContain('HintWriteToolsProvider');
-    expect(names).toContain('HintReadToolsProvider');
-  });
+  it.each([undefined, 'false', 'true'])(
+    'always offers read and write hint tools (legacy setting %s)',
+    (setting) => {
+      const names = loadProviders(setting);
+      expect(names).toContain('HintWriteToolsProvider');
+      expect(names).toContain('HintReadToolsProvider');
+    },
+  );
 });

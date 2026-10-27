@@ -32,7 +32,7 @@ const request = {
   user: { userId: testIds.user, currentOrgId: testIds.organization },
   headers: { authorization: 'Bearer token', 'x-project-id': testIds.project },
 } as unknown as Request;
-function setup(enabled: boolean) {
+function setup() {
   const graph = {
     findHintsByConnectedItems: jest.fn().mockResolvedValue({ hints: [hint] }),
     listProjectHints: jest.fn(),
@@ -46,14 +46,14 @@ function setup(enabled: boolean) {
   };
   return {
     provider: new HintReadToolsProvider(
-      new HintService({ enabled }, graph as never, access as never),
+      new HintService(graph as never, access as never),
     ),
     graph,
   };
 }
 describe('MCP connected-Hint retrieval through HintService', () => {
   it('returns text and strengths without calling the Admin listing', async () => {
-    const { provider, graph } = setup(true);
+    const { provider, graph } = setup();
     expect(
       await provider.getHintsForItems(
         { itemIds: [itemId] },
@@ -76,15 +76,8 @@ describe('MCP connected-Hint retrieval through HintService', () => {
     );
     expect(graph.listProjectHints).not.toHaveBeenCalled();
   });
-  it('returns nothing and never calls the graph when disabled', async () => {
-    const { provider, graph } = setup(false);
-    await expect(
-      provider.getHintsForItems({ itemIds: [itemId] }, {} as never, request),
-    ).resolves.toEqual({ hints: [] });
-    expect(graph.findHintsByConnectedItems).not.toHaveBeenCalled();
-  });
   it('withholds the whole hint if another connected item is inaccessible', async () => {
-    const { provider, graph } = setup(true);
+    const { provider, graph } = setup();
     graph.findHintsByConnectedItems.mockResolvedValue({
       hints: [
         {

@@ -1,5 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
-import { HintsDisabledError, HintService } from './hint.service';
+import { HintService } from './hint.service';
 import type { Hint } from '../../generated/graphs';
 import type { OrganizationId, ProjectId } from '../../types';
 
@@ -31,7 +31,7 @@ const makeHint = (id: string, targets: string[]): Hint => ({
   updatedAt: '2026-10-21T00:00:00.000Z',
 });
 
-function setup(enabled = true) {
+function setup() {
   const graphsClient = {
     listProjectHints: jest.fn(),
     createHint: jest.fn(),
@@ -47,7 +47,6 @@ function setup(enabled = true) {
     ),
   };
   const service = new HintService(
-    { enabled },
     graphsClient as never,
     resourceAccess as never,
   );
@@ -87,14 +86,6 @@ describe('HintService', () => {
     expect(graphsClient.listProjectHints).not.toHaveBeenCalled();
   });
 
-  it('does not list hints when the deployment switch is off', async () => {
-    const { service, graphsClient } = setup(false);
-    await expect(service.listProjectHints(requestor)).resolves.toEqual({
-      hints: [],
-    });
-    expect(graphsClient.listProjectHints).not.toHaveBeenCalled();
-  });
-
   it('drops any hint connected to an item the caller cannot see', async () => {
     const { service, graphsClient } = setup();
     graphsClient.findHintsByConnectedItems.mockResolvedValue({
@@ -113,30 +104,6 @@ describe('HintService', () => {
       { nodeIds: [visibleTask] },
       requestor.token,
     );
-  });
-
-  it('returns no hints and never calls the graph when hints are off', async () => {
-    const { service, graphsClient } = setup(false);
-
-    await expect(
-      service.findHintsForItems(requestor, [visibleTask]),
-    ).resolves.toEqual([]);
-    expect(graphsClient.findHintsByConnectedItems).not.toHaveBeenCalled();
-  });
-
-  it('refuses writes when hints are off', async () => {
-    const { service, graphsClient } = setup(false);
-
-    await expect(
-      service.createHint(requestor, {
-        text: 'x',
-        origin: { entityType: 'AGENT_SESSION', entityId: sessionId },
-        connections: [
-          { targetNodeId: visibleTask, targetEntityType: 'TASK', strength: 1 },
-        ],
-      }),
-    ).rejects.toBeInstanceOf(HintsDisabledError);
-    expect(graphsClient.createHint).not.toHaveBeenCalled();
   });
 
   it('requires at least one connection to create a hint', async () => {
