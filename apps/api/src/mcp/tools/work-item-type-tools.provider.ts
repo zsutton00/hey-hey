@@ -33,9 +33,8 @@ export const getWorkItemTypeGuidanceBatchParameters = z
       .refine((typeKeys) => new Set(typeKeys).size === typeKeys.length, {
         message: 'typeKeys must contain distinct values',
       }),
-    purpose: z.nativeEnum(WorkItemTypeGuidancePurpose).optional(),
+    purpose: z.nativeEnum(WorkItemTypeGuidancePurpose),
     sessionRole: z.nativeEnum(SessionRole).optional(),
-    focalTypeKey: z.string().optional(),
   })
   .strict() satisfies z.ZodType<WorkItemTypeGuidanceBatchRequestDto>;
 
@@ -76,7 +75,7 @@ export class WorkItemTypeToolsProvider {
   @Tool({
     name: 'get_work_item_type_guidance_batch',
     description:
-      'Read project-effective guidance for 1–10 distinct work-item type keys from one snapshot, returning one shared-purpose projection per key in request order. Use the optional focal type key for semantic context; maintenance advice is type-owned and may be absent. Purpose role requires explicit sessionRole (no default), ignores focalTypeKey and returns identity with optional advice.',
+      'Read project-effective guidance for 1–10 distinct work-item type keys from one snapshot, returning one shared-purpose projection per key in request order. Purpose maintenance returns type-owned maintenance advice, which may be absent. Purpose role requires explicit sessionRole (no default) and returns identity with optional advice.',
     parameters: getWorkItemTypeGuidanceBatchParameters,
     outputSchema: getWorkItemTypeGuidanceBatchOutput,
   })

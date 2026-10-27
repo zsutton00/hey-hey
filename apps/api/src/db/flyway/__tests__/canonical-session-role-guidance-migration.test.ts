@@ -33,13 +33,6 @@ const excluded = [
 ];
 const unrelated = ['MODE', 'workflow', 'workflow_step'];
 const roles = Object.values(SessionRole);
-const guide = {
-  overview: 'Existing semantic meaning',
-  examples: [
-    { title: 'Existing example', guidance: 'Existing example advice' },
-  ],
-  contexts: [{ focalTypeKeys: ['FEATURE'], guidance: 'Existing context' }],
-};
 
 // Complete stored definitions enter the real registry loader; no accessor mocks.
 function row(typeKey: string, projectId: string | null, advice: Advice | null) {
@@ -65,7 +58,6 @@ function row(typeKey: string, projectId: string | null, advice: Advice | null) {
     agentSettableStatuses: ['ACTIVE'],
     anchorableReportTypes: [],
     writingStandards: { create: 'Existing create', edit: 'Existing edit' },
-    agentGuidance: guide,
     maintenanceGuidance: 'Existing maintenance',
     sessionRoleGuidance: advice,
     acceptedConfigKinds: [],
@@ -215,20 +207,12 @@ describe('seeded advice through project-effective registry reads', () => {
     },
   );
 
-  it('preserves semantic, contextual, maintenance and authoring guidance', () => {
+  it('preserves maintenance and authoring guidance', () => {
     for (const typeKey of Object.keys(expected)) {
-      expect(registry.getGuidance('follower', typeKey, 'FEATURE')).toEqual({
-        typeKey,
-        name: typeKey + ' name',
-        overview: guide.overview,
-        examples: guide.examples,
-        contextualGuidance: [{ guidance: 'Existing context', examples: [] }],
-      });
       expect(
         registry.getGuidance(
           'follower',
           typeKey,
-          undefined,
           WorkItemTypeGuidancePurpose.Maintenance,
         ),
       ).toEqual({

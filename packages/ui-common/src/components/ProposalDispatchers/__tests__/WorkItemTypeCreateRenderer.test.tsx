@@ -330,42 +330,6 @@ describe("WorkItemTypeCreateRenderer", () => {
     expect(group).not.toHaveTextContent("review");
   });
 
-  it("presents each semantic guidance field with a readable label", () => {
-    const guidance = {
-      overview: "Recognize the campaign outcome.",
-      examples: [{ title: "Launch", guidance: "A public launch." }],
-      contexts: [
-        {
-          focalTypeKeys: ["FEATURE"],
-          guidance: "Relates to a feature launch.",
-          examples: [
-            { title: "Feature campaign", guidance: "Promote a feature." },
-          ],
-        },
-      ],
-    };
-    render(
-      <MemoryRouter>
-        <WorkItemTypeCreateRenderer
-          proposal={makeProposal({
-            ...fullDefinition,
-            agentGuidance: guidance,
-          })}
-          status={{ state: "pending" }}
-          onApply={() => {}}
-        />
-      </MemoryRouter>,
-    );
-    const semantic = screen.getByTestId("work-item-type-semantic-guidance");
-    expect(semantic).toHaveTextContent("Overview");
-    expect(semantic).toHaveTextContent("Examples");
-    expect(semantic).toHaveTextContent("Contextual guidance");
-    expect(semantic).toHaveTextContent("Focal types");
-    expect(semantic).toHaveTextContent("FEATURE");
-    expect(semantic).toHaveTextContent("Promote a feature.");
-    expect(semantic).not.toHaveTextContent("focalTypeKeys");
-  });
-
   it("does not crash and shows only the header for a minimal definition", () => {
     const minimal = makeProposal({
       key: "MINIMAL",

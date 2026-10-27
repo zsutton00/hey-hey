@@ -951,6 +951,15 @@ enum DemoSandboxStatus {
   @@map("demo_sandbox_status")
 }
 
+enum DemoSandboxStage {
+  COPYING
+  CONNECTING
+  READY
+  FAILED
+
+  @@map("demo_sandbox_stage")
+}
+
 // organizationId and projectId are deliberately not foreign keys: the sandbox
 // outlives final deletion of its tenancy until the demo user is removed. They
 // and readinessFeatureId are empty only while a PROVISIONING reservation waits
@@ -962,9 +971,11 @@ model DemoSandbox {
   demoUserId           String?             @map("demo_user_id")
   browserBindingHash   String              @unique @map("browser_binding_hash")
   creatorIpHash        String              @map("creator_ip_hash")
-  readinessFeatureId   String?             @map("readiness_feature_id")
+  readinessFeatureIds  String[]            @default([]) @map("readiness_feature_ids")
+  connectedFeatureCount Int                @default(0) @map("connected_feature_count")
   provisioningDeadline DateTime            @map("provisioning_deadline")
   status               DemoSandboxStatus
+  stage                DemoSandboxStage    @default(COPYING)
   createdAt            DateTime            @default(now()) @map("created_at")
   lastActivityAt       DateTime?           @map("last_activity_at")
   expiresAt            DateTime?           @map("expires_at")
@@ -4572,7 +4583,6 @@ model WorkItemType {
   agentSettableStatuses Json    @map("agent_settable_statuses")
   anchorableReportTypes Json    @map("anchorable_report_types")
   writingStandards      Json    @map("writing_standards")
-  agentGuidance         Json?   @map("agent_guidance")
   sessionRoleGuidance   Json?   @map("session_role_guidance")
   maintenanceGuidance   String? @map("maintenance_guidance")
   acceptedConfigKinds   Json    @map("accepted_config_kinds")
@@ -4610,7 +4620,6 @@ model WorkItemTypeTemplate {
   agentSettableStatuses Json     @map("agent_settable_statuses")
   anchorableReportTypes Json     @map("anchorable_report_types")
   writingStandards      Json     @map("writing_standards")
-  agentGuidance         Json?    @map("agent_guidance")
   sessionRoleGuidance   Json?    @map("session_role_guidance")
   maintenanceGuidance   String?  @map("maintenance_guidance")
   acceptedConfigKinds   Json     @map("accepted_config_kinds")

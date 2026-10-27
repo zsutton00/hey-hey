@@ -18,16 +18,15 @@ import { SessionRole } from './sessionRole';
 
 
 /**
- * A bounded batch sharing one purpose and optional semantic focal type. Purpose role requires sessionRole explicitly; the mode-settings default does not apply. Role reads ignore focalTypeKey.
+ * A bounded batch sharing one purpose. Purpose role requires sessionRole explicitly; the mode-settings default does not apply.
  */
 export interface WorkItemTypeGuidanceBatchRequestDto { 
     /**
      * Distinct work-item type keys, returned in this order. Duplicate keys are invalid.
      */
     typeKeys: Array<string>;
-    purpose?: WorkItemTypeGuidancePurpose;
+    purpose: WorkItemTypeGuidancePurpose;
     sessionRole?: SessionRole;
-    focalTypeKey?: string;
 }
 export namespace WorkItemTypeGuidanceBatchRequestDto {
 }

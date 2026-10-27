@@ -9,10 +9,7 @@ import {
 } from "./workItemTypeFormPresentation";
 
 describe("workItemTypeFormPresentation", () => {
-  it("distinguishes semantic guidance from writing standards", () => {
-    expect(WORK_ITEM_TYPE_FIELD_PRESENTATION.agentGuidance.label).toBe(
-      "Semantic guidance",
-    );
+  it("distinguishes purpose from writing standards", () => {
     expect(WORK_ITEM_TYPE_FIELD_PRESENTATION.description.label).toBe("Purpose");
     expect(WORK_ITEM_TYPE_FIELD_PRESENTATION.writingStandards.label).toBe(
       "Writing standards",
@@ -26,19 +23,6 @@ describe("workItemTypeFormPresentation", () => {
     expect(
       WORK_ITEM_TYPE_FIELD_PRESENTATION["sections.writingStandard"].label,
     ).toBe("Section writing standard");
-    expect(
-      WORK_ITEM_TYPE_FIELD_PRESENTATION["agentGuidance.overview"].label,
-    ).toBe("Overview");
-    expect(
-      WORK_ITEM_TYPE_FIELD_PRESENTATION["agentGuidance.examples"].label,
-    ).toBe("Examples");
-    expect(
-      WORK_ITEM_TYPE_FIELD_PRESENTATION["agentGuidance.contexts"].label,
-    ).toBe("Contextual guidance");
-    expect(
-      WORK_ITEM_TYPE_FIELD_PRESENTATION["agentGuidance.contexts.focalTypeKeys"]
-        .help,
-    ).toContain("for which this context applies");
   });
   it("hydrates the empty any-type contract as selected All", () => {
     expect(hydrateEdgeTargetSelection([])).toEqual([ALL_EDGE_TARGET_TYPES]);

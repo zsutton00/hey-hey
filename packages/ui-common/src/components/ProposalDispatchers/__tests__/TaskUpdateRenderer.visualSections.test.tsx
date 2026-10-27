@@ -447,7 +447,7 @@ describe("TaskUpdateRenderer visual section review", () => {
           },
           {
             key: "applicability",
-            content: { focalTypeKeys: ["STANDARD"] },
+            content: { eligibleWorkItemTypeKeys: ["STANDARD"] },
           },
         ],
       },
@@ -498,7 +498,7 @@ describe("TaskUpdateRenderer visual section review", () => {
         "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
     });
     expect(screen.getByTestId("ordinary-section-diff")).toHaveTextContent(
-      "focalTypeKeys",
+      "eligibleWorkItemTypeKeys",
     );
     expect(screen.queryByText("schemaVersion")).not.toBeInTheDocument();
   });

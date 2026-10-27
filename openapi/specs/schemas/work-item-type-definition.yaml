@@ -145,8 +145,6 @@ WorkItemTypeDefinitionDto:
       type: string
       description: Human-readable display name shown in create flows and review surfaces.
       example: "Marketing"
-    agentGuidance:
-      $ref: "#/WorkItemTypeAgentGuidance"
     sessionRoleGuidance:
       $ref: "#/WorkItemTypeSessionRoleGuidance"
     maintenanceGuidance:
@@ -2185,99 +2183,10 @@ WorkItemTypeSummaryDto:
     effectiveSource:
       $ref: "#/WorkItemTypeEffectiveSource"
 
-WorkItemTypeGuidanceExample:
-  type: object
-  additionalProperties: false
-  required: [title, guidance]
-  properties:
-    title:
-      type: string
-      minLength: 1
-    guidance:
-      type: string
-      minLength: 1
-
-WorkItemTypeGuidanceContext:
-  type: object
-  additionalProperties: false
-  required: [focalTypeKeys, guidance]
-  properties:
-    focalTypeKeys:
-      type: array
-      minItems: 1
-      items:
-        type: string
-        minLength: 1
-    guidance:
-      type: string
-      minLength: 1
-    examples:
-      type: array
-      description: Examples in author-declared order.
-      items:
-        $ref: "#/WorkItemTypeGuidanceExample"
-
-WorkItemTypeAgentGuidance:
-  type: object
-  additionalProperties: false
-  required: [overview]
-  description: Semantic understanding, separate from catalog descriptions and authoring standards. Omission means no guide; content is never synthesized.
-  properties:
-    overview:
-      type: string
-      minLength: 1
-    examples:
-      type: array
-      description: General examples in author-declared order.
-      items:
-        $ref: "#/WorkItemTypeGuidanceExample"
-    contexts:
-      type: array
-      description: Sparse directional contexts in author-declared order.
-      items:
-        $ref: "#/WorkItemTypeGuidanceContext"
-
-WorkItemTypeContextualGuidanceDto:
-  type: object
-  additionalProperties: false
-  required: [guidance, examples]
-  properties:
-    guidance:
-      type: string
-      minLength: 1
-    examples:
-      type: array
-      items:
-        $ref: "#/WorkItemTypeGuidanceExample"
-
-WorkItemTypeGuidanceDto:
-  type: object
-  additionalProperties: false
-  required: [typeKey, name, overview, examples]
-  properties:
-    typeKey:
-      type: string
-      minLength: 1
-    name:
-      type: string
-    overview:
-      type: string
-      minLength: 1
-    examples:
-      type: array
-      description: Ordered general examples; empty when omitted from the definition.
-      items:
-        $ref: "#/WorkItemTypeGuidanceExample"
-    contextualGuidance:
-      type: array
-      description: Only matching contexts, in declared order. Omitted without a focal key or matching entries. Omitted examples become empty arrays.
-      items:
-        $ref: "#/WorkItemTypeContextualGuidanceDto"
-
 WorkItemTypeGuidancePurpose:
   type: string
-  enum: [semantic, maintenance, role]
-  description: Selects semantic, maintenance or explicitly selected session-role guidance.
+  enum: [maintenance, role]
+  description: Selects maintenance or explicitly selected session-role guidance.
 
 WorkItemTypeMaintenanceGuidanceDto:
   type: object
@@ -2324,16 +2233,16 @@ WorkItemTypeRoleGuidanceDto:
 WorkItemTypeGuidanceBatchRequestDto:
   type: object
   additionalProperties: false
-  required: [typeKeys]
+  required: [typeKeys, purpose]
   anyOf:
     - properties:
         purpose:
-          enum: [semantic, maintenance]
-    - required: [purpose, sessionRole]
+          enum: [maintenance]
+    - required: [sessionRole]
       properties:
         purpose:
           enum: [role]
-  description: A bounded batch sharing one purpose and optional semantic focal type. Purpose role requires sessionRole explicitly; the mode-settings default does not apply. Role reads ignore focalTypeKey.
+  description: A bounded batch sharing one purpose. Purpose role requires sessionRole explicitly; the mode-settings default does not apply.
   properties:
     typeKeys:
       type: array
@@ -2346,15 +2255,12 @@ WorkItemTypeGuidanceBatchRequestDto:
       $ref: "#/WorkItemTypeGuidancePurpose"
     sessionRole:
       $ref: "./work-items.yaml#/SessionRole"
-    focalTypeKey:
-      type: string
 
 WorkItemTypeGuidanceBatchResultDto:
   oneOf:
-    - $ref: "#/WorkItemTypeGuidanceDto"
     - $ref: "#/WorkItemTypeMaintenanceGuidanceDto"
     - $ref: "#/WorkItemTypeRoleGuidanceDto"
-  description: One requested type's semantic, maintenance or role projection; typeKey identifies the request represented by this result.
+  description: One requested type's maintenance or role projection; typeKey identifies the request represented by this result.
 
 WorkItemTypeGuidanceBatchDto:
   type: object

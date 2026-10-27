@@ -103,7 +103,7 @@ describe('buildProjectAssistantPrompt', () => {
     expect(prompt).toContain('`get_work_item_type_guidance_batch`');
     expect(prompt).toContain('typeKeys: [key]');
     expect(prompt).toContain('deduplicated array of 1–10 relevant encountered keys');
-    expect(prompt).toContain('same purpose and relevant focal context');
+    expect(prompt).toContain('same purpose');
     expect(prompt).toContain('request order');
     expect(prompt).toContain('do not load the type catalog');
     expect(prompt).toContain('once per encountered type');

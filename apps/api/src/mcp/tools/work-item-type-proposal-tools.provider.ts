@@ -1,7 +1,4 @@
-import {
-  workItemTypeAgentGuidanceSchema,
-  workItemTypeSessionRoleGuidanceSchema,
-} from '../../services/tasks/work-item-type-agent-guidance.schema';
+import { workItemTypeSessionRoleGuidanceSchema } from '../../services/tasks/work-item-type-agent-guidance.schema';
 import { diagramElementPolicySchema } from '../../services/tasks/diagram-metadata';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import {
@@ -432,14 +429,14 @@ export const createWorkItemTypeParameters = z
       .array(z.nativeEnum(WorkStatus))
       .optional()
       .describe(
-        'Subset of allowedStatuses that agents may set directly; other statuses ' +
-          'remain reserved for system transitions.',
+        'Statuses from allowedStatuses that agents may propose directly. ' +
+          'Defaults to all allowedStatuses when omitted; pass a narrower list ' +
+          '(or an empty one) only to restrict agents on purpose.',
       ),
     anchorableReportTypes: z
       .array(z.nativeEnum(ReportType))
       .optional()
       .describe('Report types that may be anchored to an item of this type.'),
-    agentGuidance: workItemTypeAgentGuidanceSchema.optional(),
     maintenanceGuidance: z.string().optional(),
     sessionRoleGuidance: workItemTypeSessionRoleGuidanceSchema.optional(),
     writingStandards: z

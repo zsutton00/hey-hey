@@ -12,10 +12,7 @@ import {
   findIneligibleProjectModeTypeKeys,
   PROJECT_MODE_SETTINGS_SCHEMA_REF,
 } from '../tasks/project-mode-settings.validator';
-import {
-  workItemTypeAgentGuidanceSchema,
-  workItemTypeSessionRoleGuidanceSchema,
-} from '../tasks/work-item-type-agent-guidance.schema';
+import { workItemTypeSessionRoleGuidanceSchema } from '../tasks/work-item-type-agent-guidance.schema';
 import {
   parseFutureRevisionMutation,
   lockFutureForMutation,
@@ -626,7 +623,6 @@ const createWorkItemTypeUpdatesSchema = z
     tracking: workItemTypeTrackingSchema.optional(),
     agentSettableStatuses: z.array(z.nativeEnum(WorkStatus)).optional(),
     anchorableReportTypes: z.array(z.nativeEnum(ReportType)).optional(),
-    agentGuidance: workItemTypeAgentGuidanceSchema.optional(),
     maintenanceGuidance: z.string().optional(),
     sessionRoleGuidance: workItemTypeSessionRoleGuidanceSchema.optional(),
     writingStandards: workItemTypeWritingStandardsSchema.nullable().optional(),
@@ -2532,38 +2528,6 @@ export class ProposalValidationEngine {
               ', ',
             )}.`,
           });
-        }
-      }
-
-      if (proposedKey === WORK_ITEM_TYPE_KEYS.Mode) {
-        const modeGuidance = def.agentGuidance;
-        const applicableTypeKeys = new Set(effectiveTypeKeys);
-        const definitionFieldPrefix =
-          dto.action === 'UPDATE'
-            ? `${prefix}.updates.definition.agentGuidance`
-            : `${prefix}.updates.agentGuidance`;
-
-        for (const [contextIndex, context] of (
-          modeGuidance?.contexts ?? []
-        ).entries()) {
-          for (const [
-            typeKeyIndex,
-            typeKey,
-          ] of context.focalTypeKeys.entries()) {
-            if (applicableTypeKeys.has(typeKey)) continue;
-            issues.push({
-              field:
-                `${definitionFieldPrefix}.contexts[${contextIndex}].` +
-                `focalTypeKeys[${typeKeyIndex}]`,
-              code: 'unrecognized_type',
-              reason:
-                `'${typeKey}' is not a usable applicable work-item type for this project. ` +
-                `Valid effective types: ${validTypes.join(', ')}`,
-              layer: 'referential',
-              suggestion:
-                'Declare applicability with active, stable effective work-item type keys; do not use archived or unknown keys.',
-            });
-          }
         }
       }
 

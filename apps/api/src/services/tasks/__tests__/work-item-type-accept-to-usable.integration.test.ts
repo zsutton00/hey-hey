@@ -26,6 +26,8 @@ import { guidanceTokenForType } from '../../../mcp/tools/work-item-guidance-toke
 import type { ProposalService } from '../../proposal/proposal.service';
 import type { WorkItemTypeDefinitionDto } from '../../../generated/model/workItemTypeDefinitionDto';
 import { EntityType } from '../../../generated/model/entityType';
+import { SessionRole } from '../../../generated/model/sessionRole';
+import { WorkItemTypeGuidancePurpose } from '../../../generated/model/workItemTypeGuidancePurpose';
 import { WorkStatus } from '../../../generated/model/workStatus';
 import * as TestUtils from '../../../utils/testUtils';
 import { UserId } from '../../../types';
@@ -57,15 +59,6 @@ const experimentDefinition: WorkItemTypeDefinitionDto = {
   sessionRoleGuidance: {
     implementation: '  Follow the experiment decision rule.  ',
     review: 'Review evidence.',
-  },
-  agentGuidance: {
-    overview: 'Evaluate a hypothesis.',
-    contexts: [
-      {
-        focalTypeKeys: ['STANDARD'],
-        guidance: 'Use evidence from implementation.',
-      },
-    ],
   },
   key: NEW_TYPE_KEY,
   name: 'Experiment',
@@ -256,13 +249,6 @@ describe('Accepted work-item type is immediately usable (live registry snapshot)
         create: jest.fn(async ({ data }: { data: WorkItemType }) => {
           const persisted = {
             ...data,
-            agentGuidance:
-              data.agentGuidance ===
-                (Prisma.JsonNull as unknown as typeof data.agentGuidance) ||
-              data.agentGuidance ===
-                (Prisma.DbNull as unknown as typeof data.agentGuidance)
-                ? null
-                : data.agentGuidance,
             graphConfiguration:
               data.graphConfiguration ===
               (Prisma.JsonNull as unknown as typeof data.graphConfiguration)
@@ -467,9 +453,13 @@ describe('Accepted work-item type is immediately usable (live registry snapshot)
         instance.getDefinition(PROJECT_ID, NEW_TYPE_KEY)?.definition.name,
       ).toBe('Experiment');
       expect(
-        instance.getGuidance(PROJECT_ID, NEW_TYPE_KEY, 'STANDARD')
-          .contextualGuidance?.[0]?.guidance,
-      ).toBe('Use evidence from implementation.');
+        instance.getGuidance(
+          PROJECT_ID,
+          NEW_TYPE_KEY,
+          WorkItemTypeGuidancePurpose.Role,
+          SessionRole.Review,
+        ).guidance,
+      ).toBe('Review evidence.');
     }
     expect(Date.now() - warmedAt).toBeLessThan(5000);
   }

@@ -1573,16 +1573,21 @@ paths:
     post:
       operationId: provisionDemoSandbox
       tags: [DemoSandboxes]
-      summary: Provision a demo sandbox, or return this browser's existing one
+      summary: Start provisioning a demo sandbox, or return this browser's existing one
       description: >-
         Public. A browser whose binding cookie maps to an unexpired ACTIVE
-        sandbox is signed back in to it with resumed=true, even when the demo is
-        switched off or the program is at capacity. Otherwise admission is
-        checked in order: switch, capacity, per-address limit, bot check. The response is
-        returned, and session and binding cookies are set, only after the cloned
-        project is connected in the graph. A failed or timed-out attempt is
-        discarded through irreversible final deletion and reported as
-        PROVISIONING_FAILED.
+        sandbox is signed back in to it (state ACTIVE, resumed=true), even when
+        the demo is switched off or the program is at capacity. A browser whose
+        binding maps to a sandbox still being set up gets that setup's progress
+        back (state PROVISIONING) and no second sandbox is reserved. Otherwise
+        admission is checked in order: switch, capacity, per-address limit, bot
+        check. On admission a PROVISIONING sandbox is reserved, the binding
+        cookie is set, and the response returns at once with 202 while setup
+        continues in the background. No session is issued here: the browser is
+        signed in by POST /demo-sandboxes/resume once every copied feature is
+        connected in the graph and the sandbox is activated. A failed or
+        timed-out setup is discarded through irreversible final deletion and
+        reported by resume as FAILED.
       security: []
       requestBody:
         required: true
@@ -1592,7 +1597,7 @@ paths:
               $ref: "#/components/schemas/ProvisionDemoSandboxDto"
       responses:
         "200":
-          description: The visitor's sandbox; the caller is signed in as its demo user.
+          description: This browser's existing sandbox (ACTIVE, caller signed in) or its setup progress (PROVISIONING).
           content:
             application/json:
               schema:
@@ -1602,7 +1607,19 @@ paths:
                     required: [data]
                     properties:
                       data:
-                        $ref: "#/components/schemas/DemoSandboxResponseDto"
+                        $ref: "#/components/schemas/DemoSandboxAdmissionDto"
+        "202":
+          description: A new sandbox was reserved and is being set up (state PROVISIONING); the binding cookie is set.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/DemoSandboxAdmissionDto"
         "400":
           description: Invalid request, or the bot check failed (code BOT_CHECK_FAILED).
           content:
@@ -1622,7 +1639,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/DemoSandboxUnavailableDto"
         "503":
-          description: The demo is switched off, the program is at capacity, or provisioning failed (codes DISABLED, AT_CAPACITY, PROVISIONING_FAILED).
+          description: The demo is switched off or the program is at capacity (codes DISABLED, AT_CAPACITY).
           content:
             application/json:
               schema:
@@ -1654,17 +1671,20 @@ paths:
     post:
       operationId: resumeDemoSandbox
       tags: [DemoSandboxes]
-      summary: Return a browser to its unexpired demo sandbox
+      summary: Return a browser to its demo sandbox or report its setup
       description: >-
-        Public, no body. If the binding cookie maps to an unexpired ACTIVE
-        sandbox, signs the browser in as its demo user and returns it with
-        resumed=true, creating nothing. Otherwise responds 404 with the state
-        EXPIRED or NONE, so a returning browser can skip the terms screen
-        without holding a bot-check proof.
+        Public, no body; read only through the binding cookie. If the binding
+        maps to an unexpired ACTIVE sandbox, signs the browser in as its demo
+        user and returns state ACTIVE with resumed=true, creating nothing. If
+        its sandbox is still being set up, returns state PROVISIONING with the
+        stage and the connected and total copied feature counts, without a
+        session. If its setup failed, returns state FAILED. Otherwise responds
+        404 with the state EXPIRED or NONE, so a returning browser can skip the
+        terms screen without holding a bot-check proof.
       security: []
       responses:
         "200":
-          description: The browser's sandbox; the caller is signed in as its demo user.
+          description: The browser's sandbox (ACTIVE, caller signed in), its setup progress (PROVISIONING), or a failed setup (FAILED).
           content:
             application/json:
               schema:
@@ -1674,7 +1694,7 @@ paths:
                     required: [data]
                     properties:
                       data:
-                        $ref: "#/components/schemas/DemoSandboxResponseDto"
+                        $ref: "#/components/schemas/DemoSandboxAdmissionDto"
         "404":
           description: This browser has no unexpired sandbox.
           content:
@@ -6477,20 +6497,12 @@ paths:
       tags: [WorkItemTypes]
       description: |
         Project-authorized purpose-scoped read from one effective project snapshot.
-        Omitted purpose defaults to semantic: return the existing compact semantic
-        guide with only matching focal contexts in declared order. Explicit maintenance
-        returns type identity and available type-owned maintenance advice only;
-        focalTypeKey does not select maintenance contexts. A complete project override
-        wins even when it omits advice. Never synthesize advice from other fields.
-        Purpose role requires an explicit sessionRole query parameter (no mode-settings
-        default); returns identity, selected role and optional advice, ignoring focalTypeKey.
+        Purpose is required. Maintenance returns type identity and available
+        type-owned maintenance advice only. Role requires an explicit sessionRole
+        query parameter (no mode-settings default) and returns identity, selected
+        role and optional advice. A complete project override wins even when it
+        omits advice. Never synthesize advice from other fields.
       parameters:
-        - name: focalTypeKey
-          in: query
-          required: false
-          schema:
-            type: string
-            minLength: 1
         - name: sessionRole
           in: query
           required: false
@@ -6499,7 +6511,7 @@ paths:
             $ref: "#/components/schemas/SessionRole"
         - name: purpose
           in: query
-          required: false
+          required: true
           schema:
             $ref: "#/components/schemas/WorkItemTypeGuidancePurpose"
       responses:
@@ -6514,7 +6526,6 @@ paths:
                     properties:
                       data:
                         oneOf:
-                          - $ref: "#/components/schemas/WorkItemTypeGuidanceDto"
                           - $ref: "#/components/schemas/WorkItemTypeMaintenanceGuidanceDto"
                           - $ref: "#/components/schemas/WorkItemTypeRoleGuidanceDto"
         "400":
@@ -6524,7 +6535,7 @@ paths:
         "403":
           description: Organization access denied.
         "404":
-          description: Project inaccessible, requested or focal type unknown or archived, or semantic guide unavailable.
+          description: Project inaccessible, or requested type unknown or archived.
   /organizations/{organizationId}/projects/{projectId}/work-item-types/guidance/batch:
     parameters:
       - name: organizationId
@@ -6547,11 +6558,10 @@ paths:
       tags: [WorkItemTypes]
       description: |
         Project-authorized batch read of 1–10 distinct type keys from one
-        effective project snapshot. Every result uses the same optional purpose
-        and focal type key as the single-type read and appears in request order.
-        Omitted purpose defaults to semantic. An unknown requested or focal key
-        fails clearly. Complete project overrides remain authoritative, including
-        when they omit guidance. The existing single-type operation is unchanged.
+        effective project snapshot. Every result uses the same required purpose
+        as the single-type read and appears in request order. An unknown requested
+        key fails clearly. Complete project overrides remain authoritative,
+        including when they omit guidance.
       requestBody:
         required: true
         content:
@@ -6577,7 +6587,7 @@ paths:
         "403":
           description: Organization access denied.
         "404":
-          description: Project inaccessible, a requested or focal type unknown or archived, or semantic guidance unavailable.
+          description: Project inaccessible, or a requested type unknown or archived.
   /organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}:
     parameters:
       - name: organizationId
@@ -24069,6 +24079,14 @@ components:
       $ref: "../schemas/demo-sandboxes.yaml#/DemoSandboxResponseDto"
     DemoSandboxUnavailableCode:
       $ref: "../schemas/demo-sandboxes.yaml#/DemoSandboxUnavailableCode"
+    DemoSandboxSetupStage:
+      $ref: "../schemas/demo-sandboxes.yaml#/DemoSandboxSetupStage"
+    DemoSandboxSetupProgressDto:
+      $ref: "../schemas/demo-sandboxes.yaml#/DemoSandboxSetupProgressDto"
+    DemoSandboxAdmissionState:
+      $ref: "../schemas/demo-sandboxes.yaml#/DemoSandboxAdmissionState"
+    DemoSandboxAdmissionDto:
+      $ref: "../schemas/demo-sandboxes.yaml#/DemoSandboxAdmissionDto"
     DemoSandboxUnavailableDto:
       $ref: "../schemas/demo-sandboxes.yaml#/DemoSandboxUnavailableDto"
     DemoSandboxResumeState:
@@ -28252,14 +28270,6 @@ components:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemIconKey"
     WorkItemColorKey:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemColorKey"
-    WorkItemTypeGuidanceExample:
-      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeGuidanceExample"
-    WorkItemTypeGuidanceContext:
-      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeGuidanceContext"
-    WorkItemTypeAgentGuidance:
-      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeAgentGuidance"
-    WorkItemTypeGuidanceDto:
-      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeGuidanceDto"
     WorkItemTypeGuidancePurpose:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeGuidancePurpose"
     WorkItemTypeSessionRoleGuidance:

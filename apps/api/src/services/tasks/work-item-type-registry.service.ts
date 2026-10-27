@@ -1,6 +1,5 @@
 import type { SessionRole } from '../../generated/model/sessionRole';
 import type { WorkItemTypeRoleGuidanceDto } from '../../generated/model/workItemTypeRoleGuidanceDto';
-import type { WorkItemTypeGuidanceDto } from '../../generated/model/workItemTypeGuidanceDto';
 import type { WorkItemTypeGuidanceBatchDto } from '../../generated/model/workItemTypeGuidanceBatchDto';
 import type { WorkItemTypeGuidanceBatchRequestDto } from '../../generated/model/workItemTypeGuidanceBatchRequestDto';
 import type { WorkItemTypeMaintenanceGuidanceDto } from '../../generated/model/workItemTypeMaintenanceGuidanceDto';
@@ -9,10 +8,7 @@ import {
   diagramElementPolicySchema,
   DIAGRAM_ELEMENT_METADATA_SCHEMA_REF,
 } from './diagram-metadata';
-import {
-  workItemTypeAgentGuidanceSchema,
-  workItemTypeSessionRoleGuidanceSchema,
-} from './work-item-type-agent-guidance.schema';
+import { workItemTypeSessionRoleGuidanceSchema } from './work-item-type-agent-guidance.schema';
 import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
@@ -225,6 +221,21 @@ export function deriveRules(
     anchorableReportTypes: (definition.anchorableReportTypes ??
       []) as unknown as readonly ReportType[],
   };
+}
+
+/**
+ * Agent-settable statuses persisted when a definition is written. An omitted
+ * list means no restriction: agents may set every allowed status. An explicit
+ * list, including an empty one, is the author's deliberate narrowing. Read
+ * paths keep `?? []` so stored rows read exactly as they were written.
+ */
+export function writtenAgentSettableStatuses(
+  definition: Pick<
+    WorkItemTypeDefinitionDto,
+    'agentSettableStatuses' | 'allowedStatuses'
+  >,
+): WorkItemTypeDefinitionDto['allowedStatuses'] {
+  return definition.agentSettableStatuses ?? definition.allowedStatuses;
 }
 
 export function assertValidMockupSizeProfiles(
@@ -854,16 +865,11 @@ export class WorkItemTypeRegistryService
         } as unknown as Prisma.InputJsonValue,
         tracking: (definition.tracking ??
           NEUTRAL_TRACKING) as unknown as Prisma.InputJsonValue,
-        agentSettableStatuses: (definition.agentSettableStatuses ??
-          []) as unknown as Prisma.InputJsonValue,
+        agentSettableStatuses: writtenAgentSettableStatuses(
+          definition,
+        ) as unknown as Prisma.InputJsonValue,
         anchorableReportTypes: (definition.anchorableReportTypes ??
           []) as unknown as Prisma.InputJsonValue,
-        agentGuidance:
-          definition.agentGuidance === undefined
-            ? Prisma.DbNull
-            : (workItemTypeAgentGuidanceSchema.parse(
-                definition.agentGuidance,
-              ) as Prisma.InputJsonValue),
         sessionRoleGuidance:
           definition.sessionRoleGuidance === undefined
             ? Prisma.DbNull
@@ -1149,16 +1155,11 @@ export class WorkItemTypeRegistryService
       } as unknown as Prisma.InputJsonValue,
       tracking: (definition.tracking ??
         NEUTRAL_TRACKING) as unknown as Prisma.InputJsonValue,
-      agentSettableStatuses: (definition.agentSettableStatuses ??
-        []) as unknown as Prisma.InputJsonValue,
+      agentSettableStatuses: writtenAgentSettableStatuses(
+        definition,
+      ) as unknown as Prisma.InputJsonValue,
       anchorableReportTypes: (definition.anchorableReportTypes ??
         []) as unknown as Prisma.InputJsonValue,
-      agentGuidance:
-        definition.agentGuidance === undefined
-          ? Prisma.DbNull
-          : (workItemTypeAgentGuidanceSchema.parse(
-              definition.agentGuidance,
-            ) as Prisma.InputJsonValue),
       sessionRoleGuidance:
         definition.sessionRoleGuidance === undefined
           ? Prisma.DbNull
@@ -1203,13 +1204,6 @@ export class WorkItemTypeRegistryService
         template.agentSettableStatuses as unknown as WorkStatus[],
       anchorableReportTypes:
         template.anchorableReportTypes as unknown as ReportType[],
-      ...(template.agentGuidance == null
-        ? {}
-        : {
-            agentGuidance: workItemTypeAgentGuidanceSchema.parse(
-              template.agentGuidance,
-            ),
-          }),
       ...(template.sessionRoleGuidance == null
         ? {}
         : {
@@ -1278,13 +1272,6 @@ export class WorkItemTypeRegistryService
         row.agentSettableStatuses as unknown as WorkStatus[],
       anchorableReportTypes:
         row.anchorableReportTypes as unknown as ReportType[],
-      ...(row.agentGuidance == null
-        ? {}
-        : {
-            agentGuidance: workItemTypeAgentGuidanceSchema.parse(
-              row.agentGuidance,
-            ),
-          }),
       ...(row.sessionRoleGuidance == null
         ? {}
         : {
@@ -1804,54 +1791,32 @@ export class WorkItemTypeRegistryService
     );
   }
 
-  /** Both keys resolve against this captured effective snapshot; never merge axes. */
+  /** Resolves against this captured effective snapshot; never merge axes. */
   getGuidance(
     projectId: string,
     typeKey: string,
-    focalTypeKey?: string,
-    purpose?: typeof WorkItemTypeGuidancePurpose.Semantic,
-  ): WorkItemTypeGuidanceDto;
-  getGuidance(
-    projectId: string,
-    typeKey: string,
-    focalTypeKey: string | undefined,
     purpose: typeof WorkItemTypeGuidancePurpose.Maintenance,
   ): WorkItemTypeMaintenanceGuidanceDto;
   getGuidance(
     projectId: string,
     typeKey: string,
-    focalTypeKey: string | undefined,
     purpose: typeof WorkItemTypeGuidancePurpose.Role,
     sessionRole: SessionRole,
   ): WorkItemTypeRoleGuidanceDto;
   getGuidance(
     projectId: string,
     typeKey: string,
-    focalTypeKey: string | undefined,
-    purpose: WorkItemTypeGuidancePurpose | undefined,
+    purpose: WorkItemTypeGuidancePurpose,
     sessionRole?: SessionRole,
-  ):
-    | WorkItemTypeGuidanceDto
-    | WorkItemTypeMaintenanceGuidanceDto
-    | WorkItemTypeRoleGuidanceDto;
+  ): WorkItemTypeMaintenanceGuidanceDto | WorkItemTypeRoleGuidanceDto;
   getGuidance(
     projectId: string,
     typeKey: string,
-    focalTypeKey?: string,
-    purpose: WorkItemTypeGuidancePurpose = WorkItemTypeGuidancePurpose.Semantic,
+    purpose: WorkItemTypeGuidancePurpose,
     sessionRole?: SessionRole,
-  ):
-    | WorkItemTypeGuidanceDto
-    | WorkItemTypeMaintenanceGuidanceDto
-    | WorkItemTypeRoleGuidanceDto {
+  ): WorkItemTypeMaintenanceGuidanceDto | WorkItemTypeRoleGuidanceDto {
     const summaries = this.snapshot.projectSummaries.get(projectId) ?? [];
-    return this.projectGuidance(
-      summaries,
-      typeKey,
-      focalTypeKey,
-      purpose,
-      sessionRole,
-    );
+    return this.projectGuidance(summaries, typeKey, purpose, sessionRole);
   }
 
   /** Resolve the complete bounded request against one captured snapshot. */
@@ -1866,7 +1831,6 @@ export class WorkItemTypeRegistryService
         this.projectGuidance(
           summaries,
           typeKey,
-          request.focalTypeKey,
           request.purpose,
           request.sessionRole,
         ),
@@ -1877,23 +1841,16 @@ export class WorkItemTypeRegistryService
   private projectGuidance(
     summaries: WorkItemTypeSummaryDto[],
     typeKey: string,
-    focalTypeKey?: string,
-    purpose: WorkItemTypeGuidancePurpose = WorkItemTypeGuidancePurpose.Semantic,
+    purpose: WorkItemTypeGuidancePurpose,
     sessionRole?: SessionRole,
-  ):
-    | WorkItemTypeGuidanceDto
-    | WorkItemTypeMaintenanceGuidanceDto
-    | WorkItemTypeRoleGuidanceDto {
-    const requireActive = (key: string) => {
-      const summary = summaries.find((entry) => entry.definition.key === key);
-      if (!summary || summary.status !== WorkItemTypeLifecycleStatus.Active) {
-        throw new NotFoundException(
-          `Work-item type '${key}' was not found or is unavailable in this project.`,
-        );
-      }
-      return summary.definition;
-    };
-    const definition = requireActive(typeKey);
+  ): WorkItemTypeMaintenanceGuidanceDto | WorkItemTypeRoleGuidanceDto {
+    const summary = summaries.find((entry) => entry.definition.key === typeKey);
+    if (!summary || summary.status !== WorkItemTypeLifecycleStatus.Active) {
+      throw new NotFoundException(
+        `Work-item type '${typeKey}' was not found or is unavailable in this project.`,
+      );
+    }
+    const definition = summary.definition;
     if (purpose === WorkItemTypeGuidancePurpose.Role) {
       if (sessionRole === undefined) {
         throw new BadRequestException(
@@ -1908,39 +1865,12 @@ export class WorkItemTypeRegistryService
         ...(guidance === undefined ? {} : { guidance }),
       };
     }
-    if (purpose === WorkItemTypeGuidancePurpose.Maintenance) {
-      return {
-        typeKey: definition.key,
-        name: definition.name,
-        ...(definition.maintenanceGuidance === undefined
-          ? {}
-          : { maintenanceGuidance: definition.maintenanceGuidance }),
-      };
-    }
-    if (focalTypeKey !== undefined) requireActive(focalTypeKey);
-    const guide = definition.agentGuidance;
-    if (!guide) {
-      throw new NotFoundException(
-        `Semantic guidance for work-item type '${typeKey}' is unavailable in this project.`,
-      );
-    }
-    const examples = (items: typeof guide.examples) =>
-      (items ?? []).map(({ title, guidance }) => ({ title, guidance }));
-    const contextualGuidance =
-      focalTypeKey === undefined
-        ? []
-        : (guide.contexts ?? [])
-            .filter((context) => context.focalTypeKeys.includes(focalTypeKey))
-            .map((context) => ({
-              guidance: context.guidance,
-              examples: examples(context.examples),
-            }));
     return {
       typeKey: definition.key,
       name: definition.name,
-      overview: guide.overview,
-      examples: examples(guide.examples),
-      ...(contextualGuidance.length ? { contextualGuidance } : {}),
+      ...(definition.maintenanceGuidance === undefined
+        ? {}
+        : { maintenanceGuidance: definition.maintenanceGuidance }),
     };
   }
 

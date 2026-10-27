@@ -227,8 +227,8 @@ describe('PlatformMcpProxySession', () => {
     });
   });
 
-  it('preserves the upstream semantic-guidance description and generated schemas', async () => {
-    const semanticGuidanceTool = {
+  it('preserves the upstream type-guidance description and generated schemas', async () => {
+    const typeGuidanceTool = {
       name: 'get_work_item_type_guidance_batch',
       description: 'Read purpose-specific guidance for 1–10 distinct work-item types.',
       inputSchema: {
@@ -241,10 +241,10 @@ describe('PlatformMcpProxySession', () => {
             maxItems: 10,
             uniqueItems: true,
           },
-          purpose: { enum: ['semantic', 'maintenance'] },
-          focalTypeKey: { type: 'string' },
+          purpose: { enum: ['maintenance', 'role'] },
+          sessionRole: { enum: ['implementation', 'research', 'planning', 'review'] },
         },
-        required: ['typeKeys'],
+        required: ['typeKeys', 'purpose'],
       },
       outputSchema: {
         type: 'object',
@@ -255,7 +255,7 @@ describe('PlatformMcpProxySession', () => {
     const forward = vi.fn<PlatformMcpForwarder['forward']>().mockResolvedValue({
       jsonrpc: '2.0',
       id: 2,
-      result: { tools: [semanticGuidanceTool] },
+      result: { tools: [typeGuidanceTool] },
     });
     const proxy = makeSession(forward);
     await proxy.handle({
@@ -267,7 +267,7 @@ describe('PlatformMcpProxySession', () => {
 
     const result = await proxy.handle({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
 
-    expect(result.body).toMatchObject({ result: { tools: [semanticGuidanceTool] } });
+    expect(result.body).toMatchObject({ result: { tools: [typeGuidanceTool] } });
   });
 
   it('omits malformed active tools from tools/list and logs their count', async () => {
@@ -439,7 +439,7 @@ describe('PlatformMcpProxySession', () => {
   });
 
   it.each([
-    { typeKeys: ['STANDARD'], purpose: 'semantic', focalTypeKey: 'FEATURE' },
+    { typeKeys: ['STANDARD'], purpose: 'role', sessionRole: 'implementation' },
     { typeKeys: ['STANDARD', 'BUG'], purpose: 'maintenance' },
   ])(
     'forwards batch guidance arguments unchanged and preserves ordered results: %j',
@@ -450,11 +450,7 @@ describe('PlatformMcpProxySession', () => {
         result: {
           content: [{ type: 'text', text: 'contextual guidance' }],
           structuredContent: {
-            results: arguments_.typeKeys.map((typeKey) =>
-              arguments_.purpose === 'maintenance'
-                ? { typeKey, name: typeKey }
-                : { typeKey, name: typeKey, overview: 'Implementation work', examples: [] },
-            ),
+            results: arguments_.typeKeys.map((typeKey) => ({ typeKey, name: typeKey })),
           },
         },
       };

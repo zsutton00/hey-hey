@@ -900,15 +900,6 @@ describe('AgentSessionService', () => {
         status: 'ACTIVE',
         definition: {
           sections: filesDefinition,
-          agentGuidance: {
-            overview: 'Project mode applicability',
-            contexts: [
-              {
-                focalTypeKeys: ['STANDARD'],
-                guidance: 'Use this mode for standard work items.',
-              },
-            ],
-          },
         },
       });
       prisma.db.project.findFirst.mockResolvedValue({ id: 'proj-1' });
@@ -986,76 +977,6 @@ describe('AgentSessionService', () => {
       });
       expect(prisma.db.agentSession.create).toHaveBeenCalledTimes(1);
     });
-
-    it.each(['BUG', 'PROJECT_DEFINED_WORK_ITEM'])(
-      'accepts a focal %s type declared by the project-owned MODE guidance',
-      async (focalType) => {
-        workItemTypeRegistry.getDefinition.mockReturnValue({
-          status: 'ACTIVE',
-          definition: {
-            sections: filesDefinition,
-            agentGuidance: {
-              overview: 'Project mode applicability',
-              contexts: [
-                {
-                  focalTypeKeys: ['STANDARD', 'BUG'],
-                  guidance: 'Use this mode for work items.',
-                },
-                {
-                  focalTypeKeys: ['PROJECT_DEFINED_WORK_ITEM'],
-                  guidance: 'Use this mode for the project-defined type.',
-                },
-              ],
-            },
-          },
-        });
-        prisma.db.task.findFirst.mockImplementation(
-          ({ where, select }: { where: { id: string }; select?: object }) => {
-            if (where.id === modeId) {
-              return Promise.resolve({
-                projectId: 'proj-1',
-                type: 'MODE',
-                status: 'ACTIVE',
-                archivedAt: null,
-                sections: [
-                  {
-                    key: 'description',
-                    materializedMarkdown:
-                      'Use a proof-first review discipline.',
-                  },
-                  {
-                    key: 'files',
-                    materializedMarkdown:
-                      '{"files":{"MODE.md":"Ground every claim"},"schemaVersion":"project-mode-files.v1"}',
-                  },
-                ],
-              });
-            }
-            if (select && 'projectId' in select) {
-              return Promise.resolve({ projectId: 'proj-1' });
-            }
-            return Promise.resolve({ type: focalType });
-          },
-        );
-
-        const result = await service.create(
-          'org-1' as any,
-          'proj-1' as any,
-          'user-1' as any,
-          createDto(),
-        );
-
-        expect(result.config).toMatchObject({
-          projectModeSnapshot: {
-            applicableWorkItemTypeKeys: [
-              'BUG',
-              'PROJECT_DEFINED_WORK_ITEM',
-              'STANDARD',
-            ],
-          },
-        });
-      },
-    );
 
     it('captures a project-mode selection on update and returns the authoritative snapshot', async () => {
       const selectionConfig: AgentSessionConfigV2 = {
@@ -1135,12 +1056,6 @@ describe('AgentSessionService', () => {
           status: 'ACTIVE',
           definition: {
             sections: settingsDefinition,
-            agentGuidance: {
-              overview: 'Project mode applicability',
-              contexts: [
-                { focalTypeKeys: ['STANDARD'], guidance: 'Standard work.' },
-              ],
-            },
           },
         });
         prisma.db.task.findFirst.mockImplementation(
@@ -1355,7 +1270,7 @@ describe('AgentSessionService', () => {
         expect(prisma.db.agentSession.create).not.toHaveBeenCalled();
       });
 
-      it('keeps legacy type-level eligibility for a mode without its own list', async () => {
+      it('defaults a mode without its own list to STANDARD only', async () => {
         withSettings(
           JSON.stringify({
             schemaVersion: 'project-mode-settings.v1',
@@ -1542,15 +1457,6 @@ describe('AgentSessionService', () => {
         status: 'ACTIVE',
         definition: {
           sections: filesDefinition,
-          agentGuidance: {
-            overview: 'Project mode applicability',
-            contexts: [
-              {
-                focalTypeKeys: ['BUG'],
-                guidance: 'Use this mode for bug work items.',
-              },
-            ],
-          },
         },
       };
       workItemTypeRegistry.getDefinition.mockImplementation(
@@ -1581,7 +1487,9 @@ describe('AgentSessionService', () => {
             });
           }
           return Promise.resolve(
-            'projectId' in select ? { projectId: 'proj-1' } : { type: 'BUG' },
+            'projectId' in select
+              ? { projectId: 'proj-1' }
+              : { type: 'STANDARD' },
           );
         },
       );

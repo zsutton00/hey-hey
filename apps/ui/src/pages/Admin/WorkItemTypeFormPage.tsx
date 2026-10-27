@@ -85,13 +85,7 @@ import {
   resolveWorkItemIcon,
   resolveWorkItemIconPresentation,
 } from "@hey-hey/ui-common/utils";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { PageBreadcrumbs } from "../../components/Layout";
 import { proposalReviewPath } from "../Proposals/proposalReviewPath";
@@ -104,15 +98,6 @@ import {
   serializeEdgeTargetSelection,
 } from "./workItemTypeFormPresentation";
 import type { EdgeTargetSelectionValue } from "./workItemTypeFormPresentation";
-
-import {
-  WorkItemTypeGuidanceFields,
-  type WorkItemTypeGuidanceHandle,
-} from "./WorkItemTypeGuidanceFields";
-import {
-  applyGuidanceDraft,
-  isGuidanceValid,
-} from "./workItemTypeGuidanceForm";
 
 interface SectionRow {
   key: string;
@@ -345,7 +330,6 @@ export const WorkItemTypeFormPage: React.FC = () => {
   } = summaryQuery;
 
   const [key, setKey] = useState("");
-  const guidanceEditorRef = useRef<WorkItemTypeGuidanceHandle>(null);
   const [name, setName] = useState("");
   const [role, setRole] = useState<WorkItemTypeRole>(WorkItemTypeRole.WorkItem);
   const [description, setDescription] = useState("");
@@ -1025,17 +1009,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
       return;
     }
 
-    if (!guidanceEditorRef.current) return;
-    const guidance = guidanceEditorRef.current.getValue();
-    const definition = applyGuidanceDraft(draftDefinition, guidance);
-    if (!isGuidanceValid(guidance)) {
-      showFieldError(
-        "Complete the required semantic guidance fields.",
-        "Agent guidance",
-        '[data-testid="wit-guidance"] [aria-invalid="true"]',
-      );
-      return;
-    }
+    const definition = draftDefinition;
     const submissionImpact = analyzeWorkItemTypeEdit(
       isEditMode ? workItemTypeSummary : undefined,
       definition,
@@ -2507,16 +2481,6 @@ export const WorkItemTypeFormPage: React.FC = () => {
             </Paper>
 
             <Divider sx={{ my: 2 }} />
-            <WorkItemTypeGuidanceFields
-              key={typeKey ?? "create"}
-              ref={guidanceEditorRef}
-              definition={workItemTypeSummary?.definition}
-              disabled={isReadOnly || isPending}
-              options={workItemTypes.map(({ definition }) => ({
-                key: definition.key,
-                name: definition.name,
-              }))}
-            />
             <Paper
               variant="outlined"
               sx={{ p: 2, mb: 2.5 }}

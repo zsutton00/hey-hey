@@ -30,10 +30,7 @@ import {
   WorkItemConfigKind,
 } from '../../shared/api/index';
 import type {
-  WorkItemTypeAgentGuidance,
   WorkItemTypeSessionRoleGuidance,
-  WorkItemTypeGuidanceContext,
-  WorkItemTypeGuidanceExample,
   WorkItemTypeCapabilities,
   DiagramElementPolicy,
   DiagramElementRoleDefinition,
@@ -388,42 +385,6 @@ const capabilitiesSchema = z
  * {@link WorkItemTypeDefinitionDto} contract; closed enum arrays are validated
  * from their generated runtime values rather than duplicated locally.
  */
-const guidanceExampleShape = {
-  title: z.string().min(1),
-  guidance: z.string().min(1),
-} satisfies ZodShapeFor<WorkItemTypeGuidanceExample>;
-const guidanceExampleSchema = z.object(guidanceExampleShape).strict();
-const guidanceContextShape = {
-  focalTypeKeys: z.array(z.string().min(1)).min(1),
-  guidance: z.string().min(1),
-  examples: z.array(guidanceExampleSchema).optional(),
-} satisfies ZodShapeFor<WorkItemTypeGuidanceContext>;
-const guidanceContextSchema = z
-  .object(guidanceContextShape)
-  .strict()
-  .transform(
-    (value): WorkItemTypeGuidanceContext => ({
-      focalTypeKeys: value.focalTypeKeys,
-      guidance: value.guidance,
-      ...(value.examples !== undefined ? { examples: value.examples } : {}),
-    }),
-  );
-const agentGuidanceShape = {
-  overview: z.string().min(1),
-  examples: z.array(guidanceExampleSchema).optional(),
-  contexts: z.array(guidanceContextSchema).optional(),
-} satisfies ZodShapeFor<WorkItemTypeAgentGuidance>;
-const agentGuidanceSchema = z
-  .object(agentGuidanceShape)
-  .strict()
-  .transform(
-    (value): WorkItemTypeAgentGuidance => ({
-      overview: value.overview,
-      ...(value.examples !== undefined ? { examples: value.examples } : {}),
-      ...(value.contexts !== undefined ? { contexts: value.contexts } : {}),
-    }),
-  );
-
 // Representation only: session guidance selection/application belongs to CLI integration.
 const sessionRoleGuidanceShape = {
   implementation: z.string().optional(),
@@ -446,7 +407,6 @@ const sessionRoleGuidanceSchema = z
 const definitionShape = {
   key: z.string(),
   name: z.string(),
-  agentGuidance: agentGuidanceSchema.optional(),
   maintenanceGuidance: z.string().optional(),
   sessionRoleGuidance: sessionRoleGuidanceSchema.optional(),
   role: z.nativeEnum(WorkItemTypeRole),
@@ -477,7 +437,6 @@ const definitionSchema = z
       ...(value.sessionRoleGuidance !== undefined
         ? { sessionRoleGuidance: value.sessionRoleGuidance }
         : {}),
-      ...(value.agentGuidance !== undefined ? { agentGuidance: value.agentGuidance } : {}),
       ...(value.maintenanceGuidance !== undefined
         ? { maintenanceGuidance: value.maintenanceGuidance }
         : {}),

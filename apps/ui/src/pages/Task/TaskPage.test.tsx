@@ -1655,15 +1655,6 @@ describe("TaskPage dynamic children tabs", () => {
           schemaRef: "#/components/schemas/ProjectModeFiles",
         },
       ],
-      agentGuidance: {
-        overview: "A selectable project coding discipline.",
-        contexts: [
-          {
-            focalTypeKeys: ["STANDARD"],
-            guidance: "Use this mode for STANDARD work items.",
-          },
-        ],
-      } as unknown as WorkItemTypeDefinitionDto["agentGuidance"],
       capabilities: { planEligible: false },
     });
     mockWorkItemTypes = [asSummary(mockWorkItemTypeDefinition)];

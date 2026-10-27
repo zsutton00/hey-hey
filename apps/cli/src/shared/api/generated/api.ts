@@ -14607,6 +14607,12 @@ export interface CodingPlanEmissionInput {
      * @memberof CodingPlanEmissionInput
      */
     'requiredServiceIds': Array<string>;
+    /**
+     * Complete discrepancy list for this plan version. A replacement plan re-lists the discrepancies that still hold.
+     * @type {Array<CodingPlanDiscrepancy>}
+     * @memberof CodingPlanEmissionInput
+     */
+    'discrepancies'?: Array<CodingPlanDiscrepancy>;
 }
 /**
  *
@@ -14858,6 +14864,12 @@ export interface CodingPlanVersion {
      * @memberof CodingPlanVersion
      */
     'requiredServiceIds': Array<string>;
+    /**
+     * Complete discrepancy list for this plan version. A replacement plan re-lists the discrepancies that still hold.
+     * @type {Array<CodingPlanDiscrepancy>}
+     * @memberof CodingPlanVersion
+     */
+    'discrepancies'?: Array<CodingPlanDiscrepancy>;
 }
 
 export const CodingPlanVersionResponseTypeEnum = {
@@ -27834,6 +27846,48 @@ export interface DemoSandboxAdminOverviewDto {
     'activeCount': number;
 }
 /**
+ * sandbox is present only when state is ACTIVE; progress only when state is PROVISIONING. A FAILED state carries neither.
+ * @export
+ * @interface DemoSandboxAdmissionDto
+ */
+export interface DemoSandboxAdmissionDto {
+    /**
+     *
+     * @type {DemoSandboxAdmissionState}
+     * @memberof DemoSandboxAdmissionDto
+     */
+    'state': DemoSandboxAdmissionState;
+    /**
+     *
+     * @type {DemoSandboxResponseDto}
+     * @memberof DemoSandboxAdmissionDto
+     */
+    'sandbox'?: DemoSandboxResponseDto;
+    /**
+     *
+     * @type {DemoSandboxSetupProgressDto}
+     * @memberof DemoSandboxAdmissionDto
+     */
+    'progress'?: DemoSandboxSetupProgressDto;
+}
+
+
+/**
+ * ACTIVE when the sandbox is ready and the caller is signed in to it; PROVISIONING while setup is still running; FAILED when setup failed or passed its deadline and the attempt was discarded.
+ * @export
+ * @enum {string}
+ */
+
+export const DemoSandboxAdmissionState = {
+    Active: 'ACTIVE',
+    Provisioning: 'PROVISIONING',
+    Failed: 'FAILED'
+} as const;
+
+export type DemoSandboxAdmissionState = typeof DemoSandboxAdmissionState[keyof typeof DemoSandboxAdmissionState];
+
+
+/**
  *
  * @export
  * @interface DemoSandboxAvailabilityDto
@@ -27984,6 +28038,48 @@ export const DemoSandboxResumeState = {
 } as const;
 
 export type DemoSandboxResumeState = typeof DemoSandboxResumeState[keyof typeof DemoSandboxResumeState];
+
+
+/**
+ *
+ * @export
+ * @interface DemoSandboxSetupProgressDto
+ */
+export interface DemoSandboxSetupProgressDto {
+    /**
+     *
+     * @type {DemoSandboxSetupStage}
+     * @memberof DemoSandboxSetupProgressDto
+     */
+    'stage': DemoSandboxSetupStage;
+    /**
+     * Copied features already connected to the new project in the graph.
+     * @type {number}
+     * @memberof DemoSandboxSetupProgressDto
+     */
+    'connectedFeatureCount': number;
+    /**
+     * Copied features that must be connected; 0 until copying finishes.
+     * @type {number}
+     * @memberof DemoSandboxSetupProgressDto
+     */
+    'totalFeatureCount': number;
+}
+
+
+/**
+ * COPYING while the template is copied into the new project, CONNECTING while the copied features reach the graph, READY once every copied feature is connected.
+ * @export
+ * @enum {string}
+ */
+
+export const DemoSandboxSetupStage = {
+    Copying: 'COPYING',
+    Connecting: 'CONNECTING',
+    Ready: 'READY'
+} as const;
+
+export type DemoSandboxSetupStage = typeof DemoSandboxSetupStage[keyof typeof DemoSandboxSetupStage];
 
 
 /**
@@ -40090,6 +40186,49 @@ export interface GetCorrelatedActivity200Response {
 /**
  *
  * @export
+ * @interface GetCurrentDemoSandbox200Response
+ */
+export interface GetCurrentDemoSandbox200Response {
+    /**
+     * Indicates if the request was successful
+     * @type {boolean}
+     * @memberof GetCurrentDemoSandbox200Response
+     */
+    'success': boolean;
+    /**
+     * Human-readable message about the operation
+     * @type {string}
+     * @memberof GetCurrentDemoSandbox200Response
+     */
+    'message': string;
+    /**
+     *
+     * @type {DemoSandboxResponseDto}
+     * @memberof GetCurrentDemoSandbox200Response
+     */
+    'data': DemoSandboxResponseDto;
+    /**
+     * ISO timestamp of when the response was generated
+     * @type {string}
+     * @memberof GetCurrentDemoSandbox200Response
+     */
+    'timestamp': string;
+    /**
+     * HTTP status code
+     * @type {number}
+     * @memberof GetCurrentDemoSandbox200Response
+     */
+    'statusCode': number;
+    /**
+     * Request path
+     * @type {string}
+     * @memberof GetCurrentDemoSandbox200Response
+     */
+    'path'?: string;
+}
+/**
+ *
+ * @export
  * @interface GetDebugTopologyLifecycleSummary200Response
  */
 export interface GetDebugTopologyLifecycleSummary200Response {
@@ -43143,7 +43282,7 @@ export interface GetWorkItemTypeGuidance200Response {
  * @type GetWorkItemTypeGuidance200ResponseAllOfData
  * @export
  */
-export type GetWorkItemTypeGuidance200ResponseAllOfData = WorkItemTypeGuidanceDto | WorkItemTypeMaintenanceGuidanceDto | WorkItemTypeRoleGuidanceDto;
+export type GetWorkItemTypeGuidance200ResponseAllOfData = WorkItemTypeMaintenanceGuidanceDto | WorkItemTypeRoleGuidanceDto;
 
 /**
  *
@@ -72859,10 +72998,10 @@ export interface ProvisionDemoSandbox200Response {
     'message': string;
     /**
      *
-     * @type {DemoSandboxResponseDto}
+     * @type {DemoSandboxAdmissionDto}
      * @memberof ProvisionDemoSandbox200Response
      */
-    'data': DemoSandboxResponseDto;
+    'data': DemoSandboxAdmissionDto;
     /**
      * ISO timestamp of when the response was generated
      * @type {string}
@@ -113453,31 +113592,6 @@ export type WorkItemType = typeof WorkItemType[keyof typeof WorkItemType];
 
 
 /**
- * Semantic understanding, separate from catalog descriptions and authoring standards. Omission means no guide; content is never synthesized.
- * @export
- * @interface WorkItemTypeAgentGuidance
- */
-export interface WorkItemTypeAgentGuidance {
-    /**
-     *
-     * @type {string}
-     * @memberof WorkItemTypeAgentGuidance
-     */
-    'overview': string;
-    /**
-     * General examples in author-declared order.
-     * @type {Array<WorkItemTypeGuidanceExample>}
-     * @memberof WorkItemTypeAgentGuidance
-     */
-    'examples'?: Array<WorkItemTypeGuidanceExample>;
-    /**
-     * Sparse directional contexts in author-declared order.
-     * @type {Array<WorkItemTypeGuidanceContext>}
-     * @memberof WorkItemTypeAgentGuidance
-     */
-    'contexts'?: Array<WorkItemTypeGuidanceContext>;
-}
-/**
  * Request to start review for archiving an existing project-owned canonical-seeded or custom work-item type. Archive is a lifecycle status transition that prevents new items from being created for the type while keeping existing items renderable and queryable. It does not perform hard-delete, does not cascade to existing items, and does not return destructive-impact counts.
  * @export
  * @interface WorkItemTypeArchiveRequestDto
@@ -113659,25 +113773,6 @@ export interface WorkItemTypeCascadeImpactDto {
     'edgeCount': number;
 }
 /**
- *
- * @export
- * @interface WorkItemTypeContextualGuidanceDto
- */
-export interface WorkItemTypeContextualGuidanceDto {
-    /**
-     *
-     * @type {string}
-     * @memberof WorkItemTypeContextualGuidanceDto
-     */
-    'guidance': string;
-    /**
-     *
-     * @type {Array<WorkItemTypeGuidanceExample>}
-     * @memberof WorkItemTypeContextualGuidanceDto
-     */
-    'examples': Array<WorkItemTypeGuidanceExample>;
-}
-/**
  * A complete work-item-type definition — the serialized registry config for one type, composed by the agentic drafter or the admin form and submitted as a WORK_ITEM_TYPE proposal. Canonical-seeded and project-authored custom definitions use this same shape and declare the same axes.
  * @export
  * @interface WorkItemTypeDefinitionDto
@@ -113695,12 +113790,6 @@ export interface WorkItemTypeDefinitionDto {
      * @memberof WorkItemTypeDefinitionDto
      */
     'name': string;
-    /**
-     *
-     * @type {WorkItemTypeAgentGuidance}
-     * @memberof WorkItemTypeDefinitionDto
-     */
-    'agentGuidance'?: WorkItemTypeAgentGuidance;
     /**
      *
      * @type {WorkItemTypeSessionRoleGuidance}
@@ -114306,7 +114395,7 @@ export interface WorkItemTypeGuidanceBatchDto {
     'results': Array<WorkItemTypeGuidanceBatchResultDto>;
 }
 /**
- * A bounded batch sharing one purpose and optional semantic focal type. Purpose role requires sessionRole explicitly; the mode-settings default does not apply. Role reads ignore focalTypeKey.
+ * A bounded batch sharing one purpose. Purpose role requires sessionRole explicitly; the mode-settings default does not apply.
  * @export
  * @interface WorkItemTypeGuidanceBatchRequestDto
  */
@@ -114322,19 +114411,13 @@ export interface WorkItemTypeGuidanceBatchRequestDto {
      * @type {WorkItemTypeGuidancePurpose}
      * @memberof WorkItemTypeGuidanceBatchRequestDto
      */
-    'purpose'?: WorkItemTypeGuidancePurpose;
+    'purpose': WorkItemTypeGuidancePurpose;
     /**
      *
      * @type {SessionRole}
      * @memberof WorkItemTypeGuidanceBatchRequestDto
      */
     'sessionRole'?: SessionRole;
-    /**
-     *
-     * @type {string}
-     * @memberof WorkItemTypeGuidanceBatchRequestDto
-     */
-    'focalTypeKey'?: string;
 }
 
 
@@ -114353,7 +114436,6 @@ export interface WorkItemTypeGuidanceBatchRequestDtoAnyOf {
 }
 
 export const WorkItemTypeGuidanceBatchRequestDtoAnyOfPurposeEnum = {
-    Semantic: 'semantic',
     Maintenance: 'maintenance'
 } as const;
 
@@ -114370,7 +114452,7 @@ export interface WorkItemTypeGuidanceBatchRequestDtoAnyOf1 {
      * @type {string}
      * @memberof WorkItemTypeGuidanceBatchRequestDtoAnyOf1
      */
-    'purpose': WorkItemTypeGuidanceBatchRequestDtoAnyOf1PurposeEnum;
+    'purpose'?: WorkItemTypeGuidanceBatchRequestDtoAnyOf1PurposeEnum;
 }
 
 export const WorkItemTypeGuidanceBatchRequestDtoAnyOf1PurposeEnum = {
@@ -114381,100 +114463,18 @@ export type WorkItemTypeGuidanceBatchRequestDtoAnyOf1PurposeEnum = typeof WorkIt
 
 /**
  * @type WorkItemTypeGuidanceBatchResultDto
- * One requested type\'s semantic, maintenance or role projection; typeKey identifies the request represented by this result.
+ * One requested type\'s maintenance or role projection; typeKey identifies the request represented by this result.
  * @export
  */
-export type WorkItemTypeGuidanceBatchResultDto = WorkItemTypeGuidanceDto | WorkItemTypeMaintenanceGuidanceDto | WorkItemTypeRoleGuidanceDto;
+export type WorkItemTypeGuidanceBatchResultDto = WorkItemTypeMaintenanceGuidanceDto | WorkItemTypeRoleGuidanceDto;
 
 /**
- *
- * @export
- * @interface WorkItemTypeGuidanceContext
- */
-export interface WorkItemTypeGuidanceContext {
-    /**
-     *
-     * @type {Array<string>}
-     * @memberof WorkItemTypeGuidanceContext
-     */
-    'focalTypeKeys': Array<string>;
-    /**
-     *
-     * @type {string}
-     * @memberof WorkItemTypeGuidanceContext
-     */
-    'guidance': string;
-    /**
-     * Examples in author-declared order.
-     * @type {Array<WorkItemTypeGuidanceExample>}
-     * @memberof WorkItemTypeGuidanceContext
-     */
-    'examples'?: Array<WorkItemTypeGuidanceExample>;
-}
-/**
- *
- * @export
- * @interface WorkItemTypeGuidanceDto
- */
-export interface WorkItemTypeGuidanceDto {
-    /**
-     *
-     * @type {string}
-     * @memberof WorkItemTypeGuidanceDto
-     */
-    'typeKey': string;
-    /**
-     *
-     * @type {string}
-     * @memberof WorkItemTypeGuidanceDto
-     */
-    'name': string;
-    /**
-     *
-     * @type {string}
-     * @memberof WorkItemTypeGuidanceDto
-     */
-    'overview': string;
-    /**
-     * Ordered general examples; empty when omitted from the definition.
-     * @type {Array<WorkItemTypeGuidanceExample>}
-     * @memberof WorkItemTypeGuidanceDto
-     */
-    'examples': Array<WorkItemTypeGuidanceExample>;
-    /**
-     * Only matching contexts, in declared order. Omitted without a focal key or matching entries. Omitted examples become empty arrays.
-     * @type {Array<WorkItemTypeContextualGuidanceDto>}
-     * @memberof WorkItemTypeGuidanceDto
-     */
-    'contextualGuidance'?: Array<WorkItemTypeContextualGuidanceDto>;
-}
-/**
- *
- * @export
- * @interface WorkItemTypeGuidanceExample
- */
-export interface WorkItemTypeGuidanceExample {
-    /**
-     *
-     * @type {string}
-     * @memberof WorkItemTypeGuidanceExample
-     */
-    'title': string;
-    /**
-     *
-     * @type {string}
-     * @memberof WorkItemTypeGuidanceExample
-     */
-    'guidance': string;
-}
-/**
- * Selects semantic, maintenance or explicitly selected session-role guidance.
+ * Selects maintenance or explicitly selected session-role guidance.
  * @export
  * @enum {string}
  */
 
 export const WorkItemTypeGuidancePurpose = {
-    Semantic: 'semantic',
     Maintenance: 'maintenance',
     Role: 'role'
 } as const;
@@ -136878,8 +136878,8 @@ export const DemoSandboxesApiAxiosParamCreator = function (configuration?: Confi
             };
         },
         /**
-         * Public. A browser whose binding cookie maps to an unexpired ACTIVE sandbox is signed back in to it with resumed=true, even when the demo is switched off or the program is at capacity. Otherwise admission is checked in order: switch, capacity, per-address limit, bot check. The response is returned, and session and binding cookies are set, only after the cloned project is connected in the graph. A failed or timed-out attempt is discarded through irreversible final deletion and reported as PROVISIONING_FAILED.
-         * @summary Provision a demo sandbox, or return this browser\'s existing one
+         * Public. A browser whose binding cookie maps to an unexpired ACTIVE sandbox is signed back in to it (state ACTIVE, resumed=true), even when the demo is switched off or the program is at capacity. A browser whose binding maps to a sandbox still being set up gets that setup\'s progress back (state PROVISIONING) and no second sandbox is reserved. Otherwise admission is checked in order: switch, capacity, per-address limit, bot check. On admission a PROVISIONING sandbox is reserved, the binding cookie is set, and the response returns at once with 202 while setup continues in the background. No session is issued here: the browser is signed in by POST /demo-sandboxes/resume once every copied feature is connected in the graph and the sandbox is activated. A failed or timed-out setup is discarded through irreversible final deletion and reported by resume as FAILED.
+         * @summary Start provisioning a demo sandbox, or return this browser\'s existing one
          * @param {ProvisionDemoSandboxDto} provisionDemoSandboxDto
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
@@ -136914,8 +136914,8 @@ export const DemoSandboxesApiAxiosParamCreator = function (configuration?: Confi
             };
         },
         /**
-         * Public, no body. If the binding cookie maps to an unexpired ACTIVE sandbox, signs the browser in as its demo user and returns it with resumed=true, creating nothing. Otherwise responds 404 with the state EXPIRED or NONE, so a returning browser can skip the terms screen without holding a bot-check proof.
-         * @summary Return a browser to its unexpired demo sandbox
+         * Public, no body; read only through the binding cookie. If the binding maps to an unexpired ACTIVE sandbox, signs the browser in as its demo user and returns state ACTIVE with resumed=true, creating nothing. If its sandbox is still being set up, returns state PROVISIONING with the stage and the connected and total copied feature counts, without a session. If its setup failed, returns state FAILED. Otherwise responds 404 with the state EXPIRED or NONE, so a returning browser can skip the terms screen without holding a bot-check proof.
+         * @summary Return a browser to its demo sandbox or report its setup
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
@@ -136959,7 +136959,7 @@ export const DemoSandboxesApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async getCurrentDemoSandbox(options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ProvisionDemoSandbox200Response>> {
+        async getCurrentDemoSandbox(options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetCurrentDemoSandbox200Response>> {
             const localVarAxiosArgs = await localVarAxiosParamCreator.getCurrentDemoSandbox(options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['DemoSandboxesApi.getCurrentDemoSandbox']?.[localVarOperationServerIndex]?.url;
@@ -136978,8 +136978,8 @@ export const DemoSandboxesApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Public. A browser whose binding cookie maps to an unexpired ACTIVE sandbox is signed back in to it with resumed=true, even when the demo is switched off or the program is at capacity. Otherwise admission is checked in order: switch, capacity, per-address limit, bot check. The response is returned, and session and binding cookies are set, only after the cloned project is connected in the graph. A failed or timed-out attempt is discarded through irreversible final deletion and reported as PROVISIONING_FAILED.
-         * @summary Provision a demo sandbox, or return this browser\'s existing one
+         * Public. A browser whose binding cookie maps to an unexpired ACTIVE sandbox is signed back in to it (state ACTIVE, resumed=true), even when the demo is switched off or the program is at capacity. A browser whose binding maps to a sandbox still being set up gets that setup\'s progress back (state PROVISIONING) and no second sandbox is reserved. Otherwise admission is checked in order: switch, capacity, per-address limit, bot check. On admission a PROVISIONING sandbox is reserved, the binding cookie is set, and the response returns at once with 202 while setup continues in the background. No session is issued here: the browser is signed in by POST /demo-sandboxes/resume once every copied feature is connected in the graph and the sandbox is activated. A failed or timed-out setup is discarded through irreversible final deletion and reported by resume as FAILED.
+         * @summary Start provisioning a demo sandbox, or return this browser\'s existing one
          * @param {ProvisionDemoSandboxDto} provisionDemoSandboxDto
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
@@ -136991,8 +136991,8 @@ export const DemoSandboxesApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Public, no body. If the binding cookie maps to an unexpired ACTIVE sandbox, signs the browser in as its demo user and returns it with resumed=true, creating nothing. Otherwise responds 404 with the state EXPIRED or NONE, so a returning browser can skip the terms screen without holding a bot-check proof.
-         * @summary Return a browser to its unexpired demo sandbox
+         * Public, no body; read only through the binding cookie. If the binding maps to an unexpired ACTIVE sandbox, signs the browser in as its demo user and returns state ACTIVE with resumed=true, creating nothing. If its sandbox is still being set up, returns state PROVISIONING with the stage and the connected and total copied feature counts, without a session. If its setup failed, returns state FAILED. Otherwise responds 404 with the state EXPIRED or NONE, so a returning browser can skip the terms screen without holding a bot-check proof.
+         * @summary Return a browser to its demo sandbox or report its setup
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
@@ -137018,7 +137018,7 @@ export const DemoSandboxesApiFactory = function (configuration?: Configuration, 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        getCurrentDemoSandbox(options?: RawAxiosRequestConfig): AxiosPromise<ProvisionDemoSandbox200Response> {
+        getCurrentDemoSandbox(options?: RawAxiosRequestConfig): AxiosPromise<GetCurrentDemoSandbox200Response> {
             return localVarFp.getCurrentDemoSandbox(options).then((request) => request(axios, basePath));
         },
         /**
@@ -137031,8 +137031,8 @@ export const DemoSandboxesApiFactory = function (configuration?: Configuration, 
             return localVarFp.getDemoSandboxAvailability(options).then((request) => request(axios, basePath));
         },
         /**
-         * Public. A browser whose binding cookie maps to an unexpired ACTIVE sandbox is signed back in to it with resumed=true, even when the demo is switched off or the program is at capacity. Otherwise admission is checked in order: switch, capacity, per-address limit, bot check. The response is returned, and session and binding cookies are set, only after the cloned project is connected in the graph. A failed or timed-out attempt is discarded through irreversible final deletion and reported as PROVISIONING_FAILED.
-         * @summary Provision a demo sandbox, or return this browser\'s existing one
+         * Public. A browser whose binding cookie maps to an unexpired ACTIVE sandbox is signed back in to it (state ACTIVE, resumed=true), even when the demo is switched off or the program is at capacity. A browser whose binding maps to a sandbox still being set up gets that setup\'s progress back (state PROVISIONING) and no second sandbox is reserved. Otherwise admission is checked in order: switch, capacity, per-address limit, bot check. On admission a PROVISIONING sandbox is reserved, the binding cookie is set, and the response returns at once with 202 while setup continues in the background. No session is issued here: the browser is signed in by POST /demo-sandboxes/resume once every copied feature is connected in the graph and the sandbox is activated. A failed or timed-out setup is discarded through irreversible final deletion and reported by resume as FAILED.
+         * @summary Start provisioning a demo sandbox, or return this browser\'s existing one
          * @param {DemoSandboxesApiProvisionDemoSandboxRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
@@ -137041,8 +137041,8 @@ export const DemoSandboxesApiFactory = function (configuration?: Configuration, 
             return localVarFp.provisionDemoSandbox(requestParameters.provisionDemoSandboxDto, options).then((request) => request(axios, basePath));
         },
         /**
-         * Public, no body. If the binding cookie maps to an unexpired ACTIVE sandbox, signs the browser in as its demo user and returns it with resumed=true, creating nothing. Otherwise responds 404 with the state EXPIRED or NONE, so a returning browser can skip the terms screen without holding a bot-check proof.
-         * @summary Return a browser to its unexpired demo sandbox
+         * Public, no body; read only through the binding cookie. If the binding maps to an unexpired ACTIVE sandbox, signs the browser in as its demo user and returns state ACTIVE with resumed=true, creating nothing. If its sandbox is still being set up, returns state PROVISIONING with the stage and the connected and total copied feature counts, without a session. If its setup failed, returns state FAILED. Otherwise responds 404 with the state EXPIRED or NONE, so a returning browser can skip the terms screen without holding a bot-check proof.
+         * @summary Return a browser to its demo sandbox or report its setup
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
@@ -137065,7 +137065,7 @@ export interface DemoSandboxesApiInterface {
      * @throws {RequiredError}
      * @memberof DemoSandboxesApiInterface
      */
-    getCurrentDemoSandbox(options?: RawAxiosRequestConfig): AxiosPromise<ProvisionDemoSandbox200Response>;
+    getCurrentDemoSandbox(options?: RawAxiosRequestConfig): AxiosPromise<GetCurrentDemoSandbox200Response>;
 
     /**
      * Public. Read by the landing page to decide whether to show View demo.
@@ -137077,8 +137077,8 @@ export interface DemoSandboxesApiInterface {
     getDemoSandboxAvailability(options?: RawAxiosRequestConfig): AxiosPromise<GetDemoSandboxAvailability200Response>;
 
     /**
-     * Public. A browser whose binding cookie maps to an unexpired ACTIVE sandbox is signed back in to it with resumed=true, even when the demo is switched off or the program is at capacity. Otherwise admission is checked in order: switch, capacity, per-address limit, bot check. The response is returned, and session and binding cookies are set, only after the cloned project is connected in the graph. A failed or timed-out attempt is discarded through irreversible final deletion and reported as PROVISIONING_FAILED.
-     * @summary Provision a demo sandbox, or return this browser\'s existing one
+     * Public. A browser whose binding cookie maps to an unexpired ACTIVE sandbox is signed back in to it (state ACTIVE, resumed=true), even when the demo is switched off or the program is at capacity. A browser whose binding maps to a sandbox still being set up gets that setup\'s progress back (state PROVISIONING) and no second sandbox is reserved. Otherwise admission is checked in order: switch, capacity, per-address limit, bot check. On admission a PROVISIONING sandbox is reserved, the binding cookie is set, and the response returns at once with 202 while setup continues in the background. No session is issued here: the browser is signed in by POST /demo-sandboxes/resume once every copied feature is connected in the graph and the sandbox is activated. A failed or timed-out setup is discarded through irreversible final deletion and reported by resume as FAILED.
+     * @summary Start provisioning a demo sandbox, or return this browser\'s existing one
      * @param {DemoSandboxesApiProvisionDemoSandboxRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
@@ -137087,8 +137087,8 @@ export interface DemoSandboxesApiInterface {
     provisionDemoSandbox(requestParameters: DemoSandboxesApiProvisionDemoSandboxRequest, options?: RawAxiosRequestConfig): AxiosPromise<ProvisionDemoSandbox200Response>;
 
     /**
-     * Public, no body. If the binding cookie maps to an unexpired ACTIVE sandbox, signs the browser in as its demo user and returns it with resumed=true, creating nothing. Otherwise responds 404 with the state EXPIRED or NONE, so a returning browser can skip the terms screen without holding a bot-check proof.
-     * @summary Return a browser to its unexpired demo sandbox
+     * Public, no body; read only through the binding cookie. If the binding maps to an unexpired ACTIVE sandbox, signs the browser in as its demo user and returns state ACTIVE with resumed=true, creating nothing. If its sandbox is still being set up, returns state PROVISIONING with the stage and the connected and total copied feature counts, without a session. If its setup failed, returns state FAILED. Otherwise responds 404 with the state EXPIRED or NONE, so a returning browser can skip the terms screen without holding a bot-check proof.
+     * @summary Return a browser to its demo sandbox or report its setup
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof DemoSandboxesApiInterface
@@ -137141,8 +137141,8 @@ export class DemoSandboxesApi extends BaseAPI implements DemoSandboxesApiInterfa
     }
 
     /**
-     * Public. A browser whose binding cookie maps to an unexpired ACTIVE sandbox is signed back in to it with resumed=true, even when the demo is switched off or the program is at capacity. Otherwise admission is checked in order: switch, capacity, per-address limit, bot check. The response is returned, and session and binding cookies are set, only after the cloned project is connected in the graph. A failed or timed-out attempt is discarded through irreversible final deletion and reported as PROVISIONING_FAILED.
-     * @summary Provision a demo sandbox, or return this browser\'s existing one
+     * Public. A browser whose binding cookie maps to an unexpired ACTIVE sandbox is signed back in to it (state ACTIVE, resumed=true), even when the demo is switched off or the program is at capacity. A browser whose binding maps to a sandbox still being set up gets that setup\'s progress back (state PROVISIONING) and no second sandbox is reserved. Otherwise admission is checked in order: switch, capacity, per-address limit, bot check. On admission a PROVISIONING sandbox is reserved, the binding cookie is set, and the response returns at once with 202 while setup continues in the background. No session is issued here: the browser is signed in by POST /demo-sandboxes/resume once every copied feature is connected in the graph and the sandbox is activated. A failed or timed-out setup is discarded through irreversible final deletion and reported by resume as FAILED.
+     * @summary Start provisioning a demo sandbox, or return this browser\'s existing one
      * @param {DemoSandboxesApiProvisionDemoSandboxRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
@@ -137153,8 +137153,8 @@ export class DemoSandboxesApi extends BaseAPI implements DemoSandboxesApiInterfa
     }
 
     /**
-     * Public, no body. If the binding cookie maps to an unexpired ACTIVE sandbox, signs the browser in as its demo user and returns it with resumed=true, creating nothing. Otherwise responds 404 with the state EXPIRED or NONE, so a returning browser can skip the terms screen without holding a bot-check proof.
-     * @summary Return a browser to its unexpired demo sandbox
+     * Public, no body; read only through the binding cookie. If the binding maps to an unexpired ACTIVE sandbox, signs the browser in as its demo user and returns state ACTIVE with resumed=true, creating nothing. If its sandbox is still being set up, returns state PROVISIONING with the stage and the connected and total copied feature counts, without a session. If its setup failed, returns state FAILED. Otherwise responds 404 with the state EXPIRED or NONE, so a returning browser can skip the terms screen without holding a bot-check proof.
+     * @summary Return a browser to its demo sandbox or report its setup
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof DemoSandboxesApi
@@ -176084,24 +176084,25 @@ export type UpdateWorkItemContentEntityTypeEnum = typeof UpdateWorkItemContentEn
 export const WorkItemTypesApiAxiosParamCreator = function (configuration?: Configuration) {
     return {
         /**
-         * Project-authorized purpose-scoped read from one effective project snapshot. Omitted purpose defaults to semantic: return the existing compact semantic guide with only matching focal contexts in declared order. Explicit maintenance returns type identity and available type-owned maintenance advice only; focalTypeKey does not select maintenance contexts. A complete project override wins even when it omits advice. Never synthesize advice from other fields. Purpose role requires an explicit sessionRole query parameter (no mode-settings default); returns identity, selected role and optional advice, ignoring focalTypeKey.
+         * Project-authorized purpose-scoped read from one effective project snapshot. Purpose is required. Maintenance returns type identity and available type-owned maintenance advice only. Role requires an explicit sessionRole query parameter (no mode-settings default) and returns identity, selected role and optional advice. A complete project override wins even when it omits advice. Never synthesize advice from other fields.
          * @summary Read work-item type guidance by purpose
          * @param {string} organizationId The ID of the organization that owns the project.
          * @param {string} projectId The ID of the project the work-item type belongs to.
          * @param {string} typeKey The stable uppercase key of the work-item type (e.g. \&quot;MARKETING\&quot;).
-         * @param {string} [focalTypeKey]
+         * @param {WorkItemTypeGuidancePurpose} purpose
          * @param {SessionRole} [sessionRole] Required when purpose is role. No default is applied.
-         * @param {WorkItemTypeGuidancePurpose} [purpose]
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        getWorkItemTypeGuidance: async (organizationId: string, projectId: string, typeKey: string, focalTypeKey?: string, sessionRole?: SessionRole, purpose?: WorkItemTypeGuidancePurpose, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        getWorkItemTypeGuidance: async (organizationId: string, projectId: string, typeKey: string, purpose: WorkItemTypeGuidancePurpose, sessionRole?: SessionRole, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'organizationId' is not null or undefined
             assertParamExists('getWorkItemTypeGuidance', 'organizationId', organizationId)
             // verify required parameter 'projectId' is not null or undefined
             assertParamExists('getWorkItemTypeGuidance', 'projectId', projectId)
             // verify required parameter 'typeKey' is not null or undefined
             assertParamExists('getWorkItemTypeGuidance', 'typeKey', typeKey)
+            // verify required parameter 'purpose' is not null or undefined
+            assertParamExists('getWorkItemTypeGuidance', 'purpose', purpose)
             const localVarPath = `/organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/guidance`
                 .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
                 .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)))
@@ -176120,10 +176121,6 @@ export const WorkItemTypesApiAxiosParamCreator = function (configuration?: Confi
             // authentication BearerAuth required
             // http bearer authentication required
             await setBearerAuthToObject(localVarHeaderParameter, configuration)
-
-            if (focalTypeKey !== undefined) {
-                localVarQueryParameter['focalTypeKey'] = focalTypeKey;
-            }
 
             if (sessionRole !== undefined) {
                 localVarQueryParameter['sessionRole'] = sessionRole;
@@ -176145,7 +176142,7 @@ export const WorkItemTypesApiAxiosParamCreator = function (configuration?: Confi
             };
         },
         /**
-         * Project-authorized batch read of 1–10 distinct type keys from one effective project snapshot. Every result uses the same optional purpose and focal type key as the single-type read and appears in request order. Omitted purpose defaults to semantic. An unknown requested or focal key fails clearly. Complete project overrides remain authoritative, including when they omit guidance. The existing single-type operation is unchanged.
+         * Project-authorized batch read of 1–10 distinct type keys from one effective project snapshot. Every result uses the same required purpose as the single-type read and appears in request order. An unknown requested key fails clearly. Complete project overrides remain authoritative, including when they omit guidance.
          * @summary Read work-item type guidance for a batch
          * @param {string} organizationId The ID of the organization that owns the project.
          * @param {string} projectId The ID of the project the work-item types belong to.
@@ -176659,25 +176656,24 @@ export const WorkItemTypesApiFp = function(configuration?: Configuration) {
     const localVarAxiosParamCreator = WorkItemTypesApiAxiosParamCreator(configuration)
     return {
         /**
-         * Project-authorized purpose-scoped read from one effective project snapshot. Omitted purpose defaults to semantic: return the existing compact semantic guide with only matching focal contexts in declared order. Explicit maintenance returns type identity and available type-owned maintenance advice only; focalTypeKey does not select maintenance contexts. A complete project override wins even when it omits advice. Never synthesize advice from other fields. Purpose role requires an explicit sessionRole query parameter (no mode-settings default); returns identity, selected role and optional advice, ignoring focalTypeKey.
+         * Project-authorized purpose-scoped read from one effective project snapshot. Purpose is required. Maintenance returns type identity and available type-owned maintenance advice only. Role requires an explicit sessionRole query parameter (no mode-settings default) and returns identity, selected role and optional advice. A complete project override wins even when it omits advice. Never synthesize advice from other fields.
          * @summary Read work-item type guidance by purpose
          * @param {string} organizationId The ID of the organization that owns the project.
          * @param {string} projectId The ID of the project the work-item type belongs to.
          * @param {string} typeKey The stable uppercase key of the work-item type (e.g. \&quot;MARKETING\&quot;).
-         * @param {string} [focalTypeKey]
+         * @param {WorkItemTypeGuidancePurpose} purpose
          * @param {SessionRole} [sessionRole] Required when purpose is role. No default is applied.
-         * @param {WorkItemTypeGuidancePurpose} [purpose]
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async getWorkItemTypeGuidance(organizationId: string, projectId: string, typeKey: string, focalTypeKey?: string, sessionRole?: SessionRole, purpose?: WorkItemTypeGuidancePurpose, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetWorkItemTypeGuidance200Response>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.getWorkItemTypeGuidance(organizationId, projectId, typeKey, focalTypeKey, sessionRole, purpose, options);
+        async getWorkItemTypeGuidance(organizationId: string, projectId: string, typeKey: string, purpose: WorkItemTypeGuidancePurpose, sessionRole?: SessionRole, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetWorkItemTypeGuidance200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getWorkItemTypeGuidance(organizationId, projectId, typeKey, purpose, sessionRole, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['WorkItemTypesApi.getWorkItemTypeGuidance']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Project-authorized batch read of 1–10 distinct type keys from one effective project snapshot. Every result uses the same optional purpose and focal type key as the single-type read and appears in request order. Omitted purpose defaults to semantic. An unknown requested or focal key fails clearly. Complete project overrides remain authoritative, including when they omit guidance. The existing single-type operation is unchanged.
+         * Project-authorized batch read of 1–10 distinct type keys from one effective project snapshot. Every result uses the same required purpose as the single-type read and appears in request order. An unknown requested key fails clearly. Complete project overrides remain authoritative, including when they omit guidance.
          * @summary Read work-item type guidance for a batch
          * @param {string} organizationId The ID of the organization that owns the project.
          * @param {string} projectId The ID of the project the work-item types belong to.
@@ -176844,17 +176840,17 @@ export const WorkItemTypesApiFactory = function (configuration?: Configuration, 
     const localVarFp = WorkItemTypesApiFp(configuration)
     return {
         /**
-         * Project-authorized purpose-scoped read from one effective project snapshot. Omitted purpose defaults to semantic: return the existing compact semantic guide with only matching focal contexts in declared order. Explicit maintenance returns type identity and available type-owned maintenance advice only; focalTypeKey does not select maintenance contexts. A complete project override wins even when it omits advice. Never synthesize advice from other fields. Purpose role requires an explicit sessionRole query parameter (no mode-settings default); returns identity, selected role and optional advice, ignoring focalTypeKey.
+         * Project-authorized purpose-scoped read from one effective project snapshot. Purpose is required. Maintenance returns type identity and available type-owned maintenance advice only. Role requires an explicit sessionRole query parameter (no mode-settings default) and returns identity, selected role and optional advice. A complete project override wins even when it omits advice. Never synthesize advice from other fields.
          * @summary Read work-item type guidance by purpose
          * @param {WorkItemTypesApiGetWorkItemTypeGuidanceRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
         getWorkItemTypeGuidance(requestParameters: WorkItemTypesApiGetWorkItemTypeGuidanceRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetWorkItemTypeGuidance200Response> {
-            return localVarFp.getWorkItemTypeGuidance(requestParameters.organizationId, requestParameters.projectId, requestParameters.typeKey, requestParameters.focalTypeKey, requestParameters.sessionRole, requestParameters.purpose, options).then((request) => request(axios, basePath));
+            return localVarFp.getWorkItemTypeGuidance(requestParameters.organizationId, requestParameters.projectId, requestParameters.typeKey, requestParameters.purpose, requestParameters.sessionRole, options).then((request) => request(axios, basePath));
         },
         /**
-         * Project-authorized batch read of 1–10 distinct type keys from one effective project snapshot. Every result uses the same optional purpose and focal type key as the single-type read and appears in request order. Omitted purpose defaults to semantic. An unknown requested or focal key fails clearly. Complete project overrides remain authoritative, including when they omit guidance. The existing single-type operation is unchanged.
+         * Project-authorized batch read of 1–10 distinct type keys from one effective project snapshot. Every result uses the same required purpose as the single-type read and appears in request order. An unknown requested key fails clearly. Complete project overrides remain authoritative, including when they omit guidance.
          * @summary Read work-item type guidance for a batch
          * @param {WorkItemTypesApiGetWorkItemTypeGuidanceBatchRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
@@ -176963,7 +176959,7 @@ export const WorkItemTypesApiFactory = function (configuration?: Configuration, 
  */
 export interface WorkItemTypesApiInterface {
     /**
-     * Project-authorized purpose-scoped read from one effective project snapshot. Omitted purpose defaults to semantic: return the existing compact semantic guide with only matching focal contexts in declared order. Explicit maintenance returns type identity and available type-owned maintenance advice only; focalTypeKey does not select maintenance contexts. A complete project override wins even when it omits advice. Never synthesize advice from other fields. Purpose role requires an explicit sessionRole query parameter (no mode-settings default); returns identity, selected role and optional advice, ignoring focalTypeKey.
+     * Project-authorized purpose-scoped read from one effective project snapshot. Purpose is required. Maintenance returns type identity and available type-owned maintenance advice only. Role requires an explicit sessionRole query parameter (no mode-settings default) and returns identity, selected role and optional advice. A complete project override wins even when it omits advice. Never synthesize advice from other fields.
      * @summary Read work-item type guidance by purpose
      * @param {WorkItemTypesApiGetWorkItemTypeGuidanceRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -176973,7 +176969,7 @@ export interface WorkItemTypesApiInterface {
     getWorkItemTypeGuidance(requestParameters: WorkItemTypesApiGetWorkItemTypeGuidanceRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetWorkItemTypeGuidance200Response>;
 
     /**
-     * Project-authorized batch read of 1–10 distinct type keys from one effective project snapshot. Every result uses the same optional purpose and focal type key as the single-type read and appears in request order. Omitted purpose defaults to semantic. An unknown requested or focal key fails clearly. Complete project overrides remain authoritative, including when they omit guidance. The existing single-type operation is unchanged.
+     * Project-authorized batch read of 1–10 distinct type keys from one effective project snapshot. Every result uses the same required purpose as the single-type read and appears in request order. An unknown requested key fails clearly. Complete project overrides remain authoritative, including when they omit guidance.
      * @summary Read work-item type guidance for a batch
      * @param {WorkItemTypesApiGetWorkItemTypeGuidanceBatchRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -177103,10 +177099,10 @@ export interface WorkItemTypesApiGetWorkItemTypeGuidanceRequest {
 
     /**
      *
-     * @type {string}
+     * @type {WorkItemTypeGuidancePurpose}
      * @memberof WorkItemTypesApiGetWorkItemTypeGuidance
      */
-    readonly focalTypeKey?: string
+    readonly purpose: WorkItemTypeGuidancePurpose
 
     /**
      * Required when purpose is role. No default is applied.
@@ -177114,13 +177110,6 @@ export interface WorkItemTypesApiGetWorkItemTypeGuidanceRequest {
      * @memberof WorkItemTypesApiGetWorkItemTypeGuidance
      */
     readonly sessionRole?: SessionRole
-
-    /**
-     *
-     * @type {WorkItemTypeGuidancePurpose}
-     * @memberof WorkItemTypesApiGetWorkItemTypeGuidance
-     */
-    readonly purpose?: WorkItemTypeGuidancePurpose
 }
 
 /**
@@ -177460,7 +177449,7 @@ export interface WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWor
  */
 export class WorkItemTypesApi extends BaseAPI implements WorkItemTypesApiInterface {
     /**
-     * Project-authorized purpose-scoped read from one effective project snapshot. Omitted purpose defaults to semantic: return the existing compact semantic guide with only matching focal contexts in declared order. Explicit maintenance returns type identity and available type-owned maintenance advice only; focalTypeKey does not select maintenance contexts. A complete project override wins even when it omits advice. Never synthesize advice from other fields. Purpose role requires an explicit sessionRole query parameter (no mode-settings default); returns identity, selected role and optional advice, ignoring focalTypeKey.
+     * Project-authorized purpose-scoped read from one effective project snapshot. Purpose is required. Maintenance returns type identity and available type-owned maintenance advice only. Role requires an explicit sessionRole query parameter (no mode-settings default) and returns identity, selected role and optional advice. A complete project override wins even when it omits advice. Never synthesize advice from other fields.
      * @summary Read work-item type guidance by purpose
      * @param {WorkItemTypesApiGetWorkItemTypeGuidanceRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -177468,11 +177457,11 @@ export class WorkItemTypesApi extends BaseAPI implements WorkItemTypesApiInterfa
      * @memberof WorkItemTypesApi
      */
     public getWorkItemTypeGuidance(requestParameters: WorkItemTypesApiGetWorkItemTypeGuidanceRequest, options?: RawAxiosRequestConfig) {
-        return WorkItemTypesApiFp(this.configuration).getWorkItemTypeGuidance(requestParameters.organizationId, requestParameters.projectId, requestParameters.typeKey, requestParameters.focalTypeKey, requestParameters.sessionRole, requestParameters.purpose, options).then((request) => request(this.axios, this.basePath));
+        return WorkItemTypesApiFp(this.configuration).getWorkItemTypeGuidance(requestParameters.organizationId, requestParameters.projectId, requestParameters.typeKey, requestParameters.purpose, requestParameters.sessionRole, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
-     * Project-authorized batch read of 1–10 distinct type keys from one effective project snapshot. Every result uses the same optional purpose and focal type key as the single-type read and appears in request order. Omitted purpose defaults to semantic. An unknown requested or focal key fails clearly. Complete project overrides remain authoritative, including when they omit guidance. The existing single-type operation is unchanged.
+     * Project-authorized batch read of 1–10 distinct type keys from one effective project snapshot. Every result uses the same required purpose as the single-type read and appears in request order. An unknown requested key fails clearly. Complete project overrides remain authoritative, including when they omit guidance.
      * @summary Read work-item type guidance for a batch
      * @param {WorkItemTypesApiGetWorkItemTypeGuidanceBatchRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.

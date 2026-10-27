@@ -13,7 +13,6 @@ import { WorkStatus } from '../../src/generated/model/workStatus';
 import type { WorkItemTypeRole } from '../../src/generated/model/workItemTypeRole';
 import type { WorkItemConfigKind } from '../../src/generated/model/workItemConfigKind';
 import type { WorkItemTypeSectionDefinition } from '../../src/generated/model/workItemTypeSectionDefinition';
-import type { WorkItemTypeAgentGuidance } from '../../src/generated/model/workItemTypeAgentGuidance';
 import { WorkItemTypeRegistryService } from '../../src/services/tasks/work-item-type-registry.service';
 
 const ALL_ENTITY_TYPES = Object.values(EntityType);
@@ -310,7 +309,11 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
   CONTRACT: {
     name: 'Contract',
     initialStatus: WorkStatus.Active,
-    baseStatuses: [WorkStatus.Active, WorkStatus.Superseded],
+    baseStatuses: [
+      WorkStatus.Active,
+      WorkStatus.Superseded,
+      WorkStatus.Archived,
+    ],
     sectionKeys: [TaskSectionKey.Description],
     requiredScalars: [],
     forbiddenScalars: ['tag', 'dueDate'],
@@ -326,7 +329,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
       },
     ],
     parentageAllowedEntityTypes: [EntityType.Task],
-    agentSettableStatuses: [],
     anchorableReportTypes: [],
     capabilities: {
       requiresParent: true,
@@ -715,7 +717,6 @@ export interface CustomTypeRowSpec {
   capabilities?: Record<string, unknown>;
   lifecycleStatus?: 'active' | 'archived';
   writingStandards?: { create: string; edit: string };
-  agentGuidance?: WorkItemTypeAgentGuidance;
   acceptedConfigKinds?: WorkItemConfigKind[];
   edgeTargets?: { edgeType: string; targetTypeKeys: string[] }[];
 }
@@ -769,7 +770,6 @@ function buildCustomRow(spec: CustomTypeRowSpec): WorkItemType {
     agentSettableStatuses: allowedStatuses,
     anchorableReportTypes: ALL_REPORT_TYPES,
     writingStandards: spec.writingStandards ?? { create: '', edit: '' },
-    agentGuidance: spec.agentGuidance ?? null,
     acceptedConfigKinds: spec.acceptedConfigKinds ?? [],
     capabilities,
     graphConfiguration: graph ?? null,

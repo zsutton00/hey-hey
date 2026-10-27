@@ -37,7 +37,7 @@ describe("complete type definition comparison", () => {
       { label: "Session-role guidance — review", before: "Check", after: "" },
     ]);
   });
-  it("shows maintenance advice separately from semantic and authoring guidance", () => {
+  it("shows maintenance advice separately from authoring guidance", () => {
     const addition = compareWorkItemTypeDefinitions(current, {
       ...current,
       maintenanceGuidance:
@@ -74,56 +74,6 @@ describe("complete type definition comparison", () => {
       },
       { label: "Writing standard — Edit", before: "", after: "Keep history." },
     ]);
-  });
-  it("compares complete guidance additions, removal, edits and nested order", () => {
-    const guidance = {
-      overview: "Meaning",
-      examples: [
-        { title: "First", guidance: "One" },
-        { title: "Second", guidance: "Two" },
-      ],
-      contexts: [
-        {
-          focalTypeKeys: ["A", "B"],
-          guidance: "Context",
-          examples: [{ title: "Nested", guidance: "Body" }],
-        },
-      ],
-    };
-    const source = { ...current, agentGuidance: guidance };
-    expect(
-      compareWorkItemTypeDefinitions(source, structuredClone(source)).fields,
-    ).toEqual([]);
-    expect(
-      compareWorkItemTypeDefinitions(source, {
-        ...source,
-        agentGuidance: {
-          ...guidance,
-          contexts: [{ ...guidance.contexts[0], focalTypeKeys: ["B", "A"] }],
-        },
-      }).fields,
-    ).toEqual([]);
-    const addition = compareWorkItemTypeDefinitions(current, source).fields[0];
-    expect(addition.label).toBe("Semantic guidance");
-    expect(addition.before).toBe("");
-    expect(JSON.parse(addition.after)).toEqual(guidance);
-    expect(compareWorkItemTypeDefinitions(source, current).fields[0]).toEqual({
-      label: "Semantic guidance",
-      before: addition.after,
-      after: "",
-    });
-    for (const agentGuidance of [
-      { ...guidance, overview: "New meaning" },
-      { ...guidance, examples: [...guidance.examples].reverse() },
-      { ...guidance, contexts: [{ ...guidance.contexts[0], examples: [] }] },
-    ]) {
-      const field = compareWorkItemTypeDefinitions(source, {
-        ...source,
-        agentGuidance,
-      }).fields[0];
-      expect(field.label).toBe("Semantic guidance");
-      expect(JSON.parse(field.after)).toEqual(agentGuidance);
-    }
   });
   it("pairs declaration edits by stable key, including schema and requiredness", () => {
     const result = compareWorkItemTypeDefinitions(current, {
@@ -172,7 +122,7 @@ describe("complete type definition comparison", () => {
     ]);
     expect(result.order).toBeNull();
   });
-  it("keeps cloned definitions and explicit semantic defaults unchanged", () => {
+  it("keeps cloned definitions and explicit defaults unchanged", () => {
     const proposed: WorkItemTypeDefinitionDto = {
       ...structuredClone(current),
       description: null,

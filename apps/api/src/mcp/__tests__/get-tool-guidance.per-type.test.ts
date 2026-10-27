@@ -1182,15 +1182,6 @@ describe('get_tool_guidance for project-scoped MODE', () => {
       create: `${MODE_CREATE_LEANNESS_STANDARD}\n\n${MODE_CREATE_STANDARDS}\n\n${MODE_CREATE_SUMMARY_STANDARD}`,
       edit: `${MODE_EDIT_LEANNESS_STANDARD}\n\n${MODE_EDIT_STANDARDS}\n\n${MODE_EDIT_SUMMARY_STANDARD}`,
     },
-    agentGuidance: {
-      overview: 'A selectable project-owned coding-agent behavior bundle.',
-      contexts: [
-        {
-          focalTypeKeys: ['STANDARD'],
-          guidance: 'Applies when coding STANDARD work items.',
-        },
-      ],
-    },
   };
 
   it.each(GENERIC_TOOLS)(

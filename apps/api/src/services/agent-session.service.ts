@@ -4152,10 +4152,7 @@ export class AgentSessionService {
       : undefined;
     const applicableWorkItemTypeKeys =
       eligibility?.applicableWorkItemTypeKeys ??
-      resolveProjectModeEligibleWorkItemTypeKeys({
-        modeTypeDefinition: effectiveModeDefinition.definition,
-        settings: modeSettings,
-      }).keys;
+      resolveProjectModeEligibleWorkItemTypeKeys(modeSettings).keys;
 
     if (!eligibility) {
       const focalWorkItem = await dbClient.task.findFirst({
@@ -4280,7 +4277,7 @@ export class AgentSessionService {
   ): ProjectModeSettings | null {
     if (typeof settingsContent !== 'string' || settingsContent === '') {
       this.logger.debug(
-        'Project MODE has no settings section; Project Assistant defaults on and legacy type eligibility applies',
+        'Project MODE has no settings section; Project Assistant defaults on and STANDARD-only eligibility applies',
       );
       return null;
     }

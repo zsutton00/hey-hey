@@ -102,7 +102,10 @@ import {
   type RequirementCitationEdgeDiff,
 } from 'src/services/tasks/feature-requirement-citation-edges';
 import { WorkItemTypeLifecycleService } from 'src/services/tasks/work-item-type-lifecycle.service';
-import { WorkItemTypeRegistryService } from 'src/services/tasks/work-item-type-registry.service';
+import {
+  WorkItemTypeRegistryService,
+  writtenAgentSettableStatuses,
+} from 'src/services/tasks/work-item-type-registry.service';
 import {
   collectWorkItemMentionContent,
   type WorkItemMentionSectionRow,
@@ -1138,10 +1141,6 @@ export class ProposalApprovalService {
       projectId,
       validationRevision: prepared.validationRevision,
     });
-    // This helper is also reached by apply-on-create and grouped approval
-    // flows, which do not necessarily pass through approve(). Keep the
-    // approval-time MODE registry check at the shared queue boundary.
-    this.assertCurrentModeApplicability(proposal, projectId);
     const updated = await tx.proposal.update({
       where: { id: proposal.id },
       data: { status: 'APPROVED' as PrismaProposalStatus },
@@ -1330,7 +1329,6 @@ export class ProposalApprovalService {
           genericChangeSetRequest,
           preparedChangeSet,
         );
-        this.assertCurrentModeApplicability(proposal, projectId);
         await this.assertGenericChangeSetValid(
           proposal,
           genericChangeSetRequest,
@@ -1824,12 +1822,6 @@ export class ProposalApprovalService {
     const groupedChangeSetRequest = storedIntent
       ? (storedIntent.operationSet as unknown as WorkItemChangeSetValidationRequest)
       : (graphChangeSetRequest ?? taskChangeSetRequest);
-
-    // Grouped enactment is an approval boundary too. Re-check MODE
-    // applicability here because grouped members do not pass through
-    // approve(), and their draft may have been authored against an older
-    // project registry snapshot.
-    this.assertCurrentModeApplicability(seed.proposal, params.projectId);
 
     if (groupedChangeSetRequest) {
       this.logger.log(
@@ -2556,7 +2548,9 @@ export class ProposalApprovalService {
           [
             'agentSettableStatuses',
             type.agentSettableStatuses,
-            updates.agentSettableStatuses ?? [],
+            writtenAgentSettableStatuses(
+              updates as unknown as WorkItemTypeDefinitionDto,
+            ),
           ],
           [
             'anchorableReportTypes',
@@ -2765,96 +2759,6 @@ export class ProposalApprovalService {
   }
 
   /**
-   * MODE applicability is backed by the effective project registry, so it must
-   * be checked again at approval time. Authoring-time validation can be stale
-   * after another accepted type is archived or a registry snapshot changes.
-   */
-  private assertCurrentModeApplicability(
-    proposal: Proposal,
-    projectId: ProjectId,
-  ): void {
-    const updates =
-      proposal.updates !== null &&
-      typeof proposal.updates === 'object' &&
-      !Array.isArray(proposal.updates)
-        ? (proposal.updates as Record<string, unknown>)
-        : null;
-    if (!updates) return;
-
-    let guidance: unknown;
-    let requiresActiveMode = false;
-    if (proposal.targetEntityType === 'WORK_ITEM_TYPE') {
-      const definition =
-        updates.definition !== null &&
-        typeof updates.definition === 'object' &&
-        !Array.isArray(updates.definition)
-          ? (updates.definition as Record<string, unknown>)
-          : updates;
-      if (definition.key !== WORK_ITEM_TYPE_KEYS.Mode) return;
-      guidance = definition.agentGuidance;
-    } else if (proposal.targetEntityType === 'TASK') {
-      const proposedType =
-        typeof updates.type === 'string'
-          ? updates.type
-          : Array.isArray(updates.operations)
-            ? updates.operations.find(
-                (operation): operation is Record<string, unknown> =>
-                  operation !== null &&
-                  typeof operation === 'object' &&
-                  operation.op === 'workItem.create',
-              )?.type
-            : undefined;
-      if (proposedType !== WORK_ITEM_TYPE_KEYS.Mode) return;
-      requiresActiveMode = true;
-      guidance = this.workItemTypeRegistry.getDefinition(
-        projectId,
-        WORK_ITEM_TYPE_KEYS.Mode,
-      )?.definition.agentGuidance;
-    } else {
-      return;
-    }
-
-    if (requiresActiveMode) {
-      this.workItemTypeRegistry.assertTypeActive(
-        WORK_ITEM_TYPE_KEYS.Mode,
-        projectId,
-      );
-    }
-
-    const contexts =
-      guidance !== null &&
-      typeof guidance === 'object' &&
-      !Array.isArray(guidance) &&
-      Array.isArray((guidance as Record<string, unknown>).contexts)
-        ? ((guidance as Record<string, unknown>).contexts as unknown[])
-        : [];
-    const activeTypeKeys = new Set(
-      this.workItemTypeRegistry.getActiveTypeKeys(projectId),
-    );
-    for (const [contextIndex, context] of contexts.entries()) {
-      if (
-        context === null ||
-        typeof context !== 'object' ||
-        Array.isArray(context) ||
-        !Array.isArray((context as Record<string, unknown>).focalTypeKeys)
-      ) {
-        continue;
-      }
-      for (const [typeKeyIndex, typeKey] of (
-        (context as Record<string, unknown>).focalTypeKeys as unknown[]
-      ).entries()) {
-        if (typeof typeKey === 'string' && activeTypeKeys.has(typeKey)) {
-          continue;
-        }
-        throw new BadRequestException(
-          `MODE applicability key at contexts[${contextIndex}].focalTypeKeys[${typeKeyIndex}] ` +
-            `must name an active effective work-item type for this project.`,
-        );
-      }
-    }
-  }
-
-  /**
    * A prepared requirements replacement is a review snapshot, not a patch to
    * whatever collection happens to exist at approval time. The section's
    * updatedAt is therefore the live baseline marker: if it moved after the
@@ -2992,11 +2896,6 @@ export class ProposalApprovalService {
     }
 
     await this.reconciliation.assertApplicable(tx, proposal);
-
-    // Apply-on-create and non-generic grouped enactment use this path instead
-    // of the ordinary approve() flow, so they need the same approval-time
-    // MODE applicability check before changing proposal state.
-    this.assertCurrentModeApplicability(proposal, projectId);
 
     let approved = enactmentOptions.reviewedFuture
       ? {

@@ -397,14 +397,12 @@ Good: "Turning Shared Browser off now stays off after you restart the CLI."`;
     const prompt = buildPlatformSystemPrompt(sampleDefs);
 
     expect(prompt.match(/\*\*Contextual type guidance is read on demand\.\*\*/gu)).toHaveLength(1);
-    expect(prompt).toContain('when a type is unfamiliar or project-defined');
-    expect(prompt).toContain("when a related item's type may affect the current work");
-    expect(prompt).toContain(
-      'when a consequential interaction between the requested type and the focal type could change your interpretation',
-    );
     expect(prompt).toContain('Use `typeKeys: [key]` for one type');
     expect(prompt).toContain(
-      'include `focalTypeKey` only for semantic reads where contextual interpretation matters',
+      'Use `purpose: "maintenance"` for what to reconsider when work around an item changes.',
+    );
+    expect(prompt).toContain(
+      'Use `purpose: "role"` with an explicit `sessionRole` only for a type whose role advice was not already delivered in this prompt.',
     );
     expect(prompt).toContain('Never speculate across or fan out over the catalog.');
     expect(prompt).toContain('administrative `get_work_item_type` read');

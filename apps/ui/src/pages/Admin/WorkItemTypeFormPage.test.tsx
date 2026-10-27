@@ -702,320 +702,6 @@ describe("WorkItemTypeFormPage", () => {
     );
   });
 
-  it("keeps guidance keystrokes out of page renders and impact analysis, then submits the latest draft", async () => {
-    const user = userEvent.setup();
-    renderForm();
-    fillField("wit-form-key", "CUSTOM");
-    fillField("wit-form-name", "Custom");
-    await openTab(user, "Agent guidance");
-    const pageRenders = mockUseWorkItemTypeByKey.mock.calls.length;
-    const analyses = mockAnalyzeWorkItemTypeEdit.mock.calls.length;
-    await user.click(
-      screen.getByRole("button", { name: "Add semantic guidance" }),
-    );
-    await user.type(
-      screen.getByRole("textbox", { name: /Overview/ }),
-      "Latest meaning",
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Add general example" }),
-    );
-    await user.type(
-      screen.getByRole("textbox", { name: /Example title/ }),
-      "Title",
-    );
-    await user.type(
-      screen.getByRole("textbox", { name: /Example guidance/ }),
-      "Body",
-    );
-    expect(mockUseWorkItemTypeByKey).toHaveBeenCalledTimes(pageRenders);
-    expect(mockAnalyzeWorkItemTypeEdit).toHaveBeenCalledTimes(analyses);
-
-    await openTab(user, "Overview");
-    fillField("wit-form-name", "Renamed");
-    await openTab(user, "Agent guidance");
-    expect(screen.getByRole("textbox", { name: /Overview/ })).toHaveValue(
-      "Latest meaning",
-    );
-    fireEvent.change(
-      screen.getByRole("textbox", { name: /Example guidance/ }),
-      { target: { value: "Last character!" } },
-    );
-    fireEvent.submit(screen.getByTestId("wit-form"));
-    expect(mockCreateMutate.mock.calls[0][0].definition).toMatchObject({
-      name: "Renamed",
-      agentGuidance: {
-        overview: "Latest meaning",
-        examples: [{ title: "Title", guidance: "Last character!" }],
-      },
-    });
-    expect(
-      mockAnalyzeWorkItemTypeEdit.mock.lastCall?.[1].agentGuidance,
-    ).toEqual(mockCreateMutate.mock.calls[0][0].definition.agentGuidance);
-  });
-
-  it("resets local guidance from a refreshed authoritative definition", async () => {
-    const user = userEvent.setup();
-    mockTypeKey = "CUSTOM";
-    const summary = activeCustomSummary({
-      key: "CUSTOM",
-      name: "Custom",
-      role: "work-item",
-      sections: [],
-      allowedStatuses: [],
-      agentGuidance: { overview: "Original" },
-    });
-    mockUseWorkItemTypeByKey.mockReturnValue({
-      workItemTypeSummary: summary,
-      isLoading: false,
-    });
-    mockUseWorkItemTypes.mockReturnValue({
-      workItemTypes: [summary],
-      isLoading: false,
-    });
-    const view = renderForm();
-    await openTab(user, "Agent guidance");
-    await user.type(
-      screen.getByRole("textbox", { name: /Overview/ }),
-      " local edit",
-    );
-    const refreshed = {
-      ...summary,
-      definition: {
-        ...summary.definition,
-        agentGuidance: { overview: "Authoritative refresh", examples: [] },
-      },
-    };
-    mockUseWorkItemTypeByKey.mockReturnValue({
-      workItemTypeSummary: refreshed,
-      isLoading: false,
-    });
-    view.rerender(
-      <MemoryRouter>
-        <WorkItemTypeFormPage />
-      </MemoryRouter>,
-    );
-    expect(screen.getByRole("textbox", { name: /Overview/ })).toHaveValue(
-      "Authoritative refresh",
-    );
-    fireEvent.submit(screen.getByTestId("wit-form"));
-    expect(mockEditMutate.mock.calls[0][0].definition.agentGuidance).toEqual(
-      refreshed.definition.agentGuidance,
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Remove semantic guidance" }),
-    );
-    fireEvent.submit(screen.getByTestId("wit-form"));
-    expect(mockEditMutate.mock.calls[1][0].definition).not.toHaveProperty(
-      "agentGuidance",
-    );
-  });
-
-  it("authors semantic guidance through the create proposal with named project focal options", async () => {
-    const user = userEvent.setup();
-    mockUseWorkItemTypes.mockReturnValue({
-      workItemTypes: [
-        activeCustomSummary({
-          key: "FEATURE",
-          name: "Product feature",
-          role: "project-info",
-          sections: [],
-          allowedStatuses: [],
-        }),
-      ],
-      isLoading: false,
-    });
-    renderForm();
-    fillField("wit-form-key", "CUSTOM");
-    fillField("wit-form-name", "Custom");
-    await openTab(user, "Agent guidance");
-    await user.click(
-      screen.getByRole("button", { name: "Add semantic guidance" }),
-    );
-    fireEvent.submit(screen.getByTestId("wit-form"));
-    expect(mockCreateMutate).not.toHaveBeenCalled();
-    expect(screen.getByText("Enter an overview.")).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Agent guidance" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    expect(document.activeElement).toBe(
-      screen.getByRole("textbox", { name: /Overview/ }),
-    );
-    await user.type(
-      screen.getByRole("textbox", { name: /Overview/ }),
-      " Meaning ",
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Add general example" }),
-    );
-    await user.type(
-      screen.getByRole("textbox", { name: /Example title/ }),
-      "Example",
-    );
-    await user.type(
-      screen.getByRole("textbox", { name: /Example guidance/ }),
-      "General body",
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Add contextual guidance" }),
-    );
-    await user.type(
-      screen.getByRole("textbox", { name: /Contextual guidance/ }),
-      "Context body",
-    );
-    fireEvent.submit(screen.getByTestId("wit-form"));
-    expect(mockCreateMutate).not.toHaveBeenCalled();
-    expect(document.activeElement).toBe(
-      screen.getByRole("combobox", { name: "Focal types" }),
-    );
-    await user.click(screen.getByRole("combobox", { name: "Focal types" }));
-    await user.click(screen.getByRole("option", { name: "Product feature" }));
-    expect(
-      screen.getByRole("option", { name: "Product feature" }),
-    ).toHaveAttribute("aria-disabled", "true");
-    await user.keyboard("{Escape}");
-    await user.click(
-      screen.getByRole("button", { name: "Add context example" }),
-    );
-    const context = within(
-      screen.getByRole("group", { name: "Contextual guidance 1" }),
-    );
-    await user.type(
-      context.getByRole("textbox", { name: /Example title/ }),
-      "Nested",
-    );
-    await user.type(
-      context.getByRole("textbox", { name: /Example guidance/ }),
-      "Nested body",
-    );
-    await user.click(screen.getByTestId("wit-form-submit"));
-    expect(mockCreateMutate.mock.calls[0][0].definition.agentGuidance).toEqual({
-      overview: " Meaning ",
-      examples: [{ title: "Example", guidance: "General body" }],
-      contexts: [
-        {
-          focalTypeKeys: ["FEATURE"],
-          guidance: "Context body",
-          examples: [{ title: "Nested", guidance: "Nested body" }],
-        },
-      ],
-    });
-    expect(mockUseWorkItemTypeRelationshipIndex).toHaveBeenCalledWith(
-      "org-1",
-      "proj-1",
-    );
-    expect(screen.getByTestId("wit-form-proposal-link")).toHaveAttribute(
-      "href",
-      "/projects/proj-1/proposals/prop-1",
-    );
-  }, 15000);
-
-  it("preserves example order without move controls, reorders contexts, and removes guidance", async () => {
-    const user = userEvent.setup();
-    mockTypeKey = "CUSTOM";
-    const summary = activeCustomSummary({
-      key: "CUSTOM",
-      name: "Custom",
-      role: "work-item",
-      sections: [],
-      allowedStatuses: [],
-      agentGuidance: {
-        overview: " Raw overview \n",
-        examples: [
-          { title: "First", guidance: "One" },
-          { title: "Second", guidance: "Two" },
-        ],
-        contexts: [
-          {
-            focalTypeKeys: ["MISSING", "CUSTOM"],
-            guidance: "First context",
-            examples: [
-              { title: "Nested first", guidance: "One" },
-              { title: "Nested second", guidance: "Two" },
-            ],
-          },
-          {
-            focalTypeKeys: ["CUSTOM"],
-            guidance: "Second context",
-            examples: [],
-          },
-        ],
-      },
-    });
-    mockUseWorkItemTypeByKey.mockReturnValue({
-      workItemTypeSummary: summary,
-      isLoading: false,
-    });
-    mockUseWorkItemTypes.mockReturnValue({
-      workItemTypes: [summary],
-      isLoading: false,
-    });
-    renderForm();
-    await openTab(user, "Agent guidance");
-    expect(screen.getByText("Unavailable type (MISSING)")).toBeInTheDocument();
-    await user.click(screen.getByTestId("wit-form-submit"));
-    expect(mockEditMutate.mock.calls[0][0].definition).toEqual(
-      summary.definition,
-    );
-    const firstContext = within(
-      screen.getByRole("group", { name: "Contextual guidance 1" }),
-    );
-    expect(
-      firstContext.queryByRole("button", { name: /Move focal type/ }),
-    ).not.toBeInTheDocument();
-    await user.click(
-      firstContext.getByRole("combobox", { name: "Focal types" }),
-    );
-    expect(screen.getByRole("option", { name: "Custom" })).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
-    expect(
-      screen.getByRole("option", { name: "Unavailable type (MISSING)" }),
-    ).toHaveAttribute("aria-disabled", "true");
-    await user.keyboard("{Escape}");
-    expect(
-      screen.queryByRole("button", { name: /Move example/ }),
-    ).not.toBeInTheDocument();
-    await user.click(
-      firstContext.getByRole("button", {
-        name: "Move contextual guidance down",
-      }),
-    );
-    await user.click(screen.getByTestId("wit-form-submit"));
-    const original = summary.definition.agentGuidance!;
-    expect(mockEditMutate.mock.calls[1][0].definition).toEqual({
-      ...summary.definition,
-      agentGuidance: {
-        ...original,
-        examples: original.examples,
-        contexts: [original.contexts![1], original.contexts![0]],
-      },
-    });
-    const secondContext = within(
-      screen.getByRole("group", { name: "Contextual guidance 2" }),
-    );
-    await user.click(
-      within(
-        secondContext.getByText("Unavailable type (MISSING)").parentElement!,
-      ).getByTestId("CancelIcon"),
-    );
-    await user.click(screen.getByTestId("wit-form-submit"));
-    expect(
-      mockEditMutate.mock.calls[2][0].definition.agentGuidance.contexts[1]
-        .focalTypeKeys,
-    ).toEqual(["CUSTOM"]);
-    await user.click(
-      screen.getByRole("button", { name: "Remove semantic guidance" }),
-    );
-    await user.click(screen.getByTestId("wit-form-submit"));
-    expect(mockEditMutate.mock.calls[3][0].definition).not.toHaveProperty(
-      "agentGuidance",
-    );
-    expect(summary.definition.agentGuidance).toEqual(original);
-  });
-
   it("renders an input for every type-definition axis", () => {
     renderForm();
 
@@ -1112,18 +798,13 @@ describe("WorkItemTypeFormPage", () => {
 
     await openTab(user, "Agent guidance");
     fillField("wit-form-writing-standard-create", "Lead with the audience.");
-    await user.click(
-      screen.getByRole("button", { name: "Add semantic guidance" }),
-    );
-    await user.type(
-      screen.getByRole("textbox", { name: /Overview/ }),
-      "Meaning",
-    );
     await openTab(user, "Relationships");
     await openTab(user, "Agent guidance");
-    expect(screen.getByRole("textbox", { name: /Overview/ })).toHaveValue(
-      "Meaning",
-    );
+    expect(
+      within(screen.getByTestId("wit-form-writing-standard-create")).getByRole(
+        "textbox",
+      ),
+    ).toHaveValue("Lead with the audience.");
     await openTab(user, "Capabilities");
     await user.click(screen.getByTestId("wit-form-submit"));
 
@@ -1136,11 +817,10 @@ describe("WorkItemTypeFormPage", () => {
       ],
       allowedStatuses: [],
       writingStandards: { create: "Lead with the audience.", edit: "" },
-      agentGuidance: { overview: "Meaning" },
     });
   });
 
-  it("presents friendly labels and semantic help from the shared catalog", () => {
+  it("presents friendly labels and help from the shared catalog", () => {
     renderForm();
 
     expect(screen.getByLabelText("Purpose")).toBeInTheDocument();
@@ -2366,7 +2046,7 @@ describe("WorkItemTypeFormPage", () => {
     ).toBe(false);
   });
 
-  it("submits authorable semantic edits without impact confirmation", () => {
+  it("submits authorable edits without impact confirmation", () => {
     mockTypeKey = "CUSTOM";
     const summary = activeCustomSummary({
       key: "CUSTOM",
@@ -3544,12 +3224,6 @@ describe("WorkItemTypeFormPage", () => {
         "wit-form-writing-standard-create",
         "My unsaved writing guidance",
       );
-      fireEvent.click(
-        screen.getByRole("button", { name: "Add semantic guidance" }),
-      );
-      fireEvent.change(screen.getByRole("textbox", { name: /Overview/ }), {
-        target: { value: "My unsaved semantic overview" },
-      });
       fireEvent.click(screen.getByTestId("wit-form-submit"));
       await waitFor(() =>
         expect(screen.getByTestId("wit-form-error")).toHaveTextContent(message),
@@ -3577,9 +3251,6 @@ describe("WorkItemTypeFormPage", () => {
         ).getByRole("textbox"),
       ).toHaveValue("My unsaved writing guidance");
       fireEvent.click(screen.getByTestId("wit-form-submit"));
-      expect(submitted.definition.agentGuidance).toMatchObject({
-        overview: "My unsaved semantic overview",
-      });
       expect(mockEditMutate.mock.calls[1][0]).toEqual(submitted);
       expect(mockNavigate).not.toHaveBeenCalled();
     },
