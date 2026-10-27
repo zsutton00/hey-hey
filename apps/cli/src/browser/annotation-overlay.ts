@@ -1,3 +1,5 @@
+import { ANNOTATION_COLORS } from '../../../../packages/ui-common/src/utils/annotationColors';
+
 export const ANNOTATION_BINDING = '__heyheyAnnotate';
 export const ANNOTATION_SYNC_EVENT = '__heyhey-annotations-sync';
 
@@ -11,7 +13,12 @@ export const ANNOTATION_SYNC_EVENT = '__heyhey-annotations-sync';
  */
 export const annotationOverlaySource = (nonce: string): string =>
   OVERLAY_SCRIPT.replace('__CONFIG__', () =>
-    JSON.stringify({ binding: ANNOTATION_BINDING, syncEvent: ANNOTATION_SYNC_EVENT, nonce }),
+    JSON.stringify({
+      binding: ANNOTATION_BINDING,
+      syncEvent: ANNOTATION_SYNC_EVENT,
+      nonce,
+      colors: ANNOTATION_COLORS,
+    }),
   );
 
 const OVERLAY_SCRIPT = String.raw`(function (config) {
@@ -39,15 +46,15 @@ const OVERLAY_SCRIPT = String.raw`(function (config) {
     '.box { position: fixed; pointer-events: none; border: 2px solid #2563eb; border-radius: 3px; background: rgba(37, 99, 235, 0.08); }' +
     '.hover { border-style: dashed; }' +
     '.badge { position: fixed; pointer-events: auto; cursor: pointer; min-width: 20px; height: 20px; padding: 0 5px; border: none; border-radius: 10px; background: #2563eb; color: #fff; font-weight: 600; text-align: center; transform: translate(-50%, -50%); }' +
-    '.toolbar { position: fixed; right: 16px; bottom: 16px; pointer-events: auto; display: flex; gap: 6px; align-items: center; padding: 6px; border-radius: 8px; background: rgb(8, 126, 139); color: #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }' +
+    '.toolbar { position: fixed; right: 16px; top: 16px; pointer-events: auto; display: flex; gap: 6px; align-items: center; padding: 6px; border-radius: 8px; background: ' + config.colors.main + '; color: ' + config.colors.contrastText + '; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }' +
     '.toolbar button { cursor: pointer; position: relative; padding: 4px 8px; border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 5px; background: rgba(255, 255, 255, 0.12); color: inherit; }' +
-    '.toolbar button[aria-pressed="true"] { background: #fff; border-color: #fff; color: rgb(8, 126, 139); }' +
+    '.toolbar button[aria-pressed="true"] { background: #fff; border-color: #fff; color: ' + config.colors.main + '; }' +
     '.toolbar button:disabled { opacity: 0.5; cursor: default; }' +
-    '.toolbar button[data-tip]:hover::after { content: attr(data-tip); position: absolute; right: 0; bottom: calc(100% + 8px); width: max-content; max-width: 260px; white-space: normal; padding: 6px 8px; border-radius: 4px; background: #111827; color: #f9fafb; pointer-events: none; }' +
-    '.count { position: absolute; top: -8px; right: -8px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #dc2626; color: #fff; font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; }' +
+    '.toolbar button[data-tip]:hover::after { content: attr(data-tip); position: absolute; right: 0; top: calc(100% + 8px); width: max-content; max-width: 260px; white-space: normal; padding: 6px 8px; border-radius: 4px; background: #111827; color: #f9fafb; pointer-events: none; }' +
+    '.count { position: absolute; top: -8px; right: -8px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #111827; color: #fff; font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; }' +
     '.count:empty { display: none; }' +
     '.popover button { cursor: pointer; padding: 4px 8px; border: 1px solid #4b5563; border-radius: 5px; background: #1f2937; color: inherit; }' +
-    '.list { position: fixed; right: 16px; bottom: 56px; pointer-events: auto; width: 300px; max-height: 50vh; overflow-y: auto; padding: 6px; border-radius: 8px; background: #111827; color: #f9fafb; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }' +
+    '.list { position: fixed; right: 16px; top: 64px; pointer-events: auto; width: 300px; max-height: 50vh; overflow-y: auto; padding: 6px; border-radius: 8px; background: #111827; color: #f9fafb; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }' +
     '.list button { display: flex; gap: 8px; width: 100%; padding: 6px; border: none; border-radius: 5px; background: none; color: inherit; text-align: left; cursor: pointer; }' +
     '.list button:hover { background: #1f2937; }' +
     '.list .number { flex: none; min-width: 20px; height: 20px; border-radius: 10px; background: #2563eb; font-weight: 600; line-height: 20px; text-align: center; }' +
