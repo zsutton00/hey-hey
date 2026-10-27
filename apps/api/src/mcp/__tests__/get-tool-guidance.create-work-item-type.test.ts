@@ -15,7 +15,7 @@ describe('create_work_item_type guidance', () => {
 
   it('renders the complete guidance contract', () => {
     expect(createHash('sha256').update(guidance).digest('hex')).toBe(
-      '4134c06eb5411ea4e3850ef604f8a4e669dca9a209b6e01d29c29cc2eae09ad7',
+      '001b2f03bf80a2adebd11f1a0591ec24fd5311843465e04fe0766759e51c422d',
     );
   });
 
