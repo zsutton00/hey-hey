@@ -11,7 +11,8 @@
     "./conversation-scroll.tsx",
     "../../src/types/vite-env.d.ts",
     "./modal-shell.tsx",
-    "./model-selector.tsx"
+    "./model-selector.tsx",
+    "./diagram-element-screen.tsx"
   ],
   "exclude": [],
   "references": [

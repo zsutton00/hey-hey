@@ -136,6 +136,7 @@
     "test:related": "vitest related --run --passWithNoTests",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
+    "test:browser:diagram-element-screen": "pnpm tsc --noEmit -p scripts/browser/tsconfig.json && node scripts/verify-diagram-element-screen-browser.mjs",
     "test:browser:project-report": "pnpm tsc --noEmit -p scripts/browser/tsconfig.json && node scripts/verify-project-report-browser.mjs",
     "clean:api": "rm -rf src/api src/local-agent-api/generated src/generated",
     "generate:contract": "node \"$(node scripts/openapi-root.cjs)/scripts/task-monitor-contract.js\" --typescript-output src/generated/task-monitor-contract.schema.ts",

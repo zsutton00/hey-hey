@@ -142,7 +142,9 @@ import type { EntityMention } from "../SmarterTextAreaCard/types";
 import { InteractionComponent } from "../InteractionComponent";
 import { getPathService } from "../../services/webPathService";
 import {
+  getEntityColors,
   getEntityIcon,
+  getFallbackEntityColors,
   resolveWorkItemIcon,
   resolveWorkItemIconPresentation,
 } from "../../utils/entityIcons";
@@ -167,6 +169,17 @@ import {
   type WorkItemGraphNodeContextMenu,
 } from "./workflowGraphInteractions";
 import { getAuthoredWorkflowStepColor } from "./workflowGraphNodePresentation";
+import {
+  DiagramElementScreenBody,
+  DiagramElementScreenUnavailable,
+} from "./DiagramElementScreen";
+import {
+  type DiagramElementScreenState,
+  getDiagramScreenPlacement,
+  type ProjectedReferenceTarget,
+  useDiagramElementScreen,
+  useDiagramScreenLayout,
+} from "./diagramScreenResolution";
 import type {
   PreferredLayoutDeparture,
   PreferredWorkItemGraphShape,
@@ -364,6 +377,8 @@ interface WorkflowStepNodeData extends Record<string, unknown> {
   referenceSelected?: boolean;
   onSelectReference?: () => void;
   canonicalReference?: DiagramElementMetadata["canonicalReference"];
+  /** The canonical target's content when the displayed graph contains it. */
+  projectedReferenceTarget?: ProjectedReferenceTarget;
   onExpandReference?: () => void;
   entityId: string;
   entityType: typeof TargetEntityType.Task;
@@ -3922,6 +3937,17 @@ export const buildWorkflowGraphModel = (
   const flowEdges = edges.filter(isFlowEdge);
   const stepById = new Map(steps.map((step) => [step.id, step]));
   const stepIds = new Set(stepById.keys());
+  // Canonical targets present in the displayed graph keep their displayed
+  // (projected) content; only targets outside it are read from the server.
+  const projectedReferenceTargetById = new Map<
+    string,
+    ProjectedReferenceTarget
+  >(
+    [workflow, ...steps].map((item) => [
+      item.id,
+      { type: item.type, name: item.name, sections: item.sections },
+    ]),
+  );
   const directEntityLinksByStepId = isDiagram
     ? getDirectEntityLinksByNodeId(
         steps,
@@ -4098,6 +4124,11 @@ export const buildWorkflowGraphModel = (
                 )
               : undefined,
           canonicalReference: diagramElementMetadata?.canonicalReference,
+          projectedReferenceTarget: isDiagram
+            ? projectedReferenceTargetById.get(
+                diagramElementMetadata?.canonicalReference?.entityId ?? "",
+              )
+            : undefined,
           onExpandReference:
             explorationTargetId && options.onExpandReference
               ? () => options.onExpandReference?.(explorationTargetId)
@@ -4723,7 +4754,9 @@ const getWorkflowStepCardSx = (
 
 const WorkflowStepCardContent: React.FC<{
   data: WorkflowStepNodeData;
-}> = ({ data }) => {
+  screen: DiagramElementScreenState;
+  screenLayout: ReturnType<typeof useDiagramScreenLayout>;
+}> = ({ data, screen, screenLayout }) => {
   const theme = useTheme();
   const {
     hasLeftSourceHandle,
@@ -4751,6 +4784,19 @@ const WorkflowStepCardContent: React.FC<{
             ? "diagram-element-end-icon"
             : undefined;
   const highlightTextColor = getWorkflowGraphHighlightTextColor(theme);
+  const showsScreen = screen.kind === "loading" || screen.kind === "ready";
+  // The role icon sits at the screen's own upper-left corner, not the card's.
+  // Offsets are relative to the card's padding box, inside its 1px border.
+  const roleIconOffset =
+    screen.kind === "ready"
+      ? (() => {
+          const placement = getDiagramScreenPlacement(
+            data.sizeConfig.nodeSize,
+            screen,
+          );
+          return { top: placement.top - 1 + 6, left: placement.left - 1 + 6 };
+        })()
+      : { top: 6, left: 6 };
   const forwardSourceHandleStyle = {
     right: -7,
     width: 14,
@@ -4907,10 +4953,16 @@ const WorkflowStepCardContent: React.FC<{
             data-testid="diagram-element-role-icon"
             sx={{
               position: "absolute",
-              top: 6,
-              left: 6,
+              top: roleIconOffset.top,
+              left: roleIconOffset.left,
               display: "inline-flex",
-              color: data.isHighlighted ? highlightTextColor : "text.secondary",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 20,
+              height: 20,
+              borderRadius: "2px",
+              bgcolor: getFallbackEntityColors().background,
+              color: getFallbackEntityColors().color,
               lineHeight: 0,
               zIndex: 1,
             }}
@@ -4918,86 +4970,103 @@ const WorkflowStepCardContent: React.FC<{
             <DiagramRoleIcon
               aria-hidden
               data-testid={diagramRoleIconTestId}
-              sx={{ fontSize: "1rem" }}
+              sx={{ fontSize: 14 }}
             />
           </Box>
         </Tooltip>
       ) : null}
-      <Stack
-        spacing={0.5}
-        sx={{
-          height: "100%",
-          minHeight: 0,
-          boxSizing: "border-box",
-          // The link strip (24px icons, 4px inset from the frame) overlays
-          // the card bottom, so reserve its full height regardless of the
-          // card's own padding.
-          pb:
-            data.directEntityLinks.length > 0
-              ? "28px"
-              : fulfilledByCount > 0
-                ? 3
-                : 0,
-          pt: data.isDiagram ? 3 : 0,
-        }}
-      >
-        {(!data.isDiagram || data.diagramRoleKey === "DIAGRAM_REFERENCE") &&
-        data.diagramRole ? (
-          <Typography
-            variant="caption"
-            data-testid="diagram-element-role"
-            sx={{
-              color: "text.secondary",
-              fontSize: "0.625rem",
-              lineHeight: 1,
-            }}
-          >
-            {data.diagramRole}
-          </Typography>
-        ) : null}
-        <Typography
-          data-testid="workflow-inline-step-title"
-          variant="body2"
-          fontWeight={700}
+      {showsScreen ? (
+        <DiagramElementScreenBody
+          state={screen}
+          layout={screenLayout}
+          title={data.title}
+          titleFontSize={sizeConfig.titleFontSize}
+          titleColor={
+            data.isHighlighted ? highlightTextColor : theme.palette.text.primary
+          }
+          organizationId={data.organizationId}
+          projectId={data.projectId}
+        />
+      ) : (
+        <Stack
+          spacing={0.5}
           sx={{
-            color: data.isHighlighted ? highlightTextColor : "text.primary",
-            fontSize: sizeConfig.titleFontSize,
-            lineHeight: 1.25,
-            minHeight: sizeConfig.titleMinHeight,
-            flexShrink: 0,
-            overflow: "hidden",
-            whiteSpace: "normal",
-            display: "-webkit-box",
-            overflowWrap: "anywhere",
-            WebkitLineClamp: sizeConfig.titleLineClamp,
-            WebkitBoxOrient: "vertical",
+            height: "100%",
+            minHeight: 0,
+            boxSizing: "border-box",
+            // The link strip (24px icons, 4px inset from the frame) overlays
+            // the card bottom, so reserve its full height regardless of the
+            // card's own padding.
+            pb:
+              data.directEntityLinks.length > 0
+                ? "28px"
+                : fulfilledByCount > 0
+                  ? 3
+                  : 0,
+            pt: data.isDiagram ? 3 : 0,
           }}
         >
-          {data.title}
-        </Typography>
-        {data.summary && (
+          {(!data.isDiagram || data.diagramRoleKey === "DIAGRAM_REFERENCE") &&
+          data.diagramRole ? (
+            <Typography
+              variant="caption"
+              data-testid="diagram-element-role"
+              sx={{
+                color: "text.secondary",
+                fontSize: "0.625rem",
+                lineHeight: 1,
+              }}
+            >
+              {data.diagramRole}
+            </Typography>
+          ) : null}
           <Typography
-            data-testid="workflow-inline-step-summary"
+            data-testid="workflow-inline-step-title"
             variant="body2"
-            color={data.isHighlighted ? highlightTextColor : "text.secondary"}
+            fontWeight={700}
             sx={{
-              fontSize: sizeConfig.summaryFontSize,
-              lineHeight: 1.35,
-              minHeight: 0,
+              color: data.isHighlighted ? highlightTextColor : "text.primary",
+              fontSize: sizeConfig.titleFontSize,
+              lineHeight: 1.25,
+              minHeight: sizeConfig.titleMinHeight,
+              flexShrink: 0,
               overflow: "hidden",
               whiteSpace: "normal",
               display: "-webkit-box",
               overflowWrap: "anywhere",
-              WebkitLineClamp: sizeConfig.summaryLineClamp,
+              WebkitLineClamp: sizeConfig.titleLineClamp,
               WebkitBoxOrient: "vertical",
             }}
           >
-            {renderInlineMentions(data.summary, "minimal", {
-              disableLinks: data.disableLinks,
-            })}
+            {data.title}
           </Typography>
-        )}
-      </Stack>
+          {screen.kind === "unavailable" ? (
+            <DiagramElementScreenUnavailable />
+          ) : null}
+          {data.summary && (
+            <Typography
+              data-testid="workflow-inline-step-summary"
+              variant="body2"
+              color={data.isHighlighted ? highlightTextColor : "text.secondary"}
+              sx={{
+                fontSize: sizeConfig.summaryFontSize,
+                lineHeight: 1.35,
+                minHeight: 0,
+                overflow: "hidden",
+                whiteSpace: "normal",
+                display: "-webkit-box",
+                overflowWrap: "anywhere",
+                WebkitLineClamp: sizeConfig.summaryLineClamp,
+                WebkitBoxOrient: "vertical",
+              }}
+            >
+              {renderInlineMentions(data.summary, "minimal", {
+                disableLinks: data.disableLinks,
+              })}
+            </Typography>
+          )}
+        </Stack>
+      )}
       {fulfilledByCount > 0 ? (
         <Box
           data-testid="workflow-inline-fulfilled-count"
@@ -5074,6 +5143,8 @@ const WorkflowGraphDirectEntityLinkButton: React.FC<{
         )
       : undefined;
   const Icon = taskPresentation?.Icon ?? link.Icon;
+  const colors =
+    taskPresentation?.colors ?? getEntityColors(link.targetEntityType);
   const relationship = formatDiagramSemanticLabel(link.relationshipType);
   const accessibleName = `Preview ${link.targetTitle}; ${relationship}`;
 
@@ -5099,15 +5170,16 @@ const WorkflowGraphDirectEntityLinkButton: React.FC<{
       sx={{
         width: 24,
         height: 24,
-        p: 0.25,
-        border: (theme) => `1px solid ${theme.palette.divider}`,
-        bgcolor: "background.paper",
-        "&:hover": { bgcolor: "action.hover" },
+        p: 0,
+        borderRadius: "2px",
+        bgcolor: colors.background,
+        color: colors.color,
+        "&:hover": { bgcolor: colors.background, opacity: 0.85 },
       }}
     >
       <Icon
         aria-hidden
-        fontSize="small"
+        sx={{ fontSize: 16 }}
         data-testid="diagram-element-direct-link-icon"
         data-work-item-type={taskType}
       />
@@ -5119,7 +5191,9 @@ const WorkflowGraphDirectEntityLinkStrip: React.FC<{
   links: readonly WorkflowGraphRenderedEntityLink[];
   organizationId: string;
   projectId: string;
-}> = ({ links, organizationId, projectId }) => {
+  /** Frame-relative inset of the strip's lower-left corner. */
+  inset?: { left: number; bottom: number };
+}> = ({ links, organizationId, projectId, inset }) => {
   const hasScope = Boolean(organizationId && projectId);
   const [hoveredTarget, setHoveredTarget] = useState<{
     anchorEl: HTMLElement;
@@ -5235,8 +5309,8 @@ const WorkflowGraphDirectEntityLinkStrip: React.FC<{
         data-testid="diagram-element-link-strip"
         sx={{
           position: "absolute",
-          left: 4,
-          bottom: 4,
+          left: inset?.left ?? 4,
+          bottom: inset?.bottom ?? 4,
           alignItems: "center",
           zIndex: 3,
           pointerEvents: "all",
@@ -5290,6 +5364,29 @@ const WorkflowStepNode = memo(
     useEffect(() => {
       updateNodeInternals(id);
     }, [handleSignature, id, updateNodeInternals]);
+    // Content arriving later fills the fixed card footprint; it never feeds
+    // back into node data, layout, or positions.
+    const screenLayout = useDiagramScreenLayout(data.sizeConfig);
+    const screen = useDiagramElementScreen({
+      canonicalReference: data.isDiagram ? data.canonicalReference : undefined,
+      organizationId: data.organizationId,
+      projectId: data.projectId,
+      projectedTarget: data.projectedReferenceTarget,
+      layout: screenLayout,
+    });
+    const screenPlacement =
+      screen.kind === "ready"
+        ? getDiagramScreenPlacement(data.sizeConfig.nodeSize, screen)
+        : undefined;
+    const screenInset = screenPlacement
+      ? {
+          left: screenPlacement.left + 4,
+          bottom:
+            data.sizeConfig.nodeSize -
+            (screenPlacement.top + screenPlacement.height) +
+            4,
+        }
+      : undefined;
 
     return (
       <Tooltip
@@ -5379,7 +5476,11 @@ const WorkflowStepNode = memo(
                 data.diagramNotation,
               )}
             >
-              <WorkflowStepCardContent data={data} />
+              <WorkflowStepCardContent
+                data={data}
+                screen={screen}
+                screenLayout={screenLayout}
+              />
             </Box>
           ) : (
             <InteractionComponent
@@ -5420,7 +5521,11 @@ const WorkflowStepNode = memo(
                   data.diagramNotation,
                 )}
               >
-                <WorkflowStepCardContent data={data} />
+                <WorkflowStepCardContent
+                  data={data}
+                  screen={screen}
+                  screenLayout={screenLayout}
+                />
               </Box>
             </InteractionComponent>
           )}
@@ -5428,6 +5533,7 @@ const WorkflowStepNode = memo(
             links={data.directEntityLinks}
             organizationId={data.organizationId}
             projectId={data.projectId}
+            inset={screenInset}
           />
           {data.diagramRoleKey === "DIAGRAM_REFERENCE" && data.referenceIcon ? (
             <DiagramReferenceActions
@@ -5452,14 +5558,31 @@ const WorkflowStepNode = memo(
             <Stack
               direction="row"
               className="nodrag nopan"
-              sx={{
-                position: "absolute",
-                bottom: 0,
-                left: 0,
-                right: 0,
-                justifyContent: "center",
-                bgcolor: "background.paper",
-              }}
+              sx={
+                screenPlacement
+                  ? {
+                      // Over the screen's upper-right corner, so the name
+                      // below it stays readable.
+                      position: "absolute",
+                      top: screenPlacement.top + 4,
+                      right:
+                        data.sizeConfig.nodeSize -
+                        (screenPlacement.left + screenPlacement.width) +
+                        4,
+                      zIndex: 3,
+                      bgcolor: "background.paper",
+                      border: (theme) => `1px solid ${theme.palette.divider}`,
+                      borderRadius: 1,
+                    }
+                  : {
+                      position: "absolute",
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      justifyContent: "center",
+                      bgcolor: "background.paper",
+                    }
+              }
             >
               <Tooltip title="Open reference">
                 <IconButton
