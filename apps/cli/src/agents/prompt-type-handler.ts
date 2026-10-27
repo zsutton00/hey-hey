@@ -3,6 +3,7 @@ import type { SessionRole } from '../shared/agent-bridge-contract/generated/api'
 import type { LocalPromptType } from '../shared/agent-bridge-contract/generated';
 import type { AgenticSession } from '../session/types';
 import type { RunStore } from '../run-store/run-store';
+import type { PreparationRecords } from './preparation-records';
 import type { ReportAudience, ReportType, UpdateMessageDto } from '../shared/api/index';
 import type {
   AssistantDeltaEvent,
@@ -121,7 +122,8 @@ export interface PromptTypeHandlerContext {
 }
 
 export interface PromptTypeHandlerDeps {
-  runStore: RunStore;
+  /** Where `prepare` records its work; handlers never touch the run store directly. */
+  preparationRecords: PreparationRecords;
   fetchImpl: typeof fetch;
   auth: SubmissionToolAuth;
   apiBaseUrl: string;

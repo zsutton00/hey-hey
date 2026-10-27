@@ -115,7 +115,7 @@ const makeDeps = (
   logger: PromptTypeHandlerDeps['logger'] = makeLogger(),
 ): PromptTypeHandlerDeps =>
   ({
-    runStore: {},
+    preparationRecords: {},
     fetchImpl,
     auth: { getAccessToken: vi.fn().mockResolvedValue('token-1') },
     apiBaseUrl: 'http://platform.test',

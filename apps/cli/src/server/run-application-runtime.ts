@@ -78,6 +78,7 @@ import { ProjectModeBundleMaterializer, ProjectModeBundleRestorer } from '../age
 import type { HostActionAdmission } from './controller-authorization/host-action-admission';
 import type { ControllerRegistryReader } from './controller-authorization/types';
 import type { CatalogAvailability } from './runtime-capability-catalog';
+import { createRunStorePreparationRecords } from '../agents/preparation-records';
 
 const isSystemMessage = (
   dto: CreateSystemMessage | CreateUserMessage | SubmitExecutableUserMessageRequestDto,
@@ -440,7 +441,7 @@ export class RunApplicationRuntime {
       logger: dependencies.logger.child({ component: 'report-sync' }),
     });
     const handlerDeps = {
-      runStore: dependencies.runStore,
+      preparationRecords: createRunStorePreparationRecords(dependencies.runStore),
       fetchImpl,
       auth: dependencies.agentRuntime.auth,
       apiBaseUrl: dependencies.apiBaseUrl,

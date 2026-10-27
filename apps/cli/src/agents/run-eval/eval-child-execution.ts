@@ -6,6 +6,7 @@ import type { ProjectAssistantPromptPayload } from '../project-assistant/project
 import { EvalResearchTools, sumEvalUsage } from './eval-research-tools';
 import { EvalTokenBudget, type EvalExecutionContext } from './eval-execution-context';
 import { resolveProjectAssistantPolicy } from '../project-assistant/proactive-behavior';
+import { EvalPreparationRecords } from './eval-preparation-records';
 
 /** Attempt-specific preparation and tool ownership, outside shared launch orchestration. */
 export class EvalChildExecution {
@@ -15,6 +16,7 @@ export class EvalChildExecution {
   public startupPromptInput: AgentStartupPromptInputResult | undefined;
   public researchTools: EvalResearchTools | undefined;
   private preparationElapsedMs: number | undefined;
+  public readonly preparationRecords = new EvalPreparationRecords();
   private readonly preparationUsage: SubAgentUsage[] = [];
 
   public constructor(
@@ -40,6 +42,19 @@ export class EvalChildExecution {
   }
 
   public async prepare(): Promise<void> {
+    try {
+      await this.prepareUnlogged();
+    } catch (error) {
+      this.request.handlerDeps?.logger.error('run_eval.attempt.preparation_failed', {
+        attemptId: this.execution.attemptId,
+        handlerId: this.request.handler.id,
+        error: error instanceof Error ? (error.stack ?? error.message) : String(error),
+      });
+      throw error;
+    }
+  }
+
+  private async prepareUnlogged(): Promise<void> {
     const startedAt = Date.now();
     const { handlerDeps, entity, handler } = this.request;
     if (handlerDeps && entity) {
@@ -113,6 +128,7 @@ export class EvalChildExecution {
           this.payload,
           {
             ...handlerDeps,
+            preparationRecords: this.preparationRecords,
             // Preparation belongs to the target's runtime and cancellation,
             // never to the coordinator's model or provider session.
             promptOnce: async ({ prompt }) => {

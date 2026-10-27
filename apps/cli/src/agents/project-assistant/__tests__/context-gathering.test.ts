@@ -84,13 +84,13 @@ describe('gatherProjectContext', () => {
       const answer = options.answer ?? JSON.stringify({ searches: [{ query: 'alpha' }] });
       return answer instanceof Error ? Promise.reject(answer) : Promise.resolve(answer);
     });
-    const appendRunGatherTrace = vi.fn((_runId: string, trace: Omit<GatherTrace, 'round'>) =>
+    const appendGatherTrace = vi.fn((_runId: string, trace: Omit<GatherTrace, 'round'>) =>
       Promise.resolve({ ...trace, round: 1 }),
     );
     const handlerDeps = {
       promptOnce,
       logger,
-      runStore: { appendRunGatherTrace },
+      preparationRecords: { appendGatherTrace },
     } as unknown as PromptTypeHandlerDeps;
     const snapshot = makeSnapshot(options.text);
     const deps: ContextGatheringDeps = {
@@ -115,7 +115,7 @@ describe('gatherProjectContext', () => {
         promptContext: 'SYSTEM PROMPT TEXT',
         signal,
       });
-    return { run, promptOnce, appendRunGatherTrace, info };
+    return { run, promptOnce, appendGatherTrace, info };
   };
 
   it('asks the Run to show gathering context from search planning onward', async () => {
@@ -129,7 +129,7 @@ describe('gatherProjectContext', () => {
   });
 
   it('plans with the focal and ask, then returns every kept entity and records the trace', async () => {
-    const { run, promptOnce, appendRunGatherTrace, info } = setup();
+    const { run, promptOnce, appendGatherTrace, info } = setup();
 
     const text = await run();
 
@@ -141,7 +141,7 @@ describe('gatherProjectContext', () => {
     expect(prompt).toContain('are all TASK');
     expect(text).toContain(`task ${A}`);
     expect(text).toContain('Body of 02');
-    expect(appendRunGatherTrace).toHaveBeenCalledWith(
+    expect(appendGatherTrace).toHaveBeenCalledWith(
       'run-1',
       expect.objectContaining({ runId: 'run-1', turnId: 'turn-1', ask: 'Make it work' }),
     );
@@ -157,9 +157,9 @@ describe('gatherProjectContext', () => {
   });
 
   it('fails when the planning call rejects', async () => {
-    const { run, appendRunGatherTrace } = setup({ answer: new Error('model unavailable') });
+    const { run, appendGatherTrace } = setup({ answer: new Error('model unavailable') });
     await expect(run()).rejects.toThrow('model unavailable');
-    expect(appendRunGatherTrace).not.toHaveBeenCalled();
+    expect(appendGatherTrace).not.toHaveBeenCalled();
   });
 
   it('fails when the answer is not JSON', async () => {
@@ -171,16 +171,16 @@ describe('gatherProjectContext', () => {
   });
 
   it('fails when gathering fails', async () => {
-    const { run, appendRunGatherTrace } = setup();
+    const { run, appendGatherTrace } = setup();
     const cancelled = new AbortController();
     cancelled.abort(new Error('cancelled'));
     await expect(run(cancelled.signal)).rejects.toThrow();
-    expect(appendRunGatherTrace).not.toHaveBeenCalled();
+    expect(appendGatherTrace).not.toHaveBeenCalled();
   });
 
   it('fails when the trace cannot be stored', async () => {
-    const { run, appendRunGatherTrace } = setup();
-    appendRunGatherTrace.mockRejectedValueOnce(new Error('disk full'));
+    const { run, appendGatherTrace } = setup();
+    appendGatherTrace.mockRejectedValueOnce(new Error('disk full'));
     await expect(run()).rejects.toThrow('disk full');
   });
 

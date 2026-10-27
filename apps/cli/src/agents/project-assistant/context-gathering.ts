@@ -124,6 +124,11 @@ const summarize = (result: GatherResult): Record<string, unknown> => ({
   returned: result.entities.length,
 });
 
+const PLAN_LOG_CHARS = 4000;
+
+const describeFailure = (error: unknown): string =>
+  error instanceof Error ? (error.stack ?? error.message) : String(error);
+
 /** Plans, runs and records the searches, and returns the section of kept entities for the prompt. */
 export const gatherProjectContext = async (args: GatherProjectContextArgs): Promise<string> => {
   const { deps, handlerDeps, runId, turnId, project, focalRef, focal, ask, promptContext, signal } =
@@ -134,22 +139,54 @@ export const gatherProjectContext = async (args: GatherProjectContextArgs): Prom
     // No endPhase: the state holds through the gather until the session's first event.
     startPhase: 'gathering_context',
   });
-  const submission = submitContextSearchesSchema.parse(JSON.parse(answer));
-
-  const result = await gather({
-    focalId: focalRef.id,
-    focal,
-    ask,
-    submission,
-    executor: deps.executorFor(project),
-    readerFor: (known) => deps.readerFor(project, focalRef, known),
-    jev: deps.jev,
-    limits: deps.limits,
-    maxResultsPerSearch: deps.maxResultsPerSearch,
-    signal,
+  handlerDeps.logger.info('project_assistant.context_gathering.plan_received', {
+    runId,
+    turnId,
+    chars: answer.length,
+    answer: answer.slice(0, PLAN_LOG_CHARS),
+  });
+  let submission: ReturnType<typeof submitContextSearchesSchema.parse>;
+  try {
+    submission = submitContextSearchesSchema.parse(JSON.parse(answer));
+  } catch (error) {
+    handlerDeps.logger.error('project_assistant.context_gathering.plan_invalid', {
+      runId,
+      turnId,
+      error: describeFailure(error),
+      answer: answer.slice(0, PLAN_LOG_CHARS),
+    });
+    throw error;
+  }
+  handlerDeps.logger.info('project_assistant.context_gathering.gather_started', {
+    runId,
+    turnId,
+    searches: submission.searches.length,
   });
 
-  const stored = await handlerDeps.runStore.appendRunGatherTrace(runId, {
+  let result: Awaited<ReturnType<typeof gather>>;
+  try {
+    result = await gather({
+      focalId: focalRef.id,
+      focal,
+      ask,
+      submission,
+      executor: deps.executorFor(project),
+      readerFor: (known) => deps.readerFor(project, focalRef, known),
+      jev: deps.jev,
+      limits: deps.limits,
+      maxResultsPerSearch: deps.maxResultsPerSearch,
+      signal,
+    });
+  } catch (error) {
+    handlerDeps.logger.error('project_assistant.context_gathering.gather_failed', {
+      runId,
+      turnId,
+      error: describeFailure(error),
+    });
+    throw error;
+  }
+
+  const stored = await handlerDeps.preparationRecords.appendGatherTrace(runId, {
     runId,
     turnId,
     focal: {
