@@ -9,14 +9,7 @@
  * https://openapi-generator.tech
  * Do not edit the class manually.
  */
-import { GraphRelationship } from './graphRelationship';
-import { GraphNode } from './graphNode';
 
-export interface GraphQueryResponse {
-  nodes?: Array<GraphNode>;
-  relationships?: Array<GraphRelationship>;
-  /**
-   * Query execution time in milliseconds
-   */
-  executionTime?: number;
+export interface FeatureProjectConnectionRequest {
+  featureId: string;
 }

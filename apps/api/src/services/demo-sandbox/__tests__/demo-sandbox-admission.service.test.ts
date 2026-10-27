@@ -2,6 +2,8 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
 import { DemoSandboxStatus } from '@prisma/client';
+import { DemoSandboxReadinessService } from '../demo-sandbox-readiness.service';
+import type { GraphsClientService } from '../../graphs-client.service';
 import { DemoSandboxAdmissionService } from '../demo-sandbox-admission.service';
 import {
   DEMO_AGENT_BRIDGE_DOCUMENT,
@@ -640,6 +642,72 @@ describe('DemoSandboxAdmissionService', () => {
       expect(t.browserSessions.establishInTransaction).not.toHaveBeenCalled();
       expect(t.discard.discard).toHaveBeenCalledWith('sandbox-new');
     });
+  });
+
+  describe('scoped Graph readiness through provisioning', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it('withholds access until the sampled connection exists, then returns an ordinary session', async () => {
+      const t = setup();
+      const checkFeatureProjectConnection = jest
+        .fn()
+        .mockResolvedValueOnce({ connected: false })
+        .mockResolvedValue({ connected: true });
+      const readiness = new DemoSandboxReadinessService(
+        { checkFeatureProjectConnection } as unknown as GraphsClientService,
+        () => 'scoped-token',
+      );
+      t.readiness.waitUntilConnected.mockImplementation(
+        readiness.waitUntilConnected.bind(readiness),
+      );
+      const outcome = t.service.provision(input, context());
+      await jest.advanceTimersByTimeAsync(0);
+      expect(t.db.organizationMember.create).not.toHaveBeenCalled();
+      expect(t.browserSessions.establishInTransaction).not.toHaveBeenCalled();
+      await jest.advanceTimersByTimeAsync(1_000);
+      const admission = await outcome;
+      expect(admission.session).toBe(session);
+      expect(admission.sandbox).toMatchObject({
+        organizationId: 'org-new',
+        projectId: 'project-new',
+      });
+      expect(checkFeatureProjectConnection).toHaveBeenCalledTimes(2);
+      expect(checkFeatureProjectConnection).toHaveBeenLastCalledWith(
+        'org-new',
+        'project-new',
+        { featureId: 'copied-feature' },
+        'scoped-token',
+      );
+    });
+
+    it.each(['missing', 'unavailable'])(
+      'fails safely when Graph stays %s through the deadline',
+      async (state) => {
+        const t = setup();
+        const checkFeatureProjectConnection =
+          state === 'missing'
+            ? jest.fn().mockResolvedValue({ connected: false })
+            : jest.fn().mockRejectedValue(new Error('Graph unavailable'));
+        const readiness = new DemoSandboxReadinessService(
+          { checkFeatureProjectConnection } as unknown as GraphsClientService,
+          () => 'scoped-token',
+        );
+        t.readiness.waitUntilConnected.mockImplementation(
+          readiness.waitUntilConnected.bind(readiness),
+        );
+        const outcome = refusal(t.service.provision(input, context()));
+        await jest.advanceTimersByTimeAsync(120_000);
+        await expect(outcome).resolves.toEqual({
+          status: 503,
+          code: 'PROVISIONING_FAILED',
+        });
+        expect(t.discard.discard).toHaveBeenCalledWith('sandbox-new');
+        expect(t.db.organizationMember.create).not.toHaveBeenCalled();
+        expect(t.projects.createProjectMembership).not.toHaveBeenCalled();
+        expect(t.browserSessions.establishInTransaction).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('current', () => {

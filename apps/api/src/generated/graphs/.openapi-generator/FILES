@@ -55,6 +55,8 @@ model/entityNeighborhoodRequest.ts
 model/entityNeighborhoodResponse.ts
 model/entityType.ts
 model/errorResponse.ts
+model/featureProjectConnectionRequest.ts
+model/featureProjectConnectionResponse.ts
 model/featureTag.ts
 model/findHintsByConnectedItemsRequest.ts
 model/findHintsByConnectedItemsResponse.ts
@@ -62,8 +64,6 @@ model/findIncidentAgentEdgesRequest.ts
 model/genericTraversalNode.ts
 model/graphEntityIdentity.ts
 model/graphNode.ts
-model/graphQueryRequest.ts
-model/graphQueryResponse.ts
 model/graphRelationship.ts
 model/hint.ts
 model/hintConnection.ts

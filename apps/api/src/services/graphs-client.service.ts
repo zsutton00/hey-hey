@@ -4,8 +4,8 @@ import { firstValueFrom } from 'rxjs';
 import {
   CreateHintDto,
   EntityNeighborhoodRequest,
-  GraphQueryRequest,
-  GraphQueryResponse,
+  FeatureProjectConnectionRequest,
+  FeatureProjectConnectionResponse,
   FindHintsByConnectedItemsRequest,
   FindHintsByConnectedItemsResponse,
   Hint,
@@ -230,22 +230,29 @@ export class GraphsClientService {
     }
   }
 
-  async executeQuery(
+  async checkFeatureProjectConnection(
     organizationId: OrganizationId,
     projectId: ProjectId,
-    request: GraphQueryRequest,
+    request: FeatureProjectConnectionRequest,
     systemToken: string,
-  ): Promise<GraphQueryResponse> {
-    const response = await firstValueFrom<AxiosResponse<GraphQueryResponse>>(
-      this.queriesService.executeQuery(organizationId, projectId, request, {
-        config: {
-          headers: {
-            Authorization: `Bearer ${systemToken}`,
-            'X-API-Auth': `Bearer ${systemToken}`,
-            'Content-Type': 'application/json',
+  ): Promise<FeatureProjectConnectionResponse> {
+    const response = await firstValueFrom<
+      AxiosResponse<FeatureProjectConnectionResponse>
+    >(
+      this.queriesService.checkFeatureProjectConnection(
+        organizationId,
+        projectId,
+        request,
+        {
+          config: {
+            headers: {
+              Authorization: `Bearer ${systemToken}`,
+              'X-API-Auth': `Bearer ${systemToken}`,
+              'Content-Type': 'application/json',
+            },
           },
         },
-      }),
+      ),
     );
     return response.data;
   }

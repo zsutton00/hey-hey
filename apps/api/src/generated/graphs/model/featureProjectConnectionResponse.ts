@@ -10,17 +10,6 @@
  * Do not edit the class manually.
  */
 
-export interface GraphQueryRequest {
-  /**
-   * Cypher query to execute
-   */
-  query: string;
-  /**
-   * Query parameters
-   */
-  parameters?: { [key: string]: any };
-  /**
-   * Query timeout in milliseconds
-   */
-  timeout?: number;
+export interface FeatureProjectConnectionResponse {
+  connected: boolean;
 }

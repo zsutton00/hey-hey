@@ -350,12 +350,13 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /organizations/{organizationId}/projects/{projectId}/query:
+  /organizations/{organizationId}/projects/{projectId}/feature-project-connection:
     post:
       tags:
         - Queries
-      summary: Execute a graph query
-      operationId: executeQuery
+      summary: Check one feature's stored project connection
+      operationId: checkFeatureProjectConnection
+      description: Checks only the exact SCOPED_TO_PROJECT edge from the scoped FEATURE task to this project. Does not establish readiness of other projections.
       parameters:
         - $ref: "#/components/parameters/OrganizationIdPath"
         - $ref: "#/components/parameters/ProjectIdPath"
@@ -364,20 +365,18 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/GraphQueryRequest"
+              $ref: "#/components/schemas/FeatureProjectConnectionRequest"
       responses:
         "200":
-          description: Query results
+          description: Whether the exact stored connection exists
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GraphQueryResponse"
+                $ref: "#/components/schemas/FeatureProjectConnectionResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "408":
-          $ref: "#/components/responses/RequestTimeout"
 
   /organizations/{organizationId}/projects/{projectId}/traversal:
     post:
@@ -1092,7 +1091,7 @@ components:
           type: string
         label:
           type: string
-          pattern: '^[A-Za-z][A-Za-z0-9_]*$'
+          pattern: "^[A-Za-z][A-Za-z0-9_]*$"
     TemplateGraphSnapshot:
       type: object
       required: [nodes, edges]
@@ -1100,11 +1099,11 @@ components:
         nodes:
           type: array
           items:
-            $ref: '#/components/schemas/TemplateGraphNode'
+            $ref: "#/components/schemas/TemplateGraphNode"
         edges:
           type: array
           items:
-            $ref: '#/components/schemas/GraphRelationship'
+            $ref: "#/components/schemas/GraphRelationship"
     TemplateGraphCopyCommand:
       type: object
       required: [id, snapshot]
@@ -1113,7 +1112,7 @@ components:
           type: string
           format: uuid
         snapshot:
-          $ref: '#/components/schemas/TemplateGraphSnapshot'
+          $ref: "#/components/schemas/TemplateGraphSnapshot"
     ProjectionDeletionIdentity:
       $ref: "../schemas/projection-deletion.yaml#/ProjectionDeletionIdentity"
     ProjectionDeletionCommand:
@@ -1985,40 +1984,22 @@ components:
         label:
           type: string
 
-    # Query schemas
-    GraphQueryRequest:
+    FeatureProjectConnectionRequest:
       type: object
       required:
-        - query
+        - featureId
       properties:
-        query:
+        featureId:
           type: string
-          description: Cypher query to execute
-          example: "MATCH (n:Artifact) WHERE n.type = 'CODE_ARTIFACT' RETURN n LIMIT 10"
-        parameters:
-          type: object
-          additionalProperties: true
-          description: Query parameters
-        timeout:
-          type: integer
-          description: Query timeout in milliseconds
-          default: 30000
-          maximum: 300000
+          format: uuid
 
-    GraphQueryResponse:
+    FeatureProjectConnectionResponse:
       type: object
+      required:
+        - connected
       properties:
-        nodes:
-          type: array
-          items:
-            $ref: "#/components/schemas/GraphNode"
-        relationships:
-          type: array
-          items:
-            $ref: "#/components/schemas/GraphRelationship"
-        executionTime:
-          type: integer
-          description: Query execution time in milliseconds
+        connected:
+          type: boolean
 
     # Search schemas
     SearchRequest:

@@ -8,13 +8,6 @@ import type { OrganizationId, ProjectId } from '../../types';
 import { errorToLoggable } from '../../utils/logging.util';
 import { READINESS_POLL_INTERVAL_MILLISECONDS } from './demo-sandbox.constants';
 
-// The relationship direction is feature to project, as emitted by Graph's
-// TaskRelationshipMapper. A returned row is the complete readiness predicate.
-export const READINESS_QUERY =
-  'MATCH (f {id: $featureId})-[r:SCOPED_TO_PROJECT]->(p:Project {id: $projectId}) ' +
-  'WHERE f.organizationId = $organizationId AND p.organizationId = $organizationId ' +
-  'RETURN f, r, p LIMIT 1';
-
 export interface ReadinessAttempt {
   organizationId: string;
   projectId: string;
@@ -36,22 +29,15 @@ export class DemoSandboxReadinessService {
   async isConnected(attempt: ReadinessAttempt): Promise<boolean> {
     const organizationId = attempt.organizationId as OrganizationId;
     const projectId = attempt.projectId as ProjectId;
-    const result = await this.graphs.executeQuery(
+    const result = await this.graphs.checkFeatureProjectConnection(
       organizationId,
       projectId,
       {
-        query: READINESS_QUERY,
-        parameters: {
-          featureId: attempt.readinessFeatureId,
-          projectId,
-          organizationId,
-        },
+        featureId: attempt.readinessFeatureId,
       },
       this.tokenFactory(organizationId, projectId),
     );
-    return (
-      (result.nodes?.length ?? 0) > 0 || (result.relationships?.length ?? 0) > 0
-    );
+    return result.connected;
   }
 
   /** Polls once per second until the sample matches or the persisted deadline passes. */
@@ -62,7 +48,7 @@ export class DemoSandboxReadinessService {
       try {
         if (await this.isConnected(attempt)) return true;
       } catch (error) {
-        this.logger.warn('Demo sandbox readiness query unavailable', {
+        this.logger.warn('Demo sandbox readiness check unavailable', {
           projectId: attempt.projectId,
           error: errorToLoggable(error),
         });
