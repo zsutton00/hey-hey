@@ -1,6 +1,5 @@
 import { ReportRelatedEntityType, ReportType } from "../../api";
 import { useReports } from "../../data/hooks/useReports";
-import { RetainedEvalSession } from "./RetainedEvalSession";
 import type { RunAttachmentReference } from "../../api";
 import { Alert, Box, Stack } from "@mui/material";
 import React, {
@@ -354,23 +353,17 @@ export const FeatureTreeConversationChat: React.FC<
     );
   }
   if (!attempts.isFetched) return <LoadingPanel />;
-  const attempt = attempts.reports.find(
+  // An eval attempt's target session is executed only by the eval runner, so
+  // it opens as its saved conversation, read-only, and never binds a run.
+  const isEvalAttempt = attempts.reports.some(
     (report) =>
       report.payload.reportType === ReportType.EvalAttempt &&
       report.payload.targetSessionId === agentSession.id,
   );
-  if (attempt) {
-    return (
-      <RetainedEvalSession
-        organizationId={organizationId}
-        projectId={projectId}
-        agentSession={agentSession}
-        attempt={attempt}
-        scrollable={scrollable}
-      />
-    );
-  }
-  if (!agentSession.machineId && agentSession.conversationId) {
+  if (
+    agentSession.conversationId &&
+    (isEvalAttempt || !agentSession.machineId)
+  ) {
     return (
       <AgentConversationView
         organizationId={organizationId}
@@ -378,9 +371,17 @@ export const FeatureTreeConversationChat: React.FC<
         agentSessionId={agentSession.id}
         conversationId={agentSession.conversationId}
         readOnly
+        hideComposer={isEvalAttempt}
         sessionResumability="legacy_non_resumable"
         scrollable={scrollable}
       />
+    );
+  }
+  if (isEvalAttempt) {
+    return (
+      <Alert severity="info">
+        This evaluation attempt has no saved conversation.
+      </Alert>
     );
   }
 
