@@ -26,13 +26,14 @@ export interface ProposalReconciliationSuggestion {
     createdAt: string;
 }
 export namespace ProposalReconciliationSuggestion {
-    export type StatusEnum = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'SUPERSEDED' | 'OUT_OF_DATE';
+    export type StatusEnum = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'SUPERSEDED' | 'OUT_OF_DATE' | 'RETIRED';
     export const StatusEnum = {
         Pending: 'PENDING' as StatusEnum,
         Accepted: 'ACCEPTED' as StatusEnum,
         Rejected: 'REJECTED' as StatusEnum,
         Superseded: 'SUPERSEDED' as StatusEnum,
-        OutOfDate: 'OUT_OF_DATE' as StatusEnum
+        OutOfDate: 'OUT_OF_DATE' as StatusEnum,
+        Retired: 'RETIRED' as StatusEnum
     };
 }
 

@@ -1,4 +1,3 @@
-import { ProposalSuggestionReview } from "./ProposalSuggestionReview";
 import { DiffLabelsContext } from "../SuggestedContent/DiffRenderer";
 import { EditOutlined, SmartToyOutlined } from "@mui/icons-material";
 import { ThreeWayReview } from "./ThreeWayReview";
@@ -569,14 +568,6 @@ function PendingProposalReconciliationReview({
                 </Stack>
               </Stack>
             ) : null}
-            {state?.suggestions
-              ?.filter((suggestion) => suggestion.legacyProposalId)
-              .map((suggestion) => (
-                <ProposalSuggestionReview
-                  key={suggestion.id}
-                  suggestion={suggestion}
-                />
-              ))}
             {manualState ? (
               <ManualReconciliationEditor
                 proposal={proposal}

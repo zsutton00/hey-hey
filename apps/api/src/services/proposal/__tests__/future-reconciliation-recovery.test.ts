@@ -557,6 +557,68 @@ describe('approved future reconciliation recovery', () => {
       }
     },
   );
+  it('returns a stored RETIRED suggestion as retired rather than out of date', async () => {
+    const { tx, owner } = fixture();
+    tx.proposalReconciliationSuggestion.findMany.mockResolvedValue([
+      {
+        id: 'retired-suggestion',
+        candidateRevisionId: 'older-revision',
+        legacyProposalId: 'old-correction',
+        status: 'RETIRED',
+        createdAt: new Date(),
+        request: {
+          method: 'AGENT_FIX',
+          proposedResult: target,
+          expectedCurrentBases: [],
+        },
+      },
+    ] as never);
+    const state = await owner.stateForFuture(
+      tx as never,
+      futureProposal,
+      (futureProposal.updates as { baseline: never }).baseline,
+    );
+    expect(state.suggestions).toEqual([
+      expect.objectContaining({
+        status: 'RETIRED',
+        legacyProposalId: 'old-correction',
+      }),
+    ]);
+  });
+  it.each(['ACCEPT_SUGGESTION', 'REJECT_SUGGESTION'] as const)(
+    '%s refuses a retired suggestion migrated from a standalone correction',
+    async (method) => {
+      const { service, tx } = fixture();
+      const retired = {
+        id: 'retired-suggestion',
+        proposalId: 'latest',
+        status: 'RETIRED',
+        legacyProposalId: 'old-correction',
+        request: {},
+      };
+      Object.assign(tx.proposalReconciliationSuggestion, {
+        findFirst: jest.fn().mockResolvedValue(retired),
+      });
+      Object.assign(service, {
+        prisma: { db: { ...tx, $transaction: jest.fn() } },
+      });
+      tx.proposal.findFirst.mockResolvedValue(futureProposal as never);
+      await expect(
+        service.reconcile(
+          'latest',
+          'org' as OrganizationId,
+          'project' as ProjectId,
+          { userId: 'user' } as never,
+          { method, suggestionId: retired.id },
+          {} as never,
+        ),
+      ).rejects.toThrow('retired and kept only in history');
+      expect(tx.proposal.update).not.toHaveBeenCalled();
+      expect(
+        tx.proposalReconciliationSuggestion.updateMany,
+      ).not.toHaveBeenCalled();
+    },
+  );
   it('blocks an unavailable latest review rather than substituting the old result', async () => {
     const { service, tx } = fixture();
     tx.proposal.findFirst.mockResolvedValue(null as never);

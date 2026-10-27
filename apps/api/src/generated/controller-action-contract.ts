@@ -6298,6 +6298,7 @@ export const controllerActionRuntimeSchema = {
                       'REJECTED',
                       'SUPERSEDED',
                       'OUT_OF_DATE',
+                      'RETIRED',
                     ],
                   },
                   candidateRevisionId: {

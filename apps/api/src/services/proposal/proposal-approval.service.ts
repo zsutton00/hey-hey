@@ -3417,7 +3417,7 @@ export class ProposalApprovalService {
         })
       )
         throw new ConflictException(
-          'This saved correction is now a suggestion. Review and accept it on the original proposal.',
+          'This saved correction was retired and has nothing to accept.',
         );
       await tx.$queryRaw`SELECT f.id FROM proposal_futures f JOIN proposals p ON p.updates->>'futureId' = f.id WHERE p.id = ${proposalId} AND f.organization_id = ${organizationId} AND f.project_id = ${projectId} FOR UPDATE OF f`;
     }

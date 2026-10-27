@@ -436,6 +436,63 @@ describe("approved future recovery", () => {
       screen.getByTestId("proposal-reconciliation-edit-by-hand"),
     ).toBeVisible();
   });
+  it("shows no suggestion cards or decisions even when the state carries old suggestions", async () => {
+    const suggestion = {
+      organizationId: "org",
+      projectId: "project",
+      proposalId: "proposal",
+      candidateRevisionId: "revision",
+      proposedResult: { name: "Suggested" },
+      createdAt: "2026-09-28T00:00:00Z",
+    };
+    vi.mocked(proposalsClient.getProposalReconciliation).mockResolvedValue({
+      data: {
+        data: {
+          ...ready,
+          status: "RECONCILIATION_REQUIRED",
+          suggestions: [
+            {
+              ...suggestion,
+              id: "retired",
+              status: "RETIRED",
+              legacyProposalId: "old",
+            },
+            {
+              ...suggestion,
+              id: "pending",
+              status: "PENDING",
+              legacyProposalId: "old-2",
+            },
+            {
+              ...suggestion,
+              id: "agent",
+              status: "PENDING",
+              messageId: "message",
+            },
+          ],
+        },
+      },
+    } as never);
+    render(
+      <ProposalReconciliationReview
+        proposal={
+          {
+            ...proposal,
+            action: "VERSIONED_UPDATE",
+            status: "APPROVED",
+            reviewedFuture: { outcome: "STAGED" },
+          } as ProposalResponseDto
+        }
+        onApply={vi.fn()}
+      >
+        <span>Previously approved</span>
+      </ProposalReconciliationReview>,
+    );
+    await screen.findByTestId("proposal-three-way-review");
+    expect(screen.queryByTestId("proposal-suggestion-review")).toBeNull();
+    expect(screen.queryByTestId("proposal-suggestion-accept")).toBeNull();
+    expect(screen.queryByTestId("proposal-suggestion-reject")).toBeNull();
+  });
   it("exposes manual resolution after earlier approval and submits the displayed bases and future revision", async () => {
     const future = {
       ...proposal,

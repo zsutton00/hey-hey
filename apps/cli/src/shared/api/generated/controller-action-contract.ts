@@ -6034,7 +6034,14 @@ export const controllerActionRuntimeSchema = {
                   },
                   status: {
                     type: 'string',
-                    enum: ['PENDING', 'ACCEPTED', 'REJECTED', 'SUPERSEDED', 'OUT_OF_DATE'],
+                    enum: [
+                      'PENDING',
+                      'ACCEPTED',
+                      'REJECTED',
+                      'SUPERSEDED',
+                      'OUT_OF_DATE',
+                      'RETIRED',
+                    ],
                   },
                   candidateRevisionId: {
                     type: 'string',

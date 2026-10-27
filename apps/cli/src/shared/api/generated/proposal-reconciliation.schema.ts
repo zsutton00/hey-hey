@@ -248,7 +248,8 @@ export const proposalReconciliationStateSchema = {
               "ACCEPTED",
               "REJECTED",
               "SUPERSEDED",
-              "OUT_OF_DATE"
+              "OUT_OF_DATE",
+              "RETIRED"
             ]
           },
           "candidateRevisionId": {

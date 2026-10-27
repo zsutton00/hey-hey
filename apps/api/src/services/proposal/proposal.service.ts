@@ -743,6 +743,10 @@ export class ProposalService {
       });
       if (!suggestion || !owner)
         throw new NotFoundException('Suggestion not found');
+      if (suggestion.legacyProposalId)
+        throw new ConflictException(
+          'This suggestion is retired and kept only in history.',
+        );
       if (agentSessionId)
         throw new BadRequestException('Suggestion decisions require a user.');
       if (input.method === 'REJECT_SUGGESTION') {
@@ -1285,17 +1289,6 @@ export class ProposalService {
       // captureAuthoring retires votes before appending the new content version;
       // the database retains their attribution against the preceding version.
       await this.reconciliation.captureAuthoring(tx, updated, provenance);
-      if (suggestionId) {
-        const accepted =
-          await tx.proposalReconciliationSuggestion.findUniqueOrThrow({
-            where: { id: suggestionId },
-          });
-        if (accepted.legacyProposalId)
-          await tx.proposal.update({
-            where: { id: accepted.legacyProposalId },
-            data: { applicationEligible: false },
-          });
-      }
       if (suggestionId)
         await tx.proposalReconciliationSuggestion.update({
           where: { id: suggestionId },

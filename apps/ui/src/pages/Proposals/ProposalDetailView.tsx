@@ -32,9 +32,9 @@ import {
   DetailPageContainer,
   PageBreadcrumbs,
 } from "../../components/Layout";
-import { AdminTab } from "../../components/Tabs";
+import { AdminTab, ProposalConversationsTab } from "../../components/Tabs";
 
-const PROPOSAL_PAGE_TABS = ["review", "admin"] as const;
+const PROPOSAL_PAGE_TABS = ["review", "conversations", "admin"] as const;
 type ProposalPageTab = (typeof PROPOSAL_PAGE_TABS)[number];
 
 const proposalRelatedQueryKey = (queryKey: readonly unknown[]): boolean => {
@@ -174,6 +174,7 @@ export const ProposalDetailView: React.FC<ProposalDetailViewProps> = ({
               onChange={setActiveTab}
               tabs={[
                 { value: "review", label: "Review" },
+                { value: "conversations", label: "Conversations" },
                 { value: "admin", label: "Admin" },
               ]}
             />
@@ -191,6 +192,12 @@ export const ProposalDetailView: React.FC<ProposalDetailViewProps> = ({
                   onPresentationLoaded={setPresentationLabel}
                 />
               }
+            />
+          ) : activeTab === "conversations" ? (
+            <ProposalConversationsTab
+              organizationId={organizationId}
+              projectId={projectId}
+              proposalId={proposalId}
             />
           ) : (
             <AdminTab

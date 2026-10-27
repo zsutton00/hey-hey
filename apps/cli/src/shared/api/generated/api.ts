@@ -72564,7 +72564,8 @@ export const ProposalReconciliationSuggestionStatusEnum = {
     Accepted: 'ACCEPTED',
     Rejected: 'REJECTED',
     Superseded: 'SUPERSEDED',
-    OutOfDate: 'OUT_OF_DATE'
+    OutOfDate: 'OUT_OF_DATE',
+    Retired: 'RETIRED'
 } as const;
 
 export type ProposalReconciliationSuggestionStatusEnum = typeof ProposalReconciliationSuggestionStatusEnum[keyof typeof ProposalReconciliationSuggestionStatusEnum];
