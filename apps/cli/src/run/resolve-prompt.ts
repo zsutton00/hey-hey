@@ -112,6 +112,7 @@ export interface ResolvePromptRunState {
 
 export interface ResolvePromptArgs {
   handler: PromptTypeHandler<unknown>;
+  /** Plain session data; no live Run instance is required. */
   run: AgenticSession;
   runState: ResolvePromptRunState;
   input: InternalRunPromptRequest;
@@ -126,11 +127,16 @@ export interface ResolvePromptArgs {
   implementationReadinessClarification?: PromptTypeHandlerContext['implementationReadinessClarification'];
   projectModeBundleDirectory?: string;
   repositorySnapshotDirectory?: string;
-  /** Preview of the provider-session lifecycle for this Turn. */
+  /**
+   * Optional Run-owned provider-session decision. When absent, resolution
+   * makes no mint/resume decision and does not deliver retained memos.
+   */
   providerSessionDecision?: ProviderSessionDecision;
   /** True when this Turn will mint a provider session and needs fresh Context. */
   refreshStartupPromptInput?: boolean;
   /**
+   * Optional Run-only hook for Service-scope reconciliation. Omit when
+   * resolving without a Run; the prepared payload is then used unchanged.
    * Run-owned pre-build transition for state declared by a prepared handler
    * payload. The returned payload is what the handler renders and what the
    * Turn receives, so prompt context cannot lag behind the reconciled Run.
@@ -141,7 +147,8 @@ export interface ResolvePromptArgs {
     requestStartupPromptInputRefresh: () => void;
   }): Promise<unknown>;
   /**
-   * Run admission that must happen after authoritative startup Context is
+   * Optional Run-only hook for readiness admission. No admission runs when
+   * omitted. Run admission must happen after authoritative startup Context is
    * loaded but before handler preparation or prompt construction. The
    * resolver invokes it again if preparation requests a fresh Context.
    */
@@ -149,6 +156,21 @@ export interface ResolvePromptArgs {
     startupPromptInput: AgentStartupPromptInputResult | null,
   ): Promise<void>;
 }
+
+/**
+ * Empty snapshot for resolving a first turn without constructing a Run.
+ * Each call has fresh collections, no prior reports or memos, and no cached
+ * startup input, template, or provider instructions. This does not own or
+ * persist state; a live Run continues supplying its own snapshot instead.
+ */
+export const createFirstTurnPromptRunState = (): ResolvePromptRunState => ({
+  currentPromptType: null,
+  isFirstTurn: true,
+  previousProviderSession: null,
+  reportChain: [],
+  memos: [],
+  startedPromptTypes: new Set(),
+});
 
 export interface ResolvePromptResult {
   /**

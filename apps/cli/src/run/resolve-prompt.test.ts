@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  createFirstTurnPromptRunState,
   resolvePrompt,
   type ResolvePromptArgs,
   type ResolvePromptRunState,
@@ -107,12 +108,7 @@ const makeHandlerDeps = (): PromptTypeHandlerDeps => {
 };
 
 const makeRunState = (overrides?: Partial<ResolvePromptRunState>): ResolvePromptRunState => ({
-  currentPromptType: null,
-  isFirstTurn: true,
-  previousProviderSession: null,
-  reportChain: [],
-  memos: [],
-  startedPromptTypes: new Set(),
+  ...createFirstTurnPromptRunState(),
   ...overrides,
 });
 
@@ -276,6 +272,24 @@ const copiedStartupPayload = {
 };
 
 describe('resolvePrompt — first turn with handler and payload', () => {
+  it('creates independent empty first-turn snapshots', () => {
+    const state = createFirstTurnPromptRunState();
+    const nextState = createFirstTurnPromptRunState();
+
+    expect(state).toEqual({
+      currentPromptType: null,
+      isFirstTurn: true,
+      previousProviderSession: null,
+      reportChain: [],
+      memos: [],
+      startedPromptTypes: new Set(),
+    });
+    expect(nextState).toEqual(state);
+    expect(nextState.reportChain).not.toBe(state.reportChain);
+    expect(nextState.memos).not.toBe(state.memos);
+    expect(nextState.startedPromptTypes).not.toBe(state.startedPromptTypes);
+  });
+
   it('hands the prompt types that already started on the Run to the handler prompt context', async () => {
     const promptType = 'resolve_prompt_test_started_types';
     const buildPrompt = vi.fn(() => 'PROMPT');
@@ -958,7 +972,7 @@ describe('resolvePrompt — registered handlers consume one preloaded entity Con
       .join('\n\n---\n\n');
   };
 
-  it('preloads the focal Context once for Entity Conversation, Research, and Project Assistant', async () => {
+  it('resolves standalone first turns with the real handlers, entity template, and user request', async () => {
     const startupResolve = vi
       .fn<PromptTypeHandlerDeps['startupPromptInput']['resolve']>()
       .mockResolvedValue(startupResultWithContext('PRELOADED ENTITY CONTEXT'));
@@ -969,25 +983,27 @@ describe('resolvePrompt — registered handlers consume one preloaded entity Con
     const run = makeSession({
       entity: { entityType: RunEntityType.Task, entityId: 'task-1' },
     });
+    run.provider_session_id = '';
+    const userMessage = 'Explain the current entity and its next steps.';
 
     const cases: ReadonlyArray<{ promptType: string; payload: unknown }> = [
       {
         promptType: LocalPromptType.EntityConversation,
         payload: {
           entity: { entityType: 'TASK', entityId: 'task-1' },
-          userMessage: 'Explain the current entity.',
+          userMessage,
         },
       },
       {
         promptType: LocalPromptType.Research,
-        payload: { userMessage: 'Research the current entity.' },
+        payload: { userMessage },
       },
       {
         promptType: LocalPromptType.ProjectAssistant,
         payload: {
           promptType: LocalPromptType.Research,
           entity: { entityType: 'TASK', entityId: 'task-1' },
-          userMessage: 'Orient the next handler.',
+          userMessage,
           projectAssistantHandoff: {
             consumerHandlerId: LocalPromptType.Research,
             policy: {
@@ -1008,7 +1024,7 @@ describe('resolvePrompt — registered handlers consume one preloaded entity Con
         const result = await resolvePrompt({
           handler,
           run,
-          runState: makeRunState(),
+          runState: createFirstTurnPromptRunState(),
           input: makeInput({ promptType: testCase.promptType, payload: testCase.payload }),
           handlerDeps: deps,
           turnId: 'turn-1',
@@ -1020,6 +1036,22 @@ describe('resolvePrompt — registered handlers consume one preloaded entity Con
         const providerPrompt = composeProviderPrompt(result, 'first-turn-mint');
         expect(providerPrompt).toContain('PRELOADED ENTITY CONTEXT');
         expect(providerPrompt.match(/PRELOADED ENTITY CONTEXT/g)).toHaveLength(1);
+        expect(providerPrompt).toContain(userMessage);
+        expect(providerPrompt).toContain(
+          handler.buildPrompt(result.preparedPayload, {
+            runId: run.agentic_session_id,
+            logger: deps.logger,
+            ...(result.startupPromptInput
+              ? { loadedEntityContext: result.startupPromptInput.loadedEntityContext }
+              : {}),
+            startedPromptTypes: new Set(),
+            recentUserReplies: [],
+            triggerParentMessageId: null,
+          }),
+        );
+        expect(result.preparedPayload).toBeDefined();
+        expect(result.startupPromptTemplate).toEqual(authoritativeStartupResult().template);
+        expect(result.consumedPreviousProviderSession).toBe(false);
       }
       expect(workflowAboutRead).toHaveBeenCalledTimes(1);
     } finally {
