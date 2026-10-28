@@ -141,8 +141,8 @@ const MetricGroup: React.FC<{
       <Typography
         component="h3"
         variant="subtitle1"
-        fontWeight={700}
-        color="heyhey.main"
+        fontWeight={400}
+        color="text.primary"
       >
         {group.label}
       </Typography>
