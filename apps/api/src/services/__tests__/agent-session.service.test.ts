@@ -2978,6 +2978,30 @@ describe('AgentSessionService', () => {
     );
   });
 
+  it('rolls back an unstarted eval session and its bound conversation', async () => {
+    const deleteMessages = jest.fn().mockResolvedValue({ count: 0 });
+    Object.assign(prisma.db.message, { deleteMany: deleteMessages });
+    prisma.db.conversation.delete = jest.fn().mockResolvedValue({});
+    const existing = buildAgentSession({
+      conversationId: 'eval-conversation',
+      status: 'NOT_STARTED',
+    });
+    prisma.db.agentSession.findFirst.mockResolvedValue(existing);
+    prisma.db.agentOperation.findMany.mockResolvedValue([]);
+
+    await service.rollbackEvalLaunchSession('org-1' as never, existing.id);
+
+    expect(deleteMessages).toHaveBeenCalledWith({
+      where: { conversationId: existing.conversationId },
+    });
+    expect(prisma.db.conversation.delete).toHaveBeenCalledWith({
+      where: { id: existing.conversationId },
+    });
+    expect(prisma.db.agentSession.delete).toHaveBeenCalledWith({
+      where: { id: existing.id },
+    });
+  });
+
   it('deletes operations, grants, authorizations, the session, and its event', async () => {
     const existing = buildAgentSession();
     const order: string[] = [];

@@ -3,6 +3,10 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
+import { ConversationWorkflowService } from '../../workflows/conversation-workflow.service';
+import { WorkflowTypeRegistryService } from '../../workflows/workflow-type-registry.service';
+import type { CreateAgentSessionConversationDto } from 'src/generated';
+import { AgentSessionService } from '../../agent-session.service';
 import { EvalRunService } from '../eval-run.service';
 import { EvalRunController } from 'src/controllers/eval-run.controller';
 
@@ -28,6 +32,11 @@ const caseRecord = {
     { key: 'situation', materializedMarkdown: 'Situation' },
     { key: 'request', materializedMarkdown: 'Do the thing' },
     { key: 'handler', materializedMarkdown: 'entity_conversation' },
+    {
+      key: 'items',
+      materializedMarkdown:
+        '@[task:88888888-8888-4888-8888-888888888888|Focal]',
+    },
   ],
 };
 
@@ -58,14 +67,15 @@ function build() {
       sessionCount += 1;
       return Promise.resolve({ id: `session-${sessionCount}` });
     }),
-    createConversationForSession: jest.fn((_org, _project, sessionId) =>
-      Promise.resolve({
-        conversation: {
-          id: String(sessionId).replace('session', 'conversation'),
-        },
-      }),
+    createConversationForSession: jest.fn(
+      (_org, _project, sessionId, _dto: CreateAgentSessionConversationDto) =>
+        Promise.resolve({
+          conversation: {
+            id: String(sessionId).replace('session', 'conversation'),
+          },
+        }),
     ),
-    remove: jest.fn().mockResolvedValue(undefined),
+    rollbackEvalLaunchSession: jest.fn().mockResolvedValue(undefined),
   };
   const service = new EvalRunService(
     prisma as never,
@@ -92,7 +102,7 @@ describe('EvalRunService.launch', () => {
       ...caseRecord,
       id: crypto.randomUUID(),
       sections: [
-        ...caseRecord.sections,
+        ...caseRecord.sections.filter((s) => s.key !== 'items'),
         {
           key: 'items',
           materializedMarkdown: `@[${index === 0 ? 'feature' : 'project'}:${focalItemId}|Focal item]`,
@@ -100,12 +110,98 @@ describe('EvalRunService.launch', () => {
       ],
     }));
     prisma.db.task.findMany.mockResolvedValue(cases);
+    const inserted: unknown[] = [];
+    const bindings = new Map<string, string>();
+    const workflow = new ConversationWorkflowService(
+      {
+        createConversation: async (
+          dto: unknown,
+          _organizationId: unknown,
+          options: {
+            onCreatedInTx?: (
+              tx: unknown,
+              conversation: { id: string },
+            ) => Promise<void>;
+          },
+        ) => {
+          const id = `conversation-${inserted.length + 1}`;
+          await options?.onCreatedInTx?.(
+            {
+              agentSession: {
+                updateMany: async ({
+                  where,
+                  data,
+                }: {
+                  where: { id: string };
+                  data: { conversationId: string };
+                }) => {
+                  bindings.set(where.id, data.conversationId);
+                  return { count: 1 };
+                },
+              },
+            },
+            { id },
+          );
+          inserted.push(dto);
+          return { id, ...(dto as object) };
+        },
+      } as never,
+      new WorkflowTypeRegistryService({} as never),
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    sessions.createConversationForSession.mockImplementation(
+      async (
+        _org,
+        _project,
+        sessionId,
+        dto: CreateAgentSessionConversationDto,
+      ) => {
+        const subject = {
+          prisma: {
+            db: {
+              agentSession: {
+                findFirst: async () => ({
+                  id: sessionId,
+                  userId: USER,
+                  conversationId: null,
+                }),
+                findFirstOrThrow: async () => ({
+                  id: sessionId,
+                  conversationId: bindings.get(sessionId),
+                }),
+              },
+            },
+          },
+          logger: { log: jest.fn() },
+          assertProjectOwnership: async () => {},
+          conversationWorkflowService: workflow,
+          buildSelectedServiceRelationsInclude: () => ({}),
+          toDto: (value: unknown) => value,
+          toCurrentStateIdentity: () => ({}),
+          enrichAgentSessionDto: async (value: unknown) => value,
+        };
+        return AgentSessionService.prototype.createConversationForSession.call(
+          subject as never,
+          ORG,
+          PROJECT,
+          sessionId,
+          dto,
+        ) as never;
+      },
+    );
 
     await new EvalRunController(service).launch(ORG, PROJECT, EVAL_ID, USER, {
       ...request,
       evalCaseIds: cases.map((item) => item.id),
     });
 
+    expect(bindings.size).toBe(5);
+    expect(inserted).toHaveLength(5);
+    expect(bindings.get('session-1')).toBe('conversation-1');
     expect(sessions.createConversationForSession).toHaveBeenNthCalledWith(
       1,
       ORG,
@@ -123,6 +219,7 @@ describe('EvalRunService.launch', () => {
         PROJECT,
         `session-${index + 2}`,
         expect.objectContaining({
+          workflowType: 'agent-entity-conversation',
           workflowAboutType: index < 2 ? 'task' : 'project',
           workflowAboutId: focalItemId,
         }),
@@ -242,7 +339,12 @@ describe('EvalRunService.launch', () => {
       ORG,
       PROJECT,
       'session-2',
-      { workflowType: 'agent-session', title: 'Eval attempt' },
+      {
+        workflowType: 'agent-entity-conversation',
+        title: 'Eval attempt',
+        workflowAboutType: 'task',
+        workflowAboutId: '88888888-8888-4888-8888-888888888888',
+      },
     );
   });
 
@@ -265,7 +367,7 @@ describe('EvalRunService.launch', () => {
     await expect(
       service.launch(ORG, PROJECT, USER, EVAL_ID, request as never),
     ).rejects.toThrow('boom');
-    expect(sessions.remove.mock.calls).toEqual([
+    expect(sessions.rollbackEvalLaunchSession.mock.calls).toEqual([
       [ORG, 'session-1'],
       [ORG, 'session-2'],
       [ORG, 'session-3'],
@@ -280,9 +382,37 @@ describe('EvalRunService.launch', () => {
     await expect(
       service.launch(ORG, PROJECT, USER, EVAL_ID, request as never),
     ).rejects.toThrow('no session');
-    expect(sessions.remove.mock.calls).toEqual([[ORG, 'session-1']]);
+    expect(sessions.rollbackEvalLaunchSession.mock.calls).toEqual([
+      [ORG, 'session-1'],
+    ]);
     expect(reports.createWithIdInTransaction).not.toHaveBeenCalled();
   });
+
+  it.each([1, 2])(
+    'removes the failing session when conversation %s fails',
+    async (failure) => {
+      const { service, sessions, reports } = build();
+      sessions.createConversationForSession.mockImplementation(
+        async (_org, _project, sessionId) => {
+          if (sessionId === `session-${failure}`) {
+            throw new Error('conversation failed');
+          }
+          return { conversation: { id: 'conversation-1' } };
+        },
+      );
+      await expect(
+        service.launch(ORG, PROJECT, USER, EVAL_ID, request as never),
+      ).rejects.toThrow('conversation failed');
+      expect(
+        sessions.rollbackEvalLaunchSession.mock.calls
+          .map((call) => call[1])
+          .sort(),
+      ).toEqual(
+        Array.from({ length: failure }, (_, index) => `session-${index + 1}`),
+      );
+      expect(reports.createWithIdInTransaction).not.toHaveBeenCalled();
+    },
+  );
 
   it('rejects a case that is not an approved case of this Eval before recording anything', async () => {
     const { service, prisma, reports, sessions } = build();

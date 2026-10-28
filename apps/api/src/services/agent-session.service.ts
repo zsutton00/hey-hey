@@ -2095,6 +2095,22 @@ export class AgentSessionService {
     organizationId: OrganizationId,
     agentSessionId: string,
   ): Promise<void> {
+    return this.removeSession(organizationId, agentSessionId, false);
+  }
+
+  /** Roll back records owned exclusively by an eval launch that never started. */
+  async rollbackEvalLaunchSession(
+    organizationId: OrganizationId,
+    agentSessionId: string,
+  ): Promise<void> {
+    return this.removeSession(organizationId, agentSessionId, true);
+  }
+
+  private async removeSession(
+    organizationId: OrganizationId,
+    agentSessionId: string,
+    rollbackEvalLaunch: boolean,
+  ): Promise<void> {
     await this.prisma.db.$transaction(async (tx) => {
       const existing = await tx.agentSession.findFirst({
         where: { id: agentSessionId, organizationId },
@@ -2103,6 +2119,10 @@ export class AgentSessionService {
 
       if (!existing) {
         throw new NotFoundException('Agent session not found');
+      }
+
+      if (rollbackEvalLaunch && existing.status !== 'NOT_STARTED') {
+        throw new ConflictException('Cannot roll back a started eval session');
       }
 
       const agentOperations = await tx.agentOperation.findMany({
@@ -2140,6 +2160,15 @@ export class AgentSessionService {
       await tx.agentSession.delete({
         where: { id: agentSessionId },
       });
+
+      if (rollbackEvalLaunch && existing.conversationId) {
+        await tx.message.deleteMany({
+          where: { conversationId: existing.conversationId },
+        });
+        await tx.conversation.delete({
+          where: { id: existing.conversationId },
+        });
+      }
 
       await this.publishDeletedEvent(
         tx,
