@@ -49,7 +49,8 @@ const SETUP_STARTED: DemoSandboxSetupProgressDto = {
   totalFeatureCount: 0,
 };
 
-const projectPath = (projectId: string): string => `/projects/${projectId}`;
+const projectWelcomePath = (projectId: string): string =>
+  `/projects/${projectId}?tab=help&helpSubTab=welcome`;
 
 const isUnavailableFailure = (failure: DemoSandboxProvisionFailure): boolean =>
   failure === "AT_CAPACITY" || failure === "DISABLED";
@@ -119,24 +120,24 @@ export const DemoStartPage = () => {
   const siteKey = getBotCheckSiteKey();
 
   /** Moves the page to whatever the API reports for this browser's demo. */
-  const showStatus = useCallback(
-    (result: DemoSandboxStatusResult): boolean => {
-      if (result.outcome === "ready") {
-        navigate(projectPath(result.sandbox.projectId), { replace: true });
-      } else if (result.outcome === "provisioning") {
-        setProgress(result.progress);
-        setView("setup");
-      } else if (result.outcome === "failed") {
-        setView("setup-failed");
-      } else if (result.outcome === "expired") {
-        setView("expired");
-      } else {
-        return false;
-      }
-      return true;
-    },
-    [navigate],
-  );
+  const showStatus = useCallback((result: DemoSandboxStatusResult): boolean => {
+    if (result.outcome === "ready") {
+      // The API has replaced the browser session. Start with fresh auth,
+      // organization and query state rather than carrying the prior login
+      // through the organization-switch redirect.
+      window.location.replace(projectWelcomePath(result.sandbox.projectId));
+    } else if (result.outcome === "provisioning") {
+      setProgress(result.progress);
+      setView("setup");
+    } else if (result.outcome === "failed") {
+      setView("setup-failed");
+    } else if (result.outcome === "expired") {
+      setView("expired");
+    } else {
+      return false;
+    }
+    return true;
+  }, []);
 
   const checkForExistingDemo = useCallback(
     async (isCancelled: () => boolean): Promise<void> => {

@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => {
     provision: vi.fn(),
     followSetup: vi.fn(),
     available: vi.fn(),
+    replaceLocation: vi.fn(),
     siteKey: "site-key" as string | undefined,
     DemoSandboxProvisionError,
   };
@@ -108,6 +109,11 @@ const completeConsent = async (
 
 describe("DemoStartPage", () => {
   beforeEach(() => {
+    vi.stubGlobal("location", {
+      ...window.location,
+      replace: mocks.replaceLocation,
+    });
+    mocks.replaceLocation.mockReset();
     mocks.resume.mockReset();
     mocks.provision.mockReset();
     mocks.followSetup.mockReset().mockReturnValue(new Promise(() => {}));
@@ -115,15 +121,20 @@ describe("DemoStartPage", () => {
     mocks.siteKey = "site-key";
   });
 
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
 
   it("routes a returning browser with an unexpired sandbox to its Project Page without the terms screen", async () => {
     mocks.resume.mockResolvedValue({ outcome: "ready", sandbox });
 
     renderPage();
 
-    expect(await screen.findByTestId("project-page")).toHaveTextContent(
-      "/projects/project-1",
+    await waitFor(() =>
+      expect(mocks.replaceLocation).toHaveBeenCalledWith(
+        "/projects/project-1?tab=help&helpSubTab=welcome",
+      ),
     );
     expect(screen.queryByTestId("demo-consent")).not.toBeInTheDocument();
     expect(mocks.provision).not.toHaveBeenCalled();
@@ -147,7 +158,11 @@ describe("DemoStartPage", () => {
 
     renderPage();
 
-    expect(await screen.findByTestId("project-page")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mocks.replaceLocation).toHaveBeenCalledWith(
+        "/projects/project-1?tab=help&helpSubTab=welcome",
+      ),
+    );
   });
 
   it("shows demo unavailable when starting a new demo after expiry while switched off", async () => {
@@ -243,8 +258,10 @@ describe("DemoStartPage", () => {
       demoTermsVersion: "demo-1.0",
       agentBridgeAcknowledgmentVersion: "demo-1.0",
     });
-    expect(await screen.findByTestId("project-page")).toHaveTextContent(
-      "/projects/project-1",
+    await waitFor(() =>
+      expect(mocks.replaceLocation).toHaveBeenCalledWith(
+        "/projects/project-1?tab=help&helpSubTab=welcome",
+      ),
     );
   });
 
@@ -303,7 +320,11 @@ describe("DemoStartPage", () => {
           expect.objectContaining({ botCheckToken: "token-1" }),
         ),
       );
-      expect(await screen.findByTestId("project-page")).toBeInTheDocument();
+      await waitFor(() =>
+        expect(mocks.replaceLocation).toHaveBeenCalledWith(
+          "/projects/project-1?tab=help&helpSubTab=welcome",
+        ),
+      );
     },
   );
 
@@ -345,8 +366,10 @@ describe("DemoStartPage", () => {
     expect(screen.getByText(/can take a minute/i)).toBeInTheDocument();
 
     finish({ outcome: "ready", sandbox });
-    expect(await screen.findByTestId("project-page")).toHaveTextContent(
-      "/projects/project-1",
+    await waitFor(() =>
+      expect(mocks.replaceLocation).toHaveBeenCalledWith(
+        "/projects/project-1?tab=help&helpSubTab=welcome",
+      ),
     );
   });
 
@@ -400,7 +423,11 @@ describe("DemoStartPage", () => {
     );
     await user.click(screen.getByTestId("demo-setup-check-again"));
 
-    expect(await screen.findByTestId("project-page")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mocks.replaceLocation).toHaveBeenCalledWith(
+        "/projects/project-1?tab=help&helpSubTab=welcome",
+      ),
+    );
     expect(mocks.followSetup).toHaveBeenCalledTimes(2);
   });
 
@@ -433,7 +460,11 @@ describe("DemoStartPage", () => {
 
     await user.click(await screen.findByTestId("demo-retry-check"));
 
-    expect(await screen.findByTestId("project-page")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mocks.replaceLocation).toHaveBeenCalledWith(
+        "/projects/project-1?tab=help&helpSubTab=welcome",
+      ),
+    );
   });
 
   it("does not offer to start when no bot check is configured", async () => {
