@@ -1,3 +1,4 @@
+import type { GroupReservedEntity } from './proposal-group-authoring.service';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ProposalEdgeEndpointMode } from 'src/generated/model/proposalEdgeEndpointMode';
 import {
@@ -134,6 +135,7 @@ export class WorkItemChangeSetProjectorService {
     organizationId: OrganizationId;
     projectId: ProjectId;
     request: WorkItemChangeSetValidationRequest;
+    reservedEntities?: readonly GroupReservedEntity[];
     basis?: ProjectedWorkItemChangeSetResponse;
     overlayNodes?: readonly ProjectedWorkItem[];
     overlayRelationships?: readonly ProjectedWorkItemRelationship[];
@@ -755,6 +757,7 @@ export class WorkItemChangeSetProjectorService {
     organizationId: OrganizationId;
     projectId: ProjectId;
     request: WorkItemChangeSetValidationRequest;
+    reservedEntities?: readonly GroupReservedEntity[];
     basis?: ProjectedWorkItemChangeSetResponse;
     overlayNodes?: readonly ProjectedWorkItem[];
     overlayRelationships?: readonly ProjectedWorkItemRelationship[];
@@ -976,6 +979,7 @@ export class WorkItemChangeSetProjectorService {
     organizationId: OrganizationId;
     projectId: ProjectId;
     request: WorkItemChangeSetValidationRequest;
+    reservedEntities?: readonly GroupReservedEntity[];
     basis?: ProjectedWorkItemChangeSetResponse;
     overlayNodes?: readonly ProjectedWorkItem[];
     overlayRelationships?: readonly ProjectedWorkItemRelationship[];
@@ -1059,6 +1063,7 @@ export class WorkItemChangeSetProjectorService {
       agentEdgeClient: this.agentEdgeClient,
       tokenFactory: this.tokenFactory,
       request: params.request,
+      reservedEntities: params.reservedEntities,
       facts,
       state,
       loaded,

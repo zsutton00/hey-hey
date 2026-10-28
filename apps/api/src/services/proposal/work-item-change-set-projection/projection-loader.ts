@@ -1,3 +1,4 @@
+import type { GroupReservedEntity } from '../proposal-group-authoring.service';
 import type { Logger } from '@nestjs/common';
 import { isAxiosError } from 'axios';
 import type { WorkItemChangeSetValidationRequest } from 'src/generated';
@@ -64,6 +65,7 @@ export class ProjectionLoader {
       agentEdgeClient: AgentEdgeClientService;
       tokenFactory: ServiceTokenFactory;
       request: WorkItemChangeSetValidationRequest;
+      reservedEntities?: readonly GroupReservedEntity[];
       facts: RequestFacts;
       state: ProjectionState;
       loaded: LoadedData;
@@ -216,6 +218,7 @@ export class ProjectionLoader {
       include: TASK_INCLUDE,
     })) as ProjectedTaskRecord[];
     this.params.writer.writeTasks(tasks);
+
     return { nodes: tasks.length, edges: 0 };
   }
 
@@ -282,6 +285,7 @@ export class ProjectionLoader {
       of,
       tasks.map((task) => `existing:${task.id}`),
     );
+
     return { nodes: tasks.length, edges: 0 };
   }
 
@@ -297,6 +301,7 @@ export class ProjectionLoader {
       siblingsKey(parent, name),
       tasks.map((task) => `existing:${task.id}`),
     );
+
     return { nodes: tasks.length, edges: 0 };
   }
 
@@ -552,6 +557,19 @@ export class ProjectionLoader {
         entityType: 'SERVICE',
       }),
     );
+
+    for (const reserved of this.params.reservedEntities ?? []) {
+      if (
+        reserved.entityType === 'TASK' &&
+        taskIds.has(reserved.entityId) &&
+        !this.params.loaded.diagramTargets.has(reserved.entityId)
+      ) {
+        this.params.loaded.diagramTargets.set(reserved.entityId, {
+          entityType: 'TASK',
+          type: reserved.workItemType,
+        });
+      }
+    }
     return { nodes: tasks.length, edges: 0 };
   }
 
@@ -627,6 +645,7 @@ export class ProjectionLoader {
         projectId: doc.projectId,
       }),
     );
+
     return { nodes: tasks.length, edges: 0 };
   }
 

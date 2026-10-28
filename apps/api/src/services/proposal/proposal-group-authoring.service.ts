@@ -70,7 +70,7 @@ type PreparedGroupProposal = {
   reservedTargetEntityId: string | null;
 };
 
-type GroupReservedEntity = {
+export type GroupReservedEntity = {
   entityId: string;
   entityType: string;
   workItemType?: string;
@@ -965,6 +965,24 @@ export class ProposalGroupAuthoringService {
       };
     }
     return input;
+  }
+
+  async getReservedEntities(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    groupId: string,
+    expectedRevision: number,
+  ): Promise<GroupReservedEntity[]> {
+    return this.prisma.db.$transaction(async (tx) => {
+      await this.lockBuildingGroup(
+        tx,
+        organizationId,
+        projectId,
+        groupId,
+        expectedRevision,
+      );
+      return this.loadGroupReservedEntities(tx, groupId);
+    });
   }
 
   private async loadGroupReservedEntities(

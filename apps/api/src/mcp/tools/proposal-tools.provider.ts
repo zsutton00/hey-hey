@@ -2968,6 +2968,14 @@ export class ProposalToolsProvider {
                 organizationId: auth.organizationId,
                 projectId: projectId as ProjectId,
                 request: remaining,
+                reservedEntities: params.groupContext
+                  ? await this.requireGroupAuthoringService().getReservedEntities(
+                      auth.organizationId,
+                      projectId as ProjectId,
+                      params.groupContext.groupId,
+                      params.groupContext.expectedRevision,
+                    )
+                  : undefined,
               })
             : undefined;
           return {
@@ -3542,6 +3550,14 @@ export class ProposalToolsProvider {
           );
         }
         const projectionParams = {
+          reservedEntities: params.groupContext
+            ? await this.requireGroupAuthoringService().getReservedEntities(
+                auth.organizationId,
+                projectId as ProjectId,
+                params.groupContext.groupId,
+                params.groupContext.expectedRevision,
+              )
+            : undefined,
           organizationId: auth.organizationId,
           projectId: projectId as ProjectId,
           request,

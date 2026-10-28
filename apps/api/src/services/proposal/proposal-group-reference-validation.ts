@@ -1,3 +1,8 @@
+import { workItemChangeSetValidationRequestSchema } from './work-item-change-set.schema';
+import {
+  parseDiagramJson,
+  diagramElementMetadataSchema,
+} from '../tasks/diagram-metadata';
 import { Injectable, Logger } from '@nestjs/common';
 import type { Proposal, ProposalGroupDependency } from '@prisma/client';
 import type {
@@ -261,6 +266,37 @@ export class ProposalGroupReferenceValidation {
     }
 
     if (proposal.targetEntityType === 'TASK') {
+      const graph = workItemChangeSetValidationRequestSchema.safeParse(
+        proposal.updates,
+      );
+      if (graph.success) {
+        graph.data.operations.forEach((operation, index) => {
+          if (
+            operation.op !== 'section.replace' ||
+            operation.key !== 'diagramElementMetadata'
+          ) {
+            return;
+          }
+          let content: unknown;
+          try {
+            content = parseDiagramJson(operation.content);
+          } catch {
+            return;
+          }
+          const parsed = diagramElementMetadataSchema.safeParse(content);
+          const reference = parsed.success
+            ? parsed.data.canonicalReference
+            : undefined;
+          if (reference) {
+            candidates.push({
+              value: reference.entityId,
+              entityType: reference.entityType,
+              path: `${prefix}/updates/operations/${index}/content`,
+            });
+          }
+        });
+      }
+
       candidates.push({
         value: updates.parentTaskId,
         entityType: 'TASK',

@@ -406,6 +406,133 @@ describe('ProposalGroupFinalizationService', () => {
     expect(projector.projectTopology).toHaveBeenCalledTimes(1);
   });
 
+  it.each<['CREATE' | 'UPDATE', string]>([
+    ['CREATE', 'mockup'],
+    ['CREATE', 'STANDARD'],
+    ['CREATE', 'missing'],
+    ['UPDATE', 'mockup'],
+    ['UPDATE', 'STANDARD'],
+    ['UPDATE', 'missing'],
+  ])(
+    'checks Diagram %s targets before review: %s',
+    async (action, targetType) => {
+      const projector = { projectTopology: jest.fn() };
+      const registry = {
+        getProjectedTopologySemantics: jest.fn().mockReturnValue({
+          isFeature: () => false,
+          isWorkflow: () => false,
+          isWorkflowStep: () => false,
+          isContract: () => false,
+          isFulfillment: () => false,
+          isContractDependency: () => false,
+          isFlow: () => false,
+        }),
+      };
+      const { service, group, tx } = createFixture({
+        workItemTypeRegistry: registry,
+        workItemChangeSetProjector: projector,
+      });
+      const screen = group.members[0]!;
+      screen.proposal.targetEntityType = 'TASK';
+      screen.proposal.updates = { type: targetType, name: 'Screen' } as any;
+      const journey = structuredClone(screen);
+      journey.proposal.action = action;
+      journey.id = SECOND_MEMBER_ID;
+      journey.reservedTargetEntityId = SECOND_RESERVED_ID;
+      journey.proposal.id = SECOND_PROPOSAL_ID;
+      journey.proposal.targetEntityId = SECOND_RESERVED_ID;
+      journey.memberOrder = 1;
+      journey.proposal.updates = {
+        root: { refType: 'temporary', tempId: 'journey' },
+        operations: [
+          {
+            op: 'workItem.create',
+            ref: { refType: 'temporary', tempId: 'journey' },
+            type: 'DIAGRAM',
+            name: 'Journey',
+          },
+          {
+            op: 'section.replace',
+            ref: { refType: 'temporary', tempId: 'screen' },
+            key: 'diagramElementMetadata',
+            content: {
+              role: 'SCREEN',
+              canonicalReference: { entityType: 'TASK', entityId: RESERVED_ID },
+            },
+          },
+        ],
+      } as any;
+      if (action === 'UPDATE') {
+        Object.assign(journey, { reservedTargetEntityId: null });
+        tx.task.findFirst.mockResolvedValue({
+          type: 'DIAGRAM',
+          parentTaskId: null,
+          initiativeId: null,
+        });
+      }
+      group.members.push(journey);
+      const root = {
+        identity: { refType: 'temporary', tempId: 'journey' },
+        type: 'DIAGRAM',
+        name: 'Journey',
+        label: 'Journey',
+        sections: [],
+        deleted: false,
+      };
+      projector.projectTopology.mockResolvedValue({
+        projection: {
+          valid: targetType === 'mockup',
+          projectedRoot: root,
+          issues:
+            targetType === 'mockup'
+              ? []
+              : [{ reason: 'Screen must reference a Mockup' }],
+        },
+        nodes: [root],
+        relationships: [],
+        featureContractCitations: new Map(),
+        participatingFeatureByWorkflowNode: new Map(),
+      });
+      const result = await service.finalize(
+        ORGANIZATION_ID,
+        PROJECT_ID,
+        GROUP_ID,
+        requestor,
+        { expectedRevision: 3 },
+      );
+
+      expect(projector.projectTopology).toHaveBeenCalledTimes(1);
+      expect(
+        projector.projectTopology.mock.calls[0][0].reservedEntities,
+      ).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            entityId: RESERVED_ID,
+            workItemType: targetType,
+          }),
+        ]),
+      );
+      expect(result.outcome).toBe(
+        targetType === 'mockup' ? 'FINALIZED' : 'VALIDATION_FAILED',
+      );
+      if (targetType !== 'mockup') {
+        expect(tx.proposalGroup.updateMany).not.toHaveBeenCalled();
+      }
+    },
+  );
+
+  it('does not project ordinary non-Diagram CREATE members', async () => {
+    const projector = { projectTopology: jest.fn() };
+    const { service } = createFixture({
+      workItemTypeRegistry: {},
+      workItemChangeSetProjector: projector,
+    });
+    await service.finalize(ORGANIZATION_ID, PROJECT_ID, GROUP_ID, requestor, {
+      expectedRevision: 3,
+    });
+    expect(projector.projectTopology).not.toHaveBeenCalled();
+  });
+
   it('captures threshold zero without a synthetic vote and initializes READY', async () => {
     const dispatchReadyMembers = jest.fn().mockResolvedValue(undefined);
     const { service, tx } = createFixture({
