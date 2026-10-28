@@ -69,19 +69,14 @@ export const en = {
   "demo.expired.startNew": "Start a new demo",
   "demo.backHome": "Back to home",
 
-  "demo.banner.title": "Temporary private demo",
-  "demo.banner.policy":
-    "Stays active during use · expires after {{duration}} of inactivity",
+  "demo.banner.title": "Demo sandbox",
+  "demo.banner.policy": "expires after {{duration}} of inactivity",
   "demo.banner.timeoutHours_one": "{{count}} hour",
   "demo.banner.timeoutHours_other": "{{count}} hours",
   "demo.banner.timeoutMinutes_one": "{{count}} minute",
   "demo.banner.timeoutMinutes_other": "{{count}} minutes",
-  "demo.banner.expiry": "Current expiry: {{time}} · server reported",
-  "demo.banner.pairCli": "Pair CLI",
-  "demo.banner.repository": "Example repository",
-  "demo.banner.cloneLabel": "Clone the example repository",
-  "demo.banner.copyClone": "Copy clone command",
-  "demo.banner.copied": "Copied",
+  "demo.banner.remainingHours": "{{hours}}h {{minutes}}m left",
+  "demo.banner.remainingMinutes": "{{minutes}}m left",
 
   "triage.generating": "Preparing triage suggestions…",
   "triage.resultsError": "Unable to load suggestions.",
