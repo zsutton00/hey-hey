@@ -31,6 +31,8 @@ export const en = {
   "demo.consent.botCheckUnavailable":
     "The bot check couldn't be loaded, so a demo can't be started right now. Please try again later.",
   "demo.consent.start": "Start my demo",
+  "demo.consent.signsOutWarning":
+    "You're signed in to your Hey Hey account. Starting the demo signs you out of it, and you'll need to sign in again afterwards.",
   "demo.consent.error.RATE_LIMITED":
     "You've started several demos recently. Please wait a little and try again.",
   "demo.consent.error.BOT_CHECK_FAILED":
@@ -70,6 +72,11 @@ export const en = {
   "demo.backHome": "Back to home",
 
   "demo.banner.title": "Demo sandbox",
+  "demo.logout.title": "Leave this demo?",
+  "demo.logout.body":
+    "Logging out ends your demo for good. You won't be able to get back into it and will need to start a new one.",
+  "demo.logout.confirm": "Log out",
+  "demo.logout.cancel": "Stay in demo",
   "demo.banner.policy": "expires after {{duration}} of inactivity",
   "demo.banner.timeoutHours_one": "{{count}} hour",
   "demo.banner.timeoutHours_other": "{{count}} hours",

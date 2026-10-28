@@ -17,6 +17,7 @@ import {
   type WorkItemTypeSummaryDto,
 } from "@hey-hey/ui-common/api";
 import {
+  hasDemoSandboxSession,
   useProjects,
   useServices,
   useWorkItemTypes,
@@ -51,6 +52,7 @@ import { parseAsString, useQueryState } from "nuqs";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
+import { DemoLogoutDialog } from "./DemoLogoutDialog";
 import { ExplorerMinimal } from "./ExplorerMinimal";
 import { ExplorerSearch } from "./ExplorerSearch";
 import { ExplorerTree } from "./ExplorerTree";
@@ -229,6 +231,8 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
   // Fetch current project and all projects for switching
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [reportProblemOpen, setReportProblemOpen, reportProblemOpenOwnerKey] =
+    useModalState(false);
+  const [demoLogoutOpen, setDemoLogoutOpen, demoLogoutOpenOwnerKey] =
     useModalState(false);
   const userMenuButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -500,6 +504,20 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
     handleUserMenuNavigation("/");
   }, [handleUserMenuNavigation, logout]);
 
+  // A demo can't be re-entered after logout, so confirm before leaving one.
+  const handleLogoutRequest = useCallback(() => {
+    if (hasDemoSandboxSession()) {
+      setDemoLogoutOpen(true);
+      return;
+    }
+    void handleLogout();
+  }, [handleLogout, setDemoLogoutOpen]);
+
+  const handleDemoLogoutConfirm = useCallback(() => {
+    setDemoLogoutOpen(false);
+    void handleLogout();
+  }, [handleLogout, setDemoLogoutOpen]);
+
   const handleOrgSwitch = useCallback(
     async (orgId: string) => {
       try {
@@ -751,7 +769,7 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
         setReportProblemOpen(true);
       }}
     />,
-    <MenuItem key="user-menu-logout" onClick={handleLogout}>
+    <MenuItem key="user-menu-logout" onClick={handleLogoutRequest}>
       {t(KEYS.auth.logout)}
     </MenuItem>,
   ];
@@ -1176,6 +1194,13 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
                 onClose={() => setReportProblemOpen(false)}
                 productLocation={location.pathname + location.search}
                 returnFocusRef={userMenuButtonRef}
+              />
+            </ModalWorkOwner.Provider>
+            <ModalWorkOwner.Provider value={demoLogoutOpenOwnerKey}>
+              <DemoLogoutDialog
+                open={demoLogoutOpen}
+                onConfirm={handleDemoLogoutConfirm}
+                onCancel={() => setDemoLogoutOpen(false)}
               />
             </ModalWorkOwner.Provider>
           </>

@@ -13,7 +13,6 @@ import { ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import {
   browserSessionRequestMetadata,
-  cookieAttributes,
   setBrowserSessionCookies,
 } from '../auth/browser-session-cookies';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -32,10 +31,8 @@ import {
   DemoSandboxRequestContext,
 } from '../services/demo-sandbox/demo-sandbox-admission.service';
 import { isDemoSandboxEnabled } from '../services/demo-sandbox/demo-sandbox-program.service';
-import {
-  DEMO_BINDING_COOKIE_MAX_AGE_MILLISECONDS,
-  DEMO_BINDING_COOKIE_NAME,
-} from '../services/demo-sandbox/demo-sandbox.constants';
+import { setDemoBindingCookie } from '../services/demo-sandbox/demo-binding-cookie';
+import { DEMO_BINDING_COOKIE_NAME } from '../services/demo-sandbox/demo-sandbox.constants';
 import { ProvisionDemoSandboxPipe } from './demo-sandbox.validation';
 
 @ApiTags('DemoSandboxes')
@@ -109,10 +106,7 @@ export class DemoSandboxController {
       setBrowserSessionCookies(response, admission.session);
     }
     if (admission.bindingSecret) {
-      response.cookie(DEMO_BINDING_COOKIE_NAME, admission.bindingSecret, {
-        ...cookieAttributes('/'),
-        maxAge: DEMO_BINDING_COOKIE_MAX_AGE_MILLISECONDS,
-      });
+      setDemoBindingCookie(response, admission.bindingSecret);
     }
     return admission.admission;
   }

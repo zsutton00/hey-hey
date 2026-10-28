@@ -1,10 +1,12 @@
 import {
   DemoSandboxProvisionError,
+  useDemoSandbox,
   useDemoSandboxAdmission,
   type DemoSandboxProvisionFailure,
   type DemoSandboxStatusResult,
 } from "@hey-hey/ui-common/data";
 import type { DemoSandboxSetupProgressDto } from "@hey-hey/ui-common/api";
+import { useAuth } from "@hey-hey/ui-common/context";
 import { getBotCheckSiteKey } from "@hey-hey/ui-common/services";
 import { HeyHeyBranding } from "@hey-hey/ui-common/components";
 import {
@@ -105,6 +107,11 @@ export const DemoStartPage = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { resume, provision, followSetup } = useDemoSandboxAdmission();
+  const { isAuthenticated, logout } = useAuth();
+  const currentSandbox = useDemoSandbox({ enabled: isAuthenticated });
+  // A browser holds one session, so a demo started here replaces a real login.
+  const hasRealLogin =
+    currentSandbox.isReady && currentSandbox.sandbox === null;
   const [view, setView] = useState<DemoStartView>("checking");
   const [accepted, setAccepted] = useState(false);
   const [botCheckToken, setBotCheckToken] = useState<string | null>(null);
@@ -209,6 +216,11 @@ export const DemoStartPage = () => {
     setProgress(SETUP_STARTED);
     setView("starting");
     try {
+      if (hasRealLogin) {
+        // Sign out through the normal logout so the real session is revoked
+        // rather than having its cookies silently overwritten.
+        await logout();
+      }
       const result = await provision({
         botCheckToken,
         demoTermsVersion: DEMO_DOCUMENT_VERSION,
@@ -468,6 +480,11 @@ export const DemoStartPage = () => {
             </Alert>
           )}
         </Box>
+        {hasRealLogin && (
+          <Alert severity="warning" data-testid="demo-signs-out-warning">
+            {t("demo.consent.signsOutWarning")}
+          </Alert>
+        )}
         {failure && (
           <Alert severity="error" data-testid="demo-start-error">
             {t(`demo.consent.error.${failure}`)}

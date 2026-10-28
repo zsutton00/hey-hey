@@ -19,6 +19,9 @@ const mocks = vi.hoisted(() => {
     provision: vi.fn(),
     followSetup: vi.fn(),
     available: vi.fn(),
+    logout: vi.fn(),
+    auth: { isAuthenticated: false },
+    currentSandbox: { isReady: false, sandbox: null as object | null },
     replaceLocation: vi.fn(),
     siteKey: "site-key" as string | undefined,
     DemoSandboxProvisionError,
@@ -27,11 +30,16 @@ const mocks = vi.hoisted(() => {
 
 vi.mock("@hey-hey/ui-common/data", () => ({
   DemoSandboxProvisionError: mocks.DemoSandboxProvisionError,
+  useDemoSandbox: () => mocks.currentSandbox,
   useDemoSandboxAdmission: () => ({
     resume: mocks.resume,
     provision: mocks.provision,
     followSetup: mocks.followSetup,
   }),
+}));
+
+vi.mock("@hey-hey/ui-common/context", () => ({
+  useAuth: () => ({ ...mocks.auth, logout: mocks.logout }),
 }));
 
 vi.mock("../../components/Homepage/landingPageCta", () => ({
@@ -118,6 +126,9 @@ describe("DemoStartPage", () => {
     mocks.provision.mockReset();
     mocks.followSetup.mockReset().mockReturnValue(new Promise(() => {}));
     mocks.available.mockReset().mockResolvedValue(true);
+    mocks.logout.mockReset().mockResolvedValue(undefined);
+    mocks.auth.isAuthenticated = false;
+    mocks.currentSandbox = { isReady: false, sandbox: null };
     mocks.siteKey = "site-key";
   });
 
@@ -137,6 +148,59 @@ describe("DemoStartPage", () => {
       ),
     );
     expect(screen.queryByTestId("demo-consent")).not.toBeInTheDocument();
+    expect(mocks.provision).not.toHaveBeenCalled();
+  });
+
+  it("tells a real signed-in user the demo signs them out and signs them out before starting it", async () => {
+    const user = userEvent.setup();
+    mocks.auth.isAuthenticated = true;
+    mocks.currentSandbox = { isReady: true, sandbox: null };
+    mocks.resume.mockResolvedValue({ outcome: "none" });
+    mocks.provision.mockResolvedValue({ outcome: "ready", sandbox });
+
+    renderPage();
+    await screen.findByTestId("demo-consent");
+    expect(screen.getByTestId("demo-signs-out-warning")).toBeInTheDocument();
+    await completeConsent(user);
+    await user.click(screen.getByTestId("demo-start-button"));
+
+    await waitFor(() => expect(mocks.provision).toHaveBeenCalled());
+    expect(mocks.logout).toHaveBeenCalledOnce();
+    expect(mocks.logout.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.provision.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("does not warn or sign out a visitor who has no real login", async () => {
+    const user = userEvent.setup();
+    mocks.resume.mockResolvedValue({ outcome: "none" });
+    mocks.provision.mockResolvedValue({ outcome: "ready", sandbox });
+
+    renderPage();
+    await screen.findByTestId("demo-consent");
+    expect(
+      screen.queryByTestId("demo-signs-out-warning"),
+    ).not.toBeInTheDocument();
+    await completeConsent(user);
+    await user.click(screen.getByTestId("demo-start-button"));
+
+    await waitFor(() => expect(mocks.provision).toHaveBeenCalled());
+    expect(mocks.logout).not.toHaveBeenCalled();
+  });
+
+  it("does not start the demo when signing out the real login fails", async () => {
+    const user = userEvent.setup();
+    mocks.auth.isAuthenticated = true;
+    mocks.currentSandbox = { isReady: true, sandbox: null };
+    mocks.resume.mockResolvedValue({ outcome: "none" });
+    mocks.logout.mockRejectedValue(new Error("logout failed"));
+
+    renderPage();
+    await screen.findByTestId("demo-consent");
+    await completeConsent(user);
+    await user.click(screen.getByTestId("demo-start-button"));
+
+    expect(await screen.findByTestId("demo-start-error")).toBeInTheDocument();
     expect(mocks.provision).not.toHaveBeenCalled();
   });
 
