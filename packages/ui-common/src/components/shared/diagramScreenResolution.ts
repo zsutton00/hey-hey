@@ -1,4 +1,3 @@
-import { useTheme } from "@mui/material";
 import { useMemo } from "react";
 import {
   type DiagramElementMetadata,
@@ -23,6 +22,10 @@ const SCREEN_NAME_LINE_CLAMP = 2;
 export const SCREEN_NAME_LINE_HEIGHT = 1.25;
 const SCREEN_NAME_GAP = 4;
 const REM_PX = 16;
+// The theme sets cssVariables, so theme.spacing() returns a calc()/var()
+// string with no numeric pixel value; the layout needs pixels. The theme keeps
+// MUI's default 8px spacing unit, which sx padding multiplies by cardPadding.
+const THEME_SPACING_UNIT_PX = 8;
 // The card frame draws a 1px border, 2px when highlighted; size against the
 // larger one so the screen never exceeds the card's content box.
 const CARD_BORDER_ALLOWANCE = 4;
@@ -93,15 +96,13 @@ export const useDiagramScreenLayout = ({
   cardPadding,
   titleFontSize,
 }: DiagramScreenLayoutInput): DiagramScreenLayout => {
-  const theme = useTheme();
-  const spacingPx = parseFloat(theme.spacing(1));
   return useMemo(
     () =>
       getDiagramScreenLayout(
         { nodeSize, cardPadding, titleFontSize },
-        spacingPx,
+        THEME_SPACING_UNIT_PX,
       ),
-    [nodeSize, cardPadding, titleFontSize, spacingPx],
+    [nodeSize, cardPadding, titleFontSize],
   );
 };
 
