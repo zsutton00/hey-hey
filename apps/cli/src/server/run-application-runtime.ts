@@ -387,7 +387,18 @@ export class RunApplicationRuntime {
       capabilityCatalog: dependencies.capabilityCatalog,
     });
     const deterministicE2EScenarioRegistry = DeterministicE2EScenarioRegistry.fromEnvironment();
+    const baseHandlerDeps = {
+      preparationRecords: createRunStorePreparationRecords(dependencies.runStore),
+      fetchImpl,
+      auth: dependencies.agentRuntime.auth,
+      apiBaseUrl: dependencies.apiBaseUrl,
+      logger: runLogger,
+      taskMonitorDecisionStore: dependencies.agentRuntime.taskMonitorDecisionStore,
+      sessionMonitorEvaluationStore: dependencies.agentRuntime.sessionMonitorEvaluationStore,
+      startupPromptInput: dependencies.agentRuntime.startupPromptInput,
+    };
     this.childAgentLauncher = new ChildAgentLauncher({
+      handlerDeps: baseHandlerDeps,
       promptTypeRegistry: dependencies.agentRuntime.promptTypeRegistry,
       repoStore: dependencies.repoStore,
       oauthClient: dependencies.oauthClient,
@@ -440,17 +451,7 @@ export class RunApplicationRuntime {
       runStore: dependencies.runStore,
       logger: dependencies.logger.child({ component: 'report-sync' }),
     });
-    const handlerDeps = {
-      preparationRecords: createRunStorePreparationRecords(dependencies.runStore),
-      fetchImpl,
-      auth: dependencies.agentRuntime.auth,
-      apiBaseUrl: dependencies.apiBaseUrl,
-      logger: runLogger,
-      taskMonitorDecisionStore: dependencies.agentRuntime.taskMonitorDecisionStore,
-      sessionMonitorEvaluationStore: dependencies.agentRuntime.sessionMonitorEvaluationStore,
-      startupPromptInput: dependencies.agentRuntime.startupPromptInput,
-      childAgentLauncher: this.childAgentLauncher,
-    };
+    const handlerDeps = { ...baseHandlerDeps, childAgentLauncher: this.childAgentLauncher };
     const onCompleteDeps = {
       fetchImpl,
       auth: dependencies.agentRuntime.auth,

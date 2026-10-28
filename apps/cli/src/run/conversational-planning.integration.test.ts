@@ -221,6 +221,7 @@ async function makeHarness(rejectFirstContext = false) {
   const sessionRunnerFacade = createTestSessionRunnerFacade();
   const endpoint = new LocalAgentEndpoint();
   const childAgentLauncher = new ChildAgentLauncher({
+    handlerDeps: createPromptTypeHandlerTestDeps(),
     promptTypeRegistry: promptTypes,
     repoStore,
     oauthClient,

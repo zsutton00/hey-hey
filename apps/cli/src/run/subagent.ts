@@ -1,5 +1,3 @@
-import { SessionRoleGuidance } from '../agents/session-role-guidance/session-role-guidance';
-import { SubmissionToolAuth } from '../agents/submission-tools/submission-tool-auth';
 import {
   composeFreshPlatformPromptDelivery,
   resolveProviderPlatformPromptDeliveryMode,
@@ -7,30 +5,7 @@ import {
   type PlatformPromptFreshDelivery,
 } from '../agents/providers/platform-prompt-delivery';
 import { applyCodexSessionReviewerPolicy } from '../agents/providers/codex/codex-session-policy';
-/**
- * SubAgent — the unified isolated provider-helper-session executor for every
- * handler that declares `runnerKind: 'subagent'`.
- *
- * Replaces the per-handler `spawnXSubagent` helpers (commit, implement,
- * review, coding-plan, final-assessment) with one class that consumes the
- * handler's declarative `SubagentConfig` plus the per-Turn `RunnerContext`.
- * The class owns the entire session lifetime: build prompt, construct the
- * MCP server, wire the permission handler, pipe normalized events, fire
- * `run_started`/`run_completed`, and disconnect the SDK client.
- *
- * Invariants:
- *   - The provider helper session is created and disconnected inside
- *     `execute`. No external code observes its ephemeral session id.
- *   - The prompt is `prependPriorReports(buildPrompt(payload) +
- *     buildServiceContextNote(serviceId) + handler.addUserMessage(payload))`.
- *     The runtime always invokes `buildPrompt` + `addUserMessage` on the
- *     subagent path; the resolver no longer special-cases subagent-owned
- *     promptTypes.
- *   - Handler-prepared payloads (the enriched payload returned by
- *     `handler.prepare`) are preferred over the raw wire payload so
- *     enrichment work like the implement handler's approved-plan fetch
- *     reaches the prompt.
- */
+/** Executes a launcher-resolved prompt in one isolated provider session. */
 
 import path from 'node:path';
 import { RunWorkspaceWriteBoundary } from '../agents/workspace-write-boundary';
@@ -52,16 +27,10 @@ import type {
   AgentStartupPromptInputResult,
   PromptTypeHandler,
   SubagentConfig,
-  UserLaunchablePromptTypeHandler,
 } from '../agents/prompt-type-handler';
 import { buildMcpServerConfig, resolveHintPromptAccess } from '../agents/mcp-server-config';
-import {
-  buildServiceContextNote,
-  buildPlatformSystemPrompt,
-  mentionFormatReminder,
-} from '../agents/prompts/common';
-import { readSessionStartContext } from '../agents/prompts/session-start-context';
-import { prependPriorReports } from '../agents/prompts/report-chain';
+import { buildPlatformSystemPrompt } from '../agents/prompts/common';
+import type { SessionStartContext } from '../agents/prompts/session-start-context';
 import { loadProviderEventNormalizationConfig } from '../agents/providers/provider-event-normalization';
 import { resolveAgentProviderId } from '../agents/providers/provider-config';
 import { mapCodexEvent } from '../agents/providers/codex/codex-event-mapper';
@@ -108,11 +77,6 @@ const extractAssistantText = (event: ClaudeCodeSdkEvent): string | null => {
   }
   return parts.length > 0 ? parts.join('') : null;
 };
-
-const isUserLaunchable = (
-  handler: PromptTypeHandler<unknown>,
-): handler is UserLaunchablePromptTypeHandler<{ userMessage?: string }> =>
-  typeof (handler as { addUserMessage?: unknown } | undefined)?.addUserMessage === 'function';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
@@ -335,7 +299,8 @@ export interface SubAgentArgs {
   session: AgenticSession;
   handler: PromptTypeHandler<unknown>;
   config: SubagentConfig;
-  payload: unknown;
+  prompt: string;
+  sessionStartContext: SessionStartContext;
   touchedFiles: readonly string[];
   onAgentOutput: AgentOutputHandler;
   oauthClient: OAuthClient;
@@ -550,7 +515,8 @@ export class SubAgent {
       session,
       handler,
       config,
-      payload,
+      prompt,
+      sessionStartContext,
       touchedFiles,
       onAgentOutput,
       oauthClient,
@@ -572,35 +538,6 @@ export class SubAgent {
     const signal = evalExecution?.tokenBudget?.signal ?? parentSignal;
     const runId = session.agentic_session_id;
 
-    // Build the prompt the runtime way: handler.buildPrompt + service-context
-    // note + handler.addUserMessage (when the handler is user-launchable).
-    // Mirrors `resolvePrompt`'s composition for provider-session flows so the
-    // subagent and provider-session paths share one contract.
-    //
-    // touchedFiles is a runtime-only concept the resolver never sees; it is
-    // injected onto the payload here under the underscore-prefixed `_touchedFiles`
-    // convention so handlers that care (review) can read it through their
-    // existing `buildPrompt(payload)` signature without taking a runtime dep.
-    const enrichedPayload =
-      payload !== null && typeof payload === 'object'
-        ? { ...(payload as Record<string, unknown>), _touchedFiles: touchedFiles }
-        : payload;
-    const launchable = isUserLaunchable(handler) ? handler : null;
-    const systemPrompt =
-      handler.buildPrompt(enrichedPayload, {
-        entity: session.entity,
-        ...(startupPromptInput?.loadedEntityContext
-          ? { loadedEntityContext: startupPromptInput.loadedEntityContext }
-          : {}),
-        recentUserReplies: [],
-        triggerParentMessageId: null,
-      }) + buildServiceContextNote(session.launchServiceId);
-    const userInjection =
-      launchable?.addUserMessage(enrichedPayload as { userMessage?: string }) ?? null;
-    const handlerPrompt = userInjection ? `${systemPrompt}${userInjection}` : systemPrompt;
-    const composed = startupPromptInput
-      ? `${startupPromptInput.renderedInput}\n\n---\n\n${handlerPrompt}`
-      : handlerPrompt;
     logger.debug('local.subagent.provider_session.action', {
       runId,
       providerSessionAction: 'mint',
@@ -626,12 +563,6 @@ export class SubAgent {
         revisionNumber: provenance.revisionNumber,
       });
     }
-    // Tail the entity-mention HARD STOP reminder so it is the last thing the
-    // subagent reads before composing its report — parity with the main-session
-    // per-turn append in `resolve-prompt.ts`. Prior reports are prepended, so
-    // the reminder stays at the very end.
-    const basePrompt = `${prependPriorReports(composed, priorReports)}\n\n${mentionFormatReminder}`;
-
     // An eval child writes as its attempt's target session, never the Run's,
     // so the platform attributes its output to that attempt.
     const mcpContext = {
@@ -648,29 +579,6 @@ export class SubAgent {
     };
     const mcpConfig = await buildMcpServerConfig(oauthClient, mcpContext);
 
-    // Assemble the platform system prompt from the project's active work-item
-    // type definitions, read once before the subagent session starts. A failed
-    // read aborts the subagent rather than opening on a stale or empty ontology.
-    const sessionStartContext = await readSessionStartContext({
-      oauthClient,
-      projectId: session.contextMetadata?.projectId,
-    });
-    const configuredApiUrl = process.env['HEYHEY_API_URL']?.trim() || 'https://heyhey.dev';
-    const roleGuidance = await new SessionRoleGuidance({
-      auth: new SubmissionToolAuth(oauthClient),
-      logger,
-      apiBaseUrl: configuredApiUrl.endsWith('/api/v1')
-        ? configuredApiUrl
-        : `${configuredApiUrl.replace(/\/$/u, '')}/api/v1`,
-    }).prepare({
-      session,
-      handler,
-      payload: enrichedPayload,
-      fresh: true,
-      ...(startupPromptInput ? { startup: startupPromptInput } : {}),
-      definitions: sessionStartContext.workItemTypeDefinitions,
-    });
-    const prompt = [roleGuidance.text, basePrompt].filter(Boolean).join('\n\n');
     const providerId = resolveAgentProviderId(session.provider);
     const platformSystemPrompt = buildPlatformSystemPrompt(
       sessionStartContext.workItemTypeDefinitions,

@@ -370,6 +370,7 @@ const makeHarness = async (
   const runnerPicker = new RunnerPicker({
     sessionRunnerFacade,
     childAgentLauncher: new ChildAgentLauncher({
+      handlerDeps: createPromptTypeHandlerTestDeps(),
       promptTypeRegistry: ownership.promptTypeRegistry,
       repoStore: createTestRepoMappingStore(),
       oauthClient,

@@ -1,15 +1,4 @@
-/**
- * Prompt resolution — single source for building the provider prompt string
- * and the user-facing message text for one Turn.
- *
- * For `provider_session` handlers the resolved prompt is what reaches the
- * Run's persisted Claude session. For `subagent` handlers the runtime
- * `SubAgent` class rebuilds its own prompt from the same handler hooks
- * (`buildPrompt`, `addUserMessage`) inside the isolated session — the
- * resolver still runs handler.prepare so the enriched payload flows through
- * to the subagent, but it does not prepend `previousProviderSession` or the
- * report chain (the subagent path composes those itself).
- */
+/** Shared prompt preparation and composition for ordinary and isolated child execution. */
 
 import type { AgenticSession, PreviousProviderSession, RunMemo } from '../session/types';
 import {
@@ -38,6 +27,8 @@ import { renderMemoBlock } from '../agents/prompts/memo-block';
 import { createReadinessSourceSnapshotFromStartupInput } from '../agents/implementation-readiness/source-snapshot';
 import { resolvePromptString } from '../agents/prompts/resolve';
 import { buildStartingMessage } from '../agents/prompts/starting-message';
+import type { SessionRoleGuidance } from '../agents/session-role-guidance/session-role-guidance';
+import type { WorkItemTypeDefinitionDto } from '../shared/api/generated/api';
 import type { ReportChainEntry } from './types';
 import type { RecoverableTurnCheckpoint } from '../session/types';
 import type {
@@ -88,8 +79,7 @@ export interface ResolvePromptRunState {
    * mutated by the resolver — the resolver is pure and the snapshot's
    * entries are frozen on append. Prepended to `resolvedPrompt` for
    * `provider_session` handlers so the next turn sees every prior report
-   * as context. Subagent handlers compose their own chain block inside the
-   * `SubAgent` class.
+   * as context. Child execution uses the explicit child report snapshot.
    */
   reportChain: ReadonlyArray<Readonly<ReportChainEntry>>;
   /**
@@ -112,6 +102,14 @@ export interface ResolvePromptRunState {
 
 export interface ResolvePromptArgs {
   handler: PromptTypeHandler<unknown>;
+  /** Explicit child execution, independent of the handler's ordinary runner kind. */
+  childExecution?: {
+    /** Run/eval preparation has already enriched this payload. */
+    prepared: boolean;
+    touchedFiles: readonly string[];
+    roleGuidance: SessionRoleGuidance;
+    definitions: WorkItemTypeDefinitionDto[];
+  };
   /** Plain session data; no live Run instance is required. */
   run: AgenticSession;
   runState: ResolvePromptRunState;
@@ -174,9 +172,8 @@ export const createFirstTurnPromptRunState = (): ResolvePromptRunState => ({
 
 export interface ResolvePromptResult {
   /**
-   * The prompt string passed to the provider. `null` only when the handler
-   * runs on the subagent runner — the runtime `SubAgent` composes its own
-   * prompt inside the isolated session, so the main provider never sees one.
+   * The provider prompt. For Run-owned subagent preparation this stays null;
+   * the launcher resolves the prepared input with explicit child execution.
    */
   resolvedPrompt: string | null;
   /** Human-readable "starting…" message for the agent placeholder, if any. */
@@ -227,6 +224,8 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
     args;
 
   const isSubagentOwned = handler.runnerKind === 'subagent';
+  const child = args.childExecution;
+  const deferChildPrompt = isSubagentOwned && !child;
   const serviceContextNote = handler.omitServiceContextNote
     ? ''
     : buildServiceContextNote(run.launchServiceId);
@@ -359,9 +358,10 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
   }
 
   const prepareForPrompt = async (): Promise<unknown> => {
-    const prepareResult = handler.prepare
-      ? await handler.prepare(run, payloadForPrompt, handlerDeps, handlerCtx)
-      : { payload: payloadForPrompt };
+    const prepareResult =
+      handler.prepare && !child?.prepared
+        ? await handler.prepare(run, payloadForPrompt, handlerDeps, handlerCtx)
+        : { payload: payloadForPrompt };
 
     if (prepareResult.sessionContext) {
       sessionContext = prepareResult.sessionContext;
@@ -401,13 +401,25 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
       // Prepare again with that cycle's fresh context before rendering it.
       return prepareForPrompt();
     }
-    if (handler.prepare) {
-      preparedPayload = reconciledPayload;
+    const effectivePayload =
+      child && reconciledPayload !== null && typeof reconciledPayload === 'object'
+        ? { ...reconciledPayload, _touchedFiles: child.touchedFiles }
+        : reconciledPayload;
+    if (handler.prepare || child) {
+      preparedPayload = effectivePayload;
     }
-    return reconciledPayload;
+    return effectivePayload;
   };
 
   const buildPreparedPrompt = (promptPayload: unknown): string => {
+    if (child) {
+      const instructions =
+        handler.buildPrompt(promptPayload, handlerCtx) +
+        buildServiceContextNote(run.launchServiceId);
+      const injection =
+        launchable?.addUserMessage(promptPayload as { userMessage?: string }) ?? null;
+      return instructions + (injection ?? '');
+    }
     const semanticSegments = handler.buildPromptSegments?.(promptPayload, handlerCtx);
     const injection = launchable?.addUserMessage(promptPayload as { userMessage?: string }) ?? null;
     if (!semanticSegments) {
@@ -431,11 +443,17 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
     );
   };
 
-  if (runState.isFirstTurn) {
-    if (input.payload) {
+  if (deferChildPrompt) {
+    promptTypeChanged = !runState.isFirstTurn && runState.currentPromptType !== input.promptType;
+    const promptPayload = await prepareForPrompt();
+    startingMessage = handler.buildStartingMessage?.(promptPayload, handlerCtx) ?? undefined;
+  } else if (runState.isFirstTurn || child) {
+    if (input.payload || child) {
       const promptPayload = await prepareForPrompt();
       resolvedPrompt = buildPreparedPrompt(promptPayload);
-      startingMessage = handler.buildStartingMessage?.(promptPayload, handlerCtx) ?? undefined;
+      startingMessage = child
+        ? undefined
+        : (handler.buildStartingMessage?.(promptPayload, handlerCtx) ?? undefined);
     } else {
       resolvedPrompt = resolvePromptString(input);
       startingMessage =
@@ -481,6 +499,7 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
   // would reintroduce the stale-context bug this segmentation avoids.
   if (
     !isSubagentOwned &&
+    !child &&
     providerSessionWillMint &&
     resolvedPrompt &&
     providerPromptState.segments === null &&
@@ -494,11 +513,10 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
   }
 
   // Prepend the previous provider session's final output as context for the
-  // next phase — but only for `provider_session` flows where the same shared
-  // session sees both turns. Subagent flows compose their own prompt inside
-  // the runtime `SubAgent` class and would never see this prepend.
+  // next phase in ordinary provider sessions. Children retain their existing
+  // explicit reports and never inherit previous provider output.
   let consumedPreviousProviderSession = false;
-  if (!isSubagentOwned && resolvedPrompt && runState.previousProviderSession) {
+  if (!isSubagentOwned && !child && resolvedPrompt && runState.previousProviderSession) {
     const prior = runState.previousProviderSession;
     const previousContext = `## Previous phase (${prior.promptType})\n\n${prior.lastMessage}`;
     resolvedPrompt = `${previousContext}\n\n---\n\n${resolvedPrompt}`;
@@ -516,7 +534,13 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
   // process-local idle eviction. Sits after the previousProviderSession
   // prepend and before the report chain, and remains append-only for later
   // agents' provider-session mints.
-  if (!isSubagentOwned && providerSessionWillMint && resolvedPrompt && runState.memos.length > 0) {
+  if (
+    !isSubagentOwned &&
+    !child &&
+    providerSessionWillMint &&
+    resolvedPrompt &&
+    runState.memos.length > 0
+  ) {
     const memoBlock = renderMemoBlock(runState.memos);
     resolvedPrompt = `${memoBlock}\n\n---\n\n${resolvedPrompt}`;
     if (providerPromptState.segments) {
@@ -527,11 +551,13 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
     }
   }
 
-  // Prepend the Run's append-only report chain so the next turn sees every
-  // prior report (including same-phase re-entries like A→B→A). Gated by
-  // `!isSubagentOwned` for the same reason as the previousProviderSession
-  // prepend — subagent flows build their own prompts inside `SubAgent`.
-  if (!isSubagentOwned && resolvedPrompt && runState.reportChain.length > 0) {
+  if (child && resolvedPrompt && startupPromptInputResult) {
+    resolvedPrompt = `${startupPromptInputResult.renderedInput}\n\n---\n\n${resolvedPrompt}`;
+  }
+
+  // Reports precede entity context and handler instructions. The caller
+  // supplies the child snapshot and honors handler-specific exclusions.
+  if ((!isSubagentOwned || child) && resolvedPrompt && runState.reportChain.length > 0) {
     const reportBlock = renderReportChainBlock(runState.reportChain);
     resolvedPrompt = `${reportBlock}\n\n---\n\n${resolvedPrompt}`;
     if (providerPromptState.segments) {
@@ -542,16 +568,14 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
     }
   }
 
-  // For subagent handlers the runtime `SubAgent` class composes the prompt
-  // from the same handler hooks inside the isolated session; the resolver-
-  // computed `resolvedPrompt` is discarded so a stale build can't leak
-  // through to the SDK.
-  if (isSubagentOwned) {
+  // Run-owned child preparation leaves rendering to the launcher, after
+  // canonical touched files are known.
+  if (deferChildPrompt) {
     resolvedPrompt = null;
     providerPromptState.segments = null;
   }
 
-  if (resolvedPrompt) {
+  if (resolvedPrompt && !child) {
     const transformed = handler.transformInput?.(resolvedPrompt);
     if (transformed) {
       resolvedPrompt = transformed;
@@ -563,8 +587,7 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
   // prompt — after the report-chain/last-turn prepends and any transform — so
   // it is the most recent instruction the agent reads before replying. The
   // full rule is delivered once in the session system prompt; this keeps it
-  // from being forgotten as context fills. Subagent flows null `resolvedPrompt`
-  // above and append their own copy in `subagent.ts`.
+  // from being forgotten as context fills, including in isolated children.
   if (resolvedPrompt) {
     resolvedPrompt = `${resolvedPrompt}\n\n${mentionFormatReminder}`;
     if (providerPromptState.segments) {
@@ -578,6 +601,19 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
             dynamicContext: `${providerPromptState.segments.dynamicContext}\n\n${mentionFormatReminder}`,
           };
     }
+  }
+
+  if (child && resolvedPrompt) {
+    const guidance = await child.roleGuidance.prepare({
+      session: run,
+      handler,
+      payload: preparedPayload ?? payloadForPrompt,
+      fresh: true,
+      userMessages: recentUserReplies.map((reply) => reply.text),
+      ...(startupPromptInputResult ? { startup: startupPromptInputResult } : {}),
+      definitions: child.definitions,
+    });
+    resolvedPrompt = [guidance.text, resolvedPrompt].filter(Boolean).join('\n\n');
   }
 
   return {

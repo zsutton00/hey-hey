@@ -15,8 +15,8 @@ export interface SubagentRunnerDeps {
 }
 
 /**
- * Runs a Turn in an isolated sub-agent session. The sub-agent composes
- * its own prompt; `ctx.resolvedPrompt` is unused. Events stream back
+ * Runs a Turn in an isolated sub-agent session. The shared
+ * launcher resolves its prepared input once. Events stream back
  * through a Turn-scoped Run callback, so the normalizer + dispatcher pipeline
  * closes the in-flight processing message exactly as it would for a
  * provider-session turn without treating the ephemeral session as Run-owned.
@@ -90,6 +90,9 @@ export class SubagentRunner implements Runner {
       parentSession: run.session,
       handler,
       payload,
+      prepared: true,
+      ...(this.ctx.handlerDeps ? { handlerDeps: this.ctx.handlerDeps } : {}),
+      ...(this.ctx.childPromptContext ? { promptContext: this.ctx.childPromptContext } : {}),
       touchedFiles: filesForSubagent,
       onAgentOutput,
       signal,

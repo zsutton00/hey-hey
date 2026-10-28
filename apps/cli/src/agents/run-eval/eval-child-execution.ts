@@ -13,6 +13,7 @@ export class EvalChildExecution {
   public readonly session: AgenticSession;
   public readonly execution: EvalExecutionContext;
   public payload: ChildLaunchRequest['payload'];
+  public prepared = false;
   public startupPromptInput: AgentStartupPromptInputResult | undefined;
   public researchTools: EvalResearchTools | undefined;
   private preparationElapsedMs: number | undefined;
@@ -165,6 +166,7 @@ export class EvalChildExecution {
         this.payload = prepared.payload;
       }
     }
+    this.prepared = handlerDeps !== undefined && entity !== undefined;
     if (handler.id === 'project_assistant') {
       const loaded = this.startupPromptInput?.loadedEntityContext.entity;
       this.researchTools = new EvalResearchTools({

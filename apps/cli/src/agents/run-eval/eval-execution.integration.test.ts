@@ -135,6 +135,7 @@ describe('graph-only eval execution through the real child runtime', () => {
       const endpoint = new LocalAgentEndpoint();
       endpoint.set('http://local.test');
       const launcher = new ChildAgentLauncher({
+        handlerDeps: createPromptTypeHandlerTestDeps(),
         promptTypeRegistry: registry,
         repoStore: createTestRepoMappingStore(),
         oauthClient: createRunTestOAuthClient({ success: true, data: token }),

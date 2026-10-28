@@ -234,6 +234,7 @@ export const createTestRunRegistryWiring = (
   const sessionRunnerFacade = createTestSessionRunnerFacade(sessionRunner as AgentSessionRunner);
   const localAgentEndpoint = new LocalAgentEndpoint();
   const childAgentLauncher = new ChildAgentLauncher({
+    handlerDeps: createPromptTypeHandlerTestDeps(),
     promptTypeRegistry,
     repoStore,
     oauthClient,

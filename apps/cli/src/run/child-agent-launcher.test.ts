@@ -1,3 +1,6 @@
+import { reviewHandler } from '../agents/review-subagent/review.handler';
+import { mentionFormatReminder } from '../agents/prompts/common';
+import { createPromptTypeHandlerTestDeps } from '../agents/prompt-type-handler.test-support';
 import { describe, expect, it, vi } from 'vitest';
 import { ChildAgentLauncher, type ChildAgentLauncherDependencies } from './child-agent-launcher';
 import { researchHandler } from '../agents/research/research.handler';
@@ -36,6 +39,7 @@ vi.mock('../agents/run-scope', () => ({
 
 const makeLauncher = () =>
   new ChildAgentLauncher({
+    handlerDeps: createPromptTypeHandlerTestDeps(),
     promptTypeRegistry: {
       getChildHandler: (id: string) => (id === researchHandler.id ? researchHandler : undefined),
     },
@@ -46,7 +50,27 @@ const makeLauncher = () =>
     logger: { debug: vi.fn() },
   } as unknown as ChildAgentLauncherDependencies);
 
-const session = { agentic_session_id: 'parent', provider: 'codex' } as AgenticSession;
+const session = {
+  agentic_session_id: 'parent',
+  provider: 'codex',
+  entity: null,
+  services: [],
+  provider_session_id: 'parent-provider',
+  provider_conversation_id: null,
+  status: 'idle',
+  conversationId: 'conversation',
+  createdAt: '2026-01-01',
+  updatedAt: '2026-01-01',
+  events: [],
+  contextMetadata: {
+    organizationId: 'org',
+    projectId: 'project',
+    capturedAt: '2026-01-01',
+    agentSessionId: 'parent',
+    userComments: [],
+    fileReferences: { resolved: [], unresolved: [] },
+  },
+} satisfies AgenticSession;
 
 const sourceSession = {
   ...session,
@@ -59,7 +83,7 @@ const sourceSession = {
   worktreeState: {
     source: { repoPath: '/repositories/source', worktreePath: '/worktrees/source', branch: 'work' },
   },
-} as AgenticSession;
+} satisfies AgenticSession;
 
 describe('ChildAgentLauncher', () => {
   it('launches a Service-optional child without resolving a missing parent repository', async () => {
@@ -91,6 +115,55 @@ describe('ChildAgentLauncher', () => {
         allowedRepositoryRoots: ['/repo'],
       }),
     );
+  });
+
+  it('prepares independent Review once and preserves its file scope and recent user decisions', async () => {
+    harness.construct.mockClear();
+    const signal = new AbortController().signal;
+    const promptContext = {
+      turnId: 'child-execution',
+      startedPromptTypes: new Set(['implement']),
+      recentUserReplies: [
+        { messageId: 'message', text: 'Keep the public behavior.', createdAt: '2026-01-01' },
+      ],
+      triggerParentMessageId: 'parent-message',
+    };
+    const prepare = vi.fn(reviewHandler.prepare!);
+    const buildPrompt = vi.fn(reviewHandler.buildPrompt);
+    const handler = { ...reviewHandler, prepare, buildPrompt };
+    await makeLauncher().launch({
+      parentSession: session,
+      handler,
+      payload: { userMessage: 'Inspect this change.' },
+      signal,
+      promptContext,
+      touchedFiles: ['/repo/change.ts'],
+    });
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(buildPrompt).toHaveBeenCalledTimes(1);
+    const context = buildPrompt.mock.calls[0]?.[1];
+    expect(context).toMatchObject({ ...promptContext, abortSignal: expect.any(Function) });
+    expect(context?.abortSignal?.()).toBe(signal);
+    const supplied = harness.construct.mock.calls.at(-1)?.[0];
+    expect(supplied.prompt).toContain('/repo/change.ts');
+    expect(supplied.prompt).toContain('Keep the public behavior.');
+    expect(supplied.prompt.endsWith(mentionFormatReminder)).toBe(true);
+    expect(supplied.prompt.split(mentionFormatReminder)).toHaveLength(2);
+
+    // A Run/eval already owns preparation. The launcher renders that enriched
+    // payload without repeating preparation or fetching its context again.
+    await makeLauncher().launch({
+      parentSession: session,
+      handler,
+      payload: (await prepare.mock.results[0]!.value).payload,
+      prepared: true,
+      signal,
+      promptContext,
+      touchedFiles: ['/repo/change.ts'],
+    });
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(buildPrompt).toHaveBeenCalledTimes(2);
+    expect(harness.construct.mock.calls.at(-1)?.[0].prompt).toBe(supplied.prompt);
   });
 
   it('rejects a handler without child configuration before workspace or provider startup', async () => {
@@ -189,3 +262,11 @@ describe('ChildAgentLauncher', () => {
     );
   });
 });
+
+vi.mock('../agents/prompts/session-start-context', () => ({
+  readSessionStartContext: async () => ({
+    workItemTypeDefinitions: [],
+    intentFirst: false,
+    maturity: 'ESTABLISHED',
+  }),
+}));

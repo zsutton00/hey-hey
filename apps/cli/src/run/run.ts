@@ -5639,6 +5639,12 @@ export class Run {
       ctx: {
         run: this,
         turnId,
+        childPromptContext: {
+          turnId,
+          startedPromptTypes: new Set(this._startedPromptTypes),
+          recentUserReplies: readRecentUserReplies(input),
+          triggerParentMessageId: readTriggerParentMessageId(input),
+        },
         handler,
         resolvedPrompt: resolvedPromptNonNull,
         ...(roleGuidance ? { roleGuidance } : {}),

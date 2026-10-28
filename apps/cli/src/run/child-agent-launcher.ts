@@ -1,3 +1,9 @@
+import { randomUUID } from 'node:crypto';
+import { createFirstTurnPromptRunState, resolvePrompt } from './resolve-prompt';
+import { SessionRoleGuidance } from '../agents/session-role-guidance/session-role-guidance';
+import { readSessionStartContext } from '../agents/prompts/session-start-context';
+import type { PromptTypeHandlerBaseDeps, RecentUserReply } from '../agents/prompt-type-handler';
+import type { InternalRunPromptRequest } from '../shared/agent-bridge-contract/contract';
 import type { OAuthClient } from '../auth';
 import type { RepoMappingStore } from '../repo';
 import { resolveRunWorkspace, resolveServiceBindingsForIds } from '../agents/run-scope';
@@ -44,11 +50,20 @@ export interface ChildLaunchRequest {
   /** The case's focal entity and normal preparation dependencies, isolated from its coordinator. */
   entity?: RunEntityReference;
   handlerDeps?: PromptTypeHandlerDeps;
+  /** The caller owns preparation and has already persisted its results. */
+  prepared?: boolean;
+  promptContext?: {
+    turnId: string;
+    startedPromptTypes: ReadonlySet<string>;
+    recentUserReplies: ReadonlyArray<RecentUserReply>;
+    triggerParentMessageId: string | null;
+  };
 }
 
 export type RegisteredChildLaunchRequest = Omit<ChildLaunchRequest, 'handler'>;
 
 export interface ChildAgentLauncherDependencies {
+  handlerDeps: Omit<PromptTypeHandlerBaseDeps, 'childAgentLauncher'>;
   promptTypeRegistry: PromptTypeRegistry;
   repoStore: RepoMappingStore;
   oauthClient: OAuthClient;
@@ -189,6 +204,54 @@ export class ChildAgentLauncher {
     }
     if (evalChild) session = evalChild.session;
     const startupPromptInput = evalChild?.startupPromptInput ?? request.startupPromptInput;
+    const sessionStartContext = await readSessionStartContext({
+      oauthClient: this.deps.oauthClient,
+      projectId: session.contextMetadata?.projectId,
+    });
+    const handlerDeps: PromptTypeHandlerDeps = request.handlerDeps ?? {
+      ...this.deps.handlerDeps,
+      childAgentLauncher: this,
+      promptOnce: async ({ prompt }) => {
+        const result = await this.launchRegistered('eval_preparation', {
+          parentSession: session,
+          payload: { prompt },
+          signal: request.signal,
+          serviceIds: [],
+        });
+        if (!result.assistantCompleted || !result.outputText) {
+          throw new Error('Child preparation ended without a result.');
+        }
+        return result.outputText;
+      },
+    };
+    const resolved = await resolvePrompt({
+      handler: request.handler,
+      run: session,
+      runState: {
+        ...createFirstTurnPromptRunState(),
+        startupPromptInput: startupPromptInput ?? null,
+        reportChain: config.includePriorReports === false ? [] : (request.priorReports ?? []),
+        startedPromptTypes: request.promptContext?.startedPromptTypes ?? new Set(),
+      },
+      input: {
+        promptType: request.handler.promptType,
+        payload: evalChild?.payload ?? request.payload,
+      } as InternalRunPromptRequest,
+      handlerDeps,
+      turnId: request.promptContext?.turnId ?? request.evalExecution?.attemptId ?? randomUUID(),
+      abortSignal: () => evalChild?.execution.tokenBudget?.signal ?? request.signal,
+      recentUserReplies: request.promptContext?.recentUserReplies ?? [],
+      triggerParentMessageId: request.promptContext?.triggerParentMessageId ?? null,
+      childExecution: {
+        prepared: request.prepared === true || evalChild?.prepared === true,
+        touchedFiles: request.touchedFiles ?? [],
+        roleGuidance: new SessionRoleGuidance(handlerDeps),
+        definitions: sessionStartContext.workItemTypeDefinitions,
+      },
+    });
+    if (!resolved.resolvedPrompt) {
+      throw new Error(`Child handler "${request.handler.id}" produced no prompt.`);
+    }
     this.deps.logger.debug('local.child_agent_launcher.start', {
       handlerId: request.handler.id,
       provider: session.provider,
@@ -198,7 +261,8 @@ export class ChildAgentLauncher {
       session,
       handler: request.handler,
       config,
-      payload: evalChild?.payload ?? request.payload,
+      prompt: resolved.resolvedPrompt,
+      sessionStartContext,
       touchedFiles: request.touchedFiles ?? [],
       onAgentOutput: request.onAgentOutput ?? (() => {}),
       oauthClient: this.deps.oauthClient,
@@ -209,7 +273,7 @@ export class ChildAgentLauncher {
         ? { allowedRepositoryRoots: workspace.allowedRepositoryRoots }
         : {}),
       priorReports: request.priorReports ?? [],
-      ...(startupPromptInput ? { startupPromptInput } : {}),
+      ...(resolved.startupPromptInput ? { startupPromptInput: resolved.startupPromptInput } : {}),
       submissionToolRegistry: this.deps.submissionToolRegistry,
       localAgentEndpoint: this.deps.localAgentEndpoint,
       ...(request.model ? { model: request.model } : {}),

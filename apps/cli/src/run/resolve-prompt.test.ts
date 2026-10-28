@@ -1354,9 +1354,10 @@ describe('resolvePrompt — subagent-owned promptType', () => {
       payload: { prepared: true },
       sessionContext: { sub: true },
     });
+    const buildPrompt = vi.fn(() => 'SHOULD_NOT_APPEAR');
     registerHandler('commit', {
       runnerKind: 'subagent',
-      buildPrompt: () => 'SHOULD_NOT_APPEAR',
+      buildPrompt,
       prepare,
       buildStartingMessage: () => 'committing',
     });
@@ -1372,6 +1373,8 @@ describe('resolvePrompt — subagent-owned promptType', () => {
     expect(result.isSubagentOwned).toBe(true);
     expect(result.resolvedPrompt).toBeNull();
     expect(prepare).toHaveBeenCalledOnce();
+    expect(buildPrompt).not.toHaveBeenCalled();
+    expect(result.preparedPayload).toEqual({ prepared: true });
     expect(result.sessionContext).toEqual({ sub: true });
     expect(result.startingMessage).toBe('committing');
   });

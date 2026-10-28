@@ -10,8 +10,8 @@ import { LocalPromptType } from '../shared/agent-bridge-contract/generated';
  * Unified `SubAgent` regression test.
  *
  * Verifies that a fake `UserLaunchablePromptTypeHandler` with
- * `runnerKind:'subagent'` flows through the runtime SubAgent class in the
- * expected order — buildPrompt → addUserMessage → run_started → SDK
+ * `runnerKind:'subagent'` flows through the shared launcher/resolver and executor in the
+ * expected order — prompt resolution → run_started → SDK
  * startSession — without any runtime branch on promptType. Pairs with
  * `resolve-prompt.test.ts`'s coverage of the same handler shape on the
  * provider-session path to prove the two runtimes share the contract.
@@ -38,7 +38,7 @@ import { PromptTypeRegistry } from '../agents/prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../agents/prompt-type-registry.test-support';
 import { LocalAgentEndpoint } from '../server/local-base-url';
 import { SubAgent } from './subagent';
-import { createRunTestOAuthClient } from './run.test-support';
+import { createTestRepoMappingStore, createRunTestOAuthClient } from './run.test-support';
 
 const startSessionMock = vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined);
 const disconnectMock = vi.fn<() => Promise<undefined>>(async () => undefined);
@@ -145,6 +145,8 @@ interface TestPayload {
 const makeSession = (overrides: Partial<AgenticSession> = {}): AgenticSession =>
   ({
     agentic_session_id: 'agentic-1',
+    entity: null,
+    services: [],
     serviceId: 'svc-1',
     provider: 'claude',
     provider_session_id: 'pending_abc',
@@ -169,17 +171,45 @@ const makeLogger = () =>
     child: vi.fn().mockReturnThis(),
   }) as unknown as ConstructorParameters<typeof SubAgent>[0]['logger'];
 
+// Exercise the sole production launch path; these fixtures are already prepared.
 const makeSubAgent = (
   args: Omit<
     ConstructorParameters<typeof SubAgent>[0],
-    'submissionToolRegistry' | 'localAgentEndpoint'
-  >,
-): SubAgent =>
-  new SubAgent({
-    ...args,
-    submissionToolRegistry: new SubmissionToolRegistry(),
-    localAgentEndpoint: new LocalAgentEndpoint(),
-  });
+    'submissionToolRegistry' | 'localAgentEndpoint' | 'prompt' | 'sessionStartContext'
+  > & { payload: unknown },
+) => ({
+  execute: () =>
+    new ChildAgentLauncher({
+      handlerDeps: createPromptTypeHandlerTestDeps(),
+      promptTypeRegistry: new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES),
+      repoStore: createTestRepoMappingStore(),
+      oauthClient: args.oauthClient,
+      logger: args.logger,
+      submissionToolRegistry: new SubmissionToolRegistry(),
+      localAgentEndpoint: new LocalAgentEndpoint(),
+    }).launch({
+      parentSession: args.session,
+      handler: args.handler,
+      payload: args.payload,
+      prepared: true,
+      signal: args.signal ?? new AbortController().signal,
+      workspace: {
+        cwd: args.cwd,
+        ...(args.allowedRepositoryRoots
+          ? { allowedRepositoryRoots: args.allowedRepositoryRoots }
+          : {}),
+      },
+      touchedFiles: args.touchedFiles,
+      priorReports: args.priorReports,
+      onAgentOutput: args.onAgentOutput,
+      ...(args.startupPromptInput ? { startupPromptInput: args.startupPromptInput } : {}),
+      ...(args.model ? { model: args.model } : {}),
+      ...(args.reasoningEffort ? { reasoningEffort: args.reasoningEffort } : {}),
+      ...(args.fastMode !== undefined ? { fastMode: args.fastMode } : {}),
+      ...(args.tokenBudget !== undefined ? { tokenBudget: args.tokenBudget } : {}),
+      ...(args.evalExecution ? { evalExecution: args.evalExecution } : {}),
+    }),
+});
 
 describe('SubAgent — unified runtime contract', () => {
   it.each(['claude', 'codex'] as const)(
@@ -203,13 +233,14 @@ describe('SubAgent — unified runtime contract', () => {
       const localAgentEndpoint = new LocalAgentEndpoint();
       localAgentEndpoint.set('http://127.0.0.1:3849');
       const launcher = new ChildAgentLauncher({
+        handlerDeps: createPromptTypeHandlerTestDeps(),
         promptTypeRegistry: new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES),
-        repoStore: {},
+        repoStore: createTestRepoMappingStore(),
         oauthClient: makeOauth(),
         submissionToolRegistry: new SubmissionToolRegistry(),
         localAgentEndpoint,
         logger: makeLogger(),
-      } as ChildAgentLauncherDependencies);
+      });
       try {
         await Promise.all(
           ['a', 'b'].map(async (conversation) => {
@@ -319,6 +350,106 @@ describe('SubAgent — unified runtime contract', () => {
       maturity: 'ESTABLISHED',
     });
   });
+
+  it.each(['research', 'code_review', 'commit', 'final_assessment'] as const)(
+    'captures the complete registered %s child prompt',
+    async (promptType) => {
+      const registry = new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES);
+      const handler = registry.get(promptType)!;
+      const focalId = '20000000-0000-4000-8000-000000000002';
+      const startupPromptInput: AgentStartupPromptInputResult = {
+        startupInput: {
+          task: { taskType: 'STANDARD', description: 'Fixed task' },
+          adjacentScopeTasks: [],
+          evidenceItems: [],
+        },
+        renderedInput: 'AUTHORITATIVE ENTITY CONTEXT',
+        loadedEntityContext: {
+          kind: 'entity',
+          focalEntity: { entityType: 'TASK', entityId: focalId },
+          entity: { type: 'STANDARD' } as never,
+          context: {
+            entityId: focalId,
+            entityType: 'TASK',
+            taskType: 'STANDARD',
+            displayName: 'Fixed task',
+            content: { sections: {}, status: 'ACTIVE' },
+          } as never,
+        },
+        provenance: {
+          templateKey: 'task',
+          ownershipSource: { scope: 'CANONICAL' },
+          revisionId: 'fixed-revision',
+          revisionNumber: 1,
+        },
+      };
+      readSessionStartContextMock.mockResolvedValue({
+        workItemTypeDefinitions: [{ key: 'STANDARD', name: 'Task' } as WorkItemTypeDefinitionDto],
+        intentFirst: false,
+        maturity: 'ESTABLISHED',
+      });
+      const advice = vi
+        .spyOn(WorkItemTypesApi.prototype, 'getWorkItemTypeGuidanceBatch')
+        .mockImplementation(
+          async (request) =>
+            ({
+              data: {
+                success: true,
+                data: {
+                  results: [
+                    {
+                      typeKey: 'STANDARD',
+                      name: 'Task',
+                      sessionRole: request.workItemTypeGuidanceBatchRequestDto.sessionRole,
+                      guidance: 'Follow the reviewed requirements.',
+                    },
+                  ],
+                },
+              },
+            }) as never,
+        );
+      try {
+        await makeSubAgent({
+          session: makeSession({
+            launchServiceId: 'service-fixed',
+            services: [{ id: 'service-fixed', path: '/repo' }],
+          }),
+          handler,
+          config: (handler.subagentConfig ?? handler.childConfig)!,
+          payload: {
+            payloadVersion: 1,
+            userMessage: `Inspect @[task:${focalId}|Fixed task].`,
+            context: { organizationId: 'org-1', projectId: 'proj-1' },
+            executionSummary: 'Fixed implementation evidence.',
+            taskNeighborhood: { parentTasks: [], childTasks: [] },
+            _services: [{ id: 'service-fixed', path: '/repo' }],
+            _launchServiceId: 'service-fixed',
+            changedFiles: ['/repo/src/change.ts'],
+          },
+          touchedFiles: ['/repo/src/change.ts'],
+          onAgentOutput: vi.fn(),
+          oauthClient: makeOauth(),
+          logger: makeLogger(),
+          cwd: '/repo',
+          priorReports: [
+            {
+              reportId: '30000000-0000-4000-8000-000000000003',
+              reportType: 'IMPLEMENT',
+              phase: 'implement',
+              audience: 'EXTERNAL',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              summary: 'The requested change is implemented.',
+            },
+          ],
+          startupPromptInput,
+        }).execute();
+        const delivered = startSessionMock.mock.calls[0]?.[0] as { prompt: string };
+        expect(delivered.prompt).toMatchSnapshot();
+      } finally {
+        advice.mockRestore();
+      }
+    },
+  );
 
   it.each(['codex', 'claude'] as const)(
     'delivers effective advice in rebuilt %s child prompts before the request',
