@@ -32,6 +32,15 @@ const completeCase = {
   ],
 };
 
+const withHandlers = (handler: string, consumer: string) => ({
+  ...completeCase,
+  sections: [
+    ...completeCase.sections.filter((candidate) => candidate.key !== 'handler'),
+    section('handler', handler),
+    section('consumerHandler', consumer),
+  ],
+});
+
 describe('toEvalRunCaseInput', () => {
   it('splits the case into what the target sees and what only grading sees', () => {
     const input = toEvalRunCaseInput(completeCase);
@@ -72,6 +81,36 @@ describe('toEvalRunCaseInput', () => {
   it('gives every recorded case input its own id', () => {
     expect(toEvalRunCaseInput(completeCase).id).not.toBe(
       toEvalRunCaseInput(completeCase).id,
+    );
+  });
+
+  it('records the consumer handler of a Project Assistant case', () => {
+    const input = toEvalRunCaseInput(
+      withHandlers('project_assistant', 'entity_conversation'),
+    );
+
+    expect(input.target).toMatchObject({
+      targetHandler: 'project_assistant',
+      consumerHandler: 'entity_conversation',
+    });
+  });
+
+  it.each([
+    ['an unknown handler', 'run_eval', ''],
+    ['a Project Assistant case with no consumer', 'project_assistant', ''],
+    [
+      'a Project Assistant case with an unknown consumer',
+      'project_assistant',
+      'run_eval',
+    ],
+    [
+      'a consumer on a case that is not Project Assistant',
+      'entity_conversation',
+      'entity_conversation',
+    ],
+  ])('rejects %s', (_name, handler, consumer) => {
+    expect(() => toEvalRunCaseInput(withHandlers(handler, consumer))).toThrow(
+      BadRequestException,
     );
   });
 

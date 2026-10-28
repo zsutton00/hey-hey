@@ -48,9 +48,48 @@ EvalModelSetting:
     reasoningEffort:
       type: string
     handlerConfig:
-      type: object
-      additionalProperties: true
-      description: Handler settings recorded from Agent Config.
+      $ref: "#/EvalHandlerConfig"
+
+EvalHandlerConfig:
+  type: object
+  additionalProperties: false
+  description: Handler settings recorded with a run setup, shared by every case in the run.
+  properties:
+    projectAssistant:
+      allOf:
+        - $ref: "./coding-sessions.yaml#/ProjectAssistantConfig"
+      description: >
+        Project Assistant participation for an entity conversation case.
+        `enabled: false` is an explicit choice to run without Project
+        Assistant; omission keeps the handler's real-use behavior, where it
+        runs. Never grants participation a handler does not declare.
+
+EvalTargetHandlerKey:
+  type: string
+  description: >
+    Registry key of a handler an Eval Case may run. Each key must be a
+    registered handler with a child configuration; the Hey Hey CLI refuses to
+    start when one is not.
+  enum: [agent_search, entity_conversation, project_assistant]
+
+EvalConsumerHandlerKey:
+  type: string
+  description: >
+    Registry key of a handler whose real Project Assistant policy a Project
+    Assistant case runs under. Each key must be a registered handler that
+    declares a Project Assistant policy; the Hey Hey CLI tests the list against
+    its registry.
+  enum:
+    - startup_session
+    - design_doc_refiner
+    - feature_sync_analyze
+    - feature_refiner
+    - task_refiner
+    - plan_shaping_feature_sync_analyze
+    - free_form
+    - entity_conversation
+    - html_css_mockup_revision
+    - validation_walkthrough
 
 EvalConfiguration:
   type: object
@@ -88,8 +127,15 @@ EvalCaseTarget:
       type: string
       description: The single request that starts the case.
     targetHandler:
-      type: string
-      description: Handler the case runs through.
+      $ref: "#/EvalTargetHandlerKey"
+      description: Registry key of the handler under test.
+    consumerHandler:
+      allOf:
+        - $ref: "#/EvalConsumerHandlerKey"
+      description: >
+        Present exactly when `targetHandler` is `project_assistant`: the real
+        handler whose policy, tools and prompt Project Assistant runs under.
+        Always explicit; there is no default.
 
 EvalCheckDefinition:
   type: object

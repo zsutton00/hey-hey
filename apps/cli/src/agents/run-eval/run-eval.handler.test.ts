@@ -13,7 +13,12 @@ const attempt = {
   targetConversationId: '88888888-8888-4888-8888-888888888888',
   configuration: {
     id: '44444444-4444-4444-8444-444444444444',
-    target: { provider: 'claude', model: 'sonnet', reasoningEffort: 'high' },
+    target: {
+      provider: 'claude',
+      model: 'sonnet',
+      reasoningEffort: 'high',
+      handlerConfig: { projectAssistant: { enabled: false } },
+    },
   },
   caseInput: {
     id: '55555555-5555-4555-8555-555555555555',
@@ -22,7 +27,7 @@ const attempt = {
     target: {
       situation: 'A requirement no longer matches the shipped behaviour.',
       initiatingRequest: 'Find what is out of date.',
-      targetHandler: 'agent_search',
+      targetHandler: 'agent_search' as const,
     },
     grading: {
       expectations: 'SECRET-EXPECTATION',
@@ -142,6 +147,10 @@ describe('runEvalHandler', () => {
       },
     });
     expect(targetLaunch.request).not.toHaveProperty('tokenBudget');
+    // The run setup's Project Assistant choice reaches the attempt as its session config.
+    expect(targetLaunch.request['parentSession']).toMatchObject({
+      config: { type: 'ENTITY_CONVERSATION', projectAssistant: { enabled: false } },
+    });
     expect(reports.get(payload.evalRunId)).toMatchObject({ status: 'FINISHED' });
     expect(reports.get(attempt.attemptId)).toMatchObject({
       status: 'COMPLETED',

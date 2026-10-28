@@ -722,9 +722,39 @@ export const REPORT_SCHEMAS = {
                     },
                     handlerConfig: {
                       type: 'object',
-                      additionalProperties: true,
+                      additionalProperties: false,
                       description:
-                        'Handler settings recorded from Agent Config.',
+                        'Handler settings recorded with a run setup, shared by every case in the run.',
+                      properties: {
+                        projectAssistant: {
+                          allOf: [
+                            {
+                              type: 'object',
+                              additionalProperties: false,
+                              properties: {
+                                enabled: {
+                                  type: 'boolean',
+                                  description:
+                                    "Whether the consuming handler's Project Assistant bootstrap may run for\nthis session. False disables only Project Assistant; true or omission\npreserves the handler-declared participation baseline.\n",
+                                },
+                                allowEdgeUpdates: {
+                                  type: 'boolean',
+                                },
+                                notifyDiscrepancies: {
+                                  type: 'boolean',
+                                },
+                                allowUpdateProposals: {
+                                  type: 'boolean',
+                                },
+                              },
+                              description:
+                                'Optional launch-time Project Assistant participation and behavior settings\npersisted on AgentSession config. Omitting the object or an individual flag\npreserves the handler-declared baseline.\n',
+                            },
+                          ],
+                          description:
+                            "Project Assistant participation for an entity conversation case. `enabled: false` is an explicit choice to run without Project Assistant; omission keeps the handler's real-use behavior, where it runs. Never grants participation a handler does not declare.\n",
+                        },
+                      },
                     },
                   },
                 },
@@ -745,9 +775,39 @@ export const REPORT_SCHEMAS = {
                         },
                         handlerConfig: {
                           type: 'object',
-                          additionalProperties: true,
+                          additionalProperties: false,
                           description:
-                            'Handler settings recorded from Agent Config.',
+                            'Handler settings recorded with a run setup, shared by every case in the run.',
+                          properties: {
+                            projectAssistant: {
+                              allOf: [
+                                {
+                                  type: 'object',
+                                  additionalProperties: false,
+                                  properties: {
+                                    enabled: {
+                                      type: 'boolean',
+                                      description:
+                                        "Whether the consuming handler's Project Assistant bootstrap may run for\nthis session. False disables only Project Assistant; true or omission\npreserves the handler-declared participation baseline.\n",
+                                    },
+                                    allowEdgeUpdates: {
+                                      type: 'boolean',
+                                    },
+                                    notifyDiscrepancies: {
+                                      type: 'boolean',
+                                    },
+                                    allowUpdateProposals: {
+                                      type: 'boolean',
+                                    },
+                                  },
+                                  description:
+                                    'Optional launch-time Project Assistant participation and behavior settings\npersisted on AgentSession config. Omitting the object or an individual flag\npreserves the handler-declared baseline.\n',
+                                },
+                              ],
+                              description:
+                                "Project Assistant participation for an entity conversation case. `enabled: false` is an explicit choice to run without Project Assistant; omission keeps the handler's real-use behavior, where it runs. Never grants participation a handler does not declare.\n",
+                            },
+                          },
                         },
                       },
                     },
@@ -1132,8 +1192,39 @@ export const REPORT_SCHEMAS = {
                 },
                 handlerConfig: {
                   type: 'object',
-                  additionalProperties: true,
-                  description: 'Handler settings recorded from Agent Config.',
+                  additionalProperties: false,
+                  description:
+                    'Handler settings recorded with a run setup, shared by every case in the run.',
+                  properties: {
+                    projectAssistant: {
+                      allOf: [
+                        {
+                          type: 'object',
+                          additionalProperties: false,
+                          properties: {
+                            enabled: {
+                              type: 'boolean',
+                              description:
+                                "Whether the consuming handler's Project Assistant bootstrap may run for\nthis session. False disables only Project Assistant; true or omission\npreserves the handler-declared participation baseline.\n",
+                            },
+                            allowEdgeUpdates: {
+                              type: 'boolean',
+                            },
+                            notifyDiscrepancies: {
+                              type: 'boolean',
+                            },
+                            allowUpdateProposals: {
+                              type: 'boolean',
+                            },
+                          },
+                          description:
+                            'Optional launch-time Project Assistant participation and behavior settings\npersisted on AgentSession config. Omitting the object or an individual flag\npreserves the handler-declared baseline.\n',
+                        },
+                      ],
+                      description:
+                        "Project Assistant participation for an entity conversation case. `enabled: false` is an explicit choice to run without Project Assistant; omission keeps the handler's real-use behavior, where it runs. Never grants participation a handler does not declare.\n",
+                    },
+                  },
                 },
               },
             },
@@ -1195,7 +1286,35 @@ export const REPORT_SCHEMAS = {
                       },
                       targetHandler: {
                         type: 'string',
-                        description: 'Handler the case runs through.',
+                        description: 'Registry key of the handler under test.',
+                        enum: [
+                          'agent_search',
+                          'entity_conversation',
+                          'project_assistant',
+                        ],
+                      },
+                      consumerHandler: {
+                        allOf: [
+                          {
+                            type: 'string',
+                            description:
+                              'Registry key of a handler whose real Project Assistant policy a Project Assistant case runs under. Each key must be a registered handler that declares a Project Assistant policy; the Hey Hey CLI tests the list against its registry.\n',
+                            enum: [
+                              'startup_session',
+                              'design_doc_refiner',
+                              'feature_sync_analyze',
+                              'feature_refiner',
+                              'task_refiner',
+                              'plan_shaping_feature_sync_analyze',
+                              'free_form',
+                              'entity_conversation',
+                              'html_css_mockup_revision',
+                              'validation_walkthrough',
+                            ],
+                          },
+                        ],
+                        description:
+                          'Present exactly when `targetHandler` is `project_assistant`: the real handler whose policy, tools and prompt Project Assistant runs under. Always explicit; there is no default.\n',
                       },
                     },
                   },
@@ -1276,9 +1395,39 @@ export const REPORT_SCHEMAS = {
                       },
                       handlerConfig: {
                         type: 'object',
-                        additionalProperties: true,
+                        additionalProperties: false,
                         description:
-                          'Handler settings recorded from Agent Config.',
+                          'Handler settings recorded with a run setup, shared by every case in the run.',
+                        properties: {
+                          projectAssistant: {
+                            allOf: [
+                              {
+                                type: 'object',
+                                additionalProperties: false,
+                                properties: {
+                                  enabled: {
+                                    type: 'boolean',
+                                    description:
+                                      "Whether the consuming handler's Project Assistant bootstrap may run for\nthis session. False disables only Project Assistant; true or omission\npreserves the handler-declared participation baseline.\n",
+                                  },
+                                  allowEdgeUpdates: {
+                                    type: 'boolean',
+                                  },
+                                  notifyDiscrepancies: {
+                                    type: 'boolean',
+                                  },
+                                  allowUpdateProposals: {
+                                    type: 'boolean',
+                                  },
+                                },
+                                description:
+                                  'Optional launch-time Project Assistant participation and behavior settings\npersisted on AgentSession config. Omitting the object or an individual flag\npreserves the handler-declared baseline.\n',
+                              },
+                            ],
+                            description:
+                              "Project Assistant participation for an entity conversation case. `enabled: false` is an explicit choice to run without Project Assistant; omission keeps the handler's real-use behavior, where it runs. Never grants participation a handler does not declare.\n",
+                          },
+                        },
                       },
                     },
                   },
@@ -1299,9 +1448,39 @@ export const REPORT_SCHEMAS = {
                           },
                           handlerConfig: {
                             type: 'object',
-                            additionalProperties: true,
+                            additionalProperties: false,
                             description:
-                              'Handler settings recorded from Agent Config.',
+                              'Handler settings recorded with a run setup, shared by every case in the run.',
+                            properties: {
+                              projectAssistant: {
+                                allOf: [
+                                  {
+                                    type: 'object',
+                                    additionalProperties: false,
+                                    properties: {
+                                      enabled: {
+                                        type: 'boolean',
+                                        description:
+                                          "Whether the consuming handler's Project Assistant bootstrap may run for\nthis session. False disables only Project Assistant; true or omission\npreserves the handler-declared participation baseline.\n",
+                                      },
+                                      allowEdgeUpdates: {
+                                        type: 'boolean',
+                                      },
+                                      notifyDiscrepancies: {
+                                        type: 'boolean',
+                                      },
+                                      allowUpdateProposals: {
+                                        type: 'boolean',
+                                      },
+                                    },
+                                    description:
+                                      'Optional launch-time Project Assistant participation and behavior settings\npersisted on AgentSession config. Omitting the object or an individual flag\npreserves the handler-declared baseline.\n',
+                                  },
+                                ],
+                                description:
+                                  "Project Assistant participation for an entity conversation case. `enabled: false` is an explicit choice to run without Project Assistant; omission keeps the handler's real-use behavior, where it runs. Never grants participation a handler does not declare.\n",
+                              },
+                            },
                           },
                         },
                       },

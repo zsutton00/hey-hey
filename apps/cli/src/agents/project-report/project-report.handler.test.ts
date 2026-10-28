@@ -272,7 +272,7 @@ const makeDeps = (
     auth: createPromptTypeHandlerTestAuth(TEST_TOKEN),
     fetchImpl,
     apiBaseUrl: 'https://api.example.test/api/v1',
-    childAgentLauncher: { launchRegistered },
+    childAgentLauncher: { launchRegistered, resolveChildHandler: () => undefined },
   });
   return Object.assign(deps, { launchRegistered });
 };
@@ -736,7 +736,12 @@ describe('projectReportHandler', () => {
     });
     const deps = makeDeps(manySubjectsFetch(13, { placementFor }), async (sectionPayload) => {
       if (sectionPayload.group.title === 'Area 1') {
-        return { assistantCompleted: false, usage: {}, outputText: '<section>half', budgetExhausted: true };
+        return {
+          assistantCompleted: false,
+          usage: {},
+          outputText: '<section>half',
+          budgetExhausted: true,
+        };
       }
       if (sectionPayload.group.title === 'Area 2') throw new Error('provider failed');
       return { assistantCompleted: true, usage: {}, outputText: sectionHtml(sectionPayload) };

@@ -7910,12 +7910,20 @@ export interface EvalCaseTarget {
      */
     'initiatingRequest': string;
     /**
-     * Handler the case runs through.
-     * @type {string}
+     *
+     * @type {EvalTargetHandlerKey}
      * @memberof EvalCaseTarget
      */
-    'targetHandler': string;
+    'targetHandler': EvalTargetHandlerKey;
+    /**
+     * Present exactly when `targetHandler` is `project_assistant`: the real handler whose policy, tools and prompt Project Assistant runs under. Always explicit; there is no default.
+     * @type {EvalConsumerHandlerKey}
+     * @memberof EvalCaseTarget
+     */
+    'consumerHandler'?: EvalConsumerHandlerKey;
 }
+
+
 /**
  *
  * @export
@@ -7961,6 +7969,41 @@ export interface EvalConfiguration {
     'preparation'?: EvalModelSetting;
 }
 /**
+ * Registry key of a handler whose real Project Assistant policy a Project Assistant case runs under. Each key must be a registered handler that declares a Project Assistant policy; the Hey Hey CLI tests the list against its registry.
+ * @export
+ * @enum {string}
+ */
+
+export const EvalConsumerHandlerKey = {
+    StartupSession: 'startup_session',
+    DesignDocRefiner: 'design_doc_refiner',
+    FeatureSyncAnalyze: 'feature_sync_analyze',
+    FeatureRefiner: 'feature_refiner',
+    TaskRefiner: 'task_refiner',
+    PlanShapingFeatureSyncAnalyze: 'plan_shaping_feature_sync_analyze',
+    FreeForm: 'free_form',
+    EntityConversation: 'entity_conversation',
+    HtmlCssMockupRevision: 'html_css_mockup_revision',
+    ValidationWalkthrough: 'validation_walkthrough'
+} as const;
+
+export type EvalConsumerHandlerKey = typeof EvalConsumerHandlerKey[keyof typeof EvalConsumerHandlerKey];
+
+
+/**
+ * Handler settings recorded with a run setup, shared by every case in the run.
+ * @export
+ * @interface EvalHandlerConfig
+ */
+export interface EvalHandlerConfig {
+    /**
+     * Project Assistant participation for an entity conversation case. `enabled: false` is an explicit choice to run without Project Assistant; omission keeps the handler\'s real-use behavior, where it runs. Never grants participation a handler does not declare.
+     * @type {ProjectAssistantConfig}
+     * @memberof EvalHandlerConfig
+     */
+    'projectAssistant'?: ProjectAssistantConfig;
+}
+/**
  *
  * @export
  * @interface EvalModelSetting
@@ -7985,11 +8028,11 @@ export interface EvalModelSetting {
      */
     'reasoningEffort'?: string;
     /**
-     * Handler settings recorded from Agent Config.
-     * @type {{ [key: string]: any; }}
+     *
+     * @type {EvalHandlerConfig}
      * @memberof EvalModelSetting
      */
-    'handlerConfig'?: { [key: string]: any; };
+    'handlerConfig'?: EvalHandlerConfig;
 }
 /**
  * One case x configuration attempt as recorded for the coordinator.
@@ -8115,6 +8158,21 @@ export interface EvalRunSettings {
      */
     'attemptTokenLimit'?: number;
 }
+/**
+ * Registry key of a handler an Eval Case may run. Each key must be a registered handler with a child configuration; the Hey Hey CLI refuses to start when one is not.
+ * @export
+ * @enum {string}
+ */
+
+export const EvalTargetHandlerKey = {
+    AgentSearch: 'agent_search',
+    EntityConversation: 'entity_conversation',
+    ProjectAssistant: 'project_assistant'
+} as const;
+
+export type EvalTargetHandlerKey = typeof EvalTargetHandlerKey[keyof typeof EvalTargetHandlerKey];
+
+
 /**
  * Post-admission activation evidence constructed by the API and carried inside a platform-signed executable envelope. The CLI independently verifies the assertion and immutable descriptor before installing reusable authority.
  * @export
@@ -16846,7 +16904,8 @@ export const ProposalReconciliationSuggestionStatusEnum = {
     Accepted: 'ACCEPTED',
     Rejected: 'REJECTED',
     Superseded: 'SUPERSEDED',
-    OutOfDate: 'OUT_OF_DATE'
+    OutOfDate: 'OUT_OF_DATE',
+    Retired: 'RETIRED'
 } as const;
 
 export type ProposalReconciliationSuggestionStatusEnum = typeof ProposalReconciliationSuggestionStatusEnum[keyof typeof ProposalReconciliationSuggestionStatusEnum];

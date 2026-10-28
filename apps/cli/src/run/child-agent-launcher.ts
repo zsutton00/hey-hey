@@ -75,11 +75,16 @@ export interface ChildAgentLauncherDependencies {
 export class ChildAgentLauncher {
   public constructor(private readonly deps: ChildAgentLauncherDependencies) {}
 
+  /** The registered handler a child launch by this id would run, for callers that read its declarations. */
+  public resolveChildHandler(handlerId: string): PromptTypeHandler<unknown> | undefined {
+    return this.deps.promptTypeRegistry.getChildHandler(handlerId);
+  }
+
   public async launchRegistered(
     handlerId: string,
     request: RegisteredChildLaunchRequest,
   ): Promise<SubAgentResult> {
-    const handler = this.deps.promptTypeRegistry.getChildHandler(handlerId);
+    const handler = this.resolveChildHandler(handlerId);
     if (!handler) throw new Error(`Child handler "${handlerId}" is not registered.`);
     return this.launch({ ...request, handler });
   }

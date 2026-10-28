@@ -5,6 +5,7 @@ import type {
   EvalRubricDimension,
   EvalRunCaseInput,
 } from 'src/generated';
+import { resolveEvalCaseHandlers } from './eval-case-handlers';
 
 export type EvalCaseRecord = {
   id: string;
@@ -96,11 +97,11 @@ export function toEvalRunCaseInput(record: EvalCaseRecord): EvalRunCaseInput {
 
   const situation = section('situation');
   const initiatingRequest = section('request');
-  const targetHandler = section('handler');
+  const handler = section('handler');
   const missing = [
     ['situation', situation],
     ['request', initiatingRequest],
-    ['handler', targetHandler],
+    ['handler', handler],
   ]
     .filter(([, value]) => !value)
     .map(([key]) => key);
@@ -109,6 +110,11 @@ export function toEvalRunCaseInput(record: EvalCaseRecord): EvalRunCaseInput {
       `Eval case "${record.name}" cannot run: missing ${missing.join(', ')}`,
     );
   }
+  const handlers = resolveEvalCaseHandlers(
+    record.name,
+    handler,
+    section('consumerHandler'),
+  );
 
   const items = parseItems(section('items'));
   const expectations = section('expectations');
@@ -121,7 +127,7 @@ export function toEvalRunCaseInput(record: EvalCaseRecord): EvalRunCaseInput {
       focalItemId: items.focalItemId,
       supportingItemIds: items.supportingItemIds,
       initiatingRequest,
-      targetHandler,
+      ...handlers,
     },
     grading: {
       ...(expectations ? { expectations } : {}),

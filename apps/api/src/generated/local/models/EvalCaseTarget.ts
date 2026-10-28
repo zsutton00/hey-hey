@@ -10,6 +10,8 @@
  * Do not edit the class manually.
  */
 
+import { EvalConsumerHandlerKey } from '../models/EvalConsumerHandlerKey';
+import { EvalTargetHandlerKey } from '../models/EvalTargetHandlerKey';
 import { HttpFile } from '../http/http';
 
 /**
@@ -26,10 +28,11 @@ export class EvalCaseTarget {
    * The single request that starts the case.
    */
   'initiatingRequest': string;
+  'targetHandler': EvalTargetHandlerKey;
   /**
-   * Handler the case runs through.
+   * Present exactly when `targetHandler` is `project_assistant`: the real handler whose policy, tools and prompt Project Assistant runs under. Always explicit; there is no default.
    */
-  'targetHandler': string;
+  'consumerHandler'?: EvalConsumerHandlerKey;
 
   static readonly discriminator: string | undefined = undefined;
 
@@ -68,7 +71,13 @@ export class EvalCaseTarget {
     {
       name: 'targetHandler',
       baseName: 'targetHandler',
-      type: 'string',
+      type: 'EvalTargetHandlerKey',
+      format: '',
+    },
+    {
+      name: 'consumerHandler',
+      baseName: 'consumerHandler',
+      type: 'EvalConsumerHandlerKey',
       format: '',
     },
   ];

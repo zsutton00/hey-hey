@@ -33,6 +33,7 @@ import {
   formatTimeLimit,
   formatTokenCount,
   isAttemptEnded,
+  isProjectAssistantEnabled,
 } from "./evalRunView";
 
 const TICK_MS = 1000;
@@ -84,6 +85,11 @@ const SettingsSummary: React.FC<{ run: EvalRunReport }> = ({ run }) => {
             : t("eval.run.page.tokenLimitValue", {
                 value: formatTokenCount(attemptTokenLimit),
               }),
+        projectAssistant: t(
+          isProjectAssistantEnabled(run.payload.configurations)
+            ? "eval.run.page.projectAssistantOn"
+            : "eval.run.page.projectAssistantOff",
+        ),
       })}
     </Typography>
   );

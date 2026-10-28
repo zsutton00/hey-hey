@@ -1,9 +1,11 @@
 import {
   Box,
   FormControl,
+  FormControlLabel,
   InputLabel,
   MenuItem,
   Select,
+  Switch,
   TextField,
   Typography,
   type SelectChangeEvent,
@@ -174,6 +176,33 @@ export const RunSettingsFields: React.FC<RunSettingsFieldsProps> = ({
           onChange={(tokenLimit) => onChange({ ...value, tokenLimit })}
         />
       </Box>
+      <FormControlLabel
+        sx={{ mt: 1 }}
+        disabled={disabled}
+        control={
+          <Switch
+            checked={value.projectAssistantEnabled}
+            onChange={(event) =>
+              onChange({
+                ...value,
+                projectAssistantEnabled: event.target.checked,
+              })
+            }
+            data-testid="eval-run-setting-project-assistant"
+            slotProps={{
+              input: { "aria-label": t("eval.run.settings.projectAssistant") },
+            }}
+          />
+        }
+        label={t("eval.run.settings.projectAssistant")}
+      />
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        data-testid="eval-run-project-assistant-note"
+      >
+        {t("eval.run.settings.projectAssistantNote")}
+      </Typography>
       <Typography
         variant="body2"
         color="text.secondary"

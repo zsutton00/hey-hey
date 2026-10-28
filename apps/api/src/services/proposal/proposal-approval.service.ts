@@ -6,6 +6,7 @@ import {
   graphContentBasis,
   remapGraphProjection,
 } from './future-graph';
+import { assertApprovedEvalCaseHandlers } from 'src/services/eval-runs/eval-case-handlers';
 import { assertProposalApplicationEligible } from './proposal-application-eligibility';
 import { readFutureRevision, stageFutureRevision } from './future-revision';
 import {
@@ -2705,6 +2706,12 @@ export class ProposalApprovalService {
       return;
     }
     await this.assertFeatureRequirementBaseline(proposal, changeSet, db);
+    if (
+      projection.projectedRoot.type === WORK_ITEM_TYPE_KEYS.EvalCase &&
+      !projection.projectedRoot.deleted
+    ) {
+      assertApprovedEvalCaseHandlers(projection.projectedRoot);
+    }
     this.logger.debug(
       'Validated generic work-item change set before approval',
       {

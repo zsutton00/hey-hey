@@ -1324,6 +1324,10 @@ export const en = {
   "eval.run.settings.custom": "Custom…",
   "eval.run.settings.customMinutes": "Minutes",
   "eval.run.settings.customTokens": "Tokens",
+  "eval.run.settings.projectAssistant":
+    "Project Assistant prepares entity conversations",
+  "eval.run.settings.projectAssistantNote":
+    "Applies to every entity conversation case in this run, so you can compare with and without it. Turn it off to run them without Project Assistant. It is saved with the run.",
   "eval.run.settings.limitsNote":
     "Attempts run until they finish unless you set a limit here. Any limit is saved with the run and shown on every attempt it stops.",
   "eval.run.page.attempts": "Attempts",
@@ -1333,7 +1337,9 @@ export const en = {
     "You can leave this page; the run keeps going.",
   "eval.run.page.stop": "Stop run",
   "eval.run.page.settingsSummary":
-    "{{concurrency}} at once · Time limit: {{time}} · Token limit: {{tokens}}",
+    "{{concurrency}} at once · Time limit: {{time}} · Token limit: {{tokens}} · Project Assistant: {{projectAssistant}}",
+  "eval.run.page.projectAssistantOn": "on",
+  "eval.run.page.projectAssistantOff": "off",
   "eval.run.page.timeLimitValue": "{{value}} per attempt",
   "eval.run.page.tokenLimitValue": "{{value}} tokens per attempt",
   "eval.run.page.limitNone": "none",

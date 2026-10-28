@@ -9,6 +9,7 @@ import type { EvalAttemptReport } from "@hey-hey/ui-common/data";
 import {
   attemptCellView,
   defaultRunSettings,
+  isProjectAssistantEnabled,
   formatElapsed,
   progressEntries,
   toConfiguration,
@@ -51,14 +52,29 @@ describe("toConfiguration", () => {
       model: "claude-opus-5-5",
       reasoningEffort: "medium",
     };
-    const first = toConfiguration(target);
-    const second = toConfiguration(target);
+    const first = toConfiguration(target, true);
+    const second = toConfiguration(target, true);
     const uuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     expect(first.id).toMatch(uuid);
     expect(second.id).toMatch(uuid);
     expect(first.id).not.toBe(second.id);
     expect(first.target).toEqual(target);
+  });
+
+  it("records Project Assistant off on the target and leaves it out while on", () => {
+    const target = { provider: "claude", model: "claude-opus-5-5" };
+    const off = toConfiguration(target, false);
+
+    expect(toConfiguration(target, true).target).toEqual(target);
+    expect(off.target).toEqual({
+      ...target,
+      handlerConfig: { projectAssistant: { enabled: false } },
+    });
+    expect(isProjectAssistantEnabled([off])).toBe(false);
+    expect(isProjectAssistantEnabled([toConfiguration(target, true)])).toBe(
+      true,
+    );
   });
 });
 

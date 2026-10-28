@@ -135,7 +135,7 @@ export interface PromptTypeHandlerDeps {
   /** Authoritative first-turn entity startup-input owner. */
   startupPromptInput: AgentStartupPromptInput;
   /** Shared launcher for handlers that fan work out to registered child handlers. */
-  childAgentLauncher: Pick<ChildAgentLauncher, 'launchRegistered'>;
+  childAgentLauncher: Pick<ChildAgentLauncher, 'launchRegistered' | 'resolveChildHandler'>;
   /**
    * One-off, tool-free model call on the Run's own provider, model and effort.
    * Cancelled by the Turn's abort signal; rejects on failure. The Run sets
@@ -554,6 +554,12 @@ export interface PromptTypeHandler<TPayload> {
   providerSessionLifetime?: 'run' | 'turn';
   /** Continue ordinary replies in this handler after its originating workflow finishes. */
   retainsConversationAfterWorkflow?: true;
+  /**
+   * An ordinary user reply normally stays with the agent that owns the Run's
+   * provider session. A handler sets this only when it is a deliberate
+   * starting point whose follow-ups are handed to `coding_freeform`.
+   */
+  handsOffOrdinaryReplies?: true;
   /** Replace provider defaults with the platform prompt on fresh sessions. */
   replaceProviderSystemPrompt?: boolean;
 

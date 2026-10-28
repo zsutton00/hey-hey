@@ -11,15 +11,13 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
+import { EvalHandlerConfig } from './evalHandlerConfig';
 
 
 export interface EvalModelSetting { 
     provider: string;
     model: string;
     reasoningEffort?: string;
-    /**
-     * Handler settings recorded from Agent Config.
-     */
-    handlerConfig?: { [key: string]: any; };
+    handlerConfig?: EvalHandlerConfig;
 }
 

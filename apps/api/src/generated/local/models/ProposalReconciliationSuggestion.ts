@@ -109,4 +109,5 @@ export enum ProposalReconciliationSuggestionStatusEnum {
   REJECTED = 'REJECTED',
   SUPERSEDED = 'SUPERSEDED',
   OUT_OF_DATE = 'OUT_OF_DATE',
+  RETIRED = 'RETIRED',
 }

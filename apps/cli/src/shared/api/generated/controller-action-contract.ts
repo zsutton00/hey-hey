@@ -5569,8 +5569,39 @@ export const controllerActionRuntimeSchema = {
             },
             handlerConfig: {
               type: 'object',
-              additionalProperties: true,
-              description: 'Handler settings recorded from Agent Config.',
+              additionalProperties: false,
+              description:
+                'Handler settings recorded with a run setup, shared by every case in the run.',
+              properties: {
+                projectAssistant: {
+                  allOf: [
+                    {
+                      type: 'object',
+                      additionalProperties: false,
+                      properties: {
+                        enabled: {
+                          type: 'boolean',
+                          description:
+                            "Whether the consuming handler's Project Assistant bootstrap may run for\nthis session. False disables only Project Assistant; true or omission\npreserves the handler-declared participation baseline.\n",
+                        },
+                        allowEdgeUpdates: {
+                          type: 'boolean',
+                        },
+                        notifyDiscrepancies: {
+                          type: 'boolean',
+                        },
+                        allowUpdateProposals: {
+                          type: 'boolean',
+                        },
+                      },
+                      description:
+                        'Optional launch-time Project Assistant participation and behavior settings\npersisted on AgentSession config. Omitting the object or an individual flag\npreserves the handler-declared baseline.\n',
+                    },
+                  ],
+                  description:
+                    "Project Assistant participation for an entity conversation case. `enabled: false` is an explicit choice to run without Project Assistant; omission keeps the handler's real-use behavior, where it runs. Never grants participation a handler does not declare.\n",
+                },
+              },
             },
           },
         },
@@ -5668,8 +5699,32 @@ export const controllerActionRuntimeSchema = {
                         description: 'The single request that starts the case.',
                       },
                       targetHandler: {
+                        description: 'Registry key of the handler under test.',
                         type: 'string',
-                        description: 'Handler the case runs through.',
+                        enum: ['agent_search', 'entity_conversation', 'project_assistant'],
+                      },
+                      consumerHandler: {
+                        allOf: [
+                          {
+                            type: 'string',
+                            description:
+                              'Registry key of a handler whose real Project Assistant policy a Project Assistant case runs under. Each key must be a registered handler that declares a Project Assistant policy; the Hey Hey CLI tests the list against its registry.\n',
+                            enum: [
+                              'startup_session',
+                              'design_doc_refiner',
+                              'feature_sync_analyze',
+                              'feature_refiner',
+                              'task_refiner',
+                              'plan_shaping_feature_sync_analyze',
+                              'free_form',
+                              'entity_conversation',
+                              'html_css_mockup_revision',
+                              'validation_walkthrough',
+                            ],
+                          },
+                        ],
+                        description:
+                          'Present exactly when `targetHandler` is `project_assistant`: the real handler whose policy, tools and prompt Project Assistant runs under. Always explicit; there is no default.\n',
                       },
                     },
                   },
@@ -8430,7 +8485,7 @@ export const controllerActionRuntimeSchema = {
                 'Optional reasoning effort selected at launch. Omission preserves the\nhandler-owned default rather than recording an inferred selection.\n',
             },
             projectAssistant: {
-              $ref: '#/definitions/AgentSessionConfigV2/properties/projectAssistant',
+              $ref: '#/definitions/LocalRunEvalPromptPayload/properties/judgeSetup/properties/handlerConfig/properties/projectAssistant/allOf/0',
               description:
                 'Optional participation intent for the one-shot Project Assistant\nbootstrap. Omission preserves handler-default behavior; enabled false\nremains distinct from enabled true.\n',
             },
@@ -8625,26 +8680,9 @@ export const controllerActionRuntimeSchema = {
             'Canonical TASK_MONITOR work-item identity that launched this coding\nsession. Present only for Task Monitor-owned sessions and immutable\nafter creation. The platform validates the referenced active work item\nbelongs to the same project before creating the AgentSession.\n',
         },
         projectAssistant: {
+          $ref: '#/definitions/LocalRunEvalPromptPayload/properties/judgeSetup/properties/handlerConfig/properties/projectAssistant/allOf/0',
           description:
             'Optional Project Assistant behavior flags for this coding session.\nAbsence preserves read-only/default behavior.\n',
-          type: 'object',
-          additionalProperties: false,
-          properties: {
-            enabled: {
-              type: 'boolean',
-              description:
-                "Whether the consuming handler's Project Assistant bootstrap may run for\nthis session. False disables only Project Assistant; true or omission\npreserves the handler-declared participation baseline.\n",
-            },
-            allowEdgeUpdates: {
-              type: 'boolean',
-            },
-            notifyDiscrepancies: {
-              type: 'boolean',
-            },
-            allowUpdateProposals: {
-              type: 'boolean',
-            },
-          },
         },
         planCombinationAggressiveness: {
           description:

@@ -1,9 +1,9 @@
 import { createFirstTurnPromptRunState, resolvePrompt } from '../../run/resolve-prompt';
 import { SessionRoleGuidance } from '../session-role-guidance/session-role-guidance';
-import { resolveProjectAssistantBootstrap } from '../project-assistant/proactive-behavior';
+import { buildEvalAttemptSession, buildEvalTargetPayload } from './eval-targets';
 import { renderCodingResearchMemo } from '../prompts/coding-research-memo';
 import { WorkflowAboutReader } from '../submission-tools/search-messages-proxy';
-import type { CodingResearchReportPayload } from '../../shared/api/generated';
+import type { CodingResearchReportPayload, EvalCaseTarget } from '../../shared/api/generated';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AgenticSession } from '../../session/types';
 import { ChildAgentLauncher } from '../../run/child-agent-launcher';
@@ -286,8 +286,8 @@ describe('graph-only eval execution through the real child runtime', () => {
                 situation: 'A question about pairing.',
                 focalItemId,
                 initiatingRequest: 'Research the pairing flow.',
-                targetHandler:
-                  "Project Assistant research, run with the request above as the user's prompt and Pairing as the focal item.",
+                targetHandler: 'project_assistant',
+                consumerHandler: 'entity_conversation',
               },
               grading: { checks: [], rubric: [], expectations: 'SECRET-GRADING' },
             },
@@ -331,7 +331,12 @@ describe('graph-only eval execution through the real child runtime', () => {
           attemptId: invalidAttemptId,
           caseInput: {
             ...valid.caseInput,
-            target: { ...valid.caseInput.target, targetHandler: 'unsupported_handler' },
+            target: {
+              situation: valid.caseInput.target.situation,
+              focalItemId,
+              initiatingRequest: valid.caseInput.target.initiatingRequest,
+              targetHandler: 'project_assistant',
+            },
           },
         });
         reports.set(invalidAttemptId, {
@@ -406,7 +411,7 @@ describe('graph-only eval execution through the real child runtime', () => {
       });
       expect(reports.get(invalidAttemptId)).toMatchObject({
         status: 'ERROR',
-        error: { message: expect.stringContaining('cannot be evaluated yet') },
+        error: { message: expect.stringContaining('must name its consumer handler') },
       });
       expect(reports.get(attemptId)?.['error']).toBeUndefined();
       expect(sdk.start).toHaveBeenCalledTimes(3);
@@ -437,18 +442,34 @@ describe('eval first-turn fidelity', () => {
         entityType: 'TASK',
         entityId: '77777777-7777-4777-8777-777777777777',
       } as const;
-      const session = {
+      const coordinatorSession = {
         agentic_session_id: 'target',
         conversationId: 'target-conversation',
         provider: 'claude',
         services: [],
         entity: focal,
-        config: {
-          type: 'ENTITY_CONVERSATION',
-          projectAssistant: { enabled: scenario !== 'entity_conversation_opt_out' },
-        },
         contextMetadata: { organizationId: 'organization', projectId: 'project' },
       } as unknown as AgenticSession;
+      const message = 'Explain this feature and what should happen next.';
+      const caseTarget = {
+        situation: 'The feature is under review.',
+        focalItemId: focal.entityId,
+        initiatingRequest: message,
+        ...(scenario === 'project_assistant'
+          ? { targetHandler: 'project_assistant', consumerHandler: 'entity_conversation' }
+          : { targetHandler: 'entity_conversation' }),
+      } satisfies EvalCaseTarget;
+      const session = buildEvalAttemptSession(
+        coordinatorSession,
+        {
+          provider: 'claude',
+          model: 'selected-target',
+          handlerConfig: {
+            projectAssistant: { enabled: scenario !== 'entity_conversation_opt_out' },
+          },
+        },
+        caseTarget,
+      );
       const token = `header.${Buffer.from(JSON.stringify({ organizationId: 'organization' })).toString('base64url')}.signature`;
       const deps = createPromptTypeHandlerTestDeps({
         auth: createPromptTypeHandlerTestAuth(token),
@@ -470,21 +491,12 @@ describe('eval first-turn fidelity', () => {
             }),
         }),
       });
-      const consumer = registry.get('entity_conversation')!;
-      const message = 'Explain this feature and what should happen next.';
-      const bootstrap = resolveProjectAssistantBootstrap(
-        consumer,
+      const handler = registry.get(caseTarget.targetHandler)!;
+      const payload = buildEvalTargetPayload(caseTarget, {
         session,
-        focal,
-        message,
-        deps.logger,
-      );
-      const handler =
-        scenario === 'project_assistant' ? registry.get('project_assistant')! : consumer;
-      const payload =
-        scenario === 'project_assistant'
-          ? bootstrap!.payload
-          : { entity: focal, userMessage: message };
+        resolveHandler: (id) => registry.getChildHandler(id),
+        logger: deps.logger,
+      });
       const research: CodingResearchReportPayload = {
         reportType: 'CODING_RESEARCH',
         frame: { focalId: focal.entityId, nodes: [] },

@@ -16,9 +16,9 @@ import { EvalReportRecorder } from './eval-report-recorder';
 import { runEvalAttempts, type EvalRunnerPorts, type EvalRunTally } from './eval-runner';
 import { EvalTargetMessages } from './eval-target-messages';
 import {
+  buildEvalAttemptSession,
   buildEvalTargetMessage,
   buildEvalTargetPayload,
-  resolveEvalTargetHandlerId,
 } from './eval-targets';
 
 const EVAL_WORK_ITEM_TYPE_KEY = 'EVAL' as const;
@@ -78,8 +78,13 @@ const runRecordedAttempts = async (
     now: () => new Date(),
     async launchTarget(attempt, { signal: attemptSignal, tokenBudget }) {
       const target = attempt.caseInput.target;
-      const handlerId = resolveEvalTargetHandlerId(target.targetHandler);
-      const targetPayload = buildEvalTargetPayload(target);
+      const handlerId = target.targetHandler;
+      const attemptSession = buildEvalAttemptSession(session, attempt.configuration.target, target);
+      const targetPayload = buildEvalTargetPayload(target, {
+        session: attemptSession,
+        resolveHandler: (id) => launcher.resolveChildHandler(id),
+        logger: deps.logger,
+      });
       const messages = await EvalTargetMessages.create(
         session,
         toEvalExecution(attempt),
@@ -96,7 +101,7 @@ const runRecordedAttempts = async (
       });
       try {
         return await launcher.launchRegistered(handlerId, {
-          parentSession: session,
+          parentSession: attemptSession,
           payload: targetPayload,
           onAgentOutput: messages.onAgentOutput,
           signal: attemptSignal,

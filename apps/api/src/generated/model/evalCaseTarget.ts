@@ -11,6 +11,8 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
+import { EvalTargetHandlerKey } from './evalTargetHandlerKey';
+import { EvalConsumerHandlerKey } from './evalConsumerHandlerKey';
 
 
 /**
@@ -27,9 +29,13 @@ export interface EvalCaseTarget {
      * The single request that starts the case.
      */
     initiatingRequest: string;
+    targetHandler: EvalTargetHandlerKey;
     /**
-     * Handler the case runs through.
+     * Present exactly when `targetHandler` is `project_assistant`: the real handler whose policy, tools and prompt Project Assistant runs under. Always explicit; there is no default. 
      */
-    targetHandler: string;
+    consumerHandler?: EvalConsumerHandlerKey;
 }
+export namespace EvalCaseTarget {
+}
+
 

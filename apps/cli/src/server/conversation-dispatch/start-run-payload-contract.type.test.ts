@@ -277,7 +277,7 @@ describe('StartRunPromptPayload compile-time contract', () => {
             target: {
               situation: 'A requirement no longer matches the shipped behaviour.',
               initiatingRequest: 'Update the feature.',
-              targetHandler: 'refine',
+              targetHandler: 'entity_conversation',
             },
             grading: { checks: [], rubric: [] },
           },

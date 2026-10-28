@@ -133,6 +133,7 @@ export const createPromptTypeHandlerTestDeps = ({
     startupPromptInput,
     childAgentLauncher: {
       launchRegistered: () => Promise.reject(new Error('No child launcher in this test')),
+      resolveChildHandler: () => undefined,
     },
     promptOnce: () => Promise.reject(new Error('No promptOnce in this test')),
     ...overrides,

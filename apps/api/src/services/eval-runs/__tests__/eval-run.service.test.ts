@@ -304,6 +304,50 @@ describe('EvalRunService.launch', () => {
     expect(sessions.createInTransaction).not.toHaveBeenCalled();
   });
 
+  it('rejects a case naming an unevaluable handler before preparing or recording anything', async () => {
+    const { service, prisma, reports, sessions } = build();
+    prisma.db.task.findMany.mockResolvedValue([
+      {
+        ...caseRecord,
+        sections: [
+          ...caseRecord.sections.filter((s) => s.key !== 'handler'),
+          { key: 'handler', materializedMarkdown: 'run_eval' },
+        ],
+      },
+    ]);
+
+    await expect(
+      service.launch(ORG, PROJECT, USER, EVAL_ID, request as never),
+    ).rejects.toThrow(/handler "run_eval" is not evaluable/);
+    expect(reports.createWithIdInTransaction).not.toHaveBeenCalled();
+    expect(sessions.createInTransaction).not.toHaveBeenCalled();
+  });
+
+  it('records the handler and consumer keys of a Project Assistant case in the run', async () => {
+    const { service, prisma, reports } = build();
+    prisma.db.task.findMany.mockResolvedValue([
+      {
+        ...caseRecord,
+        sections: [
+          ...caseRecord.sections.filter((s) => s.key !== 'handler'),
+          { key: 'handler', materializedMarkdown: 'project_assistant' },
+          {
+            key: 'consumerHandler',
+            materializedMarkdown: 'entity_conversation',
+          },
+        ],
+      },
+    ]);
+
+    await service.launch(ORG, PROJECT, USER, EVAL_ID, request as never);
+
+    const [, , , runDto] = reports.createWithIdInTransaction.mock.calls[0]!;
+    expect(runDto.payload.cases[0].target).toMatchObject({
+      targetHandler: 'project_assistant',
+      consumerHandler: 'entity_conversation',
+    });
+  });
+
   it.each([
     ['no cases', { ...request, evalCaseIds: [] }],
     ['no setups', { ...request, configurations: [] }],

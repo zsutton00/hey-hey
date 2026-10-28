@@ -296,7 +296,7 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
         request: {
           evalCaseIds: approvedCases.map((evalCase) => evalCase.id),
           configurations: selectedSetups.map((setup) =>
-            toConfiguration(setup.setting),
+            toConfiguration(setup.setting, settings.projectAssistantEnabled),
           ),
           judgeSetup: judge.setting,
           settings: launchSettings,
@@ -332,6 +332,7 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
     projectId,
     selectedSetups,
     session,
+    settings.projectAssistantEnabled,
   ]);
 
   const casesLabel = t("eval.run.cases", { count: approvedCases.length });

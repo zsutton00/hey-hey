@@ -61,7 +61,7 @@ import { rollupProposalHandler } from './rollup-proposal/rollup-proposal.handler
 import { runEvalHandler } from './run-eval';
 import { evalJudgeHandler } from './run-eval/eval-judge.handler';
 import { evalPreparationHandler } from './run-eval/eval-preparation.handler';
-import { EVAL_TARGET_HANDLER_IDS } from './run-eval/eval-targets';
+import { EVAL_CONSUMER_HANDLER_IDS, EVAL_TARGET_HANDLER_IDS } from './run-eval/eval-targets';
 import { SessionMonitorHandler } from './session-monitor';
 import { setSplittingHandler } from './set-splitting/set-splitting.handler';
 import type { CreateReportProxy } from './submission-tools/create-report-proxy';
@@ -274,6 +274,14 @@ export class PromptTypeRegistry {
       if (!this.handlersById.get(handlerId)?.childConfig) {
         throw new Error(
           `PromptTypeRegistry: eval target '${handlerId}' must be a registered handler with a child configuration.`,
+        );
+      }
+    }
+
+    for (const handlerId of EVAL_CONSUMER_HANDLER_IDS) {
+      if (!this.handlersById.get(handlerId)?.projectAssistant) {
+        throw new Error(
+          `PromptTypeRegistry: eval consumer '${handlerId}' must be a registered handler that declares a Project Assistant policy.`,
         );
       }
     }

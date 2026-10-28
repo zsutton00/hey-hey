@@ -33,12 +33,15 @@ export interface RunSettingsDraft {
   /** Minutes. */
   timeLimit: LimitChoice;
   tokenLimit: LimitChoice;
+  /** Whether Project Assistant prepares entity conversation cases, as in real use. */
+  projectAssistantEnabled: boolean;
 }
 
 export const defaultRunSettings = (): RunSettingsDraft => ({
   concurrency: DEFAULT_CONCURRENCY,
   timeLimit: { kind: "none" },
   tokenLimit: { kind: "none" },
+  projectAssistantEnabled: true,
 });
 
 const limitValue = (choice: LimitChoice): number | null | undefined =>
@@ -76,12 +79,28 @@ export const setupLabel = (setting: EvalModelSetting): string =>
     ? `${setting.model} · ${setting.reasoningEffort}`
     : setting.model;
 
+/**
+ * Turning Project Assistant off is recorded on the target; leaving it on is
+ * left out, which keeps the handler's real-use behavior.
+ */
 export const toConfiguration = (
   setting: EvalModelSetting,
+  projectAssistantEnabled: boolean,
 ): EvalConfiguration => ({
   id: crypto.randomUUID(),
-  target: setting,
+  target: projectAssistantEnabled
+    ? setting
+    : { ...setting, handlerConfig: { projectAssistant: { enabled: false } } },
 });
+
+/** Every configuration of a run shares the setting, so one turned off means the run's is off. */
+export const isProjectAssistantEnabled = (
+  configurations: readonly EvalConfiguration[],
+): boolean =>
+  configurations.every(
+    (configuration) =>
+      configuration.target.handlerConfig?.projectAssistant?.enabled !== false,
+  );
 
 export const formatElapsed = (ms: number): string => {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
