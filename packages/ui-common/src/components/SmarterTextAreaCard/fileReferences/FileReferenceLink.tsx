@@ -18,6 +18,7 @@ import {
   type FileReferenceEditorAction,
 } from "./FileReferenceActions";
 import type { FileReferenceValueV1 } from "./types";
+import { useFileReferenceSource } from "./useFileReferenceSource";
 
 export type FileReferenceRenderMode =
   "service-qualified" | "path" | "file-name";
@@ -30,10 +31,6 @@ interface FileReferenceLinkProps {
 }
 
 const DEFAULT_FILE_REFERENCE_RENDER_MODE = "service-qualified" as const;
-
-const resolveMappedSource = (
-  _value: FileReferenceValueV1,
-): SourceReference | null => null;
 
 const resolveFileReferenceLabel = (
   value: FileReferenceValueV1,
@@ -92,7 +89,7 @@ export const FileReferenceLink = ({
   const projectContext = useProjectContext();
   const [isSetupOpen, setIsSetupOpen, isSetupOpenOwnerKey] =
     useModalState(false);
-  const sourceReference = resolveMappedSource(value);
+  const sourceReference = useFileReferenceSource(value);
   const label = resolveFileReferenceLabel(value, renderMode);
   const contextCandidate = editorContext ?? projectContext;
   const actionContext: FileReferenceActionContext | null =
