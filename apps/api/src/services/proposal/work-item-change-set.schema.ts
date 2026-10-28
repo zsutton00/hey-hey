@@ -33,7 +33,10 @@ import type {
   WorkItemChangeSetValidationRequest,
   WorkItemRelationshipCreateOperation,
 } from '../../generated';
-import { workflowEdgePredicateSchema } from './workflow-proposal-link.schema';
+import {
+  workflowEdgeActionLabelSchema,
+  workflowEdgePredicateSchema,
+} from './workflow-proposal-link.schema';
 
 // Closed vocabularies come directly from generated OpenAPI runtime values.
 // Never duplicate these lists in a handwritten validation schema.
@@ -187,6 +190,7 @@ const workItemStandardRelationshipCreateOperationSchema = z
     edgeType: z.literal('STANDARD'),
     category: z.literal('flow'),
     direction: agentEdgeDirectionSchema,
+    actionLabel: workflowEdgeActionLabelSchema.optional(),
     reasoning: z.string().nullable().optional(),
     metadata: z.record(z.string(), z.unknown()).nullable().optional(),
   })
@@ -202,6 +206,7 @@ const workItemConditionalRelationshipCreateOperationSchema = z
     category: z.literal('flow'),
     direction: agentEdgeDirectionSchema,
     predicate: workflowEdgePredicateSchema,
+    actionLabel: workflowEdgeActionLabelSchema.optional(),
     reasoning: z.string().nullable().optional(),
     metadata: z.record(z.string(), z.unknown()).nullable().optional(),
   })
@@ -216,6 +221,7 @@ const workItemLoopRelationshipCreateOperationSchema = z
     edgeType: z.literal('LOOP'),
     category: z.literal('flow'),
     predicate: workflowEdgePredicateSchema.optional(),
+    actionLabel: workflowEdgeActionLabelSchema.optional(),
     reasoning: z.string().nullable().optional(),
     metadata: z.record(z.string(), z.unknown()).nullable().optional(),
   })
@@ -243,6 +249,7 @@ const workItemRelationshipUpdateOperationSchema = z
     category: agentEdgeCategorySchema.optional(),
     direction: agentEdgeDirectionSchema.optional(),
     predicate: z.string().nullable().optional(),
+    actionLabel: workflowEdgeActionLabelSchema.nullable().optional(),
     reasoning: z.string().nullable().optional(),
     metadata: z.record(z.string(), z.unknown()).nullable().optional(),
   })

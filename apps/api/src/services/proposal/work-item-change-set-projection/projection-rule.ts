@@ -27,6 +27,7 @@ export type Load =
   /** `edges` start the walk from each stored edge's target, for updates that name no endpoints. */
   | { kind: 'dependsOnClosure'; from: NodeKey[]; edges: RelKey[] }
   | { kind: 'planStages'; plan: NodeKey }
+  | { kind: 'diagramGraph'; of: NodeKey }
   | { kind: 'diagramTargets'; of: NodeKey[] }
   | { kind: 'services'; ids: string[] }
   | {
@@ -177,6 +178,7 @@ export function loadIdentity(load: Load): string {
       return `${load.kind}:${'of' in load ? load.of : `${load.endpointOf}:${load.endpoint}`}`;
     case 'ancestorsToRoot':
     case 'children':
+    case 'diagramGraph':
       return `${load.kind}:${load.of}`;
     case 'edgeById':
       return `${load.kind}:${load.ref}`;

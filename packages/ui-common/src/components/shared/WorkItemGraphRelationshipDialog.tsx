@@ -22,6 +22,7 @@ export interface WorkItemGraphRelationshipDialogValue {
   category: AgentEdgeCategory;
   direction?: AgentEdgeDirection;
   predicate?: string | null;
+  actionLabel?: string | null;
   reasoning?: string | null;
   metadata?: Readonly<Record<string, unknown>> | null;
 }
@@ -30,6 +31,7 @@ export interface WorkItemGraphRelationshipDialogProps {
   open: boolean;
   declarations: readonly WorkItemTypeGraphRelationshipDeclaration[];
   relationship?: ProjectedWorkItemRelationship | null;
+  actionLabelRequired?: boolean;
   onCancel: () => void;
   onCommit: (value: WorkItemGraphRelationshipDialogValue) => void;
 }
@@ -54,14 +56,23 @@ function initialDirection(
 
 export const WorkItemGraphRelationshipDialog: FC<
   WorkItemGraphRelationshipDialogProps
-> = ({ open, declarations, relationship, onCancel, onCommit }) => {
+> = ({
+  open,
+  declarations,
+  relationship,
+  actionLabelRequired = false,
+  onCancel,
+  onCommit,
+}) => {
   const [edgeType, setEdgeType] = useState<AgentEdgeType | "">("");
   const [direction, setDirection] = useState<AgentEdgeDirection | "">("");
   const [predicate, setPredicate] = useState("");
+  const [actionLabel, setActionLabel] = useState("");
   const [label, setLabel] = useState("");
   const [description, setDescription] = useState("");
   const [reasoning, setReasoning] = useState("");
   const [editedLabel, setEditedLabel] = useState(false);
+  const [editedActionLabel, setEditedActionLabel] = useState(false);
   const [editedDescription, setEditedDescription] = useState(false);
   const [editedReasoning, setEditedReasoning] = useState(false);
 
@@ -73,6 +84,8 @@ export const WorkItemGraphRelationshipDialog: FC<
     setEdgeType(initialEdgeType);
     setDirection(initialDirection(initialDeclaration, relationship));
     setPredicate(relationship?.predicate ?? "");
+    setActionLabel(relationship?.actionLabel ?? "");
+    setEditedActionLabel(false);
     setLabel(
       typeof relationship?.metadata?.label === "string"
         ? relationship.metadata.label
@@ -98,10 +111,14 @@ export const WorkItemGraphRelationshipDialog: FC<
   const directionRequired = selectedDeclaration?.direction?.required ?? false;
   const predicateRequired =
     selectedDeclaration?.direction?.predicateRequired ?? false;
+  const actionLabelAllowed = selectedDeclaration?.category === "flow";
   const canCommit =
     Boolean(selectedDeclaration) &&
     (!directionRequired || direction !== "") &&
-    (!predicateRequired || predicate.trim().length > 0);
+    (!predicateRequired || predicate.trim().length > 0) &&
+    (!actionLabelRequired ||
+      !actionLabelAllowed ||
+      actionLabel.trim().length > 0);
 
   const commit = () => {
     if (!selectedDeclaration || !canCommit) return;
@@ -111,6 +128,11 @@ export const WorkItemGraphRelationshipDialog: FC<
     const committedPredicate = predicateRequired
       ? predicate.trim()
       : changedType
+        ? null
+        : undefined;
+    const committedActionLabel = actionLabelAllowed
+      ? actionLabel.trim() || (editedActionLabel ? null : undefined)
+      : changedType && relationship?.actionLabel
         ? null
         : undefined;
     const editedMetadata = editedLabel || editedDescription;
@@ -136,6 +158,9 @@ export const WorkItemGraphRelationshipDialog: FC<
       ...(direction ? { direction } : {}),
       ...(committedPredicate !== undefined
         ? { predicate: committedPredicate }
+        : {}),
+      ...(committedActionLabel !== undefined
+        ? { actionLabel: committedActionLabel }
         : {}),
       ...(committedReasoning !== undefined
         ? { reasoning: committedReasoning }
@@ -165,6 +190,9 @@ export const WorkItemGraphRelationshipDialog: FC<
               setEdgeType(nextEdgeType);
               setDirection(initialDirection(nextDeclaration, null));
               setPredicate("");
+              if (nextDeclaration?.category !== "flow") {
+                setActionLabel("");
+              }
             }}
             inputProps={{ "data-testid": "work-item-graph-relationship-type" }}
           >
@@ -203,6 +231,23 @@ export const WorkItemGraphRelationshipDialog: FC<
               onChange={(event) => setPredicate(event.target.value)}
               inputProps={{
                 "data-testid": "work-item-graph-relationship-predicate",
+              }}
+            />
+          )}
+          {actionLabelAllowed && (
+            <TextField
+              label={
+                actionLabelRequired ? "Action label" : "Action label (optional)"
+              }
+              required={actionLabelRequired}
+              value={actionLabel}
+              onChange={(event) => {
+                setActionLabel(event.target.value);
+                setEditedActionLabel(true);
+              }}
+              inputProps={{
+                maxLength: 200,
+                "data-testid": "work-item-graph-relationship-action-label",
               }}
             />
           )}

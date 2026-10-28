@@ -55,6 +55,10 @@ export interface AgentEdge {
    */
   predicate?: string | null;
   /**
+   * Optional plain-language action that triggers this flow transition.
+   */
+  actionLabel?: string | null;
+  /**
    * Natural language rationale for why this edge exists
    */
   reasoning: string;

@@ -72,7 +72,7 @@ describe('Diagram semantic boundaries', () => {
     expect(withDiagramDefaults('DIAGRAM_ELEMENT', sections)).toBe(sections);
   });
 
-  it.each(['GENERAL', 'PROCESS', 'DYNAMIC', 'DEPLOYMENT'])(
+  it.each(['GENERAL', 'PROCESS', 'DYNAMIC', 'DEPLOYMENT', 'UX_FLOW'])(
     'rejects C4 levels on %s',
     (kind) => {
       expect(

@@ -188,6 +188,7 @@ describe('workItemChangeSetValidationRequestSchema', () => {
           edgeType: 'STANDARD',
           category: 'flow',
           direction: 'forward',
+          actionLabel: 'tap Continue',
           predicate: 'approved',
         },
       ],
@@ -274,6 +275,52 @@ describe('workItemChangeSetValidationRequestSchema', () => {
         ],
       }).success,
     ).toBe(true);
+  });
+
+  it.each(['STANDARD', 'CONDITIONAL', 'LOOP'] as const)(
+    'accepts an optional action label on %s flow relationships',
+    (edgeType) => {
+      const result = workItemChangeSetValidationRequestSchema.safeParse({
+        root,
+        operations: [
+          {
+            op: 'relationship.create',
+            ref: temporaryRelationship,
+            source: root,
+            target: temporaryWorkItem,
+            edgeType,
+            category: 'flow',
+            ...(edgeType === 'STANDARD' || edgeType === 'CONDITIONAL'
+              ? { direction: 'forward' }
+              : {}),
+            ...(edgeType === 'CONDITIONAL' ? { predicate: 'approved' } : {}),
+            actionLabel: 'tap Continue',
+          },
+        ],
+      });
+
+      expect(result.success).toBe(true);
+    },
+  );
+
+  it('rejects a whitespace-only flow action label', () => {
+    expect(
+      workItemChangeSetValidationRequestSchema.safeParse({
+        root,
+        operations: [
+          {
+            op: 'relationship.create',
+            ref: temporaryRelationship,
+            source: root,
+            target: temporaryWorkItem,
+            edgeType: 'STANDARD',
+            category: 'flow',
+            direction: 'forward',
+            actionLabel: '  \t  ',
+          },
+        ],
+      }).success,
+    ).toBe(false);
   });
 
   it.each([null, 'forward'])(

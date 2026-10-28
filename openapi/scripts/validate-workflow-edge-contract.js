@@ -18,6 +18,7 @@ const agentEdgeTypeEnum = agentEdges.AgentEdgeType.enum;
 const categoryEnum = agentEdges.AgentEdgeCategory.enum;
 const contractRules = agentEdges.AgentEdgeContractRules.properties;
 const workflowEdgePredicate = agentEdges.WorkflowEdgePredicate;
+const workflowEdgeActionLabel = agentEdges.WorkflowEdgeActionLabel;
 const workflowProposalLink = tasks.WorkflowProposalLinkInput;
 const workflowProposalStandardLink = tasks.WorkflowProposalStandardLinkInput;
 const workflowProposalConditionalLink =
@@ -123,10 +124,22 @@ const assertions = [
     "CONDITIONAL and LOOP allow predicate; STANDARD must not.",
   ],
   [
+    contractRules.actionLabelAllowedEdgeTypes.example.length ===
+      flowTypes.length &&
+      hasAll(contractRules.actionLabelAllowedEdgeTypes.example, flowTypes),
+    "All workflow flow edge types must allow an optional action label.",
+  ],
+  [
     workflowEdgePredicate.minLength === 1 &&
       workflowEdgePredicate.maxLength === 200 &&
       typeof workflowEdgePredicate.pattern === "string",
     "WorkflowEdgePredicate must define the shared non-blank length and character contract.",
+  ],
+  [
+    workflowEdgeActionLabel.minLength === 1 &&
+      workflowEdgeActionLabel.maxLength === 200 &&
+      typeof workflowEdgeActionLabel.pattern === "string",
+    "WorkflowEdgeActionLabel must define a shared non-blank length contract.",
   ],
   [
     workflowProposalLink.discriminator.propertyName === "type" &&
@@ -143,8 +156,10 @@ const assertions = [
   ],
   [
     !("predicate" in workflowProposalStandardLink.properties) &&
+      workflowProposalStandardLink.properties.actionLabel.$ref ===
+        "./agent-edges.yaml#/WorkflowEdgeActionLabel" &&
       workflowProposalStandardLink.additionalProperties === false,
-    "STANDARD workflow proposal links must forbid predicate.",
+    "STANDARD workflow proposal links must forbid predicate and allow the shared optional action label.",
   ],
   [
     hasAll(workflowProposalConditionalLink.required, [
@@ -156,6 +171,8 @@ const assertions = [
     ]) &&
       workflowProposalConditionalLink.properties.predicate.$ref ===
         "./agent-edges.yaml#/WorkflowEdgePredicate" &&
+      workflowProposalConditionalLink.properties.actionLabel.$ref ===
+        "./agent-edges.yaml#/WorkflowEdgeActionLabel" &&
       workflowProposalConditionalLink.additionalProperties === false,
     "CONDITIONAL workflow proposal links must require the shared predicate contract.",
   ],
@@ -163,6 +180,8 @@ const assertions = [
     !workflowProposalLoopLink.required.includes("predicate") &&
       workflowProposalLoopLink.properties.predicate.$ref ===
         "./agent-edges.yaml#/WorkflowEdgePredicate" &&
+      workflowProposalLoopLink.properties.actionLabel.$ref ===
+        "./agent-edges.yaml#/WorkflowEdgeActionLabel" &&
       workflowProposalLoopLink.additionalProperties === false,
     "LOOP workflow proposal links must optionally use the shared predicate contract.",
   ],
@@ -185,8 +204,10 @@ const assertions = [
   ],
   [
     !("predicate" in workItemStandardRelationshipCreate.properties) &&
+      workItemStandardRelationshipCreate.properties.actionLabel.$ref ===
+        "./agent-edges.yaml#/WorkflowEdgeActionLabel" &&
       workItemStandardRelationshipCreate.additionalProperties === false,
-    "Generic STANDARD relationship.create operations must forbid predicate.",
+    "Generic STANDARD relationship.create operations must forbid predicate and allow the shared optional action label.",
   ],
   [
     hasAll(workItemConditionalRelationshipCreate.required, [
@@ -201,6 +222,8 @@ const assertions = [
     ]) &&
       workItemConditionalRelationshipCreate.properties.predicate.$ref ===
         "./agent-edges.yaml#/WorkflowEdgePredicate" &&
+      workItemConditionalRelationshipCreate.properties.actionLabel.$ref ===
+        "./agent-edges.yaml#/WorkflowEdgeActionLabel" &&
       workItemConditionalRelationshipCreate.additionalProperties === false,
     "Generic CONDITIONAL relationship.create operations must require the shared predicate contract.",
   ],
@@ -208,6 +231,8 @@ const assertions = [
     !workItemLoopRelationshipCreate.required.includes("predicate") &&
       workItemLoopRelationshipCreate.properties.predicate.$ref ===
         "./agent-edges.yaml#/WorkflowEdgePredicate" &&
+      workItemLoopRelationshipCreate.properties.actionLabel.$ref ===
+        "./agent-edges.yaml#/WorkflowEdgeActionLabel" &&
       workItemLoopRelationshipCreate.additionalProperties === false,
     "Generic LOOP relationship.create operations must optionally use the shared predicate contract.",
   ],
@@ -228,6 +253,16 @@ const assertions = [
     composesRef(agentEdgeResponse.properties.category, "#/AgentEdgeCategory") &&
       agentEdgeResponse.properties.category.default === "meta",
     "AgentEdgeResponseDto category must compose AgentEdgeCategory and default to meta.",
+  ],
+  [
+    composesRef(
+      agentEdgeResponse.properties.actionLabel,
+      "#/WorkflowEdgeActionLabel",
+    ) &&
+      graphAgentEdge.properties.actionLabel &&
+      graphCreateAgentEdge.properties.actionLabel &&
+      graphUpdateAgentEdge.properties.actionLabel,
+    "Agent-edge API and Graph contracts must expose the shared action-label field on reads, creates, and updates.",
   ],
   [
     agentEdgeResponse.properties.targetNodeType?.type === "string" &&

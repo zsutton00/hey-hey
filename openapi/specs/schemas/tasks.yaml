@@ -904,6 +904,8 @@ WorkflowProposalStandardLinkInput:
       description: tempId of the proposed workflow_step target.
     direction:
       $ref: "./agent-edges.yaml#/AgentEdgeDirection"
+    actionLabel:
+      $ref: "./agent-edges.yaml#/WorkflowEdgeActionLabel"
     description:
       type: string
       description: Optional human-readable explanation for the link.
@@ -931,6 +933,8 @@ WorkflowProposalConditionalLinkInput:
       $ref: "./agent-edges.yaml#/AgentEdgeDirection"
     predicate:
       $ref: "./agent-edges.yaml#/WorkflowEdgePredicate"
+    actionLabel:
+      $ref: "./agent-edges.yaml#/WorkflowEdgeActionLabel"
     description:
       type: string
       description: Optional human-readable explanation for the link.
@@ -955,6 +959,8 @@ WorkflowProposalLoopLinkInput:
         back to its source workflow_step.
     predicate:
       $ref: "./agent-edges.yaml#/WorkflowEdgePredicate"
+    actionLabel:
+      $ref: "./agent-edges.yaml#/WorkflowEdgeActionLabel"
     description:
       type: string
       description: Optional human-readable explanation for the link.

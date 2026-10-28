@@ -1174,7 +1174,7 @@ WorkItemFinalizeResponse:
 
 DiagramKind:
   type: string
-  enum: [GENERAL, ARCHITECTURE, PROCESS, DYNAMIC, DEPLOYMENT]
+  enum: [GENERAL, ARCHITECTURE, PROCESS, DYNAMIC, DEPLOYMENT, UX_FLOW]
   default: GENERAL
 
 DiagramLevel:
@@ -1192,7 +1192,7 @@ DiagramMetadata:
     properties:
       kind:
         type: string
-        enum: [GENERAL, PROCESS, DYNAMIC, DEPLOYMENT]
+        enum: [GENERAL, PROCESS, DYNAMIC, DEPLOYMENT, UX_FLOW]
       level:
         type: string
         enum: [SYSTEM_CONTEXT, CONTAINER, COMPONENT, CODE]

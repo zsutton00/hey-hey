@@ -3762,12 +3762,28 @@ export class ProposalApprovalService {
 
       const workflowFields =
         link.type === 'CONDITIONAL'
-          ? { direction: link.direction, predicate: link.predicate }
+          ? {
+              direction: link.direction,
+              predicate: link.predicate,
+              ...(link.actionLabel !== undefined
+                ? { actionLabel: link.actionLabel }
+                : {}),
+            }
           : link.type === 'STANDARD'
-            ? { direction: link.direction }
-            : link.predicate !== undefined
-              ? { predicate: link.predicate }
-              : {};
+            ? {
+                direction: link.direction,
+                ...(link.actionLabel !== undefined
+                  ? { actionLabel: link.actionLabel }
+                  : {}),
+              }
+            : {
+                ...(link.predicate !== undefined
+                  ? { predicate: link.predicate }
+                  : {}),
+                ...(link.actionLabel !== undefined
+                  ? { actionLabel: link.actionLabel }
+                  : {}),
+              };
 
       return {
         sourceEntityId,

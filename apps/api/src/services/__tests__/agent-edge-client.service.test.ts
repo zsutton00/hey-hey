@@ -244,6 +244,7 @@ describe('AgentEdgeClientService', () => {
         type: AgentEdgeType.Standard,
         category: AgentEdgeCategory.Flow,
         direction: AgentEdgeDirection.Forward,
+        actionLabel: 'tap Continue',
       },
     },
     {
@@ -253,6 +254,7 @@ describe('AgentEdgeClientService', () => {
         category: AgentEdgeCategory.Flow,
         direction: AgentEdgeDirection.Backward,
         predicate: 'approved',
+        actionLabel: 'tap Approve',
       },
     },
     {
@@ -260,6 +262,7 @@ describe('AgentEdgeClientService', () => {
       relationship: {
         type: AgentEdgeType.Loop,
         category: AgentEdgeCategory.Flow,
+        actionLabel: 'tap Retry',
       },
     },
     {
@@ -268,6 +271,7 @@ describe('AgentEdgeClientService', () => {
         type: AgentEdgeType.Loop,
         category: AgentEdgeCategory.Flow,
         predicate: 'retryCount < 3',
+        actionLabel: 'tap Retry',
       },
     },
   ])(
@@ -300,6 +304,9 @@ describe('AgentEdgeClientService', () => {
       ).resolves.toEqual({ id: 'edge-1' });
 
       expect(generatedService.createAgentEdge).toHaveBeenCalledTimes(1);
+      expect(generatedService.createAgentEdge.mock.calls[0]?.[2]).toEqual(
+        expect.objectContaining(relationship),
+      );
     },
   );
 

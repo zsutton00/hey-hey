@@ -4813,6 +4813,11 @@ paths:
                   description: >
                     Required for `CONDITIONAL` flow edges, optional for `LOOP`
                     flow edges, and omitted for `STANDARD` and meta edges.
+                actionLabel:
+                  allOf:
+                    - $ref: "../schemas/agent-edges.yaml#/WorkflowEdgeActionLabel"
+                  nullable: true
+                  description: Optional plain-language action that triggers this flow transition.
                 metadata:
                   type: object
                   additionalProperties: true
@@ -4992,6 +4997,11 @@ paths:
                     Required when the resulting edge type is `CONDITIONAL`,
                     optional for `LOOP`, and omitted for `STANDARD` and meta
                     edges.
+                actionLabel:
+                  allOf:
+                    - $ref: "../schemas/agent-edges.yaml#/WorkflowEdgeActionLabel"
+                  nullable: true
+                  description: Optional plain-language action that triggers this flow transition; set null to clear it.
                 metadata:
                   type: object
                   additionalProperties: true

@@ -545,12 +545,14 @@ describe("work item graph draft", () => {
         edgeType: AgentEdgeType.Standard,
         category: AgentEdgeCategory.Flow,
         direction: AgentEdgeDirection.Forward,
+        actionLabel: "tap Continue",
       },
     });
     const standardCreate = standard.operations.find(
       (operation) => operation.op === "relationship.create",
     );
     expect(standardCreate).not.toHaveProperty("predicate");
+    expect(standardCreate).toHaveProperty("actionLabel", "tap Continue");
 
     expect(() =>
       workItemGraphDraftReducer(draft, {
@@ -585,6 +587,33 @@ describe("work item graph draft", () => {
       refType: "temporary",
       tempId: "draft-work-item-2",
     });
+  });
+
+  it("preserves a transition action through flow type edits and serializes explicit clearing", () => {
+    const input = graphInput();
+    input.incidentRelationships[0]!.actionLabel = "tap Continue";
+    const draft = createWorkItemGraphDraftState(input);
+    const changed = workItemGraphDraftReducer(draft, {
+      type: "reconnect",
+      input: {
+        ref: { refType: "existing", id: "edge-1" },
+        edgeType: AgentEdgeType.Conditional,
+        category: AgentEdgeCategory.Flow,
+        direction: AgentEdgeDirection.Forward,
+        predicate: "profile incomplete",
+      },
+    });
+    expect(changed.projection.incidentRelationships[0]?.actionLabel).toBe(
+      "tap Continue",
+    );
+    const cleared = workItemGraphDraftReducer(changed, {
+      type: "reconnect",
+      input: { ref: { refType: "existing", id: "edge-1" }, actionLabel: null },
+    });
+    expect(cleared.projection.incidentRelationships[0]?.actionLabel).toBeNull();
+    expect(cleared.operations).toContainEqual(
+      expect.objectContaining({ op: "relationship.update", actionLabel: null }),
+    );
   });
 
   it("reconnects one relationship identity with an update", () => {

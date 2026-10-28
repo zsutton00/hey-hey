@@ -1403,6 +1403,7 @@ export class WorkItemChangeSetProjectorService {
       category: edge.category,
       direction: edge.direction ?? undefined,
       predicate: edge.predicate ?? null,
+      actionLabel: edge.actionLabel ?? null,
       reasoning: edge.reasoning,
       metadata: edge.metadata ?? null,
       deleted: false,
@@ -1740,6 +1741,8 @@ export class WorkItemChangeSetProjectorService {
           : undefined,
       predicate:
         'predicate' in operation ? (operation.predicate ?? null) : null,
+      actionLabel:
+        'actionLabel' in operation ? (operation.actionLabel ?? null) : null,
       reasoning: operation.reasoning ?? null,
       metadata: operation.metadata ?? null,
       deleted: false,
@@ -1773,12 +1776,22 @@ export class WorkItemChangeSetProjectorService {
       state.identityLabels[this.relationshipKey(operation.ref)] =
         operation.edgeType;
     }
+    if (
+      operation.category !== undefined &&
+      operation.category !== 'flow' &&
+      !Object.prototype.hasOwnProperty.call(operation, 'actionLabel')
+    ) {
+      edge.actionLabel = null;
+    }
     if (operation.category !== undefined) edge.category = operation.category;
     if (Object.prototype.hasOwnProperty.call(operation, 'direction')) {
       edge.direction = operation.direction ?? undefined;
     }
     if (Object.prototype.hasOwnProperty.call(operation, 'predicate')) {
       edge.predicate = operation.predicate ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(operation, 'actionLabel')) {
+      edge.actionLabel = operation.actionLabel ?? null;
     }
     if (Object.prototype.hasOwnProperty.call(operation, 'reasoning')) {
       edge.reasoning = operation.reasoning ?? null;

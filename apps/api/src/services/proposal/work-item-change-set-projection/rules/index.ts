@@ -1,5 +1,9 @@
 import type { AnyProjectionRule } from '../projection-rule';
-import { diagramGroupsRule, diagramMetadataRule } from './diagram-rules';
+import {
+  diagramGroupsRule,
+  diagramMetadataRule,
+  diagramUxFlowRule,
+} from './diagram-rules';
 import {
   nodeParentageRule,
   nodeRequiredScalarsRule,
@@ -36,6 +40,7 @@ import {
 /** Rules on the declared-applicability contract, in run order. */
 export const PROJECTION_RULES: readonly AnyProjectionRule[] = [
   diagramMetadataRule,
+  diagramUxFlowRule,
   diagramGroupsRule,
   requestTempRefsRule,
   refExistenceRule,

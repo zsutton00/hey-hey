@@ -115,6 +115,37 @@ export class ProjectionLoader {
         return this.loadDependsOnClosure(load.from, load.edges);
       case 'planStages':
         return this.loadPlanStages(load.plan);
+      case 'diagramGraph': {
+        // Element-rooted edits may know the parent type without its metadata.
+        // Hydrate the container so kind-specific rules see the whole Diagram.
+        const id = existingId(load.of);
+        let diagramNodes = 0;
+        if (id && !this.params.state.nodes.has(load.of)) {
+          const tasks = (await this.params.db.task.findMany({
+            where: { id, ...this.liveTaskWhere() },
+            include: TASK_INCLUDE,
+          })) as ProjectedTaskRecord[];
+          this.params.writer.writeTasks(tasks);
+          diagramNodes = tasks.length;
+        }
+
+        const graph = await this.loadRootNeighbourhood(
+          load.of,
+          [
+            GraphAgentEdgeType.Standard,
+            GraphAgentEdgeType.Conditional,
+            GraphAgentEdgeType.Loop,
+          ],
+          true,
+        );
+        const targets = await this.loadDiagramTargets(
+          this.params.loaded.children.get(load.of) ?? [],
+        );
+        return {
+          nodes: diagramNodes + graph.nodes + targets.nodes,
+          edges: graph.edges + targets.edges,
+        };
+      }
       case 'diagramTargets':
         return this.loadDiagramTargets(load.of);
       case 'services':

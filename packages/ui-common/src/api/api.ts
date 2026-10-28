@@ -1993,6 +1993,12 @@ export interface AgentEdgeContractRules {
      */
     'predicateAllowedEdgeTypes': Array<AgentEdgeType>;
     /**
+     * Flow edge types that may carry an action label.
+     * @type {Array<AgentEdgeType>}
+     * @memberof AgentEdgeContractRules
+     */
+    'actionLabelAllowedEdgeTypes': Array<AgentEdgeType>;
+    /**
      * Cross-workflow edges always originate from a workflow step.
      * @type {string}
      * @memberof AgentEdgeContractRules
@@ -2141,6 +2147,12 @@ export interface AgentEdgeResponseDto {
      */
     'predicate'?: string | null;
     /**
+     * Optional plain-language user action that triggers this flow transition. UX_FLOW Diagrams require it to be non-blank on each flow link. 
+     * @type {string}
+     * @memberof AgentEdgeResponseDto
+     */
+    'actionLabel'?: string | null;
+    /**
      * 
      * @type {string}
      * @memberof AgentEdgeResponseDto
@@ -2186,7 +2198,7 @@ export interface AgentEdgeResponseDto {
 
 
 /**
- * Relationship type for agent-authored topology edges between two entities. Each value carries a distinct semantic: - RELATED_TO: source and target share context but have no directional   dependency, derivation, or replacement relationship. - DEPENDS_ON: source entity requires the target entity to be in place   (functionally or temporally) before it is meaningful or completable. - DERIVES_FROM: target entity is the origin or basis from which the   source entity was produced; the target remains canonical and the   source is a downstream artifact. - SUPERSEDES: source entity replaces the target entity; the target is   displaced and should no longer be treated as canonical. - CONTRADICTS: source entity disagrees with the target entity; both   remain visible so the conflict can be resolved by an authoring agent. - EVOLVES: source entity refines, extends, or iterates on the target   entity, which remains canonical. Distinct from SUPERSEDES (target is   displaced) and DERIVES_FROM (target is origin only and the source   stands apart). - TRACKS: source references the target as a tracked deliverable. The   meaning is composed with source and target type — the canonical   use is a GOAL-typed task referencing a FEATURE / STANDARD / BUG task   or a PLAN it expects to ship. DESIGN_DOC and other GOAL targets are   rejected at the attach boundary (track the parent feature or plan   instead). Validation lives in the boundary handler, not the edge   service. - PROPOSED_TOGETHER: source and target were created or modified by the   same proposal, making them co-authored siblings. Symmetric (the edge   carries no direction beyond the storage tuple) and system-emitted   (derived by the Graph service from a proposal-approved event rather   than authored by a user or agent). Carries no semantic claim about   dependency, derivation, or replacement — only that the two entities   share a proposal origin. Always paired with source `system`. - FULFILLED_BY: meta edge from a WORKFLOW_STEP work item to the work item   where that step\'s implementation lives. It remains visible in generic   meta-edge surfaces and is never categorized as flow. - STANDARD: flow edge from one WORKFLOW_STEP to the next ordinary step in   the same workflow graph. Carries category `flow` and requires direction. - CONDITIONAL: flow edge from a WORKFLOW_STEP to the next branch selected   by a predicate. Carries category `flow` and requires both direction and   predicate. - LOOP: flow edge representing a self-loop or return loop in a workflow   graph. Carries category `flow`, does not carry direction, and may carry   a predicate when the return is conditional. 
+ * Relationship type for agent-authored topology edges between two entities. Each value carries a distinct semantic: - RELATED_TO: source and target share context but have no directional   dependency, derivation, or replacement relationship. - DEPENDS_ON: source entity requires the target entity to be in place   (functionally or temporally) before it is meaningful or completable. - DERIVES_FROM: target entity is the origin or basis from which the   source entity was produced; the target remains canonical and the   source is a downstream artifact. - SUPERSEDES: source entity replaces the target entity; the target is   displaced and should no longer be treated as canonical. - CONTRADICTS: source entity disagrees with the target entity; both   remain visible so the conflict can be resolved by an authoring agent. - EVOLVES: source entity refines, extends, or iterates on the target   entity, which remains canonical. Distinct from SUPERSEDES (target is   displaced) and DERIVES_FROM (target is origin only and the source   stands apart). - TRACKS: source references the target as a tracked deliverable. The   meaning is composed with source and target type — the canonical   use is a GOAL-typed task referencing a FEATURE / STANDARD / BUG task   or a PLAN it expects to ship. DESIGN_DOC and other GOAL targets are   rejected at the attach boundary (track the parent feature or plan   instead). Validation lives in the boundary handler, not the edge   service. - PROPOSED_TOGETHER: source and target were created or modified by the   same proposal, making them co-authored siblings. Symmetric (the edge   carries no direction beyond the storage tuple) and system-emitted   (derived by the Graph service from a proposal-approved event rather   than authored by a user or agent). Carries no semantic claim about   dependency, derivation, or replacement — only that the two entities   share a proposal origin. Always paired with source `system`. - FULFILLED_BY: meta edge from a WORKFLOW_STEP work item to the work item   where that step\'s implementation lives. It remains visible in generic   meta-edge surfaces and is never categorized as flow. - STANDARD: flow edge from one WORKFLOW_STEP to the next ordinary step in   the same workflow graph. Carries category `flow`, requires direction,   and may carry an action label. - CONDITIONAL: flow edge from a WORKFLOW_STEP to the next branch selected   by a predicate. Carries category `flow` and requires both direction and   predicate. It may also carry an action label. - LOOP: flow edge representing a self-loop or return loop in a workflow   graph. Carries category `flow`, does not carry direction, and may carry   a predicate when the return is conditional. It may also carry an action   label. 
  * @export
  * @enum {string}
  */
@@ -21330,6 +21342,12 @@ export interface CreateAgentEdgeRequest {
      */
     'predicate'?: string | null;
     /**
+     * Optional plain-language action that triggers this flow transition.
+     * @type {string}
+     * @memberof CreateAgentEdgeRequest
+     */
+    'actionLabel'?: string | null;
+    /**
      * Label-specific relationship metadata declared by the edge contract.
      * @type {{ [key: string]: any; }}
      * @memberof CreateAgentEdgeRequest
@@ -29320,7 +29338,8 @@ export const DiagramKind = {
     Architecture: 'ARCHITECTURE',
     Process: 'PROCESS',
     Dynamic: 'DYNAMIC',
-    Deployment: 'DEPLOYMENT'
+    Deployment: 'DEPLOYMENT',
+    UxFlow: 'UX_FLOW'
 } as const;
 
 export type DiagramKind = typeof DiagramKind[keyof typeof DiagramKind];
@@ -29388,7 +29407,8 @@ export const DiagramMetadataNotKindEnum = {
     General: 'GENERAL',
     Process: 'PROCESS',
     Dynamic: 'DYNAMIC',
-    Deployment: 'DEPLOYMENT'
+    Deployment: 'DEPLOYMENT',
+    UxFlow: 'UX_FLOW'
 } as const;
 
 export type DiagramMetadataNotKindEnum = typeof DiagramMetadataNotKindEnum[keyof typeof DiagramMetadataNotKindEnum];
@@ -70375,6 +70395,12 @@ export interface ProjectedWorkItemRelationship {
      */
     'predicate'?: string | null;
     /**
+     * Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate. 
+     * @type {string}
+     * @memberof ProjectedWorkItemRelationship
+     */
+    'actionLabel'?: string | null;
+    /**
      * 
      * @type {string}
      * @memberof ProjectedWorkItemRelationship
@@ -99746,6 +99772,12 @@ export interface UpdateAgentEdgeRequest {
      */
     'predicate'?: string | null;
     /**
+     * Optional plain-language action that triggers this flow transition; set null to clear it.
+     * @type {string}
+     * @memberof UpdateAgentEdgeRequest
+     */
+    'actionLabel'?: string | null;
+    /**
      * Label-specific relationship metadata declared by the edge contract.
      * @type {{ [key: string]: any; }}
      * @memberof UpdateAgentEdgeRequest
@@ -109041,6 +109073,12 @@ export interface WorkItemConditionalRelationshipCreateOperation {
      */
     'predicate': string;
     /**
+     * Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate. 
+     * @type {string}
+     * @memberof WorkItemConditionalRelationshipCreateOperation
+     */
+    'actionLabel'?: string;
+    /**
      * 
      * @type {string}
      * @memberof WorkItemConditionalRelationshipCreateOperation
@@ -110328,6 +110366,12 @@ export interface WorkItemLoopRelationshipCreateOperation {
      */
     'predicate'?: string;
     /**
+     * Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate. 
+     * @type {string}
+     * @memberof WorkItemLoopRelationshipCreateOperation
+     */
+    'actionLabel'?: string;
+    /**
      * 
      * @type {string}
      * @memberof WorkItemLoopRelationshipCreateOperation
@@ -110609,6 +110653,12 @@ export interface WorkItemRelationshipUpdateOperation {
      */
     'predicate'?: string | null;
     /**
+     * Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate. 
+     * @type {string}
+     * @memberof WorkItemRelationshipUpdateOperation
+     */
+    'actionLabel'?: string | null;
+    /**
      * 
      * @type {string}
      * @memberof WorkItemRelationshipUpdateOperation
@@ -110840,6 +110890,12 @@ export interface WorkItemStandardRelationshipCreateOperation {
      * @memberof WorkItemStandardRelationshipCreateOperation
      */
     'direction': AgentEdgeDirection;
+    /**
+     * Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate. 
+     * @type {string}
+     * @memberof WorkItemStandardRelationshipCreateOperation
+     */
+    'actionLabel'?: string;
     /**
      * 
      * @type {string}
@@ -117097,6 +117153,12 @@ export interface WorkflowProposalConditionalLinkInput {
      */
     'predicate': string;
     /**
+     * Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate. 
+     * @type {string}
+     * @memberof WorkflowProposalConditionalLinkInput
+     */
+    'actionLabel'?: string;
+    /**
      * Optional human-readable explanation for the link.
      * @type {string}
      * @memberof WorkflowProposalConditionalLinkInput
@@ -117186,6 +117248,12 @@ export interface WorkflowProposalLoopLinkInput {
      */
     'predicate'?: string;
     /**
+     * Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate. 
+     * @type {string}
+     * @memberof WorkflowProposalLoopLinkInput
+     */
+    'actionLabel'?: string;
+    /**
      * Optional human-readable explanation for the link.
      * @type {string}
      * @memberof WorkflowProposalLoopLinkInput
@@ -117229,6 +117297,12 @@ export interface WorkflowProposalStandardLinkInput {
      * @memberof WorkflowProposalStandardLinkInput
      */
     'direction': AgentEdgeDirection;
+    /**
+     * Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate. 
+     * @type {string}
+     * @memberof WorkflowProposalStandardLinkInput
+     */
+    'actionLabel'?: string;
     /**
      * Optional human-readable explanation for the link.
      * @type {string}

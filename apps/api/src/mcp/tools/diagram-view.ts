@@ -77,7 +77,10 @@ const flowLine = (edge: AgentEdge): string => {
   const predicate = edge.predicate
     ? ` predicate=${quoted(edge.predicate)}`
     : '';
-  return `  ${edge.id} ${edge.sourceNodeId} -> ${edge.targetNodeId} ${edge.type}${direction}${predicate}`;
+  const actionLabel = edge.actionLabel
+    ? ` action=${quoted(edge.actionLabel)}`
+    : '';
+  return `  ${edge.id} ${edge.sourceNodeId} -> ${edge.targetNodeId} ${edge.type}${direction}${predicate}${actionLabel}`;
 };
 
 const linkLine = (edge: AgentEdge): string =>

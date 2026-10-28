@@ -733,7 +733,7 @@ const parseJsonSection = (
 };
 
 export const getDiagramMetadata = (
-  workItem: GraphWorkItem,
+  workItem: Pick<GraphWorkItem, "sections">,
 ): DiagramMetadata | null => {
   const value = parseJsonSection(workItem.sections, "diagramMetadata");
   if (
@@ -1439,16 +1439,15 @@ const getFulfilledByTargetsByStepId = ({
 };
 
 const getEdgeLabel = (edge: AgentEdgeResponseDto): string | undefined => {
-  if (edge.type !== AgentEdgeType.Conditional) {
-    return undefined;
-  }
-
-  const predicate = edge.predicate?.trim();
-  if (!predicate) {
-    return undefined;
-  }
-
-  return predicate;
+  const actionLabel = edge.actionLabel?.trim();
+  const predicate =
+    edge.type === AgentEdgeType.Conditional
+      ? edge.predicate?.trim()
+      : undefined;
+  const labels = [actionLabel, predicate].filter((label): label is string =>
+    Boolean(label),
+  );
+  return labels.length > 0 ? labels.join(" · ") : undefined;
 };
 
 const getEdgeStyle = (edge: AgentEdgeResponseDto): Edge["style"] => {

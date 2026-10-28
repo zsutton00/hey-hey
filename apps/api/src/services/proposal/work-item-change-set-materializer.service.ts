@@ -4559,6 +4559,9 @@ export class WorkItemChangeSetMaterializerService {
       ...('predicate' in operation
         ? { predicate: operation.predicate ?? undefined }
         : {}),
+      ...('actionLabel' in operation
+        ? { actionLabel: operation.actionLabel ?? undefined }
+        : {}),
       metadata: operation.metadata,
       reasoning:
         operation.reasoning ?? 'Generic work-item change-set relationship.',
@@ -4596,6 +4599,7 @@ export class WorkItemChangeSetMaterializerService {
       category: operation.category,
       direction: operation.direction,
       predicate: operation.predicate,
+      actionLabel: operation.actionLabel,
       metadata: operation.metadata,
       reasoning: operation.reasoning ?? undefined,
       lastModifiedBySessionId: proposalId,

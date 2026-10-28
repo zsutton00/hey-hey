@@ -1802,6 +1802,106 @@ describe('WorkItemChangeSetMaterializerService', () => {
     );
   });
 
+  it('materializes UX_FLOW metadata through the generic section path', async () => {
+    const { service, taskService } = createService();
+    const content = { kind: 'UX_FLOW', level: 'OVERVIEW' };
+
+    await (service as any).applyOperation(
+      {
+        proposalId: 'proposal-1',
+        organizationId: 'organization-1',
+        projectId: 'project-1',
+      },
+      'materialization-1',
+      {
+        op: 'section.replace',
+        ref: { refType: 'existing', id: 'diagram-1' },
+        key: 'diagramMetadata',
+        content,
+      },
+      {
+        workItems: { 'existing:diagram-1': 'diagram-1' },
+        relationships: {},
+      },
+      0,
+      'claim-1',
+    );
+
+    expect(taskService.updateInTransaction).toHaveBeenCalledWith(
+      expect.anything(),
+      'organization-1',
+      null,
+      'diagram-1',
+      {
+        sections: [
+          { key: 'diagramMetadata', content: JSON.stringify(content) },
+        ],
+      },
+      undefined,
+      'materialization-1',
+    );
+  });
+
+  it('materializes an action-labeled STANDARD transition from the reviewed change set', async () => {
+    const { service } = createService();
+    const agentEdgeClient = (service as any).agentEdgeClient;
+    agentEdgeClient.create.mockResolvedValue({
+      id: 'edge-action',
+      sourceNodeId: 'screen-welcome',
+      sourceEntityType: 'TASK',
+      targetNodeId: 'screen-profile',
+      targetEntityType: 'TASK',
+      type: 'STANDARD',
+      category: 'flow',
+      direction: 'forward',
+      actionLabel: 'tap Continue',
+    });
+
+    await (service as any).applyOperation(
+      {
+        proposalId: 'proposal-1',
+        organizationId: 'organization-1',
+        projectId: 'project-1',
+      },
+      'materialization-1',
+      {
+        op: 'relationship.create',
+        ref: { refType: 'temporary', tempId: 'edge-action' },
+        source: { refType: 'existing', id: 'screen-welcome' },
+        target: { refType: 'existing', id: 'screen-profile' },
+        edgeType: 'STANDARD',
+        category: 'flow',
+        direction: 'forward',
+        actionLabel: 'tap Continue',
+      },
+      {
+        workItems: {
+          'existing:screen-welcome': 'screen-welcome',
+          'existing:screen-profile': 'screen-profile',
+        },
+        relationships: { 'temporary:edge-action': 'edge-action' },
+      },
+      0,
+      'claim-1',
+    );
+
+    expect(agentEdgeClient.create).toHaveBeenCalledWith(
+      'organization-1',
+      'project-1',
+      expect.objectContaining({
+        id: 'edge-action',
+        sourceNodeId: 'screen-welcome',
+        targetNodeId: 'screen-profile',
+        type: 'STANDARD',
+        category: 'flow',
+        direction: 'forward',
+        actionLabel: 'tap Continue',
+      }),
+      undefined,
+      'materialization-1',
+    );
+  });
+
   it('runs task update post-commit effects after applying a durable update', async () => {
     const { service, taskService } = createService();
     const postCommit = {
