@@ -82,6 +82,54 @@ const request = {
 };
 
 describe('EvalRunService.launch', () => {
+  it('subjects every attempt conversation to its recorded focal item', async () => {
+    const { service, prisma, sessions } = build();
+    const focalItemIds = [
+      '88888888-8888-4888-8888-888888888888',
+      '99999999-9999-4999-8999-999999999999',
+    ];
+    const cases = focalItemIds.map((focalItemId) => ({
+      ...caseRecord,
+      id: crypto.randomUUID(),
+      sections: [
+        ...caseRecord.sections,
+        {
+          key: 'items',
+          materializedMarkdown: `@[feature:${focalItemId}|Focal feature]`,
+        },
+      ],
+    }));
+    prisma.db.task.findMany.mockResolvedValue(cases);
+
+    await new EvalRunController(service).launch(ORG, PROJECT, EVAL_ID, USER, {
+      ...request,
+      evalCaseIds: cases.map((item) => item.id),
+    });
+
+    expect(sessions.createConversationForSession).toHaveBeenNthCalledWith(
+      1,
+      ORG,
+      PROJECT,
+      'session-1',
+      { workflowType: 'agent-session', title: 'Eval run' },
+    );
+
+    for (const [index, focalItemId] of focalItemIds
+      .flatMap((id) => [id, id])
+      .entries()) {
+      expect(sessions.createConversationForSession).toHaveBeenNthCalledWith(
+        index + 2,
+        ORG,
+        PROJECT,
+        `session-${index + 2}`,
+        expect.objectContaining({
+          workflowAboutType: 'task',
+          workflowAboutId: focalItemId,
+        }),
+      );
+    }
+  });
+
   it('accepts the app launch shape with UUID configuration ids through the controller', async () => {
     const { service, prisma, reports } = build();
     const cases = Array.from({ length: 4 }, () => ({
@@ -189,6 +237,13 @@ describe('EvalRunService.launch', () => {
         ),
     ).toEqual([CONFIG_A.id, CONFIG_B.id]);
     expect(sessions.createConversationForSession).toHaveBeenCalledTimes(3);
+    expect(sessions.createConversationForSession).toHaveBeenNthCalledWith(
+      2,
+      ORG,
+      PROJECT,
+      'session-2',
+      { workflowType: 'agent-session', title: 'Eval attempt' },
+    );
   });
 
   it('records the run settings the person chose, leaving unset limits absent', async () => {

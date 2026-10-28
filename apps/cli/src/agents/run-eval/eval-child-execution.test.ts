@@ -1,3 +1,5 @@
+import { createFirstTurnPromptRunState, resolvePrompt } from '../../run/resolve-prompt';
+import { SessionRoleGuidance } from '../session-role-guidance/session-role-guidance';
 import { describe, expect, it, vi } from 'vitest';
 import type { AgenticSession } from '../../session/types';
 import { ChildAgentLauncher } from '../../run/child-agent-launcher';
@@ -60,18 +62,23 @@ describe('EvalChildExecution preparation', () => {
     const deps = createPromptTypeHandlerTestDeps({ runStore });
     const append = vi.spyOn(runStore, 'appendRunGatherTrace');
     let traced: unknown;
+    const handler = {
+      ...researchHandler,
+      prepare: async (
+        _run: AgenticSession,
+        payload: unknown,
+        handlerDeps: ReturnType<typeof createPromptTypeHandlerTestDeps>,
+      ) => {
+        traced = await handlerDeps.preparationRecords.appendGatherTrace('target', {
+          turnId: 'attempt',
+        } as Parameters<PreparationRecords['appendGatherTrace']>[1]);
+        return { payload };
+      },
+    };
     const execution = new EvalChildExecution(
       {
         parentSession: {} as AgenticSession,
-        handler: {
-          ...researchHandler,
-          prepare: async (_run, payload, handlerDeps) => {
-            traced = await handlerDeps.preparationRecords.appendGatherTrace('target', {
-              turnId: 'attempt',
-            } as Parameters<PreparationRecords['appendGatherTrace']>[1]);
-            return { payload };
-          },
-        },
+        handler,
         payload: { userMessage: 'Research the feature.' },
         entity: { entityType: 'TASK', entityId: 'focal' },
         handlerDeps: deps,
@@ -90,6 +97,29 @@ describe('EvalChildExecution preparation', () => {
     );
 
     await execution.prepare();
+    const handlerDeps = execution.preparationDeps(deps);
+    await resolvePrompt({
+      handler,
+      run: execution.session,
+      runState: createFirstTurnPromptRunState(),
+      input: {
+        promptType: handler.promptType,
+        payload: { userMessage: 'Research the feature.' },
+        references: { resolved: [], unresolved: [] },
+        triggerContext: null,
+      },
+      handlerDeps,
+      turnId: 'attempt',
+      abortSignal: () => undefined,
+      recentUserReplies: [],
+      triggerParentMessageId: null,
+      childExecution: {
+        prepared: false,
+        touchedFiles: [],
+        roleGuidance: new SessionRoleGuidance(handlerDeps),
+        definitions: [],
+      },
+    });
 
     expect(traced).toMatchObject({ turnId: 'attempt', round: 1 });
     expect(execution.preparationRecords.gatherTraces).toEqual([traced]);

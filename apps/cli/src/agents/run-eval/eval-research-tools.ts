@@ -1,3 +1,5 @@
+import { renderCodingResearchMemo } from '../prompts/coding-research-memo';
+import type { RunMemo } from '../../session/types';
 import Ajv from 'ajv';
 import type { AgenticSession } from '../../session/types';
 import type { ChildAgentLauncher } from '../../run/child-agent-launcher';
@@ -69,6 +71,16 @@ export class EvalResearchTools {
 
   public get outputText(): string | undefined {
     return this.output ? JSON.stringify(this.output) : undefined;
+  }
+
+  public get memo(): RunMemo | undefined {
+    return this.output
+      ? {
+          source: 'project_assistant',
+          content: renderCodingResearchMemo(this.output),
+          writtenAt: new Date().toISOString(),
+        }
+      : undefined;
   }
 
   public recordOutput(payload: CodingResearchReportPayload): void {

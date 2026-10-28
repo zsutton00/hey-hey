@@ -208,22 +208,28 @@ export class ChildAgentLauncher {
       oauthClient: this.deps.oauthClient,
       projectId: session.contextMetadata?.projectId,
     });
-    const handlerDeps: PromptTypeHandlerDeps = request.handlerDeps ?? {
-      ...this.deps.handlerDeps,
+    const baseHandlerDeps: PromptTypeHandlerDeps = {
+      ...(request.handlerDeps ?? this.deps.handlerDeps),
       childAgentLauncher: this,
+      // Preparation uses the same tool-free launch for ordinary children and
+      // evals. Evals carry only their identity, cancellation and shared budget.
       promptOnce: async ({ prompt }) => {
         const result = await this.launchRegistered('eval_preparation', {
           parentSession: session,
           payload: { prompt },
-          signal: request.signal,
+          signal: evalChild?.execution.tokenBudget?.signal ?? request.signal,
           serviceIds: [],
+          ...(evalChild ? { evalExecution: evalChild.execution } : {}),
+          ...(request.tokenBudget !== undefined ? { tokenBudget: request.tokenBudget } : {}),
         });
+        evalChild?.recordPreparation(result);
         if (!result.assistantCompleted || !result.outputText) {
           throw new Error('Child preparation ended without a result.');
         }
         return result.outputText;
       },
     };
+    const handlerDeps = evalChild?.preparationDeps(baseHandlerDeps) ?? baseHandlerDeps;
     const resolved = await resolvePrompt({
       handler: request.handler,
       run: session,
@@ -231,6 +237,7 @@ export class ChildAgentLauncher {
         ...createFirstTurnPromptRunState(),
         startupPromptInput: startupPromptInput ?? null,
         reportChain: config.includePriorReports === false ? [] : (request.priorReports ?? []),
+        memos: evalChild?.memos ?? [],
         startedPromptTypes: request.promptContext?.startedPromptTypes ?? new Set(),
       },
       input: {
@@ -243,12 +250,13 @@ export class ChildAgentLauncher {
       recentUserReplies: request.promptContext?.recentUserReplies ?? [],
       triggerParentMessageId: request.promptContext?.triggerParentMessageId ?? null,
       childExecution: {
-        prepared: request.prepared === true || evalChild?.prepared === true,
+        prepared: request.prepared === true,
         touchedFiles: request.touchedFiles ?? [],
         roleGuidance: new SessionRoleGuidance(handlerDeps),
         definitions: sessionStartContext.workItemTypeDefinitions,
       },
     });
+    evalChild?.resolved(resolved.preparedPayload ?? request.payload, resolved.startupPromptInput);
     if (!resolved.resolvedPrompt) {
       throw new Error(`Child handler "${request.handler.id}" produced no prompt.`);
     }
@@ -260,7 +268,24 @@ export class ChildAgentLauncher {
     const child = new SubAgent({
       session,
       handler: request.handler,
-      config,
+      config: {
+        ...config,
+        // Child execution keeps the handler's payload-dependent authority;
+        // SubAgent withholds direct live mutations only after this resolution.
+        mcpAllowedTools: [
+          ...new Set([
+            ...config.mcpAllowedTools,
+            ...(request.handler.resolveAdditionalAllowedTools?.({
+              session,
+              input: {
+                promptType: request.handler.promptType,
+                payload: resolved.preparedPayload ?? request.payload,
+              } as InternalRunPromptRequest,
+              payload: resolved.preparedPayload ?? request.payload,
+            }) ?? []),
+          ]),
+        ],
+      },
       prompt: resolved.resolvedPrompt,
       sessionStartContext,
       touchedFiles: request.touchedFiles ?? [],

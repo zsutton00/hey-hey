@@ -412,7 +412,7 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
   };
 
   const buildPreparedPrompt = (promptPayload: unknown): string => {
-    if (child) {
+    if (child && isSubagentOwned) {
       const instructions =
         handler.buildPrompt(promptPayload, handlerCtx) +
         buildServiceContextNote(run.launchServiceId);
@@ -536,8 +536,7 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
   // agents' provider-session mints.
   if (
     !isSubagentOwned &&
-    !child &&
-    providerSessionWillMint &&
+    (child !== undefined || providerSessionWillMint) &&
     resolvedPrompt &&
     runState.memos.length > 0
   ) {

@@ -1,11 +1,16 @@
+import type { RunMemo } from '../../session/types';
+import {
+  resolvePromptText,
+  type InternalRunPromptRequest,
+} from '../../shared/agent-bridge-contract/contract';
 import type { AgenticSession } from '../../session/types';
 import type { ChildAgentLauncher, ChildLaunchRequest } from '../../run/child-agent-launcher';
 import type { SubAgentResult, SubAgentUsage } from '../../run/subagent';
-import type { AgentStartupPromptInputResult } from '../prompt-type-handler';
+import type { AgentStartupPromptInputResult, PromptTypeHandlerDeps } from '../prompt-type-handler';
 import type { ProjectAssistantPromptPayload } from '../project-assistant/project-assistant.handler';
 import { EvalResearchTools, sumEvalUsage } from './eval-research-tools';
 import { EvalTokenBudget, type EvalExecutionContext } from './eval-execution-context';
-import { resolveProjectAssistantPolicy } from '../project-assistant/proactive-behavior';
+import { resolveProjectAssistantBootstrap } from '../project-assistant/proactive-behavior';
 import { EvalPreparationRecords } from './eval-preparation-records';
 
 /** Attempt-specific preparation and tool ownership, outside shared launch orchestration. */
@@ -13,10 +18,11 @@ export class EvalChildExecution {
   public readonly session: AgenticSession;
   public readonly execution: EvalExecutionContext;
   public payload: ChildLaunchRequest['payload'];
-  public prepared = false;
   public startupPromptInput: AgentStartupPromptInputResult | undefined;
   public researchTools: EvalResearchTools | undefined;
+  private readonly startedAt = Date.now();
   private preparationElapsedMs: number | undefined;
+  public readonly memos: RunMemo[] = [];
   public readonly preparationRecords = new EvalPreparationRecords();
   private readonly preparationUsage: SubAgentUsage[] = [];
 
@@ -31,8 +37,16 @@ export class EvalChildExecution {
         ? { tokenBudget: new EvalTokenBudget(request.tokenBudget, request.signal) }
         : {}),
     };
+    // Each attempt owns fresh context. Coordinator memos and guidance state
+    // belong to another execution and must never enter the target's prompt.
     this.session = {
       ...session,
+      memos: this.memos,
+      sessionContext: {},
+      contextMetadata: {
+        ...session.contextMetadata,
+        agentSessionId: request.evalExecution.targetSessionId,
+      },
       agentic_session_id: request.evalExecution.targetSessionId,
       conversationId: request.evalExecution.targetConversationId,
       promptType: request.handler.promptType,
@@ -56,117 +70,66 @@ export class EvalChildExecution {
   }
 
   private async prepareUnlogged(): Promise<void> {
-    const startedAt = Date.now();
     const { handlerDeps, entity, handler } = this.request;
     if (handlerDeps && entity) {
-      this.startupPromptInput = await handlerDeps.startupPromptInput.resolve({
-        runEntity: entity,
-        organizationId: this.session.contextMetadata.organizationId,
-        projectId: this.session.contextMetadata.projectId,
-      });
-      const config = this.session.config;
-      const policy = resolveProjectAssistantPolicy(
-        handler.resolveProjectAssistant
-          ? handler.resolveProjectAssistant(this.session, handlerDeps.logger)
-          : handler.projectAssistant,
-        config && 'projectAssistant' in config ? config.projectAssistant : undefined,
+      const bootstrap = resolveProjectAssistantBootstrap(
+        handler,
+        this.session,
+        entity,
+        resolvePromptText({
+          promptType: handler.promptType,
+          payload: this.payload,
+        } as InternalRunPromptRequest) ?? '',
+        handlerDeps.logger,
       );
-      if (policy) {
-        const raw = this.payload;
-        const userMessage =
-          typeof raw === 'object' &&
-          raw !== null &&
-          'userMessage' in raw &&
-          typeof raw.userMessage === 'string'
-            ? raw.userMessage
-            : '';
+      if (bootstrap) {
         const research = await this.launcher.launchRegistered('project_assistant', {
           parentSession: this.session,
-          payload: {
-            promptType: 'research',
-            entity,
-            userMessage,
-            projectAssistantHandoff: { consumerHandlerId: handler.id, policy },
-          } satisfies ProjectAssistantPromptPayload,
+          payload: bootstrap.payload,
           entity,
           handlerDeps,
           evalExecution: this.execution,
           signal: this.execution.tokenBudget?.signal ?? this.request.signal,
-          ...(this.session.model ? { model: this.session.model } : {}),
-          ...(this.session.reasoningEffort
-            ? { reasoningEffort: this.session.reasoningEffort }
-            : {}),
           ...(this.request.tokenBudget !== undefined
             ? { tokenBudget: this.request.tokenBudget }
             : {}),
         });
+        this.recordPreparation(research);
         if (!research.assistantCompleted || !research.outputText) {
           throw new Error(
             'Project Assistant preparation ended without a completed research report.',
           );
         }
-        this.preparationUsage.push(
-          research.usage,
-          ...(research.preparationMeasurements ?? []).map((measurement) => ({
-            ...(measurement.inputTokens !== undefined
-              ? { inputTokens: measurement.inputTokens }
-              : {}),
-            ...(measurement.outputTokens !== undefined
-              ? { outputTokens: measurement.outputTokens }
-              : {}),
-            ...(measurement.toolCalls !== undefined ? { toolCalls: measurement.toolCalls } : {}),
-          })),
-        );
-        if (research.outputText)
-          this.startupPromptInput = {
-            ...this.startupPromptInput,
-            renderedInput: `${this.startupPromptInput.renderedInput}\n\n## Project Assistant preparation\n${research.outputText}`,
-          };
-      }
-      if (handler.prepare) {
-        const prepared = await handler.prepare(
-          this.session,
-          this.payload,
-          {
-            ...handlerDeps,
-            preparationRecords: this.preparationRecords,
-            // Preparation belongs to the target's runtime and cancellation,
-            // never to the coordinator's model or provider session.
-            promptOnce: async ({ prompt }) => {
-              const result = await this.launcher.launchRegistered('eval_preparation', {
-                parentSession: this.session,
-                payload: { prompt },
-                signal: this.execution.tokenBudget?.signal ?? this.request.signal,
-                evalExecution: this.execution,
-                serviceIds: [],
-                ...(this.session.model ? { model: this.session.model } : {}),
-                ...(this.session.reasoningEffort
-                  ? { reasoningEffort: this.session.reasoningEffort }
-                  : {}),
-                ...(this.request.tokenBudget !== undefined
-                  ? { tokenBudget: this.request.tokenBudget }
-                  : {}),
-              });
-              this.preparationUsage.push(result.usage);
-              if (!result.assistantCompleted || !result.outputText)
-                throw new Error('Project Assistant preparation ended without a result.');
-              return result.outputText;
-            },
-          },
-          {
-            entity,
-            runId: this.session.agentic_session_id,
-            turnId: this.execution.attemptId,
-            abortSignal: () => this.execution.tokenBudget?.signal ?? this.request.signal,
-            loadedEntityContext: this.startupPromptInput.loadedEntityContext,
-            recentUserReplies: [],
-            triggerParentMessageId: null,
-          },
-        );
-        this.payload = prepared.payload;
+        if (research.projectAssistantMemo) {
+          this.memos.push(research.projectAssistantMemo);
+        }
       }
     }
-    this.prepared = handlerDeps !== undefined && entity !== undefined;
+  }
+
+  /** The shared resolver owns handler preparation; only its records are attempt-local. */
+  public preparationDeps(deps: PromptTypeHandlerDeps): PromptTypeHandlerDeps {
+    return { ...deps, preparationRecords: this.preparationRecords };
+  }
+
+  public recordPreparation(result: SubAgentResult): void {
+    this.preparationUsage.push(
+      result.usage,
+      ...(result.preparationMeasurements ?? []).map(({ inputTokens, outputTokens, toolCalls }) => ({
+        ...(inputTokens !== undefined ? { inputTokens } : {}),
+        ...(outputTokens !== undefined ? { outputTokens } : {}),
+        ...(toolCalls !== undefined ? { toolCalls } : {}),
+      })),
+    );
+  }
+
+  public resolved(payload: unknown, startup: AgentStartupPromptInputResult | undefined): void {
+    if (this.request.handlerDeps && this.request.entity) {
+      this.preparationElapsedMs = Date.now() - this.startedAt;
+    }
+    this.payload = payload;
+    this.startupPromptInput = startup;
+    const { handler } = this.request;
     if (handler.id === 'project_assistant') {
       const loaded = this.startupPromptInput?.loadedEntityContext.entity;
       this.researchTools = new EvalResearchTools({
@@ -184,7 +147,6 @@ export class EvalChildExecution {
           : {}),
       });
     }
-    if (handlerDeps && entity) this.preparationElapsedMs = Date.now() - startedAt;
   }
 
   public complete(result: SubAgentResult, handlerElapsedMs: number): SubAgentResult {
@@ -205,11 +167,14 @@ export class EvalChildExecution {
     };
     const research = this.researchTools;
     if (research && result.assistantCompleted && !result.budgetExhausted) {
-      if (!research.outputText)
+      if (!research.outputText) {
         throw new Error('Project Assistant ended without submitting its research report.');
+      }
+      const memo = research.memo;
       return {
         ...result,
         outputText: research.outputText,
+        ...(memo ? { projectAssistantMemo: memo } : {}),
         usage: research.combineUsage(result.usage),
       };
     }

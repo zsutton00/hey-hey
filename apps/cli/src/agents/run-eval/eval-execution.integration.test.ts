@@ -1,3 +1,9 @@
+import { createFirstTurnPromptRunState, resolvePrompt } from '../../run/resolve-prompt';
+import { SessionRoleGuidance } from '../session-role-guidance/session-role-guidance';
+import { resolveProjectAssistantBootstrap } from '../project-assistant/proactive-behavior';
+import { renderCodingResearchMemo } from '../prompts/coding-research-memo';
+import { WorkflowAboutReader } from '../submission-tools/search-messages-proxy';
+import type { CodingResearchReportPayload } from '../../shared/api/generated';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AgenticSession } from '../../session/types';
 import { ChildAgentLauncher } from '../../run/child-agent-launcher';
@@ -419,6 +425,210 @@ describe('graph-only eval execution through the real child runtime', () => {
           { scope: 'JUDGE' },
         ],
       });
+    },
+  );
+});
+
+describe('eval first-turn fidelity', () => {
+  it.each(['project_assistant', 'entity_conversation', 'entity_conversation_opt_out'] as const)(
+    'delivers the real first-turn prompt for %s to the provider',
+    async (scenario) => {
+      const focal = {
+        entityType: 'TASK',
+        entityId: '77777777-7777-4777-8777-777777777777',
+      } as const;
+      const session = {
+        agentic_session_id: 'target',
+        conversationId: 'target-conversation',
+        provider: 'claude',
+        services: [],
+        entity: focal,
+        config: {
+          type: 'ENTITY_CONVERSATION',
+          projectAssistant: { enabled: scenario !== 'entity_conversation_opt_out' },
+        },
+        contextMetadata: { organizationId: 'organization', projectId: 'project' },
+      } as unknown as AgenticSession;
+      const token = `header.${Buffer.from(JSON.stringify({ organizationId: 'organization' })).toString('base64url')}.signature`;
+      const deps = createPromptTypeHandlerTestDeps({
+        auth: createPromptTypeHandlerTestAuth(token),
+        fetchImpl: async () => new Response(JSON.stringify({ data: [] })),
+      });
+      vi.spyOn(WorkflowAboutReader.prototype, 'read').mockResolvedValue({
+        workflowAboutId: focal.entityId,
+        workflowAboutType: 'task',
+      });
+      const registry = new PromptTypeRegistry({
+        ...PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES,
+        createReportProxy: new CreateReportProxy({
+          auth: deps.auth,
+          apiBaseUrl: deps.apiBaseUrl,
+          reportEmissionEvents: new ReportEmissionEvents(),
+          fetchImpl: async () =>
+            new Response(JSON.stringify({ data: { id: 'report', mention: 'research' } }), {
+              status: 201,
+            }),
+        }),
+      });
+      const consumer = registry.get('entity_conversation')!;
+      const message = 'Explain this feature and what should happen next.';
+      const bootstrap = resolveProjectAssistantBootstrap(
+        consumer,
+        session,
+        focal,
+        message,
+        deps.logger,
+      );
+      const handler =
+        scenario === 'project_assistant' ? registry.get('project_assistant')! : consumer;
+      const payload =
+        scenario === 'project_assistant'
+          ? bootstrap!.payload
+          : { entity: focal, userMessage: message };
+      const research: CodingResearchReportPayload = {
+        reportType: 'CODING_RESEARCH',
+        frame: { focalId: focal.entityId, nodes: [] },
+        analysis: 'Grounded research handed to the conversation.',
+        summary: 'Research completed.',
+        provenance: { discoveryCalls: [], edgesTraversed: [] },
+        updates: [],
+        readinessEvidence: [],
+      };
+      const expectedMemos =
+        scenario === 'entity_conversation'
+          ? [
+              {
+                source: 'project_assistant',
+                content: renderCodingResearchMemo(research),
+                writtenAt: '2026-01-01',
+              },
+            ]
+          : [];
+      const ordinary = await resolvePrompt({
+        handler,
+        run: session,
+        runState: { ...createFirstTurnPromptRunState(), memos: expectedMemos },
+        input: {
+          promptType: handler.promptType,
+          payload,
+          references: { resolved: [], unresolved: [] },
+          triggerContext: null,
+        },
+        handlerDeps: deps,
+        turnId: 'real-turn',
+        abortSignal: () => undefined,
+        recentUserReplies: [],
+        triggerParentMessageId: null,
+        providerSessionDecision: 'first-turn-mint',
+      });
+      const role = await new SessionRoleGuidance(deps).prepare({
+        session,
+        handler,
+        payload: ordinary.preparedPayload ?? payload,
+        fresh: true,
+        ...(ordinary.startupPromptInput ? { startup: ordinary.startupPromptInput } : {}),
+        definitions: [],
+      });
+      const expected = [
+        role.text,
+        [ordinary.startupPromptInput?.renderedInput, ordinary.resolvedPrompt]
+          .filter(Boolean)
+          .join('\n\n---\n\n'),
+      ]
+        .filter(Boolean)
+        .join('\n\n');
+      const endpoint = new LocalAgentEndpoint();
+      endpoint.set('http://local.test');
+      const launcher = new ChildAgentLauncher({
+        handlerDeps: deps,
+        promptTypeRegistry: registry,
+        repoStore: createTestRepoMappingStore(),
+        oauthClient: createRunTestOAuthClient({ success: true, data: 'token' }),
+        submissionToolRegistry: new SubmissionToolRegistry(),
+        localAgentEndpoint: endpoint,
+        logger: NOOP_LOGGER,
+      });
+      const forwarder = new PlatformMcpForwarder({
+        oauthClient: createRunTestOAuthClient({ success: true, data: 'token' }),
+        logger: NOOP_LOGGER,
+      });
+      let received: string | undefined;
+      let researchCalls = 0;
+      sdk.start.mockReset();
+      sdk.start.mockImplementation(async (config, emit) => {
+        const servers = config['mcpServers'] as Record<string, { url: string }>;
+        const researchServer = servers['heyhey-submission-tools'];
+        if (researchServer) {
+          researchCalls += 1;
+          const url = new URL(researchServer.url);
+          const [, , , runId, turnId, token] = url.pathname.split('/').map(decodeURIComponent);
+          const proxy = childPlatformMcpProxies.find({
+            runId: runId!,
+            turnId: turnId!,
+            token: token!,
+          });
+          const result = await proxy!.handleJsonRpc(
+            {
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'tools/call',
+              params: {
+                name: 'create_coding_research',
+                arguments: JSON.parse(
+                  JSON.stringify({
+                    frame: research.frame,
+                    analysis: research.analysis,
+                    summary: research.summary,
+                    provenance: research.provenance,
+                    updates: research.updates,
+                    readinessEvidence: research.readinessEvidence,
+                  }),
+                ),
+              },
+            },
+            forwarder,
+          );
+          expect(JSON.stringify(result)).not.toContain('isError');
+        }
+        if (scenario === 'project_assistant' || !researchServer) {
+          received = String(config['prompt']);
+        }
+        emit({
+          type: 'assistant',
+          message: { id: 'answer', content: [{ type: 'text', text: 'Completed.' }] },
+        });
+        emit({ type: 'result', subtype: 'success' });
+      });
+      const result = await launcher.launch({
+        parentSession: {
+          ...session,
+          memos: [
+            {
+              source: 'coordinator',
+              content: 'SECRET COORDINATOR CONTEXT',
+              writtenAt: '2026-01-01',
+            },
+          ],
+          sessionContext: {
+            sessionRoleGuidance: { references: [], deliveries: {}, hasResearchFrame: true },
+          },
+        },
+        handler,
+        payload,
+        entity: focal,
+        handlerDeps: deps,
+        signal: new AbortController().signal,
+        evalExecution: {
+          attemptId: 'attempt',
+          targetSessionId: 'target',
+          targetConversationId: 'target-conversation',
+        },
+      });
+      expect(result.assistantCompleted).toBe(true);
+      // Claude's platform system instructions occupy a separate system slot;
+      // this is the complete per-turn prompt passed to the provider, byte for byte.
+      expect(received).toBe(expected);
+      expect(researchCalls).toBe(scenario === 'entity_conversation_opt_out' ? 0 : 1);
     },
   );
 });
