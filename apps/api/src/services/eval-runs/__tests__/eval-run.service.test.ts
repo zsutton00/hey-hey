@@ -88,14 +88,14 @@ describe('EvalRunService.launch', () => {
       '88888888-8888-4888-8888-888888888888',
       '99999999-9999-4999-8999-999999999999',
     ];
-    const cases = focalItemIds.map((focalItemId) => ({
+    const cases = focalItemIds.map((focalItemId, index) => ({
       ...caseRecord,
       id: crypto.randomUUID(),
       sections: [
         ...caseRecord.sections,
         {
           key: 'items',
-          materializedMarkdown: `@[feature:${focalItemId}|Focal feature]`,
+          materializedMarkdown: `@[${index === 0 ? 'feature' : 'project'}:${focalItemId}|Focal item]`,
         },
       ],
     }));
@@ -123,7 +123,7 @@ describe('EvalRunService.launch', () => {
         PROJECT,
         `session-${index + 2}`,
         expect.objectContaining({
-          workflowAboutType: 'task',
+          workflowAboutType: index < 2 ? 'task' : 'project',
           workflowAboutId: focalItemId,
         }),
       );

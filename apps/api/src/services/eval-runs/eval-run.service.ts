@@ -190,7 +190,7 @@ export class EvalRunService {
                 title: `Eval attempt: ${summary}`,
                 conversationTitle: 'Eval attempt',
               },
-              caseInput.target.focalItemId,
+              caseInput.target,
             );
             preparedSessionIds.push(target.agentSessionId);
             attemptPayloads.push({
@@ -427,7 +427,7 @@ export class EvalRunService {
     projectId: ProjectId,
     userId: UserId,
     names: { title: string; conversationTitle: string },
-    focalItemId?: EvalRunCaseInput['target']['focalItemId'],
+    focal?: EvalRunCaseInput['target'],
   ): Promise<{
     agentSessionId: AgentSessionId;
     conversationId: ConversationId;
@@ -454,10 +454,12 @@ export class EvalRunService {
       {
         workflowType: WorkflowName.AgentSession,
         title: names.conversationTitle,
-        // Entity Conversation validates this durable subject against the
-        // attempt's focal Run entity, which the CLI also represents as TASK.
-        ...(focalItemId
-          ? { workflowAboutType: 'task', workflowAboutId: focalItemId }
+        // Keep the conversation subject aligned with the attempt's Run entity.
+        ...(focal?.focalItemId && focal.focalItemType
+          ? {
+              workflowAboutType: focal.focalItemType.toLowerCase(),
+              workflowAboutId: focal.focalItemId,
+            }
           : {}),
       },
     );

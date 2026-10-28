@@ -17,7 +17,7 @@ import { runEvalAttempts, type EvalRunnerPorts, type EvalRunTally } from './eval
 import { EvalTargetMessages } from './eval-target-messages';
 import {
   buildEvalAttemptSession,
-  buildEvalTargetMessage,
+  resolveEvalTargetEntity,
   buildEvalTargetPayload,
 } from './eval-targets';
 
@@ -79,9 +79,11 @@ const runRecordedAttempts = async (
     async launchTarget(attempt, { signal: attemptSignal, tokenBudget }) {
       const target = attempt.caseInput.target;
       const handlerId = target.targetHandler;
+      const entity = resolveEvalTargetEntity(target);
       const attemptSession = buildEvalAttemptSession(session, attempt.configuration.target, target);
       const targetPayload = buildEvalTargetPayload(target, {
         session: attemptSession,
+        entity,
         resolveHandler: (id) => launcher.resolveChildHandler(id),
         logger: deps.logger,
       });
@@ -91,7 +93,7 @@ const runRecordedAttempts = async (
         handlerId,
         deps,
       );
-      await messages.savePrompt(buildEvalTargetMessage(target));
+      await messages.savePrompt(target.initiatingRequest);
       deps.logger.info('run_eval.attempt.target_started', {
         runId: session.agentic_session_id,
         attemptId: attempt.attemptId,
@@ -109,9 +111,7 @@ const runRecordedAttempts = async (
           ...(tokenBudget !== undefined ? { tokenBudget } : {}),
           evalExecution: toEvalExecution(attempt),
           handlerDeps: deps,
-          ...(target.focalItemId
-            ? { entity: { entityType: 'TASK' as const, entityId: target.focalItemId } }
-            : {}),
+          ...(entity ? { entity } : {}),
         });
       } catch (error) {
         deps.logger.error('run_eval.attempt.target_failed', {

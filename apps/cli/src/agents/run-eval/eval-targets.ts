@@ -1,6 +1,7 @@
 import type {
   LocalAgentSearchPromptPayload,
   LocalEntityConversationPromptPayload,
+  RunEntityReference,
 } from '../../shared/agent-bridge-contract/generated/api';
 import type { ProjectAssistantConfig } from '../../shared/agent-bridge-contract/contract';
 import {
@@ -9,31 +10,29 @@ import {
   type EvalCaseTarget,
   type EvalModelSetting,
 } from '../../shared/api/generated/api';
+import { runEntityReferenceSchema } from '../../run/run-entity';
 import type { ServerLogger } from '../../server/logger';
 import type { AgenticSession } from '../../session/types';
 import type { PromptTypeHandler } from '../prompt-type-handler';
 import { resolveProjectAssistantBootstrap } from '../project-assistant/proactive-behavior';
 import type { ProjectAssistantPromptPayload } from '../project-assistant/project-assistant.handler';
 
-/**
- * The text a target receives: the case's situation, the items it concerns and
- * the single initiating request. Never checks, rubric or expectations — those
- * live on the grading half of the case, which this function cannot see.
- */
-export const buildEvalTargetMessage = (target: EvalCaseTarget): string =>
-  [
-    target.situation,
-    ...(target.focalItemId ? [`Focal item: ${target.focalItemId}`] : []),
-    ...(target.supportingItemIds && target.supportingItemIds.length > 0
-      ? [`Related items: ${target.supportingItemIds.join(', ')}`]
-      : []),
-    '',
-    target.initiatingRequest,
-  ].join('\n');
+/** Resolve the canonical focal identity once for both prompt preparation and launch. */
+export const resolveEvalTargetEntity = (target: EvalCaseTarget): RunEntityReference | null => {
+  if (!target.focalItemId) {
+    return null;
+  }
+
+  return runEntityReferenceSchema.parse({
+    entityType: target.focalItemType,
+    entityId: target.focalItemId,
+  });
+};
 
 /** What a payload builder may read: the attempt's own session and the registered handlers. */
 export interface EvalTargetPayloadContext {
   session: AgenticSession;
+  entity: RunEntityReference | null;
   resolveHandler: (handlerId: string) => PromptTypeHandler<unknown> | undefined;
   logger: ServerLogger;
 }
@@ -54,11 +53,11 @@ type EvalTargetPayloadBuilder = (
  * by the attempt session's Project Assistant config.
  */
 const buildProjectAssistantPayload: EvalTargetPayloadBuilder = (target, context) => {
-  const { consumerHandler: consumerId, focalItemId } = target;
+  const { consumerHandler: consumerId } = target;
   if (!consumerId) {
     throw new Error('A Project Assistant case must name its consumer handler.');
   }
-  if (!focalItemId) {
+  if (!context.entity) {
     throw new Error('A Project Assistant case needs a focal item.');
   }
 
@@ -66,8 +65,8 @@ const buildProjectAssistantPayload: EvalTargetPayloadBuilder = (target, context)
   const bootstrap = resolveProjectAssistantBootstrap(
     consumer,
     context.session,
-    { entityType: 'TASK', entityId: focalItemId },
-    buildEvalTargetMessage(target),
+    context.entity,
+    target.initiatingRequest,
     context.logger,
   );
   if (!bootstrap) {
@@ -87,15 +86,18 @@ const EVAL_TARGETS: Record<EvalTargetHandlerKey, EvalTargetPayloadBuilder> = {
   [EvalTargetHandlerKey.ProjectAssistant]: buildProjectAssistantPayload,
   [EvalTargetHandlerKey.AgentSearch]: (target): LocalAgentSearchPromptPayload => ({
     payloadVersion: 1,
-    userMessage: buildEvalTargetMessage(target),
+    userMessage: target.initiatingRequest,
   }),
-  [EvalTargetHandlerKey.EntityConversation]: (target): LocalEntityConversationPromptPayload => {
-    if (!target.focalItemId) {
+  [EvalTargetHandlerKey.EntityConversation]: (
+    target,
+    context,
+  ): LocalEntityConversationPromptPayload => {
+    if (!context.entity) {
       throw new Error('An entity conversation case needs a focal item.');
     }
     return {
-      entity: { entityType: 'TASK', entityId: target.focalItemId },
-      userMessage: buildEvalTargetMessage(target),
+      entity: context.entity,
+      userMessage: target.initiatingRequest,
     };
   },
 };

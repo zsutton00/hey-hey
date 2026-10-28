@@ -7880,7 +7880,7 @@ export interface EvalCaseGrading {
     'rubric': Array<EvalRubricDimension>;
 }
 /**
- * Everything the target handler may see. Never contains checks or rubric.
+ * Recorded case context. Only the initiating request and focal entity reach the target; situation and supporting items are reviewer and judge context.
  * @export
  * @interface EvalCaseTarget
  */
@@ -7897,6 +7897,12 @@ export interface EvalCaseTarget {
      * @memberof EvalCaseTarget
      */
     'focalItemId'?: string | null;
+    /**
+     * Canonical entity family of the focal item. Required whenever focalItemId is present; work-item subtypes use TASK.
+     * @type {EntityType}
+     * @memberof EvalCaseTarget
+     */
+    'focalItemType'?: EntityType;
     /**
      *
      * @type {Array<string>}

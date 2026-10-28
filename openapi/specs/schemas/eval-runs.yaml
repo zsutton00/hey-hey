@@ -108,7 +108,7 @@ EvalConfiguration:
 
 EvalCaseTarget:
   type: object
-  description: Everything the target handler may see. Never contains checks or rubric.
+  description: Recorded case context. Only the initiating request and focal entity reach the target; situation and supporting items are reviewer and judge context.
   required: [situation, initiatingRequest, targetHandler]
   properties:
     situation:
@@ -118,6 +118,10 @@ EvalCaseTarget:
       type: string
       format: uuid
       nullable: true
+    focalItemType:
+      allOf:
+        - $ref: "./run-entity.yaml#/RunEntityReference/properties/entityType"
+      description: Canonical entity family of the focal item. Required whenever focalItemId is present; work-item subtypes use TASK.
     supportingItemIds:
       type: array
       items:

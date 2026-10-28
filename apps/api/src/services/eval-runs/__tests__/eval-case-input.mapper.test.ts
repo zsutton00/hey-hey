@@ -49,6 +49,7 @@ describe('toEvalRunCaseInput', () => {
     expect(input.target).toEqual({
       situation: 'A feature with no mobile layout.',
       focalItemId: FOCAL,
+      focalItemType: 'TASK',
       supportingItemIds: [SUPPORT],
       initiatingRequest: 'Add a mobile view to the settings page.',
       targetHandler: 'entity_conversation',
@@ -76,6 +77,59 @@ describe('toEvalRunCaseInput', () => {
       ],
     });
     expect(JSON.stringify(input.target)).not.toContain('mockup proposal');
+  });
+
+  it.each([
+    ['feature', 'TASK'],
+    ['goal', 'TASK'],
+    ['project', 'PROJECT'],
+    ['design-doc', 'DESIGN_DOC'],
+  ])('records the canonical focal family for %s', (mentionType, entityType) => {
+    const input = toEvalRunCaseInput({
+      ...completeCase,
+      sections: completeCase.sections.map((entry) =>
+        entry.key === 'items'
+          ? section('items', `- @[${mentionType}:${FOCAL}|Focal]`)
+          : entry,
+      ),
+    });
+    expect(input.target).toMatchObject({
+      focalItemId: FOCAL,
+      focalItemType: entityType,
+    });
+  });
+
+  it('keeps a case without a focal item unscoped', () => {
+    const input = toEvalRunCaseInput({
+      ...completeCase,
+      sections: completeCase.sections.filter((entry) => entry.key !== 'items'),
+    });
+    expect(input.target.focalItemId).toBeNull();
+    expect(input.target.focalItemType).toBeUndefined();
+  });
+
+  it('rejects an unsupported focal family instead of launching it as a task', () => {
+    expect(() =>
+      toEvalRunCaseInput({
+        ...completeCase,
+        sections: completeCase.sections.map((entry) =>
+          entry.key === 'items'
+            ? section('items', `@[unknown:${FOCAL}|Unknown]`)
+            : entry,
+        ),
+      }),
+    ).toThrow(BadRequestException);
+  });
+
+  it('preserves the exact user request, including whitespace and inline attachments', () => {
+    const request = `  Tell me about @[task:${SUPPORT}|Attached item].\n\n`;
+    const input = toEvalRunCaseInput({
+      ...completeCase,
+      sections: completeCase.sections.map((entry) =>
+        entry.key === 'request' ? section('request', request) : entry,
+      ),
+    });
+    expect(input.target.initiatingRequest).toBe(request);
   });
 
   it('gives every recorded case input its own id', () => {

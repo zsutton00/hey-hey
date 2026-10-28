@@ -1,6 +1,10 @@
 import { createFirstTurnPromptRunState, resolvePrompt } from '../../run/resolve-prompt';
 import { SessionRoleGuidance } from '../session-role-guidance/session-role-guidance';
-import { buildEvalAttemptSession, buildEvalTargetPayload } from './eval-targets';
+import {
+  buildEvalAttemptSession,
+  buildEvalTargetPayload,
+  resolveEvalTargetEntity,
+} from './eval-targets';
 import { renderCodingResearchMemo } from '../prompts/coding-research-memo';
 import { WorkflowAboutReader } from '../submission-tools/search-messages-proxy';
 import type { CodingResearchReportPayload, EvalCaseTarget } from '../../shared/api/generated';
@@ -190,6 +194,8 @@ describe('graph-only eval execution through the real child runtime', () => {
         const prompt = String(config['prompt']);
         if (prompt.includes('You are judging one attempt')) {
           expect(prompt).toContain('SECRET-GRADING');
+          expect(prompt).toContain('A question about pairing.');
+          expect(prompt).toContain('Research the pairing flow.');
           expect(prompt).toContain(research.analysis);
           emitCompletion(emit, runtime, JSON.stringify(assessment));
           return;
@@ -203,6 +209,9 @@ describe('graph-only eval execution through the real child runtime', () => {
         }
         expect(prompt).toContain('CURRENT ENTITY CONTEXT');
         expect(prompt).toContain('Research the pairing flow.');
+        expect(prompt).not.toContain('A question about pairing.');
+        expect(prompt).not.toContain('Related items:');
+        expect(prompt).not.toContain('Focal item:');
         expect(prompt).not.toContain('SECRET-GRADING');
         expect(prompt).toContain('heyhey-submission-tools');
         expect(config['model']).toBe('selected-target');
@@ -285,6 +294,8 @@ describe('graph-only eval execution through the real child runtime', () => {
               target: {
                 situation: 'A question about pairing.',
                 focalItemId,
+                focalItemType: 'TASK',
+                supportingItemIds: ['cccccccc-cccc-4ccc-8ccc-cccccccccccc'],
                 initiatingRequest: 'Research the pairing flow.',
                 targetHandler: 'project_assistant',
                 consumerHandler: 'entity_conversation',
@@ -334,6 +345,7 @@ describe('graph-only eval execution through the real child runtime', () => {
             target: {
               situation: valid.caseInput.target.situation,
               focalItemId,
+              focalItemType: 'TASK',
               initiatingRequest: valid.caseInput.target.initiatingRequest,
               targetHandler: 'project_assistant',
             },
@@ -399,7 +411,7 @@ describe('graph-only eval execution through the real child runtime', () => {
       }
       expect(messages[0]?.data).toMatchObject({
         title: 'Starting Prompt',
-        response: expect.stringContaining('Research the pairing flow.'),
+        response: 'Research the pairing flow.',
         ragEnabled: false,
       });
       expect(JSON.stringify(messages)).not.toContain('SECRET-GRADING');
@@ -439,7 +451,7 @@ describe('eval first-turn fidelity', () => {
     'delivers the real first-turn prompt for %s to the provider',
     async (scenario) => {
       const focal = {
-        entityType: 'TASK',
+        entityType: 'PROJECT',
         entityId: '77777777-7777-4777-8777-777777777777',
       } as const;
       const coordinatorSession = {
@@ -454,6 +466,8 @@ describe('eval first-turn fidelity', () => {
       const caseTarget = {
         situation: 'The feature is under review.',
         focalItemId: focal.entityId,
+        focalItemType: focal.entityType,
+        supportingItemIds: ['cccccccc-cccc-4ccc-8ccc-cccccccccccc'],
         initiatingRequest: message,
         ...(scenario === 'project_assistant'
           ? { targetHandler: 'project_assistant', consumerHandler: 'entity_conversation' }
@@ -477,7 +491,7 @@ describe('eval first-turn fidelity', () => {
       });
       vi.spyOn(WorkflowAboutReader.prototype, 'read').mockResolvedValue({
         workflowAboutId: focal.entityId,
-        workflowAboutType: 'task',
+        workflowAboutType: 'project',
       });
       const registry = new PromptTypeRegistry({
         ...PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES,
@@ -494,9 +508,31 @@ describe('eval first-turn fidelity', () => {
       const handler = registry.get(caseTarget.targetHandler)!;
       const payload = buildEvalTargetPayload(caseTarget, {
         session,
+        entity: resolveEvalTargetEntity(caseTarget),
         resolveHandler: (id) => registry.getChildHandler(id),
         logger: deps.logger,
       });
+      if ('userMessage' in payload) {
+        expect(payload.userMessage).toBe(message);
+      }
+      if ('entity' in payload) {
+        expect(payload.entity).toEqual(focal);
+      }
+      const searchTarget = {
+        situation: caseTarget.situation,
+        supportingItemIds: caseTarget.supportingItemIds,
+        initiatingRequest: message,
+        targetHandler: 'agent_search',
+      } satisfies EvalCaseTarget;
+      expect(resolveEvalTargetEntity(searchTarget)).toBeNull();
+      expect(
+        buildEvalTargetPayload(searchTarget, {
+          session,
+          entity: null,
+          resolveHandler: (id) => registry.getChildHandler(id),
+          logger: deps.logger,
+        }),
+      ).toEqual({ payloadVersion: 1, userMessage: message });
       const research: CodingResearchReportPayload = {
         reportType: 'CODING_RESEARCH',
         frame: { focalId: focal.entityId, nodes: [] },

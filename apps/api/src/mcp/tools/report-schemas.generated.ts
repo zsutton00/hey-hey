@@ -1250,7 +1250,7 @@ export const REPORT_SCHEMAS = {
                   target: {
                     type: 'object',
                     description:
-                      'Everything the target handler may see. Never contains checks or rubric.',
+                      'Recorded case context. Only the initiating request and focal entity reach the target; situation and supporting items are reviewer and judge context.',
                     required: [
                       'situation',
                       'initiatingRequest',
@@ -1272,6 +1272,32 @@ export const REPORT_SCHEMAS = {
                             type: 'null',
                           },
                         ],
+                      },
+                      focalItemType: {
+                        allOf: [
+                          {
+                            type: 'string',
+                            enum: [
+                              'PROJECT',
+                              'ARTIFACT',
+                              'INITIATIVE',
+                              'TASK',
+                              'DESIGN_DOC',
+                              'SERVICE',
+                              'AGENT_SESSION',
+                              'VALIDATION_SESSION',
+                              'MESSAGE',
+                              'CONVERSATION',
+                              'REPORT',
+                              'IMPLEMENTATION_HINT',
+                              'PROPOSAL',
+                            ],
+                            description:
+                              'Canonical platform entity family that scopes the Run. Every work item uses TASK here; its registry-authoritative subtype is carried separately by the work-item payload when a consumer needs it.',
+                          },
+                        ],
+                        description:
+                          'Canonical entity family of the focal item. Required whenever focalItemId is present; work-item subtypes use TASK.',
                       },
                       supportingItemIds: {
                         type: 'array',
