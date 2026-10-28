@@ -688,11 +688,23 @@ it("aligns original, live and intended requirements including additions and grou
   expect(screen.queryByText("Future under review")).toBeNull();
   expect(screen.queryByText("What’s changed since the baseline")).toBeNull();
   fireEvent.click(screen.getByTestId("three-way-show-all"));
-  expect(
-    comparison.querySelectorAll(
-      `[data-testid="three-way-requirement-cell"][data-requirement-id="${unchanged.id}"]`,
-    ),
-  ).toHaveLength(3);
+  const unchangedCells = comparison.querySelectorAll(
+    `[data-testid="three-way-requirement-cell"][data-requirement-id="${unchanged.id}"]`,
+  );
+  expect(unchangedCells).toHaveLength(3);
+  expect(unchangedCells[0]).toHaveTextContent(unchanged.statement);
+  expect(unchangedCells[1]).toHaveTextContent(
+    "No change since this was proposed.",
+  );
+  expect(unchangedCells[2]).toHaveTextContent(
+    "This proposal did not change this requirement.",
+  );
+  for (const cell of [unchangedCells[1], unchangedCells[2]]) {
+    expect(cell).toHaveTextContent("Unchanged");
+    expect(cell).not.toHaveTextContent(unchanged.statement);
+  }
+  expect(cells[1]).toHaveTextContent(first.statement);
+  expect(cells[2]).toHaveTextContent(intended.statement);
   expect(screen.getByText("Approve displayed revision")).toBeDisabled();
   expect(apply).not.toHaveBeenCalled();
 });

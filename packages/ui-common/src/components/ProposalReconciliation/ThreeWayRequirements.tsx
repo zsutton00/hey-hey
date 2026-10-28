@@ -6,6 +6,10 @@ import { StructuredRequirementsView } from "../shared/StructuredRequirementsView
 import { WordDiffText } from "../SuggestedContent/DiffRenderer";
 import { branchChange } from "./threeWayProjection";
 
+const LIVE_NO_CHANGE_MESSAGE = "No change since this was proposed.";
+const PROPOSAL_NO_CHANGE_MESSAGE =
+  "This proposal did not change this requirement.";
+
 export function ThreeWayRequirements({
   original,
   live,
@@ -70,23 +74,35 @@ export function ThreeWayRequirements({
                         ? " · Check it still belongs"
                         : ""}
                     </Typography>
-                    {record ? (
+                    {index > 0 && basis && change === "Unchanged" ? (
+                      <Typography
+                        data-testid="three-way-requirement-no-change"
+                        variant="body2"
+                        color="text.secondary"
+                      >
+                        {index === 1
+                          ? LIVE_NO_CHANGE_MESSAGE
+                          : PROPOSAL_NO_CHANGE_MESSAGE}
+                      </Typography>
+                    ) : record ? (
                       <StructuredRequirementsView
                         requirements={[record]}
                         itemStatementRenderers={
-                          index > 0
-                            ? new Map([
-                                [
-                                  id,
-                                  <WordDiffText
-                                    key={id}
-                                    oldContent={basis?.statement ?? ""}
-                                    newContent={record.statement}
-                                    pane="new"
-                                  />,
-                                ],
-                              ])
-                            : undefined
+                          new Map([
+                            [
+                              id,
+                              <WordDiffText
+                                key={id}
+                                oldContent={
+                                  index === 0
+                                    ? record.statement
+                                    : (basis?.statement ?? "")
+                                }
+                                newContent={record.statement}
+                                pane="new"
+                              />,
+                            ],
+                          ])
                         }
                       />
                     ) : (
