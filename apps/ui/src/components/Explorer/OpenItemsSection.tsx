@@ -917,7 +917,7 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
               selected
                 ? alpha(theme.palette.primary.main, active ? 0.25 : 0.2)
                 : active
-                  ? alpha(theme.palette.primary.main, 0.11)
+                  ? alpha(theme.palette.primary.main, 0.25)
                   : "transparent",
             transition: "background-color 0.2s",
             "&:hover": {
@@ -925,7 +925,7 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
                 selected
                   ? alpha(theme.palette.primary.main, active ? 0.29 : 0.25)
                   : active
-                    ? alpha(theme.palette.primary.main, 0.16)
+                    ? alpha(theme.palette.primary.main, 0.3)
                     : "action.hover",
             },
             "&:active": { cursor: "grabbing" },
