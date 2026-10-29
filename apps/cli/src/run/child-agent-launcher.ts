@@ -1,3 +1,5 @@
+import type { RunStore } from '../run-store/run-store';
+import type { CreateReportProxy } from '../agents/submission-tools/create-report-proxy';
 import { randomUUID } from 'node:crypto';
 import { createFirstTurnPromptRunState, resolvePrompt } from './resolve-prompt';
 import { SessionRoleGuidance } from '../agents/session-role-guidance/session-role-guidance';
@@ -35,6 +37,8 @@ export interface ChildLaunchRequest {
   priorReports?: ReadonlyArray<Readonly<ReportChainEntry>>;
   startupPromptInput?: AgentStartupPromptInputResult;
   onAgentOutput?: AgentOutputHandler;
+  /** Called only after immutable execution metadata is durable. */
+  onExecutionCreated?: (session: AgenticSession) => Promise<void>;
   model?: string;
   reasoningEffort?: LocalReasoningEffort;
   /** Runs the child on this provider instead of the parent session's. */
@@ -63,6 +67,8 @@ export interface ChildLaunchRequest {
 export type RegisteredChildLaunchRequest = Omit<ChildLaunchRequest, 'handler'>;
 
 export interface ChildAgentLauncherDependencies {
+  runStore?: RunStore;
+  reportProxy?: CreateReportProxy;
   handlerDeps: Omit<PromptTypeHandlerBaseDeps, 'childAgentLauncher'>;
   promptTypeRegistry: PromptTypeRegistry;
   repoStore: RepoMappingStore;
@@ -200,6 +206,29 @@ export class ChildAgentLauncher {
     const evalChild = request.evalExecution
       ? new EvalChildExecution({ ...request, evalExecution: request.evalExecution }, session, this)
       : undefined;
+    if (evalChild) {
+      const store = this.deps.runStore;
+      if (!store) {
+        throw new Error('Evaluation execution requires durable Run storage.');
+      }
+      const stored = await store.getRunMetadata(evalChild.execution.targetSessionId);
+      if (stored && !stored.inert) {
+        throw new Error('Evaluation cannot reuse an ordinary Run identity.');
+      }
+      if (!stored) {
+        await store.createRun({
+          ...evalChild.session,
+          inert: true,
+          provider_session_id: '',
+          provider_conversation_id: null,
+          provider_session_agent_id: null,
+        });
+      }
+    }
+    if (!evalChild && session.inert) {
+      throw new Error('Inert execution requires its original evaluation context.');
+    }
+    await request.onExecutionCreated?.(evalChild?.session ?? session);
     try {
       await evalChild?.prepare();
     } catch (error) {
@@ -306,6 +335,7 @@ export class ChildAgentLauncher {
       ...(resolved.startupPromptInput ? { startupPromptInput: resolved.startupPromptInput } : {}),
       submissionToolRegistry: this.deps.submissionToolRegistry,
       localAgentEndpoint: this.deps.localAgentEndpoint,
+      ...(this.deps.reportProxy ? { reportProxy: this.deps.reportProxy } : {}),
       ...(request.model ? { model: request.model } : {}),
       ...(request.reasoningEffort ? { reasoningEffort: request.reasoningEffort } : {}),
       ...(request.fastMode !== undefined ? { fastMode: request.fastMode } : {}),

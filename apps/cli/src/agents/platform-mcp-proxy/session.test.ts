@@ -1,3 +1,4 @@
+import { EvalChildPlatformMcpProxy } from './eval-child-proxy';
 import { describe, expect, it, vi } from 'vitest';
 import { ActivePlatformToolCatalog } from './catalog';
 import { PlatformMcpForwarder } from './forwarder';
@@ -29,12 +30,16 @@ const makeForwarder = (forward: PlatformMcpForwarder['forward']): PlatformMcpFor
   return forwarder;
 };
 
-const makeSession = (forward: PlatformMcpForwarder['forward'], logger?: ServerLogger) =>
+const makeSession = (
+  forward: PlatformMcpForwarder['forward'],
+  logger?: ServerLogger,
+  inert = false,
+) =>
   new PlatformMcpProxySession(
     {
       runId: 'run-1',
       turnId: 'turn-1',
-      context: { projectId: 'project-1' },
+      context: { projectId: 'project-1', ...(inert ? { inert: true } : {}) },
       catalog: new ActivePlatformToolCatalog({
         useCase: 'general',
         additionalTools: ['create_design_doc'],
@@ -62,6 +67,116 @@ const snapshotResult = (members: Array<{ memberId: string; prerequisiteMemberIds
 });
 
 describe('PlatformMcpProxySession', () => {
+  it.each([false, true])('child proposal stamping follows Run inertness: %s', async (inert) => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { content: [] } }), {
+        status: 200,
+      }),
+    );
+    const forwarder = new PlatformMcpForwarder({
+      oauthClient: createTestOAuthClient(),
+      logger: makeLogger().logger,
+      fetchImpl,
+      endpointUrl: 'https://api.test/mcp',
+    });
+    const proxy = new EvalChildPlatformMcpProxy({
+      runId: 'run',
+      attemptId: 'attempt',
+      context: { projectId: 'project', inert },
+      allowedTools: ['edit_work_item'],
+      activeHandlerPromptType: 'entity_conversation',
+    });
+    try {
+      await proxy.handleJsonRpc(
+        {
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: {
+            name: 'edit_work_item',
+            arguments: { ragEnabled: true, applicationEligible: true },
+          },
+        },
+        forwarder,
+      );
+      const sent = JSON.parse(String(fetchImpl.mock.calls[0]![1]!.body));
+      expect(sent.params.arguments).toMatchObject({
+        ragEnabled: !inert,
+        applicationEligible: !inert,
+      });
+    } finally {
+      proxy.close();
+    }
+  });
+
+  it.each(['create_work_item', 'edit_work_item', 'create_design_doc'])(
+    'overrides supplied output eligibility for inert %s calls',
+    async (name) => {
+      const forward = vi.fn<PlatformMcpForwarder['forward']>().mockResolvedValue({
+        jsonrpc: '2.0',
+        id: 1,
+        result: { content: [] },
+      });
+      const proxy = makeSession(forward, undefined, true);
+      await proxy.handle({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name,
+          arguments: { ragEnabled: true, applicationEligible: true, tasks: [{ taskId: 'target' }] },
+        },
+      });
+      expect(forward).toHaveBeenCalledWith(
+        expect.objectContaining({
+          params: {
+            name,
+            arguments: {
+              ragEnabled: false,
+              applicationEligible: false,
+              tasks: [{ taskId: 'target' }],
+            },
+          },
+        }),
+        expect.anything(),
+      );
+    },
+  );
+
+  it('refuses unknown tools during inert execution before forwarding', async () => {
+    const forward = vi.fn<PlatformMcpForwarder['forward']>();
+    const proxy = makeSession(forward, undefined, true);
+    const result = await proxy.handle({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'unknown_batch_edit', arguments: {} },
+    });
+    expect(result.body).toMatchObject({ result: { isError: true } });
+    expect(forward).not.toHaveBeenCalled();
+  });
+
+  it('refuses an inert direct mutation even when the catalog contains it', async () => {
+    const forward = vi.fn<PlatformMcpForwarder['forward']>();
+    const proxy = makeSession(forward, undefined, true);
+    const result = await proxy.handle({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'create_edge', arguments: {} },
+    });
+    expect(result.body).toHaveProperty('error');
+    expect(forward).not.toHaveBeenCalled();
+  });
+
+  it('refuses changing proposal groups from outside the inert execution', async () => {
+    const forward = vi.fn<PlatformMcpForwarder['forward']>();
+    const proxy = makeSession(forward, undefined, true);
+    const result = await proxy.handle(finalizeRequest(1));
+    expect(result.body).toHaveProperty('error');
+    expect(forward).not.toHaveBeenCalled();
+  });
+
   it('negotiates a supported client protocol version', async () => {
     const proxy = makeSession(vi.fn<PlatformMcpForwarder['forward']>());
 

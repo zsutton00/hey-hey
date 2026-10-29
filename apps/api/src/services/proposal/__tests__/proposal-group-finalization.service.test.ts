@@ -89,6 +89,8 @@ function buildingGroup(options?: {
         updatedAt: now,
         proposal: {
           id: PROPOSAL_ID,
+          applicationEligible: true,
+          ragEnabled: true,
           organizationId: ORGANIZATION_ID,
           projectId: PROJECT_ID,
           type: 'SINGLE',
@@ -290,6 +292,34 @@ function configureTrackedTask(
 }
 
 describe('ProposalGroupFinalizationService', () => {
+  it('makes ineligible grouped evidence reviewable without automatic approval', async () => {
+    const dispatchReadyMembers = jest.fn();
+    const { service, tx, group } = createFixture({
+      moduleRef: { get: jest.fn().mockReturnValue({ dispatchReadyMembers }) },
+    });
+    group.members[0]!.proposal.applicationEligible = false;
+    const result = await service.finalize(
+      ORGANIZATION_ID,
+      PROJECT_ID,
+      GROUP_ID,
+      requestor,
+      {
+        expectedRevision: 3,
+      },
+    );
+    expect(result.outcome).toBe('FINALIZED');
+    expect(tx.proposalGroupMember.update).toHaveBeenCalledWith({
+      where: { id: MEMBER_ID },
+      data: {
+        requiredApprovals: 0,
+        approvalPolicyRevision: null,
+        approvalSatisfiedAt: null,
+        executionState: 'PENDING_APPROVAL',
+      },
+    });
+    expect(dispatchReadyMembers).not.toHaveBeenCalled();
+  });
+
   it('requires fresh review for a replacement even when ordinary policy permits automatic application', async () => {
     const { service, tx } = createFixture();
     tx.proposalReconciliationReplacement.findFirst.mockResolvedValue({

@@ -1,3 +1,4 @@
+import type { AgenticSession } from '../../session/types';
 import { describe, expect, it, vi } from 'vitest';
 import {
   LocalPromptType,
@@ -62,6 +63,9 @@ describe('runEvalHandler', () => {
       [];
     const launchRegistered = vi.fn(async (handlerId: string, request: Record<string, unknown>) => {
       launches.push({ handlerId, payload: request['payload'], request });
+      await (
+        request['onExecutionCreated'] as ((session: AgenticSession) => Promise<void>) | undefined
+      )?.({ ...(request['parentSession'] as AgenticSession), inert: true });
       if (handlerId === 'agent_search') {
         (request['onAgentOutput'] as AgentOutputHandler | undefined)?.({
           event: {

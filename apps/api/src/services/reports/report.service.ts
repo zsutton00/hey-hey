@@ -2,7 +2,6 @@ import { validateChangeWalkthroughPayload } from './change-walkthrough-payload.v
 import { validateCodingResearchPayload } from './coding-research-payload.validation';
 import { validateProjectReportPayload } from './project-report-payload.validation';
 import {
-  currentWritingSessionId,
   EvalOutputAdmissionService,
   ORDINARY_EVAL_OUTPUT_STAMP,
   type EvalOutputStamp,
@@ -269,7 +268,7 @@ export class ReportService {
     private readonly nodeExecutionService?: NodeExecutionService,
     private readonly projectReportRequests?: ProjectReportRequestService,
     @Optional()
-    private readonly evalOutputAdmission: EvalOutputAdmissionService = new EvalOutputAdmissionService(),
+    _evalOutputAdmission: EvalOutputAdmissionService = new EvalOutputAdmissionService(),
   ) {}
 
   getReportTitle(reportType: ReportType): string {
@@ -362,16 +361,11 @@ export class ReportService {
           ...linkedContextCreates,
         ]);
 
-        const evalStamp = await this.resolveEvalOutputStamp(
-          tx,
-          organizationId,
-          dto,
-        );
         const createdReport = await tx.report.create({
           data: {
             organizationId,
             projectId: dto.projectId ?? null,
-            ragEnabled: evalStamp.ragEnabled,
+            ragEnabled: dto.ragEnabled ?? true,
             reportType: dto.reportType as PrismaReportType,
             audience: audience as PrismaReportAudience,
             payload: this.toPersistedReportPayload(dto.payload, dto.agent),
@@ -467,17 +461,12 @@ export class ReportService {
       reportType: dto.reportType,
       parentReportId: dto.parentReportId ?? null,
     });
-    const evalStamp = await this.resolveEvalOutputStamp(
-      tx,
-      organizationId,
-      dto,
-    );
     const created = await tx.report.create({
       data: {
         id,
         organizationId,
         projectId: dto.projectId ?? null,
-        ragEnabled: evalStamp.ragEnabled,
+        ragEnabled: dto.ragEnabled ?? true,
         reportType: dto.reportType as PrismaReportType,
         audience: dto.audience as PrismaReportAudience,
         payload: this.toPersistedReportPayload(dto.payload, dto.agent),
@@ -714,6 +703,7 @@ export class ReportService {
     const reports = await this.prisma.db.report.findMany({
       where: {
         organizationId,
+        ragEnabled: true,
         ...(reportType ? { reportType: reportType as PrismaReportType } : {}),
         reportEntities: {
           some: { entityId },
@@ -1712,6 +1702,7 @@ export class ReportService {
             dto.agent,
             existing.payload,
           ),
+          ragEnabled: dto.ragEnabled,
           version: { increment: 1 },
           ...(audience !== undefined
             ? { audience: audience as PrismaReportAudience }
@@ -1922,6 +1913,14 @@ export class ReportService {
     report: ReportDto,
     opts: { dryRun?: boolean } = {},
   ): Promise<FileTouchIndexingResult> {
+    if (report.ragEnabled === false) {
+      return {
+        reportId: report.id,
+        status: 'skipped',
+        indexedCount: 0,
+        reason: 'retrieval-disabled output',
+      };
+    }
     if (report.reportType !== ReportType.Implement) {
       return {
         reportId: report.id,
@@ -2753,21 +2752,6 @@ export class ReportService {
       },
     );
     return { actions };
-  }
-
-  private async resolveEvalOutputStamp(
-    tx: AnyTransactionClient,
-    organizationId: OrganizationId,
-    dto: CreateReportDto,
-  ): Promise<EvalOutputStamp> {
-    if (!dto.projectId) {
-      return ORDINARY_EVAL_OUTPUT_STAMP;
-    }
-    return this.evalOutputAdmission.resolve(tx, {
-      organizationId,
-      projectId: dto.projectId as ProjectId,
-      writingSessionId: currentWritingSessionId(),
-    });
   }
 
   private async publishReportCreatedEvent(

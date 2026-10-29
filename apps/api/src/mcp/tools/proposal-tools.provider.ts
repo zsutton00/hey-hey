@@ -78,7 +78,6 @@ import { lintProjectedTopology } from './proposal-topology-lint';
 import { PROPOSAL_TOOL_NAMES } from './proposal-tool-names';
 import {
   groupedAuthoringResultSchema,
-  groupedBatchAuthoringResultSchema,
   invalidProposalChangeSetFromError,
   invalidProposalChangeSetOutputSchema,
   proposalGroupContextSchema,
@@ -121,11 +120,6 @@ export const EDIT_WORK_ITEM_TOOL_DESCRIPTION =
   'Propose an UPDATE proposal for a work item of any type. The target\'s type is resolved server-side and that type\'s update rules — allowed sections, settable fields — are applied from the central work-item type config. See get_tool_guidance({ toolName: "edit_work_item", workItemType }) for the authoring conventions. ' +
   LIFECYCLE_AWARE_TASK_EDIT_SAFETY_SUMMARY +
   ' serviceIds is accepted when the project-effective type has registry role "work-item" and represents the complete known service scope.';
-
-export const EDIT_TASKS_TOOL_DESCRIPTION =
-  'Propose a batch of UPDATE proposals for tasks. See get_tool_guidance({ toolName: "edit_work_item" }) for the authoring conventions — the per-task discipline applies to every edit in the batch. ' +
-  LIFECYCLE_AWARE_TASK_EDIT_SAFETY_SUMMARY +
-  ' serviceIds is accepted for entries whose project-effective type has registry role "work-item" and represents the complete known service scope.';
 
 // Work-item types whose `implementation` field folds into the description
 // section. Create parity: the retired create_task folded for STANDARD only
@@ -183,18 +177,6 @@ const AUTHORING_ROOT_PROOF_FIELD_DESCRIBE =
   'TRACKS, workflow graph fields, graph operations, or grouped authoring. ' +
   'It demonstrates that the shared topology guidance was read; it is not ' +
   'authorization and does not replace semantic validation.';
-
-const taskSectionInputSchema = z.object({
-  key: z.enum(['description', 'acceptanceCriteria']),
-  content: z
-    .string()
-    .min(1)
-    .describe(
-      'Section content in markdown with real line breaks; never type the ' +
-        'two characters backslash and n as a stand-in for a newline.',
-    ),
-  order: z.number().int().optional(),
-});
 
 const workItemSectionContentSchema = z
   .unknown()
@@ -498,63 +480,6 @@ function repairSections(value: unknown): unknown[] | undefined {
   return value as unknown[];
 }
 
-const updateTaskFields = {
-  name: z.string().min(1).optional().describe('New name/title for the task'),
-  sections: z
-    .preprocess(repairSections, z.array(taskSectionInputSchema).optional())
-    .describe(
-      'Updated task sections. Allowed keys: description, ' +
-        'acceptanceCriteria. See get_tool_guidance({ toolName: ' +
-        '"edit_work_item", workItemType: "STANDARD" }) for the authoring ' +
-        'conventions. ' +
-        LIFECYCLE_AWARE_TASK_EDIT_SAFETY_SUMMARY,
-    ),
-  status: z
-    .enum([
-      'BACKLOG',
-      'ACTIVE',
-      'ON_HOLD',
-      'VERIFYING',
-      'COMPLETED',
-      'CANCELLED',
-      'ARCHIVED',
-    ])
-    .optional()
-    .describe('New status for the task'),
-  priority: z
-    .enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'])
-    .optional()
-    .describe('New priority level'),
-  dueDate: z
-    .string()
-    .datetime()
-    .nullable()
-    .optional()
-    .describe('New due date; omission preserves, explicit null clears'),
-  assigneeId: z
-    .string()
-    .uuid()
-    .optional()
-    .describe('User ID to assign the task to'),
-  parentTaskId: z
-    .string()
-    .uuid()
-    .optional()
-    .describe('New parent task ID for hierarchy changes'),
-  sectionUpdateSource: z
-    .enum(['USER', 'AGENT_SUGGESTED'])
-    .optional()
-    .describe('Source of the section update'),
-  serviceIds: z
-    .array(z.string().uuid())
-    .optional()
-    .describe(
-      'For work-item types (registry role "work-item") only: complete replacement service set. Omit to preserve existing assignments; an empty array clears them.',
-    ),
-};
-
-const UPDATE_TASK_KEYS = Object.keys(updateTaskFields);
-
 // ---------------------------------------------------------------------------
 // Generic work-item authoring surface. A single create/edit schema covers
 // every WorkItemTypeKey; the per-type rules — allowed sections, required scalars,
@@ -646,13 +571,50 @@ const createWorkItemFields = {
 
 const CREATE_WORK_ITEM_KEYS = Object.keys(createWorkItemFields);
 
-// Update surface: shares the edit_tasks field bundle, widens `sections`
-// to the cross-type superset, and adds the feature-only `tag`. The
-// handler narrows both to the target's type from the central config.
-const { sections: _omittedUpdateSections, ...baseUpdateWorkItemFields } =
-  updateTaskFields;
 const updateWorkItemFields = {
-  ...baseUpdateWorkItemFields,
+  name: z.string().min(1).optional().describe('New name/title for the task'),
+  status: z
+    .enum([
+      'BACKLOG',
+      'ACTIVE',
+      'ON_HOLD',
+      'VERIFYING',
+      'COMPLETED',
+      'CANCELLED',
+      'ARCHIVED',
+    ])
+    .optional()
+    .describe('New status for the task'),
+  priority: z
+    .enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'])
+    .optional()
+    .describe('New priority level'),
+  dueDate: z
+    .string()
+    .datetime()
+    .nullable()
+    .optional()
+    .describe('New due date; omission preserves, explicit null clears'),
+  assigneeId: z
+    .string()
+    .uuid()
+    .optional()
+    .describe('User ID to assign the task to'),
+  parentTaskId: z
+    .string()
+    .uuid()
+    .optional()
+    .describe('New parent task ID for hierarchy changes'),
+  sectionUpdateSource: z
+    .enum(['USER', 'AGENT_SUGGESTED'])
+    .optional()
+    .describe('Source of the section update'),
+  serviceIds: z
+    .array(z.string().uuid())
+    .optional()
+    .describe(
+      'For work-item types (registry role "work-item") only: complete replacement service set. Omit to preserve existing assignments; an empty array clears them.',
+    ),
   sections: z
     .preprocess(repairSections, z.array(workItemSectionInputSchema).optional())
     .describe(
@@ -777,6 +739,8 @@ type ProposalEdgeDeclarationParam = z.infer<
 // --------------------------------------------------------
 
 export const createWorkItemParameters = z.object({
+  ragEnabled: z.boolean().optional(),
+  applicationEligible: z.boolean().optional(),
   groupContext: proposalGroupContextSchema.optional(),
   eli5: eli5Schema,
   authoringRootProof: z
@@ -873,6 +837,8 @@ export const createWorkItemParameters = z.object({
 });
 
 export const editWorkItemParameters = z.object({
+  ragEnabled: z.boolean().optional(),
+  applicationEligible: z.boolean().optional(),
   groupContext: proposalGroupContextSchema.optional(),
   eli5: eli5Schema,
   authoringRootProof: z
@@ -940,10 +906,8 @@ export const editWorkItemParameters = z.object({
         'The server resolves this against the current canonical section and persists only the complete resulting section content.',
     ),
   ...updateWorkItemFields,
-  // Declared on editWorkItemParameters directly — not on the shared
-  // updateWorkItemFields bundle — so it stays out of the edit_tasks batch
-  // schema and the key-copy loop; the handler folds it into the
-  // description section.
+  // The handler folds implementation into the description section; keep it
+  // outside the UPDATE_WORK_ITEM_KEYS field-copy loop.
   implementation: z.string().optional().describe(IMPLEMENTATION_FIELD_DESCRIBE),
   // Declared on editWorkItemParameters directly — not on the shared
   // updateWorkItemFields bundle — so it stays out of the UPDATE_WORK_ITEM_KEYS
@@ -1010,74 +974,6 @@ export const createWorkItemOutput = z.discriminatedUnion('status', [
 ]);
 
 type CreateWorkItemOutput = z.infer<typeof createWorkItemOutput>;
-
-const editEntrySchema = z.object({
-  taskId: z.string().uuid().describe('ID of the task to edit'),
-  eli5: eli5Schema,
-  ...updateTaskFields,
-  // Declared directly on the entry — not in updateTaskFields — so it never
-  // enters the UPDATE_TASK_KEYS key-copy loop. The token is per-entry because
-  // each entry targets its own task, whose type (STANDARD or BUG) is resolved
-  // server-side; a batch can mix types, and each token is scoped to the
-  // request project plus that entry's type.
-  guidanceToken: z.string().optional().describe(GUIDANCE_TOKEN_FIELD_DESCRIBE),
-});
-
-const MAX_BATCH_SIZE = 50;
-
-export const editTasksParameters = z.object({
-  groupContext: proposalGroupContextSchema.optional(),
-  authoringRootProof: z
-    .string()
-    .optional()
-    .describe(AUTHORING_ROOT_PROOF_FIELD_DESCRIBE),
-  edits: z
-    .array(editEntrySchema)
-    .min(1)
-    .max(MAX_BATCH_SIZE)
-    .refine(
-      (edits) => new Set(edits.map((e) => e.taskId)).size === edits.length,
-      { message: 'Duplicate taskId values are not allowed' },
-    )
-    .describe(
-      'Array of task edits to propose as a batch. For entries whose effective type has registry role "work-item", apply the canonical section-edit policy to `sections` and check status before editing section content.',
-    ),
-  influences: z
-    .array(influenceSchema)
-    .max(100)
-    .optional()
-    .describe(
-      'Entities that influenced this batch of proposals. Shared ' +
-        'across all edits in the batch.',
-    ),
-  generatedWithVersion: z
-    .string()
-    .max(255)
-    .optional()
-    .describe('Model or tool version used to generate these proposals'),
-});
-
-const editTasksOutputEntry = z.object({
-  id: z.string().describe('Proposal ID'),
-  status: z.string().describe('Proposal status (e.g. DRAFT)'),
-  action: z.string().describe('Proposal action (UPDATE)'),
-  targetEntityType: z.string().describe('Target entity type (TASK)'),
-  targetEntityId: z.string().describe('ID of the task being edited'),
-  modifiedFields: z.array(z.string()).describe('List of fields being modified'),
-  createdAt: z.string().describe('When the proposal was created'),
-});
-
-export const editTasksOutput = z.object({
-  proposals: z.array(editTasksOutputEntry),
-  groupedAuthoring: groupedBatchAuthoringResultSchema.optional(),
-});
-
-const editTasksResultOutput = z.union([
-  invalidProposalChangeSetOutputSchema,
-  editTasksOutput,
-]);
-
-type EditTasksOutput = z.infer<typeof editTasksResultOutput>;
 
 // Server-resolved work-item type, echoed on every edit_work_item response.
 // The target's type is looked up from the entity, never from the caller, so
@@ -1175,6 +1071,8 @@ const createDesignDocFields = {
 };
 
 export const createDesignDocParameters = z.object({
+  ragEnabled: z.boolean().optional(),
+  applicationEligible: z.boolean().optional(),
   groupContext: proposalGroupContextSchema.optional(),
   eli5: eli5Schema,
   authoringRootProof: z
@@ -1272,6 +1170,8 @@ const updateDesignDocFields = {
 const UPDATE_DESIGN_DOC_KEYS = Object.keys(updateDesignDocFields);
 
 export const editDesignDocParameters = z.object({
+  ragEnabled: z.boolean().optional(),
+  applicationEligible: z.boolean().optional(),
   groupContext: proposalGroupContextSchema.optional(),
   eli5: eli5Schema,
   authoringRootProof: z
@@ -1905,87 +1805,6 @@ export class ProposalToolsProvider {
           : 'existing_target_entity_id',
     });
     return { proposal, groupedAuthoring };
-  }
-
-  private async persistProposalBatch(args: {
-    organizationId: OrganizationId;
-    projectId: ProjectId;
-    userId: UserId;
-    dtos: StampedCreateProposalDto[];
-    groupContext?: ProposalGroupContext;
-    tool: string;
-  }) {
-    if (!args.groupContext) {
-      const proposals = await this.proposalService.createBatch(
-        args.organizationId,
-        args.projectId,
-        args.userId,
-        args.dtos,
-      );
-      return { proposals };
-    }
-
-    const snapshot = await this.requireGroupAuthoringService().addMembers(
-      args.organizationId,
-      args.projectId,
-      args.groupContext.groupId,
-      args.userId,
-      args.groupContext.expectedRevision,
-      args.dtos,
-    );
-    const members = snapshot.members.slice(-args.dtos.length);
-    const rows = await this.prisma.db.proposalGroupMember.findMany({
-      where: {
-        groupId: args.groupContext.groupId,
-        id: { in: members.map((member) => member.memberId) },
-      },
-      select: {
-        id: true,
-        proposal: {
-          select: {
-            id: true,
-            status: true,
-            action: true,
-            targetEntityType: true,
-            targetEntityId: true,
-            updates: true,
-            createdAt: true,
-          },
-        },
-      },
-    });
-    const rowByMemberId = new Map(rows.map((row) => [row.id, row.proposal]));
-    const proposals = members.map((member) => {
-      const proposal = rowByMemberId.get(member.memberId);
-      if (!proposal) {
-        throw new Error(
-          `Persisted proposal-group member ${member.memberId} could not be re-read`,
-        );
-      }
-      return {
-        ...proposal,
-        createdAt: proposal.createdAt.toISOString(),
-      };
-    });
-    const groupedAuthoring = {
-      groupId: snapshot.groupId,
-      currentRevision: snapshot.currentRevision,
-      members,
-      authoringSnapshot: snapshot,
-    };
-    this.logger.log('MCP routed proposal batch through explicit group', {
-      tool: args.tool,
-      organizationId: args.organizationId,
-      projectId: args.projectId,
-      groupId: args.groupContext.groupId,
-      expectedRevision: args.groupContext.expectedRevision,
-      returnedRevision: snapshot.currentRevision,
-      memberIds: members.map((member) => member.memberId),
-      returnedTargetIdentities: members.map(
-        (member) => member.reservedEntityId ?? member.proposal.targetEntityId,
-      ),
-    });
-    return { proposals, groupedAuthoring };
   }
 
   private toGroupedAuthoring(
@@ -3088,6 +2907,8 @@ export class ProposalToolsProvider {
       ),
     ];
     const dto: StampedCreateProposalDto = {
+      ragEnabled: params.ragEnabled,
+      applicationEligible: params.applicationEligible,
       type: 'SINGLE',
       action: 'CREATE',
       targetEntityId,
@@ -3650,6 +3471,8 @@ export class ProposalToolsProvider {
       }
 
       const dto: StampedCreateProposalDto = {
+        ragEnabled: params.ragEnabled,
+        applicationEligible: params.applicationEligible,
         type: 'SINGLE',
         action: 'UPDATE',
         targetEntityId: params.targetEntityId,
@@ -3703,216 +3526,6 @@ export class ProposalToolsProvider {
       }
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.warn(`edit_work_item failed: ${message}`);
-      return mcpError(message);
-    }
-  }
-
-  @Tool({
-    name: PROPOSAL_TOOL_NAMES.EDIT_TASKS,
-    description: EDIT_TASKS_TOOL_DESCRIPTION,
-    parameters: editTasksParameters,
-    outputSchema: editTasksResultOutput,
-  })
-  async editTasks(
-    params: z.infer<typeof editTasksParameters>,
-    _context: Context,
-    request: Request,
-  ): Promise<EditTasksOutput | CallToolResult> {
-    const auth = extractAuthContext({}, request);
-    if (!isAuthContext(auth)) return auth;
-
-    const errors: Array<{ index: number; taskId: string; error: string }> = [];
-
-    const conversationId = request.headers['x-conversation-id'] as
-      | string
-      | undefined;
-    const projectId = request.headers['x-project-id'] as string | undefined;
-
-    if (!projectId) {
-      return mcpError(
-        'Missing project context. Ensure X-Project-ID header is set.',
-      );
-    }
-
-    const rootProofError = validateAuthoringRootProof({
-      toolName: PROPOSAL_TOOL_NAMES.EDIT_TASKS,
-      token: params.authoringRootProof,
-      required: topologyMutationRequested({
-        groupContext: params.groupContext,
-        parentTaskId: params.edits.some(
-          (edit) => edit.parentTaskId !== undefined,
-        )
-          ? true
-          : undefined,
-      }),
-    });
-    if (rootProofError) return mcpError(rootProofError);
-
-    const requestorContext = extractRequestorContext(
-      auth,
-      request,
-      PROPOSAL_TOOL_NAMES.EDIT_TASKS,
-      conversationId,
-    );
-
-    const provenance = buildProvenanceEnvelope(
-      requestorContext,
-      params.influences,
-      params.generatedWithVersion,
-    );
-
-    try {
-      const originals = await Promise.all(
-        params.edits.map((edit) =>
-          this.taskService.findOne(auth.organizationId, edit.taskId as TaskId),
-        ),
-      );
-
-      const dtos: StampedCreateProposalDto[] = params.edits.map(
-        (edit, index) => {
-          const original = originals[index];
-          if (!original) {
-            errors.push({
-              index,
-              taskId: edit.taskId,
-              error: `Task ${edit.taskId} not found or not accessible.`,
-            });
-          } else if (original.type === 'FEATURE') {
-            errors.push({
-              index,
-              taskId: edit.taskId,
-              error:
-                `${edit.taskId} is a FEATURE, not a TASK. ` +
-                'Use edit_work_item instead.',
-            });
-          } else if (original.type === 'GOAL') {
-            errors.push({
-              index,
-              taskId: edit.taskId,
-              error:
-                `${edit.taskId} is a GOAL, not a TASK. ` +
-                'Use edit_work_item instead.',
-            });
-          } else {
-            // Proof-of-read gate, same as edit_work_item — edit_tasks must not
-            // be an open lane for authoring sections without reading the
-            // per-type conventions. The token is validated against each entry's
-            // server-resolved type and request project; edit_tasks carries no
-            // `implementation` field, so a non-empty `sections` array is the
-            // only trigger. The retry call names edit_work_item, which is where
-            // get_tool_guidance serves the project-scoped per-type body (the
-            // token is tool-agnostic within that project/type scope).
-            // Token-first: a token failure short-circuits the per-type field
-            // check, so the agent is told to read the conventions before it is
-            // told which section keys are wrong.
-            const tokenError = validateGuidanceToken({
-              toolName: 'edit_work_item',
-              type: original.type as string,
-              projectId,
-              token: edit.guidanceToken,
-              sections: edit.sections,
-            });
-            if (tokenError) {
-              errors.push({
-                index,
-                taskId: edit.taskId,
-                error: `Work item ${edit.taskId} is a ${original.type}. ${tokenError}`,
-              });
-            } else {
-              // Plain-task entries (STANDARD, BUG) get the same config-driven
-              // boundary as edit_work_item — without this, a BUG entry could
-              // carry an acceptanceCriteria section the type cannot hold and
-              // the mismatch would only surface at enactment.
-              const fieldError = this.validateWorkItemFields({
-                type: original.type as WorkItemTypeKey,
-                mode: 'edit',
-                sections: edit.sections,
-                tag: undefined,
-                dueDate: edit.dueDate,
-                parentTaskId: edit.parentTaskId,
-                implementation: undefined,
-                projectId,
-              });
-              if (fieldError) {
-                errors.push({
-                  index,
-                  taskId: edit.taskId,
-                  error: `Work item ${edit.taskId} is a ${original.type}. ${fieldError}`,
-                });
-              }
-            }
-          }
-
-          const updates: Record<string, unknown> = {};
-          for (const key of UPDATE_TASK_KEYS) {
-            const value = edit[key as keyof typeof edit];
-            if (value !== undefined) {
-              updates[key] = value;
-            }
-          }
-
-          if (Object.keys(updates).length === 0) {
-            errors.push({
-              index,
-              taskId: edit.taskId,
-              error: 'No update fields provided',
-            });
-          }
-
-          return {
-            type: 'BATCH' as const,
-            action: 'UPDATE' as const,
-            targetEntityId: edit.taskId,
-            targetEntityType: 'TASK' as const,
-            updates,
-            eli5: edit.eli5,
-            requestorContext,
-            influences: provenance.influences,
-            ...(provenance.generatedWithVersion
-              ? { generatedWithVersion: provenance.generatedWithVersion }
-              : {}),
-            ...(conversationId ? { conversationId } : {}),
-          };
-        },
-      );
-
-      if (errors.length > 0) {
-        return mcpError(
-          `Validation failed for ${errors.length} edit(s): ` +
-            JSON.stringify(errors),
-        );
-      }
-
-      const { proposals, groupedAuthoring } = await this.persistProposalBatch({
-        organizationId: auth.organizationId,
-        projectId: projectId as ProjectId,
-        userId: auth.user.userId,
-        dtos,
-        groupContext: params.groupContext,
-        tool: PROPOSAL_TOOL_NAMES.EDIT_TASKS,
-      });
-
-      this.logger.log(
-        `edit_tasks batch created: ${proposals.length} proposals for project ${projectId}`,
-      );
-
-      return {
-        proposals: proposals.map((p) => ({
-          id: p.id,
-          status: p.status,
-          action: p.action,
-          targetEntityType: p.targetEntityType,
-          targetEntityId: p.targetEntityId,
-          modifiedFields: Object.keys(p.updates as Record<string, unknown>),
-          createdAt: p.createdAt,
-        })),
-        ...(groupedAuthoring ? { groupedAuthoring } : {}),
-      };
-    } catch (error: unknown) {
-      const invalidChangeSet = invalidProposalChangeSetFromError(error);
-      if (invalidChangeSet) return invalidChangeSet;
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.warn(`edit_tasks failed: ${message}`);
       return mcpError(message);
     }
   }
@@ -4015,6 +3628,8 @@ export class ProposalToolsProvider {
     }
 
     const dto: StampedCreateProposalDto = {
+      ragEnabled: params.ragEnabled,
+      applicationEligible: params.applicationEligible,
       type: 'SINGLE',
       action: 'CREATE',
       targetEntityId,
@@ -4146,6 +3761,8 @@ export class ProposalToolsProvider {
     }
 
     const dto: StampedCreateProposalDto = {
+      ragEnabled: params.ragEnabled,
+      applicationEligible: params.applicationEligible,
       type: 'SINGLE',
       action: 'UPDATE',
       targetEntityId: params.targetEntityId,

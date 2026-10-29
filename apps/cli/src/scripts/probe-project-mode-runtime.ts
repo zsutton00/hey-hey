@@ -196,6 +196,7 @@ export const createProjectModeLaunchResumeProbeDependencies = async (
       infrastructure.logger.child({ component: 'mode-probe.launch-failure' }),
     );
     const agentRuntime = new AgentApplicationRuntime({
+      runStore: infrastructure.runStore,
       oauthClient: infrastructure.oauthClient,
       apiBaseUrl: infrastructure.normalizedApiBaseUrl,
       logger: infrastructure.logger.child({ component: 'mode-probe.agents' }),

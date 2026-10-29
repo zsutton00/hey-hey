@@ -427,6 +427,7 @@ export class EvalRunService {
   ): CreateReportDto {
     return {
       projectId,
+      ragEnabled: false,
       audience: ReportAudience.ProjectVisible,
       neverExpires: true,
       reportType: payload.reportType,
@@ -438,7 +439,7 @@ export class EvalRunService {
           relation: ReportEntityRelation.Primary,
         },
       ],
-    } as CreateReportDto;
+    } satisfies CreateReportDto;
   }
 
   private async prepareSession(

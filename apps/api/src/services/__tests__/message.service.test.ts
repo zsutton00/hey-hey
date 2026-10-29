@@ -1709,7 +1709,7 @@ describe('MessageService', () => {
       expect(prismaService.$transaction).toHaveBeenCalled();
     });
 
-    it('stores a message written by an in-flight eval attempt target as inert and publishes shouldProcess false', async () => {
+    it('preserves supplied message exclusion without consulting attempt reports', async () => {
       const attemptId = '77777777-7777-4777-8777-777777777777';
       const txMock = {
         message: {
@@ -1756,6 +1756,7 @@ describe('MessageService', () => {
               data: {
                 ...mockSystemMessageDto.data,
                 response: 'x'.repeat(120),
+                ragEnabled: false,
               },
             },
             mockOrganizationId,
@@ -1766,6 +1767,7 @@ describe('MessageService', () => {
       const createData = txMock.message.create.mock.calls[0][0].data;
       expect(createData).not.toHaveProperty('evalAttemptId');
       expect(createData.data.ragEnabled).toBe(false);
+      expect(txMock.report.findFirst).not.toHaveBeenCalled();
       const created = eventPublisher.publishInTransaction.mock.calls
         .map((call: unknown[]) => call[1] as any)
         .find((event) => event.type === 'message.created');
@@ -2407,103 +2409,114 @@ describe('MessageService', () => {
       expect(txMock.messageMention.createMany).not.toHaveBeenCalled();
     });
 
-    it('emits mention.created for added entities and mention.removed for dropped entities on diff', async () => {
-      const keepEntityId = 'init-keep';
-      const addedEntityId = 'init-added';
-      const removedEntityId = 'init-removed';
+    it.each([true, false])(
+      'only emits mention relationships for retrieval-enabled output: %s',
+      async (ragEnabled) => {
+        const keepEntityId = 'init-keep';
+        const addedEntityId = 'init-added';
+        const removedEntityId = 'init-removed';
 
-      mockEntityRegistryService.lookupEntityTypes.mockResolvedValue({
-        [keepEntityId]: EntityType.INITIATIVE,
-        [addedEntityId]: EntityType.INITIATIVE,
-      });
+        mockEntityRegistryService.lookupEntityTypes.mockResolvedValue({
+          [keepEntityId]: EntityType.INITIATIVE,
+          [addedEntityId]: EntityType.INITIATIVE,
+        });
 
-      const priorMentions = [
-        {
-          id: 'prior-keep',
-          entityId: keepEntityId,
-          entityType: EntityType.INITIATIVE,
-        },
-        {
-          id: 'prior-removed',
-          entityId: removedEntityId,
-          entityType: EntityType.INITIATIVE,
-        },
-      ];
+        const priorMentions = [
+          {
+            id: 'prior-keep',
+            entityId: keepEntityId,
+            entityType: EntityType.INITIATIVE,
+          },
+          {
+            id: 'prior-removed',
+            entityId: removedEntityId,
+            entityType: EntityType.INITIATIVE,
+          },
+        ];
 
-      const txMock = {
-        project: { findMany: jest.fn().mockResolvedValue([]) },
-        message: {
-          findFirst: jest.fn().mockResolvedValue({
-            id: mockMessageId,
-            type: 'SYSTEM',
-            conversation: {
-              workflowAboutId: 'design-doc-123',
-              workflowAboutType: 'design-doc',
-              version: 1,
-            },
-          }),
-          update: jest.fn().mockResolvedValue(
-            TestUtils.createMockDbMessage({
+        const txMock = {
+          project: { findMany: jest.fn().mockResolvedValue([]) },
+          message: {
+            findFirst: jest.fn().mockResolvedValue({
               id: mockMessageId,
-              conversationId: mockConversationId,
-              projectId: mockProjectId,
-              workflowId: mockWorkflowId,
-              data: {
-                response: `Hi @[initiative:${keepEntityId}|Keep] @[initiative:${addedEntityId}|Add]`,
+              type: 'SYSTEM',
+              conversation: {
+                workflowAboutId: 'design-doc-123',
+                workflowAboutType: 'design-doc',
+                version: 1,
               },
             }),
-          ),
-        },
-        messageMention: {
-          findMany: jest.fn().mockResolvedValue(priorMentions),
-          deleteMany: jest.fn(),
-          createMany: jest.fn(),
-        },
-      };
-
-      jest
-        .spyOn(prismaService, '$transaction')
-        .mockImplementation(async (fn: (prisma: any) => Promise<any>) =>
-          fn(txMock),
-        );
-
-      await service.updateMessage(
-        mockMessageId,
-        mockOrganizationId,
-        {
-          data: {
-            type: SystemMessageData.TypeEnum.Noop,
-            response: `Hi @[initiative:${keepEntityId}|Keep] @[initiative:${addedEntityId}|Add]`,
+            update: jest.fn().mockResolvedValue(
+              TestUtils.createMockDbMessage({
+                id: mockMessageId,
+                conversationId: mockConversationId,
+                projectId: mockProjectId,
+                workflowId: mockWorkflowId,
+                data: {
+                  response: `Hi @[initiative:${keepEntityId}|Keep] @[initiative:${addedEntityId}|Add]`,
+                  ragEnabled,
+                },
+              }),
+            ),
           },
-        },
-        { source: 'test-source' },
-      );
+          messageMention: {
+            findMany: jest.fn().mockResolvedValue(priorMentions),
+            deleteMany: jest.fn(),
+            createMany: jest.fn(),
+          },
+        };
 
-      const mentionCreatedCalls =
-        eventPublisher.publishInTransaction.mock.calls.filter(
-          ([, event]) => event.type === 'mention.created',
+        jest
+          .spyOn(prismaService, '$transaction')
+          .mockImplementation(async (fn: (prisma: any) => Promise<any>) =>
+            fn(txMock),
+          );
+
+        await service.updateMessage(
+          mockMessageId,
+          mockOrganizationId,
+          {
+            data: {
+              type: SystemMessageData.TypeEnum.Noop,
+              response: `Hi @[initiative:${keepEntityId}|Keep] @[initiative:${addedEntityId}|Add]`,
+              ragEnabled,
+            },
+          },
+          { source: 'test-source' },
         );
-      const mentionRemovedCalls =
-        eventPublisher.publishInTransaction.mock.calls.filter(
-          ([, event]) => event.type === 'mention.removed',
-        );
 
-      expect(mentionCreatedCalls).toHaveLength(1);
-      expect(mentionCreatedCalls[0]?.[1].payload).toMatchObject({
-        sourceEntityId: mockMessageId,
-        sourceEntityType: 'MESSAGE',
-        entityId: addedEntityId,
-        entityType: EntityType.INITIATIVE,
-      });
+        const mentionCreatedCalls =
+          eventPublisher.publishInTransaction.mock.calls.filter(
+            ([, event]) => event.type === 'mention.created',
+          );
+        const mentionRemovedCalls =
+          eventPublisher.publishInTransaction.mock.calls.filter(
+            ([, event]) => event.type === 'mention.removed',
+          );
 
-      expect(mentionRemovedCalls).toHaveLength(1);
-      expect(mentionRemovedCalls[0]?.[1].payload).toMatchObject({
-        sourceEntityId: mockMessageId,
-        sourceEntityType: 'MESSAGE',
-        entityId: removedEntityId,
-        entityType: EntityType.INITIATIVE,
-      });
-    });
+        if (!ragEnabled) {
+          expect(mentionCreatedCalls).toHaveLength(0);
+          expect(mentionRemovedCalls).toHaveLength(0);
+          expect(txMock.messageMention.createMany).not.toHaveBeenCalled();
+          return;
+        }
+        expect(mentionCreatedCalls).toHaveLength(1);
+        expect(mentionCreatedCalls[0]?.[1].payload).toMatchObject({
+          sourceEntityId: mockMessageId,
+          sourceEntityType: 'MESSAGE',
+          entityId: addedEntityId,
+          entityType: EntityType.INITIATIVE,
+        });
+
+        expect(mentionRemovedCalls).toHaveLength(1);
+        expect(mentionRemovedCalls[0]?.[1].payload).toMatchObject({
+          sourceEntityId: mockMessageId,
+          sourceEntityType: 'MESSAGE',
+          entityId: removedEntityId,
+          entityType: EntityType.INITIATIVE,
+        });
+      },
+    );
 
     it('emits no mention.created or mention.removed when the mention set is unchanged', async () => {
       const stableEntityId = 'init-stable';

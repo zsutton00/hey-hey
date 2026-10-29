@@ -208,6 +208,7 @@ export class ActivityCorrelationService {
       }),
       this.prisma.db.report.findMany({
         where: {
+          ragEnabled: true,
           organizationId,
           projectId: { in: projectIds },
           expiresAt: { gt: new Date() },
@@ -1315,6 +1316,7 @@ export class ActivityCorrelationService {
 
     const reports = await this.prisma.db.report.findMany({
       where: {
+        ragEnabled: true,
         organizationId,
         expiresAt: { gt: now },
         audience: {
@@ -2269,6 +2271,7 @@ export class ActivityCorrelationService {
     if (reportIds && reportIds.length > 0) {
       const reports = await this.prisma.db.report.findMany({
         where: {
+          ragEnabled: true,
           organizationId,
           id: { in: reportIds },
         },

@@ -151,6 +151,40 @@ afterEach(async () => {
 });
 
 describe('RunStore', () => {
+  it('retains every inert Run when an evaluation creates several executions concurrently', async () => {
+    const runs = await Promise.all(
+      [1, 2, 3].map((number) =>
+        store.createRun(
+          createTaskInput({
+            agentic_session_id: `inert-${number}`,
+            conversationId: `evidence-${number}`,
+            inert: true,
+          }),
+        ),
+      ),
+    );
+    const reopened = new RunStore({ paths: createTempPaths(tempRoot) });
+    await reopened.initialize();
+    for (const run of runs) {
+      expect(await reopened.getRun(run.agentic_session_id)).toMatchObject({ inert: true });
+    }
+  });
+
+  it('restores immutable inertness after a fresh store opens the persisted Run', async () => {
+    const run = await store.createRun(createTaskInput({ inert: true }));
+    const reopened = new RunStore({ paths: createTempPaths(tempRoot) });
+    await reopened.initialize();
+    expect(await reopened.getRun(run.agentic_session_id)).toMatchObject({ inert: true });
+    await expect(
+      reopened.createRun(
+        createTaskInput({
+          agentic_session_id: run.agentic_session_id,
+          inert: false,
+        }),
+      ),
+    ).rejects.toThrow('Run inertness cannot change');
+  });
+
   it('preserves attachments when the authoritative completed Run is newer than retention cutoff', async () => {
     const run = await store.createRun(createTaskInput({ status: 'complete' }));
     const directory = path.join(tempRoot, 'run-attachments', run.agentic_session_id, 'attachment');

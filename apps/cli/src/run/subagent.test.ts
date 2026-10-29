@@ -1,7 +1,10 @@
 import { ChildAgentLauncher, type ChildAgentLauncherDependencies } from './child-agent-launcher';
 import { EvalTargetMessages } from '../agents/run-eval/eval-target-messages';
 import { agentSearchHandler } from '../agents/agent-search/agent-search.handler';
-import { createPromptTypeHandlerTestDeps } from '../agents/prompt-type-handler.test-support';
+import {
+  createPromptTypeHandlerTestDeps,
+  createPromptTypeHandlerTestRunStore,
+} from '../agents/prompt-type-handler.test-support';
 import { ConversationsApi, type PostMessageRequest } from '../shared/api/generated/api';
 import { EntityContextApi, WorkItemTypesApi } from '../shared/api/generated/api';
 import { researchHandler } from '../agents/research/research.handler';
@@ -40,6 +43,11 @@ import { LocalAgentEndpoint } from '../server/local-base-url';
 import { SubAgent } from './subagent';
 import { createTestRepoMappingStore, createRunTestOAuthClient } from './run.test-support';
 
+const claudeEmitters = new Map<unknown, (event: Record<string, unknown>) => void>();
+const codexEmitters = new Map<
+  unknown,
+  (event: { method: string; params?: Record<string, unknown> }) => void
+>();
 const startSessionMock = vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined);
 const disconnectMock = vi.fn<() => Promise<undefined>>(async () => undefined);
 const onEventMock = vi.fn();
@@ -75,13 +83,16 @@ vi.mock('../agent-runtime/index', async () => {
   return {
     ...actual,
     ClaudeCodeSdkClient: class {
+      private emit: ((event: Record<string, unknown>) => void) | null = null;
       async startSession(...args: Parameters<typeof startSessionMock>) {
+        if (this.emit) claudeEmitters.set(args[0], this.emit);
         return startSessionMock(...args);
       }
       async disconnect() {
         return disconnectMock();
       }
       onEvent(handler: ((event: Record<string, unknown>) => void) | null) {
+        this.emit = handler;
         onEventMock(handler);
       }
       onPermissionRequest(handler: unknown) {
@@ -95,10 +106,13 @@ vi.mock('../agent-runtime/index', async () => {
       }
     },
     CodexSdkClient: class {
+      private emit: ((event: { method: string; params?: Record<string, unknown> }) => void) | null =
+        null;
       constructor() {
         codexConstructorMock();
       }
       async startSession(...args: Parameters<typeof codexStartSessionMock>) {
+        if (this.emit) codexEmitters.set(args[0], this.emit);
         return codexStartSessionMock(...args);
       }
       async disconnect() {
@@ -107,6 +121,7 @@ vi.mock('../agent-runtime/index', async () => {
       onEvent(
         handler: ((event: { method: string; params?: Record<string, unknown> }) => void) | null,
       ) {
+        this.emit = handler;
         codexOnEventMock(handler);
       }
       onServerRequest(handler: unknown) {
@@ -212,6 +227,66 @@ const makeSubAgent = (
 });
 
 describe('SubAgent — unified runtime contract', () => {
+  it('refuses inert built-in execution before a handler policy can allow it', async () => {
+    const runStore = createPromptTypeHandlerTestRunStore();
+    await runStore.initialize();
+    const endpoint = new LocalAgentEndpoint();
+    endpoint.set('http://127.0.0.1:3849');
+    const decidePermission = vi.fn(async () => ({ behavior: 'allow' as const }));
+    const handler: UserLaunchablePromptTypeHandler<TestPayload> = {
+      id: 'commit',
+      promptType: 'commit',
+      service: 'required',
+      launchEntity: 'none',
+      implementationReadiness: 'none',
+      runnerKind: 'subagent',
+      providerSessionCountsForContext: false,
+      reports: [],
+      buildPrompt: () => 'Produce evaluation evidence.',
+      addUserMessage: defaultAddUserMessage,
+      subagentConfig: {
+        mcpAllowedTools: [],
+        builtinAllowedTools: ['Bash'],
+        adapterId: 'inert-permission-test',
+        decidePermission,
+      },
+    };
+    let decision: unknown;
+    startSessionMock.mockImplementationOnce(async () => {
+      const permission = onPermissionRequestMock.mock.calls.at(-1)![0] as (
+        name: string,
+        input: unknown,
+      ) => Promise<unknown>;
+      decision = await permission('Bash', { command: 'perform a forbidden write' });
+      return undefined;
+    });
+    const launcher = new ChildAgentLauncher({
+      runStore,
+      handlerDeps: createPromptTypeHandlerTestDeps(),
+      promptTypeRegistry: new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES),
+      repoStore: createTestRepoMappingStore(),
+      oauthClient: makeOauth(),
+      submissionToolRegistry: new SubmissionToolRegistry(),
+      localAgentEndpoint: endpoint,
+      logger: makeLogger(),
+    });
+    await launcher.launch({
+      parentSession: makeSession(),
+      handler,
+      payload: { userMessage: 'Evaluate' },
+      prepared: true,
+      signal: new AbortController().signal,
+      workspace: { cwd: '/repo' },
+      evalExecution: {
+        attemptId: 'attempt',
+        targetSessionId: 'target',
+        targetConversationId: 'evidence',
+      },
+    });
+    expect(decision).toMatchObject({ behavior: 'deny' });
+    expect(decidePermission).not.toHaveBeenCalled();
+  });
+
   it.each(['claude', 'codex'] as const)(
     'persists isolated eval prompts and all %s replies through real child launch and message transport',
     async (provider) => {
@@ -232,7 +307,10 @@ describe('SubAgent — unified runtime contract', () => {
       const deps = createPromptTypeHandlerTestDeps();
       const localAgentEndpoint = new LocalAgentEndpoint();
       localAgentEndpoint.set('http://127.0.0.1:3849');
+      const runStore = createPromptTypeHandlerTestRunStore();
+      await runStore.initialize();
       const launcher = new ChildAgentLauncher({
+        runStore,
         handlerDeps: createPromptTypeHandlerTestDeps(),
         promptTypeRegistry: new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES),
         repoStore: createTestRepoMappingStore(),
@@ -257,28 +335,34 @@ describe('SubAgent — unified runtime contract', () => {
             );
             await messages.savePrompt(`Request ${conversation}`);
             if (provider === 'claude') {
-              startSessionMock.mockImplementationOnce(async () => {
-                const emit = onEventMock.mock.calls.at(-1)![0] as (event: object) => void;
+              startSessionMock.mockImplementationOnce(async (config) => {
+                const emit = claudeEmitters.get(config);
+                const currentConversation = /Request ([ab])/.exec(JSON.stringify(config))?.[1];
+                if (!emit || !currentConversation)
+                  throw new Error('Missing isolated SDK execution.');
                 emit({
                   type: 'assistant',
-                  message: { content: [{ type: 'text', text: `Looking ${conversation}` }] },
+                  message: { content: [{ type: 'text', text: `Looking ${currentConversation}` }] },
                 });
                 emit({
                   type: 'assistant',
-                  message: { content: [{ type: 'text', text: `Answer ${conversation}` }] },
+                  message: { content: [{ type: 'text', text: `Answer ${currentConversation}` }] },
                 });
                 emit({ type: 'result', subtype: 'success' });
               });
             } else {
-              codexStartSessionMock.mockImplementationOnce(async () => {
-                const emit = codexOnEventMock.mock.calls.at(-1)![0] as (event: object) => void;
+              codexStartSessionMock.mockImplementationOnce(async (config) => {
+                const emit = codexEmitters.get(config);
+                const currentConversation = /Request ([ab])/.exec(JSON.stringify(config))?.[1];
+                if (!emit || !currentConversation)
+                  throw new Error('Missing isolated SDK execution.');
                 emit({
                   method: 'item/completed',
                   params: {
                     item: {
-                      id: `first-${conversation}`,
+                      id: `first-${currentConversation}`,
                       type: 'agentMessage',
-                      text: `Looking ${conversation}`,
+                      text: `Looking ${currentConversation}`,
                     },
                   },
                 });
@@ -286,15 +370,15 @@ describe('SubAgent — unified runtime contract', () => {
                   method: 'item/completed',
                   params: {
                     item: {
-                      id: `last-${conversation}`,
+                      id: `last-${currentConversation}`,
                       type: 'agentMessage',
-                      text: `Answer ${conversation}`,
+                      text: `Answer ${currentConversation}`,
                     },
                   },
                 });
                 emit({
                   method: 'turn/completed',
-                  params: { turn: { id: `turn-${conversation}`, status: 'completed' } },
+                  params: { turn: { id: `turn-${currentConversation}`, status: 'completed' } },
                 });
               });
             }

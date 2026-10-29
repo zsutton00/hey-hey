@@ -1,3 +1,8 @@
+import type {
+  ProposalReviewNoteDto,
+  ProposalReviewNoteRecord,
+  ProposalReviewNoteResult,
+} from 'src/generated';
 import { MessageService } from '../message.service';
 import { ProposalReconciliationCandidatePipe } from '../../pipes/proposal-reconciliation-candidate.pipe';
 import { futureGraph, graphChangeSet } from './future-graph';
@@ -74,10 +79,7 @@ import {
   WorkItemTypeLifecycleStatus,
   WorkItemTypeRole,
 } from 'src/generated';
-import {
-  currentWritingSessionId,
-  EvalOutputAdmissionService,
-} from '../eval/eval-output-admission.service';
+import { EvalOutputAdmissionService } from '../eval/eval-output-admission.service';
 import { ProposalValidationEngine } from './proposal-validation.engine';
 import {
   assertWorkItemChangeSetStructurallyValid,
@@ -149,7 +151,6 @@ export class ProposalService {
   private readonly logger = new Logger(ProposalService.name);
 
   private static readonly MAX_PAGE_SIZE = 100;
-  private static readonly MAX_BATCH_SIZE = 50;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -163,9 +164,114 @@ export class ProposalService {
     private readonly reconciliation: ProposalReconciliationService,
     private readonly reconciliationGroups: ProposalReconciliationGroupService,
     @Optional()
-    private readonly evalOutputAdmission: EvalOutputAdmissionService = new EvalOutputAdmissionService(),
+    private readonly evalOutputAdmission: EvalOutputAdmissionService = new EvalOutputAdmissionService(
+      workItemTypeRegistry,
+    ),
     @Optional() private readonly messages?: MessageService,
   ) {}
+
+  async saveReviewNote(
+    id: string,
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    userId: UserId,
+    input: ProposalReviewNoteDto,
+  ): Promise<ProposalReviewNoteResult> {
+    const messages = this.messages;
+    if (!messages) {
+      throw new InternalServerErrorException(
+        'Review note storage is unavailable',
+      );
+    }
+    return this.prisma.db.$transaction(async (tx) => {
+      await tx.$queryRaw(
+        Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`proposal-review-note:${input.noteId}`}, 0))::text AS "lockAcquired"`,
+      );
+      const proposal = await tx.proposal.findFirst({
+        where: {
+          id,
+          organizationId,
+          projectId,
+          action: 'CREATE',
+          targetEntityType: 'TASK',
+          AND: [
+            { updates: { path: ['type'], equals: 'mockup' } },
+            {
+              updates: {
+                path: ['sections'],
+                array_contains: [{ key: input.sectionKey }],
+              },
+            },
+          ],
+        },
+        include: { groupMembership: { include: { group: true } } },
+      });
+      if (!proposal) {
+        throw new NotFoundException(
+          'Proposed screen or reviewed section not found',
+        );
+      }
+      if (!proposal.conversationId) {
+        throw new BadRequestException(
+          'The proposed screen has no authoring conversation',
+        );
+      }
+      const group = proposal.groupMembership?.group;
+      if (
+        !group ||
+        group.status === 'BUILDING' ||
+        group.frozenRevision !== input.frozenRevision
+      ) {
+        throw new ConflictException(
+          'The reviewed frozen revision does not match',
+        );
+      }
+      const record = {
+        proposalId: proposal.id,
+        review: input,
+      } satisfies ProposalReviewNoteRecord;
+      const existing = await tx.message.findUnique({
+        where: { id: input.noteId },
+      });
+      const data = {
+        comment: `Screen review annotation: ${input.note}`,
+        proposalReviewNote: record,
+      };
+      if (existing) {
+        if (
+          existing.conversationId !== proposal.conversationId ||
+          existing.userId !== userId ||
+          !isEqual(existing.data, data)
+        ) {
+          throw new ConflictException(
+            'This review note identity has already been used',
+          );
+        }
+        return { messageId: existing.id };
+      }
+      const message = await messages.addMessageInTransaction(
+        tx,
+        {
+          id: input.noteId as MessageId,
+          type: 'USER',
+          projectId,
+          userId,
+          conversationId: proposal.conversationId as ConversationId,
+          data,
+        },
+        organizationId,
+        'proposal-review-note',
+        { suppressExecutableDelivery: true },
+      );
+      this.logger.log('Saved frozen proposal review annotation', {
+        proposalId: id,
+        groupId: group.id,
+        frozenRevision: input.frozenRevision,
+        messageId: message.id,
+      });
+      return { messageId: message.id };
+    });
+  }
 
   private async assertMayAuthorProposals(
     projectId: ProjectId,
@@ -332,8 +438,7 @@ export class ProposalService {
     // Eval output and reconciliation candidates are never applied on create,
     // so there is nothing to project up front.
     const applyOnCreate =
-      reconciliationProvenance ||
-      (await this.isEvalWriter(organizationId, projectId))
+      reconciliationProvenance || dto.applicationEligible === false
         ? null
         : await this.prepareApplyOnCreate(
             organizationId,
@@ -1880,268 +1985,6 @@ export class ProposalService {
     });
   }
 
-  async createBatch(
-    organizationId: OrganizationId,
-    projectId: ProjectId,
-    userId: UserId,
-    dtos: StampedCreateProposalDto[],
-  ): Promise<TypedProposalResponse[]> {
-    if (dtos.length === 0) {
-      throw new BadRequestException('At least one proposal is required');
-    }
-    if (dtos.length > ProposalService.MAX_BATCH_SIZE) {
-      throw new BadRequestException(
-        `Batch size ${dtos.length} exceeds maximum of ${ProposalService.MAX_BATCH_SIZE}`,
-      );
-    }
-    await this.assertMayAuthorProposals(projectId, userId, dtos);
-
-    const projectPolicy =
-      await this.projectApprovalPolicyService.resolve(projectId);
-    const applyOnCreateByItem: Array<ApplyOnCreatePreparation | null> = [];
-    const evalWriter = await this.isEvalWriter(organizationId, projectId);
-    for (const dto of dtos) {
-      applyOnCreateByItem.push(
-        evalWriter
-          ? null
-          : await this.prepareApplyOnCreate(
-              organizationId,
-              projectId,
-              userId,
-              dto,
-              projectPolicy,
-            ),
-      );
-    }
-
-    const immediatelyMaterializedEdges: MaterializedProposalEdge[] = [];
-    let results: Array<{
-      proposal: ProposalWithResponseRelations;
-      materializableEdges: MaterializableEdge[];
-      runPostCommit: PostCommitRunner;
-      genericChangeSetReady: boolean;
-      responseRequiredApprovals?: number;
-      immediatelyMaterializedEdges?: MaterializedProposalEdge[];
-    }>;
-    try {
-      results = await this.prisma.db.$transaction(async (tx) => {
-        const prepared: Array<{
-          dto: StampedCreateProposalDto;
-          title: string | null;
-          applyOnCreate: ApplyOnCreatePreparation | null;
-        }> = [];
-        const stampedInputs: StampedCreateProposalDto[] = [];
-
-        for (const dto of dtos) {
-          stampedInputs.push(await this.applyOriginInfluence(tx, dto));
-        }
-        const admission =
-          await this.validationEngine.assertAuthoringCandidatesValid({
-            proposals: stampedInputs,
-            context: { organizationId, projectId, db: tx },
-          });
-        for (const stampedInput of stampedInputs) {
-          this.assertProposalContextSource(stampedInput);
-          this.assertProposalTitleForCreate(stampedInput);
-          this.assertSupersedeInvariant(stampedInput);
-          assertWorkflowProposalLinksStructurallyValid(stampedInput);
-          assertWorkItemChangeSetStructurallyValid(stampedInput);
-          assertNoRawTracksDeclaration(stampedInput);
-          if (stampedInput.influences !== undefined) {
-            this.validateInfluenceInputs(stampedInput.influences);
-          }
-        }
-        const project = await tx.project.findFirst({
-          where: { id: projectId, organizationId },
-        });
-        if (!project) {
-          throw new NotFoundException('Project not found');
-        }
-        if (admission.candidates.length !== dtos.length) {
-          throw new InternalServerErrorException(
-            `Proposal admission returned ${admission.candidates.length} candidates for ${dtos.length} inputs`,
-          );
-        }
-        const metadata = admission.metadata;
-        for (const [index, admitted] of admission.candidates.entries()) {
-          const stampedDto = admitted.candidate;
-          // Admitted candidates carry no input key; the length check above
-          // pins admission to one candidate per input, in input order.
-          const applyOnCreate = applyOnCreateByItem[index] ?? null;
-          if (
-            stampedDto.action !== 'CREATE' &&
-            stampedDto.targetEntityType !== 'WORK_ITEM_TYPE' &&
-            stampedDto.targetEntityType !== 'ENTITY_PROMPT_TEMPLATE'
-          ) {
-            await this.validateTargetEntity(
-              stampedDto.targetEntityId,
-              stampedDto.targetEntityType,
-              organizationId,
-              projectId,
-              tx,
-              metadata,
-            );
-          }
-          await this.validationEngine.assertTaskMutationAuthoringValid(
-            admitted,
-            organizationId,
-            projectId,
-            tx,
-            { validatePlanStageTopology: false },
-          );
-
-          const preparedDto = await this.prepareTaskMutationRequirements(
-            stampedDto,
-            organizationId,
-            projectId,
-            tx,
-            applyOnCreate
-              ? replayMintedIds(applyOnCreate.mintedIds)
-              : undefined,
-          );
-          const snapshottedDto = await this.snapshotEntityTitles(
-            tx,
-            organizationId,
-            preparedDto,
-            metadata,
-          );
-
-          const title = await resolveProposalTitle({
-            db: tx,
-            organizationId,
-            action: snapshottedDto.action,
-            targetEntityType: snapshottedDto.targetEntityType,
-            targetEntityId: snapshottedDto.targetEntityId,
-            callerTitle: snapshottedDto.title,
-            metadata,
-          });
-
-          prepared.push({
-            applyOnCreate,
-            dto: {
-              ...snapshottedDto,
-              requestorContext: stampedDto.requestorContext,
-              eli5: stampedDto.eli5,
-            },
-            title,
-          });
-        }
-
-        await this.validationEngine.assertPlanStageProposalTopologyValid(
-          prepared.map(({ dto }) => ({ proposal: dto })),
-          organizationId,
-          projectId,
-        );
-
-        const items: Array<{
-          proposal: ProposalWithResponseRelations;
-          materializableEdges: MaterializableEdge[];
-          runPostCommit: PostCommitRunner;
-          genericChangeSetReady: boolean;
-          responseRequiredApprovals?: number;
-          immediatelyMaterializedEdges?: MaterializedProposalEdge[];
-        }> = [];
-        for (const { dto, title, applyOnCreate } of prepared) {
-          const { stamp: evalStamp, data: evalData } =
-            await this.admitEvalProposal(tx, organizationId, projectId, dto);
-          const proposal = await tx.proposal.create({
-            data: {
-              ...this.buildCreateData(
-                organizationId,
-                projectId,
-                userId,
-                dto,
-                title,
-                await this.snapshotTargetLastAppliedProposalId(tx, dto),
-              ),
-              ...evalData,
-            },
-            include: PROPOSAL_RESPONSE_RELATIONS_INCLUDE,
-          });
-
-          await this.reconciliation.captureAuthoring(tx, proposal);
-          const applied = evalStamp.applicationEligible
-            ? await this.maybeApplyOnCreate(
-                tx,
-                proposal,
-                organizationId,
-                projectId,
-                dto,
-                projectPolicy,
-                applyOnCreate,
-                (edge) => immediatelyMaterializedEdges.push(edge),
-              )
-            : null;
-          if (applied?.immediatelyMaterializedEdges) {
-            immediatelyMaterializedEdges.push(
-              ...applied.immediatelyMaterializedEdges.filter(
-                (edge) =>
-                  !immediatelyMaterializedEdges.some(
-                    (created) => created.edgeId === edge.edgeId,
-                  ),
-              ),
-            );
-          }
-          items.push(
-            applied ?? {
-              proposal,
-              materializableEdges: [],
-              runPostCommit: NOOP_POST_COMMIT,
-              genericChangeSetReady: false,
-            },
-          );
-        }
-
-        return items;
-      }, PROPOSAL_ENACTMENT_TRANSACTION_OPTIONS);
-    } catch (error) {
-      await this.pendingEdgeService.rollbackMaterializedEdges(
-        organizationId,
-        projectId,
-        immediatelyMaterializedEdges,
-        'Rolling back proposal-declared SUPERSEDES edge because batch proposal creation failed.',
-      );
-      throw error;
-    }
-
-    for (const item of results) {
-      if (item.materializableEdges.length > 0) {
-        await this.pendingEdgeService.materializeEdges(
-          organizationId,
-          projectId,
-          item.materializableEdges,
-          item.proposal.conversationId,
-        );
-      }
-      await item.runPostCommit();
-      if (item.genericChangeSetReady) {
-        const materialized =
-          await this.approvalService.materializeGenericWorkItemChangeSet({
-            proposalId: item.proposal.id,
-            organizationId,
-            projectId,
-          });
-        item.proposal = materialized.proposal;
-      }
-    }
-
-    this.logger.log('Batch proposals created', {
-      count: results.length,
-      organizationId,
-      projectId,
-    });
-
-    return Promise.all(
-      results.map((r) =>
-        this.toResponseDto(
-          r.proposal,
-          projectPolicy,
-          r.responseRequiredApprovals,
-        ),
-      ),
-    );
-  }
-
   /**
    * Reject any incoming DTO that lacks a server-stamped requestorContext.source.
    * Production callers (the user proposal-create endpoint and the MCP boundary
@@ -2680,21 +2523,8 @@ export class ProposalService {
     return this.evalOutputAdmission.resolveProposal(tx, {
       organizationId,
       projectId,
-      writingSessionId: currentWritingSessionId(),
       proposal,
     });
-  }
-
-  private async isEvalWriter(
-    organizationId: OrganizationId,
-    projectId: ProjectId,
-  ): Promise<boolean> {
-    const admission = await this.evalOutputAdmission.resolve(this.prisma.db, {
-      organizationId,
-      projectId,
-      writingSessionId: currentWritingSessionId(),
-    });
-    return admission.isEvalOutput;
   }
 
   private buildCreateData(

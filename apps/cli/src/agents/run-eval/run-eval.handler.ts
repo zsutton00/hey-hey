@@ -87,13 +87,7 @@ const runRecordedAttempts = async (
         resolveHandler: (id) => launcher.resolveChildHandler(id),
         logger: deps.logger,
       });
-      const messages = await EvalTargetMessages.create(
-        session,
-        toEvalExecution(attempt),
-        handlerId,
-        deps,
-      );
-      await messages.savePrompt(target.initiatingRequest);
+      let messages: EvalTargetMessages | undefined;
       deps.logger.info('run_eval.attempt.target_started', {
         runId: session.agentic_session_id,
         attemptId: attempt.attemptId,
@@ -105,7 +99,21 @@ const runRecordedAttempts = async (
         return await launcher.launchRegistered(handlerId, {
           parentSession: attemptSession,
           payload: targetPayload,
-          onAgentOutput: messages.onAgentOutput,
+          onAgentOutput: (output) => {
+            if (!messages) {
+              throw new Error('Evaluation messages require persisted execution metadata.');
+            }
+            messages.onAgentOutput(output);
+          },
+          onExecutionCreated: async (targetSession) => {
+            messages = await EvalTargetMessages.create(
+              targetSession,
+              toEvalExecution(attempt),
+              handlerId,
+              deps,
+            );
+            await messages.savePrompt(target.initiatingRequest);
+          },
           signal: attemptSignal,
           ...toLaunchSettings(attempt.configuration.target),
           ...(tokenBudget !== undefined ? { tokenBudget } : {}),
@@ -122,7 +130,7 @@ const runRecordedAttempts = async (
         });
         throw error;
       } finally {
-        await messages.drain();
+        await messages?.drain();
       }
     },
     async judge(attempt, outputText, judgeSignal) {

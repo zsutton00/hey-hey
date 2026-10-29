@@ -145,6 +145,8 @@ export interface AgenticSessionEvent {
 }
 
 interface AgenticSessionBase {
+  /** Immutable execution isolation, retained across restoration. */
+  readonly inert?: boolean;
   agentic_session_id: string;
   /** Canonical entity scope captured from payload.entity before Run creation. */
   entity: RunEntityReference | null;
@@ -253,6 +255,7 @@ export type AgenticSession = AgenticSessionBase & {
 };
 
 interface CreateAgenticSessionInputBase {
+  readonly inert?: boolean;
   agentic_session_id?: string;
   entity: RunEntityReference | null;
   services: ResolvedServiceBinding[];

@@ -41,6 +41,7 @@ export class EvalChildExecution {
     // belong to another execution and must never enter the target's prompt.
     this.session = {
       ...session,
+      inert: true,
       memos: this.memos,
       sessionContext: {},
       contextMetadata: {

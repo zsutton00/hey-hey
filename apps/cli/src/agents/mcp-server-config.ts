@@ -2,6 +2,7 @@ import type { OAuthClient } from '../auth/index';
 import { extractOrganizationIdFromToken } from '../auth/index';
 
 export interface McpSessionContext {
+  readonly inert?: boolean;
   projectId?: string | undefined;
   conversationId?: string | undefined;
   planId?: string | undefined;
@@ -82,7 +83,6 @@ const MCP_TOOL_LIST: readonly McpTool[] = [
   { name: 'delete_proposal', useCases: ['coding', 'general'] },
   { name: 'edit_design_doc', useCases: ['coding', 'general'] },
   { name: 'edit_implementation_hint', useCases: ['coding', 'general'] },
-  { name: 'edit_tasks', useCases: ['coding', 'general'] },
   { name: 'edit_work_item', useCases: ['coding', 'general'] },
   { name: 'get_context', useCases: ['coding', 'general'] },
   { name: 'get_edges', useCases: ['coding', 'general'] },
@@ -132,7 +132,6 @@ const PLANNING_EXCLUDED_TOOLS: ReadonlySet<string> = new Set([
   'edit_design_doc',
   'create_work_item',
   'edit_work_item',
-  'edit_tasks',
   'update_proposal',
   'delete_proposal',
   'propose_future_revision',

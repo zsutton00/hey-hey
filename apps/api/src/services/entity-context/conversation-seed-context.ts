@@ -116,6 +116,7 @@ export async function loadAuthorizedConversationSeed(
     }),
     db.report.findMany({
       where: {
+        ragEnabled: true,
         ...conversationScope,
         reportEntities: { some: { entityId: { in: reportEntityIds } } },
       },

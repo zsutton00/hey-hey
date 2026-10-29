@@ -1,3 +1,4 @@
+import { CODEX_MCP_ONLY_FEATURE_OVERRIDES } from './mcp-only-features';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { withoutCodexInputEcho } from './codex-input-echo';
 import {
@@ -110,27 +111,6 @@ const HEYHEY_MCP_SERVER_NAMES = new Set([
   BROWSER_MCP_SERVER_NAME,
 ]);
 const CONTEXT_USAGE_RESUME_TIMEOUT_MS = 60_000;
-
-const CODEX_PROJECT_REPORT_FEATURE_OVERRIDES: Readonly<Record<string, boolean>> = {
-  shell_tool: false,
-  unified_exec: false,
-  unified_exec_tty: false,
-  view_image: false,
-  sleep_tool: false,
-  code_mode: false,
-  code_mode_host: false,
-  code_mode_only: false,
-  standalone_web_search: false,
-  web_search_request: false,
-  web_search_cached: false,
-  apps: false,
-  plugins: false,
-  computer_use: false,
-  collab: false,
-  multi_agent_v2: false,
-  memory_tool: false,
-  external_agent_memory_import: false,
-};
 
 export const resolveCodexPlatformPromptDeliveryMode = (
   config: RunPromptArgs['session']['config'],
@@ -1930,7 +1910,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
         mcpToolUseCase === 'project_report'
           ? {
               ...(baseConfig ?? {}),
-              features: CODEX_PROJECT_REPORT_FEATURE_OVERRIDES,
+              features: CODEX_MCP_ONLY_FEATURE_OVERRIDES,
             }
           : baseConfig;
       requestContext.log(this.logger, 'debug', 'local.runner.codex.session_policy.resolved', {

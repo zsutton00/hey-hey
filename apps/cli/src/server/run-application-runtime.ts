@@ -398,6 +398,8 @@ export class RunApplicationRuntime {
       startupPromptInput: dependencies.agentRuntime.startupPromptInput,
     };
     this.childAgentLauncher = new ChildAgentLauncher({
+      runStore: dependencies.runStore,
+      reportProxy: dependencies.agentRuntime.createReportProxy,
       handlerDeps: baseHandlerDeps,
       promptTypeRegistry: dependencies.agentRuntime.promptTypeRegistry,
       repoStore: dependencies.repoStore,

@@ -764,17 +764,20 @@ ProposalResponseDto:
       type: boolean
       description: >
         Whether this proposal may be ingested into graph and embeddings. Absent
-        means true. Derived by the API, never set by clients. A reusable
+        means true. Supplied by the writer and persisted by the API. A reusable
         exclusion control, not an approval flag.
     applicationEligible:
       type: boolean
       description: >
         Whether this proposal may be approved and applied. Absent means true.
-        Derived by the API, never set by clients. Independent of ragEnabled.
+        Supplied by the writer and persisted by the API. Independent of ragEnabled.
     retainedOriginalTargetContent:
       type: object
       additionalProperties: true
       nullable: true
+      properties:
+        definition:
+          $ref: "./work-item-type-definition.yaml#/WorkItemTypeDefinitionDto"
       description: >
         Target content as it was when an eval proposal was made, kept on the
         proposal so its diff still renders after the target changes. Captured
@@ -1156,6 +1159,12 @@ CreateProposalDto:
     - targetEntityType
     - updates
   properties:
+    ragEnabled:
+      type: boolean
+      description: Whether this proposal may be ingested into project knowledge. Omitted means true.
+    applicationEligible:
+      type: boolean
+      description: Whether this proposal may be approved or applied, independently of retrieval. Omitted means true.
     type:
       $ref: "#/ProposalType"
     action:
@@ -2413,7 +2422,18 @@ ProposalReconciliationBasis:
   properties:
     entityType:
       type: string
-      enum: [TASK, DESIGN_DOC, REPORT, SERVICE, AGENT_SESSION, CONVERSATION, WORK_ITEM_TYPE, ENTITY_PROMPT_TEMPLATE, EDGE]
+      enum:
+        [
+          TASK,
+          DESIGN_DOC,
+          REPORT,
+          SERVICE,
+          AGENT_SESSION,
+          CONVERSATION,
+          WORK_ITEM_TYPE,
+          ENTITY_PROMPT_TEMPLATE,
+          EDGE,
+        ]
     entityId:
       type: string
     version:
@@ -2445,7 +2465,7 @@ ProposalReconciliationRevision:
     bases:
       type: array
       items:
-        $ref: '#/ProposalReconciliationBasis'
+        $ref: "#/ProposalReconciliationBasis"
     proposedResult:
       type: object
       additionalProperties: true
@@ -2461,15 +2481,30 @@ ProposalReconciliationRevision:
 ProposalReconciliationState:
   type: object
   additionalProperties: false
-  required: [status, currentBases, revisions, conflictingPaths, interveningProposals, overlaps]
+  required:
+    [
+      status,
+      currentBases,
+      revisions,
+      conflictingPaths,
+      interveningProposals,
+      overlaps,
+    ]
   properties:
     status:
       type: string
-      enum: [NOT_APPLICABLE, CURRENT, RECONCILIATION_REQUIRED, AGENT_FIX_REQUIRED, READY_FOR_REVIEW]
+      enum:
+        [
+          NOT_APPLICABLE,
+          CURRENT,
+          RECONCILIATION_REQUIRED,
+          AGENT_FIX_REQUIRED,
+          READY_FOR_REVIEW,
+        ]
     suggestions:
       type: array
       items:
-        $ref: '#/ProposalReconciliationSuggestion'
+        $ref: "#/ProposalReconciliationSuggestion"
     futureRevision:
       type: integer
       minimum: 0
@@ -2486,22 +2521,22 @@ ProposalReconciliationState:
         Proposals approved on the same target after this change was written, oldest first.
         Empty for terminal proposals; approved unapplied futures remain reviewable.
       items:
-        $ref: '#/ProposalReconciliationIntervening'
+        $ref: "#/ProposalReconciliationIntervening"
     overlaps:
       type: array
       description: >-
         Fields an intervening change and this proposal both changed in ways that cannot be
         combined automatically. Approval stays unavailable until they are resolved.
       items:
-        $ref: '#/ProposalReconciliationOverlap'
+        $ref: "#/ProposalReconciliationOverlap"
     currentBases:
       type: array
       items:
-        $ref: '#/ProposalReconciliationBasis'
+        $ref: "#/ProposalReconciliationBasis"
     revisions:
       type: array
       items:
-        $ref: '#/ProposalReconciliationRevision'
+        $ref: "#/ProposalReconciliationRevision"
     conflictingPaths:
       type: array
       items:
@@ -2519,7 +2554,17 @@ ProposalReconciliationState:
 ProposalReconciliationIntervening:
   type: object
   additionalProperties: false
-  required: [proposalId, title, approvedById, approvedByName, approvedAt, changedPaths, overlappingPaths, changes]
+  required:
+    [
+      proposalId,
+      title,
+      approvedById,
+      approvedByName,
+      approvedAt,
+      changedPaths,
+      overlappingPaths,
+      changes,
+    ]
   properties:
     proposalId: { type: string, format: uuid }
     title: { type: string }
@@ -2540,7 +2585,7 @@ ProposalReconciliationIntervening:
         The intervening proposal's own change per field, from the content it was reviewed
         against to the result it applied. Empty when that record is unavailable.
       items:
-        $ref: '#/ProposalReconciliationFieldChange'
+        $ref: "#/ProposalReconciliationFieldChange"
 
 ProposalReconciliationFieldChange:
   type: object
@@ -2568,15 +2613,24 @@ ProposalReconciliationOverlap:
 
 CreateProposalReconciliationCandidate:
   oneOf:
-    - $ref: '#/ProposalReconciliationMergeRequest'
-    - $ref: '#/ProposalReconciliationAgentFixRequest'
-    - $ref: '#/ProposalReconciliationManualRequest'
-    - $ref: '#/ProposalReconciliationSuggestionDecision'
+    - $ref: "#/ProposalReconciliationMergeRequest"
+    - $ref: "#/ProposalReconciliationAgentFixRequest"
+    - $ref: "#/ProposalReconciliationManualRequest"
+    - $ref: "#/ProposalReconciliationSuggestionDecision"
 
 ProposalAgentFixRequest:
   type: object
   additionalProperties: false
-  required: [proposalId, organizationId, projectId, agentSessionId, conversationId, payload, createdAt]
+  required:
+    [
+      proposalId,
+      organizationId,
+      projectId,
+      agentSessionId,
+      conversationId,
+      payload,
+      createdAt,
+    ]
   description: >-
     A recorded Agent fix request: the proposal-refiner Agent Session and Conversation
     prepared for one out-of-date proposal, and the exact run input the app must start
@@ -2589,7 +2643,7 @@ ProposalAgentFixRequest:
     agentSessionId: { type: string, format: uuid }
     conversationId: { type: string, format: uuid }
     payload:
-      $ref: './run-payloads.yaml#/RunCreatePayloadProposalRefiner'
+      $ref: "./run-payloads.yaml#/RunCreatePayloadProposalRefiner"
     createdAt: { type: string, format: date-time }
 
 ProposalReconciliationMergeRequest:
@@ -2624,7 +2678,7 @@ ProposalReconciliationAgentFixRequest:
     expectedCurrentBases:
       type: array
       items:
-        $ref: '#/ProposalReconciliationBasis'
+        $ref: "#/ProposalReconciliationBasis"
       description: The server-issued current bases used to prepare an Agent fix; further drift rejects submission.
 
 ProposalReconciliationManualRequest:
@@ -2650,7 +2704,7 @@ ProposalReconciliationManualRequest:
     expectedCurrentBases:
       type: array
       items:
-        $ref: '#/ProposalReconciliationBasis'
+        $ref: "#/ProposalReconciliationBasis"
       description: The server-issued current bases used to prepare a manual resolution; further drift rejects submission.
 
 ProposalReconciliationSuggestionDecision:
@@ -2668,7 +2722,17 @@ ProposalReconciliationSuggestionDecision:
 ProposalReconciliationSuggestion:
   type: object
   additionalProperties: false
-  required: [id, proposalId, organizationId, projectId, status, candidateRevisionId, proposedResult, createdAt]
+  required:
+    [
+      id,
+      proposalId,
+      organizationId,
+      projectId,
+      status,
+      candidateRevisionId,
+      proposedResult,
+      createdAt,
+    ]
   properties:
     id: { type: string, format: uuid }
     organizationId: { type: string, format: uuid }
@@ -2682,3 +2746,47 @@ ProposalReconciliationSuggestion:
     messageId: { type: string, format: uuid }
     legacyProposalId: { type: string, format: uuid }
     createdAt: { type: string, format: date-time }
+
+ProposalReviewNoteDto:
+  type: object
+  additionalProperties: false
+  required: [noteId, frozenRevision, sectionKey, sizeKey, target, note]
+  properties:
+    noteId:
+      type: string
+      format: uuid
+      description: Caller-owned stable identity for idempotent note saving.
+    frozenRevision:
+      type: integer
+      minimum: 1
+    sectionKey:
+      type: string
+      minLength: 1
+    sizeKey:
+      type: string
+      minLength: 1
+    target:
+      oneOf:
+        - $ref: "./work-item-type-definition.yaml#/WorkItemHtmlCssAnnotationElementTarget"
+        - $ref: "./work-item-type-definition.yaml#/WorkItemHtmlCssAnnotationPositionTarget"
+        - $ref: "./work-item-type-definition.yaml#/WorkItemStructuredMockupAnnotationComponentTarget"
+        - $ref: "./work-item-type-definition.yaml#/WorkItemStructuredMockupAnnotationPositionTarget"
+    note:
+      type: string
+      minLength: 1
+ProposalReviewNoteRecord:
+  type: object
+  required: [proposalId, review]
+  properties:
+    proposalId:
+      type: string
+      format: uuid
+    review:
+      $ref: "#/ProposalReviewNoteDto"
+ProposalReviewNoteResult:
+  type: object
+  required: [messageId]
+  properties:
+    messageId:
+      type: string
+      format: uuid

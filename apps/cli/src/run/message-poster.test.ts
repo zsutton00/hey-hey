@@ -72,6 +72,31 @@ afterEach(async () => {
 });
 
 describe('MessagePoster — createOutOfBand', () => {
+  it('keeps creates, updates and completion writes inert at the shared boundary', async () => {
+    const apiClient = makeApiClient();
+    const poster = new MessagePoster({ apiClient, logger: makeLogger(), dataDir, inert: true });
+    await poster.createOutOfBand({
+      organizationId: 'org-1',
+      projectId: 'proj-1',
+      conversationId: 'conv-1',
+      dto: systemDto(),
+      stamp: null,
+    });
+    await poster.update('org-1', 'proj-1', 'remote-msg-1', { data: { ragEnabled: true } }, null);
+    await poster.complete('org-1', 'proj-1', 'remote-msg-1', { data: { ragEnabled: true } }, null);
+    await vi.waitFor(() => expect(apiClient.updateMessage).toHaveBeenCalledTimes(2));
+    expect(apiClient.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        createMessageDto: expect.objectContaining({
+          data: expect.objectContaining({ ragEnabled: false }),
+        }),
+      }),
+    );
+    for (const [request] of vi.mocked(apiClient.updateMessage).mock.calls) {
+      expect(request.updateMessageDto.data).toMatchObject({ ragEnabled: false });
+    }
+  });
+
   it('logs the API attachment rejection and does not retry a permanent failure', async () => {
     const reason = 'One or more Proposal attachments are missing or outside the requested scope';
     const error = Object.assign(new Error('Request failed with status code 400'), {
@@ -147,28 +172,38 @@ describe('MessagePoster — createOutOfBand', () => {
 });
 
 describe('MessagePoster — typed EXTERNAL_AGENT completion', () => {
-  it('uses the dedicated completion client instead of generic message creation', async () => {
-    const apiClient = makeApiClient({
-      submitExternalAgentCompletion: vi.fn().mockResolvedValue('completion-message-1'),
-    });
-    const poster = new MessagePoster({ apiClient, logger: makeLogger(), dataDir });
-    const args = {
-      organizationId: 'org-1',
-      projectId: 'proj-1',
-      agentSessionId: 'agent-session-1',
-      effectId: '00000000-0000-4000-8000-000000000001',
-      request: {
-        conversationId: 'conv-1',
-        workflowNodeId: 'implementation',
-        pendingTriggerMessageId: 'trigger-message-1',
-        action: 'DONE',
-      },
-    };
+  it.each([false, true])(
+    'allows live completion only for ordinary execution (inert=%s)',
+    async (inert) => {
+      const apiClient = makeApiClient({
+        submitExternalAgentCompletion: vi.fn().mockResolvedValue('completion-message-1'),
+      });
+      const poster = new MessagePoster({ apiClient, logger: makeLogger(), dataDir, inert });
+      const args = {
+        organizationId: 'org-1',
+        projectId: 'proj-1',
+        agentSessionId: 'agent-session-1',
+        effectId: '00000000-0000-4000-8000-000000000001',
+        request: {
+          conversationId: 'conv-1',
+          workflowNodeId: 'implementation',
+          pendingTriggerMessageId: 'trigger-message-1',
+          action: 'DONE',
+        },
+      };
 
-    await expect(poster.submitExternalAgentCompletion(args)).resolves.toBe('completion-message-1');
-    expect(apiClient.submitExternalAgentCompletion).toHaveBeenCalledWith(args);
-    expect(apiClient.postMessage).not.toHaveBeenCalled();
-  });
+      if (inert) {
+        await expect(poster.submitExternalAgentCompletion(args)).rejects.toThrow();
+        expect(apiClient.submitExternalAgentCompletion).not.toHaveBeenCalled();
+        return;
+      }
+      await expect(poster.submitExternalAgentCompletion(args)).resolves.toBe(
+        'completion-message-1',
+      );
+      expect(apiClient.submitExternalAgentCompletion).toHaveBeenCalledWith(args);
+      expect(apiClient.postMessage).not.toHaveBeenCalled();
+    },
+  );
 
   it('logs typed rejection diagnostics and does not retry a permanent 409', async () => {
     const rejection = Object.assign(new Error('completion rejected'), {
@@ -471,86 +506,93 @@ describe('MessagePoster — FIFO queue serialization', () => {
     expect(new Set(postOrder)).toEqual(new Set(['poster1', 'poster2']));
   });
 
-  it('cleanup persists incomplete queue entries', async () => {
-    let operationCount = 0;
-    const apiClient = makeApiClient({
-      postMessage: vi.fn().mockImplementation(async () => {
-        operationCount++;
-        // First operation is slow
-        if (operationCount === 1) {
-          await new Promise((resolve) => setTimeout(resolve, 200));
-        }
-        return { data: { data: { id: `remote-msg-${operationCount}` } } };
-      }),
-    });
-    const poster = new MessagePoster({ apiClient, logger: makeLogger(), dataDir });
+  it.each([false, true])(
+    'cleanup preserves queued output eligibility (inert=%s)',
+    async (inert) => {
+      let operationCount = 0;
+      const apiClient = makeApiClient({
+        postMessage: vi.fn().mockImplementation(async () => {
+          operationCount++;
+          // First operation is slow
+          if (operationCount === 1) {
+            await new Promise((resolve) => setTimeout(resolve, 200));
+          }
+          return { data: { data: { id: `remote-msg-${operationCount}` } } };
+        }),
+      });
+      const poster = new MessagePoster({ apiClient, logger: makeLogger(), dataDir, inert });
 
-    // Queue first operation (will start executing slowly)
-    const promise1 = poster.createOutOfBand({
-      organizationId: 'org-1',
-      projectId: 'proj-1',
-      conversationId: 'conv-1',
-      dto: systemDto(),
-      stamp: null,
-    });
+      // Queue first operation (will start executing slowly)
+      const promise1 = poster.createOutOfBand({
+        organizationId: 'org-1',
+        projectId: 'proj-1',
+        conversationId: 'conv-1',
+        dto: systemDto(),
+        stamp: null,
+      });
 
-    // Wait for first operation to start
-    await new Promise((resolve) => setTimeout(resolve, 10));
+      // Wait for first operation to start
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
-    // Queue more operations while first is still running
-    const promise2 = poster.createOutOfBand({
-      organizationId: 'org-1',
-      projectId: 'proj-1',
-      conversationId: 'conv-1',
-      dto: systemDto(),
-      stamp: null,
-    });
+      // Queue more operations while first is still running
+      const promise2 = poster.createOutOfBand({
+        organizationId: 'org-1',
+        projectId: 'proj-1',
+        conversationId: 'conv-1',
+        dto: systemDto(),
+        stamp: null,
+      });
 
-    const promise3 = poster.createOutOfBand({
-      organizationId: 'org-1',
-      projectId: 'proj-1',
-      conversationId: 'conv-1',
-      dto: systemDto(),
-      stamp: null,
-    });
+      const promise3 = poster.createOutOfBand({
+        organizationId: 'org-1',
+        projectId: 'proj-1',
+        conversationId: 'conv-1',
+        dto: systemDto(),
+        stamp: null,
+      });
 
-    // Attach the rejection expectations before cleanup so a handler is already
-    // bound when cleanup rejects promise2/promise3 — otherwise the rejection is
-    // momentarily unhandled before the assertions below run.
-    const rejected2 = promise2.catch((error: Error) => error);
-    const rejected3 = promise3.catch((error: Error) => error);
+      // Attach the rejection expectations before cleanup so a handler is already
+      // bound when cleanup rejects promise2/promise3 — otherwise the rejection is
+      // momentarily unhandled before the assertions below run.
+      const rejected2 = promise2.catch((error: Error) => error);
+      const rejected3 = promise3.catch((error: Error) => error);
 
-    // Call cleanup while first operation is still in flight
-    // This will: 1) wait for first operation to complete, 2) persist remaining queue entries
-    await poster.cleanup();
+      // Call cleanup while first operation is still in flight
+      // This will: 1) wait for first operation to complete, 2) persist remaining queue entries
+      await poster.cleanup();
 
-    // First operation should complete (it was already executing)
-    const messageId1 = await promise1;
-    expect(messageId1).toBe('remote-msg-1');
+      // First operation should complete (it was already executing)
+      const messageId1 = await promise1;
+      expect(messageId1).toBe('remote-msg-1');
 
-    // Second and third operations should be rejected (persisted instead of executed)
-    expect(await rejected2).toEqual(
-      new Error('MessagePoster cleanup: operation persisted instead of executed'),
-    );
-    expect(await rejected3).toEqual(
-      new Error('MessagePoster cleanup: operation persisted instead of executed'),
-    );
+      // Second and third operations should be rejected (persisted instead of executed)
+      expect(await rejected2).toEqual(
+        new Error('MessagePoster cleanup: operation persisted instead of executed'),
+      );
+      expect(await rejected3).toEqual(
+        new Error('MessagePoster cleanup: operation persisted instead of executed'),
+      );
 
-    // Verify the persisted entries were written to failed-messages.jsonl
-    const failedPath = path.join(dataDir, 'failed-messages.jsonl');
-    const content = await fs.readFile(failedPath, 'utf-8');
-    const lines = content.split('\n').filter(Boolean);
+      // Verify the persisted entries were written to failed-messages.jsonl
+      const failedPath = path.join(dataDir, 'failed-messages.jsonl');
+      const content = await fs.readFile(failedPath, 'utf-8');
+      const lines = content.split('\n').filter(Boolean);
 
-    expect(lines).toHaveLength(2);
-    const persisted1 = JSON.parse(lines[0]!);
-    const persisted2 = JSON.parse(lines[1]!);
-    expect(persisted1.organizationId).toBe('org-1');
-    expect(persisted1.projectId).toBe('proj-1');
-    expect(persisted1.messageDto.type).toBe(MessageType.System);
-    expect(persisted2.organizationId).toBe('org-1');
-    expect(persisted2.projectId).toBe('proj-1');
-    expect(persisted2.messageDto.type).toBe(MessageType.System);
-  });
+      expect(lines).toHaveLength(2);
+      const persisted1 = JSON.parse(lines[0]!);
+      const persisted2 = JSON.parse(lines[1]!);
+      expect(persisted1.organizationId).toBe('org-1');
+      expect(persisted1.projectId).toBe('proj-1');
+      expect(persisted1.messageDto.type).toBe(MessageType.System);
+      expect(persisted2.organizationId).toBe('org-1');
+      expect(persisted2.projectId).toBe('proj-1');
+      expect(persisted2.messageDto.type).toBe(MessageType.System);
+      if (inert) {
+        expect(persisted1.messageDto.data.ragEnabled).toBe(false);
+        expect(persisted2.messageDto.data.ragEnabled).toBe(false);
+      }
+    },
+  );
 
   it('cleanup rejects pending createOutOfBand promises', async () => {
     let operationCount = 0;

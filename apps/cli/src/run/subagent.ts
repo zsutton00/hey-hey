@@ -1,3 +1,6 @@
+import { filterInertBuiltinTools } from './inert-execution-policy';
+import type { CreateReportProxy } from '../agents/submission-tools/create-report-proxy';
+import { CODEX_MCP_ONLY_FEATURE_OVERRIDES } from '../agents/providers/codex/mcp-only-features';
 import {
   composeFreshPlatformPromptDelivery,
   resolveProviderPlatformPromptDeliveryMode,
@@ -295,6 +298,7 @@ const applyCodexWorkspaceContainment = (
 });
 
 export interface SubAgentArgs {
+  reportProxy?: CreateReportProxy;
   researchTools?: EvalResearchTools;
   session: AgenticSession;
   handler: PromptTypeHandler<unknown>;
@@ -333,6 +337,8 @@ export interface SubAgentContextReading {
 }
 
 export interface SubAgentResult {
+  /** Typed run-local research handoff; retained as inert evidence during evals. */
+  projectAssistantMemo?: import('../session/types').RunMemo;
   preparationMeasurements?: import('../shared/api/generated/api').EvalMeasurement[];
   handlerElapsedMs?: number;
   assistantCompleted: boolean;
@@ -514,7 +520,7 @@ export class SubAgent {
     const {
       session,
       handler,
-      config,
+      config: requestedConfig,
       prompt,
       sessionStartContext,
       touchedFiles,
@@ -535,6 +541,19 @@ export class SubAgent {
       evalExecution,
       researchTools,
     } = this.args;
+    if (evalExecution && !session.inert) {
+      throw new Error('Evaluation execution requires an inert Run.');
+    }
+    if (session.inert && !evalExecution) {
+      throw new Error('Inert execution requires its original evaluation context.');
+    }
+    const config = session.inert
+      ? {
+          ...requestedConfig,
+          builtinAllowedTools: filterInertBuiltinTools(requestedConfig.builtinAllowedTools),
+          codexSandboxMode: 'read-only' as const,
+        }
+      : requestedConfig;
     const signal = evalExecution?.tokenBudget?.signal ?? parentSignal;
     const runId = session.agentic_session_id;
 
@@ -566,6 +585,7 @@ export class SubAgent {
     // An eval child writes as its attempt's target session, never the Run's,
     // so the platform attributes its output to that attempt.
     const mcpContext = {
+      inert: session.inert === true,
       ...(session.contextMetadata?.projectId
         ? { projectId: session.contextMetadata.projectId }
         : {}),
@@ -596,13 +616,16 @@ export class SubAgent {
       },
     );
 
-    const mcpAllowedShortNames = evalExecution
-      ? withholdEvalMutationTools(config.mcpAllowedTools)
+    const mcpAllowedShortNames = session.inert
+      ? [
+          ...withholdEvalMutationTools(config.mcpAllowedTools),
+          ...(this.args.reportProxy ? ['create_report'] : []),
+        ]
       : [...config.mcpAllowedTools];
     const allowedMcpTools = mcpAllowedShortNames.map((tool) => `mcp__${MCP_SERVER_NAME}__${tool}`);
     const allowedMcpToolsSet = new Set(allowedMcpTools);
     const allowedBuiltinSet = new Set(config.builtinAllowedTools);
-    const readOnlyFilesystem = handler.readOnlyFilesystem === true;
+    const readOnlyFilesystem = session.inert === true || handler.readOnlyFilesystem === true;
     const touchedFilesSet = new Set(touchedFiles);
 
     // Use the Run-resolved roots verbatim when present. In worktree-backed
@@ -626,6 +649,7 @@ export class SubAgent {
       if (!cliBaseUrl) throw new Error('Eval child requires the local agent endpoint.');
       const proxy = new EvalChildPlatformMcpProxy({
         runId,
+        ...(this.args.reportProxy ? { reportProxy: this.args.reportProxy } : {}),
         attemptId: evalExecution.attemptId,
         context: mcpContext,
         allowedTools: mcpAllowedShortNames,
@@ -795,6 +819,9 @@ export class SubAgent {
           allowedMcpToolsSet.has(toolName) ||
           allowedBuiltinSet.has(toolName) ||
           submissionAllowedSet.has(toolName);
+        if (session.inert && !inAllowlist) {
+          return { behavior: 'deny', message: 'Tool unavailable to inert execution.' };
+        }
         if (config.decidePermission) {
           const result = await config.decidePermission({
             toolName,
@@ -1205,12 +1232,18 @@ export class SubAgent {
               extraWritableDirs: [],
             };
     const mcpConfig = mergeCodexMcpConfigs([platformMcpConfig, submissionConfig]);
-    const codexConfig = applyCodexSessionReviewerPolicy(
+    const baseCodexConfig = applyCodexSessionReviewerPolicy(
       codexPermissionPlan.workspaceWriteConfig
         ? applyCodexWorkspaceContainment(mcpConfig, codexPermissionPlan.workspaceWriteConfig)
         : mcpConfig,
       codexPermissionPlan.sandboxMode,
     );
+    const codexConfig = session.inert
+      ? {
+          ...baseCodexConfig,
+          features: CODEX_MCP_ONLY_FEATURE_OVERRIDES,
+        }
+      : baseCodexConfig;
     const allowedMcpToolNames = new Set([...allowedMcpTools, ...submissionAllowedTools]);
     const client = new CodexSdkClient();
     const normalizationConfig = emitNormalizedEvents

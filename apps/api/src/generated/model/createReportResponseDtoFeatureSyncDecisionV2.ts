@@ -38,7 +38,7 @@ export interface CreateReportResponseDtoFeatureSyncDecisionV2 {
      */
     parentReportId?: string | null;
     /**
-     * Whether this report may be ingested into graph and embeddings. Absent means true. Derived by the API, never set by clients. A reusable exclusion control, not an approval flag. 
+     * Whether this report may be ingested into graph and embeddings. Absent means true. Supplied by the writer and persisted by the API. A reusable exclusion control, not an approval flag. 
      */
     ragEnabled?: boolean;
     createdAt: string;

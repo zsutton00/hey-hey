@@ -19,6 +19,8 @@ import {
 const NIL_UUID = '00000000-0000-0000-0000-000000000000';
 
 export const createPlanParameters = z.object({
+  ragEnabled: z.boolean().optional(),
+  applicationEligible: z.boolean().optional(),
   designDocMarkdown: z
     .string()
     .min(1)
@@ -32,9 +34,13 @@ export const createPlanParameters = z.object({
         'Contracts / Detailed Data Flows and Downstream Task Convergence).',
     ),
   planTitle: z.string().min(1).describe('User-visible plan name'),
-  eli5: z.string().min(1).max(150).describe(
-    'Required proposal-owned explanation for a reviewer (150 characters maximum).',
-  ),
+  eli5: z
+    .string()
+    .min(1)
+    .max(150)
+    .describe(
+      'Required proposal-owned explanation for a reviewer (150 characters maximum).',
+    ),
   parentFeatureId: z
     .string()
     .uuid()
@@ -141,6 +147,8 @@ export class PlanToolsProvider {
     };
 
     const dto: StampedCreateProposalDto = {
+      ragEnabled: params.ragEnabled,
+      applicationEligible: params.applicationEligible,
       type: 'SINGLE',
       action: 'CREATE',
       targetEntityId: NIL_UUID,

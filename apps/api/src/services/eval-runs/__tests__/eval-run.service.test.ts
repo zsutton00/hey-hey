@@ -261,6 +261,9 @@ describe('EvalRunService.launch', () => {
     );
     const calls = reports.createWithIdInTransaction.mock.calls;
     expect(calls).toHaveLength(5);
+    for (const call of calls) {
+      expect(call[3].ragEnabled).toBe(false);
+    }
     expect(calls[0]![3].payload).toMatchObject({
       configurations: body.configurations,
       judgeSetup: body.judgeSetup,

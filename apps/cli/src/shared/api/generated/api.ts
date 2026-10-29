@@ -4956,6 +4956,19 @@ export interface AgentSessionReviewFileScopeRequestFile {
     'reason': string;
 }
 /**
+ *
+ * @export
+ * @interface AgentSessionRoutingDto
+ */
+export interface AgentSessionRoutingDto {
+    /**
+     * The most recently active session bound to one of the requested machines, or null when none is.
+     * @type {string}
+     * @memberof AgentSessionRoutingDto
+     */
+    'agentSessionId': string | null;
+}
+/**
  * Reviewable request for expanding a repository-bound coding session\'s Service scope
  * @export
  * @interface AgentSessionServiceScopeRequest
@@ -24235,6 +24248,18 @@ export interface CreateProposalAgentFixRequest200Response {
  */
 export interface CreateProposalDto {
     /**
+     * Whether this proposal may be ingested into project knowledge. Omitted means true.
+     * @type {boolean}
+     * @memberof CreateProposalDto
+     */
+    'ragEnabled'?: boolean;
+    /**
+     * Whether this proposal may be approved or applied, independently of retrieval. Omitted means true.
+     * @type {boolean}
+     * @memberof CreateProposalDto
+     */
+    'applicationEligible'?: boolean;
+    /**
      *
      * @type {ProposalType}
      * @memberof CreateProposalDto
@@ -24333,6 +24358,18 @@ export type CreateProposalReconciliationCandidate = ProposalReconciliationAgentF
  * @interface CreateProposalRequestDto
  */
 export interface CreateProposalRequestDto {
+    /**
+     * Whether this proposal may be ingested into project knowledge. Omitted means true.
+     * @type {boolean}
+     * @memberof CreateProposalRequestDto
+     */
+    'ragEnabled'?: boolean;
+    /**
+     * Whether this proposal may be approved or applied, independently of retrieval. Omitted means true.
+     * @type {boolean}
+     * @memberof CreateProposalRequestDto
+     */
+    'applicationEligible'?: boolean;
     /**
      *
      * @type {ProposalType}
@@ -24626,6 +24663,12 @@ export type CreateReportDto = CreateReportDtoFeatureSyncDecisionV1 | CreateRepor
  */
 export interface CreateReportDtoBase {
     /**
+     * Whether this report may be reused as project knowledge. Omitted means true on creation.
+     * @type {boolean}
+     * @memberof CreateReportDtoBase
+     */
+    'ragEnabled'?: boolean;
+    /**
      * Optional project scope for the report
      * @type {string}
      * @memberof CreateReportDtoBase
@@ -24688,6 +24731,12 @@ export interface CreateReportDtoBase {
  * @interface CreateReportDtoFeatureSyncDecisionV1
  */
 export interface CreateReportDtoFeatureSyncDecisionV1 {
+    /**
+     * Whether this report may be reused as project knowledge. Omitted means true on creation.
+     * @type {boolean}
+     * @memberof CreateReportDtoFeatureSyncDecisionV1
+     */
+    'ragEnabled'?: boolean;
     /**
      * Optional project scope for the report
      * @type {string}
@@ -24780,6 +24829,12 @@ export type CreateReportDtoFeatureSyncDecisionV1SchemaVersionEnum = typeof Creat
  */
 export interface CreateReportDtoFeatureSyncDecisionV2 {
     /**
+     * Whether this report may be reused as project knowledge. Omitted means true on creation.
+     * @type {boolean}
+     * @memberof CreateReportDtoFeatureSyncDecisionV2
+     */
+    'ragEnabled'?: boolean;
+    /**
      * Optional project scope for the report
      * @type {string}
      * @memberof CreateReportDtoFeatureSyncDecisionV2
@@ -24870,6 +24925,12 @@ export type CreateReportDtoFeatureSyncDecisionV2SchemaVersionEnum = typeof Creat
  * @interface CreateReportDtoOther
  */
 export interface CreateReportDtoOther {
+    /**
+     * Whether this report may be reused as project knowledge. Omitted means true on creation.
+     * @type {boolean}
+     * @memberof CreateReportDtoOther
+     */
+    'ragEnabled'?: boolean;
     /**
      * Optional project scope for the report
      * @type {string}
@@ -25068,7 +25129,7 @@ export interface CreateReportResponseDtoFeatureSyncDecisionV1 {
      */
     'parentReportId'?: string | null;
     /**
-     * Whether this report may be ingested into graph and embeddings. Absent means true. Derived by the API, never set by clients. A reusable exclusion control, not an approval flag.
+     * Whether this report may be ingested into graph and embeddings. Absent means true. Supplied by the writer and persisted by the API. A reusable exclusion control, not an approval flag.
      * @type {boolean}
      * @memberof CreateReportResponseDtoFeatureSyncDecisionV1
      */
@@ -25201,7 +25262,7 @@ export interface CreateReportResponseDtoFeatureSyncDecisionV2 {
      */
     'parentReportId'?: string | null;
     /**
-     * Whether this report may be ingested into graph and embeddings. Absent means true. Derived by the API, never set by clients. A reusable exclusion control, not an approval flag.
+     * Whether this report may be ingested into graph and embeddings. Absent means true. Supplied by the writer and persisted by the API. A reusable exclusion control, not an approval flag.
      * @type {boolean}
      * @memberof CreateReportResponseDtoFeatureSyncDecisionV2
      */
@@ -25334,7 +25395,7 @@ export interface CreateReportResponseDtoOther {
      */
     'parentReportId'?: string | null;
     /**
-     * Whether this report may be ingested into graph and embeddings. Absent means true. Derived by the API, never set by clients. A reusable exclusion control, not an approval flag.
+     * Whether this report may be ingested into graph and embeddings. Absent means true. Supplied by the writer and persisted by the API. A reusable exclusion control, not an approval flag.
      * @type {boolean}
      * @memberof CreateReportResponseDtoOther
      */
@@ -39835,6 +39896,49 @@ export interface GetAgentSessionResponse {
      * @memberof GetAgentSessionResponse
      */
     'nextCursor'?: string;
+}
+/**
+ *
+ * @export
+ * @interface GetAgentSessionRouting200Response
+ */
+export interface GetAgentSessionRouting200Response {
+    /**
+     * Indicates if the request was successful
+     * @type {boolean}
+     * @memberof GetAgentSessionRouting200Response
+     */
+    'success': boolean;
+    /**
+     * Human-readable message about the operation
+     * @type {string}
+     * @memberof GetAgentSessionRouting200Response
+     */
+    'message': string;
+    /**
+     *
+     * @type {AgentSessionRoutingDto}
+     * @memberof GetAgentSessionRouting200Response
+     */
+    'data'?: AgentSessionRoutingDto;
+    /**
+     * ISO timestamp of when the response was generated
+     * @type {string}
+     * @memberof GetAgentSessionRouting200Response
+     */
+    'timestamp': string;
+    /**
+     * HTTP status code
+     * @type {number}
+     * @memberof GetAgentSessionRouting200Response
+     */
+    'statusCode': number;
+    /**
+     * Request path
+     * @type {string}
+     * @memberof GetAgentSessionRouting200Response
+     */
+    'path'?: string;
 }
 /**
  *
@@ -72850,23 +72954,23 @@ export interface ProposalResponseDto {
      */
     'materialization'?: WorkItemChangeSetMaterializationProgress;
     /**
-     * Whether this proposal may be ingested into graph and embeddings. Absent means true. Derived by the API, never set by clients. A reusable exclusion control, not an approval flag.
+     * Whether this proposal may be ingested into graph and embeddings. Absent means true. Supplied by the writer and persisted by the API. A reusable exclusion control, not an approval flag.
      * @type {boolean}
      * @memberof ProposalResponseDto
      */
     'ragEnabled'?: boolean;
     /**
-     * Whether this proposal may be approved and applied. Absent means true. Derived by the API, never set by clients. Independent of ragEnabled.
+     * Whether this proposal may be approved and applied. Absent means true. Supplied by the writer and persisted by the API. Independent of ragEnabled.
      * @type {boolean}
      * @memberof ProposalResponseDto
      */
     'applicationEligible'?: boolean;
     /**
-     * Target content as it was when an eval proposal was made, kept on the proposal so its diff still renders after the target changes. Captured by the API, never set by clients. Absent for ordinary proposals.
-     * @type {{ [key: string]: any; }}
+     *
+     * @type {ProposalResponseDtoRetainedOriginalTargetContent}
      * @memberof ProposalResponseDto
      */
-    'retainedOriginalTargetContent'?: { [key: string]: any; } | null;
+    'retainedOriginalTargetContent'?: ProposalResponseDtoRetainedOriginalTargetContent | null;
     /**
      *
      * @type {string}
@@ -72882,6 +72986,102 @@ export interface ProposalResponseDto {
 }
 
 
+/**
+ * Target content as it was when an eval proposal was made, kept on the proposal so its diff still renders after the target changes. Captured by the API, never set by clients. Absent for ordinary proposals.
+ * @export
+ * @interface ProposalResponseDtoRetainedOriginalTargetContent
+ */
+export interface ProposalResponseDtoRetainedOriginalTargetContent {
+    [key: string]: any;
+
+    /**
+     *
+     * @type {WorkItemTypeDefinitionDto}
+     * @memberof ProposalResponseDtoRetainedOriginalTargetContent
+     */
+    'definition'?: WorkItemTypeDefinitionDto;
+}
+/**
+ *
+ * @export
+ * @interface ProposalReviewNoteDto
+ */
+export interface ProposalReviewNoteDto {
+    /**
+     * Caller-owned stable identity for idempotent note saving.
+     * @type {string}
+     * @memberof ProposalReviewNoteDto
+     */
+    'noteId': string;
+    /**
+     *
+     * @type {number}
+     * @memberof ProposalReviewNoteDto
+     */
+    'frozenRevision': number;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReviewNoteDto
+     */
+    'sectionKey': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReviewNoteDto
+     */
+    'sizeKey': string;
+    /**
+     *
+     * @type {ProposalReviewNoteDtoTarget}
+     * @memberof ProposalReviewNoteDto
+     */
+    'target': ProposalReviewNoteDtoTarget;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReviewNoteDto
+     */
+    'note': string;
+}
+/**
+ * @type ProposalReviewNoteDtoTarget
+ * @export
+ */
+export type ProposalReviewNoteDtoTarget = WorkItemHtmlCssAnnotationElementTarget | WorkItemHtmlCssAnnotationPositionTarget | WorkItemStructuredMockupAnnotationComponentTarget | WorkItemStructuredMockupAnnotationPositionTarget;
+
+/**
+ *
+ * @export
+ * @interface ProposalReviewNoteRecord
+ */
+export interface ProposalReviewNoteRecord {
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReviewNoteRecord
+     */
+    'proposalId': string;
+    /**
+     *
+     * @type {ProposalReviewNoteDto}
+     * @memberof ProposalReviewNoteRecord
+     */
+    'review': ProposalReviewNoteDto;
+}
+/**
+ *
+ * @export
+ * @interface ProposalReviewNoteResult
+ */
+export interface ProposalReviewNoteResult {
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReviewNoteResult
+     */
+    'messageId': string;
+}
 /**
  * Current lifecycle status of the proposal
  * @export
@@ -75602,7 +75802,7 @@ export interface ReportDto {
      */
     'parentReportId'?: string | null;
     /**
-     * Whether this report may be ingested into graph and embeddings. Absent means true. Derived by the API, never set by clients. A reusable exclusion control, not an approval flag.
+     * Whether this report may be ingested into graph and embeddings. Absent means true. Supplied by the writer and persisted by the API. A reusable exclusion control, not an approval flag.
      * @type {boolean}
      * @memberof ReportDto
      */
@@ -75695,7 +75895,7 @@ export interface ReportDtoBase {
      */
     'parentReportId'?: string | null;
     /**
-     * Whether this report may be ingested into graph and embeddings. Absent means true. Derived by the API, never set by clients. A reusable exclusion control, not an approval flag.
+     * Whether this report may be ingested into graph and embeddings. Absent means true. Supplied by the writer and persisted by the API. A reusable exclusion control, not an approval flag.
      * @type {boolean}
      * @memberof ReportDtoBase
      */
@@ -75788,7 +75988,7 @@ export interface ReportDtoFeatureSyncDecisionV1 {
      */
     'parentReportId'?: string | null;
     /**
-     * Whether this report may be ingested into graph and embeddings. Absent means true. Derived by the API, never set by clients. A reusable exclusion control, not an approval flag.
+     * Whether this report may be ingested into graph and embeddings. Absent means true. Supplied by the writer and persisted by the API. A reusable exclusion control, not an approval flag.
      * @type {boolean}
      * @memberof ReportDtoFeatureSyncDecisionV1
      */
@@ -75909,7 +76109,7 @@ export interface ReportDtoFeatureSyncDecisionV2 {
      */
     'parentReportId'?: string | null;
     /**
-     * Whether this report may be ingested into graph and embeddings. Absent means true. Derived by the API, never set by clients. A reusable exclusion control, not an approval flag.
+     * Whether this report may be ingested into graph and embeddings. Absent means true. Supplied by the writer and persisted by the API. A reusable exclusion control, not an approval flag.
      * @type {boolean}
      * @memberof ReportDtoFeatureSyncDecisionV2
      */
@@ -76030,7 +76230,7 @@ export interface ReportDtoOther {
      */
     'parentReportId'?: string | null;
     /**
-     * Whether this report may be ingested into graph and embeddings. Absent means true. Derived by the API, never set by clients. A reusable exclusion control, not an approval flag.
+     * Whether this report may be ingested into graph and embeddings. Absent means true. Supplied by the writer and persisted by the API. A reusable exclusion control, not an approval flag.
      * @type {boolean}
      * @memberof ReportDtoOther
      */
@@ -82716,6 +82916,49 @@ export type RuntimeModelCatalogHostActionPreparationTargetKindEnum = typeof Runt
  */
 export type RuntimeModelCatalogReadResponseDto = CliReadRuntimeModelCatalogGetErrorResponseDto | CliReadRuntimeModelCatalogGetSuccessResponseDto;
 
+/**
+ *
+ * @export
+ * @interface SaveProposalReviewNote200Response
+ */
+export interface SaveProposalReviewNote200Response {
+    /**
+     * Indicates if the request was successful
+     * @type {boolean}
+     * @memberof SaveProposalReviewNote200Response
+     */
+    'success': boolean;
+    /**
+     * Human-readable message about the operation
+     * @type {string}
+     * @memberof SaveProposalReviewNote200Response
+     */
+    'message': string;
+    /**
+     *
+     * @type {ProposalReviewNoteResult}
+     * @memberof SaveProposalReviewNote200Response
+     */
+    'data'?: ProposalReviewNoteResult;
+    /**
+     * ISO timestamp of when the response was generated
+     * @type {string}
+     * @memberof SaveProposalReviewNote200Response
+     */
+    'timestamp': string;
+    /**
+     * HTTP status code
+     * @type {number}
+     * @memberof SaveProposalReviewNote200Response
+     */
+    'statusCode': number;
+    /**
+     * Request path
+     * @type {string}
+     * @memberof SaveProposalReviewNote200Response
+     */
+    'path'?: string;
+}
 /**
  *
  * @export
@@ -100904,6 +101147,12 @@ export type UpdateReportDto = UpdateReportDtoFeatureSyncDecisionV1 | UpdateRepor
  */
 export interface UpdateReportDtoBase {
     /**
+     * Whether this report may be reused as project knowledge. Omitted means true on creation.
+     * @type {boolean}
+     * @memberof UpdateReportDtoBase
+     */
+    'ragEnabled'?: boolean;
+    /**
      *
      * @type {ReportAudience}
      * @memberof UpdateReportDtoBase
@@ -100954,6 +101203,12 @@ export interface UpdateReportDtoBase {
  * @interface UpdateReportDtoFeatureSyncDecisionV1
  */
 export interface UpdateReportDtoFeatureSyncDecisionV1 {
+    /**
+     * Whether this report may be reused as project knowledge. Omitted means true on creation.
+     * @type {boolean}
+     * @memberof UpdateReportDtoFeatureSyncDecisionV1
+     */
+    'ragEnabled'?: boolean;
     /**
      *
      * @type {ReportAudience}
@@ -101023,6 +101278,12 @@ export type UpdateReportDtoFeatureSyncDecisionV1SchemaVersionEnum = typeof Updat
  */
 export interface UpdateReportDtoFeatureSyncDecisionV2 {
     /**
+     * Whether this report may be reused as project knowledge. Omitted means true on creation.
+     * @type {boolean}
+     * @memberof UpdateReportDtoFeatureSyncDecisionV2
+     */
+    'ragEnabled'?: boolean;
+    /**
      *
      * @type {ReportAudience}
      * @memberof UpdateReportDtoFeatureSyncDecisionV2
@@ -101090,6 +101351,12 @@ export type UpdateReportDtoFeatureSyncDecisionV2SchemaVersionEnum = typeof Updat
  * @interface UpdateReportDtoOther
  */
 export interface UpdateReportDtoOther {
+    /**
+     * Whether this report may be reused as project knowledge. Omitted means true on creation.
+     * @type {boolean}
+     * @memberof UpdateReportDtoOther
+     */
+    'ragEnabled'?: boolean;
     /**
      *
      * @type {ReportAudience}
@@ -101820,6 +102087,12 @@ export type UserMessageAgentInputProvenance = typeof UserMessageAgentInputProven
 export interface UserMessageData {
     [key: string]: any;
 
+    /**
+     *
+     * @type {ProposalReviewNoteRecord}
+     * @memberof UserMessageData
+     */
+    'proposalReviewNote'?: ProposalReviewNoteRecord;
     /**
      *
      * @type {UserMessageDataType}
@@ -120693,6 +120966,62 @@ export const AgentSessionsApiAxiosParamCreator = function (configuration?: Confi
             };
         },
         /**
+         * Returns the single most recently active session owned by the user that is bound to one of the given machines, without loading the session list.
+         * @summary Find the session that routes machine-hosted reads
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {string} userId
+         * @param {Array<string>} machineIds Ready machine IDs a routing session may be bound to (repeat query param or comma-separated values).
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getAgentSessionRouting: async (organizationId: string, projectId: string, userId: string, machineIds: Array<string>, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('getAgentSessionRouting', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('getAgentSessionRouting', 'projectId', projectId)
+            // verify required parameter 'userId' is not null or undefined
+            assertParamExists('getAgentSessionRouting', 'userId', userId)
+            // verify required parameter 'machineIds' is not null or undefined
+            assertParamExists('getAgentSessionRouting', 'machineIds', machineIds)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/agent-sessions/routing`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+            if (userId !== undefined) {
+                localVarQueryParameter['userId'] = userId;
+            }
+
+            if (machineIds) {
+                localVarQueryParameter['machineIds'] = machineIds;
+            }
+
+
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Read the providers, models and reasoning efforts the CLI on the selected machine can launch, without creating a conversation, Run or agent session.
          * @summary Read the model catalog of the CLI on a machine
          * @param {string} organizationId Organization ID
@@ -122305,6 +122634,22 @@ export const AgentSessionsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Returns the single most recently active session owned by the user that is bound to one of the given machines, without loading the session list.
+         * @summary Find the session that routes machine-hosted reads
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {string} userId
+         * @param {Array<string>} machineIds Ready machine IDs a routing session may be bound to (repeat query param or comma-separated values).
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async getAgentSessionRouting(organizationId: string, projectId: string, userId: string, machineIds: Array<string>, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetAgentSessionRouting200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getAgentSessionRouting(organizationId, projectId, userId, machineIds, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AgentSessionsApi.getAgentSessionRouting']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Read the providers, models and reasoning efforts the CLI on the selected machine can launch, without creating a conversation, Run or agent session.
          * @summary Read the model catalog of the CLI on a machine
          * @param {string} organizationId Organization ID
@@ -122872,6 +123217,16 @@ export const AgentSessionsApiFactory = function (configuration?: Configuration, 
             return localVarFp.getAgentSession(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.includeService, requestParameters.includeUser, options).then((request) => request(axios, basePath));
         },
         /**
+         * Returns the single most recently active session owned by the user that is bound to one of the given machines, without loading the session list.
+         * @summary Find the session that routes machine-hosted reads
+         * @param {AgentSessionsApiGetAgentSessionRoutingRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getAgentSessionRouting(requestParameters: AgentSessionsApiGetAgentSessionRoutingRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetAgentSessionRouting200Response> {
+            return localVarFp.getAgentSessionRouting(requestParameters.organizationId, requestParameters.projectId, requestParameters.userId, requestParameters.machineIds, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Read the providers, models and reasoning efforts the CLI on the selected machine can launch, without creating a conversation, Run or agent session.
          * @summary Read the model catalog of the CLI on a machine
          * @param {AgentSessionsApiGetRuntimeModelCatalogRequest} requestParameters Request parameters.
@@ -123267,6 +123622,16 @@ export interface AgentSessionsApiInterface {
      * @memberof AgentSessionsApiInterface
      */
     getAgentSession(requestParameters: AgentSessionsApiGetAgentSessionRequest, options?: RawAxiosRequestConfig): AxiosPromise<CreateAgentSession201Response>;
+
+    /**
+     * Returns the single most recently active session owned by the user that is bound to one of the given machines, without loading the session list.
+     * @summary Find the session that routes machine-hosted reads
+     * @param {AgentSessionsApiGetAgentSessionRoutingRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AgentSessionsApiInterface
+     */
+    getAgentSessionRouting(requestParameters: AgentSessionsApiGetAgentSessionRoutingRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetAgentSessionRouting200Response>;
 
     /**
      * Read the providers, models and reasoning efforts the CLI on the selected machine can launch, without creating a conversation, Run or agent session.
@@ -123925,6 +124290,41 @@ export interface AgentSessionsApiGetAgentSessionRequest {
      * @memberof AgentSessionsApiGetAgentSession
      */
     readonly includeUser?: boolean
+}
+
+/**
+ * Request parameters for getAgentSessionRouting operation in AgentSessionsApi.
+ * @export
+ * @interface AgentSessionsApiGetAgentSessionRoutingRequest
+ */
+export interface AgentSessionsApiGetAgentSessionRoutingRequest {
+    /**
+     * Organization ID
+     * @type {string}
+     * @memberof AgentSessionsApiGetAgentSessionRouting
+     */
+    readonly organizationId: string
+
+    /**
+     * Project ID
+     * @type {string}
+     * @memberof AgentSessionsApiGetAgentSessionRouting
+     */
+    readonly projectId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof AgentSessionsApiGetAgentSessionRouting
+     */
+    readonly userId: string
+
+    /**
+     * Ready machine IDs a routing session may be bound to (repeat query param or comma-separated values).
+     * @type {Array<string>}
+     * @memberof AgentSessionsApiGetAgentSessionRouting
+     */
+    readonly machineIds: Array<string>
 }
 
 /**
@@ -125061,6 +125461,18 @@ export class AgentSessionsApi extends BaseAPI implements AgentSessionsApiInterfa
      */
     public getAgentSession(requestParameters: AgentSessionsApiGetAgentSessionRequest, options?: RawAxiosRequestConfig) {
         return AgentSessionsApiFp(this.configuration).getAgentSession(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.includeService, requestParameters.includeUser, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Returns the single most recently active session owned by the user that is bound to one of the given machines, without loading the session list.
+     * @summary Find the session that routes machine-hosted reads
+     * @param {AgentSessionsApiGetAgentSessionRoutingRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AgentSessionsApi
+     */
+    public getAgentSessionRouting(requestParameters: AgentSessionsApiGetAgentSessionRoutingRequest, options?: RawAxiosRequestConfig) {
+        return AgentSessionsApiFp(this.configuration).getAgentSessionRouting(requestParameters.organizationId, requestParameters.projectId, requestParameters.userId, requestParameters.machineIds, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -161295,6 +161707,58 @@ export const ProposalsApiAxiosParamCreator = function (configuration?: Configura
             };
         },
         /**
+         * Saves a human annotation in the authoring conversation, bound to the exact frozen proposal revision and section. Repeated saves with the same note identity and content are idempotent. Neither proposal content nor review decisions change and no executable input is emitted.
+         * @summary Save a frozen screen review annotation without starting a revision
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {string} proposalId
+         * @param {ProposalReviewNoteDto} proposalReviewNoteDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        saveProposalReviewNote: async (organizationId: string, projectId: string, proposalId: string, proposalReviewNoteDto: ProposalReviewNoteDto, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('saveProposalReviewNote', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('saveProposalReviewNote', 'projectId', projectId)
+            // verify required parameter 'proposalId' is not null or undefined
+            assertParamExists('saveProposalReviewNote', 'proposalId', proposalId)
+            // verify required parameter 'proposalReviewNoteDto' is not null or undefined
+            assertParamExists('saveProposalReviewNote', 'proposalReviewNoteDto', proposalReviewNoteDto)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/review-notes`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)))
+                .replace(`{${"proposalId"}}`, encodeURIComponent(String(proposalId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(proposalReviewNoteDto, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Creates one explicit hidden BUILDING group with stable identity and revision zero.
          * @summary Start proposal-group authoring
          * @param {string} organizationId
@@ -161815,6 +162279,22 @@ export const ProposalsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Saves a human annotation in the authoring conversation, bound to the exact frozen proposal revision and section. Repeated saves with the same note identity and content are idempotent. Neither proposal content nor review decisions change and no executable input is emitted.
+         * @summary Save a frozen screen review annotation without starting a revision
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {string} proposalId
+         * @param {ProposalReviewNoteDto} proposalReviewNoteDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async saveProposalReviewNote(organizationId: string, projectId: string, proposalId: string, proposalReviewNoteDto: ProposalReviewNoteDto, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SaveProposalReviewNote200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.saveProposalReviewNote(organizationId, projectId, proposalId, proposalReviewNoteDto, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['ProposalsApi.saveProposalReviewNote']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Creates one explicit hidden BUILDING group with stable identity and revision zero.
          * @summary Start proposal-group authoring
          * @param {string} organizationId
@@ -162079,6 +162559,16 @@ export const ProposalsApiFactory = function (configuration?: Configuration, base
             return localVarFp.replaceProposalGroupMemberPrerequisites(requestParameters.organizationId, requestParameters.projectId, requestParameters.groupId, requestParameters.memberId, requestParameters.replaceProposalGroupPrerequisitesRequest, options).then((request) => request(axios, basePath));
         },
         /**
+         * Saves a human annotation in the authoring conversation, bound to the exact frozen proposal revision and section. Repeated saves with the same note identity and content are idempotent. Neither proposal content nor review decisions change and no executable input is emitted.
+         * @summary Save a frozen screen review annotation without starting a revision
+         * @param {ProposalsApiSaveProposalReviewNoteRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        saveProposalReviewNote(requestParameters: ProposalsApiSaveProposalReviewNoteRequest, options?: RawAxiosRequestConfig): AxiosPromise<SaveProposalReviewNote200Response> {
+            return localVarFp.saveProposalReviewNote(requestParameters.organizationId, requestParameters.projectId, requestParameters.proposalId, requestParameters.proposalReviewNoteDto, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Creates one explicit hidden BUILDING group with stable identity and revision zero.
          * @summary Start proposal-group authoring
          * @param {ProposalsApiStartProposalGroupRequest} requestParameters Request parameters.
@@ -162316,6 +162806,16 @@ export interface ProposalsApiInterface {
      * @memberof ProposalsApiInterface
      */
     replaceProposalGroupMemberPrerequisites(requestParameters: ProposalsApiReplaceProposalGroupMemberPrerequisitesRequest, options?: RawAxiosRequestConfig): AxiosPromise<StartProposalGroup201Response>;
+
+    /**
+     * Saves a human annotation in the authoring conversation, bound to the exact frozen proposal revision and section. Repeated saves with the same note identity and content are idempotent. Neither proposal content nor review decisions change and no executable input is emitted.
+     * @summary Save a frozen screen review annotation without starting a revision
+     * @param {ProposalsApiSaveProposalReviewNoteRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ProposalsApiInterface
+     */
+    saveProposalReviewNote(requestParameters: ProposalsApiSaveProposalReviewNoteRequest, options?: RawAxiosRequestConfig): AxiosPromise<SaveProposalReviewNote200Response>;
 
     /**
      * Creates one explicit hidden BUILDING group with stable identity and revision zero.
@@ -163039,6 +163539,41 @@ export interface ProposalsApiReplaceProposalGroupMemberPrerequisitesRequest {
 }
 
 /**
+ * Request parameters for saveProposalReviewNote operation in ProposalsApi.
+ * @export
+ * @interface ProposalsApiSaveProposalReviewNoteRequest
+ */
+export interface ProposalsApiSaveProposalReviewNoteRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalsApiSaveProposalReviewNote
+     */
+    readonly organizationId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalsApiSaveProposalReviewNote
+     */
+    readonly projectId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalsApiSaveProposalReviewNote
+     */
+    readonly proposalId: string
+
+    /**
+     *
+     * @type {ProposalReviewNoteDto}
+     * @memberof ProposalsApiSaveProposalReviewNote
+     */
+    readonly proposalReviewNoteDto: ProposalReviewNoteDto
+}
+
+/**
  * Request parameters for startProposalGroup operation in ProposalsApi.
  * @export
  * @interface ProposalsApiStartProposalGroupRequest
@@ -163411,6 +163946,18 @@ export class ProposalsApi extends BaseAPI implements ProposalsApiInterface {
      */
     public replaceProposalGroupMemberPrerequisites(requestParameters: ProposalsApiReplaceProposalGroupMemberPrerequisitesRequest, options?: RawAxiosRequestConfig) {
         return ProposalsApiFp(this.configuration).replaceProposalGroupMemberPrerequisites(requestParameters.organizationId, requestParameters.projectId, requestParameters.groupId, requestParameters.memberId, requestParameters.replaceProposalGroupPrerequisitesRequest, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Saves a human annotation in the authoring conversation, bound to the exact frozen proposal revision and section. Repeated saves with the same note identity and content are idempotent. Neither proposal content nor review decisions change and no executable input is emitted.
+     * @summary Save a frozen screen review annotation without starting a revision
+     * @param {ProposalsApiSaveProposalReviewNoteRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ProposalsApi
+     */
+    public saveProposalReviewNote(requestParameters: ProposalsApiSaveProposalReviewNoteRequest, options?: RawAxiosRequestConfig) {
+        return ProposalsApiFp(this.configuration).saveProposalReviewNote(requestParameters.organizationId, requestParameters.projectId, requestParameters.proposalId, requestParameters.proposalReviewNoteDto, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

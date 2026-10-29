@@ -16,6 +16,7 @@ import { ContextProposalFieldChangeDto } from './contextProposalFieldChangeDto';
 import { ProposalUpdates } from './proposalUpdates';
 import { FutureRevisionResponse } from './futureRevisionResponse';
 import { ContextProposalSummaryDto } from './contextProposalSummaryDto';
+import { ProposalResponseDtoRetainedOriginalTargetContent } from './proposalResponseDtoRetainedOriginalTargetContent';
 import { WorkItemChangeSetMaterializationProgress } from './workItemChangeSetMaterializationProgress';
 import { TargetEntityType } from './targetEntityType';
 import { ProposalAction } from './proposalAction';

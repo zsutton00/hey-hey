@@ -20,6 +20,7 @@ import type {
   MessagePosterCreateOutOfBandArgs,
   MessagePosterExternalAgentCompletionArgs,
   MessageStamp,
+  CreateMessageBody,
 } from './types';
 
 /**
@@ -200,7 +201,15 @@ const persistFailedMessage = async (
   }
 };
 
+function isSystemCreateBody(
+  dto: CreateMessageBody,
+): dto is Omit<CreateSystemMessage, 'conversationId' | 'parentMessageId'> {
+  return dto.type === MessageType.System;
+}
+
 export interface MessagePosterDependencies {
+  /** Fixed for the lifetime of this execution, including queued retries. */
+  readonly inert?: boolean;
   apiClient: MessagePosterApiClient;
   logger: ServerLogger;
   dataDir: string;
@@ -500,6 +509,16 @@ export class MessagePoster {
   }
 
   public async createOutOfBand(args: MessagePosterCreateOutOfBandArgs): Promise<string> {
+    if (this.dependencies.inert) {
+      const dto = args.dto;
+      if (!isSystemCreateBody(dto)) {
+        throw new Error('Inert execution cannot submit executable user input.');
+      }
+      args = {
+        ...args,
+        dto: { ...dto, type: MessageType.System, data: { ...dto.data, ragEnabled: false } },
+      };
+    }
     return new Promise<string>((resolve, reject) => {
       this.enqueue({
         type: 'createOutOfBand',
@@ -513,6 +532,9 @@ export class MessagePoster {
   public async submitExternalAgentCompletion(
     args: MessagePosterExternalAgentCompletionArgs,
   ): Promise<string> {
+    if (this.dependencies.inert) {
+      throw new Error('Inert execution cannot complete live workflow work.');
+    }
     return new Promise<string>((resolve, reject) => {
       this.enqueue({
         type: 'externalAgentCompletion',
@@ -535,7 +557,7 @@ export class MessagePoster {
       organizationId,
       projectId,
       messageId,
-      data,
+      data: this.dependencies.inert ? { ...data, data: { ...data.data, ragEnabled: false } } : data,
       stamp,
     });
     // Fire-and-forget: return immediately without awaiting
@@ -553,7 +575,7 @@ export class MessagePoster {
       organizationId,
       projectId,
       messageId,
-      data,
+      data: this.dependencies.inert ? { ...data, data: { ...data.data, ragEnabled: false } } : data,
       stamp,
     });
     // Fire-and-forget: return immediately without awaiting

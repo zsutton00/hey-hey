@@ -83,10 +83,7 @@ import {
 } from 'src/utils/type-checks';
 import { v4 as uuidv4, validate as isUuid } from 'uuid';
 import { MessageQueryResult } from './types';
-import {
-  currentWritingSessionId,
-  EvalOutputAdmissionService,
-} from './eval/eval-output-admission.service';
+import { EvalOutputAdmissionService } from './eval/eval-output-admission.service';
 import { MentionProcessingService } from './mentions/mention-processing.service';
 import { ProjectApprovalPolicyService } from './proposal/project-approval-policy.service';
 import {
@@ -236,40 +233,10 @@ export class MessageService {
     @Optional()
     private projectApprovalPolicyService: ProjectApprovalPolicyService = new ProjectApprovalPolicyService(),
     @Optional()
-    private evalOutputAdmission: EvalOutputAdmissionService = new EvalOutputAdmissionService(),
+    _evalOutputAdmission: EvalOutputAdmissionService = new EvalOutputAdmissionService(),
     @Optional()
     private readonly workItemTypeRegistry?: WorkItemTypeRegistryService,
   ) {}
-
-  /**
-   * Admits a message written by an eval target. The message stays readable
-   * but is written with ragEnabled false so nothing ingests it.
-   */
-  private async admitEvalOutput(
-    tx: AnyTransactionClient,
-    organizationId: OrganizationId,
-    messageData: CreateMessageInput,
-  ): Promise<CreateMessageInput> {
-    const writingSessionId = currentWritingSessionId();
-    if (!writingSessionId) {
-      return messageData;
-    }
-    const stamp = await this.evalOutputAdmission.resolve(tx, {
-      organizationId,
-      projectId: messageData.projectId,
-      writingSessionId,
-    });
-    if (!stamp.isEvalOutput) {
-      return messageData;
-    }
-    return {
-      ...messageData,
-      data: {
-        ...(messageData.data as object),
-        ragEnabled: stamp.ragEnabled,
-      },
-    } as CreateMessageInput;
-  }
 
   /**
    * Remove a trigger from the reconnect-delivery projection after its initial
@@ -810,6 +777,7 @@ export class MessageService {
     tx: Prisma.TransactionClient,
     params: {
       mentions: MentionRecord[];
+      inert?: boolean;
       organizationId: OrganizationId;
       projectId: ProjectId;
       workflowId?: WorkflowId;
@@ -834,7 +802,7 @@ export class MessageService {
       userId,
     } = params;
 
-    if (!mentions.length) {
+    if (params.inert || !mentions.length) {
       return;
     }
 
@@ -883,6 +851,7 @@ export class MessageService {
     tx: Prisma.TransactionClient,
     params: {
       mentions: MentionRecord[];
+      inert?: boolean;
       organizationId: OrganizationId;
       projectId: ProjectId;
       workflowId?: WorkflowId;
@@ -901,7 +870,7 @@ export class MessageService {
       userId,
     } = params;
 
-    if (!mentions.length) {
+    if (params.inert || !mentions.length) {
       return;
     }
 
@@ -2361,12 +2330,6 @@ export class MessageService {
           messageData,
         });
 
-        messageData = await this.admitEvalOutput(
-          tx,
-          organizationId,
-          messageData,
-        );
-
         const currentConversation = await tx.conversation.findUnique({
           where: { id: messageData.conversationId },
           select: {
@@ -2505,6 +2468,7 @@ export class MessageService {
 
           await this.publishMentionCreatedEvents(tx, {
             mentions: mentionRecords,
+            inert: hasRagDisabled(messageData.data),
             organizationId,
             projectId: msg.projectId,
             workflowId: conversationWorkflowId,
@@ -2685,7 +2649,6 @@ export class MessageService {
         ? undefined
         : (createMessageDto.createdAt ?? new Date().toISOString()),
     } as CreateMessageInput;
-    messageData = await this.admitEvalOutput(tx, organizationId, messageData);
     const createdAt = messageData.createdAt
       ? new Date(messageData.createdAt)
       : null;
@@ -2837,6 +2800,7 @@ export class MessageService {
     };
     await this.publishMentionCreatedEvents(tx, {
       mentions: mentionRecords,
+      inert: hasRagDisabled(messageData.data),
       organizationId,
       projectId: created.projectId,
       workflowId: (currentConversation.workflowId ?? undefined) as
@@ -3062,11 +3026,6 @@ export class MessageService {
     }
 
     const created = await this.prisma.$transaction(async (tx) => {
-      createMessageDto = await this.admitEvalOutput(
-        tx,
-        organizationId,
-        createMessageDto,
-      );
       // 1. Fetch the target message and validate ownership
       const targetMessage = await tx.message.findFirst({
         where: {
@@ -3452,6 +3411,7 @@ export class MessageService {
             .nodeId;
           await this.publishMentionCreatedEvents(tx, {
             mentions: addedMentionRecords,
+            inert: hasRagDisabled(msg.data),
             organizationId,
             projectId: msg.projectId as ProjectId,
             workflowId: messageWorkflowId,
@@ -3464,6 +3424,7 @@ export class MessageService {
 
           await this.publishMentionRemovedEvents(tx, {
             mentions: removedMentionRecords,
+            inert: hasRagDisabled(msg.data),
             organizationId,
             projectId: msg.projectId as ProjectId,
             workflowId: messageWorkflowId,
@@ -4163,6 +4124,9 @@ export class MessageService {
   private extractMentionTokensFromMessage(
     createMessageDto: CreateMessageInput,
   ): Array<{ entityId: string; entityType: string }> {
+    if (hasRagDisabled(createMessageDto.data)) {
+      return [];
+    }
     return this.mentionProcessingService.extractMentionTokens(
       this.getMessageContentForMentions(createMessageDto),
     );
@@ -4181,6 +4145,9 @@ export class MessageService {
     type: 'USER' | 'SYSTEM',
     data: MessageDataForContent | undefined,
   ): Array<{ entityId: string; entityType: string }> {
+    if (hasRagDisabled(data)) {
+      return [];
+    }
     return this.mentionProcessingService.extractMentionTokens(
       getContentFromMessageData(type, data),
     );

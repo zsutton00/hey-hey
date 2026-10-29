@@ -73,6 +73,7 @@ const canonicalId = (run: AgenticSession): string | null =>
   run.provider_conversation_id ?? run.provider_session_id ?? null;
 
 export class RunIndexStore {
+  private pendingSave: Promise<void> = Promise.resolve();
   public async load(indexPath: string): Promise<RunIndex> {
     try {
       const text = await fs.readFile(indexPath, 'utf8');
@@ -90,10 +91,15 @@ export class RunIndexStore {
     }
   }
 
-  public async save(indexPath: string, index: RunIndex): Promise<void> {
-    const tmp = `${indexPath}.tmp`;
-    await fs.writeFile(tmp, JSON.stringify(index, null, 2), 'utf8');
-    await fs.rename(tmp, indexPath);
+  public save(indexPath: string, index: RunIndex): Promise<void> {
+    // Different Runs share this file; per-Run metadata locks cannot serialize it.
+    const writing = this.pendingSave.then(async () => {
+      const tmp = `${indexPath}.tmp`;
+      await fs.writeFile(tmp, JSON.stringify(index, null, 2), 'utf8');
+      await fs.rename(tmp, indexPath);
+    });
+    this.pendingSave = writing.catch(() => undefined);
+    return writing;
   }
 
   public addRun(index: RunIndex, run: AgenticSession): void {

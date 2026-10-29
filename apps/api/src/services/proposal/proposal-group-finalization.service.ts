@@ -1,4 +1,3 @@
-import { assertProposalApplicationEligible } from './proposal-application-eligibility';
 import { lockReconciliationReplacement } from './proposal-reconciliation-group.service';
 import {
   BadRequestException,
@@ -106,12 +105,6 @@ export class ProposalGroupFinalizationService {
             groupId,
             dto.expectedRevision,
           );
-          for (const member of group.members) {
-            assertProposalApplicationEligible(
-              member.proposal,
-              'groupFinalization.finalize',
-            );
-          }
           const replacementSourceGroupId = await lockReconciliationReplacement(
             tx,
             groupId,
@@ -411,7 +404,9 @@ export class ProposalGroupFinalizationService {
                 `Approval policy missing after successful validation for member ${member.id}`,
               );
             }
-            const approvalSatisfied = requiredApprovals === 0;
+            const approvalSatisfied =
+              member.proposal.applicationEligible !== false &&
+              requiredApprovals === 0;
             const prerequisitesApplied = (
               prerequisitesByMemberId.get(member.id) ?? []
             ).every(

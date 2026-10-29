@@ -32,6 +32,9 @@ describe('withholdEvalMutationTools', () => {
       withholdEvalMutationTools([
         'get_context',
         'unified_search',
+        'unknown_future_mutation',
+        'approve_proposal',
+        'Bash',
         'create_edge',
         'delete_edge',
         'update_edge',

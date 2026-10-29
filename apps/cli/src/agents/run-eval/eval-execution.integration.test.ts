@@ -23,7 +23,10 @@ import { LocalAgentEndpoint } from '../../server/local-base-url';
 import { NOOP_LOGGER } from '../../server/logger';
 import { PromptTypeRegistry } from '../prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../prompt-type-registry.test-support';
-import { createPromptTypeHandlerTestDeps } from '../prompt-type-handler.test-support';
+import {
+  createPromptTypeHandlerTestDeps,
+  createPromptTypeHandlerTestRunStore,
+} from '../prompt-type-handler.test-support';
 import { SubmissionToolRegistry } from '../submission-tools/registry';
 import { CreateReportProxy } from '../submission-tools/create-report-proxy';
 import { ReportEmissionEvents } from '../submission-tools/report-emission-events';
@@ -126,7 +129,10 @@ describe('graph-only eval execution through the real child runtime', () => {
       const token = `header.${Buffer.from(JSON.stringify({ organizationId })).toString('base64url')}.signature`;
       const auth = createPromptTypeHandlerTestAuth(token);
       const reportRequests: RequestInit[] = [];
+      const runStore = createPromptTypeHandlerTestRunStore();
+      await runStore.initialize();
       const reportProxy = new CreateReportProxy({
+        runStore,
         auth,
         apiBaseUrl: 'https://api.test/api/v1',
         reportEmissionEvents: new ReportEmissionEvents(),
@@ -145,6 +151,7 @@ describe('graph-only eval execution through the real child runtime', () => {
       const endpoint = new LocalAgentEndpoint();
       endpoint.set('http://local.test');
       const launcher = new ChildAgentLauncher({
+        runStore,
         handlerDeps: createPromptTypeHandlerTestDeps(),
         promptTypeRegistry: registry,
         repoStore: createTestRepoMappingStore(),
@@ -269,6 +276,7 @@ describe('graph-only eval execution through the real child runtime', () => {
       );
       vi.spyOn(ReportsApi.prototype, 'updateReport').mockImplementation(
         async ({ reportId, updateReportDto }) => {
+          expect(updateReportDto.ragEnabled).toBe(false);
           reports.set(reportId, updateReportDto.payload as unknown as Record<string, unknown>);
           return {} as never;
         },
@@ -427,7 +435,21 @@ describe('graph-only eval execution through the real child runtime', () => {
       });
       expect(reports.get(attemptId)?.['error']).toBeUndefined();
       expect(sdk.start).toHaveBeenCalledTimes(3);
+      const retained = await runStore.getRunMetadata(targetSessionId);
+      expect(retained).toMatchObject({ inert: true });
+      if (!retained) throw new Error('Missing retained evaluation execution.');
+      const restored = createTestRun({ session: retained }, { runStore });
+      await expect(
+        restored.handleMessage({
+          promptType: 'run_eval',
+          payload,
+          references: { resolved: [], unresolved: [] },
+          triggerContext: null,
+        }),
+      ).rejects.toThrow('Evaluation evidence cannot be resumed');
+      expect(restored.queueLength).toBe(0);
       expect(reportRequests).toHaveLength(1);
+      expect(JSON.parse(String(reportRequests[0]!.body))).toMatchObject({ ragEnabled: false });
       expect(reportRequests[0]!.headers).toMatchObject({
         'X-Agent-Session-ID': targetSessionId,
         'X-Conversation-ID': targetConversationId,
@@ -587,7 +609,10 @@ describe('eval first-turn fidelity', () => {
         .join('\n\n');
       const endpoint = new LocalAgentEndpoint();
       endpoint.set('http://local.test');
+      const runStore = createPromptTypeHandlerTestRunStore();
+      await runStore.initialize();
       const launcher = new ChildAgentLauncher({
+        runStore,
         handlerDeps: deps,
         promptTypeRegistry: registry,
         repoStore: createTestRepoMappingStore(),

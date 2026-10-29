@@ -3,8 +3,8 @@ import type { JsonValue } from '../platform-mcp-proxy/session';
 /**
  * Run-scoped identity of one eval attempt. Present on every child launched for
  * that attempt; its presence is what narrows the child's capabilities. The
- * child reaches the platform as the attempt's target session, which is how
- * the API recognises what it writes as eval output.
+ * target session preserves evidence attribution; durable Run metadata owns
+ * inertness and the CLI stamps it at shared output boundaries.
  */
 export interface EvalExecutionContext {
   readonly attemptId: string;
@@ -49,27 +49,11 @@ export class EvalTokenBudget {
   }
 }
 
-/**
- * Platform tools that change the live project directly, bypassing proposals.
- */
-const DIRECT_MUTATION_TOOLS = [
-  'create_edge',
-  'update_edge',
-  'delete_edge',
-  'create_implementation_hint',
-  'edit_implementation_hint',
-  'delete_implementation_hint',
-  'update_proposal',
-  'delete_proposal',
-] as const;
+export { filterInertPlatformTools as withholdEvalMutationTools } from '../../run/inert-execution-policy';
+import { isInertPlatformToolAllowed } from '../../run/inert-execution-policy';
 
-const WITHHELD_TOOLS: ReadonlySet<string> = new Set(DIRECT_MUTATION_TOOLS);
-
-/** Drop every tool an eval attempt may not use from a short-name allowlist. */
-export const withholdEvalMutationTools = (shortNames: readonly string[]): string[] =>
-  shortNames.filter((name) => !WITHHELD_TOOLS.has(name));
-
-export const isEvalWithheldTool = (shortName: string): boolean => WITHHELD_TOOLS.has(shortName);
+export const isEvalWithheldTool = (shortName: string): boolean =>
+  !isInertPlatformToolAllowed(shortName);
 
 const EVAL_REPORT_TYPES: ReadonlySet<string> = new Set([
   'EVAL_RUN',

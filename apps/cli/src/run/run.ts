@@ -150,7 +150,7 @@ import { CODING_AGENT_REPORT_TYPES } from '../agents/prompts/report-chain';
 import { evaluateDeclaredReports } from './report-enforcement';
 import { emitOpenImplementReportIfNeeded } from './open-implement-report';
 import { resolvePrompt } from './resolve-prompt';
-import { resolveProjectModeFollowup } from '../agents/project-mode/resolve-project-mode-followup';
+import { resolveOwnerFollowup } from '../agents/resolve-owner-followup';
 import type { RunnerContext } from './runners/types';
 import { RunWorkspaceWriteBoundary } from '../agents/workspace-write-boundary';
 import {
@@ -3682,7 +3682,14 @@ export class Run {
     return this._messageQueue.length;
   }
 
+  private assertOrdinaryExecution(): void {
+    if (this.session.inert) {
+      throw new Error('Evaluation evidence cannot be resumed as an ordinary Run.');
+    }
+  }
+
   enqueue(input: InternalRunPromptRequest): number {
+    this.assertOrdinaryExecution();
     this._messageQueue.push(input);
     this.readStateChanged();
     return this._messageQueue.length;
@@ -3735,6 +3742,20 @@ export class Run {
   // ==================================================================
 
   /**
+   * The agent whose reply behavior governs ordinary replies. A captured project
+   * mode owns them even when restoration left no persisted provider-session
+   * owner.
+   */
+  private resolveReplyOwner(): PromptTypeHandler<unknown> | undefined {
+    if (hasCapturedProjectModeConfig(this.session.config)) {
+      return this.promptTypeRegistry.get(LocalPromptType.ProjectMode);
+    }
+
+    const ownerId = this.session.provider_session_agent_id;
+    return ownerId ? this.promptTypeRegistry.getById(ownerId) : undefined;
+  }
+
+  /**
    * Accept a concrete prompt request. Either enqueue it (Turn in flight)
    * or start a Turn now.
    *
@@ -3752,15 +3773,16 @@ export class Run {
     input: InternalRunPromptRequest,
     options?: SendMessageOptions,
   ): Promise<void> {
-    const modeInput = resolveProjectModeFollowup(this.session.config, input);
-    if (modeInput !== input) {
-      this.logger.debug('local.run.project_mode.followup_owner_retained', {
+    this.assertOrdinaryExecution();
+    const ownerInput = resolveOwnerFollowup(this.resolveReplyOwner(), input);
+    if (ownerInput !== input) {
+      this.logger.debug('local.run.followup_owner_retained', {
         runId: this.runId,
         requestedPromptType: input.promptType,
-        resolvedPromptType: modeInput.promptType,
+        resolvedPromptType: ownerInput.promptType,
         providerSessionAgentId: this.session.provider_session_agent_id,
       });
-      input = modeInput;
+      input = ownerInput;
     }
     const timelineTurnId = options?.admittedInput?.turnId;
     if (timelineTurnId) {
@@ -4019,6 +4041,7 @@ export class Run {
    * the Run to idle without retrying the failed boundary.
    */
   private async startTurn(input: InternalRunPromptRequest): Promise<void> {
+    this.assertOrdinaryExecution();
     input = this.routeImplementationReadinessClarification(input);
     const admission = this.inputAdmissionFor(input);
     const timelineTurnId = admission?.turnId;
@@ -4115,6 +4138,17 @@ export class Run {
         runId: this.runId,
         error,
       });
+      if (error instanceof LocalAgentApiError && error.code === 'REPO_REQUIRED') {
+        try {
+          await this.postAgentSystemMessage(error.message);
+        } catch (postError) {
+          this.logger.error('local.run.start_turn.missing_service_post_failed', {
+            turnId,
+            runId: this.runId,
+            error: postError,
+          });
+        }
+      }
       // Startup context errors can wrap transient API failures. Let the durable
       // owner retry preparation with the same input and selected Turn identity.
       if (admission && !definitiveRejection) throw error;
@@ -5894,6 +5928,14 @@ export class Run {
         launchServiceId: null,
       });
       return { cwd };
+    }
+
+    if ((session.services?.length ?? 0) === 0) {
+      throw new LocalAgentApiError(
+        'REPO_REQUIRED',
+        'This Run has no Service folder. Start a new Run with a Service and bind its folder on this machine.',
+        400,
+      );
     }
 
     let workspace: Awaited<ReturnType<typeof resolveRunWorkspace>>;

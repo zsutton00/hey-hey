@@ -214,6 +214,9 @@ const legacyPlanRunEntitySchema = z.object({ entityType: z.literal('PLAN') }).pa
 
 const parseRunMetadata = (text: string): AgenticSession => {
   const parsed = JSON.parse(text) as Record<string, unknown>;
+  if (parsed['inert'] !== undefined && typeof parsed['inert'] !== 'boolean') {
+    throw new SessionValidationError('Persisted Run inertness must be boolean.');
+  }
   if (!Object.hasOwn(parsed, 'entity')) {
     throw new SessionValidationError('Persisted Run metadata is missing entity.');
   }
@@ -1028,6 +1031,9 @@ export class RunStore {
     return this.withMetadataLock(agenticSessionId, async () => {
       const existing = await readRunMetadata(this.runFamilies, agenticSessionId);
       if (existing) {
+        if (input.inert !== undefined && input.inert !== (existing.inert ?? false)) {
+          throw new SessionValidationError('Run inertness cannot change after creation.');
+        }
         if (!sameRunEntity(existing.entity, parsedEntity.data)) {
           throw new SessionValidationError(
             'A Run with this agent session id already exists with a different entity.',
@@ -1050,6 +1056,7 @@ export class RunStore {
 
       const baseEntry = {
         agentic_session_id: agenticSessionId,
+        inert: input.inert ?? false,
         entity: parsedEntity.data,
         services: input.services,
         ...(input.launchServiceId ? { launchServiceId: input.launchServiceId } : {}),

@@ -45,6 +45,7 @@ export class EvalTargetMessages {
       }),
     );
     const poster = new MessagePoster({
+      inert: session.inert === true,
       logger: deps.logger,
       dataDir: resolveProfileDataDir(),
       apiClient: {
@@ -157,7 +158,6 @@ export class EvalTargetMessages {
           ? (dispatched.updateData.data as CreateSystemMessage['data'])
           : mapped.message.data),
         ...(prompt ? { title: 'Starting Prompt', response: text, uiElements: [] } : {}),
-        ragEnabled: false,
       },
     };
     await this.poster.createOutOfBand({

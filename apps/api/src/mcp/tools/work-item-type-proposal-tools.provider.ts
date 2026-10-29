@@ -124,6 +124,12 @@ const workItemTypeSectionDefinitionSchema = z
       .describe(
         'Named definition-owned HTML/CSS or structured-mockup presentation profiles; item content selects only a sizeKey.',
       ),
+    required: z
+      .boolean()
+      .optional()
+      .describe(
+        'Whether this section must be supplied at creation; omission retains the legacy required policy.',
+      ),
     defaultSizeKey: z
       .string()
       .min(1)
@@ -327,6 +333,8 @@ export const WORK_ITEM_TYPE_PARENTAGE_GUIDANCE =
 
 export const createWorkItemTypeParameters = z
   .object({
+    ragEnabled: z.boolean().optional(),
+    applicationEligible: z.boolean().optional(),
     key: z
       .string()
       .min(1)
@@ -464,6 +472,8 @@ export const CREATE_WORK_ITEM_TYPE_AUTHORING_AXES = Object.freeze(
 
 export const editWorkItemTypeParameters = z
   .object({
+    ragEnabled: z.boolean().optional(),
+    applicationEligible: z.boolean().optional(),
     typeKey: z
       .string()
       .min(1)
@@ -622,7 +632,11 @@ export class WorkItemTypeProposalToolsProvider {
         auth.organizationId,
         projectId as ProjectId,
         auth.user.userId,
-        dto,
+        {
+          ...dto,
+          ragEnabled: params.ragEnabled,
+          applicationEligible: params.applicationEligible,
+        },
       );
 
       this.logger.log(
@@ -746,7 +760,11 @@ export class WorkItemTypeProposalToolsProvider {
         auth.organizationId,
         projectId as ProjectId,
         auth.user.userId,
-        dto,
+        {
+          ...dto,
+          ragEnabled: params.ragEnabled,
+          applicationEligible: params.applicationEligible,
+        },
       );
 
       this.logger.log(
