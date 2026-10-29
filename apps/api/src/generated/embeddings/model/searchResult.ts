@@ -12,8 +12,13 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { EmbeddingMetadata } from './embeddingMetadata';
+import { MatchSpan } from './matchSpan';
 
 export interface SearchResult {
+  /**
+   * Optional matched spans ordered by start, present only for ColBERT hits whose stored text aligns with token vectors.
+   */
+  matchSpans?: Array<MatchSpan>;
   /**
    * Unique identifier of the result
    */

@@ -36,6 +36,7 @@ model/errorResponseDetails.ts
 model/getDebugEntity200Response.ts
 model/getDebugEntity200ResponseDocumentsInner.ts
 model/healthResponse.ts
+model/matchSpan.ts
 model/models.ts
 model/projectionDeletionCommand.ts
 model/projectionDeletionIdentity.ts

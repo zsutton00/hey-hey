@@ -1519,6 +1519,26 @@ components:
           description: Ordered list of queries to evaluate in a single call
           items:
             $ref: "#/components/schemas/BatchSearchQuery"
+    MatchSpan:
+      type: object
+      description: A matched stretch of the hit text, using end-exclusive UTF-16 code units.
+      required: [start, end, strength]
+      properties:
+        start:
+          type: integer
+          minimum: 0
+          description: Start offset in UTF-16 code units into the hit text.
+        end:
+          type: integer
+          minimum: 0
+          description: Exclusive end offset in UTF-16 code units into the hit text.
+        strength:
+          type: number
+          format: float
+          minimum: -1
+          maximum: 1
+          description: Best query-token cosine similarity within the span.
+
     SearchResult:
       type: object
       required:
@@ -1527,6 +1547,15 @@ components:
         - similarity
         - metadata
       properties:
+        matchSpans:
+          type: array
+          description: Optional matched spans ordered by start, present only for ColBERT hits whose stored text aligns with token vectors.
+          items:
+            $ref: "#/components/schemas/MatchSpan"
+          example:
+            - start: 0
+              end: 16
+              strength: 0.85
         id:
           type: string
           description: Unique identifier of the result

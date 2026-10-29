@@ -24,6 +24,7 @@ export * from './errorResponseDetails';
 export * from './getDebugEntity200Response';
 export * from './getDebugEntity200ResponseDocumentsInner';
 export * from './healthResponse';
+export * from './matchSpan';
 export * from './projectionDeletionCommand';
 export * from './projectionDeletionIdentity';
 export * from './projectionDeletionIdentityConflictResponse';
