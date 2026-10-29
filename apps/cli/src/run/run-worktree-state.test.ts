@@ -396,6 +396,38 @@ describe('Run worktree workspace state', () => {
     run.cleanup();
   });
 
+  it('rejects a workspace-required input once and explains the missing Service', async () => {
+    const collaborators = makeCollaborators(makeRunStore(), () => ({ run: async () => {} }));
+    const run = new Run(makeRunArgs({ session: makeSession({ services: [] }) }), collaborators);
+    const admittedInput = {
+      turnId: 'turn-no-service',
+      onStarted: vi.fn(),
+      onRejected: vi.fn(),
+      onSettled: vi.fn(),
+    };
+    try {
+      await expect(run.handleMessage(makeInput(), { admittedInput })).rejects.toMatchObject({
+        code: 'REPO_REQUIRED',
+        statusCode: 400,
+      });
+      expect(admittedInput.onRejected).toHaveBeenCalledOnce();
+      expect(admittedInput.onStarted).not.toHaveBeenCalled();
+      expect(collaborators.runnerPicker.pick).not.toHaveBeenCalled();
+      expect(collaborators.poster.createOutOfBand).toHaveBeenCalledOnce();
+      expect(collaborators.poster.createOutOfBand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          dto: expect.objectContaining({
+            data: expect.objectContaining({
+              response: expect.stringContaining('no Service folder'),
+            }),
+          }),
+        }),
+      );
+    } finally {
+      run.cleanup();
+    }
+  });
+
   const serviceFreePromptTypes = [
     'work_tracker_connect',
     'work_tracker_import',
@@ -605,7 +637,7 @@ describe('Run worktree workspace state', () => {
     expect(publishLaunchFailure).not.toHaveBeenCalled();
   });
 
-  it('preserves repository-required resolution for non-graph runs without services', async () => {
+  it('keeps missing local Service bindings retryable', async () => {
     vi.mocked(resolveRunWorkspace).mockClear();
     vi.mocked(resolveRunWorkspace).mockResolvedValueOnce({
       ok: false,
@@ -614,10 +646,8 @@ describe('Run worktree workspace state', () => {
     });
     const runStore = makeRunStore();
     const session = makeSession({
-      services: [],
       promptType: 'coding_freeform',
     });
-    delete session.launchServiceId;
     const run = new Run(
       makeRunArgs({
         session,
