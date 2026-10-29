@@ -1,5 +1,5 @@
 import { loadContentWithMentions } from "../../SmarterTextAreaCard/serializationUtils";
-import React, { useEffect } from "react";
+import React from "react";
 import { http, HttpResponse } from "msw";
 import axios, { type AxiosAdapter } from "axios";
 import { act, fireEvent, render, screen } from "@testing-library/react";
@@ -22,8 +22,8 @@ import {
   type MachineDto,
 } from "../../../api";
 import type { BoundSubagentInteractionInput } from "../operations/AgentOperationCoordinator";
-import type { ResponseTargetChangeHandler } from "../../Conversation/Components/conversationFormTypes";
-import { NO_RESPONSE_TARGET } from "../../Conversation/utils/conversationResponseModel";
+import type { PersistedConversationViewerProps } from "../../Conversation/ConversationViewer";
+import { renderConversationFooterFixture } from "../../../test/conversationFooterFixture";
 
 // Keep real editor state, conversion, serialization and typed-intent reading in transport tests.
 const lexicalConfig = vi.hoisted(() => ({ nodes: [] as readonly unknown[] }));
@@ -315,19 +315,12 @@ vi.mock("../operations/useAgentSessionInteractionAccess", async () => {
   };
 });
 vi.mock("../../Conversation/ConversationViewer", () => ({
-  ConversationViewer: ({
-    onResponseTargetChange,
-    conversation,
-  }: {
-    onResponseTargetChange: ResponseTargetChangeHandler;
-    conversation: { id: string };
-  }) => {
-    const conversationId = conversation.id;
-    useEffect(() => {
-      onResponseTargetChange(NO_RESPONSE_TARGET, conversationId, true);
-    }, [conversationId, onResponseTargetChange]);
-    return <div data-testid="history" />;
-  },
+  ConversationViewer: (props: PersistedConversationViewerProps) => (
+    <>
+      <div data-testid="history" />
+      {renderConversationFooterFixture(props)}
+    </>
+  ),
 }));
 
 vi.mock("../../../data/hooks/useAgentSessions", () => ({
@@ -404,6 +397,9 @@ const stopRun = vi.fn();
 
 beforeEach(() => {
   globalThis.mswServer.use(
+    http.get("*/api/v1/organizations/org/reports", () =>
+      HttpResponse.json({ data: [] }),
+    ),
     http.get("http://localhost:3847/api/local/repos", () =>
       HttpResponse.json({ machineId: state.session.machineId, bindings: [] }),
     ),
@@ -547,6 +543,9 @@ describe("shared composer to subagent transport", () => {
       );
     interactionState = "WAITING";
     render(<MemoryRouter>{content}</MemoryRouter>);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
     await submit("/subagent background research Inspect");
     // Surfaces that read conversation messages issue those reads through
     // the same client; the admission is the only subagent request.

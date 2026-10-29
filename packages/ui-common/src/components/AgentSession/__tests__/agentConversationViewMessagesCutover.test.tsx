@@ -1,3 +1,5 @@
+import { renderConversationFooterFixture } from "../../../test/conversationFooterFixture";
+import type { PersistedConversationViewerProps } from "../../Conversation/ConversationViewer";
 import { useConversationMessages } from "../../../data/hooks/useConversationMessages";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { Provider, createStore } from "jotai";
@@ -38,8 +40,6 @@ import {
 } from "../AgentConversationView";
 import type { AgentBridgeRecoveryState } from "../agentBridgeRecoveryState";
 import type { ConversationScrollPolicy } from "../../Conversation/ConversationViewer";
-import type { ResponseTargetChangeHandler } from "../../Conversation/Components/conversationFormTypes";
-import { NO_RESPONSE_TARGET } from "../../Conversation/utils/conversationResponseModel";
 
 vi.mock("../../../clients/serviceClients", () => ({
   projectsClient: { getQueuedConversationInputs: vi.fn() },
@@ -89,21 +89,7 @@ vi.mock("../../../data/hooks/usePlatformAdminAccess", () => ({
 }));
 
 vi.mock("../../Conversation/ConversationViewer", () => ({
-  ConversationViewer: (props: {
-    conversation: ConversationResponseDto;
-    onResponseTargetChange?: ResponseTargetChangeHandler;
-    scrollPolicy:
-      | { mode: "owned"; ownerRef: React.RefObject<HTMLElement | null> }
-      | { mode: "disabled" };
-    slotProps?: {
-      paper?: {
-        sx?: {
-          backgroundColor?: unknown;
-          backgroundImage?: unknown;
-        };
-      };
-    };
-  }) => {
+  ConversationViewer: (props: PersistedConversationViewerProps) => {
     const { conversation, scrollPolicy } = props;
     const { data: messages } = useConversationMessages(
       conversation.organizationId,
@@ -112,9 +98,6 @@ vi.mock("../../Conversation/ConversationViewer", () => ({
     );
     expect(conversation).not.toHaveProperty("messages");
     conversationViewerPropsSpy(props);
-    React.useEffect(() => {
-      props.onResponseTargetChange?.(NO_RESPONSE_TARGET, conversation.id, true);
-    }, [props.onResponseTargetChange, conversation.id]);
 
     React.useEffect(() => {
       if (scrollPolicy.mode !== "owned" || messages.length === 0) {
@@ -140,6 +123,7 @@ vi.mock("../../Conversation/ConversationViewer", () => ({
             </li>
           ))}
         </ul>
+        {renderConversationFooterFixture(props)}
       </div>
     );
   },

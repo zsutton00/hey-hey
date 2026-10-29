@@ -1,3 +1,20 @@
+import { useUserAction } from "../../../contexts/TrackingContext";
+import {
+  createFormContext,
+  getButtonSecondActions,
+} from "../utils/conversationFormHelpers";
+import {
+  deriveConversationModel,
+  type ConversationModel,
+} from "../utils/conversationResponseModel";
+
+export interface ConversationFooterState {
+  model: ConversationModel;
+  executeSubmission: (
+    parentMessageId: string | null,
+    submit: () => Promise<void>,
+  ) => Promise<void>;
+}
 import type { TriageApplicationCoordinator } from "../../../data/triage/application";
 import type { OpenItemsTriageItem } from "../../../api";
 import { useConversationMessages } from "../../../data/hooks/useConversationMessages";
@@ -22,7 +39,6 @@ import type {
 } from "../../../api";
 import {
   AgentSessionCurrentState,
-  ConversationStatus,
   MessageStatus,
   MessageType,
 } from "../../../api";
@@ -63,7 +79,10 @@ import {
   isHiddenQuestionsMessage,
   isRoutingMessage,
 } from "../utils";
-import { determineMessageState } from "../utils/messageStateUtils";
+import {
+  determineMessageState,
+  isQuestionsMessage,
+} from "../utils/messageStateUtils";
 import { placeCodingPlanReviewMessage } from "../utils/codingPlanConversation";
 import {
   applyVisualPreviewPresentationState,
@@ -98,6 +117,8 @@ import {
  * Eliminates prop drilling and provides clean separation of concerns.
  */
 interface ConversationContextValue {
+  model: ConversationModel;
+  executeSubmission: ConversationFooterState["executeSubmission"];
   // Core Data
   conversationTimeline: ConversationMessage[];
   /** Proposal IDs of the current visual-preview round, if one is presented. */
@@ -187,6 +208,10 @@ const ConversationContext = createContext<ConversationContextValue | null>(
 );
 
 interface ConversationProviderProps {
+  renderFooter?: (state: ConversationFooterState) => React.ReactNode;
+  ownerCanSubmit?: boolean;
+  ownerSubmitting?: boolean;
+  forceProcessing?: boolean;
   children: React.ReactNode;
   conversation: ConversationResponseDto | null;
   project: ProjectResponseDto;
@@ -526,6 +551,10 @@ const applyRealtimeOverlays = (
  */
 export const ConversationProvider: React.FC<ConversationProviderProps> = ({
   children,
+  renderFooter,
+  ownerCanSubmit = true,
+  ownerSubmitting = false,
+  forceProcessing = false,
   conversation,
   project,
   agentSessionId,
@@ -556,6 +585,7 @@ export const ConversationProvider: React.FC<ConversationProviderProps> = ({
   goalPmConversationLink,
   onFocusComposer,
 }) => {
+  const { trackUI } = useUserAction();
   const activeConversation = conversation;
   const activeConversationId = activeConversation?.id;
   const messageQuery = useConversationMessages(
@@ -724,6 +754,13 @@ export const ConversationProvider: React.FC<ConversationProviderProps> = ({
 
   // Phase 4 hooks integration
   const submissionState = useConversationSubmission({
+    canSubmit:
+      !readOnly &&
+      ownerCanSubmit &&
+      !isCliInputDisabled &&
+      !ownerSubmitting &&
+      messageQuery.isFetched &&
+      !messageQuery.error,
     activeConversation: activeConversation!,
     project,
     ...(agentSessionId ? { agentSessionId } : {}),
@@ -756,23 +793,111 @@ export const ConversationProvider: React.FC<ConversationProviderProps> = ({
     [loadOlderMessages, messageQuery.loadOlder],
   );
 
+  const resolveActions = useCallback(
+    (
+      entry: ConversationMessage,
+      elements: import("../../../api").UIElement[],
+    ) => {
+      if (entry.message.type !== MessageType.System || !activeConversation)
+        return [];
+      const context = createFormContext(
+        activeConversation.id,
+        project.id,
+        project.organizationId,
+        agentSessionId,
+        activeConversation.workflowAboutId ?? undefined,
+        entry.message.id,
+        entry.message.parentMessageId,
+        activeConversation.workflowAboutType ?? undefined,
+        planId,
+        stepId,
+        entry.message.createdAt,
+        entry.message.data,
+        undefined,
+        true,
+        proposalInteraction,
+        currentVisualPreviewProposalIds,
+        latestTurnToolCalls,
+        onFocusComposer,
+      );
+      return getButtonSecondActions(
+        isQuestionsMessage(entry.message) ? entry.message.data : {},
+        elements,
+        entry.message.id,
+        trackUI,
+        submissionState.handleNext,
+        context,
+      );
+    },
+    [
+      activeConversation,
+      project,
+      agentSessionId,
+      planId,
+      stepId,
+      proposalInteraction,
+      currentVisualPreviewProposalIds,
+      latestTurnToolCalls,
+      onFocusComposer,
+      trackUI,
+      submissionState.handleNext,
+    ],
+  );
+
   const responseModel = useMemo(
     () =>
       resolveConversationResponseModel(conversationTimeline, messages, {
         resolver: conversationFormResolver,
+        orderedMessages: messageQuery.orderedData,
+        resolveActions,
         workflowCanSubmit: workflowStatus.canSubmit,
-        isSubmitting: submissionState.isSubmitting,
+        isSubmitting: submissionState.isSubmitting || ownerSubmitting,
         readOnly,
-        isCliInputDisabled,
+        isCliInputDisabled:
+          isCliInputDisabled || !ownerCanSubmit || Boolean(messageQuery.error),
       }),
     [
       conversationTimeline,
+      messageQuery.orderedData,
+      messageQuery.error,
+      resolveActions,
+      ownerCanSubmit,
+      ownerSubmitting,
       messages,
       conversationFormResolver,
       workflowStatus.canSubmit,
       submissionState.isSubmitting,
       readOnly,
       isCliInputDisabled,
+    ],
+  );
+  const model = useMemo(
+    () =>
+      deriveConversationModel({
+        response: responseModel,
+        conversation: activeConversation,
+        messages: messageQuery.orderedData,
+        settled: messageQuery.isFetched || Boolean(messageQuery.error),
+        error: messageQuery.error,
+        currentState: agentSessionCurrentState,
+        forceProcessing,
+        readOnly,
+        canSubmit: ownerCanSubmit && !isCliInputDisabled,
+        submission: ownerSubmitting ? "sending" : submissionState.phase,
+      }),
+    [
+      responseModel,
+      activeConversation,
+      messageQuery.orderedData,
+      messageQuery.isFetched,
+      messageQuery.error,
+      agentSessionCurrentState,
+      forceProcessing,
+      readOnly,
+      ownerCanSubmit,
+      isCliInputDisabled,
+      ownerSubmitting,
+      submissionState.phase,
     ],
   );
   const target = responseModel.target;
@@ -826,12 +951,13 @@ export const ConversationProvider: React.FC<ConversationProviderProps> = ({
 
   // Memoize context value to prevent unnecessary re-renders
   const contextValue = useMemo<ConversationContextValue>(() => {
-    const isGeneratingResponse =
-      activeConversation?.status === ConversationStatus.GeneratingResponse;
+    const isGeneratingResponse = model.activity.processing;
 
     if (!activeConversation) {
       // Return minimal context for loading state
       return {
+        model,
+        executeSubmission: submissionState.executeSubmission,
         messages,
         messagesError: messageQuery.error,
         messagesReady: messageQuery.isFetched,
@@ -887,6 +1013,8 @@ export const ConversationProvider: React.FC<ConversationProviderProps> = ({
 
     return {
       // Core Data
+      model,
+      executeSubmission: submissionState.executeSubmission,
       messages,
       messagesError: messageQuery.error,
       messagesReady: messageQuery.isFetched,
@@ -911,7 +1039,7 @@ export const ConversationProvider: React.FC<ConversationProviderProps> = ({
       navigate,
 
       // Submission State from Phase 4 hooks
-      isSubmitting: submissionState.isSubmitting,
+      isSubmitting: model.submission !== "idle",
       versionConflictDialog: submissionState.versionConflictDialog,
 
       // Actions from Phase 4 hooks
@@ -946,6 +1074,8 @@ export const ConversationProvider: React.FC<ConversationProviderProps> = ({
     };
   }, [
     messages,
+    model,
+    submissionState.executeSubmission,
     responseModel,
     messageQuery.error,
     messageQuery.isFetched,
@@ -1002,6 +1132,10 @@ export const ConversationProvider: React.FC<ConversationProviderProps> = ({
       <ConversationContext.Provider value={contextValue}>
         <ToolCallDisplayStateProvider scopeKey={activeConversation.id}>
           {children}
+          {renderFooter?.({
+            model,
+            executeSubmission: submissionState.executeSubmission,
+          })}
         </ToolCallDisplayStateProvider>
       </ConversationContext.Provider>
     </ConversationScrollPolicyContext.Provider>

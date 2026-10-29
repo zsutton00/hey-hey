@@ -1,3 +1,5 @@
+import { renderConversationFooterFixture } from "../../../test/conversationFooterFixture";
+import type { PersistedConversationViewerProps } from "../../Conversation/ConversationViewer";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { messageKeys } from "../../../data/collections/messages";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -90,40 +92,33 @@ vi.mock("../operations/useAgentSessionInteractionAccess", () => ({
 }));
 
 vi.mock("../../Conversation/ConversationViewer", () => ({
-  ConversationViewer: ({
-    taskMonitorId,
-    conversationFormResolver,
-    onGoalPmAction,
-  }: {
-    taskMonitorId?: string;
-    conversationFormResolver?: ConversationFormResolver;
-    onGoalPmAction?: (
-      option: GoalPmRoutingSelectionPayload,
-      sourceConversationId: string,
-    ) => Promise<GoalPmRoutingEnactmentResponse>;
-  }) => (
-    <div
-      data-testid="conversation-viewer"
-      data-task-monitor-id={taskMonitorId}
-      data-form-resolver={conversationFormResolver ? "provided" : "missing"}
-    >
-      <button
-        onClick={() =>
-          void onGoalPmAction?.(
-            {
-              sourceMessageId: "source-message",
-              uiElementId: "route",
-              selectedOptionId: "start-new",
-            },
-            "conversation-1",
-            routedCreation,
-          )
-        }
+  ConversationViewer: (props: PersistedConversationViewerProps) => {
+    const { taskMonitorId, conversationFormResolver, onGoalPmAction } = props;
+    return (
+      <div
+        data-testid="conversation-viewer"
+        data-task-monitor-id={taskMonitorId}
+        data-form-resolver={conversationFormResolver ? "provided" : "missing"}
       >
-        Routed action
-      </button>
-    </div>
-  ),
+        <button
+          onClick={() =>
+            void onGoalPmAction?.(
+              {
+                sourceMessageId: "source-message",
+                uiElementId: "route",
+                selectedOptionId: "start-new",
+              },
+              "conversation-1",
+              routedCreation,
+            )
+          }
+        >
+          Routed action
+        </button>
+        {renderConversationFooterFixture(props)}
+      </div>
+    );
+  },
 }));
 
 const routedCreation = vi.hoisted(() => ({
@@ -245,6 +240,7 @@ describe("AgentConversationView Task Monitor replies", () => {
         agentSessionId: "agent-session-1",
         conversationId: "conversation-1",
         intent: {
+          parentMessageId: null,
           projectId: "project-1",
           conversationId: "conversation-1",
           type: MessageType.User,

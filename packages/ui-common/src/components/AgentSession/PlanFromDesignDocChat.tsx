@@ -345,6 +345,7 @@ const PlanFromDesignDocActive: React.FC<PlanFromDesignDocActiveProps> = ({
       text: string,
       skillSelection?: AgentSkillSelection,
       attachments: RunAttachmentReference[] = [],
+      parentMessageId: string | null = null,
     ): Promise<void> => {
       if (!lifecycle.runId) throw new Error("No active run available.");
       if (!interactionAccess.isDeviceEnabled) {
@@ -370,6 +371,7 @@ const PlanFromDesignDocActive: React.FC<PlanFromDesignDocActiveProps> = ({
           promptText: text,
           skillSelection,
           attachments,
+          parentMessageId,
           localPromptType: LocalPromptType.WorkflowDefined,
         });
         if (!result.ok) throw new Error(result.error);
@@ -703,7 +705,6 @@ const PlanFromDesignDocActive: React.FC<PlanFromDesignDocActiveProps> = ({
           stoppingRun={lifecycle.stoppingRun}
           onSubmitReply={handleSubmitReply}
           submittingPrompt={submittingReply}
-          composerPolicy="when-no-usable-response"
           agentSessionMetadata={resolveAgentSessionMetadata(persistedSession)}
           scrollPolicy={scrollPolicy}
         />

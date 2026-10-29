@@ -28,7 +28,7 @@ const log = (action: string, data?: Record<string, unknown>) => {
 const logError = (
   action: string,
   error: unknown,
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>,
 ) => {
   console.error(`${LOG_PREFIX} ${action}`, { error, ...data });
 };
@@ -37,7 +37,7 @@ const toLatencyMs = (startedAtMs: number): number =>
   Math.max(0, Date.now() - startedAtMs);
 
 const toTelemetryProvider = (
-  provider: string
+  provider: string,
 ): AgentInvocationData["provider"] => {
   if (provider === "claude") return "claude";
   if (provider === "opencode") return "opencode";
@@ -61,6 +61,7 @@ export interface SubmitFreeformViaPlatformInput {
   /** Pathless provider-owned Skill identity for this follow-up. */
   skillSelection?: AgentSkillSelection;
   attachments?: RunAttachmentReference[];
+  parentMessageId?: string | null;
 }
 
 /**
@@ -84,8 +85,9 @@ export const submitFreeformViaPlatform = async ({
   localPromptType,
   skillSelection,
   attachments = [],
+  parentMessageId = null,
 }: SubmitFreeformViaPlatformInput): Promise<SubmitPromptResult> => {
-  // Send parentMessageId explicitly as null — the platform's CreateMessageDto
+  // Without an explicit answered message, null uses the platform CreateMessageDto
   // contract treats null as "append to conversation tail" (see task
   // b657c4c6-bf60-4453-a95a-b4532ec8690a). Resolving the tail client-side
   // would race the live message stream; the server resolves it deterministically
@@ -128,14 +130,14 @@ export const submitFreeformViaPlatform = async ({
       localPromptType,
       promptText,
       undefined,
-      skillSelection
+      skillSelection,
     ),
   });
   const userMessage = {
     projectId,
     conversationId,
     type: MessageType.User,
-    parentMessageId: null,
+    parentMessageId,
     data,
   };
 
@@ -154,7 +156,7 @@ export const submitFreeformViaPlatform = async ({
       throw new Error(
         operation.state === "cancelled"
           ? "The operation was cancelled."
-          : operation.message
+          : operation.message,
       );
     }
     log("coordinator operation acknowledged", { conversationId });

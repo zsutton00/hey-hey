@@ -243,7 +243,7 @@ describe("useSubmitFollowupByText: unavailable context", () => {
 });
 
 describe("useSubmitFollowupByText: helper input shape", () => {
-  it("threads conversationId/projectId without forwarding a parentMessageId (helper sets null on the wire)", async () => {
+  it("preserves server-selected append-to-tail when no reply target is supplied", async () => {
     submitFreeformViaPlatformMock.mockReset();
     submitFreeformViaPlatformMock.mockResolvedValue({
       ok: true,
@@ -282,10 +282,7 @@ describe("useSubmitFollowupByText: helper input shape", () => {
     >;
     expect(arg.conversationId).toBe("conv-1");
     expect(arg.projectId).toBe("proj-1");
-    // The helper's input contract has no parentMessageId field — the wire-
-    // level `parentMessageId: null` (which the API treats as "append to
-    // tail") is set inside submitFreeformViaPlatform itself, asserted by
-    // the platformDispatch integration test.
-    expect(arg).not.toHaveProperty("parentMessageId");
+    // No explicit answer target preserves server-selected append-to-tail.
+    expect(arg.parentMessageId).toBeNull();
   });
 });

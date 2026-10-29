@@ -4,6 +4,7 @@ import {
   MessageType,
   SecondaryActionConfigPresentationEnum,
   type MessageResponseDto,
+  type QuestionsSystemMessageData,
   type SecondaryActionConfig,
 } from "../../../api";
 import { getFormVisibilityOverride } from "../../LlmForms/Registry/fieldResponseMetadata";
@@ -19,7 +20,7 @@ const hasButtonSecondaryActions = (data: unknown): boolean => {
   return actions.some(
     (action) =>
       !action.presentation ||
-      action.presentation === SecondaryActionConfigPresentationEnum.Button
+      action.presentation === SecondaryActionConfigPresentationEnum.Button,
   );
 };
 
@@ -41,10 +42,11 @@ const FAILED_STATUS = MessageStatus?.Failed ?? "failed";
  * @returns Whether the form should be displayed
  */
 export const shouldShowForm = (
-  conversationMessage: ConversationMessage
+  conversationMessage: ConversationMessage,
 ): boolean => {
   const formVisibilityOverride = getFormVisibilityOverride(
-    (conversationMessage.message.data as { uiElements?: unknown[] })?.uiElements
+    (conversationMessage.message.data as { uiElements?: unknown[] })
+      ?.uiElements,
   );
   if (formVisibilityOverride) {
     return formVisibilityOverride({ conversationMessage });
@@ -69,7 +71,7 @@ export const shouldShowForm = (
     conversationMessage.message.data as { uiElements?: unknown[] }
   )?.uiElements?.length;
   const hasButtonActions = hasButtonSecondaryActions(
-    conversationMessage.message.data
+    conversationMessage.message.data,
   );
 
   if (conversationMessage.state === "completed") {
@@ -86,7 +88,7 @@ export const shouldShowForm = (
       responses.every(
         (r) =>
           r.type === MessageType.System &&
-          isEmptyExternalAgentCompletionMessage(r as SystemMessage)
+          isEmptyExternalAgentCompletionMessage(r as SystemMessage),
       );
     if (onlyEnvelopeResponses) {
       return hasUiElements || hasButtonActions;
@@ -109,7 +111,7 @@ export const shouldShowForm = (
  * @returns The determined message state
  */
 export const determineMessageState = (
-  message: MessageResponseDto
+  message: MessageResponseDto,
 ): ConversationMessage["state"] => {
   const hasStatus = message.status !== undefined && message.status !== null;
 
@@ -145,11 +147,13 @@ export const determineMessageState = (
  * @param message - The message to check
  * @returns Whether the message is a questions message
  */
-export const isQuestionsMessage = (message: MessageResponseDto): boolean => {
-  return (
-    message.type === "SYSTEM" &&
-    (message.data as { type?: string })?.type === "QUESTIONS"
-  );
+export const isQuestionsMessage = (
+  message: MessageResponseDto,
+): message is MessageResponseDto & {
+  type: "SYSTEM";
+  data: QuestionsSystemMessageData;
+} => {
+  return message.type === "SYSTEM" && message.data.type === "QUESTIONS";
 };
 /**
  * Helper function to check if a message is of analysis type.

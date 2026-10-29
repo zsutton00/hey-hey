@@ -28,7 +28,6 @@ import {
 import type { ConversationFormResolver } from "../../Conversation/Components/conversationFormTypes";
 import type { SecondaryActionContext } from "../../LlmForms/Registry/types";
 import { AgentConversationView } from "../AgentConversationView";
-import type { ReplyComposerPolicy } from "../replyComposerPolicy";
 import "../../../i18n";
 import {
   beginOptimisticInput,
@@ -112,18 +111,12 @@ vi.mock("../../../contexts/TrackingContext", () => ({
     trackSubmitSuccess: vi.fn(),
   }),
 }));
-vi.mock("../../Conversation/hooks", () => ({
+vi.mock("../../Conversation/hooks", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../Conversation/hooks")>()),
   useConversationScrolling: () => ({
     handleStepClick: vi.fn(),
     loadOlderMessages: vi.fn(),
     initialScrollReady: true,
-  }),
-  useConversationSubmission: () => ({
-    isSubmitting: false,
-    versionConflictDialog: null,
-    handleNext: vi.fn(),
-    handleRetrySuccess: vi.fn(),
-    handleAnalysisAcknowledged: vi.fn(),
   }),
 }));
 // Only the editor and field leaf are simplified; viewer, provider, target
@@ -257,7 +250,6 @@ const surface = (
   resolver?: ConversationFormResolver,
   conversationId = "conversation",
   readOnly = false,
-  composerPolicy?: ReplyComposerPolicy,
 ) => (
   <AgentConversationView
     organizationId="organization"
@@ -268,7 +260,6 @@ const surface = (
     conversationFormResolver={resolver}
     onSubmitReply={state.submit}
     readOnly={readOnly}
-    composerPolicy={composerPolicy}
     agentSessionMetadata={{ provider: "codex", model: "Test model" }}
   />
 );
@@ -404,18 +395,17 @@ describe("real viewer to composer response ownership", () => {
   const hiddenReply = () =>
     screen.getByRole("textbox", { name: "Ordinary reply", hidden: true });
 
-  it("keeps the composer enabled beside an exclusive response outside plan generation", async () => {
+  it("hides the composer for a live response on every surface", async () => {
     const embeddedSubmit = vi.fn().mockResolvedValue(undefined);
     render(surface(exclusive(false, embeddedSubmit)), { wrapper });
     const embedded = await screen.findByRole("button", {
       name: "Embedded response",
     });
     expect(embedded).toBeEnabled();
-    expect(reply()).toBeVisible();
-    expect(reply()).toBeEnabled();
+    expect(hiddenReply()).not.toBeVisible();
     expect(screen.getByTestId("agent-session-metadata")).toHaveAttribute(
       "data-placement",
-      "below-composer",
+      "below-conversation",
     );
     fireEvent.click(embedded);
     await waitFor(() =>
@@ -424,20 +414,16 @@ describe("real viewer to composer response ownership", () => {
     expect(state.submit).not.toHaveBeenCalled();
   });
 
-  it("does not hide the default composer while messages load", async () => {
+  it("waits for the displayed conversation to settle", async () => {
     state.ready = false;
     state.messages = [];
     render(surface(), { wrapper });
-    await waitFor(() => expect(reply()).toBeVisible());
-    expect(reply()).toBeEnabled();
+    await waitFor(() => expect(hiddenReply()).not.toBeVisible());
   });
 
   it("hides the plan-generation composer while the response is usable and releases it once answered", async () => {
     const resolver = exclusive(false);
-    const view = render(
-      surface(resolver, "conversation", false, "when-no-usable-response"),
-      { wrapper },
-    );
+    const view = render(surface(resolver, "conversation", false), { wrapper });
     expect(
       await screen.findByRole("button", { name: "Embedded response" }),
     ).toBeEnabled();
@@ -463,23 +449,13 @@ describe("real viewer to composer response ownership", () => {
         ],
       },
     ];
-    view.rerender(
-      surface(resolver, "conversation", false, "when-no-usable-response"),
-    );
+    view.rerender(surface(resolver, "conversation", false));
     await waitFor(() => expect(reply()).toBeVisible());
     expect(reply()).toHaveValue("Keep this draft");
   });
 
   it("shows the plan-generation composer when the response is disabled and preserves a failed draft", async () => {
-    render(
-      surface(
-        exclusive(true),
-        "conversation",
-        false,
-        "when-no-usable-response",
-      ),
-      { wrapper },
-    );
+    render(surface(exclusive(true), "conversation", false), { wrapper });
     expect(
       await screen.findByRole("button", { name: "Embedded response" }),
     ).toBeDisabled();
@@ -501,6 +477,7 @@ describe("real viewer to composer response ownership", () => {
         "Keep this draft",
         undefined,
         [],
+        "source",
       ),
     );
     rejectPost(new Error("Try again"));
@@ -510,19 +487,110 @@ describe("real viewer to composer response ownership", () => {
     expect(reply()).toHaveValue("Keep this draft");
   });
 
+  it("locks both response surfaces until the linked saved reply, ignoring unrelated activity", async () => {
+    state.messages = [source("question", ExtendedUIFieldType.AgentResponse)];
+    const view = render(surface(), { wrapper });
+    fireEvent.change(reply(), { target: { value: "Here is my answer" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Send ordinary reply" }),
+    );
+    await waitFor(() =>
+      expect(state.submit).toHaveBeenCalledWith(
+        "Here is my answer",
+        undefined,
+        [],
+        "question",
+      ),
+    );
+    await waitFor(() => expect(reply()).toBeDisabled());
+    state.messages = [...state.messages, source("unrelated")];
+    view.rerender(surface());
+    expect(reply()).toBeDisabled();
+    for (const button of screen.getAllByRole("button", {
+      name: "Embedded response",
+    }))
+      expect(button).toBeDisabled();
+    state.messages = [
+      {
+        ...state.messages[0],
+        responses: [
+          {
+            id: "saved",
+            projectId: "project",
+            conversationId: "conversation",
+            parentMessageId: "question",
+            type: MessageType.User,
+            createdAt: "2026-09-28T00:01:00Z",
+            data: { comment: "Here is my answer" },
+          },
+        ],
+      },
+      source("latest", ExtendedUIFieldType.AgentResponse),
+    ];
+    view.rerender(surface());
+    await waitFor(() => expect(reply()).toBeEnabled());
+  });
+
+  it("recognizes a persisted reply arriving before the owner request resolves", async () => {
+    state.messages = [source("question", ExtendedUIFieldType.AgentResponse)];
+    let accept: () => void = () => {};
+    state.submit.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          accept = resolve;
+        }),
+    );
+    const view = render(surface(), { wrapper });
+    fireEvent.change(reply(), { target: { value: "Early answer" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Send ordinary reply" }),
+    );
+    await waitFor(() => expect(state.submit).toHaveBeenCalledTimes(1));
+    state.messages = [
+      {
+        ...state.messages[0],
+        responses: [
+          {
+            id: "early",
+            projectId: "project",
+            conversationId: "conversation",
+            parentMessageId: "question",
+            type: MessageType.User,
+            createdAt: "2026-09-28T00:01:00Z",
+            data: { comment: "Early answer" },
+          },
+        ],
+      },
+    ];
+    view.rerender(surface());
+    expect(reply()).toBeDisabled();
+    await act(async () => accept());
+    await waitFor(() => expect(reply()).toBeEnabled());
+  });
+
+  it("isolates a pending reply from a different displayed conversation", async () => {
+    state.messages = [source("question", ExtendedUIFieldType.AgentResponse)];
+    const view = render(surface(), { wrapper });
+    fireEvent.change(reply(), { target: { value: "Answer" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Send ordinary reply" }),
+    );
+    await waitFor(() => expect(reply()).toBeDisabled());
+    state.conversation = { ...state.conversation!, id: "other" };
+    state.messages = [];
+    view.rerender(surface(undefined, "other"));
+    await waitFor(() => expect(reply()).toBeEnabled());
+    expect(reply()).toHaveValue("");
+  });
+
   it("shows the plan-generation composer with no response target and waits for canonical messages", async () => {
     state.messages = [];
     state.ready = false;
-    const view = render(
-      surface(undefined, "conversation", false, "when-no-usable-response"),
-      { wrapper },
-    );
+    const view = render(surface(undefined, "conversation", false), { wrapper });
     await waitFor(() => expect(hiddenReply()).not.toBeVisible());
     state.ready = true;
     state.session = null;
-    view.rerender(
-      surface(undefined, "conversation", false, "when-no-usable-response"),
-    );
+    view.rerender(surface(undefined, "conversation", false));
     await waitFor(() => expect(reply()).toBeVisible());
     expect(reply()).toBeEnabled();
   });
@@ -592,13 +660,17 @@ describe("attachment wiring through the shared conversation surface", () => {
   it.each(["default", "custom"] as const)(
     "delivers dropped references through %s reply submission",
     async (path) => {
+      state.conversation = {
+        ...state.conversation!,
+        workflowId: "workflow",
+        workflowName: "repository-import",
+      };
       render(
         <AgentConversationView
           organizationId="organization"
           projectId="project"
           agentSessionId="session"
           conversationId="conversation"
-          composerPolicy="always"
           {...(path === "custom" ? { onSubmitReply: state.submit } : {})}
         />,
         { wrapper },
@@ -625,13 +697,23 @@ describe("attachment wiring through the shared conversation surface", () => {
       );
       await waitFor(() => expect(state.submit).toHaveBeenCalledTimes(1));
       if (path === "custom")
-        expect(state.submit).toHaveBeenCalledWith("Read the file", undefined, [
-          reference,
-        ]);
-      else
+        expect(state.submit).toHaveBeenCalledWith(
+          "Read the file",
+          undefined,
+          [reference],
+          null,
+        );
+      else {
         expect(state.submit.mock.calls[0]![0].intent.data.attachments).toEqual([
           reference,
         ]);
+        expect(
+          state.submit.mock.calls[0]![0].intent.data.agentInput.promptType,
+        ).toBe("workflow-defined");
+        expect(
+          state.submit.mock.calls[0]![0].intent.parentMessageId,
+        ).toBeNull();
+      }
       await waitFor(() =>
         expect(screen.queryByTestId("run-attachment-chip")).toBeNull(),
       );

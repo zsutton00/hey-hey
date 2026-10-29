@@ -269,13 +269,19 @@ const FeatureTreeConversationActive: React.FC<
       text: string,
       skillSelection?: AgentSkillSelection,
       attachments: RunAttachmentReference[] = [],
+      parentMessageId: string | null = null,
     ): Promise<void> => {
       if (!selection) {
         throw new Error(
           "The model catalog has not loaded yet. Wait for the model choices before sending.",
         );
       }
-      const result = await sendUserMessage(text, skillSelection, attachments);
+      const result = await sendUserMessage(
+        text,
+        skillSelection,
+        attachments,
+        parentMessageId,
+      );
       if (!result.ok) {
         throw new Error(result.error);
       }

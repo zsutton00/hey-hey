@@ -6,25 +6,19 @@ import {
   MessageType,
   ReportType,
   type QuestionsSystemMessageData,
-  type SecondaryActionConfig,
   type SystemMessageData,
 } from "../../../api";
-import { useUserAction } from "../../../contexts/TrackingContext";
 import type { ConversationMessage } from "../../../types/conversation";
 import { DynamicForm } from "../../LlmForms/DynamicForm";
 import type { FormValue } from "../../LlmForms/types";
 import {
   createFormContext,
-  getButtonSecondActions,
   isFinalStep,
   prepareFormInitialData,
 } from "../utils/conversationFormHelpers";
 import { calculateMessageStatus } from "../utils/messageStatusCalculator";
 import { useConversationContext } from "./ConversationContext";
-import type {
-  FieldComponentContext,
-  SecondaryActionSubmitOptions,
-} from "../../LlmForms/Registry/types";
+import type { SecondaryActionSubmitOptions } from "../../LlmForms/Registry/types";
 import { useConversationEvents } from "../hooks/useConversationEvents";
 import { ReportViewer } from "../../Reports/ReportViewer";
 import type { FeatureSyncDecisionReportInteractionContext } from "../../Reports/viewer/FeatureSyncDecisionReport";
@@ -67,6 +61,7 @@ export const ConversationFormRenderer: React.FC<ConversationFormRendererProps> =
         isSubmitting,
         workflowStatus,
         handleNext,
+        executeSubmission,
         isReadOnly,
         composerResetMode,
         isCliInputDisabled,
@@ -77,7 +72,6 @@ export const ConversationFormRenderer: React.FC<ConversationFormRendererProps> =
         latestTurnToolCalls,
       } = useConversationContext();
 
-      const { trackUI } = useUserAction();
       const { emit } = useConversationEvents(activeConversation.id);
       const { launchRepositoryGroundingAnalysis } =
         useRepositoryGroundingAnalysisLaunch();
@@ -114,25 +108,6 @@ export const ConversationFormRenderer: React.FC<ConversationFormRendererProps> =
         }
         return handleNext(data, messageId);
       };
-      // Determine appropriate secondAction buttons for footer
-      const getSecondActions = (context: FieldComponentContext) => {
-        if (conversationMessage.message.type === "USER") {
-          return [];
-        }
-
-        // Use enhanced helper that supports API-driven secondary actions
-        return getButtonSecondActions(
-          conversationMessage.message.data as {
-            secondaryActions?: SecondaryActionConfig[];
-          },
-          formUiElements,
-          conversationMessage.message.id,
-          trackUI,
-          handleMessageNext,
-          context,
-        );
-      };
-
       const isSubmittable = resolvedForm.isCurrent;
 
       const { uiHints, type: messageType } = (conversationMessage.message
@@ -146,8 +121,9 @@ export const ConversationFormRenderer: React.FC<ConversationFormRendererProps> =
         options?: SecondaryActionSubmitOptions,
       ) => {
         if (formResolution) {
-          void formResolution
-            .submit(data)
+          void executeSubmission(conversationMessage.message.id, () =>
+            formResolution.submit(data),
+          )
             .then(() => {
               emit({
                 type: "submission-success",
@@ -289,7 +265,7 @@ export const ConversationFormRenderer: React.FC<ConversationFormRendererProps> =
               disabled={isFormReadOnly}
               isSubmitted={isSubmitted}
               isSubmittable={isSubmittable}
-              secondActions={getSecondActions(fieldContext)}
+              secondActions={resolvedForm.secondActions}
               status={status}
               composerResetMode={
                 formResolution?.composerResetMode ?? composerResetMode

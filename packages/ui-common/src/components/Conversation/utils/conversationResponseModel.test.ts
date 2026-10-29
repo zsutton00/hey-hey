@@ -73,7 +73,7 @@ describe("conversation response model", () => {
     expect(model.target.ownership).toBe("none");
     expect(model.forms.get("planning")).toMatchObject({
       shouldRenderForm: true,
-      isFormReadOnly: false,
+      isFormReadOnly: true,
     });
     expect(model.forms.get("issue")).toMatchObject({
       shouldRenderForm: true,

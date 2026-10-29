@@ -1,4 +1,12 @@
 import {
+  ConversationStatus,
+  type AgentSessionCurrentState,
+  type ConversationResponseDto,
+} from "../../../api";
+import type { SecondAction } from "../../LlmForms/types";
+import { isAgentHiddenSystemMessage } from "../utils";
+import { getAgentSessionCurrentStatePresentation } from "../../AgentSession/agentSessionCurrentStatePresentation";
+import {
   MessageType,
   type MessageResponseDto,
   type ReportDto,
@@ -23,7 +31,6 @@ import type {
 import {
   hasPersistedFormResponse,
   isFormSubmissionDisabled,
-  isFormSubmitted,
 } from "./conversationFormHelpers";
 import { shouldShowForm } from "./messageStateUtils";
 
@@ -32,6 +39,7 @@ export const NO_RESPONSE_TARGET: ConversationResponseTarget = {
 };
 
 export interface ResolvedConversationForm {
+  secondActions: SecondAction[];
   resolution: ConversationFormResolution | null;
   uiElements: UIElement[];
   formUiElements: UIElement[];
@@ -47,6 +55,11 @@ export interface ResolvedConversationForm {
 }
 
 interface FormModelOptions {
+  orderedMessages?: readonly MessageResponseDto[];
+  resolveActions?: (
+    entry: ConversationMessage,
+    elements: UIElement[],
+  ) => SecondAction[];
   resolver?: ConversationFormResolver;
   workflowCanSubmit: boolean;
   isSubmitting: boolean;
@@ -56,7 +69,7 @@ interface FormModelOptions {
 
 const declareResponse = (
   behavior: ResponseBehavior,
-  element: UIElement
+  element: UIElement,
 ): ConversationResponseDeclaration =>
   behavior.ownership === "display-only"
     ? behavior
@@ -64,7 +77,7 @@ const declareResponse = (
 
 const resolveReports = (
   message: MessageResponseDto,
-  uiElements: UIElement[]
+  uiElements: UIElement[],
 ) => {
   const inlineReports: ReportDto[] = [];
   const modalReports: ReportDto[] = [];
@@ -81,7 +94,7 @@ const resolveReports = (
   const mentioned = new Set(
     extractMentions(message.data.response ?? "", { allowMentionEscapes: true })
       .filter((mention) => mention.entityType.toLowerCase() === "report")
-      .map((mention) => mention.entityId)
+      .map((mention) => mention.entityId),
   );
   for (const report of message.reports ?? []) {
     const config = getReportConfig(report.reportType);
@@ -97,11 +110,11 @@ const resolveReports = (
       case "interactive": {
         const responseUiElement = resolveInteractiveReportResponseUiElement(
           config,
-          uiElements
+          uiElements,
         );
         interactiveReportAttachments.push({ report, responseUiElement });
         declarations.push(
-          declareResponse(config.responseBehavior, responseUiElement)
+          declareResponse(config.responseBehavior, responseUiElement),
         );
         break;
       }
@@ -119,42 +132,48 @@ const resolveReports = (
 export const resolveConversationForm = (
   entry: ConversationMessage,
   isCurrent: boolean,
-  options: FormModelOptions
+  options: FormModelOptions,
 ): ResolvedConversationForm => {
   const resolution = options.resolver?.(entry) ?? null;
   const uiElements = (
     resolution?.uiElements ??
     (entry.message.type === MessageType.System
-      ? entry.message.data.uiElements ?? []
+      ? (entry.message.data.uiElements ?? [])
       : [])
   ).filter(Boolean);
   const reports = resolveReports(entry.message, uiElements);
   const reportFieldIds = new Set(
     reports.interactiveReportAttachments.map(
-      ({ responseUiElement }) => responseUiElement.id
-    )
+      ({ responseUiElement }) => responseUiElement.id,
+    ),
   );
   const formUiElements = uiElements.filter(
-    (element) => !reportFieldIds.has(element.id)
+    (element) => !reportFieldIds.has(element.id),
   );
   const fieldDeclarations = formUiElements.map((element) => {
     return declareResponse(
       getFieldResponseBehavior(element) ?? {
         ownership: "display-only",
       },
-      element
+      element,
     );
   });
   const isSubmitted =
-    resolution?.isSubmitted ??
-    isFormSubmitted(entry, options.workflowCanSubmit);
+    Boolean(resolution?.isSubmitted) || hasPersistedFormResponse(entry);
   const isCompleted =
     !entry.canEdit ||
     Boolean(resolution?.isSubmitted) ||
     hasPersistedFormResponse(entry);
-  const showForm = resolution ? true : shouldShowForm(entry);
+  const hidden =
+    entry.message.type === MessageType.System &&
+    isAgentHiddenSystemMessage(entry.message);
+  const secondActions = hidden
+    ? []
+    : (options.resolveActions?.(entry, formUiElements) ?? []);
+  const showForm = !hidden && (resolution ? true : shouldShowForm(entry));
   return {
     ...reports,
+    secondActions,
     resolution,
     uiElements,
     formUiElements,
@@ -169,20 +188,22 @@ export const resolveConversationForm = (
     isCurrent,
     isFormReadOnly:
       options.readOnly ||
+      !isCurrent ||
+      options.isCliInputDisabled ||
       isCompleted ||
       (resolution
         ? resolution.disabled || options.isSubmitting
         : isFormSubmissionDisabled(
             entry,
             options.workflowCanSubmit,
-            options.isSubmitting
-          ) || options.isCliInputDisabled),
+            options.isSubmitting,
+          )),
   };
 };
 
 const collectCanonicalIds = (
   messages: readonly MessageResponseDto[],
-  ids = new Set<string>()
+  ids = new Set<string>(),
 ): Set<string> => {
   for (const message of messages) {
     ids.add(message.id);
@@ -194,19 +215,39 @@ const collectCanonicalIds = (
 const deriveTarget = (
   entry: ConversationMessage | undefined,
   form: ResolvedConversationForm | undefined,
-  canonicalIds: Set<string>
+  canonicalIds: Set<string>,
 ): ConversationResponseTarget => {
   if (
     !entry ||
     !form ||
     entry.message.type !== MessageType.System ||
     !canonicalIds.has(entry.message.id) ||
+    isAgentHiddenSystemMessage(entry.message) ||
     form.isCompleted ||
     (!form.shouldRenderForm && form.interactiveReportAttachments.length === 0)
   )
     return NO_RESPONSE_TARGET;
+  const liveAction = form.shouldRenderForm
+    ? form.secondActions.find(
+        (action) =>
+          action.submitsForm &&
+          !action.disabled &&
+          !form.declarations.some(
+            (declaration) =>
+              declaration.ownership === "contribution" &&
+              declaration.currentFieldId === action.fieldId,
+          ),
+      )
+    : undefined;
   const declaration =
     form.declarations.find((item) => item.ownership === "exclusive") ??
+    (liveAction
+      ? {
+          ownership: "exclusive" as const,
+          currentFieldId: liveAction.fieldId ?? liveAction.testId ?? "button",
+          submissionKind: "field" as const,
+        }
+      : undefined) ??
     form.declarations.find((item) => item.ownership === "contribution");
   if (!declaration || declaration.ownership === "display-only")
     return NO_RESPONSE_TARGET;
@@ -221,22 +262,96 @@ const deriveTarget = (
 export const resolveConversationResponseModel = (
   timeline: readonly ConversationMessage[],
   canonicalMessages: readonly MessageResponseDto[],
-  options: FormModelOptions
+  options: FormModelOptions,
 ) => {
+  const latestCanonical = options.orderedMessages?.at(-1);
+  const current = options.orderedMessages
+    ? timeline.find((entry) => entry.message.id === latestCanonical?.id)
+    : timeline[timeline.length - 1];
   const forms = new Map(
-    timeline.map((entry, index) => [
+    timeline.map((entry) => [
       entry.message.id,
-      resolveConversationForm(entry, index === timeline.length - 1, options),
-    ])
+      resolveConversationForm(entry, entry === current, options),
+    ]),
   );
   // Never search backwards for an older unanswered field.
-  const current = timeline[timeline.length - 1];
   return {
     forms,
+    current: current
+      ? { message: current.message, form: forms.get(current.message.id)! }
+      : null,
+    replyParentMessageId:
+      latestCanonical?.type === MessageType.System
+        ? latestCanonical.id
+        : !options.orderedMessages &&
+            current?.message.type === MessageType.System
+          ? current.message.id
+          : null,
     target: deriveTarget(
       current,
       current ? forms.get(current.message.id) : undefined,
-      collectCanonicalIds(canonicalMessages)
+      collectCanonicalIds(canonicalMessages),
     ),
   };
 };
+
+export type ConversationResponseModel = ReturnType<
+  typeof resolveConversationResponseModel
+>;
+
+/** Independent facts are combined once at the conversation boundary. */
+export const deriveConversationModel = (input: {
+  response: ConversationResponseModel;
+  conversation: ConversationResponseDto | null;
+  messages: readonly MessageResponseDto[];
+  settled: boolean;
+  error: Error | null;
+  currentState?: AgentSessionCurrentState;
+  forceProcessing: boolean;
+  readOnly: boolean;
+  canSubmit: boolean;
+  submission: "idle" | "sending" | "awaiting-persistence";
+}) => {
+  const presentation = input.currentState
+    ? getAgentSessionCurrentStatePresentation(input.currentState)
+    : undefined;
+  const processing =
+    input.forceProcessing ||
+    Boolean(presentation?.isActive) ||
+    input.conversation?.status === ConversationStatus.GeneratingResponse;
+  return {
+    ...input.response,
+    conversationId: input.conversation?.id ?? null,
+    data: { settled: input.settled, error: input.error },
+    activity: {
+      currentState: input.currentState,
+      presentation,
+      processing,
+      lifecycle: input.conversation?.status,
+    },
+    permission: {
+      readOnly: input.readOnly,
+      canSubmit:
+        input.canSubmit && input.settled && !input.error && !input.readOnly,
+      disabledReason: input.readOnly
+        ? "read-only"
+        : !input.settled
+          ? "loading"
+          : input.error
+            ? "load-error"
+            : !input.canSubmit
+              ? "owner-unavailable"
+              : null,
+    },
+    submission: input.submission,
+    owner: { workflowId: input.conversation?.workflowId ?? null },
+    artifacts: input.messages.map((message) => ({
+      messageId: message.id,
+      proposals: message.proposals ?? [],
+      reports: message.reports ?? [],
+      responseDeclarations:
+        input.response.forms.get(message.id)?.declarations ?? [],
+    })),
+  };
+};
+export type ConversationModel = ReturnType<typeof deriveConversationModel>;

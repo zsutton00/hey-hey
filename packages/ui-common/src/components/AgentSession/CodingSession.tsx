@@ -771,11 +771,13 @@ const CodingSessionActive = memo(
         text: string,
         skillSelection?: AgentSkillSelection,
         attachments: RunAttachmentReference[] = [],
+        parentMessageId: string | null = null,
       ): Promise<void> => {
         await submitFollowupByText({
           promptText: text,
           skillSelection,
           attachments,
+          parentMessageId,
           clearDraftOnSuccess: false,
           actionName: "submitFollowupPrompt",
           followupAction: null,

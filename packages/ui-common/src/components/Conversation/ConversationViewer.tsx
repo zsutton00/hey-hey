@@ -1,3 +1,4 @@
+import type { ConversationFooterState } from "./Components/ConversationContext";
 import { useModalState } from "../Modals/useModalState";
 import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import type { TriageApplicationCoordinator } from "../../data/triage/application";
@@ -278,6 +279,10 @@ export interface PersistedConversationViewerProps {
   /** Owner-supplied resolver for conversation-specific structured forms. */
   conversationFormResolver?: ConversationFormResolver;
   onResponseTargetChange?: ResponseTargetChangeHandler;
+  renderFooter?: (state: ConversationFooterState) => React.ReactNode;
+  ownerCanSubmit?: boolean;
+  ownerSubmitting?: boolean;
+  forceProcessing?: boolean;
   /**
    * Plan ID when this conversation is for a plan step task.
    */
@@ -915,6 +920,10 @@ const PersistedConversationViewer: React.FC<
   taskMonitorId,
   conversationFormResolver,
   onResponseTargetChange,
+  renderFooter,
+  ownerCanSubmit,
+  ownerSubmitting,
+  forceProcessing,
   planId,
   stepId,
   onCreateNewConversation,
@@ -998,6 +1007,10 @@ const PersistedConversationViewer: React.FC<
       taskMonitorId={taskMonitorId}
       conversationFormResolver={conversationFormResolver}
       onResponseTargetChange={onResponseTargetChange}
+      renderFooter={renderFooter}
+      ownerCanSubmit={ownerCanSubmit}
+      ownerSubmitting={ownerSubmitting}
+      forceProcessing={forceProcessing}
       planId={planId}
       stepId={stepId}
       animationType={animationType}

@@ -157,6 +157,7 @@ export interface BuildDirectTriggerInputParams {
   // `comment`, the `round{N}_` keys) stay on the bag itself. `data.triggersAgent`
   // is server-stamped only and is never set here.
   data: BuildUserMessageDataInput;
+  parentMessageId?: string | null;
   /** Optional secondary-action handler key routed on the CreateUserMessage envelope. */
   handler?: SecondaryActionHandler;
 }
@@ -168,8 +169,8 @@ export interface BuildDirectTriggerInputParams {
  * conversation tail — the server's UserMessageCreated handler emits the
  * SYSTEM `triggersAgent` sibling that resumes the CLI.
  *
- * parentMessageId is sent as explicit null so the server resolves the
- * conversation tail atomically (see task b657c4c6).
+ * Without an explicit answered message, null lets the server resolve the
+ * conversation tail atomically.
  */
 export const buildDirectTriggerInput = ({
   organizationId,
@@ -177,13 +178,14 @@ export const buildDirectTriggerInput = ({
   agentSessionId,
   conversationId,
   data,
+  parentMessageId = null,
   handler,
 }: BuildDirectTriggerInputParams): BoundDirectTriggerInput => {
   const userMessage: CreateUserMessage = {
     projectId,
     conversationId,
     type: MessageType.User,
-    parentMessageId: null,
+    parentMessageId,
     data: buildUserMessageData(data),
     ...(handler !== undefined ? { handler } : {}),
   };

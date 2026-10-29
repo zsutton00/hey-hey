@@ -211,6 +211,7 @@ export interface UseAgentRunLifecycleResult {
     text: string,
     skillSelection?: AgentSkillSelection,
     attachments?: RunAttachmentReference[],
+    parentMessageId?: string | null,
   ) => Promise<SendUserMessageResult>;
   // Stops the active run through the platform-mediated signed stop and resolves
   // with its admission outcome. No-op (`{ ok: true }`) when there's no run.
@@ -425,6 +426,7 @@ export const useAgentRunLifecycle = ({
       text: string,
       skillSelection?: AgentSkillSelection,
       attachments: RunAttachmentReference[] = [],
+      parentMessageId: string | null = null,
     ): Promise<SendUserMessageResult> => {
       if (!agentSessionConversationId) {
         const error = "Cannot send a message before the conversation is bound.";
@@ -465,6 +467,7 @@ export const useAgentRunLifecycle = ({
               projectId,
               agentSessionId,
               conversationId: agentSessionConversationId,
+              parentMessageId,
               data: {
                 attachments,
                 agentInput: buildHandlerTurn

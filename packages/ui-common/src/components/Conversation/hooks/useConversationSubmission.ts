@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useConversationEvents } from "./useConversationEvents";
 import type {
   ConversationResponseDto,
@@ -44,7 +44,7 @@ export interface RepositoryImportReplySubmission {
 }
 
 const getLatestSystemNodeId = (
-  orderedMessages: readonly MessageResponseDto[]
+  orderedMessages: readonly MessageResponseDto[],
 ): string | null => {
   for (let index = orderedMessages.length - 1; index >= 0; index -= 1) {
     const message = orderedMessages[index];
@@ -71,7 +71,7 @@ const LEGACY_REPOSITORY_IMPORT_NODE_IDS = new Set([
 
 const findMessageById = (
   messages: readonly MessageResponseDto[],
-  messageId: string
+  messageId: string,
 ): MessageResponseDto | undefined => {
   for (const message of messages) {
     if (message.id === messageId) return message;
@@ -84,7 +84,7 @@ const findMessageById = (
 const isLegacyRepositoryImportReply = (
   conversation: ConversationResponseDto,
   messages: readonly MessageResponseDto[],
-  parentMessageId: string
+  parentMessageId: string,
 ): boolean => {
   if (conversation.workflowName !== "onboarding") return false;
   const parent = findMessageById(messages, parentMessageId);
@@ -111,20 +111,49 @@ const isLegacyRepositoryImportReply = (
  * activity (a status flip or a new message) can land before the reply and
  * must not unlock it.
  */
+interface PendingSubmission {
+  conversationId: string;
+  parentMessageId: string | null;
+  initialUserIds: Set<string>;
+  phase: "sending" | "awaiting-persistence";
+}
+
+const userMessages = (
+  messages: readonly MessageResponseDto[],
+): MessageResponseDto[] =>
+  messages.flatMap((message) => [
+    ...(message.type === MessageType.User ? [message] : []),
+    ...userMessages(message.responses ?? []),
+  ]);
+
 const hasObservedProgress = (
-  parentMessageId: string,
+  pending: PendingSubmission,
   conversation: ConversationResponseDto,
-  messages: readonly MessageResponseDto[]
+  messages: readonly MessageResponseDto[],
 ): boolean => {
-  if (conversation.status === "FAILED") return true;
-  const parent = findMessageById(messages, parentMessageId);
-  if (!parent) return true;
-  return Boolean(parent.responses?.some((r) => r.type === MessageType.User));
+  if (conversation.status === "FAILED") {
+    return true;
+  }
+  if (pending.parentMessageId === null) {
+    return userMessages(messages).some(
+      (message) => !pending.initialUserIds.has(message.id),
+    );
+  }
+  const parent = findMessageById(messages, pending.parentMessageId);
+  return (
+    !parent ||
+    Boolean(
+      parent.responses?.some((message) => message.type === MessageType.User),
+    ) ||
+    userMessages(messages).some(
+      (message) => message.parentMessageId === pending.parentMessageId,
+    )
+  );
 };
 
 const addWorkflowFollowupInput = (
   data: Record<string, FormValue>,
-  userMessage: string
+  userMessage: string,
 ): Record<string, FormValue> => {
   const agentInput = {
     promptType: UserMessageDataWorkflowDefinedPromptTypeEnum.WorkflowDefined,
@@ -135,27 +164,33 @@ const addWorkflowFollowupInput = (
 };
 
 interface UseConversationSubmissionProps {
+  canSubmit?: boolean;
   activeConversation: ConversationResponseDto;
   project: ProjectResponseDto;
   agentSessionId?: string;
   onDirectTrigger?: (message: CreateUserMessage) => Promise<void>;
   onPersistMessage?: (message: CreateUserMessage) => Promise<void>;
   onSubmitOnboardingReply?: (
-    submission: OnboardingReplySubmission
+    submission: OnboardingReplySubmission,
   ) => Promise<void>;
   onSubmitRepositoryImportReply?: (
-    submission: RepositoryImportReplySubmission
+    submission: RepositoryImportReplySubmission,
   ) => Promise<void>;
   onConversationUpdated?: () => Promise<void>;
 }
 
 interface UseConversationSubmissionReturn {
+  phase: "idle" | "sending" | "awaiting-persistence";
+  executeSubmission: (
+    parentMessageId: string | null,
+    submit: () => Promise<void>,
+  ) => Promise<void>;
   isSubmitting: boolean;
   versionConflictDialog: VersionConflictDialogState | null;
   handleNext: (
     data: Record<string, FormValue>,
     parentMessageId: string,
-    options?: SecondaryActionSubmitOptions
+    options?: SecondaryActionSubmitOptions,
   ) => Promise<void>;
   handleRetrySuccess: () => Promise<void>;
   handleAnalysisAcknowledged: (messageId: string) => Promise<void>;
@@ -171,6 +206,7 @@ interface UseConversationSubmissionReturn {
  * @returns Submission state and handlers
  */
 export const useConversationSubmission = ({
+  canSubmit = true,
   activeConversation,
   project,
   agentSessionId,
@@ -180,10 +216,8 @@ export const useConversationSubmission = ({
   onSubmitRepositoryImportReply,
   onConversationUpdated,
 }: UseConversationSubmissionProps): UseConversationSubmissionReturn => {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [awaitingProgress, setAwaitingParentMessageId] = useState<string | null>(
-    null
-  );
+  const [pending, setPending] = useState<PendingSubmission | null>(null);
+  const pendingRef = useRef<PendingSubmission | null>(null);
   const [versionConflictDialog, setVersionConflictDialog] =
     useState<VersionConflictDialogState | null>(null);
 
@@ -197,20 +231,99 @@ export const useConversationSubmission = ({
     {
       refetchOnMount: false,
       refetchOnStale: false,
-    }
+    },
   );
 
-  const isAwaitingProgress =
-    awaitingProgress !== null &&
-    !hasObservedProgress(
-      awaitingProgress,
+  const currentFacts = useRef({
+    canSubmit,
+    activeConversation,
+    messages: conversationMessages.data,
+  });
+  currentFacts.current = {
+    canSubmit,
+    activeConversation,
+    messages: conversationMessages.data,
+  };
+  const currentPending =
+    pending?.conversationId === activeConversation.id ? pending : null;
+  const acknowledged =
+    currentPending !== null &&
+    hasObservedProgress(
+      currentPending,
       activeConversation,
-      conversationMessages.data
+      conversationMessages.data,
     );
+  const phase =
+    currentPending?.phase === "sending"
+      ? "sending"
+      : currentPending && !acknowledged
+        ? "awaiting-persistence"
+        : "idle";
 
   useEffect(() => {
-    if (awaitingProgress && !isAwaitingProgress) setAwaitingParentMessageId(null);
-  }, [awaitingProgress, isAwaitingProgress]);
+    if (currentPending?.phase === "awaiting-persistence" && acknowledged) {
+      if (pendingRef.current === currentPending) {
+        pendingRef.current = null;
+      }
+      setPending((current) => (current === currentPending ? null : current));
+    }
+  }, [currentPending, acknowledged]);
+
+  const executeSubmission = useCallback(
+    async (parentMessageId: string | null, submit: () => Promise<void>) => {
+      const facts = currentFacts.current;
+      if (!facts.canSubmit) {
+        throw new Error("Conversation input is unavailable.");
+      }
+      const existing = pendingRef.current;
+      if (
+        existing?.conversationId === facts.activeConversation.id &&
+        (existing.phase === "sending" ||
+          !hasObservedProgress(
+            existing,
+            facts.activeConversation,
+            facts.messages,
+          ))
+      ) {
+        throw new Error("A reply is already being submitted.");
+      }
+      const request: PendingSubmission = {
+        conversationId: facts.activeConversation.id,
+        parentMessageId,
+        initialUserIds: new Set(
+          userMessages(facts.messages).map((message) => message.id),
+        ),
+        phase: "sending",
+      };
+      pendingRef.current = request;
+      setPending(request);
+      try {
+        await submit();
+        if (pendingRef.current !== request) {
+          return;
+        }
+        const latest = currentFacts.current;
+        const next =
+          latest.activeConversation.id === request.conversationId &&
+          hasObservedProgress(
+            request,
+            latest.activeConversation,
+            latest.messages,
+          )
+            ? null
+            : { ...request, phase: "awaiting-persistence" as const };
+        pendingRef.current = next;
+        setPending(next);
+      } catch (error) {
+        if (pendingRef.current === request) {
+          pendingRef.current = null;
+          setPending(null);
+        }
+        throw error;
+      }
+    },
+    [],
+  );
 
   // Handle version conflicts with dialog
   const handleVersionConflict = useCallback(
@@ -218,7 +331,7 @@ export const useConversationSubmission = ({
       error: VersionConflictError,
       originalFormData: Record<string, FormValue>,
       parentMessageId: string,
-      options?: SecondaryActionSubmitOptions
+      options?: SecondaryActionSubmitOptions,
     ) => {
       logVersionInfo("Handling version conflict in ConversationViewer", {
         conversationId: activeConversation.id,
@@ -251,7 +364,7 @@ export const useConversationSubmission = ({
         },
       });
     },
-    [activeConversation.id, emit]
+    [activeConversation.id, emit],
   );
 
   // Enhanced handle form submission with version checking
@@ -259,7 +372,7 @@ export const useConversationSubmission = ({
     async (
       data: Record<string, FormValue>,
       parentMessageId: string,
-      options?: SecondaryActionSubmitOptions
+      options?: SecondaryActionSubmitOptions,
     ) => {
       if (!activeConversation || !project) {
         console.error("Missing required data for message submission");
@@ -269,7 +382,7 @@ export const useConversationSubmission = ({
       const isLegacyRepositoryImport = isLegacyRepositoryImportReply(
         activeConversation,
         conversationMessages.data,
-        parentMessageId
+        parentMessageId,
       );
       const isRepositoryImportConversation =
         activeConversation.workflowName === "repository-import" ||
@@ -294,113 +407,111 @@ export const useConversationSubmission = ({
         parentMessageId,
         activeConversation,
         project.id,
-        options?.handler as CreateUserMessage["handler"] | undefined
+        options?.handler as CreateUserMessage["handler"] | undefined,
       );
 
-      setIsSubmitting(true);
-      setAwaitingParentMessageId(null);
       const workflowAnswerOperationId =
         workflowSubmission?.kind === "structured-answer"
           ? crypto.randomUUID()
           : null;
 
       try {
-        if (isOnboardingConversation) {
-          if (!onSubmitOnboardingReply) {
-            throw new Error(
-              "This onboarding conversation has no reply submission owner."
-            );
-          }
+        await executeSubmission(parentMessageId, async () => {
+          if (isOnboardingConversation) {
+            if (!onSubmitOnboardingReply) {
+              throw new Error(
+                "This onboarding conversation has no reply submission owner.",
+              );
+            }
 
-          await onSubmitOnboardingReply({
-            parentMessageId,
-            answers: projectOnboardingReviewAnswers(data),
-          });
-        } else if (isRepositoryImportConversation) {
-          if (!onSubmitRepositoryImportReply) {
-            throw new Error(
-              "This repository import has no reply submission owner."
-            );
-          }
-          await onSubmitRepositoryImportReply({
-            parentMessageId,
-            expectedConversationVersion: activeConversation.version,
-            answers: projectRepositoryImportReviewAnswers(data),
-          });
-        } else if (workflowSubmission?.kind === "structured-answer") {
-          // Workflow answers reuse the operation identity allocated above, so
-          // transport retries remain safe on their dedicated durable rail.
-          await retryWithBackoff(
-            async () => {
-              if (!workflowAnswerOperationId) {
-                throw new Error(
-                  "The workflow answer is missing its operation identity."
-                );
-              }
-              if (!agentSessionId) {
-                throw new Error(
-                  "Agent session is required before submitting a workflow answer."
-                );
-              }
-              const nodeId =
-                options?.nodeId?.trim() ||
-                getLatestSystemNodeId(conversationMessages.orderedData);
-              if (!nodeId) {
-                throw new Error(
-                  "The workflow answer is missing the source message nodeId."
-                );
-              }
-              await submitControllerAuthorizedWorkflowAnswer({
-                operationId: workflowAnswerOperationId,
-                organizationId: project.organizationId,
-                projectId: project.id,
-                agentSessionId,
-                conversationId: activeConversation.id,
-                workflowName: activeConversation.workflowName,
-                nodeId,
-                parentMessageId,
-                action: workflowSubmission.action,
-                payload: workflowSubmission.payload,
-              });
-            },
-            { maxRetries: 3, baseDelay: 1000, maxDelay: 5000 },
-            `workflow-answer-${activeConversation.id}`
-          );
-        } else {
-          if (onDirectTrigger) {
-            // One explicit gesture creates one operation. A changed-intent
-            // conflict is surfaced for a fresh user-confirmed submission rather
-            // than replaying operation creation under generic backoff.
-            await onDirectTrigger(userMessage);
-          } else if (onPersistMessage) {
+            await onSubmitOnboardingReply({
+              parentMessageId,
+              answers: projectOnboardingReviewAnswers(data),
+            });
+          } else if (isRepositoryImportConversation) {
+            if (!onSubmitRepositoryImportReply) {
+              throw new Error(
+                "This repository import has no reply submission owner.",
+              );
+            }
+            await onSubmitRepositoryImportReply({
+              parentMessageId,
+              expectedConversationVersion: activeConversation.version,
+              answers: projectRepositoryImportReviewAnswers(data),
+            });
+          } else if (workflowSubmission?.kind === "structured-answer") {
+            // Workflow answers reuse the operation identity allocated above, so
+            // transport retries remain safe on their dedicated durable rail.
             await retryWithBackoff(
-              () => onPersistMessage(userMessage),
-              {
-                maxRetries: 3,
-                baseDelay: 1000,
-                maxDelay: 5000,
-                onRetry: (_attempt: number, error: unknown) => {
-                  if (
-                    isVersionConflictError(error) &&
-                    error.latestConversation
-                  ) {
-                    userMessage.expectedConversationVersion =
-                      error.latestConversation.version;
-                  }
-                },
+              async () => {
+                if (!workflowAnswerOperationId) {
+                  throw new Error(
+                    "The workflow answer is missing its operation identity.",
+                  );
+                }
+                if (!agentSessionId) {
+                  throw new Error(
+                    "Agent session is required before submitting a workflow answer.",
+                  );
+                }
+                const nodeId =
+                  options?.nodeId?.trim() ||
+                  getLatestSystemNodeId(conversationMessages.orderedData);
+                if (!nodeId) {
+                  throw new Error(
+                    "The workflow answer is missing the source message nodeId.",
+                  );
+                }
+                await submitControllerAuthorizedWorkflowAnswer({
+                  operationId: workflowAnswerOperationId,
+                  organizationId: project.organizationId,
+                  projectId: project.id,
+                  agentSessionId,
+                  conversationId: activeConversation.id,
+                  workflowName: activeConversation.workflowName,
+                  nodeId,
+                  parentMessageId,
+                  action: workflowSubmission.action,
+                  payload: workflowSubmission.payload,
+                });
               },
-              `message-persistence-${activeConversation.id}`
+              { maxRetries: 3, baseDelay: 1000, maxDelay: 5000 },
+              `workflow-answer-${activeConversation.id}`,
             );
           } else {
-            throw new Error(
-              "This conversation has no message submission owner."
-            );
+            if (onDirectTrigger) {
+              // One explicit gesture creates one operation. A changed-intent
+              // conflict is surfaced for a fresh user-confirmed submission rather
+              // than replaying operation creation under generic backoff.
+              await onDirectTrigger(userMessage);
+            } else if (onPersistMessage) {
+              await retryWithBackoff(
+                () => onPersistMessage(userMessage),
+                {
+                  maxRetries: 3,
+                  baseDelay: 1000,
+                  maxDelay: 5000,
+                  onRetry: (_attempt: number, error: unknown) => {
+                    if (
+                      isVersionConflictError(error) &&
+                      error.latestConversation
+                    ) {
+                      userMessage.expectedConversationVersion =
+                        error.latestConversation.version;
+                    }
+                  },
+                },
+                `message-persistence-${activeConversation.id}`,
+              );
+            } else {
+              throw new Error(
+                "This conversation has no message submission owner.",
+              );
+            }
           }
-        }
-
+        });
         console.log("📤 Message sent successfully, waiting for updates...");
 
-        setAwaitingParentMessageId(parentMessageId);
         await onConversationUpdated?.();
 
         // Emit success event
@@ -435,11 +546,10 @@ export const useConversationSubmission = ({
             payload: { error, data, parentMessageId },
           });
         }
-      } finally {
-        setIsSubmitting(false);
       }
     },
     [
+      executeSubmission,
       activeConversation,
       project,
       agentSessionId,
@@ -452,7 +562,7 @@ export const useConversationSubmission = ({
       retryWithBackoff,
       conversationMessages.data,
       conversationMessages.orderedData,
-    ]
+    ],
   );
 
   // Handle analysis acknowledgment
@@ -472,32 +582,31 @@ export const useConversationSubmission = ({
         parentMessageId: messageId,
       };
 
-      setIsSubmitting(true);
-      setAwaitingParentMessageId(null);
-
       try {
-        if (activeConversation.workflowName === "onboarding") {
-          if (!onSubmitOnboardingReply) {
+        await executeSubmission(messageId, async () => {
+          if (activeConversation.workflowName === "onboarding") {
+            if (!onSubmitOnboardingReply) {
+              throw new Error(
+                "This onboarding conversation has no reply submission owner.",
+              );
+            }
+
+            await onSubmitOnboardingReply({
+              parentMessageId: messageId,
+              answers: { message: "acknowledged" },
+            });
+          } else if (onDirectTrigger) {
+            await onDirectTrigger(userMessage);
+          } else if (onPersistMessage) {
+            await onPersistMessage(userMessage);
+          } else {
             throw new Error(
-              "This onboarding conversation has no reply submission owner."
+              "This conversation has no message submission owner.",
             );
           }
-
-          await onSubmitOnboardingReply({
-            parentMessageId: messageId,
-            answers: { message: "acknowledged" },
-          });
-        } else if (onDirectTrigger) {
-          await onDirectTrigger(userMessage);
-        } else if (onPersistMessage) {
-          await onPersistMessage(userMessage);
-        } else {
-          throw new Error("This conversation has no message submission owner.");
-        }
-
+        });
         console.log("📤 Analysis acknowledged, waiting for updates...");
 
-        setAwaitingParentMessageId(messageId);
         await onConversationUpdated?.();
 
         // Emit acknowledgment event
@@ -517,11 +626,10 @@ export const useConversationSubmission = ({
             parentMessageId: messageId,
           },
         });
-      } finally {
-        setIsSubmitting(false);
       }
     },
     [
+      executeSubmission,
       activeConversation,
       project,
       onConversationUpdated,
@@ -529,7 +637,7 @@ export const useConversationSubmission = ({
       onPersistMessage,
       onSubmitOnboardingReply,
       emit,
-    ]
+    ],
   );
 
   // Handle retry success after system message retry
@@ -553,7 +661,7 @@ export const useConversationSubmission = ({
           event.payload.error,
           event.payload.originalFormData,
           event.payload.parentMessageId,
-          event.payload.options
+          event.payload.options,
         );
       }
     });
@@ -563,7 +671,7 @@ export const useConversationSubmission = ({
         await handleNext(
           event.payload.data,
           event.payload.parentId,
-          event.payload.options
+          event.payload.options,
         );
       }
     });
@@ -575,7 +683,9 @@ export const useConversationSubmission = ({
   }, [on, handleNext, handleVersionConflict]);
 
   return {
-    isSubmitting: isSubmitting || isAwaitingProgress,
+    phase,
+    executeSubmission,
+    isSubmitting: phase !== "idle",
     versionConflictDialog,
     handleNext,
     handleRetrySuccess,

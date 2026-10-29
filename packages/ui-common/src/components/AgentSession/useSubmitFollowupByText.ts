@@ -70,6 +70,7 @@ export function useSubmitFollowupByText({
       followupAction,
       skillSelection,
       attachments = [],
+      parentMessageId = null,
     }: {
       promptText: string;
       clearDraftOnSuccess: boolean;
@@ -81,6 +82,7 @@ export function useSubmitFollowupByText({
       followupAction: FollowupSubmissionAction | null;
       skillSelection?: AgentSkillSelection;
       attachments?: RunAttachmentReference[];
+      parentMessageId?: string | null;
     }) => {
       if (!runId) {
         logError(`${actionName}: NO ACTIVE RUN`, null);
@@ -123,6 +125,7 @@ export function useSubmitFollowupByText({
           localPromptType: followupLocalPromptType,
           skillSelection,
           attachments,
+          parentMessageId,
         });
         trackSubmitPromptTelemetry(result);
         if (!result.ok) {

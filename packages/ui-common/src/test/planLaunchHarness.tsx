@@ -1,3 +1,5 @@
+import { renderConversationFooterFixture } from "./conversationFooterFixture";
+import type { PersistedConversationViewerProps } from "../components/Conversation/ConversationViewer";
 import React from "react";
 import { beforeEach, vi } from "vitest";
 import { createStore, Provider } from "jotai";
@@ -104,7 +106,12 @@ vi.mock("../data/hooks/useProject", () => ({
 }));
 vi.mock("../components/Conversation/ConversationViewer", () => ({
   DISABLED_CONVERSATION_SCROLL_POLICY: { mode: "disabled" },
-  ConversationViewer: () => <div data-testid="empty-conversation-history" />,
+  ConversationViewer: (props: PersistedConversationViewerProps) => (
+    <>
+      <div data-testid="empty-conversation-history" />
+      {renderConversationFooterFixture(props)}
+    </>
+  ),
 }));
 vi.mock(
   "../components/AgentSession/surfaceSelectionMemory",

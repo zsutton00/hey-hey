@@ -4,20 +4,15 @@ import type { RunAttachmentReference } from "../../api";
 import type { TriageApplicationCoordinator } from "../../data/triage/application";
 import type { OpenItemsTriageItem } from "../../api";
 import { useAgentLaunchHandoff } from "./operations/useAgentLaunchHandoff";
-import {
-  resolveReplyComposerState,
-  type ReplyComposerPolicy,
-} from "./replyComposerPolicy";
+import { resolveReplyComposerState } from "./replyComposerPolicy";
+import type { ConversationFooterState } from "../Conversation/Components/ConversationContext";
 import { NO_RESPONSE_TARGET } from "../Conversation/utils/conversationResponseModel";
-import type {
-  ConversationResponseTarget,
-  ResponseTargetChangeHandler,
-} from "../Conversation/Components/conversationFormTypes";
 import { DataStateBoundary } from "../shared/DataStateBoundary";
 import { SharedLoading } from "../shared/SharedLoading";
 import type { ConversationPreviewInput } from "../../types/conversation";
 import { Alert, Box, Paper, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 import {
   AgentSessionCurrentState,
@@ -100,6 +95,7 @@ export interface AgentConversationViewProps {
     text: string,
     skillSelection?: AgentSkillSelection,
     attachments?: RunAttachmentReference[],
+    parentMessageId?: string | null,
   ) => Promise<void>;
   onSubmitMessageAgent?: (
     intent: MessageAgentCommandIntent,
@@ -126,11 +122,6 @@ export interface AgentConversationViewProps {
    */
   preview?: ConversationPreviewInput;
   hideComposer?: boolean;
-  /**
-   * Owner-selected composer visibility. Defaults to always offering the
-   * composer; plan generation opts into `when-no-usable-response`.
-   */
-  composerPolicy?: ReplyComposerPolicy;
   readOnly?: boolean;
   /** Historical sessions without a durable machine binding cannot resume. */
   sessionResumability?: "resumable" | "legacy_non_resumable";
@@ -201,7 +192,6 @@ const AgentConversationViewInner = ({
   forceRunProcessing = false,
   preview,
   hideComposer = false,
-  composerPolicy = "always",
   readOnly = false,
   sessionResumability = "resumable",
   scrollable = false,
@@ -306,48 +296,6 @@ const AgentConversationViewInner = ({
     preferStale: true,
   });
 
-  const [responseState, setResponseState] = useState<{
-    conversationId: string;
-    target: ConversationResponseTarget;
-    messagesSettled: boolean;
-  } | null>(null);
-  const captureResponseTarget = useCallback<ResponseTargetChangeHandler>(
-    (target, sourceConversationId, messagesSettled) => {
-      setResponseState({
-        conversationId: sourceConversationId,
-        target,
-        messagesSettled,
-      });
-    },
-    [],
-  );
-  const targetCurrent = Boolean(
-    displayConversation &&
-    displayConversation.id === normalizedConversationId &&
-    responseState?.conversationId === normalizedConversationId &&
-    responseState.messagesSettled &&
-    !projectQuery.isLoading &&
-    !projectQuery.error &&
-    projectQuery.data,
-  );
-  // A conversation or project that fails to load settles with no target.
-  const targetSettled =
-    targetCurrent || Boolean(conversationError) || Boolean(projectQuery.error);
-  // Keep the composer mounted while hidden so unsent drafts survive.
-  const { hidden: composerHidden, availability: replyAvailability } =
-    resolveReplyComposerState({
-      policy: composerPolicy,
-      target:
-        targetCurrent && responseState
-          ? responseState.target
-          : NO_RESPONSE_TARGET,
-      targetSettled,
-      hideComposer,
-      readOnly,
-      canSubmit: interactionAccess.isDeviceEnabled,
-      submitting: submittingPrompt,
-    });
-
   const replyMessageContext = displayConversation
     ? {
         organizationId,
@@ -364,6 +312,7 @@ const AgentConversationViewInner = ({
       : undefined;
 
   const scrollportRef = useRef<HTMLDivElement>(null);
+  const [metadataHost, setMetadataHost] = useState<HTMLDivElement | null>(null);
   const scrollPolicy = useMemo<ConversationScrollPolicy>(
     () =>
       suppliedScrollPolicy ??
@@ -426,9 +375,10 @@ const AgentConversationViewInner = ({
       text: string,
       skillSelection?: AgentSkillSelection,
       attachments: RunAttachmentReference[] = [],
+      parentMessageId: string | null = null,
     ): Promise<void> => {
       if (onSubmitReply) {
-        await onSubmitReply(text, skillSelection, attachments);
+        await onSubmitReply(text, skillSelection, attachments, parentMessageId);
         return;
       }
       if (!displayConversation) {
@@ -443,7 +393,9 @@ const AgentConversationViewInner = ({
             data: buildUserMessageData({
               attachments,
               agentInput: buildFollowupAgentInput(
-                "coding_freeform",
+                displayConversation.workflowId
+                  ? "workflow-defined"
+                  : "coding_freeform",
                 text,
                 undefined,
                 skillSelection,
@@ -452,6 +404,7 @@ const AgentConversationViewInner = ({
           };
       await handleDirectTrigger({
         ...reply,
+        parentMessageId,
         data: { ...reply.data, attachments },
       });
     },
@@ -462,6 +415,124 @@ const AgentConversationViewInner = ({
       onSubmitReply,
     ],
   );
+
+  const renderFooter = (state?: ConversationFooterState) => {
+    const model = state?.model;
+    const submitting = model ? model.submission !== "idle" : submittingPrompt;
+    const presentation =
+      model?.activity.presentation ?? platformCurrentStatePresentation;
+    const { hidden: composerHidden, availability: replyAvailability } =
+      resolveReplyComposerState({
+        target: model?.target ?? NO_RESPONSE_TARGET,
+        targetSettled:
+          model?.data.settled ??
+          Boolean(conversationError || projectQuery.error),
+        hideComposer,
+        readOnly: model?.permission.readOnly ?? readOnly,
+        canSubmit: model?.permission.canSubmit ?? false,
+        submitting,
+      });
+    const submitReply = async (
+      text: string,
+      skills?: AgentSkillSelection,
+      attachments?: RunAttachmentReference[],
+    ) => {
+      if (!state || !replyAvailability.available) {
+        throw new Error("Conversation is not ready for a reply.");
+      }
+      const parentMessageId = state.model.replyParentMessageId;
+      await state.executeSubmission(parentMessageId, () =>
+        handleSubmitReply(text, skills, attachments, parentMessageId),
+      );
+    };
+    return (
+      <>
+        {platformCurrentState &&
+        presentation &&
+        (presentation.isActive || presentation.isActionable) ? (
+          <AgentSessionCurrentStateIndicator
+            currentState={platformCurrentState}
+            presentation="animated"
+            sx={{ marginTop: "20px", marginBottom: "40px" }}
+          />
+        ) : null}
+
+        {showLaunchHandoff && (
+          <Box data-testid="agent-launch-handoff">
+            <SharedLoading />
+          </Box>
+        )}
+
+        {subagentComposition.cancellationError && (
+          <Alert severity="error" data-testid="subagent-cancellation-error">
+            {subagentComposition.cancellationError}
+          </Alert>
+        )}
+
+        {hideComposer ? null : (
+          <Box hidden={composerHidden}>
+            <ExternalReplyComposer
+              attachmentTarget={attachmentTarget}
+              key={JSON.stringify([
+                organizationId,
+                projectId,
+                agentSessionId,
+                conversationId,
+              ])}
+              messageContext={replyMessageContext}
+              submittingPrompt={submitting}
+              onSubmitReply={submitReply}
+              subagentCapability={subagentComposition.capability}
+              onSubmitMessageAgent={onSubmitMessageAgent}
+              onCreateNewConversation={onCreateNewConversation}
+              initialDraft={initialDraft}
+              onDraftChange={captureDraft}
+              confirmBeforeNewConversation={confirmBeforeNewConversation}
+              onStopRun={subagentComposition.stop}
+              stoppingRun={stoppingRun || subagentComposition.cancelling}
+              runProcessing={
+                state?.model.activity.processing ?? effectiveRunProcessing
+              }
+              fileReferenceScope={fileReferenceScope}
+              agentSessionMetadata={
+                composerHidden ? undefined : agentSessionMetadata
+              }
+              newConversationModelSelector={newConversationModelSelector}
+              attachedAgent={composerAttachedAgent}
+              focusSignal={composerFocusSignal}
+              availability={replyAvailability}
+              editorReplacement={
+                recoveryState.type !== "ready" &&
+                recoveryState.type !== "loading" ? (
+                  <AgentBridgeRecoveryNotice
+                    state={recoveryState}
+                    presentation="composer"
+                    onStartNewSession={
+                      onCreateNewConversation
+                        ? () => {
+                            void onCreateNewConversation(initialDraft ?? "");
+                          }
+                        : undefined
+                    }
+                  />
+                ) : undefined
+              }
+            />
+          </Box>
+        )}
+
+        {composerHidden && agentSessionMetadata && metadataHost
+          ? createPortal(
+              <AgentSessionMetadata
+                placement="below-conversation"
+                {...agentSessionMetadata}
+              />,
+              metadataHost,
+            )
+          : null}
+      </>
+    );
+  };
 
   return (
     <Paper
@@ -574,7 +645,12 @@ const AgentConversationViewInner = ({
                 agentSessionCurrentState={platformCurrentState}
                 taskMonitorId={taskMonitorId}
                 conversationFormResolver={conversationFormResolver}
-                onResponseTargetChange={captureResponseTarget}
+                renderFooter={renderFooter}
+                ownerCanSubmit={interactionAccess.isDeviceEnabled}
+                ownerSubmitting={submittingPrompt}
+                forceProcessing={
+                  forceRunProcessing || subagentComposition.waiting
+                }
                 planId={planId}
                 stepId={stepId}
                 project={projectQuery.data}
@@ -617,92 +693,19 @@ const AgentConversationViewInner = ({
             </Box>
           ) : null}
 
-          {platformCurrentState &&
-          platformCurrentStatePresentation &&
-          (platformCurrentStatePresentation.isActive ||
-            platformCurrentStatePresentation.isActionable) ? (
-            <AgentSessionCurrentStateIndicator
-              currentState={platformCurrentState}
-              presentation="animated"
-              sx={{ marginTop: "20px", marginBottom: "40px" }}
-            />
-          ) : null}
-
-          {showLaunchHandoff && (
-            <Box data-testid="agent-launch-handoff">
-              <SharedLoading />
-            </Box>
-          )}
-
-          {subagentComposition.cancellationError && (
-            <Alert severity="error" data-testid="subagent-cancellation-error">
-              {subagentComposition.cancellationError}
-            </Alert>
-          )}
-
-          {hideComposer ? null : (
-            <Box hidden={composerHidden}>
-              <ExternalReplyComposer
-                attachmentTarget={attachmentTarget}
-                key={JSON.stringify([
-                  organizationId,
-                  projectId,
-                  agentSessionId,
-                  conversationId,
-                ])}
-                messageContext={replyMessageContext}
-                submittingPrompt={submittingPrompt}
-                onSubmitReply={handleSubmitReply}
-                subagentCapability={subagentComposition.capability}
-                onSubmitMessageAgent={onSubmitMessageAgent}
-                onCreateNewConversation={onCreateNewConversation}
-                initialDraft={initialDraft}
-                onDraftChange={captureDraft}
-                confirmBeforeNewConversation={confirmBeforeNewConversation}
-                onStopRun={subagentComposition.stop}
-                stoppingRun={stoppingRun || subagentComposition.cancelling}
-                runProcessing={
-                  effectiveRunProcessing || subagentComposition.waiting
-                }
-                fileReferenceScope={fileReferenceScope}
-                agentSessionMetadata={
-                  composerHidden ? undefined : agentSessionMetadata
-                }
-                newConversationModelSelector={newConversationModelSelector}
-                attachedAgent={composerAttachedAgent}
-                focusSignal={composerFocusSignal}
-                availability={replyAvailability}
-                editorReplacement={
-                  recoveryState.type !== "ready" &&
-                  recoveryState.type !== "loading" ? (
-                    <AgentBridgeRecoveryNotice
-                      state={recoveryState}
-                      presentation="composer"
-                      onStartNewSession={
-                        onCreateNewConversation
-                          ? () => {
-                              void onCreateNewConversation(initialDraft ?? "");
-                            }
-                          : undefined
-                      }
-                    />
-                  ) : undefined
-                }
-              />
-            </Box>
-          )}
+          {!displayConversation ||
+          projectQuery.isLoading ||
+          projectQuery.error ||
+          !projectQuery.data
+            ? renderFooter()
+            : null}
 
           {actionsSlot}
 
           <Box sx={{ height: 100 }} />
         </Stack>
       </Box>
-      {composerHidden && agentSessionMetadata ? (
-        <AgentSessionMetadata
-          placement="below-conversation"
-          {...agentSessionMetadata}
-        />
-      ) : null}
+      <div ref={setMetadataHost} />
     </Paper>
   );
 };
