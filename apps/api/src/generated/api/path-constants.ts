@@ -346,6 +346,7 @@ export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_OUTP
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_OUTPUT_ATTENTION_READY_PATH = '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/output-attention:ready';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_OUTPUT_ATTENTION_ACKNOWLEDGE_PATH = '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/output-attention:acknowledge';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_PAGINATED_PATH = '/organizations/{organizationId}/projects/{projectId}/agent-sessions/paginated';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_ROUTING_PATH = '/organizations/{organizationId}/projects/{projectId}/agent-sessions/routing';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_WORK_ITEM_COORDINATOR_PATH = '/organizations/{organizationId}/projects/{projectId}/agent-sessions/work-item-coordinator';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_PATH = '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_SERVICE_GRANTS_PATH = '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/service-grants';
@@ -392,6 +393,7 @@ export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSALS_PROPOSALI
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSALS_PROPOSALID_RECONCILIATION_AGENT_FIX_REQUEST_PATH = '/organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/reconciliation/agent-fix-request';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSALS_PROPOSALID_VALIDATE_PATH = '/organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/validate';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSALS_PROPOSALID_REJECT_PATH = '/organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/reject';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSALS_PROPOSALID_REVIEW_NOTES_PATH = '/organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/review-notes';
 export const ANALYTICS_EVENTS_PATH = '/analytics/events';
 export const ANALYTICS_ATTENTION_PATH = '/analytics/attention';
 export const MCP_HEALTH_PATH = '/mcp/health';

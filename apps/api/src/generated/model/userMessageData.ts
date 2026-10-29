@@ -11,6 +11,7 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
+import { ProposalReviewNoteRecord } from './proposalReviewNoteRecord';
 import { AgentTrigger } from './agentTrigger';
 import { UserMessageAgentInput } from './userMessageAgentInput';
 import { RunAttachmentReference } from './runAttachmentReference';
@@ -24,6 +25,7 @@ export interface UserMessageData {
   [key: string]: any | any;
 
 
+    proposalReviewNote?: ProposalReviewNoteRecord;
     type?: UserMessageDataType;
     /**
      * Optional general comment from the user
