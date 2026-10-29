@@ -1,15 +1,74 @@
 import React, { useId, useLayoutEffect, useRef, useState } from "react";
 import { Box } from "@mui/material";
-import { layoutExecutionGraph } from "../shared/ExecutionGraph/layoutExecutionGraph";
 import type { WorkflowGraphSurfaceData } from "../shared/WorkflowMentionInlineRenderer";
+import { placeJourneyScreens } from "./placeJourneyScreens";
 
 type Step = WorkflowGraphSurfaceData["steps"][number];
+
+/** Plain canvas gray: the UX Flow Grid View mockup's light gray, or a dark gray in dark mode. */
+const CANVAS_COLOR = { light: "#f0f2f5", dark: "#1e2126" };
+const TRANSITION_COLOR = { light: "#5f6670", dark: "#a3aab4" };
+const SCREEN_WIDTH = 400;
+const DEFAULT_SCREEN_HEIGHT = 600;
+const COLUMN_GAP = 160;
+const ROW_GAP = 96;
+const ARROW_INSET = 8;
+/** Keeps horizontal arrows near the top of tall screens. */
+const MAX_ANCHOR_OFFSET = 180;
+
+interface ScreenBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Joins the facing sides of two screens: left/right across columns, top/bottom within one. */
+function transitionAnchors(source: ScreenBox, target: ScreenBox) {
+  const horizontal = source.x !== target.x;
+  if (horizontal) {
+    const eastward = target.x > source.x;
+    return {
+      start: {
+        horizontal,
+        x: eastward
+          ? source.x + source.width + ARROW_INSET
+          : source.x - ARROW_INSET,
+        y: source.y + Math.min(source.height / 2, MAX_ANCHOR_OFFSET),
+      },
+      end: {
+        x: eastward
+          ? target.x - ARROW_INSET
+          : target.x + target.width + ARROW_INSET,
+        y: target.y + Math.min(target.height / 2, MAX_ANCHOR_OFFSET),
+      },
+    };
+  }
+  const southward = target.y > source.y;
+  return {
+    start: {
+      horizontal,
+      x: source.x + source.width / 2,
+      y: southward
+        ? source.y + source.height + ARROW_INSET
+        : source.y - ARROW_INSET,
+    },
+    end: {
+      x: target.x + target.width / 2,
+      y: southward
+        ? target.y - ARROW_INSET
+        : target.y + target.height + ARROW_INSET,
+    },
+  };
+}
 
 export const JourneyCanvas: React.FC<{
   steps: WorkflowGraphSurfaceData["steps"];
   edges: WorkflowGraphSurfaceData["edges"];
+  /** Positions saved on the Diagram, keyed by step id. */
+  savedPositions: ReadonlyMap<string, { x: number; y: number }>;
   renderScreen: (step: Step) => React.ReactNode;
-}> = ({ steps, edges, renderScreen }) => {
+}> = ({ steps, edges, savedPositions, renderScreen }) => {
   const markerId = useId();
   const container = useRef<HTMLDivElement>(null);
   const [heights, setHeights] = useState<Record<string, number>>({});
@@ -37,53 +96,85 @@ export const JourneyCanvas: React.FC<{
     elements.forEach((element) => observer.observe(element));
     return () => observer.disconnect();
   }, [steps]);
-  const layout = layoutExecutionGraph(
-    {
-      nodes: steps.map((step) => ({
-        id: step.id,
-        title: step.name,
-        state: "idle",
-        metadata: [],
-      })),
-      dependencyEdges: edges.map((edge) => ({
-        id: edge.id,
-        sourceNodeId: edge.sourceNodeId,
-        targetNodeId: edge.targetNodeId,
-      })),
-    },
-    Object.fromEntries(steps.map((step) => [step.id, heights[step.id] ?? 600])),
+  const cells = placeJourneyScreens(
+    steps.map((step) => step.id),
+    edges.map((edge) => ({
+      sourceId: edge.sourceNodeId,
+      targetId: edge.targetNodeId,
+    })),
+    savedPositions,
   );
-  const positions = new Map(layout.nodes.map((node) => [node.id, node]));
+  const rowCount = Math.max(
+    0,
+    ...[...cells.values()].map(({ row }) => row + 1),
+  );
+  const columnCount = Math.max(
+    0,
+    ...[...cells.values()].map(({ column }) => column + 1),
+  );
+  const rowHeights = Array.from({ length: rowCount }, (_, row) =>
+    Math.max(
+      0,
+      ...steps
+        .filter((step) => cells.get(step.id)?.row === row)
+        .map((step) => heights[step.id] ?? DEFAULT_SCREEN_HEIGHT),
+    ),
+  );
+  const rowTops = rowHeights.map((_, row) =>
+    rowHeights.slice(0, row).reduce((top, height) => top + height + ROW_GAP, 0),
+  );
+  const totalWidth = Math.max(
+    0,
+    columnCount * (SCREEN_WIDTH + COLUMN_GAP) - COLUMN_GAP,
+  );
+  const totalHeight = Math.max(
+    0,
+    rowHeights.reduce((sum, height) => sum + height + ROW_GAP, 0) - ROW_GAP,
+  );
+  const positions = new Map(
+    steps.flatMap((step) => {
+      const cell = cells.get(step.id);
+      if (!cell) {
+        return [];
+      }
+      const box: ScreenBox = {
+        x: cell.column * (SCREEN_WIDTH + COLUMN_GAP),
+        y: rowTops[cell.row],
+        width: SCREEN_WIDTH,
+        height: heights[step.id] ?? DEFAULT_SCREEN_HEIGHT,
+      };
+      return [[step.id, box] as const];
+    }),
+  );
   return (
     <Box
       ref={container}
       sx={{
         overflow: "auto",
-        bgcolor: "background.default",
-        backgroundImage: (theme) =>
-          `radial-gradient(${theme.palette.divider} 1px, transparent 1px)`,
-        backgroundSize: "16px 16px",
+        bgcolor: (theme) => CANVAS_COLOR[theme.palette.mode],
         p: 3,
       }}
     >
       <Box
         sx={{
           position: "relative",
-          width: layout.totalWidth,
-          height: layout.totalHeight,
+          width: totalWidth,
+          height: totalHeight,
         }}
       >
         <Box
           component="svg"
-          width={layout.totalWidth}
-          height={layout.totalHeight}
-          sx={(theme) => ({
+          width={totalWidth}
+          height={totalHeight}
+          sx={{
             position: "absolute",
             inset: 0,
             overflow: "visible",
-            color: "text.secondary",
-            "& text": { stroke: theme.palette.background.default },
-          })}
+            color: (theme) => TRANSITION_COLOR[theme.palette.mode],
+            "& text": {
+              stroke: (theme) => CANVAS_COLOR[theme.palette.mode],
+            },
+          }}
         >
           <defs>
             <marker
@@ -104,11 +195,13 @@ export const JourneyCanvas: React.FC<{
             if (!source || !target) {
               return null;
             }
-            const x1 = source.position.x + source.width + 8;
-            const x2 = target.position.x - 8;
-            const y1 = source.position.y + Math.min(source.height / 2, 180);
-            const y2 = target.position.y + Math.min(target.height / 2, 180);
-            const mid = (x1 + x2) / 2;
+            const { start, end } = transitionAnchors(source, target);
+            const midX = (start.x + end.x) / 2;
+            const midY = (start.y + end.y) / 2;
+            const horizontal = start.horizontal;
+            const curve = horizontal
+              ? `C ${midX} ${start.y}, ${midX} ${end.y}`
+              : `C ${start.x} ${midY}, ${end.x} ${midY}`;
             return (
               <g
                 key={edge.id}
@@ -116,15 +209,15 @@ export const JourneyCanvas: React.FC<{
                 data-edge-id={edge.id}
               >
                 <path
-                  d={`M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`}
+                  d={`M ${start.x} ${start.y} ${curve}, ${end.x} ${end.y}`}
                   stroke="currentColor"
                   fill="none"
                   markerEnd={`url(#${markerId})`}
                 />
                 <text
-                  x={mid}
-                  y={(y1 + y2) / 2 - 12}
-                  textAnchor="middle"
+                  x={horizontal ? midX : midX + 8}
+                  y={horizontal ? midY - 12 : midY}
+                  textAnchor={horizontal ? "middle" : "start"}
                   fill="currentColor"
                   fontSize="12"
                   paintOrder="stroke"
@@ -136,18 +229,18 @@ export const JourneyCanvas: React.FC<{
             );
           })}
         </Box>
-        {layout.nodes.map((node) => {
-          const step = steps.find((step) => step.id === node.id);
-          return step ? (
+        {steps.map((step) => {
+          const box = positions.get(step.id);
+          return box ? (
             <Box
-              key={node.id}
+              key={step.id}
               data-testid="journey-screen"
-              data-step-id={node.id}
+              data-step-id={step.id}
               sx={{
                 position: "absolute",
-                left: node.position.x,
-                top: node.position.y,
-                width: node.width,
+                left: box.x,
+                top: box.y,
+                width: box.width,
               }}
             >
               {renderScreen(step)}

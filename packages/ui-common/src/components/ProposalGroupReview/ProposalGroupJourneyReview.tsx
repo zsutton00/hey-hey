@@ -150,6 +150,14 @@ export const ProposalGroupJourneyReview: React.FC<Props> = (props) => {
     organizationId: group.organizationId,
     projectId: group.projectId,
   });
+  const savedPositions = new Map(
+    graph.projection.layoutSource === "authored"
+      ? graph.projection.effectiveLayout.nodes.map(({ node, position }) => [
+          node.refType === "existing" ? node.id : `temporary:${node.tempId}`,
+          position,
+        ])
+      : [],
+  );
   const screens = group.members.filter(
     ({ proposal, reservedEntityId }) =>
       reservedEntityId &&
@@ -162,6 +170,7 @@ export const ProposalGroupJourneyReview: React.FC<Props> = (props) => {
       <JourneyCanvas
         steps={surface.steps}
         edges={surface.edges}
+        savedPositions={savedPositions}
         renderScreen={(step) => {
           const reference = getDiagramElementMetadata(step)?.canonicalReference;
           const member = screens.find(
