@@ -461,6 +461,21 @@ export const handleAssistantComplete = async (
 
   if (completedSuccessfully && completionMessageId !== null && handler) {
     eventTurn.recordCompletedAssistantMessage(completionMessageId);
+
+    try {
+      await ctx.recordFinalAssistantMessage({
+        turnId: eventTurn.turnId,
+        messageId: completionMessageId,
+        text: ctx.lastProviderStreamMessage ?? event.summary,
+        committedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      deps.logger.error('local.handler.assistant_complete.persist_final_assistant_message_failed', {
+        runId: ctx.runId,
+        error,
+      });
+    }
+
     ctx.observeFinalAssistantMessageCommitted(eventTurn.turnId, completionMessageId);
     // Record the last text block the provider stream emitted — what the user
     // saw — rather than `event.summary` (the raw structured-response text) or a

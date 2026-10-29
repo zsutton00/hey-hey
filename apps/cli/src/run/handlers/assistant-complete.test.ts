@@ -6,7 +6,10 @@ import { makePoster, makeDeps, makeTestRun, makeTestTurn } from './__test-utils'
 import { createTestReportSyncService } from '../run.test-support';
 import type { LocalAgentOutputEvent, AssistantCompleteEvent } from '../types';
 import type { PromptTypeHandler } from '../../agents/prompt-type-handler';
-import { createOnCompleteTestDeps } from '../../agents/prompt-type-handler.test-support';
+import {
+  createOnCompleteTestDeps,
+  createPromptTypeHandlerTestRunStore,
+} from '../../agents/prompt-type-handler.test-support';
 import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
 import { FEATURE_SYNC_ACTIONS } from '../../agents/feature-sync/submission-tools';
 import { codingPlanHandler } from '../../agents/coding-plan/coding-plan.handler';
@@ -683,6 +686,38 @@ describe('assistant_complete end-to-end', () => {
       expect.objectContaining({ action: { action: 'success' }, triggerMessageId: 'trigger-1' }),
     );
     expect(poster.createOutOfBand).toHaveBeenCalledOnce();
+  });
+
+  it('preserves completion and carryover when the local final-answer save fails', async () => {
+    const event = normalizeEvent(makeRawAssistantComplete('Final answer'), 'claude');
+    if (event.kind !== 'assistant_complete') {
+      throw new Error('Expected assistant completion');
+    }
+    const runStore = createPromptTypeHandlerTestRunStore();
+    const saveFailure = new Error('Disk unavailable');
+    vi.spyOn(runStore, 'updateRunFinalAssistantMessage').mockRejectedValue(saveFailure);
+    const ctx = makeTestRun({
+      persistenceStore: runStore,
+      lastProviderStreamMessage: 'Final answer',
+    });
+    const observeCommitted = vi.spyOn(ctx, 'observeFinalAssistantMessageCommitted');
+    const onComplete = vi.fn().mockResolvedValue(undefined);
+    const handler = { ...makeTestTurn().handler, onComplete };
+    const eventTurn = makeTestTurn(handler);
+    const deps = makeDeps();
+    deps.onCompleteDeps = createOnCompleteTestDeps({ logger: deps.logger, poster: deps.poster });
+
+    await expect(handleAssistantComplete(event, ctx, deps, eventTurn)).resolves.toBeUndefined();
+
+    expect(observeCommitted).toHaveBeenCalledWith(eventTurn.turnId, 'oob-msg-1');
+    expect(ctx.recordPreviousProviderSession).toHaveBeenCalledWith(
+      expect.objectContaining({ lastMessage: 'Final answer' }),
+    );
+    expect(onComplete).toHaveBeenCalledOnce();
+    expect(deps.logger.error).toHaveBeenCalledWith(
+      'local.handler.assistant_complete.persist_final_assistant_message_failed',
+      { runId: ctx.runId, error: saveFailure },
+    );
   });
 
   it('persists a handler-owned typed terminal completion before releasing lifecycle effects', async () => {
@@ -1626,6 +1661,11 @@ describe('assistant_complete end-to-end', () => {
     };
     expect(recorded.promptType).toBe('coding_freeform');
     expect(recorded.lastMessage).toBe('Done. Touched src/foo.ts.');
+    expect(ctx.session.finalAssistantMessage).toMatchObject({
+      turnId: eventTurn.turnId,
+      messageId: 'oob-msg-1',
+      text: 'Done. Touched src/foo.ts.',
+    });
   });
 
   it('records the captured stream text (not the rendered markdown) for a startup_plan_v1 dispatch', async () => {

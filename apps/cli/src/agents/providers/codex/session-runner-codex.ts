@@ -871,7 +871,9 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
             enforceWorkspaceContainment: true,
           }
         : {}),
-      ...(reportingRepair || readOnlyFilesystem ? { readOnlyFilesystem: true } : {}),
+      ...(session.inert || reportingRepair || readOnlyFilesystem
+        ? { readOnlyFilesystem: true }
+        : {}),
     });
     const sandboxMode = codexPermissionPlan.sandboxMode;
     const runCwd = codexPermissionPlan.cwd;
@@ -1377,6 +1379,26 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
         };
       };
 
+      this.client.onTokenUsage((usage) => {
+        if (usage.inputTokens === null) {
+          this.logger.debug('local.runner.codex.token-usage.input-unavailable', { runId });
+          return;
+        }
+
+        void this.runStore
+          .setRunTokenUsage(session.agentic_session_id, {
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            ...(usage.cacheReadInputTokens === null
+              ? {}
+              : { cacheReadInputTokens: usage.cacheReadInputTokens }),
+            cacheAvailability: usage.cacheAvailability,
+          })
+          .catch((error: unknown) => {
+            this.logger.warn('local.runner.codex.token-usage.persist-failed', { runId, error });
+          });
+      });
+
       this.client.onEvent((providerEvent: CodexSdkEvent) => {
         const event = withoutCodexInputEcho(providerEvent);
         if (!event) return;
@@ -1730,6 +1752,9 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
       let platformMcpConfig: CodexConfigOverrides | null = null;
       const allowedMcpToolNames = new Set<string>();
       const cliBaseUrl = this.localAgentEndpoint.get();
+      if (session.inert && (!platformMcpProxyMount || !cliBaseUrl)) {
+        throw new Error('Inert execution requires the scoped platform MCP proxy.');
+      }
       if ((platformMcpProxyMount && cliBaseUrl) || this.oauthClient) {
         requestContext.log(this.logger, 'debug', 'local.runner.codex.mcp_config.building', {
           runId,
@@ -1786,6 +1811,9 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
             );
           }
         } catch (err: unknown) {
+          if (session.inert) {
+            throw err;
+          }
           requestContext.log(this.logger, 'warn', 'local.runner.codex.mcp_config.failed', {
             runId,
             sessionId: session.agentic_session_id,
@@ -1907,7 +1935,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
         sandboxMode,
       );
       const config =
-        mcpToolUseCase === 'project_report'
+        session.inert || mcpToolUseCase === 'project_report'
           ? {
               ...(baseConfig ?? {}),
               features: CODEX_MCP_ONLY_FEATURE_OVERRIDES,
@@ -2118,6 +2146,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
         );
       }
       this.client.onEvent(null);
+      this.client.onTokenUsage(null);
       this.client.onServerRequest(null);
       this.emitLocalStatus('');
       process.stdout.write('\n');
@@ -2251,6 +2280,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
       };
     } catch (error) {
       this.client.onEvent(null);
+      this.client.onTokenUsage(null);
       this.client.onServerRequest(null);
       this.emitLocalStatus('');
       this.clearPendingPermissionRequests(

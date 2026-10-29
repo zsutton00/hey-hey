@@ -66,6 +66,9 @@ vi.mock('../../../agent-runtime/index', async () => {
       resumeSession(...args: Parameters<typeof sdkResumeSessionMock>) {
         return sdkResumeSessionMock(...args);
       }
+      onTokenUsage(): void {
+        return;
+      }
       onEvent(
         handler: ((event: { method: string; params?: Record<string, unknown> }) => void) | null,
       ) {

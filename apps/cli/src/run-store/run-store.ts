@@ -1392,6 +1392,23 @@ export class RunStore {
     return run ? parseImplementationReadinessFromSessionContext(run.sessionContext) : null;
   }
 
+  public updateRunFinalAssistantMessage(
+    runId: string,
+    message: NonNullable<AgenticSession['finalAssistantMessage']>,
+  ): Promise<AgenticSession> {
+    return this.withMetadataLock(runId, async () => {
+      const run = await readRunMetadata(this.runFamilies, runId);
+      if (!run) {
+        throw new SessionValidationError(`Unknown agentic session: ${runId}`);
+      }
+
+      run.finalAssistantMessage = message;
+      run.updatedAt = this.now().toISOString();
+      await writeRunMetadata(this.runFamilies, run);
+      return run;
+    });
+  }
+
   public updateRunPreviousProviderSession(
     runId: string,
     previous: PreviousProviderSession | null,

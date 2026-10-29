@@ -1,3 +1,4 @@
+import { isInertSubmissionToolAllowed } from './inert-execution-policy';
 import { SessionRoleGuidance } from '../agents/session-role-guidance/session-role-guidance';
 import { resolveHandlerSessionRole } from '../agents/prompt-type-handler';
 import { RunAttachmentNotFoundError } from '../server/run-attachment-store';
@@ -261,9 +262,15 @@ const readImplementationReadinessFromPayload = (
 export const buildRunMcpSessionContext = (
   session: Pick<
     AgenticSession,
-    'agentic_session_id' | 'conversationId' | 'contextMetadata' | 'launchServiceId' | 'services'
+    | 'agentic_session_id'
+    | 'conversationId'
+    | 'contextMetadata'
+    | 'launchServiceId'
+    | 'services'
+    | 'inert'
   >,
 ): McpSessionContext => ({
+  inert: session.inert === true,
   projectId: session.contextMetadata.projectId,
   conversationId: session.conversationId,
   serviceId: session.launchServiceId,
@@ -930,7 +937,7 @@ export class Run {
       collaborators.logger,
     );
     this.repoStore = collaborators.repoStore;
-    this.poster = collaborators.poster;
+    this.poster = args.session.inert ? collaborators.poster.inertSibling() : collaborators.poster;
     this.submissionActionPoster = new SubmissionActionPoster(this.poster);
     this.broadcaster = collaborators.broadcaster;
     this.handlerDeps = collaborators.handlerDeps;
@@ -1020,7 +1027,9 @@ export class Run {
       ...(collaborators.reportSyncService
         ? { reportSyncService: collaborators.reportSyncService }
         : {}),
-      ...(collaborators.onCompleteDeps ? { onCompleteDeps: collaborators.onCompleteDeps } : {}),
+      ...(collaborators.onCompleteDeps
+        ? { onCompleteDeps: { ...collaborators.onCompleteDeps, poster: this.poster } }
+        : {}),
     };
 
     this.dispatcher = new EventDispatcher(handlerFacingDeps);
@@ -2822,6 +2831,13 @@ export class Run {
     });
   }
 
+  async recordFinalAssistantMessage(
+    message: NonNullable<AgenticSession['finalAssistantMessage']>,
+  ): Promise<void> {
+    await this.runStore.updateRunFinalAssistantMessage(this.runId, message);
+    this.refreshSessionFields({ finalAssistantMessage: message });
+  }
+
   /**
    * Persist the previous provider session's final output onto the session so
    * the next phase's prompt resolution can prepend it. Patches `run.session`
@@ -3682,14 +3698,29 @@ export class Run {
     return this._messageQueue.length;
   }
 
-  private assertOrdinaryExecution(): void {
-    if (this.session.inert) {
-      throw new Error('Evaluation evidence cannot be resumed as an ordinary Run.');
+  private inertInput: InternalRunPromptRequest | null = null;
+  private inertInputStarted = false;
+  private initialInertInputAllowed = false;
+
+  public admitInitialInertInput(): void {
+    this.initialInertInputAllowed = true;
+  }
+
+  private assertOrdinaryExecution(input?: InternalRunPromptRequest): void {
+    if (!this.session.inert) {
+      return;
     }
+    if (input && this.inertInput === input && !this.inertInputStarted) {
+      return;
+    }
+    this.logger.debug('local.run.inert.input_refused', { runId: this.runId });
+    throw new Error(
+      'Evaluation evidence cannot be resumed as an ordinary Run. Inert Runs refuse follow-up input and restoration.',
+    );
   }
 
   enqueue(input: InternalRunPromptRequest): number {
-    this.assertOrdinaryExecution();
+    this.assertOrdinaryExecution(input);
     this._messageQueue.push(input);
     this.readStateChanged();
     return this._messageQueue.length;
@@ -3773,7 +3804,13 @@ export class Run {
     input: InternalRunPromptRequest,
     options?: SendMessageOptions,
   ): Promise<void> {
-    this.assertOrdinaryExecution();
+    if (this.session.inert && this.initialInertInputAllowed && !this.inertInput) {
+      this.initialInertInputAllowed = false;
+      this.inertInput = input;
+      this.logger.debug('local.run.inert.initial_input', { runId: this.runId });
+    } else {
+      this.assertOrdinaryExecution();
+    }
     const ownerInput = resolveOwnerFollowup(this.resolveReplyOwner(), input);
     if (ownerInput !== input) {
       this.logger.debug('local.run.followup_owner_retained', {
@@ -3868,6 +3905,9 @@ export class Run {
           [ADMITTED_SERVICE_SCOPE_MARKER]: options.admittedServiceScope,
         } as InternalRunPromptRequest)
       : stamped;
+    if (this.session.inert) {
+      this.inertInput = scoped;
+    }
     if (this.hasPendingScopeReview()) {
       this.logger.warn('local.run.message_blocked_pending_scope_review', {
         runId: this.runId,
@@ -4041,7 +4081,8 @@ export class Run {
    * the Run to idle without retrying the failed boundary.
    */
   private async startTurn(input: InternalRunPromptRequest): Promise<void> {
-    this.assertOrdinaryExecution();
+    this.assertOrdinaryExecution(input);
+    this.inertInputStarted = this.session.inert === true;
     input = this.routeImplementationReadinessClarification(input);
     const admission = this.inputAdmissionFor(input);
     const timelineTurnId = admission?.turnId;
@@ -5463,7 +5504,9 @@ export class Run {
       input,
       payload: preparedPayload ?? input.payload,
     });
-    const browserMcpMount = await this.browserMcpAccess?.mount(this.runId, this.projectId, turnId);
+    const browserMcpMount = session.inert
+      ? undefined
+      : await this.browserMcpAccess?.mount(this.runId, this.projectId, turnId);
     const platformMcpAdditionalAllowedTools = Array.from(
       new Set([
         ...(handler.additionalAllowedTools ?? []),
@@ -6172,8 +6215,12 @@ export class Run {
     const baseTools = this.baseSubmissionTools.filter(
       (tool) => !handler.excludedBaseSubmissionTools?.includes(tool.name),
     );
-    const tools = [...baseTools, ...filteredHandlerTools];
-    const activeToolNames = [...baseTools, ...activeHandlerTools].map((tool) => tool.name);
+    const tools = [...baseTools, ...filteredHandlerTools].filter(
+      (tool) => !session.inert || isInertSubmissionToolAllowed(tool.name),
+    );
+    const activeToolNames = [...baseTools, ...activeHandlerTools]
+      .filter((tool) => !session.inert || isInertSubmissionToolAllowed(tool.name))
+      .map((tool) => tool.name);
 
     if (
       tools.length === 0 ||

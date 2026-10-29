@@ -188,6 +188,13 @@ interface AgenticSessionBase {
   reasoningEffort?: LocalReasoningEffort;
   fastMode?: boolean;
   tokenUsage?: TokenUsage;
+  /** Last committed final answer; retained when provider carryover is consumed. */
+  finalAssistantMessage?: {
+    turnId: string;
+    messageId: string;
+    text: string;
+    committedAt: string;
+  };
   sessionContext?: Record<string, unknown>;
   /**
    * The previous provider session's final output — the last text message the

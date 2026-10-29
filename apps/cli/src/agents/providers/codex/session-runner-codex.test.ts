@@ -83,6 +83,9 @@ const buildMcpServerConfigMock = vi.fn<BuildMcpServerConfigMock>(async () => ({
   },
   allowedTools: ['mcp__heyhey-platform__get_context'],
 }));
+let tokenUsageHandler:
+  | import('../../../agent-runtime/node/CodexSdkClient').CodexSdkTokenUsageHandler
+  | null = null;
 vi.mock('../../mcp-server-config', async () => {
   const actual =
     await vi.importActual<typeof import('../../mcp-server-config')>('../../mcp-server-config');
@@ -197,6 +200,13 @@ vi.mock('../../../agent-runtime/index', async () => {
       }
       resumeSession(...args: Parameters<typeof sdkResumeSessionMock>) {
         return sdkResumeSessionMock(...args);
+      }
+      onTokenUsage(
+        handler:
+          | import('../../../agent-runtime/node/CodexSdkClient').CodexSdkTokenUsageHandler
+          | null,
+      ) {
+        tokenUsageHandler = handler;
       }
       onEvent(
         handler: ((event: { method: string; params?: Record<string, unknown> }) => void) | null,
@@ -502,6 +512,42 @@ describe('session-runner-codex', () => {
     });
     submissionToolRegistry.clearAll();
     localAgentEndpoint.clear();
+  });
+
+  it('persists reported cumulative token snapshots during execution and skips unknown input', async () => {
+    const runStore = makeRunStore();
+    const persist = vi.spyOn(runStore, 'setRunTokenUsage').mockResolvedValue(makeSession());
+    sdkStartSessionMock.mockImplementation(async () => {
+      const usage = {
+        inputTokens: null,
+        outputTokens: 3,
+        cacheCreationInputTokens: null,
+        cacheReadInputTokens: null,
+        cacheAvailability: 'unsupported',
+      } satisfies import('../../../agent-runtime/node/CodexSdkClient').CodexSdkTokenUsage;
+      tokenUsageHandler?.(usage);
+      expect(persist).not.toHaveBeenCalled();
+      tokenUsageHandler?.({ ...usage, inputTokens: 10 });
+      tokenUsageHandler?.({ ...usage, inputTokens: 20, outputTokens: 7 });
+      expect(persist.mock.calls.map(([, total]) => total)).toEqual([
+        { inputTokens: 10, outputTokens: 3, cacheAvailability: 'unsupported' },
+        { inputTokens: 20, outputTokens: 7, cacheAvailability: 'unsupported' },
+      ]);
+      await completedTurn()();
+    });
+    const runner = new CodexAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry,
+      runStore,
+      repoStore: makeRepoStore(),
+      oauthClient: createProviderTestOAuthClient({ success: true, data: 'test-token' }),
+    });
+    await runner.runPrompt({
+      session: makeSession({ provider_session_id: 'pending_abc' }),
+      prompt: 'Measure usage.',
+    });
+    await runner.dispose();
+    expect(tokenUsageHandler).toBeNull();
   });
 
   // ----- native lifecycle: fresh start / resume -----------------------------
