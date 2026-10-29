@@ -16,15 +16,21 @@ import type {
   WorkItemGraphProjectionData,
   WorkflowGraphCreatedElements,
 } from "../shared/WorkflowMentionInlineRenderer";
+import type { WorkItemGraphDraftProjection } from "../shared/workItemGraphDraft";
 import { projectWorkItemGraphDraft } from "../shared/workItemGraphDraft";
-import { isCreateTaskUpdates } from "../ProposalDispatchers/types";
+import {
+  isWorkItemGraphProposal,
+  getCreatedGraphRootType,
+  isCreateTaskUpdates,
+} from "../ProposalDispatchers/types";
 
 export type CanonicalProposalGroupGraphResult =
   | {
       kind: "ready";
       rootMemberId: string;
       memberIds: readonly string[];
-      projection: WorkItemGraphProjectionData;
+      projection: WorkItemGraphDraftProjection &
+        Pick<WorkItemGraphProjectionData, "projectedReferenceTargets">;
       createdElements: WorkflowGraphCreatedElements;
     }
   | { kind: "not-graph-group" }
@@ -36,13 +42,13 @@ export type CanonicalProposalGroupRootResolution =
   | { kind: "unavailable"; reason: string };
 
 const hasReservedIdentity = (
-  member: ProposalGroupMemberSnapshot
+  member: ProposalGroupMemberSnapshot,
 ): member is ProposalGroupMemberSnapshot & { reservedEntityId: string } =>
   typeof member.reservedEntityId === "string" &&
   member.reservedEntityId.trim().length > 0;
 
 const readCreateTask = (
-  member: ProposalGroupMemberSnapshot
+  member: ProposalGroupMemberSnapshot,
 ): CreateTaskDto | null =>
   member.proposal.action === ProposalAction.Create &&
   isCreateTaskUpdates(member.proposal)
@@ -50,7 +56,7 @@ const readCreateTask = (
     : null;
 
 const buildPrerequisiteClosure = (
-  snapshot: ProposalGroupSnapshot
+  snapshot: ProposalGroupSnapshot,
 ): ((memberId: string) => ReadonlySet<string>) => {
   const direct = new Map<string, string[]>();
   snapshot.dependencies.forEach((dependency) => {
@@ -73,10 +79,10 @@ const buildPrerequisiteClosure = (
 };
 
 const orderedMembers = (
-  snapshot: ProposalGroupSnapshot
+  snapshot: ProposalGroupSnapshot,
 ): ProposalGroupMemberSnapshot[] =>
   [...snapshot.members].sort(
-    (left, right) => left.memberOrder - right.memberOrder
+    (left, right) => left.memberOrder - right.memberOrder,
   );
 
 const hasStructuralGraphShape = (snapshot: ProposalGroupSnapshot): boolean => {
@@ -84,8 +90,8 @@ const hasStructuralGraphShape = (snapshot: ProposalGroupSnapshot): boolean => {
     snapshot.members.flatMap((member) =>
       hasReservedIdentity(member)
         ? [[member.reservedEntityId, member.memberId] as const]
-        : []
-    )
+        : [],
+    ),
   );
   const prerequisiteClosure = buildPrerequisiteClosure(snapshot);
 
@@ -94,27 +100,28 @@ const hasStructuralGraphShape = (snapshot: ProposalGroupSnapshot): boolean => {
     if (!updates?.parentTaskId) return false;
     const rootMemberId = reservedMemberIds.get(updates.parentTaskId);
     return Boolean(
-      rootMemberId && prerequisiteClosure(member.memberId).has(rootMemberId)
+      rootMemberId && prerequisiteClosure(member.memberId).has(rootMemberId),
     );
   });
 };
 
 export const resolveCanonicalProposalGroupRootDefinition = (
   snapshot: ProposalGroupSnapshot,
-  definitions: readonly WorkItemTypeDefinitionDto[]
+  definitions: readonly WorkItemTypeDefinitionDto[],
 ): CanonicalProposalGroupRootResolution => {
   const graphDefinitions = new Map(
     definitions.flatMap((definition) =>
       definition.capabilities?.graph?.rendererKey === "work-item-graph"
         ? [[definition.key, definition] as const]
-        : []
-    )
+        : [],
+    ),
   );
   const candidates = snapshot.members.flatMap((member) => {
     const updates = readCreateTask(member);
-    const definition = updates?.type
-      ? graphDefinitions.get(updates.type)
-      : undefined;
+    const type = isWorkItemGraphProposal(member.proposal)
+      ? getCreatedGraphRootType(member.proposal.updates)
+      : updates?.type;
+    const definition = type ? graphDefinitions.get(type) : undefined;
     return definition ? [{ member, definition }] : [];
   });
 
@@ -147,7 +154,7 @@ const existingIdentity = (id: string): WorkItemChangeSetIdentity => ({
 });
 
 const projectCreateMember = (
-  member: ProposalGroupMemberSnapshot & { reservedEntityId: string }
+  member: ProposalGroupMemberSnapshot & { reservedEntityId: string },
 ): ProjectedWorkItem => {
   const updates = readCreateTask(member);
   if (!updates) {
@@ -199,10 +206,10 @@ const proposalEdgeType = (edgeType: ProposalEdgeType): AgentEdgeType | null => {
 const projectExplicitRelationships = (
   members: readonly (ProposalGroupMemberSnapshot & {
     reservedEntityId: string;
-  })[]
+  })[],
 ): ProjectedWorkItemRelationship[] => {
   const selectedByProposalId = new Map(
-    members.map((member) => [member.proposal.id, member] as const)
+    members.map((member) => [member.proposal.id, member] as const),
   );
 
   return members.flatMap((sourceMember) =>
@@ -227,13 +234,13 @@ const projectExplicitRelationships = (
           deleted: false,
         },
       ];
-    })
+    }),
   );
 };
 
 export const projectCanonicalProposalGroupGraph = (
   snapshot: ProposalGroupSnapshot,
-  rootTypeDefinition: WorkItemTypeDefinitionDto
+  rootTypeDefinition: WorkItemTypeDefinitionDto,
 ): CanonicalProposalGroupGraphResult => {
   const graphCapability = rootTypeDefinition.capabilities?.graph;
   if (graphCapability?.rendererKey !== "work-item-graph") {
@@ -241,6 +248,95 @@ export const projectCanonicalProposalGroupGraph = (
       kind: "unavailable",
       reason: "Graph rendering is unavailable for this work-item type.",
     };
+  }
+
+  const graphRoots = snapshot.members.filter(
+    ({ proposal }) =>
+      isWorkItemGraphProposal(proposal) &&
+      getCreatedGraphRootType(proposal.updates) === rootTypeDefinition.key,
+  );
+  if (graphRoots.length === 1) {
+    const member = graphRoots[0];
+    const proposal = member.proposal;
+    if (!isWorkItemGraphProposal(proposal)) {
+      return { kind: "not-graph-group" };
+    }
+    const rootIdentity = proposal.updates.root;
+    const rootCreate = proposal.updates.operations.find(
+      (operation) =>
+        operation.op === "workItem.create" &&
+        rootIdentity.refType === "temporary" &&
+        operation.ref.tempId === rootIdentity.tempId,
+    );
+    if (!rootCreate || rootCreate.op !== "workItem.create") {
+      return {
+        kind: "unavailable",
+        reason: "The frozen Diagram has no authored root.",
+      };
+    }
+    try {
+      const draft = projectWorkItemGraphDraft(
+        {
+          root: {
+            identity: rootIdentity,
+            label: rootCreate.name,
+            name: rootCreate.name,
+            type: rootCreate.type ?? "DIAGRAM",
+            parent: rootCreate.parent,
+            sections: [],
+            deleted: false,
+          },
+          children: [],
+          incidentRelationships: [],
+          typeDefinition: rootTypeDefinition,
+        },
+        proposal.updates.operations,
+      );
+      return {
+        kind: "ready",
+        rootMemberId: member.memberId,
+        memberIds: [member.memberId],
+        projection: {
+          ...draft,
+          projectedReferenceTargets: Object.fromEntries(
+            snapshot.members.flatMap((screen) => {
+              if (
+                !screen.reservedEntityId ||
+                isWorkItemGraphProposal(screen.proposal) ||
+                !isCreateTaskUpdates(screen.proposal) ||
+                screen.proposal.updates.type !== "mockup"
+              ) {
+                return [];
+              }
+              return [
+                [
+                  screen.reservedEntityId,
+                  {
+                    type: "mockup",
+                    name: screen.proposal.updates.name,
+                    sections: screen.proposal.updates.sections,
+                  },
+                ],
+              ];
+            }),
+          ),
+        },
+        createdElements: {
+          children: draft.children.map(({ identity }) => identity),
+          relationships: draft.incidentRelationships.map(
+            ({ identity }) => identity,
+          ),
+        },
+      };
+    } catch (error) {
+      return {
+        kind: "unavailable",
+        reason:
+          error instanceof Error
+            ? error.message
+            : "The frozen Diagram could not be rendered.",
+      };
+    }
   }
 
   const members = orderedMembers(snapshot);
@@ -273,7 +369,7 @@ export const projectCanonicalProposalGroupGraph = (
     );
   });
   const incompleteChild = matchingChildren.find(
-    (member) => !hasReservedIdentity(member)
+    (member) => !hasReservedIdentity(member),
   );
   if (incompleteChild) {
     return {
@@ -294,9 +390,30 @@ export const projectCanonicalProposalGroupGraph = (
       incidentRelationships: relationships,
       typeDefinition: rootTypeDefinition,
     });
-    const projection: WorkItemGraphProjectionData = {
+    const projection = {
       ...draft,
       children: projectedChildren,
+      // References can point outside the Diagram parent chain. Keep their
+      // frozen content separate from visible graph children and transitions.
+      projectedReferenceTargets: Object.fromEntries(
+        members.flatMap((member) => {
+          const updates = readCreateTask(member);
+          if (!updates || !hasReservedIdentity(member)) {
+            return [];
+          }
+
+          return [
+            [
+              member.reservedEntityId,
+              {
+                type: updates.type ?? "STANDARD",
+                name: updates.name,
+                sections: updates.sections,
+              },
+            ],
+          ];
+        }),
+      ),
     };
 
     return {

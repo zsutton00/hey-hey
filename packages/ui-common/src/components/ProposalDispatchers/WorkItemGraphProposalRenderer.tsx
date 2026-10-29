@@ -34,6 +34,7 @@ import type {
   WorkflowGraphDiffElements,
   WorkflowGraphPresentationState,
   WorkflowGraphSurfaceData,
+  WorkItemGraphProjectionData,
 } from "../shared/WorkflowMentionInlineRenderer";
 import { WorkflowGraphSurface } from "../shared/WorkflowMentionInlineRenderer";
 import type { WorkItemGraphDraftProjection } from "../shared/workItemGraphDraft";
@@ -346,13 +347,13 @@ const graphIdentityKey = (identity: WorkItemChangeSetIdentity): string =>
     ? `existing:${identity.id}`
     : `temporary:${identity.tempId}`;
 
-const getProposalElementEntityLinks = ({
+export const getProposalElementEntityLinks = ({
   proposal,
   projection,
   siblingProposals,
 }: {
   proposal: WorkItemGraphProposal;
-  projection: WorkItemGraphDraftProjection | undefined;
+  projection: Pick<WorkItemGraphProjectionData, "children"> | undefined;
   siblingProposals: Map<string, ProposalResponseDto> | undefined;
 }): WorkflowGraphDirectEntityLink[] => {
   if (!projection) return [];

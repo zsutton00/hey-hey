@@ -101,7 +101,7 @@ const makeHandlerDeps = (): PromptTypeHandlerDeps => {
   } as unknown as PromptTypeHandlerDeps['logger'];
 
   return createPromptTypeHandlerTestDeps({
-    fetchImpl: (() => Promise.resolve(new Response())) as typeof fetch,
+    fetchImpl: (() => Promise.resolve(Response.json({ data: [] }))) as typeof fetch,
     apiBaseUrl: 'http://localhost',
     logger,
   });
@@ -1966,5 +1966,88 @@ describe('resolvePrompt — memo block prepend', () => {
     expect(result.resolvedPrompt).toContain('follow-up');
     expect(result.resolvedPrompt).not.toContain('## Context from prior phases');
     expect(result.resolvedPrompt).not.toContain('already delivered memo');
+  });
+});
+
+describe('passive screen annotations on ordinary session comments', () => {
+  it('restores all reviewers annotations from persisted history when the user continues, without requesting another run', async () => {
+    const handler = registerHandler('annotation-follow-up', {
+      buildPrompt: () => 'Respond to the user.',
+      addUserMessage: defaultAddUserMessage,
+    });
+    const deps = makeHandlerDeps();
+    const fetchHistory = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        Response.json({
+          data: {
+            messages: [
+              {
+                type: 'USER',
+                userId: 'reviewer-2',
+                data: {
+                  comment: 'Screen annotation: Increase contrast',
+                  proposalReviewNote: {
+                    proposalId: 'screen-proposal',
+                    review: {
+                      noteId: 'note-1',
+                      frozenRevision: 4,
+                      sectionKey: 'mockup',
+                      sizeKey: 'desktop',
+                      target: { type: 'component', componentId: 'pay-button' },
+                      note: 'Increase contrast',
+                    },
+                  },
+                },
+              },
+            ],
+            nextCursor: 'older',
+          },
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ data: { messages: [], nextCursor: 'older' } }))
+      .mockResolvedValueOnce(
+        Response.json({
+          data: {
+            messages: [
+              {
+                type: 'USER',
+                userId: 'reviewer-2',
+                data: {
+                  proposalReviewNote: {
+                    proposalId: 'screen-proposal',
+                    review: {
+                      noteId: 'note-1',
+                      frozenRevision: 4,
+                      sectionKey: 'mockup',
+                      sizeKey: 'desktop',
+                      target: { type: 'component', componentId: 'pay-button' },
+                      note: 'Increase contrast',
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        }),
+      );
+    deps.fetchImpl = fetchHistory;
+    const result = await callResolve({
+      handler,
+      handlerDeps: deps,
+      input: makeInput({
+        promptType: 'annotation-follow-up',
+        userMessage: 'Please revise the journey using my annotations.',
+      }),
+    });
+    expect(result.resolvedPrompt).toContain('Please revise the journey using my annotations.');
+    expect(result.resolvedPrompt).toContain('"authorId":"reviewer-2"');
+    expect(result.resolvedPrompt).toContain('"componentId":"pay-button"');
+    expect(result.resolvedPrompt).toContain('"frozenRevision":4');
+    expect(fetchHistory).toHaveBeenCalledTimes(2);
+    expect(String(fetchHistory.mock.calls[1]?.[0])).toContain('historyCursor=older');
+    expect(
+      fetchHistory.mock.calls.every(([, init]) => !init?.method || init.method === 'GET'),
+    ).toBe(true);
   });
 });

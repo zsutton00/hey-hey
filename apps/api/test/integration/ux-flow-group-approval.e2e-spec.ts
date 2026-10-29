@@ -1,3 +1,4 @@
+import { ProposalService } from '../../src/services/proposal/proposal.service';
 import { randomUUID } from 'node:crypto';
 import { Test, type TestingModule } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
@@ -148,7 +149,17 @@ describe('UX journey grouped approval', () => {
     await module?.close();
   });
 
-  async function buildJourney() {
+  async function buildJourney(acceptedScreenId?: string) {
+    const conversation = await prisma.db.conversation.create({
+      data: {
+        organizationId,
+        projectId,
+        createdBy: author.userId,
+        initiatedBy: 'USER',
+        workflowAboutType: 'task',
+        workflowAboutId: parentId,
+      },
+    });
     let snapshot = await authoring.start(organizationId, projectId, {});
     const proposal = (
       name: string,
@@ -160,6 +171,7 @@ describe('UX journey grouped approval', () => {
       targetEntityType: 'TASK',
       title: name,
       eli5: name,
+      conversationId: conversation.id,
       updates,
       requestorContext: {
         userId: author.userId,
@@ -169,7 +181,9 @@ describe('UX journey grouped approval', () => {
         timestamp: new Date().toISOString(),
       },
     });
-    for (const name of ['Welcome', 'Profile']) {
+    for (const name of acceptedScreenId
+      ? ['Revised Profile']
+      : ['Welcome', 'Profile']) {
       snapshot = await authoring.addMember(
         organizationId,
         projectId,
@@ -187,12 +201,15 @@ describe('UX journey grouped approval', () => {
       );
     }
     const screens = [...snapshot.members];
-    const screenIds = screens.map((screen) => {
+    const proposedScreenIds = screens.map((screen) => {
       if (!screen.reservedEntityId) {
         throw new Error('Mockup CREATE did not reserve an identity');
       }
       return screen.reservedEntityId;
     });
+    const screenIds = acceptedScreenId
+      ? [acceptedScreenId, ...proposedScreenIds]
+      : proposedScreenIds;
     const root = { refType: 'temporary', tempId: 'journey' } as const;
     const elements = screenIds.map(
       (_, index) =>
@@ -295,10 +312,12 @@ describe('UX journey grouped approval', () => {
     });
     return {
       groupId: snapshot.groupId,
-      screens: members.slice(0, 2),
-      journey: members[2]!,
+      screens: members.slice(0, screens.length),
+      journey: members[screens.length]!,
       screenIds,
       journeyId: journey.reservedEntityId,
+      frozenRevision: snapshot.currentRevision,
+      conversationId: conversation.id,
     };
   }
 
@@ -379,5 +398,156 @@ describe('UX journey grouped approval', () => {
     expect(
       await prisma.db.task.findUnique({ where: { id: group.journeyId } }),
     ).toBeNull();
+  }, 60_000);
+  it('retains published screens when the journey alone is rejected', async () => {
+    const group = await buildJourney();
+    for (const screen of group.screens) {
+      await decisions.approve({
+        proposalId: screen.proposalId,
+        organizationId,
+        projectId,
+        userId: approverId,
+      });
+    }
+    await decisions.reject({
+      proposalId: group.journey.proposalId,
+      organizationId,
+      projectId,
+      userId: approverId,
+      reason: 'Add an alternate condition',
+    });
+    expect(
+      (await states(group.groupId)).map(({ executionState }) => executionState),
+    ).toEqual(['APPLIED', 'APPLIED', 'REJECTED']);
+    expect(
+      await prisma.db.task.count({ where: { id: { in: group.screenIds } } }),
+    ).toBe(2);
+    expect(
+      await prisma.db.task.findUnique({ where: { id: group.journeyId } }),
+    ).toBeNull();
+  }, 60_000);
+
+  it('publishes a complete replacement journey reusing the accepted screen identity', async () => {
+    const original = await buildJourney();
+    await decisions.approve({
+      proposalId: original.screens[0]!.proposalId,
+      organizationId,
+      projectId,
+      userId: approverId,
+    });
+    await decisions.reject({
+      proposalId: original.screens[1]!.proposalId,
+      organizationId,
+      projectId,
+      userId: approverId,
+      reason: 'Redesign Profile',
+    });
+    const acceptedId = original.screenIds[0]!;
+    const accepted = await prisma.db.task.findUniqueOrThrow({
+      where: { id: acceptedId },
+    });
+    const replacement = await buildJourney(acceptedId);
+    expect(replacement.screens).toHaveLength(1);
+    await decisions.approveAll({
+      groupId: replacement.groupId,
+      organizationId,
+      projectId,
+      userId: approverId,
+    });
+    expect(
+      (await states(replacement.groupId)).map(
+        ({ executionState }) => executionState,
+      ),
+    ).toEqual(['APPLIED', 'APPLIED']);
+    expect(
+      await prisma.db.task.findUniqueOrThrow({ where: { id: acceptedId } }),
+    ).toEqual(accepted);
+    const elements = await prisma.db.task.findMany({
+      where: { parentTaskId: replacement.journeyId },
+      include: { sections: true },
+    });
+    const references = elements.map(
+      (element) =>
+        JSON.parse(
+          element.sections.find(({ key }) => key === 'diagramElementMetadata')!
+            .materializedMarkdown!,
+        ).canonicalReference.entityId,
+    );
+    expect(references.sort()).toEqual([...replacement.screenIds].sort());
+    expect(
+      await prisma.db.task.findUnique({ where: { id: original.journeyId } }),
+    ).toBeNull();
+  }, 60_000);
+  it('saves revision-bound annotations idempotently without changing the frozen content or starting a revision', async () => {
+    const group = await buildJourney();
+    const proposals = module.get(ProposalService);
+    const proposalId = group.screens[0]!.proposalId;
+    const before = await prisma.db.proposal.findUniqueOrThrow({
+      where: { id: proposalId },
+    });
+    const note = {
+      noteId: randomUUID(),
+      frozenRevision: group.frozenRevision,
+      sectionKey: 'description',
+      sizeKey: 'desktop',
+      target: {
+        type: 'position' as const,
+        x: 0.25,
+        y: 0.75,
+        sizeKey: 'desktop',
+      },
+      note: 'Keep the heading prominent',
+    };
+    const first = await proposals.saveReviewNote(
+      proposalId,
+      organizationId,
+      projectId,
+      approverId,
+      note,
+    );
+    const second = await proposals.saveReviewNote(
+      proposalId,
+      organizationId,
+      projectId,
+      approverId,
+      note,
+    );
+    expect(first).toEqual(second);
+    expect(
+      await prisma.db.proposal.findUniqueOrThrow({ where: { id: proposalId } }),
+    ).toEqual(before);
+    const saved = await prisma.db.message.findUniqueOrThrow({
+      where: { id: first.messageId },
+    });
+    expect(saved.conversationId).toBe(group.conversationId);
+    expect(saved.data).toEqual(
+      expect.objectContaining({
+        proposalReviewNote: { proposalId, review: note },
+      }),
+    );
+    expect(saved.data).not.toHaveProperty('agentInput');
+    expect(saved.data).not.toHaveProperty('triggersAgent');
+    await expect(
+      proposals.saveReviewNote(
+        proposalId,
+        organizationId,
+        projectId,
+        approverId,
+        {
+          ...note,
+          noteId: randomUUID(),
+          frozenRevision: group.frozenRevision + 1,
+        },
+      ),
+    ).rejects.toThrow('frozen revision');
+    await expect(
+      proposals.saveReviewNote(
+        proposalId,
+        organizationId,
+        projectId,
+        approverId,
+        { ...note, note: 'Different content under the same identity' },
+      ),
+    ).rejects.toThrow('already been used');
   }, 60_000);
 });

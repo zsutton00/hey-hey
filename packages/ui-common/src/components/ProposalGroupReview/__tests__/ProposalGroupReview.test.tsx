@@ -237,9 +237,18 @@ vi.mock("../../../data/hooks/useWorkItem", () => ({
     workItemId: string,
     options: { enabled?: boolean },
   ) => ({
-    workItem: options.enabled
-      ? { id: workItemId, name: `Target ${workItemId}`, type: "STANDARD" }
-      : null,
+    workItem:
+      workItemId === "saved-screen"
+        ? {
+            id: workItemId,
+            name: "Saved cart",
+            type: "mockup",
+            status: "BACKLOG",
+            sections: [],
+          }
+        : options.enabled
+          ? { id: workItemId, name: `Target ${workItemId}`, type: "STANDARD" }
+          : null,
     isLoading: false,
   }),
 }));
@@ -308,29 +317,45 @@ vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
   }),
 }));
 
-vi.mock("../../shared/WorkflowMentionInlineRenderer", () => ({
-  WorkflowGraphSurface: ({
-    projection,
-    presentationState,
-  }: {
-    projection: {
-      children: Array<{ name: string }>;
-      incidentRelationships: unknown[];
+vi.mock(
+  "../../shared/WorkflowMentionInlineRenderer",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("../../shared/WorkflowMentionInlineRenderer")
+      >();
+    return {
+      ...actual,
+      WorkflowGraphSurface: ({
+        projection,
+        presentationState,
+      }: {
+        projection: {
+          children: Array<{ name: string }>;
+          incidentRelationships: unknown[];
+          referenceReviewControls?: Readonly<Record<string, React.ReactNode>>;
+        };
+        presentationState?: WorkflowGraphPresentationState;
+      }) => (
+        <div
+          data-testid="shared-work-item-graph"
+          data-edge-count={projection.incidentRelationships.length}
+          data-presentation-state={presentationState}
+        >
+          {projection.children.map(({ name }) => (
+            <span key={name}>{name}</span>
+          ))}
+          {Object.entries(projection.referenceReviewControls ?? {}).map(
+            ([key, content]) => (
+              <div key={key}>{content}</div>
+            ),
+          )}
+        </div>
+      ),
+      buildCanonicalProjectedGraphPositions: () => new Map(),
     };
-    presentationState?: WorkflowGraphPresentationState;
-  }) => (
-    <div
-      data-testid="shared-work-item-graph"
-      data-edge-count={projection.incidentRelationships.length}
-      data-presentation-state={presentationState}
-    >
-      {projection.children.map(({ name }) => (
-        <span key={name}>{name}</span>
-      ))}
-    </div>
-  ),
-  buildCanonicalProjectedGraphPositions: () => new Map(),
-}));
+  },
+);
 
 vi.mock("../../../contexts/PathServiceContext", () => ({
   usePathService: () => ({
@@ -380,6 +405,166 @@ describe("ProposalGroupReview", () => {
     workItemTypeMetadataAvailable = true;
     workItemRegistryError = null;
     vi.clearAllMocks();
+  });
+
+  it("reviews a branching UX journey with new screens and an accepted live screen", async () => {
+    const journey = member("journey-member", 0, {
+      ...proposal(
+        "journey-proposal",
+        "Checkout journey",
+        ProposalAction.Create,
+      ),
+      updates: {
+        root: { refType: "temporary", tempId: "journey" },
+        operations: [
+          {
+            op: "workItem.create",
+            ref: { refType: "temporary", tempId: "journey" },
+            type: "DIAGRAM",
+            name: "Checkout journey",
+          },
+          {
+            op: "section.replace",
+            ref: { refType: "temporary", tempId: "journey" },
+            key: "diagramMetadata",
+            content: { kind: "UX_FLOW", level: "OVERVIEW" },
+          },
+          ...["saved-screen", "new-screen", "alternate-screen"].flatMap(
+            (entityId) => [
+              {
+                op: "workItem.create",
+                ref: { refType: "temporary", tempId: entityId },
+                parent: { refType: "temporary", tempId: "journey" },
+                type: "DIAGRAM_ELEMENT",
+                name:
+                  entityId === "saved-screen"
+                    ? "Cart"
+                    : entityId === "new-screen"
+                      ? "Payment"
+                      : "Payment declined",
+              },
+              {
+                op: "section.replace",
+                ref: { refType: "temporary", tempId: entityId },
+                key: "diagramElementMetadata",
+                content: {
+                  role: "GENERIC",
+                  canonicalReference: { entityType: "TASK", entityId },
+                },
+              },
+            ],
+          ),
+          {
+            op: "relationship.create",
+            ref: { refType: "temporary", tempId: "checkout" },
+            source: { refType: "temporary", tempId: "saved-screen" },
+            target: { refType: "temporary", tempId: "new-screen" },
+            category: "flow",
+            edgeType: "STANDARD",
+            direction: "forward",
+            actionLabel: "Checkout",
+          },
+          {
+            op: "relationship.create",
+            ref: { refType: "temporary", tempId: "declined" },
+            source: { refType: "temporary", tempId: "new-screen" },
+            target: { refType: "temporary", tempId: "alternate-screen" },
+            category: "flow",
+            edgeType: "CONDITIONAL",
+            direction: "forward",
+            predicate: "Payment declined",
+            actionLabel: "Pay",
+          },
+        ],
+      },
+    });
+    const payment = {
+      ...member("payment-member", 1, {
+        ...proposal("payment-proposal", "Payment", ProposalAction.Create),
+        updates: { name: "Payment", type: "mockup", sections: [] },
+      }),
+      reservedEntityId: "new-screen",
+      executionState: ProposalGroupMemberExecutionState.PendingApproval,
+      approvalProgress: {
+        receivedApprovals: 0,
+        requiredApprovals: 2,
+        approvalSatisfied: false,
+      },
+      dependencies: [],
+    };
+    const declined = {
+      ...member("declined-member", 2, {
+        ...proposal(
+          "declined-proposal",
+          "Payment declined",
+          ProposalAction.Create,
+        ),
+        updates: { name: "Payment declined", type: "mockup", sections: [] },
+      }),
+      reservedEntityId: "alternate-screen",
+      executionState: ProposalGroupMemberExecutionState.PendingApproval,
+      approvalProgress: {
+        receivedApprovals: 0,
+        requiredApprovals: 2,
+        approvalSatisfied: false,
+      },
+      dependencies: [],
+    };
+    renderedGroup = {
+      ...group,
+      members: [
+        { ...journey, reservedEntityId: "journey-id" },
+        payment,
+        declined,
+      ],
+      dependencies: [],
+    };
+    render(
+      <ProposalGroupReview
+        organizationId="org-1"
+        projectId="project-1"
+        groupId="group-1"
+      />,
+    );
+    const review = screen.getByTestId("proposal-group-journey-review");
+    expect(
+      within(review).getByTestId("shared-work-item-graph"),
+    ).toHaveAttribute("data-edge-count", "2");
+    const saved = within(review).getByTestId("journey-saved-screen-review");
+    expect(
+      within(saved).queryByTestId("proposal-group-member-approve"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(saved).getByRole("link", { name: "Open saved screen Saved cart" }),
+    ).toHaveAttribute("href", "/tasks/saved-screen");
+    const proposed = within(review).getAllByTestId(
+      "journey-proposed-screen-review",
+    );
+    expect(proposed).toHaveLength(2);
+    const user = userEvent.setup();
+    await user.click(
+      within(proposed[0]).getByTestId("proposal-group-member-approve"),
+    );
+    expect(approveMember).toHaveBeenCalledWith("payment-proposal");
+    await user.click(
+      within(proposed[1]).getByTestId("proposal-group-member-reject"),
+    );
+    await user.type(
+      screen.getByTestId("proposal-group-member-reject-reason"),
+      "Explain how to retry payment",
+    );
+    await user.click(screen.getByTestId("proposal-group-member-reject-submit"));
+    expect(rejectMember).toHaveBeenCalledWith(
+      "declined-proposal",
+      "Explain how to retry payment",
+    );
+    expect(
+      screen.queryByTestId("journey-review-send-feedback"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(review).getByTestId("journey-saved-screen-review"),
+    ).toBeInTheDocument();
+    expect(within(review).getByText("Payment declined")).toBeInTheDocument();
   });
 
   it("preserves API member order and renders mixed action content", () => {

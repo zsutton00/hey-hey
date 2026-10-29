@@ -66,6 +66,7 @@ export interface ProposalGroupMemberReviewProps {
   onApprove: (proposalId: string) => Promise<unknown>;
   onReject: (proposalId: string, reason: string) => Promise<unknown>;
   isDeciding: boolean;
+  content?: React.ReactNode;
 }
 
 const formatTimestamp = (value: string): string =>
@@ -73,7 +74,7 @@ const formatTimestamp = (value: string): string =>
 
 type MemberDecision = "approved" | "rejected" | null;
 
-const getMemberDecision = (
+export const getMemberDecision = (
   proposal: ProposalResponseDto,
   currentUserId: string | undefined,
 ): MemberDecision => {
@@ -283,7 +284,7 @@ const getMemberStatusPresentation = (
   }
 };
 
-const MemberState: React.FC<{
+export const MemberState: React.FC<{
   member: ProposalGroupMemberSnapshot;
   members: ProposalGroupMemberSnapshot[];
 }> = ({ member, members }) => {
@@ -386,7 +387,7 @@ const MemberState: React.FC<{
   );
 };
 
-const MemberDecisionControls: React.FC<{
+export const MemberDecisionControls: React.FC<{
   member: ProposalGroupMemberSnapshot;
   decision: MemberDecision;
   proposalStatus: ProposalStatus;
@@ -514,6 +515,7 @@ const ProposalGroupMemberReviewContent: React.FC<
   members,
   decisionProposal,
   decisionOverride,
+  content,
   organizationId,
   projectId,
   onApprove,
@@ -562,12 +564,14 @@ const ProposalGroupMemberReviewContent: React.FC<
         <MemberState member={member} members={members} />
         <Divider />
         <Collapse in={contentExpanded} unmountOnExit>
-          <ReadOnlyProposalContent
-            proposal={member.proposal}
-            allProposals={allProposals}
-            organizationId={organizationId}
-            projectId={projectId}
-          />
+          {content ?? (
+            <ReadOnlyProposalContent
+              proposal={member.proposal}
+              allProposals={allProposals}
+              organizationId={organizationId}
+              projectId={projectId}
+            />
+          )}
         </Collapse>
         {member.proposal.action !==
         ProposalAction.VersionedUpdate ? null : effectiveProposal.status ===

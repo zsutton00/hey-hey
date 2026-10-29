@@ -1,3 +1,4 @@
+import { WorkItemGraphChangeSummary } from "../ProposalDispatchers/WorkItemGraphChangeSummary";
 import {
   Alert,
   Box,
@@ -18,6 +19,8 @@ import {
 } from "../../api";
 import { useProposalGroup } from "../../data/hooks/useProposalGroup";
 import { useProposalGroupDecisions } from "../../data/hooks/useProposalGroupDecisions";
+import { ProposalGroupJourneyReview } from "./ProposalGroupJourneyReview";
+import { isWorkItemGraphProposal } from "../ProposalDispatchers/types";
 import { ProposalGroupMemberReview } from "./ProposalGroupMemberReview";
 import {
   extractProposalApprovalFailureDiagnostic,
@@ -25,7 +28,10 @@ import {
 } from "../ProposalDispatchers/ProposalFailureDiagnostic";
 import { formatProposalGroupLifecycle } from "./proposalGroupStatusText";
 import { useWorkItemTypes } from "../../data/hooks/useWorkItemTypes";
-import { WorkflowGraphSurface } from "../shared/WorkflowMentionInlineRenderer";
+import {
+  getDiagramMetadata,
+  WorkflowGraphSurface,
+} from "../shared/WorkflowMentionInlineRenderer";
 import {
   projectCanonicalProposalGroupGraph,
   resolveCanonicalProposalGroupRootDefinition,
@@ -152,6 +158,15 @@ export const ProposalGroupReviewView: React.FC<
     registry.isLoading,
     registry.workItemTypes,
   ]);
+  const journeys =
+    groupGraph?.kind === "ready" &&
+    getDiagramMetadata(groupGraph.projection.projectedRoot)?.kind === "UX_FLOW"
+      ? proposalGroup.members.filter(
+          ({ memberId, proposal }) =>
+            memberId === groupGraph.rootMemberId &&
+            isWorkItemGraphProposal(proposal),
+        )
+      : [];
   const allMembersApproved =
     proposalGroup.members.length > 0 &&
     proposalGroup.members.every(
@@ -224,6 +239,19 @@ export const ProposalGroupReviewView: React.FC<
             members={proposalGroup.members}
           />
         ) : null}
+        {journeys.map((journey) =>
+          isWorkItemGraphProposal(journey.proposal) ? (
+            <ProposalGroupJourneyReview
+              key={journey.memberId}
+              group={proposalGroup}
+              journey={journey}
+              onApprove={onApproveMember}
+              onReject={onRejectMember}
+              decidingProposalIds={decidingProposalIds}
+              decisionProposals={decisionProposals}
+            />
+          ) : null,
+        )}
         {structuralGraphShape && registry.isLoading ? (
           <Box
             data-testid="proposal-group-graph-loading"
@@ -248,7 +276,7 @@ export const ProposalGroupReviewView: React.FC<
             {groupGraph.reason}
           </Alert>
         ) : null}
-        {groupGraph?.kind === "ready" ? (
+        {groupGraph?.kind === "ready" && journeys.length === 0 ? (
           <Box data-testid="proposal-group-graph-preview">
             <WorkflowGraphSurface
               mode="view"
@@ -273,6 +301,21 @@ export const ProposalGroupReviewView: React.FC<
             key={member.memberId}
             member={member}
             members={proposalGroup.members}
+            content={
+              journeys.some(({ memberId }) => memberId === member.memberId) &&
+              isWorkItemGraphProposal(member.proposal) ? (
+                groupGraph?.kind === "ready" ? (
+                  <WorkItemGraphChangeSummary
+                    operations={member.proposal.updates.operations}
+                    projection={groupGraph.projection}
+                  />
+                ) : (
+                  <Alert severity="info">
+                    The frozen journey preview is unavailable.
+                  </Alert>
+                )
+              ) : undefined
+            }
             organizationId={organizationId}
             projectId={projectId}
             onApprove={onApproveMember}

@@ -1,3 +1,5 @@
+import { parseProposalReviewNote } from '../services/proposal/proposal-review-note';
+import type { ProposalReviewNoteResult } from '../generated';
 import {
   ProjectAccessGuard,
   ProjectResourceId,
@@ -379,6 +381,28 @@ export class ProposalController {
       dto,
       user.userId,
       userToken,
+    );
+  }
+
+  @Post(':id/review-notes')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Save a frozen screen review annotation without starting a revision',
+  })
+  async saveReviewNote(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @CurrentOrganization() organizationId: OrganizationId,
+    @Param('projectId') projectId: ProjectId,
+    @Body() body: unknown,
+  ): Promise<ProposalReviewNoteResult> {
+    return this.proposalService.saveReviewNote(
+      id,
+      organizationId,
+      projectId,
+      user.userId,
+      parseProposalReviewNote(body),
     );
   }
 

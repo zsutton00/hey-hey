@@ -4296,7 +4296,7 @@ SystemMessageData:
         - CARRIER
       description: Type identifier for system message data
     proposalSuggestion:
-      $ref: './proposals.yaml#/ProposalReconciliationSuggestion'
+      $ref: "./proposals.yaml#/ProposalReconciliationSuggestion"
     flowId:
       type: string
       description: ID of the conversational flow this message belongs to
@@ -8253,6 +8253,9 @@ UserMessageData:
     freeform bag means the dispatch payload is a closed, typed shape rather than
     inheriting the bag's `additionalProperties: true`.
   properties:
+    proposalReviewNote:
+      $ref: "./proposals.yaml#/ProposalReviewNoteRecord"
+      description: Passive human review annotation saved by the proposal review endpoint; never an executable input.
     type:
       $ref: "#/UserMessageDataType"
       description: Optional type to categorize the user message data

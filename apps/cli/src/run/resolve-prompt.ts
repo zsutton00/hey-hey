@@ -1,3 +1,4 @@
+import { loadScreenReviewContext } from './screen-review-context';
 /** Shared prompt preparation and composition for ordinary and isolated child execution. */
 
 import type { AgenticSession, PreviousProviderSession, RunMemo } from '../session/types';
@@ -572,6 +573,19 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
   if (deferChildPrompt) {
     resolvedPrompt = null;
     providerPromptState.segments = null;
+  }
+
+  if (resolvedPrompt && !child && launchableUserMessage) {
+    const reviewContext = await loadScreenReviewContext(run, handlerDeps);
+    if (reviewContext) {
+      resolvedPrompt = `${reviewContext}\n${resolvedPrompt}`;
+      if (providerPromptState.segments) {
+        providerPromptState.segments = {
+          ...providerPromptState.segments,
+          dynamicContext: `${reviewContext}\n${providerPromptState.segments.dynamicContext}`,
+        };
+      }
+    }
   }
 
   if (resolvedPrompt && !child) {

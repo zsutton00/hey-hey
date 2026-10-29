@@ -540,3 +540,143 @@ export const proposalReconciliationStateSchema = {
     }
   }
 } as const;
+export const proposalReviewNoteSchema = {
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "noteId",
+    "frozenRevision",
+    "sectionKey",
+    "sizeKey",
+    "target",
+    "note"
+  ],
+  "properties": {
+    "noteId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Caller-owned stable identity for idempotent note saving."
+    },
+    "frozenRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "sectionKey": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sizeKey": {
+      "type": "string",
+      "minLength": 1
+    },
+    "target": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "nodeId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "element"
+              ]
+            },
+            "nodeId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Stable data-hh-id value exposed by the validated HTML/CSS document."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "x",
+            "y",
+            "sizeKey"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "position"
+              ]
+            },
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "sizeKey": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Presentation profile in which the normalized position was authored."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "componentId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "component"
+              ]
+            },
+            "componentId": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "x",
+            "y"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "position"
+              ]
+            },
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        }
+      ]
+    },
+    "note": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+} as const;
