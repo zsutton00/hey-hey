@@ -9,6 +9,7 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  InlineReconciliationBodyContext,
   ProposalReconciliationContext,
   ProposalReconciliationReview,
 } from "../ProposalReconciliationReview";
@@ -179,14 +180,27 @@ function Approve() {
     </button>
   );
 }
-function mount(state: ProposalReconciliationState) {
+function InlineHost() {
+  const body = useContext(InlineReconciliationBodyContext);
+  return (
+    <>
+      <div>Proposal title and approval history</div>
+      {body ?? <Approve />}
+    </>
+  );
+}
+function mount(state: ProposalReconciliationState, inlineBody = false) {
   vi.mocked(proposalsClient.getProposalReconciliation).mockResolvedValue({
     data: { data: state },
   } as never);
   const apply = vi.fn();
   render(
-    <ProposalReconciliationReview proposal={proposal} onApply={apply}>
-      <Approve />
+    <ProposalReconciliationReview
+      proposal={proposal}
+      onApply={apply}
+      inlineBody={inlineBody}
+    >
+      {inlineBody ? <InlineHost /> : <Approve />}
     </ProposalReconciliationReview>,
   );
   return apply;
@@ -631,7 +645,7 @@ const intended = {
   group: "Recovery",
 };
 
-it("aligns original, live and intended requirements including additions and group changes", async () => {
+it("shows only conflicting requirements as decisions", async () => {
   const added = requirement(
     "00000000-0000-4000-8000-000000000003",
     "Show import progress",
@@ -652,9 +666,10 @@ it("aligns original, live and intended requirements including additions and grou
         proposedResult: content([intended, unchanged, added]),
       },
     ],
+    conflictingPaths: [`sections.requirements.records.${first.id}`],
     overlaps: [
       {
-        path: "sections.requirements.records",
+        path: `sections.requirements.records.${first.id}`,
         currentValue: [first, unchanged],
         proposedValue: [intended, unchanged, added],
         interveningProposalId: null,
@@ -672,9 +687,8 @@ it("aligns original, live and intended requirements including additions and grou
   );
   expect(comparison).toHaveTextContent("Proposal");
   expect(comparison).toHaveTextContent("Original history");
-  expect(comparison).toHaveTextContent("1 unchanged requirements hidden");
-  expect(comparison).toHaveTextContent("Added · Check it still belongs");
-  expect(comparison).toHaveTextContent("Show import progress");
+  expect(comparison).not.toHaveTextContent(added.statement);
+  expect(comparison).not.toHaveTextContent(unchanged.statement);
   const cells = comparison.querySelectorAll(
     `[data-testid="three-way-requirement-cell"][data-requirement-id="${first.id}"]`,
   );
@@ -687,22 +701,6 @@ it("aligns original, live and intended requirements including additions and grou
   );
   expect(screen.queryByText("Future under review")).toBeNull();
   expect(screen.queryByText("What’s changed since the baseline")).toBeNull();
-  fireEvent.click(screen.getByTestId("three-way-show-all"));
-  const unchangedCells = comparison.querySelectorAll(
-    `[data-testid="three-way-requirement-cell"][data-requirement-id="${unchanged.id}"]`,
-  );
-  expect(unchangedCells).toHaveLength(3);
-  expect(unchangedCells[0]).toHaveTextContent(unchanged.statement);
-  expect(unchangedCells[1]).toHaveTextContent(
-    "No change since this was proposed.",
-  );
-  expect(unchangedCells[2]).toHaveTextContent(
-    "This proposal did not change this requirement.",
-  );
-  for (const cell of [unchangedCells[1], unchangedCells[2]]) {
-    expect(cell).toHaveTextContent("Unchanged");
-    expect(cell).not.toHaveTextContent(unchanged.statement);
-  }
   expect(cells[1]).toHaveTextContent(first.statement);
   expect(cells[2]).toHaveTextContent(intended.statement);
   expect(screen.getByText("Approve displayed revision")).toBeDisabled();
@@ -859,7 +857,122 @@ describe("same-page staged recovery", () => {
       ),
     ).toHaveLength(2);
   });
-  it("keeps the current and proposed conflict visible during manual editing", async () => {
+  it("keeps the agent conversation open during manual editing", async () => {
+    mount(conflict);
+    fireEvent.click(
+      await screen.findByTestId("proposal-reconciliation-agent-fix"),
+    );
+    fireEvent.click(screen.getByText("Launch recorded session"));
+    await screen.findByTestId("proposal-reconciliation-agent-panel");
+    fireEvent.click(screen.getByTestId("proposal-reconciliation-edit-by-hand"));
+    expect(
+      screen.getByTestId("proposal-reconciliation-agent-panel"),
+    ).toBeVisible();
+    expect(
+      screen.getByTestId("proposal-reconciliation-manual-editor"),
+    ).toBeVisible();
+    expect(screen.queryByTestId("proposal-three-way-review")).toBeNull();
+  });
+  it("replaces the inline review while keeping its host chrome", async () => {
+    mount(conflict, true);
+    fireEvent.click(
+      await screen.findByTestId("proposal-reconciliation-edit-by-hand"),
+    );
+    expect(
+      screen.getByTestId("proposal-reconciliation-manual-editor"),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Proposal title and approval history"),
+    ).toBeVisible();
+    expect(screen.queryByTestId("proposal-three-way-review")).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Cancel", exact: true }),
+    );
+    expect(screen.getByTestId("proposal-three-way-review")).toBeVisible();
+  });
+  it("shows selected field choices and custom edits", async () => {
+    mount(conflict);
+    fireEvent.click(
+      await screen.findByTestId("proposal-reconciliation-edit-by-hand"),
+    );
+    const current = screen.getByRole("button", { name: "Use current" });
+    const proposed = screen.getByRole("button", { name: "Keep proposal" });
+    expect(proposed).toHaveAttribute("aria-pressed", "true");
+    expect(within(proposed).getByTestId("CheckOutlinedIcon")).toBeVisible();
+    expect(current).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(current);
+    expect(current).toHaveAttribute("aria-pressed", "true");
+    expect(proposed).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(screen.getByRole("button", { name: "Edit", exact: true }));
+    fireEvent.change(screen.getByLabelText("Proposed content"), {
+      target: { value: "Custom name" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save edit" }));
+    expect(current).toHaveAttribute("aria-pressed", "false");
+    expect(proposed).toHaveAttribute("aria-pressed", "false");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByRole("button", { name: "Edit (custom)" })).toBeVisible();
+    fireEvent.click(proposed);
+    expect(proposed).toHaveAttribute("aria-pressed", "true");
+    expect(
+      screen.getByRole("button", { name: "Edit", exact: true }),
+    ).toBeVisible();
+  });
+  it("shows requirement selections by identity, including removed additions", async () => {
+    const added = requirement(
+      "00000000-0000-4000-8000-000000000003",
+      "Added requirement",
+    );
+    const content = (records: ReturnType<typeof requirement>[]) => ({
+      type: "FEATURE",
+      sections: { requirements: { records } },
+    });
+    mount({
+      ...conflict,
+      currentBases: [{ ...basis, content: content([first]) }],
+      revisions: [
+        {
+          ...ready.revisions[0],
+          bases: [
+            {
+              ...basis,
+              content: content([{ ...first, statement: "Original" }]),
+            },
+          ],
+          proposedResult: content([intended, added]),
+        },
+      ],
+      conflictingPaths: ["sections.requirements"],
+      overlaps: [
+        {
+          path: "sections.requirements",
+          currentValue: content([first]).sections.requirements,
+          proposedValue: content([intended, added]).sections.requirements,
+          interveningProposalId: null,
+        },
+      ],
+    });
+    fireEvent.click(
+      await screen.findByTestId("proposal-reconciliation-edit-by-hand"),
+    );
+    const current = screen.getByRole("button", { name: "Use current" });
+    const proposed = screen.getByRole("button", { name: "Keep proposal" });
+    expect(proposed).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(current);
+    expect(current).toHaveAttribute("aria-pressed", "true");
+    expect(proposed).toHaveAttribute("aria-pressed", "false");
+    const remove = screen.getByRole("button", { name: "Remove addition" });
+    const keep = screen.getByRole("button", { name: "Keep addition" });
+    expect(keep).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(remove);
+    expect(remove).toHaveAttribute("aria-pressed", "true");
+    expect(within(remove).getByTestId("CheckOutlinedIcon")).toBeVisible();
+    expect(keep).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(keep);
+    expect(keep).toHaveAttribute("aria-pressed", "true");
+    expect(current).toHaveAttribute("aria-pressed", "true");
+  });
+  it("replaces the conflict review with the editor and restores it on Cancel", async () => {
     mount(conflict);
     fireEvent.click(
       await screen.findByTestId("proposal-reconciliation-edit-by-hand"),
@@ -868,9 +981,31 @@ describe("same-page staged recovery", () => {
     expect(
       screen.getByTestId("proposal-reconciliation-manual-editor"),
     ).toBeVisible();
+    for (const testId of [
+      "proposal-three-way-review",
+      "proposal-reconciliation-edit-by-hand",
+      "proposal-reconciliation-agent-fix",
+      "proposal-reconciliation-stages",
+      "proposal-reconciliation-heads-up",
+    ]) {
+      expect(screen.queryByTestId(testId)).toBeNull();
+    }
+    expect(screen.queryByText("Approve displayed revision")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Use current" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Cancel", exact: true }),
+    );
     expect(screen.getByTestId("proposal-three-way-review")).toHaveTextContent(
       "Future name",
     );
+    expect(screen.getByTestId("proposal-reconciliation-stages")).toBeVisible();
     expect(screen.getByText("Approve displayed revision")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("proposal-reconciliation-edit-by-hand"));
+    expect(
+      screen.getByRole("button", { name: "Keep proposal" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      proposalsClient.createProposalReconciliationCandidate,
+    ).not.toHaveBeenCalled();
   });
 });

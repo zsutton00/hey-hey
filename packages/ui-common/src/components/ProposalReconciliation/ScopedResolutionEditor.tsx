@@ -1,5 +1,5 @@
 import { ResolutionTextEditor } from "./ResolutionTextEditor";
-import { EditOutlined } from "@mui/icons-material";
+import { CheckOutlined, EditOutlined } from "@mui/icons-material";
 import { useState } from "react";
 import {
   Box,
@@ -28,6 +28,7 @@ import {
   type ReconciliationPresentation,
 } from "./reconciliationPresentation";
 import {
+  equivalentContent,
   normalizeReconciliationContent,
   projectThreeWayReview,
   threeWayValue,
@@ -105,6 +106,10 @@ export function ScopedResolutionEditor({
         const selected = item.requirementId
           ? records(value)?.find((r) => r.id === item.requirementId)
           : value;
+        const currentSelected = equivalentContent(selected, item.current);
+        const proposedSelected =
+          !currentSelected && equivalentContent(selected, item.proposed);
+        const custom = !currentSelected && !proposedSelected;
         return (
           <Box
             key={`${item.path}:${item.requirementId ?? ""}`}
@@ -142,7 +147,11 @@ export function ScopedResolutionEditor({
                 >
                   <span>
                     <Button
-                      variant="outlined"
+                      variant={currentSelected ? "contained" : "outlined"}
+                      aria-pressed={currentSelected}
+                      startIcon={
+                        currentSelected ? <CheckOutlined /> : undefined
+                      }
                       disabled={disabled}
                       onClick={() =>
                         onChange(writeResolution(result, item, item.current))
@@ -172,7 +181,11 @@ export function ScopedResolutionEditor({
                 >
                   <span>
                     <Button
-                      variant="outlined"
+                      variant={proposedSelected ? "contained" : "outlined"}
+                      aria-pressed={proposedSelected}
+                      startIcon={
+                        proposedSelected ? <CheckOutlined /> : undefined
+                      }
                       disabled={disabled}
                       onClick={() =>
                         onChange(writeResolution(result, item, item.proposed))
@@ -202,7 +215,7 @@ export function ScopedResolutionEditor({
                         setEditing({ item, value: structuredClone(selected) })
                       }
                     >
-                      Edit
+                      {custom ? "Edit (custom)" : "Edit"}
                     </Button>
                   </span>
                 </Tooltip>
