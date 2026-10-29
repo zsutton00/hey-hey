@@ -153,6 +153,16 @@ export function reconciliationPatch(
   candidate: Prisma.JsonObject,
 ): UpdateTaskDto | UpdateDesignDocDto {
   const patch = cloneDeep(originalPatch);
+  if ('requirementOps' in patch && patch.requirementOps) {
+    delete patch.requirementOps;
+    patch.sections = [
+      ...(patch.sections ?? []),
+      {
+        key: 'requirements',
+        content: (candidate.sections as Prisma.JsonObject).requirements,
+      },
+    ];
+  }
   for (const key of Object.keys(patch)) {
     if (key === 'sections' || key === 'sectionUpdateSource' || key === 'reason')
       continue;

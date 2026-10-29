@@ -191,19 +191,27 @@ export async function futureBaselineBlocker(
           select: { id: true, archivedAt: true },
         });
   if (!target || target.archivedAt) return 'BASELINE_UNAVAILABLE';
-  return (await reconciliation.futureBaselineChanged(
+  const changed = await reconciliation.futureBaselineChanged(
     db,
-    {
-      organizationId: future.organizationId,
-      projectId: future.projectId,
-      targetEntityType: future.targetEntityType,
-      targetEntityId: future.targetEntityId,
-    },
+    future,
     baseline,
     result,
-  ))
-    ? 'BASELINE_CHANGED'
-    : undefined;
+  );
+  if (!changed) {
+    return undefined;
+  }
+  if (result && !futureGraph(result)) {
+    const merged = await reconciliation.mergeFutureForApplication(
+      db,
+      future,
+      baseline,
+      result,
+    );
+    if (merged.kind === 'MERGED') {
+      return undefined;
+    }
+  }
+  return 'BASELINE_CHANGED';
 }
 
 /** Adapt the reviewed result to the existing generated target update contract. */

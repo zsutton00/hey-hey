@@ -620,7 +620,9 @@ describe('manual future application', () => {
       state.proposal,
       organizationId,
       projectId,
-      { reviewedFuture: expect.objectContaining({ id: futureId }) },
+      expect.objectContaining({
+        reviewedFuture: expect.objectContaining({ id: futureId }),
+      }),
     );
     expect(state.proposal.approvalRecords).toEqual([
       { userId, type: 'APPROVAL' },
@@ -900,6 +902,151 @@ describe('manual future application', () => {
     state.work = null;
     expect(await apply()).toMatchObject({ blocker: 'COMPLETION_INCOMPLETE' });
   });
+  it.each(['clean', 'overlap'] as const)(
+    'rechecks requirement changes at Apply: %s',
+    async (kind) => {
+      registry.getSectionDefinitions.mockReturnValue([
+        {
+          key: 'requirements',
+          kind: 'json',
+          schemaRef: '#/components/schemas/FeatureRequirementsSection',
+        },
+      ]);
+      const record = (id: string, statement: string) => ({
+        id,
+        statement,
+        designedBy: [],
+        fulfilledBy: [],
+        contracts: [],
+      });
+      const first = record(randomUUID(), 'First requirement');
+      const second = record(randomUUID(), 'Second requirement');
+      const added = record(randomUUID(), 'Added requirement');
+      const section = (records: (typeof first)[]) => ({
+        id: randomUUID(),
+        materializedProposalId: proposalId,
+        key: 'requirements',
+        order: 0,
+        materializedMarkdown: JSON.stringify({ records }),
+      });
+      state.future.result.name = 'Current';
+      state.future.baseline.content.sections = [section([first, second])];
+      state.future.result.sections = [
+        section([first, { ...second, statement: 'Proposed second' }, added]),
+      ];
+      state.target.sections = [
+        section([{ ...first, statement: 'Live first' }, second]),
+      ];
+      const approvals = structuredClone(state.proposal.approvalRecords);
+      const adapter = new ProposalReconciliationAdapterService(
+        registry,
+        {} as any,
+      );
+      const originalBasis = {
+        entityType: 'TASK',
+        entityId: targetId,
+        version: 'written',
+        content: adapter.futureContentBasis(
+          'TASK',
+          state.future.baseline.content,
+          projectId,
+        ),
+      };
+      db.workItemChangeSetMaterialization = {
+        findUnique: jest.fn().mockResolvedValue(null),
+      };
+      db.proposalGroupMember = {
+        findUnique: jest.fn().mockResolvedValue(null),
+      };
+      db.proposalReconciliationReplacement = {
+        findFirst: jest.fn().mockResolvedValue(null),
+      };
+      db.proposalReconciliationSuggestion = {
+        findMany: jest.fn().mockResolvedValue([]),
+      };
+      db.proposalReconciliationRevision = {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: randomUUID(),
+            proposalId,
+            previousRevisionId: null,
+            source: 'AUTHORING',
+            bases: [originalBasis],
+            proposedResult: state.future.result,
+            intent: 'Change the second requirement',
+            createdAt: timestamp,
+          },
+        ]),
+      };
+      state.proposal.createdAt = timestamp;
+      const review = await reconciliation.stateForFuture(
+        db,
+        state.proposal,
+        state.future.baseline,
+      );
+      expect(review).toMatchObject({
+        status: 'READY_FOR_REVIEW',
+        overlaps: [],
+        conflictingPaths: [],
+      });
+      expect(
+        review.revisions[0]!.proposedResult.sections.requirements.records,
+      ).toEqual([
+        { ...first, statement: 'Live first' },
+        { ...second, statement: 'Proposed second' },
+        added,
+      ]);
+      expect(
+        await service.getFutureApplicability(
+          futureId,
+          organizationId as any,
+          projectId as any,
+          userId as any,
+        ),
+      ).toMatchObject({ canApply: true });
+      // More drift after review must be merged against the target held at Apply.
+      const liveSecond =
+        kind === 'overlap'
+          ? { ...second, statement: 'Conflicting second' }
+          : second;
+      state.target.sections = [
+        section([{ ...first, statement: 'Newest first' }, liveSecond]),
+      ];
+      enact.mockImplementationOnce(
+        async (_tx, _proposal, _org, _project, options) => {
+          const updates = options.mergedFutureUpdates;
+          state.target.name = updates.name;
+          for (const update of updates.sections) {
+            state.target.sections = [section(update.content.records)];
+          }
+          return {
+            proposal: state.proposal,
+            materializableEdges: [],
+            runPostCommit: jest.fn(),
+          };
+        },
+      );
+      const response = await apply();
+      if (kind === 'overlap') {
+        expect(response).toMatchObject({
+          status: 'BLOCKED',
+          blocker: 'BASELINE_CHANGED',
+        });
+        expect(enact).not.toHaveBeenCalled();
+      } else {
+        expect(response.status).toBe('APPLIED');
+        expect(
+          JSON.parse(state.target.sections[0].materializedMarkdown).records,
+        ).toEqual([
+          { ...first, statement: 'Newest first' },
+          { ...second, statement: 'Proposed second' },
+          added,
+        ]);
+        expect(state.future.latestProposalId).toBe(proposalId);
+      }
+      expect(state.proposal.approvalRecords).toEqual(approvals);
+    },
+  );
   it('returns the current reviewed revision when the selected revision changed', async () => {
     state.future.revision = 2;
     expect(await apply()).toMatchObject({
@@ -915,7 +1062,7 @@ describe('manual future application', () => {
     expect(enact).not.toHaveBeenCalled();
   });
   it.each(['scalar', 'section', 'section order'])(
-    'blocks changed baseline %s content without accepting acknowledgement',
+    're-merges independent baseline %s changes and blocks an overlap',
     async (kind) => {
       if (kind === 'scalar') state.target.name = 'Concurrent edit';
       if (kind === 'section')
@@ -932,8 +1079,12 @@ describe('manual future application', () => {
           expectedRevision: 1,
           confirmation: { revision: 1, refinements: [] },
         }),
-      ).toMatchObject({ blocker: 'BASELINE_CHANGED' });
-      expect(enact).not.toHaveBeenCalled();
+      ).toMatchObject(
+        kind === 'scalar'
+          ? { blocker: 'BASELINE_CHANGED' }
+          : { status: 'APPLIED' },
+      );
+      expect(enact).toHaveBeenCalledTimes(kind === 'scalar' ? 0 : 1);
     },
   );
   it('requires an applied selected parent baseline', async () => {

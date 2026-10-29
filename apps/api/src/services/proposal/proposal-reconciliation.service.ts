@@ -331,8 +331,14 @@ export class ProposalReconciliationService {
     const state = await this.state(tx, proposal, changed);
     if (!state.revisions.length || state.status === 'NOT_APPLICABLE')
       return state;
+    const merged = changed
+      ? this.prepareFutureMerge(proposal, state)
+      : undefined;
+    const cleanMerge =
+      merged?.kind === 'MERGED' &&
+      !futureGraph(this.futureRevisionResult(proposal));
     let currentBases = state.currentBases;
-    if (changed) {
+    if (changed && !cleanMerge) {
       // Section identities are response metadata, outside the semantic basis check.
       // Manual recovery must retain actual live identities when carrying new sections forward.
       const live = await this.currentFutureContent({
@@ -355,15 +361,30 @@ export class ProposalReconciliationService {
       replacementGroupId: _legacyGroup,
       ...currentState
     } = state;
+    const revisions = cleanMerge
+      ? state.revisions.map((revision) =>
+          revision.id === state.candidateRevisionId
+            ? {
+                ...revision,
+                bases: currentBases,
+                proposedResult: merged.candidate as Prisma.JsonObject,
+              }
+            : revision,
+        )
+      : state.revisions;
     return this.withSuggestions(tx, proposal, {
       ...currentState,
       currentBases,
+      revisions,
+      ...(cleanMerge ? { conflictingPaths: [], overlaps: [] } : {}),
       futureRevision: future?.revision ?? 0,
-      status: changed
-        ? 'RECONCILIATION_REQUIRED'
-        : state.revisions.at(-1)?.source === 'AUTHORING'
-          ? 'CURRENT'
-          : 'READY_FOR_REVIEW',
+      status: cleanMerge
+        ? 'READY_FOR_REVIEW'
+        : changed
+          ? 'RECONCILIATION_REQUIRED'
+          : state.revisions.at(-1)?.source === 'AUTHORING'
+            ? 'CURRENT'
+            : 'READY_FOR_REVIEW',
     });
   }
 
@@ -1002,30 +1023,36 @@ export class ProposalReconciliationService {
     const intervening = outOfDate
       ? await this.interveningProposals(tx, proposal, origin)
       : [];
-    const overlaps =
+    const reviewState = {
+      status,
+      currentBases,
+      revisions,
+      conflictingPaths: [],
+      interveningProposals: [],
+      overlaps: [],
+    };
+    const contentMerge =
       status === 'RECONCILIATION_REQUIRED' && !replacement
-        ? this.overlaps(
-            this.prepareMerge(proposal, {
-              status,
-              currentBases,
-              revisions,
-              conflictingPaths: [],
-              interveningProposals: [],
-              overlaps: [],
-            }),
-            proposal.action === 'VERSIONED_UPDATE' &&
-              (proposal.targetEntityType === 'TASK' ||
-                proposal.targetEntityType === 'DESIGN_DOC')
-              ? this.adapter.futureContentBasis(
-                  proposal.targetEntityType,
-                  this.futureRevisionResult(proposal),
-                  proposal.projectId,
-                )
-              : latest?.proposedResult,
-            currentBases[0]?.content,
-            intervening,
-          )
-        : [];
+        ? proposal.action === 'VERSIONED_UPDATE'
+          ? this.prepareFutureMerge(proposal, reviewState)
+          : this.prepareMerge(proposal, reviewState)
+        : undefined;
+    const overlaps = contentMerge
+      ? this.overlaps(
+          contentMerge,
+          proposal.action === 'VERSIONED_UPDATE' &&
+            (proposal.targetEntityType === 'TASK' ||
+              proposal.targetEntityType === 'DESIGN_DOC')
+            ? this.adapter.futureContentBasis(
+                proposal.targetEntityType,
+                this.futureRevisionResult(proposal),
+                proposal.projectId,
+              )
+            : latest?.proposedResult,
+          currentBases[0]?.content,
+          intervening,
+        )
+      : [];
     for (const entry of intervening)
       entry.overlappingPaths = overlaps
         .filter((overlap) => overlap.interveningProposalId === entry.proposalId)
@@ -1134,7 +1161,9 @@ export class ProposalReconciliationService {
 
   /** Fields the merge could not combine, attributed to the latest intervening change to them. */
   private overlaps(
-    merge: ReturnType<ProposalReconciliationService['prepareMerge']>,
+    merge:
+      | { kind: 'MERGED' }
+      | { kind: 'AGENT_FIX_REQUIRED'; conflictingPaths: readonly string[] },
     proposedResult: Prisma.JsonValue | undefined,
     current: Prisma.JsonValue | undefined,
     intervening: readonly ProposalReconciliationIntervening[],
@@ -1168,51 +1197,133 @@ export class ProposalReconciliationService {
     return mutation.result;
   }
 
+  mergeFutureContent(
+    targetEntityType: 'TASK' | 'DESIGN_DOC',
+    projectId: string,
+    baseline: FutureRevisionContent,
+    result: FutureRevisionContent,
+    current: ProposalReconciliationBasis,
+  ) {
+    const before = this.adapter.futureContentBasis(
+      targetEntityType,
+      baseline,
+      projectId,
+    );
+    const after = this.adapter.futureContentBasis(
+      targetEntityType,
+      result,
+      projectId,
+    );
+    const textPaths = new Set(
+      Object.keys(before.sections as Prisma.JsonObject).map((key) =>
+        fieldPathToPointer(`sections.${key}`),
+      ),
+    );
+    return mergeProposalContent(
+      before,
+      this.adapter.currentFutureBasisContent(targetEntityType, current),
+      after,
+      textPaths,
+    );
+  }
+
+  /** Read through the caller's transaction so Apply merges against the locked target. */
+  async mergeFutureForApplication(
+    tx: AnyTransactionClient,
+    target: {
+      organizationId: string;
+      projectId: string;
+      targetEntityType: 'TASK' | 'DESIGN_DOC';
+      targetEntityId: string;
+    },
+    baseline: FutureRevisionBaseline,
+    result: FutureRevisionContent,
+  ) {
+    const basis =
+      target.targetEntityType === 'TASK'
+        ? await this.adapter.task(tx, target, target.targetEntityId, false)
+        : await this.adapter.designDoc(
+            tx,
+            target,
+            target.targetEntityId,
+            false,
+          );
+    const merged = this.mergeFutureContent(
+      target.targetEntityType,
+      target.projectId,
+      baseline.content,
+      result,
+      basis,
+    );
+    if (merged.kind !== 'MERGED') {
+      return merged;
+    }
+    return {
+      kind: 'MERGED' as const,
+      candidate: merged.candidate as Prisma.JsonObject,
+      basis,
+    };
+  }
+
+  async futureCandidateMatches(
+    tx: AnyTransactionClient,
+    target: {
+      organizationId: string;
+      projectId: string;
+      targetEntityType: 'TASK' | 'DESIGN_DOC';
+      targetEntityId: string;
+    },
+    candidate: Prisma.JsonObject,
+  ) {
+    const basis =
+      target.targetEntityType === 'TASK'
+        ? await this.adapter.task(tx, target, target.targetEntityId, false)
+        : await this.adapter.designDoc(
+            tx,
+            target,
+            target.targetEntityId,
+            false,
+          );
+    return isEqual(
+      candidate,
+      this.adapter.currentFutureBasisContent(target.targetEntityType, basis),
+    );
+  }
+
+  private prepareFutureMerge(
+    proposal: Proposal,
+    state: ProposalReconciliationState,
+  ) {
+    if (
+      (proposal.targetEntityType !== 'TASK' &&
+        proposal.targetEntityType !== 'DESIGN_DOC') ||
+      !state.currentBases[0]
+    ) {
+      return { kind: 'AGENT_FIX_REQUIRED', conflictingPaths: [''] } as const;
+    }
+    const mutation = parseFutureRevisionMutation(proposal.updates);
+    if (mutation.operation !== 'REVISE') {
+      return { kind: 'AGENT_FIX_REQUIRED', conflictingPaths: [''] } as const;
+    }
+    return this.mergeFutureContent(
+      proposal.targetEntityType,
+      proposal.projectId,
+      mutation.baseline.content,
+      mutation.result,
+      state.currentBases[0],
+    );
+  }
+
   prepareMerge(proposal: Proposal, state: ProposalReconciliationState) {
     const original = state.revisions.at(-1);
     if (!original || !state.currentBases[0] || proposal.action === 'DELETE') {
       return { kind: 'AGENT_FIX_REQUIRED', conflictingPaths: [''] } as const;
     }
-    if (
-      proposal.action === 'VERSIONED_UPDATE' &&
-      (proposal.targetEntityType === 'TASK' ||
-        proposal.targetEntityType === 'DESIGN_DOC')
-    ) {
-      const mutation = parseFutureRevisionMutation(proposal.updates);
-      if (mutation.operation !== 'REVISE')
-        return { kind: 'AGENT_FIX_REQUIRED', conflictingPaths: [''] } as const;
-      const before = this.adapter.futureContentBasis(
-        proposal.targetEntityType,
-        mutation.baseline.content,
-        proposal.projectId,
-      );
-      const after = this.adapter.futureContentBasis(
-        proposal.targetEntityType,
-        mutation.result,
-        proposal.projectId,
-      );
-      const textPaths = new Set(
-        Object.keys(before.sections as Prisma.JsonObject).map(
-          (key) => `/sections/${key.replace(/~/g, '~0').replace(/\//g, '~1')}`,
-        ),
-      );
-      const result = mergeProposalContent(
-        before,
-        this.adapter.currentFutureBasisContent(
-          proposal.targetEntityType,
-          state.currentBases[0],
-        ),
-        after,
-        textPaths,
-      );
-      return result.kind === 'MERGED'
-        ? ({ kind: 'AGENT_FIX_REQUIRED', conflictingPaths: [] } as const)
-        : result;
+    if (proposal.action === 'VERSIONED_UPDATE') {
+      return { kind: 'AGENT_FIX_REQUIRED', conflictingPaths: [] } as const;
     }
     const patch = proposal.updates as UpdateTaskDto | UpdateDesignDocDto;
-    // Ordered requirement operations carry semantic intent, not replacement content.
     if (
-      'requirementOps' in patch ||
       'operations' in patch ||
       proposal.targetEntityType === 'ENTITY_PROMPT_TEMPLATE' ||
       proposal.targetEntityType === 'WORK_ITEM_TYPE'

@@ -1,3 +1,4 @@
+import { reconciliationPatch } from './proposal-reconciliation-content';
 import { isEqual } from 'lodash';
 import { readProjectReadyCandidates } from './project-ready-futures';
 import {
@@ -249,6 +250,7 @@ type GroupedPublicationPayload = {
 
 type EnactmentOptions = {
   reviewedFuture?: FutureRevisionResponse;
+  mergedFutureUpdates?: UpdateTaskDto | UpdateDesignDocDto;
   reservedTargetEntityId?: string;
   onImmediateEdgeCreated?: (edge: MaterializedProposalEdge) => void;
 };
@@ -868,25 +870,33 @@ export class ProposalApprovalService {
           };
         }
 
+        const merged = await this.reconciliation.mergeFutureForApplication(
+          db,
+          future,
+          future.baseline,
+          future.result,
+        );
+        if (merged.kind !== 'MERGED') {
+          return blocked('BASELINE_CHANGED');
+        }
+        const mergedFutureUpdates = reconciliationPatch(
+          futureTargetUpdates(future, this.workItemTypeRegistry),
+          merged.basis.content,
+          merged.candidate,
+        );
         const enactment = await this.applyInTransaction(
           tx,
           proposal,
           organizationId,
           projectId,
-          { reviewedFuture: future },
+          { reviewedFuture: future, mergedFutureUpdates },
         );
-        const materializationMismatch = await futureBaselineBlocker(
-          db,
-          {
-            ...future,
-            baseline: {
-              kind: 'LIVE',
-              revision: future.baseline.revision,
-              content: future.result,
-            },
-          },
-          this.reconciliation,
-        );
+        const materializationMismatch =
+          !(await this.reconciliation.futureCandidateMatches(
+            db,
+            future,
+            merged.candidate,
+          ));
         if (materializationMismatch) {
           throw new ConflictException(
             'The target update contract could not materialize the complete reviewed result. Application was rolled back.',
@@ -2908,10 +2918,11 @@ export class ProposalApprovalService {
       ? {
           ...proposal,
           action: 'UPDATE' as const,
-          updates: futureTargetUpdates(
-            enactmentOptions.reviewedFuture,
-            this.workItemTypeRegistry,
-          ) as Prisma.InputJsonObject,
+          updates: (enactmentOptions.mergedFutureUpdates ??
+            futureTargetUpdates(
+              enactmentOptions.reviewedFuture,
+              this.workItemTypeRegistry,
+            )) as Prisma.InputJsonObject,
         }
       : await tx.proposal.update({
           where: { id: proposal.id },
