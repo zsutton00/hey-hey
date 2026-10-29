@@ -1,3 +1,4 @@
+import { createRunArgsFromSession } from '../../run/run-activation';
 import type { PromptTypeRegistry } from '../../agents/prompt-type-registry';
 import type { RunRegistry } from '../../run/run-registry';
 import type {
@@ -154,6 +155,18 @@ export class RunCreationCoordinator {
         runId: materialized.run.agentic_session_id,
         promptType,
       });
+      if (input.inert) {
+        const located = await this.dependencies.runService.activateRunByAnyId(
+          materialized.run.agentic_session_id,
+        );
+        if (!located) {
+          throw new Error('Created inert Run is unavailable.');
+        }
+        const run =
+          this.dependencies.runRegistry.get(materialized.run.agentic_session_id) ??
+          this.dependencies.runRegistry.create(createRunArgsFromSession(located.agenticSession));
+        run.admitInitialInertInput();
+      }
       try {
         await this.dependencies.messageService.sendMessage(
           materialized.run.agentic_session_id,

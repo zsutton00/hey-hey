@@ -1,3 +1,4 @@
+import { filterInertBuiltinTools } from '../../../run/inert-execution-policy';
 import { toolResultLogLevel } from './tool-result-log-level';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { buildBrowserToolsMcpConfig, BROWSER_ALLOWED_TOOLS } from '../../browser-tools/mcp-config';
@@ -488,10 +489,15 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
   private readonly resolveActiveProviderSessionId = (): string | null =>
     readTrimmed(this.client.getSessionId()) ?? this.activeProviderSessionId;
 
+  private inertExecution = false;
+
   private readonly ensureConnected = async (): Promise<void> => {
     if (this.connected) return;
     requestContext.log(this.logger, 'debug', 'local.runner.claude.connecting');
     this.client.onPermissionRequest(async (toolName, input) => {
+      if (this.inertExecution && !this.activeAllowedToolNames.has(toolName)) {
+        return { behavior: 'deny', message: 'Tool unavailable to inert execution.' };
+      }
       if (this.reportingRepair && !toolName.endsWith('__report_changed_files')) {
         return {
           behavior: 'deny',
@@ -1694,6 +1700,10 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
         signal?.addEventListener('abort', () => reject(new Error('Aborted')), { once: true });
       });
 
+      this.inertExecution = session.inert === true;
+      if (session.inert && (!platformMcpProxyMount || !this.localAgentEndpoint.get())) {
+        throw new Error('Inert execution requires the scoped platform MCP proxy.');
+      }
       let mcpServers: Record<string, unknown> | undefined;
       let allowedTools: string[] | undefined;
       const researchBuiltinTools = repositoryResearch
@@ -1748,6 +1758,9 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
             }
           }
         } catch (err: unknown) {
+          if (session.inert) {
+            throw err;
+          }
           requestContext.log(this.logger, 'warn', 'local.runner.claude.mcp_config.failed', {
             runId,
             error: err,
@@ -1762,10 +1775,14 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       }
 
       if (!hasExistingSession) {
-        if (!canResumeFromPersisted) {
+        if (!session.inert && !canResumeFromPersisted) {
           this.mintedUserMcpConfig = await loadClaudeUserMcpConfig(this.logger);
         }
-        if (this.mintedUserMcpConfig && this.mintedUserMcpConfig.serverNames.length > 0) {
+        if (
+          !session.inert &&
+          this.mintedUserMcpConfig &&
+          this.mintedUserMcpConfig.serverNames.length > 0
+        ) {
           mcpServers = { ...this.mintedUserMcpConfig.mcpServers, ...(mcpServers ?? {}) };
           allowedTools = [...(allowedTools ?? []), ...this.mintedUserMcpConfig.allowedTools];
         }
@@ -1817,7 +1834,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       if (!hasExistingSession) {
         this.lastBrowserMcpToken = browserMcpMount?.token ?? null;
         const browserBaseUrl = this.localAgentEndpoint.get();
-        if (browserMcpMount && browserBaseUrl) {
+        if (!session.inert && browserMcpMount && browserBaseUrl) {
           const browserConfig = buildBrowserToolsMcpConfig(browserMcpMount, browserBaseUrl);
           mcpServers = {
             ...(mcpServers ?? {}),
@@ -1881,6 +1898,16 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
           sessionId: session.agentic_session_id,
           builtinTools: CLAUDE_READ_ONLY_BUILTIN_TOOLS,
         });
+      }
+
+      const inertBuiltins = filterInertBuiltinTools(
+        researchBuiltinTools ?? builtinTools ?? CLAUDE_READ_ONLY_BUILTIN_TOOLS,
+      );
+      if (session.inert) {
+        allowedTools = (allowedTools ?? []).filter(
+          (name) => name.startsWith('mcp__') || inertBuiltins.includes(name),
+        );
+        allowedTools = Array.from(new Set([...allowedTools, ...inertBuiltins]));
       }
 
       // Capture the turn's fully-resolved allow-list for the permission handler.
@@ -1979,13 +2006,15 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
               : {}),
             ...(mcpServers ? { mcpServers } : {}),
             ...(allowedTools ? { allowedTools } : {}),
-            ...(researchBuiltinTools !== undefined
-              ? { builtinTools: Array.from(researchBuiltinTools) }
-              : builtinTools !== undefined
-                ? { builtinTools: Array.from(builtinTools) }
-                : readOnlyFilesystem
-                  ? { builtinTools: Array.from(CLAUDE_READ_ONLY_BUILTIN_TOOLS) }
-                  : {}),
+            ...(session.inert
+              ? { builtinTools: inertBuiltins }
+              : researchBuiltinTools !== undefined
+                ? { builtinTools: Array.from(researchBuiltinTools) }
+                : builtinTools !== undefined
+                  ? { builtinTools: Array.from(builtinTools) }
+                  : readOnlyFilesystem
+                    ? { builtinTools: Array.from(CLAUDE_READ_ONLY_BUILTIN_TOOLS) }
+                    : {}),
             ...((model ?? session.model) ? { model: (model ?? session.model) as string } : {}),
             ...((reasoningEffort ?? session.reasoningEffort)
               ? {

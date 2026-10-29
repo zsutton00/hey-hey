@@ -48,6 +48,7 @@ export interface LocalCreateRunRequest {
   model?: string;
   reasoningEffort?: StartRunPromptPayloadReasoningEffortEnum;
   fastMode?: boolean;
+  inert?: boolean;
   /** Pathless provider Skill identity; the provider resolves it inside the Run workspace. */
   skillSelection?: AgentSkillSelection;
   config?: AgentSessionConfig | null;

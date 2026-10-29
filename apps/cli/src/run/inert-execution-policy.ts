@@ -48,3 +48,9 @@ const INERT_SAFE_BUILTINS: ReadonlySet<string> = new Set(['Read', 'Glob', 'Grep'
 
 export const filterInertBuiltinTools = (names: readonly string[]): string[] =>
   names.filter((name) => INERT_SAFE_BUILTINS.has(name));
+
+// Only the universal report wrapper has no workflow or live-project side effects.
+const INERT_SAFE_SUBMISSIONS = new Set(['create_report']);
+
+export const isInertSubmissionToolAllowed = (name: string): boolean =>
+  INERT_SAFE_SUBMISSIONS.has(name);

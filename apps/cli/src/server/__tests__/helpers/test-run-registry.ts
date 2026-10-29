@@ -1,3 +1,5 @@
+import type { SessionRunnerFacade } from '../../runtime/providers/select';
+import type { SubmissionToolDeclaration } from '../../../agents/submission-tools/types';
 /**
  * Test helper that wires the full Run runtime (registry + session runner +
  * runner picker) the way `RunApplicationRuntime` does in production, bundled
@@ -200,6 +202,9 @@ const createStubSessionRunner = (): Pick<AgentSessionRunner, 'runPrompt' | 'resu
 
 export interface CreateTestRunRegistryWiringOptions {
   poster?: MessagePoster;
+  sessionRunnerFacade?: SessionRunnerFacade;
+  submissionToolRegistry?: SubmissionToolRegistry;
+  baseSubmissionTools?: SubmissionToolDeclaration[];
   logger?: ServerLogger;
   runStore?: RunStore;
   repoStore?: RepoMappingStore;
@@ -229,9 +234,11 @@ export const createTestRunRegistryWiring = (
       getAccessToken: async () => ({ success: false, error: 'stub' }),
     });
 
-  const submissionToolRegistry = new SubmissionToolRegistry();
+  const submissionToolRegistry = overrides.submissionToolRegistry ?? new SubmissionToolRegistry();
   const promptTypeRegistry = new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES);
-  const sessionRunnerFacade = createTestSessionRunnerFacade(sessionRunner as AgentSessionRunner);
+  const sessionRunnerFacade =
+    overrides.sessionRunnerFacade ??
+    createTestSessionRunnerFacade(sessionRunner as AgentSessionRunner);
   const localAgentEndpoint = new LocalAgentEndpoint();
   const childAgentLauncher = new ChildAgentLauncher({
     handlerDeps: createPromptTypeHandlerTestDeps(),
@@ -256,6 +263,9 @@ export const createTestRunRegistryWiring = (
     runCollaborators: {
       runStore,
       repoStore,
+      ...(overrides.baseSubmissionTools
+        ? { baseSubmissionTools: overrides.baseSubmissionTools }
+        : {}),
       poster,
       broadcaster,
       handlerDeps,

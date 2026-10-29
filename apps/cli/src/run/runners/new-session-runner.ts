@@ -1,3 +1,4 @@
+import { filterInertBuiltinTools } from '../inert-execution-policy';
 import { TurnContinuation } from './turn-continuation';
 import type { ServerLogger } from '../../server/logger';
 import type { SessionRunnerFacade } from '../../server/runtime/providers/select';
@@ -137,10 +138,14 @@ export class NewSessionRunner implements Runner {
             ];
             return merged.length > 0 ? Array.from(new Set(merged)) : undefined;
           })();
-    const additionalBuiltinTools = handler.additionalBuiltinTools;
-    const readOnlyFilesystem = handler.readOnlyFilesystem;
+    const additionalBuiltinTools = run.session.inert
+      ? filterInertBuiltinTools(handler.additionalBuiltinTools ?? [])
+      : handler.additionalBuiltinTools;
+    const readOnlyFilesystem = run.session.inert || handler.readOnlyFilesystem;
     const repositoryResearch = handler.repositoryResearch;
-    const builtinTools = handler.builtinTools;
+    const builtinTools = run.session.inert
+      ? filterInertBuiltinTools(handler.builtinTools ?? ['Read', 'Glob', 'Grep', 'ToolSearch'])
+      : handler.builtinTools;
     const mcpToolUseCase = handler.mcpToolUseCase;
 
     const prompt = this.ctx.serviceScopeRecovery

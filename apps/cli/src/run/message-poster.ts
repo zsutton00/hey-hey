@@ -221,6 +221,10 @@ export class MessagePoster {
   private isProcessing = false;
   private isCleanupCalled = false;
 
+  public inertSibling(): MessagePoster {
+    return new MessagePoster({ ...this.dependencies, inert: true });
+  }
+
   public constructor(private readonly dependencies: MessagePosterDependencies) {
     this.failedMessagesPath = path.join(dependencies.dataDir, 'failed-messages.jsonl');
   }

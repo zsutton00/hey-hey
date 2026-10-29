@@ -4126,9 +4126,15 @@ export class Run {
     let browserTabNoticeId: string | null;
     let proposalNotices: ProposalDecisionNotices;
     try {
+      await this.runStore.updateRunLatestTurn(this.runId, { turnId, state: 'running' });
       ({ ctx, platformMcpProxy, browserAnnotationIds, browserTabNoticeId, proposalNotices } =
         await this.resolveTurnInputs(input, turnId));
       if (preparationAbortController.signal.aborted) {
+        await this.runStore.updateRunLatestTurn(this.runId, {
+          turnId,
+          state: 'settled',
+          outcome: 'ABORTED',
+        });
         void this.drainQueue();
         return;
       }
@@ -4138,6 +4144,11 @@ export class Run {
         this.readStateChanged();
       }
     } catch (error) {
+      await this.runStore.updateRunLatestTurn(this.runId, {
+        turnId,
+        state: 'settled',
+        outcome: preparationAbortController.signal.aborted ? 'ABORTED' : 'FAILED',
+      });
       if (error instanceof AgentStartupPromptInputError && !this.entityContextLoadFailed) {
         this.entityContextLoadFailed = true;
         this.readStateChanged();
@@ -4316,6 +4327,11 @@ export class Run {
         this.observeConversationPhase('reviewing');
       }
     } catch (error) {
+      await this.runStore.updateRunLatestTurn(this.runId, {
+        turnId,
+        state: 'settled',
+        outcome: 'FAILED',
+      });
       this._reportChainStartByTurn.delete(turnId);
       this.settleTurnPreparation(this.activeTurn !== null);
       this.logger.error('local.run.start_turn.begin_failed', {
@@ -4671,6 +4687,19 @@ export class Run {
         turnId: turn.turnId,
         promptType: this.activeTurnInput?.promptType ?? turn.handler.promptType,
         provider: this.provider,
+      });
+    }
+    try {
+      await this.runStore.updateRunLatestTurn(this.runId, {
+        turnId: turn.turnId,
+        state: 'settled',
+        outcome: turn.terminalOutcome,
+      });
+    } catch (error) {
+      this.logger.error('local.run.latest_turn.save_failed', {
+        runId: this.runId,
+        turnId: turn.turnId,
+        error,
       });
     }
     try {
