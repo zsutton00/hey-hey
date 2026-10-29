@@ -24,8 +24,29 @@ import {
   type ProposalGroupSnapshot,
   type ProposalResponseDto,
 } from "../../../api";
+import { RunBrowserProvider } from "../../AgentSession/runtime/RunBrowserContext";
 import { ProposalGroupReview } from "../ProposalGroupReview";
 import type { WorkflowGraphPresentationState } from "../../shared/WorkflowMentionInlineRenderer";
+
+const openRunBrowserTab = vi.fn().mockResolvedValue(undefined);
+vi.mock(
+  "../../AgentSession/runtime/directoryBindingApi",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("../../AgentSession/runtime/directoryBindingApi")
+      >();
+    return {
+      ...actual,
+      resolveLocalDirectoryRuntimeBaseUrl: () => "http://localhost:3847",
+      createDirectoryBindingApi: () => ({
+        listRepos: () =>
+          Promise.resolve({ machineId: "machine-1", bindings: [] }),
+        openRunBrowserTab,
+      }),
+    };
+  },
+);
 
 vi.mock("../../ProposalDispatchers/ProposalTitle", async (importOriginal) => {
   const actual =
@@ -244,19 +265,39 @@ vi.mock("../../../data/hooks/useWorkItem", () => ({
             name: "Saved cart",
             type: "mockup",
             status: "BACKLOG",
-            sections: [],
+            sections: [
+              {
+                key: "mockup",
+                materializedMarkdown: JSON.stringify({
+                  schemaVersion: "work-item-structured-mockup.v1",
+                  content: [],
+                }),
+              },
+            ],
           }
-        : workItemId === "other-task"
+        : workItemId === "archived-screen"
           ? {
               id: workItemId,
-              name: "Ship order",
-              type: "STANDARD",
-              status: "BACKLOG",
+              name: "Archived screen",
+              type: "mockup",
+              status: "ARCHIVED",
               sections: [],
             }
-          : options.enabled
-            ? { id: workItemId, name: `Target ${workItemId}`, type: "STANDARD" }
-            : null,
+          : workItemId === "other-task"
+            ? {
+                id: workItemId,
+                name: "Ship order",
+                type: "STANDARD",
+                status: "BACKLOG",
+                sections: [],
+              }
+            : options.enabled
+              ? {
+                  id: workItemId,
+                  name: `Target ${workItemId}`,
+                  type: "STANDARD",
+                }
+              : null,
     isLoading: false,
   }),
 }));
@@ -318,6 +359,31 @@ vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
       ? [
           { key: "STANDARD", name: "Task", iconKey: "task" },
           { key: "CONTRACT", name: "Contract", iconKey: "contract" },
+          {
+            key: "mockup",
+            name: "Mockup",
+            sections: [
+              {
+                key: "mockup",
+                label: "Mockup",
+                kind: "structured-mockup",
+                defaultSizeKey: "panel",
+                sizeProfiles: [
+                  {
+                    key: "panel",
+                    label: "Panel",
+                    breakpoints: [
+                      {
+                        minContainerWidth: 0,
+                        inline: { width: 400, height: 260 },
+                        page: { width: 800, height: 600 },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
         ].find((definition) => definition.key === typeKey)
       : undefined,
     isLoading: false,
@@ -475,7 +541,7 @@ describe("ProposalGroupReview", () => {
           {
             op: "relationship.create",
             ref: { refType: "temporary", tempId: "declined" },
-            source: { refType: "temporary", tempId: "new-screen" },
+            source: { refType: "temporary", tempId: "saved-screen" },
             target: { refType: "temporary", tempId: "alternate-screen" },
             category: "flow",
             edgeType: "CONDITIONAL",
@@ -489,7 +555,20 @@ describe("ProposalGroupReview", () => {
     const payment = {
       ...member("payment-member", 1, {
         ...proposal("payment-proposal", "Payment", ProposalAction.Create),
-        updates: { name: "Payment", type: "mockup", sections: [] },
+        updates: {
+          name: "Payment",
+          type: "mockup",
+          sections: [
+            { key: "purpose", content: "Choose how to pay" },
+            {
+              key: "mockup",
+              content: {
+                schemaVersion: "work-item-structured-mockup.v1",
+                content: [],
+              },
+            },
+          ],
+        },
       }),
       reservedEntityId: "new-screen",
       executionState: ProposalGroupMemberExecutionState.PendingApproval,
@@ -528,16 +607,31 @@ describe("ProposalGroupReview", () => {
       dependencies: [],
     };
     render(
-      <ProposalGroupReview
-        organizationId="org-1"
-        projectId="project-1"
-        groupId="group-1"
-      />,
+      <RunBrowserProvider
+        value={{ runId: "run-1", sessionMachineId: "machine-1" }}
+      >
+        <ProposalGroupReview
+          organizationId="org-1"
+          projectId="project-1"
+          groupId="group-1"
+        />
+      </RunBrowserProvider>,
     );
     const review = screen.getByTestId("proposal-group-journey-review");
+    expect(within(review).getAllByTestId("journey-screen")).toHaveLength(3);
+    expect(within(review).getAllByTestId("journey-transition")).toHaveLength(2);
+    expect(within(review).getByText("Checkout")).toBeInTheDocument();
+    expect(within(review).getByText("Pay")).toBeInTheDocument();
+    expect(within(review).getByText("Choose how to pay")).toBeInTheDocument();
     expect(
-      within(review).getByTestId("shared-work-item-graph"),
-    ).toHaveAttribute("data-edge-count", "2");
+      within(review).getAllByTestId("structured-mockup-static-preview"),
+    ).toHaveLength(2);
+    expect(
+      within(review).queryByTestId("shared-work-item-graph"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(review).queryByRole("button", { name: /layout|fullscreen|zoom/i }),
+    ).not.toBeInTheDocument();
     const saved = within(review).getByTestId("journey-saved-screen-review");
     expect(
       within(saved).queryByTestId("proposal-group-member-approve"),
@@ -550,12 +644,57 @@ describe("ProposalGroupReview", () => {
     );
     expect(proposed).toHaveLength(2);
     const user = userEvent.setup();
+    const paymentControls = proposed.find(
+      (element) => element.dataset.proposalId === "payment-proposal",
+    )!;
+    const declinedControls = proposed.find(
+      (element) => element.dataset.proposalId === "declined-proposal",
+    )!;
+    expect(
+      within(review).queryByText("Inspect and annotate"),
+    ).not.toBeInTheDocument();
+    const paymentScreen = within(review).getByRole("button", {
+      name: "View Payment full size",
+    });
+    const annotate = within(paymentScreen.parentElement!).getByRole("button", {
+      name: "Open mockup in Run browser",
+    });
+    expect(annotate).toHaveTextContent("Annotate");
+    await waitFor(() => expect(annotate).toBeEnabled());
+    await user.click(annotate);
+    expect(openRunBrowserTab).toHaveBeenCalledWith("run-1", {
+      machineId: "machine-1",
+      url: "http://localhost:3847/mockups/proposals/payment-proposal?organizationId=org-1&projectId=project-1&section=mockup&size=panel",
+    });
+    expect(
+      screen.queryByTestId("journey-screen-full-size"),
+    ).not.toBeInTheDocument();
+    await user.click(paymentScreen);
+    expect(
+      within(screen.getByTestId("journey-screen-full-size")).getByTestId(
+        "structured-mockup-section-renderer",
+      ),
+    ).toHaveAttribute("data-rendering-context", "page");
+    await user.click(screen.getByRole("button", { name: "Close" }));
     await user.click(
-      within(proposed[0]).getByTestId("proposal-group-member-approve"),
+      within(review).getByRole("button", { name: "View Saved cart full size" }),
+    );
+    expect(
+      within(screen.getByTestId("journey-screen-full-size")).getByTestId(
+        "structured-mockup-section-renderer",
+      ),
+    ).toHaveAttribute("data-rendering-context", "page");
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    paymentScreen.focus();
+    await user.keyboard("{Enter}");
+    expect(screen.getByTestId("journey-screen-full-size")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    await user.click(
+      within(paymentControls).getByTestId("proposal-group-member-approve"),
     );
     expect(approveMember).toHaveBeenCalledWith("payment-proposal");
     await user.click(
-      within(proposed[1]).getByTestId("proposal-group-member-reject"),
+      within(declinedControls).getByTestId("proposal-group-member-reject"),
     );
     await user.type(
       screen.getByTestId("proposal-group-member-reject-reason"),
@@ -577,6 +716,33 @@ describe("ProposalGroupReview", () => {
     expect(flatCards.map((card) => card.dataset.memberId)).toEqual([
       "journey-member",
     ]);
+    cleanup();
+    renderedGroup = {
+      ...renderedGroup,
+      members: renderedGroup.members.map((entry) =>
+        entry.memberId === payment.memberId
+          ? {
+              ...entry,
+              proposal: { ...entry.proposal, status: ProposalStatus.Rejected },
+              executionState: ProposalGroupMemberExecutionState.Rejected,
+            }
+          : entry,
+      ),
+    };
+    render(
+      <ProposalGroupReview
+        organizationId="org-1"
+        projectId="project-1"
+        groupId="group-1"
+      />,
+    );
+    const rejectedScreen = screen
+      .getAllByTestId("journey-screen")
+      .find((element) => within(element).queryByText("Choose how to pay"))!;
+    expect(within(rejectedScreen).getByText("Rejected")).toBeInTheDocument();
+    expect(
+      within(rejectedScreen).getByTestId("structured-mockup-static-preview"),
+    ).toBeInTheDocument();
   });
 
   it("renders a non-UX_FLOW Diagram's sibling Mockup references as cohesive nodes", () => {
@@ -734,6 +900,88 @@ describe("ProposalGroupReview", () => {
       within(review).queryByText("Screen unavailable"),
     ).not.toBeInTheDocument();
   });
+
+  it.each(["missing-screen", "archived-screen"])(
+    "keeps an unavailable slot and connector for %s",
+    (unavailableId) => {
+      renderedGroup = {
+        ...group,
+        members: [
+          {
+            ...member("journey-member", 0, {
+              ...proposal(
+                "journey-proposal",
+                "Sign-in journey",
+                ProposalAction.Create,
+              ),
+              updates: {
+                root: { refType: "temporary", tempId: "journey" },
+                operations: [
+                  {
+                    op: "workItem.create",
+                    ref: { refType: "temporary", tempId: "journey" },
+                    type: "DIAGRAM",
+                    name: "Sign-in journey",
+                  },
+                  {
+                    op: "section.replace",
+                    ref: { refType: "temporary", tempId: "journey" },
+                    key: "diagramMetadata",
+                    content: { kind: "UX_FLOW", level: "OVERVIEW" },
+                  },
+                  ...["saved-screen", unavailableId].flatMap((entityId) => [
+                    {
+                      op: "workItem.create",
+                      ref: { refType: "temporary", tempId: entityId },
+                      parent: { refType: "temporary", tempId: "journey" },
+                      type: "DIAGRAM_ELEMENT",
+                      name:
+                        entityId === "saved-screen" ? "Cart" : "Next screen",
+                    },
+                    {
+                      op: "section.replace",
+                      ref: { refType: "temporary", tempId: entityId },
+                      key: "diagramElementMetadata",
+                      content: {
+                        role: "GENERIC",
+                        canonicalReference: { entityType: "TASK", entityId },
+                      },
+                    },
+                  ]),
+                  {
+                    op: "relationship.create",
+                    ref: { refType: "temporary", tempId: "continue" },
+                    source: { refType: "temporary", tempId: "saved-screen" },
+                    target: { refType: "temporary", tempId: unavailableId },
+                    category: "flow",
+                    edgeType: "STANDARD",
+                    direction: "forward",
+                    actionLabel: "Continue",
+                  },
+                ],
+              },
+            }),
+            reservedEntityId: "journey-id",
+          },
+        ],
+      };
+      render(
+        <ProposalGroupReview
+          organizationId="org-1"
+          projectId="project-1"
+          groupId="group-1"
+        />,
+      );
+      const review = screen.getByTestId("proposal-group-journey-review");
+      expect(
+        within(review).getByText("Screen unavailable"),
+      ).toBeInTheDocument();
+      expect(within(review).getAllByTestId("journey-screen")).toHaveLength(2);
+      expect(
+        within(review).getByTestId("journey-transition"),
+      ).toHaveTextContent("Continue");
+    },
+  );
 
   it("keeps the journey view for a UX_FLOW revision whose screens are already accepted", () => {
     const journey = member("journey-member", 0, {
