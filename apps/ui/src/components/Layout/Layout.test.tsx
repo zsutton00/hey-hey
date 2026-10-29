@@ -932,7 +932,7 @@ describe("Layout", () => {
     expect(
       screen.queryByTestId("mobile-pinned-header-spacer"),
     ).not.toBeInTheDocument();
-    expect(window.getComputedStyle(layoutMain).height).toBe("100vh");
+    expect(window.getComputedStyle(layoutMain).height).toBe("100dvh");
     expect(window.getComputedStyle(layoutMain).overflowY).toBe("auto");
   });
 });

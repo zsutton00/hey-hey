@@ -194,10 +194,14 @@ const Layout = () => {
       ? { organizationId, projectId, navigate }
       : null;
 
+  // Size the shell to the visible viewport (dvh), not iOS Safari's largest
+  // viewport (vh). A vh shell leaves the document scrollable by the toolbar
+  // height, so the root and <main> compete to scroll and Safari's toolbar
+  // collapse leaves fixed controls hit-testing away from where they paint.
   return (
     <Box
       sx={{
-        minHeight: "100vh",
+        minHeight: "100dvh",
         display: "flex",
         flexDirection: "column",
         bgcolor: "background.default",
@@ -257,7 +261,7 @@ const Layout = () => {
                   display: "flex",
                   flexDirection: "column",
                   flex: 1,
-                  height: isOnPublicMarketingPage ? "auto" : "100vh",
+                  height: isOnPublicMarketingPage ? "auto" : "100dvh",
                   minWidth: 0,
                   minHeight: 0,
                 }}
@@ -270,7 +274,7 @@ const Layout = () => {
                     flexGrow: 1,
                     position: "relative",
                     isolation: "isolate",
-                    height: isOnPublicMarketingPage ? "auto" : "100vh",
+                    height: isOnPublicMarketingPage ? "auto" : "100dvh",
                     minHeight: 0,
                     minWidth: 0, // Prevent flex item from expanding beyond container
                     ...(isMainScrollSuppressed
