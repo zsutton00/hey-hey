@@ -355,6 +355,23 @@ export class ProposalGroupFinalizationService {
                 revision: group.revision,
                 issueCount: issues.length,
                 issueCodes: issues.map((issue) => issue.code),
+                issues: issues.slice(0, 20).map((issue) => ({
+                  code: issue.code,
+                  location: issue.location,
+                  memberId: issue.memberId,
+                  message: issue.message,
+                })),
+                extractedReferences: [
+                  ...referenceResult.referencesByMemberId,
+                ].map(([memberId, references]) => ({
+                  memberId,
+                  references,
+                })),
+                reservations: group.members.map((member) => ({
+                  memberId: member.id,
+                  targetEntityType: member.proposal.targetEntityType,
+                  reservedTargetEntityId: member.reservedTargetEntityId,
+                })),
               },
             );
             return {

@@ -269,6 +269,20 @@ export class ProposalGroupReferenceValidation {
       const graph = workItemChangeSetValidationRequestSchema.safeParse(
         proposal.updates,
       );
+      if (!graph.success) {
+        this.logger.warn(
+          'Proposal-group member updates are not a work-item change set; typed references skipped',
+          {
+            proposalId: proposal.id,
+            memberIndex,
+            action: proposal.action,
+            issues: graph.error.issues.slice(0, 5).map((issue) => ({
+              path: issue.path.join('.'),
+              code: issue.code,
+            })),
+          },
+        );
+      }
       if (graph.success) {
         graph.data.operations.forEach((operation, index) => {
           if (
@@ -281,12 +295,30 @@ export class ProposalGroupReferenceValidation {
           try {
             content = parseDiagramJson(operation.content);
           } catch {
+            this.logger.warn('Diagram element metadata is not valid JSON', {
+              proposalId: proposal.id,
+              memberIndex,
+              operationIndex: index,
+            });
             return;
           }
           const parsed = diagramElementMetadataSchema.safeParse(content);
           const reference = parsed.success
             ? parsed.data.canonicalReference
             : undefined;
+          this.logger.log('Inspected Diagram element metadata for references', {
+            proposalId: proposal.id,
+            memberIndex,
+            operationIndex: index,
+            metadataParsed: parsed.success,
+            parseIssuePaths: parsed.success
+              ? []
+              : parsed.error.issues
+                  .slice(0, 5)
+                  .map((issue) => issue.path.join('.')),
+            referenceEntityType: reference?.entityType,
+            referenceEntityId: reference?.entityId,
+          });
           if (reference) {
             candidates.push({
               value: reference.entityId,
