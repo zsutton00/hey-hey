@@ -49,8 +49,22 @@ const INERT_SAFE_BUILTINS: ReadonlySet<string> = new Set(['Read', 'Glob', 'Grep'
 export const filterInertBuiltinTools = (names: readonly string[]): string[] =>
   names.filter((name) => INERT_SAFE_BUILTINS.has(name));
 
-// Only the universal report wrapper has no workflow or live-project side effects.
-const INERT_SAFE_SUBMISSIONS = new Set(['create_report']);
+// Local submission tools whose effects are already inert or safe by construction:
+// - report tools save through CreateReportProxy, which stamps the Run's inert flag;
+// - run_subagents children inherit the inert session and this same policy;
+// - suggest_feature_verification only raises a request awaiting user approval;
+// - search_session only reads messages, and submit_session_name renames the Run's own conversation.
+// Tools that write the live graph directly (edges, hints) have no output to stamp and stay out.
+const INERT_SAFE_SUBMISSIONS = new Set([
+  'create_report',
+  'create_coding_research',
+  'create_phase_grounding',
+  'create_commit_report',
+  'run_subagents',
+  'suggest_feature_verification',
+  'search_session',
+  'submit_session_name',
+]);
 
 export const isInertSubmissionToolAllowed = (name: string): boolean =>
   INERT_SAFE_SUBMISSIONS.has(name);

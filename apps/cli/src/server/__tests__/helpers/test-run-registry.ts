@@ -26,6 +26,7 @@ import {
 } from '../../../agents/prompt-type-handler.test-support';
 import { PromptTypeRegistry } from '../../../agents/prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../../../agents/prompt-type-registry.test-support';
+import type { CreateReportProxy } from '../../../agents/submission-tools/create-report-proxy';
 import { SubmissionToolRegistry } from '../../../agents/submission-tools/registry';
 import type { RunStore } from '../../../run-store/run-store';
 import type { RepoMappingStore } from '../../../repo/index';
@@ -216,6 +217,8 @@ export interface CreateTestRunRegistryWiringOptions {
   /** Override the default `agent-pending` verdict source. */
   workflowDispatchVerdictReader?: WorkflowDispatchVerdictReader;
   projectModeBundleMaterializer?: ProjectModeBundleMaterializer;
+  /** Replace the report proxy handlers submit typed reports through. */
+  createReportProxy?: CreateReportProxy;
 }
 
 export const createTestRunRegistryWiring = (
@@ -235,7 +238,10 @@ export const createTestRunRegistryWiring = (
     });
 
   const submissionToolRegistry = overrides.submissionToolRegistry ?? new SubmissionToolRegistry();
-  const promptTypeRegistry = new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES);
+  const promptTypeRegistry = new PromptTypeRegistry({
+    ...PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES,
+    ...(overrides.createReportProxy ? { createReportProxy: overrides.createReportProxy } : {}),
+  });
   const sessionRunnerFacade =
     overrides.sessionRunnerFacade ??
     createTestSessionRunnerFacade(sessionRunner as AgentSessionRunner);

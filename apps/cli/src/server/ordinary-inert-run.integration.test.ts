@@ -261,12 +261,13 @@ const toolCallSchema = z.object({
 
 describe('ordinary Run output boundaries', () => {
   it.each([
-    { inert: true, evalAttempt: true },
-    { inert: true, evalAttempt: false },
-    { inert: false, evalAttempt: false },
+    { inert: true, evalAttempt: true, projectAssistant: false },
+    { inert: true, evalAttempt: false, projectAssistant: false },
+    { inert: false, evalAttempt: false, projectAssistant: false },
+    { inert: true, evalAttempt: false, projectAssistant: true },
   ])(
-    'keeps outputs governed by stored inertness ($inert), eval attempt ($evalAttempt)',
-    async ({ inert, evalAttempt }) => {
+    'keeps outputs governed by stored inertness ($inert), eval attempt ($evalAttempt), Project Assistant ($projectAssistant)',
+    async ({ inert, evalAttempt, projectAssistant }) => {
       const baseDir = await mkdtemp(path.join(os.tmpdir(), 'heyhey-inert-boundaries-'));
       tempDirs.push(baseDir);
       vi.stubEnv('CLAUDE_CONFIG_DIR', baseDir);
@@ -327,15 +328,14 @@ describe('ordinary Run output boundaries', () => {
           }),
         ),
       );
-      const reportTool = new CreateReportTool(
-        new CreateReportProxy({
-          runStore,
-          auth: new SubmissionToolAuth(oauthClient),
-          apiBaseUrl: 'https://api.test',
-          fetchImpl: reportFetch,
-          reportEmissionEvents: new ReportEmissionEvents(),
-        }),
-      );
+      const reportProxy = new CreateReportProxy({
+        runStore,
+        auth: new SubmissionToolAuth(oauthClient),
+        apiBaseUrl: 'https://api.test',
+        fetchImpl: reportFetch,
+        reportEmissionEvents: new ReportEmissionEvents(),
+      });
+      const reportTool = new CreateReportTool(reportProxy);
       const facade = new SessionRunnerFacade({
         capabilityCatalog: SETTLED_CATALOG_AVAILABILITY,
         runStore,
@@ -446,6 +446,7 @@ describe('ordinary Run output boundaries', () => {
         submissionToolRegistry,
         sessionRunnerFacade: facade,
         baseSubmissionTools: [reportTool],
+        createReportProxy: reportProxy,
         poster,
         handlerDeps: createPromptTypeHandlerTestDeps({
           runStore,
@@ -516,7 +517,9 @@ describe('ordinary Run output boundaries', () => {
           throw new Error('Expected an active ordinary Run and platform proxy');
         }
         if (inert) {
-          expect(config['builtinTools']).toEqual(['Read', 'Glob', 'Grep', 'ToolSearch']);
+          expect(config['builtinTools']).toEqual(
+            projectAssistant ? [] : ['Read', 'Glob', 'Grep', 'ToolSearch'],
+          );
         }
         if (inert) {
           expect(config['mcpServers']).not.toHaveProperty('personal');
@@ -553,7 +556,7 @@ describe('ordinary Run output boundaries', () => {
         const mutationCount = upstream.mock.calls.length;
         const denied = await rpc('create_edge', {});
         if (inert) {
-          expect(denied.body).toHaveProperty('error');
+          expect(JSON.stringify(denied.body)).toMatch(/"error"|"isError":true/);
           expect(upstream).toHaveBeenCalledTimes(mutationCount);
         }
         const registration = submissionToolRegistry.getByRunId(AGENT_SESSION_ID);
@@ -561,25 +564,32 @@ describe('ordinary Run output boundaries', () => {
           throw new Error('Expected Run submission tools');
         }
         if (inert) {
-          expect(registration.tools.map(({ name }) => name)).toEqual(['create_report']);
-          expect(
-            await submit(registration.token, 'submit_session_name', {
-              name: 'Change live session',
-            }),
-          ).toHaveProperty('error');
+          expect(registration.tools.map(({ name }) => name)).toEqual(
+            projectAssistant
+              ? ['create_report', 'create_coding_research', 'run_subagents']
+              : ['create_report', 'submit_session_name', 'search_session'],
+          );
         }
-        expect(
-          await submit(registration.token, 'create_report', {
-            reportType: 'REVIEW',
-            audience: 'PROJECT_VISIBLE',
-            ragEnabled: true,
-            payload: {
+        const submitted = projectAssistant
+          ? await submit(registration.token, 'create_coding_research', {
+              frame: { focalId: ENTITY.entityId, nodes: [] },
+              analysis: 'Inert research analysis.',
+              summary: 'Inert research summary.',
+              provenance: { discoveryCalls: [], edgesTraversed: [] },
+              updates: [],
+              readinessEvidence: [],
+            })
+          : await submit(registration.token, 'create_report', {
               reportType: 'REVIEW',
-              summary: 'Inert output evidence.',
-              findings: [],
-            },
-          }),
-        ).not.toHaveProperty('error');
+              audience: 'PROJECT_VISIBLE',
+              ragEnabled: true,
+              payload: {
+                reportType: 'REVIEW',
+                summary: 'Inert output evidence.',
+                findings: [],
+              },
+            });
+        expect(submitted).not.toHaveProperty('error');
         for (const [id, text] of [
           ['progress-1', 'Inspecting evidence.'],
           ['progress-2', 'Evidence inspected.'],
@@ -636,13 +646,14 @@ describe('ordinary Run output boundaries', () => {
             type: 'ENTITY_CONVERSATION',
             version: 'v1',
             model: 'claude-test',
-            projectAssistant: { enabled: false },
+            projectAssistant: { enabled: projectAssistant },
           },
           payload: {
-            promptType: 'entity_conversation',
+            promptType: projectAssistant ? 'research' : 'entity_conversation',
             entity: { entityType: 'TASK', entityId: ENTITY.entityId },
             userMessage: 'Review this item.',
           },
+          ...(projectAssistant ? { projectAssistantConsumerHandlerId: 'entity_conversation' } : {}),
         });
       }
       await wiring.runRegistry.get(AGENT_SESSION_ID)?.awaitIdle();
@@ -674,18 +685,26 @@ describe('ordinary Run output boundaries', () => {
       expect(reportFetch).toHaveBeenCalledOnce();
       const report = readJsonBody(reportFetch.mock.calls[0]?.[1]);
       expect(report).toMatchObject({ ragEnabled: !inert });
-      const proposalCalls = upstream.mock.calls
-        .map(([, init]) => toolCallSchema.parse(readJsonBody(init)))
-        .filter(({ params }) => ['create_work_item', 'edit_work_item'].includes(params.name));
-      expect(proposalCalls).toHaveLength(2);
-      expect(proposalCalls[1]?.params.arguments).toMatchObject({
-        groupContext: { groupId: 'evidence-group', expectedRevision: 1 },
-      });
-      for (const call of proposalCalls) {
-        expect(call.params.arguments).toMatchObject({
-          ragEnabled: !inert,
-          applicationEligible: !inert,
+      if (projectAssistant) {
+        expect(report).toMatchObject({
+          reportType: 'CODING_RESEARCH',
+          audience: 'PROJECT_VISIBLE',
         });
+      }
+      if (!projectAssistant) {
+        const proposalCalls = upstream.mock.calls
+          .map(([, init]) => toolCallSchema.parse(readJsonBody(init)))
+          .filter(({ params }) => ['create_work_item', 'edit_work_item'].includes(params.name));
+        expect(proposalCalls).toHaveLength(2);
+        expect(proposalCalls[1]?.params.arguments).toMatchObject({
+          groupContext: { groupId: 'evidence-group', expectedRevision: 1 },
+        });
+        for (const call of proposalCalls) {
+          expect(call.params.arguments).toMatchObject({
+            ragEnabled: !inert,
+            applicationEligible: !inert,
+          });
+        }
       }
     },
   );
