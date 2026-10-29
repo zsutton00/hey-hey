@@ -1,3 +1,4 @@
+import { renderCodingResearchMemo } from '../prompts/coding-research-memo';
 /**
  * `create_coding_research` pass-through submission tool.
  *
@@ -363,24 +364,7 @@ export class CodingResearchTool implements PassThroughSubmissionToolDeclaration 
     // producer appends directly — there is no end-of-phase lifecycle hook.
     run.appendMemo({
       source: phase,
-      content: [
-        '## Research frame',
-        '```json',
-        JSON.stringify(parsedFrame.data, null, 2),
-        '```',
-        '',
-        '## Reconciliation updates',
-        '```json',
-        JSON.stringify(parsedUpdates.data, null, 2),
-        '```',
-        '',
-        '## Implementation-readiness evidence',
-        '```json',
-        JSON.stringify(parsedReadinessEvidence.data, null, 2),
-        '```',
-        '',
-        analysis,
-      ].join('\n'),
+      content: renderCodingResearchMemo(reportPayload),
       writtenAt: this.now(),
     });
 
