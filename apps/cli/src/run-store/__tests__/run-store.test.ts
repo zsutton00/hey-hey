@@ -244,11 +244,73 @@ describe('RunStore', () => {
       });
       const reopened = new RunStore({ paths: createTempPaths(tempRoot) });
       await reopened.initialize();
+      expect((await reopened.getRunResult('run-1'))?.usage.toolCalls).toBe(1);
       expect(await reopened.getToolUsage('run-1')).toEqual([
         expect.objectContaining({ toolUseId: 'call-1' }),
       ]);
     },
   );
+
+  it.each(['claude', 'codex', 'opencode'] as const)(
+    'reads retained %s results without changing storage',
+    async (provider) => {
+      await store.createRun(createTaskInput({ agentic_session_id: 'run-1', provider }));
+      expect(await store.getRunResult('missing')).toBeNull();
+      expect(await store.getRunResult('run-1')).toEqual({ assistantCompleted: false, usage: {} });
+      await store.updateRunLatestTurn('run-1', { turnId: 'first', state: 'running' });
+      await store.updateRunFinalAssistantMessage('run-1', {
+        turnId: 'first',
+        messageId: 'answer',
+        text: 'finished',
+        committedAt: new Date().toISOString(),
+      });
+      await store.updateRunLatestTurn('run-1', {
+        turnId: 'first',
+        state: 'settled',
+        outcome: 'COMPLETED',
+      });
+      const reopened = new RunStore({ paths: createTempPaths(tempRoot) });
+      expect(await reopened.getRunResult('run-1')).toEqual({
+        assistantCompleted: true,
+        outputText: 'finished',
+        usage: {},
+      });
+      for (const outcome of ['FAILED', 'ABORTED'] as const) {
+        await store.updateRunLatestTurn('run-1', { turnId: 'next', state: 'settled', outcome });
+        expect(await reopened.getRunResult('run-1')).toEqual({
+          assistantCompleted: false,
+          usage: {},
+        });
+      }
+      await store.updateRunLatestTurn('run-1', {
+        turnId: 'missing-answer',
+        state: 'settled',
+        outcome: 'COMPLETED',
+      });
+      await store.updateRunTokenUsage('run-1', { inputTokens: 0, outputTokens: 0 });
+      const metadataPath = await runFamilyMemberPath(tempRoot, 'run-1', 'metadata');
+      const before = await fs.readFile(metadataPath, 'utf8');
+      expect(await reopened.getRunResult('run-1')).toEqual({
+        assistantCompleted: true,
+        usage: { inputTokens: 0, outputTokens: 0 },
+      });
+      expect(await fs.readFile(metadataPath, 'utf8')).toBe(before);
+    },
+  );
+
+  it('reads older evidence without promoting and surfaces corrupt evidence', async () => {
+    await store.createRun(createTaskInput({ agentic_session_id: 'legacy', inert: true }));
+    await demoteCurrentFamilyToLegacy(tempRoot, 'legacy');
+    expect(await store.getRunResult('legacy')).toEqual({ assistantCompleted: false, usage: {} });
+    await expect(fs.stat(path.join(tempRoot, 'runs', 'legacy.family.json'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
+    await fs.writeFile(
+      path.join(tempRoot, 'runs', legacyRunFamilyMemberFileName('legacy', 'toolUsage')),
+      '{broken',
+    );
+    await expect(store.getRunResult('legacy')).rejects.toThrow();
+  });
 
   it('restores the latest final answer after carryover is consumed', async () => {
     const run = await store.createRun(createTaskInput({ agentic_session_id: 'run-1' }));

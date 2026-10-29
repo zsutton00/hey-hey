@@ -69,6 +69,7 @@ export const createTestRunStore = (): RunStore => {
     },
   });
   vi.spyOn(store, 'updateRunServiceScopeContinuation').mockResolvedValue(undefined as never);
+  vi.spyOn(store, 'updateRunLatestTurn').mockResolvedValue({} as AgenticSession);
   vi.spyOn(store, 'recordRunStartedPromptType').mockResolvedValue({} as AgenticSession);
   return store;
 };

@@ -1,3 +1,4 @@
+import { retainProviderTestUsage } from '../provider-owner.test-support';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -1674,6 +1675,7 @@ describe('session-runner-opencode parity', () => {
   it('records token usage via setRunTokenUsage when message.updated arrives', async () => {
     const harness = installFetchHarness();
     const runStore = makeRunStore();
+    await retainProviderTestUsage(runStore, makeSession());
     const { logger } = makeLogger();
     const runner = new OpenCodeAgentSessionRunner({
       localAgentEndpoint,
@@ -1711,6 +1713,12 @@ describe('session-runner-opencode parity', () => {
     harness.sseSink.current!.end();
     await runPromise;
 
+    await vi.waitFor(async () => {
+      expect((await runStore.getRunResult('agentic-1'))?.usage).toMatchObject({
+        inputTokens: 100,
+        outputTokens: 50,
+      });
+    });
     expect(runStore.setRunTokenUsage).toHaveBeenCalledWith(
       'agentic-1',
       expect.objectContaining({

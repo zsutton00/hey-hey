@@ -1,3 +1,4 @@
+import { retainProviderTestUsage } from '../provider-owner.test-support';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -359,6 +360,7 @@ describe('Claude turn outcome', () => {
 
   it('completes a turn, delivers superseded assistant messages immediately and finalizes the last', async () => {
     const harness = makeHarness();
+    await retainProviderTestUsage(harness.runStore, makeSession());
     const { run, ready } = startTurn(harness);
     await ready;
     emitClaudeEvent(assistantEvent('First answer.'));
@@ -367,6 +369,11 @@ describe('Claude turn outcome', () => {
     emitClaudeEvent(resultEvent());
     const outcome = await readOutcome(harness, run);
 
+    await vi.waitFor(async () => {
+      expect(
+        (await harness.runStore.getRunResult(makeSession().agentic_session_id))?.usage,
+      ).toMatchObject({ inputTokens: 100, outputTokens: 40 });
+    });
     expect(outcome.failure).toBeNull();
     expect(outcome.result).toEqual({
       providerSessionId: 'provider-session-1',

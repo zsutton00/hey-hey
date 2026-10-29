@@ -1,3 +1,4 @@
+import { retainProviderTestUsage } from '../provider-owner.test-support';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import fs from 'node:fs/promises';
 import { ProviderUsageStore } from '../../../provider-usage/provider-usage-store';
@@ -516,7 +517,8 @@ describe('session-runner-codex', () => {
 
   it('persists reported cumulative token snapshots during execution and skips unknown input', async () => {
     const runStore = makeRunStore();
-    const persist = vi.spyOn(runStore, 'setRunTokenUsage').mockResolvedValue(makeSession());
+    await retainProviderTestUsage(runStore, makeSession());
+    const persist = vi.mocked(runStore.setRunTokenUsage);
     sdkStartSessionMock.mockImplementation(async () => {
       const usage = {
         inputTokens: null,
@@ -547,6 +549,12 @@ describe('session-runner-codex', () => {
       prompt: 'Measure usage.',
     });
     await runner.dispose();
+    await vi.waitFor(async () => {
+      expect((await runStore.getRunResult(makeSession().agentic_session_id))?.usage).toMatchObject({
+        inputTokens: 20,
+        outputTokens: 7,
+      });
+    });
     expect(tokenUsageHandler).toBeNull();
   });
 

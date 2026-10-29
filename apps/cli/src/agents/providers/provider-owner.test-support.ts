@@ -67,3 +67,32 @@ export const createProviderTestAgentOutputOwner = (onAgentOutput: Run['onAgentOu
   vi.spyOn(run, 'onAgentOutput').mockImplementation(onAgentOutput);
   return run;
 };
+
+/** Retain provider usage through the real store while preserving boundary spies. */
+export async function retainProviderTestUsage(
+  store: RunStore,
+  session: AgenticSession,
+): Promise<void> {
+  await store.initialize();
+  await store.createRun({
+    agentic_session_id: session.agentic_session_id,
+    provider_session_id: session.provider_session_id,
+    provider: session.provider,
+    entity: session.entity,
+    conversationId: session.conversationId,
+    services: session.services,
+    ...(session.launchServiceId ? { launchServiceId: session.launchServiceId } : {}),
+    contextMetadata: {
+      capturedAt: new Date().toISOString(),
+      organizationId: 'org-1',
+      projectId: 'project-1',
+      agentSessionId: session.agentic_session_id,
+      userComments: [],
+      fileReferences: { resolved: [], unresolved: [] },
+    },
+  });
+  vi.mocked(store.updateRunTokenUsage).mockRestore();
+  vi.mocked(store.setRunTokenUsage).mockRestore();
+  vi.spyOn(store, 'updateRunTokenUsage');
+  vi.spyOn(store, 'setRunTokenUsage');
+}

@@ -1,3 +1,4 @@
+import type { SubAgentResult } from '../run/subagent';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -222,6 +223,16 @@ const parseRunMetadata = (text: string): AgenticSession => {
   }
   if (legacyPlanRunEntitySchema.safeParse(parsed['entity']).success) {
     throw new RunMetadataMigrationRequiredError();
+  }
+  if (parsed['latestTurn'] !== undefined) {
+    z.discriminatedUnion('state', [
+      z.object({ turnId: z.string(), state: z.literal('running') }),
+      z.object({
+        turnId: z.string(),
+        state: z.literal('settled'),
+        outcome: z.enum(['COMPLETED', 'FAILED', 'ABORTED']),
+      }),
+    ]).parse(parsed['latestTurn']);
   }
   const parsedEntity = persistedRunEntitySchema.safeParse(parsed['entity']);
   if (!parsedEntity.success) {
@@ -958,6 +969,50 @@ export class RunStore {
   public async getRunMetadata(runId: string): Promise<AgenticSession | null> {
     const bytes = await this.readCompatibleMember(runId, 'metadata');
     return bytes ? parseRunMetadata(new TextDecoder().decode(bytes)) : null;
+  }
+
+  /** Reads retained evidence without preparing, promoting, or rewriting the Run. */
+  public async getRunResult(
+    runId: string,
+  ): Promise<Pick<SubAgentResult, 'assistantCompleted' | 'outputText' | 'usage'> | null> {
+    const run = await this.getRunMetadata(runId);
+    if (!run) {
+      return null;
+    }
+
+    const bytes = await this.readCompatibleMember(runId, 'toolUsage');
+    const tools = bytes ? z.array(z.json()).parse(JSON.parse(new TextDecoder().decode(bytes))) : [];
+    const latest = run.latestTurn;
+    const assistantCompleted = latest?.state === 'settled' && latest.outcome === 'COMPLETED';
+    const answer = run.finalAssistantMessage;
+    return {
+      assistantCompleted,
+      ...(assistantCompleted && answer?.turnId === latest.turnId
+        ? { outputText: answer.text }
+        : {}),
+      usage: {
+        ...(run.tokenUsage
+          ? { inputTokens: run.tokenUsage.inputTokens, outputTokens: run.tokenUsage.outputTokens }
+          : {}),
+        ...(tools.length > 0 ? { toolCalls: tools.length } : {}),
+      },
+    };
+  }
+
+  public updateRunLatestTurn(
+    runId: string,
+    latestTurn: NonNullable<AgenticSession['latestTurn']>,
+  ): Promise<AgenticSession> {
+    return this.withMetadataLock(runId, async () => {
+      const run = await readRunMetadata(this.runFamilies, runId);
+      if (!run) {
+        throw new SessionValidationError(`Unknown agentic session: ${runId}`);
+      }
+      run.latestTurn = latestTurn;
+      run.updatedAt = this.now().toISOString();
+      await writeRunMetadata(this.runFamilies, run);
+      return run;
+    });
   }
 
   public async getRun(runId: string): Promise<AgenticSession | null> {

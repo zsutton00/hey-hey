@@ -188,6 +188,9 @@ interface AgenticSessionBase {
   reasoningEffort?: LocalReasoningEffort;
   fastMode?: boolean;
   tokenUsage?: TokenUsage;
+  latestTurn?:
+    | { turnId: string; state: 'running' }
+    | { turnId: string; state: 'settled'; outcome: 'COMPLETED' | 'FAILED' | 'ABORTED' };
   /** Last committed final answer; retained when provider carryover is consumed. */
   finalAssistantMessage?: {
     turnId: string;
