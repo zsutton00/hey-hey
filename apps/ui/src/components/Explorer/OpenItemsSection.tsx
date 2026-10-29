@@ -749,6 +749,11 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
       }
       openPreviewTimeout.current = setTimeout(() => {
         openPreviewTimeout.current = null;
+        // A scroll under a stationary pointer can skip mouseleave, so confirm
+        // the pointer is still over the row before opening.
+        if (!anchor.matches(":hover")) {
+          return;
+        }
         setAnchorEl(anchor);
       }, OPEN_ITEM_PREVIEW_DELAY_MS);
     },
@@ -771,8 +776,19 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
       clearTimeout(openPreviewTimeout.current);
       openPreviewTimeout.current = null;
     }
+    keepPreviewOpen();
     closePreviewTimeout.current = setTimeout(() => setAnchorEl(null), 120);
-  }, []);
+  }, [keepPreviewOpen]);
+
+  const previewOpen = anchorEl !== null;
+  useEffect(() => {
+    if (!previewOpen) {
+      return;
+    }
+    const handleScroll = () => setAnchorEl(null);
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
+  }, [previewOpen]);
 
   useEffect(
     () => () => {
