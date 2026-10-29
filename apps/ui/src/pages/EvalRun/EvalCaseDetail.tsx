@@ -30,7 +30,6 @@ import {
   DeleteProposal,
   isPlaceholderEntityId,
   Report,
-  RetainedResearchReport,
   UpdateProposal,
 } from "@hey-hey/ui-common/components";
 import {
@@ -137,11 +136,6 @@ const AttemptOutputs: React.FC<{
 }> = ({ organizationId, projectId, attempt }) => {
   const { t } = useTranslation();
   const output = useEvalAttemptOutput(organizationId, attempt);
-  const { retainedResearch } = output;
-  const hasRetained = retainedResearch.status !== "none";
-
-  // What the session conversation holds is read apart from what the attempt
-  // kept on its own record: an empty conversation never means no research.
   let conversation: React.ReactNode = null;
   if (!output.hasRecordedConversation) {
     conversation = (
@@ -200,7 +194,6 @@ const AttemptOutputs: React.FC<{
   }
 
   const nothingSaved =
-    !hasRetained &&
     output.hasRecordedConversation &&
     !output.error &&
     output.data !== null &&
@@ -213,33 +206,6 @@ const AttemptOutputs: React.FC<{
         {t("eval.results.attempt.produced")}
       </Typography>
       <Stack spacing={2}>
-        {retainedResearch.status === "readable" && (
-          <Box>
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              component="p"
-              sx={{ mb: 1 }}
-              data-testid="eval-output-retained-note"
-            >
-              {t("eval.results.attempt.retainedNote")}
-            </Typography>
-            <RetainedResearchReport
-              payload={retainedResearch.payload}
-              testId="eval-output-retained-research"
-            />
-          </Box>
-        )}
-        {retainedResearch.status === "unreadable" && (
-          <Alert
-            severity="warning"
-            data-testid="eval-output-research-unreadable"
-          >
-            {t("eval.results.attempt.researchUnreadable", {
-              reason: retainedResearch.reason,
-            })}
-          </Alert>
-        )}
         {nothingSaved ? (
           <Typography
             variant="body2"

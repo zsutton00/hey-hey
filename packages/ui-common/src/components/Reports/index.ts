@@ -1,7 +1,5 @@
 export { Report } from "./Report";
 export type { ReportProps } from "./Report";
-export { RetainedResearchReport } from "./RetainedResearchReport";
-export type { RetainedResearchReportProps } from "./RetainedResearchReport";
 export { ReportViewer } from "./ReportViewer";
 export type { ReportViewerProps } from "./ReportViewer";
 export { ReportsList } from "./ReportsList";

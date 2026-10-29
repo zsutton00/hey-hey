@@ -282,41 +282,6 @@ describe("eval attempt output", () => {
     expect(result.current.error).toBeNull();
     expect(api.getMessages).not.toHaveBeenCalled();
   });
-
-  it("exposes research kept on the attempt even when its conversation holds nothing", async () => {
-    api.getMessages.mockResolvedValue(wrap([]));
-    const attempt = attemptReport(EvalAttemptStatus.Completed);
-    attempt.payload.summary = {
-      outputText: JSON.stringify({
-        reportType: "CODING_RESEARCH",
-        summary: "Kept on the attempt.",
-        analysis: "Analysis.",
-        frame: {},
-        provenance: { discoveryCalls: [], edgesTraversed: [] },
-        updates: [],
-      }),
-    };
-    const { wrapper } = setup();
-    const { result } = renderHook(() => useEvalAttemptOutput("org", attempt), {
-      wrapper,
-    });
-    await waitFor(() => expect(result.current.isReady).toBe(true));
-    expect(result.current.data?.reports).toEqual([]);
-    expect(result.current.data?.proposals).toEqual([]);
-    expect(result.current.retainedResearch.status).toBe("readable");
-  });
-
-  it("reports no retained research when the attempt kept none", async () => {
-    api.getMessages.mockResolvedValue(wrap(messages));
-    const { wrapper } = setup();
-    const { result } = renderHook(
-      () =>
-        useEvalAttemptOutput("org", attemptReport(EvalAttemptStatus.Completed)),
-      { wrapper },
-    );
-    await waitFor(() => expect(result.current.isReady).toBe(true));
-    expect(result.current.retainedResearch).toEqual({ status: "none" });
-  });
 });
 
 describe("eval run writes", () => {

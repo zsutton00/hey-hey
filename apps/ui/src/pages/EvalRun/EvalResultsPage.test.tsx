@@ -16,7 +16,6 @@ const mockUseEvalHumanReviews = vi.fn();
 const mockSaveReview = vi.fn();
 const mockUpdateProposal = vi.fn();
 const mockReport = vi.fn();
-const mockRetainedResearch = vi.fn();
 const deepLink = vi.hoisted(() => ({ attempt: null as string | null }));
 
 vi.mock("react-router-dom", () => ({
@@ -68,10 +67,6 @@ vi.mock("@hey-hey/ui-common/components", () => ({
   Report: (props: { evaluationOutput?: boolean }) => {
     mockReport(props);
     return <div data-testid="report" />;
-  },
-  RetainedResearchReport: (props: { payload: { summary: string } }) => {
-    mockRetainedResearch(props);
-    return <div data-testid="retained-research">{props.payload.summary}</div>;
   },
   isPlaceholderEntityId: (id: string) =>
     !id || id === "00000000-0000-0000-0000-000000000000",
@@ -321,7 +316,6 @@ describe("EvalResultsPage", () => {
       },
       error: null,
       hasRecordedConversation: true,
-      retainedResearch: { status: "none" },
     });
     mockUseEvalHumanReviews.mockReturnValue({ data: [] });
     mockSaveReview.mockResolvedValue({ id: "review-1" });
@@ -649,53 +643,11 @@ describe("EvalResultsPage", () => {
   });
 
   describe("what the attempt produced", () => {
-    const research = {
-      status: "readable",
-      payload: { summary: "Pairing is replaced by the desktop app." },
-    };
-
-    it("shows research kept on the attempt even when its conversation has no attachments", () => {
-      mockUseEvalAttemptOutput.mockReturnValue({
-        data: { messages: [], proposals: [], reports: [] },
-        error: null,
-        hasRecordedConversation: true,
-        retainedResearch: research,
-      });
-      render(<EvalResultsPage />);
-      expand("opus-attempt");
-      expect(screen.getByTestId("retained-research")).toHaveTextContent(
-        "Pairing is replaced by the desktop app.",
-      );
-      expect(
-        screen.getByTestId("eval-output-retained-note"),
-      ).toBeInTheDocument();
-      expect(screen.queryByTestId("eval-output-none")).toBeNull();
-      expect(
-        screen.getByTestId("eval-output-no-attachments"),
-      ).toBeInTheDocument();
-    });
-
-    it("says research was saved but can't be shown, rather than that none exists", () => {
-      mockUseEvalAttemptOutput.mockReturnValue({
-        data: { messages: [], proposals: [], reports: [] },
-        error: null,
-        hasRecordedConversation: true,
-        retainedResearch: { status: "unreadable", reason: "Missing fields." },
-      });
-      render(<EvalResultsPage />);
-      expand("opus-attempt");
-      expect(
-        screen.getByTestId("eval-output-research-unreadable"),
-      ).toHaveTextContent("Missing fields.");
-      expect(screen.queryByTestId("eval-output-none")).toBeNull();
-    });
-
     it("reports a read failure apart from absent output", () => {
       mockUseEvalAttemptOutput.mockReturnValue({
         data: null,
         error: new Error("boom"),
         hasRecordedConversation: true,
-        retainedResearch: { status: "none" },
       });
       render(<EvalResultsPage />);
       expand("opus-attempt");
@@ -708,14 +660,12 @@ describe("EvalResultsPage", () => {
         data: null,
         error: null,
         hasRecordedConversation: false,
-        retainedResearch: research,
       });
       render(<EvalResultsPage />);
       expand("opus-attempt");
       expect(
         screen.getByTestId("eval-output-no-conversation"),
       ).toBeInTheDocument();
-      expect(screen.getByTestId("retained-research")).toBeInTheDocument();
     });
 
     it("says nothing was saved only when nothing was", () => {
@@ -723,7 +673,6 @@ describe("EvalResultsPage", () => {
         data: { messages: [], proposals: [], reports: [] },
         error: null,
         hasRecordedConversation: true,
-        retainedResearch: { status: "none" },
       });
       render(<EvalResultsPage />);
       expand("opus-attempt");

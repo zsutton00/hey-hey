@@ -1455,18 +1455,14 @@ export const en = {
     "Shown read-only, as saved when the attempt ran.",
   "eval.results.attempt.openProposal": "Open in proposal view",
   "eval.results.attempt.openLiveItem": "Open the live item",
-  "eval.results.attempt.retainedNote":
-    "This is the final research report as saved on the attempt. It is not the complete record of everything the agent did.",
   "eval.results.attempt.noOutput":
-    "This attempt saved no proposals, reports or research.",
+    "This attempt saved no proposals or reports.",
   "eval.results.attempt.outputsUnavailable":
     "This attempt's saved outputs couldn't be read.",
   "eval.results.attempt.noConversation":
     "This attempt recorded no session conversation, so nothing is attached to it.",
   "eval.results.attempt.noAttachments":
     "No proposals or reports are attached to this attempt's session.",
-  "eval.results.attempt.researchUnreadable":
-    "This attempt saved a result, but it can't be shown as a research report: {{reason}}",
   "eval.results.assessment.title": "Automated assessment",
   "eval.results.assessment.pending": "The judge hasn't assessed this attempt.",
   "eval.results.assessment.checks": "Checks",
