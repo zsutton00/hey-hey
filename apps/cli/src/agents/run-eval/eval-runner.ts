@@ -48,7 +48,7 @@ export interface EvalRunnerPorts {
   /** Starts the attempt's target as a fresh child. Rejects when the child fails. */
   launchTarget(
     attempt: EvalRecordedAttempt,
-    options: { signal: AbortSignal; tokenBudget?: number },
+    options: { signal: AbortSignal; tokenBudget?: number; onTokenLimit?: () => void },
   ): Promise<EvalTargetResult>;
   /** Judges a finished attempt's output against its recorded checks and rubric. */
   judge(
@@ -135,6 +135,7 @@ export const runEvalAttempts = async (
       try {
         target = await ports.launchTarget(attempt, {
           signal: controller.signal,
+          onTokenLimit: () => stop('TOKEN_LIMIT'),
           ...(settings.attemptTokenLimit !== undefined
             ? { tokenBudget: settings.attemptTokenLimit }
             : {}),

@@ -1,3 +1,4 @@
+import type { EvalAttemptExecution } from './run-eval/eval-attempt-execution';
 import { projectModeSettingsJsonSchema } from '../generated/project-mode-contract.schema';
 import type { SessionRole } from '../shared/agent-bridge-contract/generated/api';
 import type { LocalPromptType } from '../shared/agent-bridge-contract/generated';
@@ -122,6 +123,7 @@ export interface PromptTypeHandlerContext {
 }
 
 export interface PromptTypeHandlerDeps {
+  evalAttemptExecution?: EvalAttemptExecution;
   /** Where `prepare` records its work; handlers never touch the run store directly. */
   preparationRecords: PreparationRecords;
   fetchImpl: typeof fetch;

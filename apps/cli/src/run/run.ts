@@ -4126,11 +4126,11 @@ export class Run {
     let browserTabNoticeId: string | null;
     let proposalNotices: ProposalDecisionNotices;
     try {
-      await this.runStore.updateRunLatestTurn(this.runId, { turnId, state: 'running' });
+      await this.persistLatestTurn({ turnId, state: 'running' });
       ({ ctx, platformMcpProxy, browserAnnotationIds, browserTabNoticeId, proposalNotices } =
         await this.resolveTurnInputs(input, turnId));
       if (preparationAbortController.signal.aborted) {
-        await this.runStore.updateRunLatestTurn(this.runId, {
+        await this.persistLatestTurn({
           turnId,
           state: 'settled',
           outcome: 'ABORTED',
@@ -4144,7 +4144,7 @@ export class Run {
         this.readStateChanged();
       }
     } catch (error) {
-      await this.runStore.updateRunLatestTurn(this.runId, {
+      await this.persistLatestTurn({
         turnId,
         state: 'settled',
         outcome: preparationAbortController.signal.aborted ? 'ABORTED' : 'FAILED',
@@ -4327,7 +4327,7 @@ export class Run {
         this.observeConversationPhase('reviewing');
       }
     } catch (error) {
-      await this.runStore.updateRunLatestTurn(this.runId, {
+      await this.persistLatestTurn({
         turnId,
         state: 'settled',
         outcome: 'FAILED',
@@ -4674,6 +4674,20 @@ export class Run {
       error,
     });
     await this.postAgentSystemMessage(CAPACITY_RETRY_MESSAGE);
+  }
+
+  private async persistLatestTurn(
+    latest: NonNullable<AgenticSession['latestTurn']>,
+  ): Promise<void> {
+    try {
+      await this.runStore.updateRunLatestTurn(this.runId, latest);
+    } catch (error) {
+      this.logger.error('local.run.latest_turn.save_failed', {
+        runId: this.runId,
+        turnId: latest.turnId,
+        error,
+      });
+    }
   }
 
   async onTurnEnded(turn: Turn): Promise<void> {
@@ -5432,6 +5446,11 @@ export class Run {
               this.enforceImplementationReadinessAdmission(input),
           }
         : {}),
+    }).finally(() => {
+      this.handlerDeps.evalAttemptExecution?.recordPreparation(
+        this.runId,
+        performance.now() - resolvePromptStartedAt,
+      );
     });
     if (admission) {
       this.operationTimeline?.recordDuration(

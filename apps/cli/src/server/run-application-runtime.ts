@@ -1,3 +1,4 @@
+import { EvalAttemptExecution } from '../agents/run-eval/eval-attempt-execution';
 import type { ProjectBrowser } from '../browser/project-browser-manager';
 import { RunTabs } from '../browser/run-tabs';
 import { BrowserTools } from '../browser/browser-tools';
@@ -387,7 +388,9 @@ export class RunApplicationRuntime {
       capabilityCatalog: dependencies.capabilityCatalog,
     });
     const deterministicE2EScenarioRegistry = DeterministicE2EScenarioRegistry.fromEnvironment();
+    const evalAttemptExecution = new EvalAttemptExecution(runLogger);
     const baseHandlerDeps = {
+      evalAttemptExecution,
       preparationRecords: createRunStorePreparationRecords(dependencies.runStore),
       fetchImpl,
       auth: dependencies.agentRuntime.auth,
@@ -568,6 +571,7 @@ export class RunApplicationRuntime {
       ...(dependencies.fetchImpl ? { fetchImpl: dependencies.fetchImpl } : {}),
       ...(this.runTabs ? { stagedBrowserTabs: this.runTabs } : {}),
     });
+    evalAttemptExecution.bind(this.agentService, dependencies.runStore);
     const inputAdmissionOwner = new InputAdmissionOwner(
       {
         directory: resolveInputAdmissionRoot() + '/runs/input-admission',

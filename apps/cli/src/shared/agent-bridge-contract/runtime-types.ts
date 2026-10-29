@@ -49,6 +49,10 @@ export interface LocalCreateRunRequest {
   reasoningEffort?: StartRunPromptPayloadReasoningEffortEnum;
   fastMode?: boolean;
   inert?: boolean;
+  /** Internal standalone Project Assistant admission using the consumer's normal policy. */
+  projectAssistantConsumerHandlerId?: string;
+  /** Internal cancellation, including materialization before a Run is active. */
+  signal?: AbortSignal;
   /** Pathless provider Skill identity; the provider resolves it inside the Run workspace. */
   skillSelection?: AgentSkillSelection;
   config?: AgentSessionConfig | null;

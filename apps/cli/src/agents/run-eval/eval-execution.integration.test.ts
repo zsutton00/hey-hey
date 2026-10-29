@@ -1,707 +1,343 @@
-import { createFirstTurnPromptRunState, resolvePrompt } from '../../run/resolve-prompt';
-import { SessionRoleGuidance } from '../session-role-guidance/session-role-guidance';
-import {
-  buildEvalAttemptSession,
-  buildEvalTargetPayload,
-  resolveEvalTargetEntity,
-} from './eval-targets';
-import { renderCodingResearchMemo } from '../prompts/coding-research-memo';
 import { WorkflowAboutReader } from '../submission-tools/search-messages-proxy';
-import type { CodingResearchReportPayload, EvalCaseTarget } from '../../shared/api/generated';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AgenticSession } from '../../session/types';
-import { ChildAgentLauncher } from '../../run/child-agent-launcher';
-import {
-  createRunTestOAuthClient,
-  createTestRepoMappingStore,
-  createTestRun,
-  createTestSessionRunnerFacade,
-  createTestRunChangedFilesReader,
-} from '../../run/run.test-support';
-import { RunnerPicker } from '../../run/runners/pick-runner';
-import { LocalAgentEndpoint } from '../../server/local-base-url';
+import type { MessagePosterApiClient } from '../../run/types';
+import { createPromptTypeHandlerTestDeps } from '../prompt-type-handler.test-support';
+import { MessagePoster } from '../../run/message-poster';
 import { NOOP_LOGGER } from '../../server/logger';
-import { PromptTypeRegistry } from '../prompt-type-registry';
-import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../prompt-type-registry.test-support';
+/** @vitest-environment node */
+
+import { mkdtemp, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../providers/session-runner-config', () => ({
+  loadAgentSessionRunnerConfig: vi
+    .fn()
+    .mockResolvedValue({ sourcePath: '/tmp/cfg.json', warnings: [] }),
+  resolveAgentInvocationConfigPath: vi.fn(() => '/tmp/agent-invocation.json'),
+}));
+
+import { ProjectModeBundleMaterializer } from '../project-mode';
+import { RunStore } from '../../run-store/run-store';
+import { createTestRepoMappingStore } from '../../run/run.test-support';
+import type { StartRunTriggerPayload } from '../../server/conversation-dispatch/trigger-payload-schemas';
+import { createTestOAuthClient } from '../../server/__tests__/helpers/test-oauth-client';
 import {
-  createPromptTypeHandlerTestDeps,
-  createPromptTypeHandlerTestRunStore,
-} from '../prompt-type-handler.test-support';
-import { SubmissionToolRegistry } from '../submission-tools/registry';
-import { CreateReportProxy } from '../submission-tools/create-report-proxy';
-import { ReportEmissionEvents } from '../submission-tools/report-emission-events';
-import { createPromptTypeHandlerTestAuth } from '../prompt-type-handler.test-support';
-import { childPlatformMcpProxies } from '../platform-mcp-proxy/child-proxy-registry';
-import { PlatformMcpForwarder } from '../platform-mcp-proxy/forwarder';
-import { ConversationsApi, ReportsApi, type PostMessageRequest } from '../../shared/api/generated';
-import type { LocalRunEvalPromptPayload } from '../../shared/agent-bridge-contract/generated';
+  createTestRunRegistryWiring,
+  LOCAL_AGENT_SERVICE_TEST_DEPENDENCIES,
+} from '../../server/__tests__/helpers/test-run-registry';
+import { LocalAgentService } from '../../server/local-agent-service';
+import { SETTLED_CATALOG_AVAILABILITY } from '../../test-support/capability-catalog';
 
-const sdk = vi.hoisted(() => ({
-  start:
-    vi.fn<
-      (
-        config: Record<string, unknown>,
-        emit: (event: Record<string, unknown>) => void,
-        provider: string,
-      ) => Promise<void>
-    >(),
-}));
-vi.mock('../../agent-runtime/index', async (original) => ({
-  ...(await original<object>()),
-  ClaudeCodeSdkClient: class {
-    private emit: (event: Record<string, unknown>) => void = () => {};
-    onEvent(emit: typeof this.emit) {
-      this.emit = emit;
-    }
-    onPermissionRequest() {}
-    getSessionId() {
-      return 'claude-child';
-    }
-    getContextUsage() {
-      return {};
-    }
-    disconnect() {
-      return Promise.resolve();
-    }
-    startSession(config: Record<string, unknown>) {
-      return sdk.start(config, this.emit, 'claude');
-    }
-  },
-  CodexSdkClient: class {
-    private emit: (event: Record<string, unknown>) => void = () => {};
-    onEvent(emit: typeof this.emit) {
-      this.emit = emit;
-    }
-    onServerRequest() {}
-    onTokenUsage() {}
-    getSessionId() {
-      return 'codex-child';
-    }
-    getContextUsage() {
-      return {};
-    }
-    disconnect() {
-      return Promise.resolve();
-    }
-    startSession(config: Record<string, unknown>) {
-      return sdk.start(config, this.emit, 'codex');
-    }
-  },
-}));
-vi.mock('../mcp-server-config', async (original) => ({
-  ...(await original<object>()),
-  buildMcpServerConfig: async () => ({ mcpServers: {}, allowedTools: [] }),
-}));
-vi.mock('../prompts/session-start-context', () => ({
-  readSessionStartContext: async () => ({
-    workItemTypeDefinitions: [],
-    intentFirst: false,
-    maturity: 'ESTABLISHED',
-  }),
-}));
+// Creation and output boundaries use ordinary Runs with persisted metadata.
 
-afterEach(() => vi.restoreAllMocks());
+const AGENT_SESSION_ID = '3a8dd90c-f85e-4efc-a9c0-6fb3c58f0741';
+const CONVERSATION_ID = 'conv-provider-switch';
+const ENTITY = { entityType: 'TASK' as const, entityId: '9cb94de8-c331-41aa-911e-1c50508a302f' };
 
-describe('graph-only eval execution through the real child runtime', () => {
-  it.each([
-    { provider: 'claude' as const, startupFailure: false },
-    { provider: 'codex' as const, startupFailure: false },
-    { provider: 'claude' as const, startupFailure: true },
-  ])(
-    'executes isolated research on $provider or records its startup failure ($startupFailure)',
-    async ({ provider, startupFailure }) => {
-      const organizationId = '11111111-1111-4111-8111-111111111111';
-      const projectId = '22222222-2222-4222-8222-222222222222';
-      const attemptId = '33333333-3333-4333-8333-333333333333';
-      const targetSessionId = '44444444-4444-4444-8444-444444444444';
-      const targetConversationId = '55555555-5555-4555-8555-555555555555';
-      const messages: PostMessageRequest[] = [];
-      vi.spyOn(ConversationsApi.prototype, 'postMessage').mockImplementation(
-        async (request, options) => {
-          expect(options?.headers).toMatchObject({ 'X-Agent-Session-ID': targetSessionId });
-          expect(request.postMessageRequest.conversationId).toBe(targetConversationId);
-          messages.push(structuredClone(request.postMessageRequest));
-          return { data: { data: { id: `message-${messages.length}` } } } as never;
-        },
-      );
-      const evalRunId = '66666666-6666-4666-8666-666666666666';
-      const focalItemId = '77777777-7777-4777-8777-777777777777';
-      const token = `header.${Buffer.from(JSON.stringify({ organizationId })).toString('base64url')}.signature`;
-      const auth = createPromptTypeHandlerTestAuth(token);
-      const reportRequests: RequestInit[] = [];
-      const runStore = createPromptTypeHandlerTestRunStore();
-      await runStore.initialize();
-      const reportProxy = new CreateReportProxy({
-        runStore,
-        auth,
-        apiBaseUrl: 'https://api.test/api/v1',
-        reportEmissionEvents: new ReportEmissionEvents(),
-        fetchImpl: async (_url, init) => {
-          reportRequests.push(init!);
-          return new Response(
-            JSON.stringify({ data: { id: 'research-report', mention: 'research report' } }),
-            { status: 201 },
-          );
-        },
-      });
-      const registry = new PromptTypeRegistry({
-        ...PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES,
-        createReportProxy: reportProxy,
-      });
-      const endpoint = new LocalAgentEndpoint();
-      endpoint.set('http://local.test');
-      const launcher = new ChildAgentLauncher({
-        runStore,
-        handlerDeps: createPromptTypeHandlerTestDeps(),
-        promptTypeRegistry: registry,
-        repoStore: createTestRepoMappingStore(),
-        oauthClient: createRunTestOAuthClient({ success: true, data: token }),
-        submissionToolRegistry: new SubmissionToolRegistry(),
-        localAgentEndpoint: endpoint,
-        logger: NOOP_LOGGER,
-      });
-      const research = {
-        frame: { focalId: focalItemId, nodes: [] },
-        analysis: 'Grounded research result.',
-        summary: 'The research completed.',
-        provenance: { discoveryCalls: [], edgesTraversed: [] },
-        updates: [],
-        readinessEvidence: [],
-      };
-      const forwarder = new PlatformMcpForwarder({
-        oauthClient: createRunTestOAuthClient({ success: true, data: token }),
-        logger: NOOP_LOGGER,
-        fetchImpl: async (_url, init) => {
-          const request = JSON.parse(String(init?.body));
-          return new Response(
-            JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { tools: [] } }),
-          );
-        },
-      });
-      const assessment = {
-        checkResults: [],
-        recognition: { recognized: true, explanation: 'Grounded.' },
-        quality: [],
-      };
-      const emitCompletion = (
-        emit: (event: Record<string, unknown>) => void,
-        runtime: string,
-        text: string,
-      ) => {
-        if (runtime === 'codex') {
-          emit({ method: 'item/completed', params: { item: { type: 'agentMessage', text } } });
-          emit({ method: 'turn/completed', params: { turn: { status: 'completed' } } });
-        } else {
-          emit({ type: 'assistant', message: { id: 'answer', content: [{ type: 'text', text }] } });
-          emit({ type: 'result', subtype: 'success' });
-        }
-      };
-      sdk.start.mockReset();
-      sdk.start.mockImplementation(async (config, emit, runtime) => {
-        const prompt = String(config['prompt']);
-        if (prompt.includes('You are judging one attempt')) {
-          expect(prompt).toContain('SECRET-GRADING');
-          expect(prompt).toContain('A question about pairing.');
-          expect(prompt).toContain('Research the pairing flow.');
-          expect(prompt).toContain(research.analysis);
-          emitCompletion(emit, runtime, JSON.stringify(assessment));
-          return;
-        }
-        if (prompt.includes('Inspect the pairing records independently.')) {
-          expect(prompt).not.toContain('SECRET-GRADING');
-          expect(config['model']).toBe('selected-target');
-          expect(runtime).toBe(provider);
-          emitCompletion(emit, runtime, 'Independent graph evidence.');
-          return;
-        }
-        expect(prompt).toContain('CURRENT ENTITY CONTEXT');
-        expect(prompt).toContain('Research the pairing flow.');
-        expect(prompt).not.toContain('A question about pairing.');
-        expect(prompt).not.toContain('Related items:');
-        expect(prompt).not.toContain('Focal item:');
-        expect(prompt).not.toContain('SECRET-GRADING');
-        expect(prompt).toContain('heyhey-submission-tools');
-        expect(config['model']).toBe('selected-target');
-        const servers = (
-          runtime === 'codex'
-            ? (config['config'] as Record<string, unknown>)['mcp_servers']
-            : config['mcpServers']
-        ) as Record<string, { url: string }>;
-        const url = new URL(servers['heyhey-submission-tools']!.url);
-        const [, , , runId, turnId, mountToken] = url.pathname.split('/').map(decodeURIComponent);
-        const proxy = childPlatformMcpProxies.find({
-          runId: runId!,
-          turnId: turnId!,
-          token: mountToken!,
-        });
-        expect(proxy).not.toBeNull();
-        const list = await proxy!.handleJsonRpc(
-          { jsonrpc: '2.0', id: 1, method: 'tools/list' },
-          forwarder,
-        );
-        expect(JSON.stringify(list)).toContain('create_coding_research');
-        expect(JSON.stringify(list)).toContain('run_subagents');
-        const children = await proxy!.handleJsonRpc(
-          {
-            jsonrpc: '2.0',
-            id: 3,
-            method: 'tools/call',
-            params: {
-              name: 'run_subagents',
-              arguments: { objectives: ['Inspect the pairing records independently.'] },
-            },
-          },
-          forwarder,
-        );
-        expect(JSON.stringify(children)).toContain('Independent graph evidence.');
-        const submitted = await proxy!.handleJsonRpc(
-          {
-            jsonrpc: '2.0',
-            id: 2,
-            method: 'tools/call',
-            params: { name: 'create_coding_research', arguments: research },
-          },
-          forwarder,
-        );
-        expect(JSON.stringify(submitted)).not.toContain('isError');
-        emitCompletion(emit, runtime, 'Research submitted.');
-      });
-      const reports = new Map<string, Record<string, unknown>>([
-        [evalRunId, { reportType: 'EVAL_RUN', status: 'QUEUED' }],
-        [attemptId, { reportType: 'EVAL_ATTEMPT', status: 'QUEUED', measurements: [] }],
-      ]);
-      vi.spyOn(ReportsApi.prototype, 'getReport').mockImplementation(
-        async ({ reportId }) =>
-          ({ data: { data: { id: reportId, payload: reports.get(reportId) } } }) as never,
-      );
-      vi.spyOn(ReportsApi.prototype, 'updateReport').mockImplementation(
-        async ({ reportId, updateReportDto }) => {
-          expect(updateReportDto.ragEnabled).toBe(false);
-          reports.set(reportId, updateReportDto.payload as unknown as Record<string, unknown>);
-          return {} as never;
-        },
-      );
-      const payload: LocalRunEvalPromptPayload = {
-        userMessage: 'Run the approved cases.',
-        evalRunId,
-        settings: { maxConcurrentAttempts: 3 },
-        judgeSetup: { provider: 'claude', model: 'selected-judge' },
-        attempts: [
-          {
-            attemptId,
-            targetSessionId,
-            targetConversationId,
-            configuration: {
-              id: '88888888-8888-4888-8888-888888888888',
-              target: { provider, model: 'selected-target', reasoningEffort: 'low' },
-            },
-            caseInput: {
-              id: '99999999-9999-4999-8999-999999999999',
-              evalCaseId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-              title: 'Pairing',
-              target: {
-                situation: 'A question about pairing.',
-                focalItemId,
-                focalItemType: 'TASK',
-                supportingItemIds: ['cccccccc-cccc-4ccc-8ccc-cccccccccccc'],
-                initiatingRequest: 'Research the pairing flow.',
-                targetHandler: 'project_assistant',
-                consumerHandler: 'entity_conversation',
-              },
-              grading: { checks: [], rubric: [], expectations: 'SECRET-GRADING' },
-            },
-          },
-        ],
-      };
-      const deps = createPromptTypeHandlerTestDeps({
-        auth,
-        childAgentLauncher: launcher,
-        fetchImpl: async () => new Response(JSON.stringify({ data: [] })),
-      });
-      const resolveStartup = vi.mocked(deps.startupPromptInput.resolve).getMockImplementation()!;
-      vi.spyOn(deps.startupPromptInput, 'resolve').mockImplementation(async (request) => {
-        if (startupFailure) throw new Error('Focal entity unavailable.');
-        const startup = await resolveStartup(request);
-        return {
-          ...startup,
-          loadedEntityContext: {
-            ...startup.loadedEntityContext,
-            entity: { id: focalItemId, name: 'Evaluation', type: 'EVAL', source: 'USER' } as never,
-          },
-        };
-      });
-      const session = {
-        agentic_session_id: 'coordinator',
-        provider,
-        services: [],
-        contextMetadata: {
-          organizationId,
-          projectId,
-          fileReferences: { resolved: [], unresolved: [] },
-          userComments: [],
-          capturedAt: new Date().toISOString(),
-        },
-      } as unknown as AgenticSession;
-      const invalidAttemptId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
-      if (!startupFailure) {
-        const valid = payload.attempts[0]!;
-        payload.attempts.unshift({
-          ...valid,
-          attemptId: invalidAttemptId,
-          caseInput: {
-            ...valid.caseInput,
-            target: {
-              situation: valid.caseInput.target.situation,
-              focalItemId,
-              focalItemType: 'TASK',
-              initiatingRequest: valid.caseInput.target.initiatingRequest,
-              targetHandler: 'project_assistant',
-            },
-          },
-        });
-        reports.set(invalidAttemptId, {
-          reportType: 'EVAL_ATTEMPT',
-          status: 'QUEUED',
-          measurements: [],
-        });
-      }
-      const run = createTestRun(
-        {
-          runId: session.agentic_session_id,
-          session: {
-            ...session,
-            entity: { entityType: 'TASK', entityId: focalItemId },
-            provider_session_id: 'pending_eval',
-            provider_conversation_id: null,
-            conversationId: 'coordinator-conversation',
-            promptType: 'run_eval',
-            events: [],
-          },
-          organizationId,
-          projectId,
-          conversationId: 'coordinator-conversation',
-          provider,
-        },
-        {
-          promptTypeRegistry: registry,
-          handlerDeps: deps,
-          runnerPicker: new RunnerPicker({
-            sessionRunnerFacade: createTestSessionRunnerFacade(),
-            oauthClient: createRunTestOAuthClient({ success: true, data: token }),
-            logger: NOOP_LOGGER,
-            runChangedFilesReader: createTestRunChangedFilesReader(),
-            submissionToolRegistry: new SubmissionToolRegistry(),
-            localAgentEndpoint: endpoint,
-            childAgentLauncher: launcher,
-          }),
-        },
-      );
-      try {
-        await run.handleMessage({
-          promptType: 'run_eval',
-          payload,
-          references: { resolved: [], unresolved: [] },
-          triggerContext: null,
-        });
-        await run.awaitIdle();
-      } finally {
-        run.cleanup();
-      }
-      if (startupFailure) {
-        expect(messages).toHaveLength(0);
-        expect(sdk.start).not.toHaveBeenCalled();
-        expect(reports.get(attemptId)).toMatchObject({
-          status: 'ERROR',
-          error: { code: 'EVAL_STARTUP_FAILED' },
-        });
-        expect(reports.get(evalRunId)).toMatchObject({ status: 'FINISHED' });
-        return;
-      }
-      expect(messages[0]?.data).toMatchObject({
-        title: 'Starting Prompt',
-        response: 'Research the pairing flow.',
-        ragEnabled: false,
-      });
-      expect(JSON.stringify(messages)).not.toContain('SECRET-GRADING');
-      expect(messages.every((message) => message.parentMessageId === null)).toBe(true);
-      expect(messages).toHaveLength(2);
-      expect(messages[1]?.data).toMatchObject({
-        response: 'Research submitted.',
-        ragEnabled: false,
-      });
-      expect(reports.get(invalidAttemptId)).toMatchObject({
-        status: 'ERROR',
-        error: { message: expect.stringContaining('must name its consumer handler') },
-      });
-      expect(reports.get(attemptId)?.['error']).toBeUndefined();
-      expect(sdk.start).toHaveBeenCalledTimes(3);
-      const retained = await runStore.getRunMetadata(targetSessionId);
-      expect(retained).toMatchObject({ inert: true });
-      if (!retained) throw new Error('Missing retained evaluation execution.');
-      const restored = createTestRun({ session: retained }, { runStore });
-      await expect(
-        restored.handleMessage({
-          promptType: 'run_eval',
-          payload,
-          references: { resolved: [], unresolved: [] },
-          triggerContext: null,
-        }),
-      ).rejects.toThrow('Evaluation evidence cannot be resumed');
-      expect(restored.queueLength).toBe(0);
-      expect(reportRequests).toHaveLength(1);
-      expect(JSON.parse(String(reportRequests[0]!.body))).toMatchObject({ ragEnabled: false });
-      expect(reportRequests[0]!.headers).toMatchObject({
-        'X-Agent-Session-ID': targetSessionId,
-        'X-Conversation-ID': targetConversationId,
-      });
-      expect(reports.get(evalRunId)).toMatchObject({ status: 'FINISHED' });
-      expect(reports.get(attemptId)).toMatchObject({
-        status: 'COMPLETED',
-        summary: { outputText: expect.stringContaining(research.analysis) },
-        measurements: [
-          { scope: 'TARGET_PREPARATION' },
-          { scope: 'TARGET_HANDLER' },
-          { scope: 'JUDGE' },
-        ],
-      });
-    },
-  );
+const tempDirs: string[] = [];
+
+afterEach(async () => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
-describe('eval first-turn fidelity', () => {
-  it.each(['project_assistant', 'entity_conversation', 'entity_conversation_opt_out'] as const)(
-    'delivers the real first-turn prompt for %s to the provider',
-    async (scenario) => {
-      const focal = {
-        entityType: 'PROJECT',
-        entityId: '77777777-7777-4777-8777-777777777777',
-      } as const;
-      const coordinatorSession = {
-        agentic_session_id: 'target',
-        conversationId: 'target-conversation',
-        provider: 'claude',
-        services: [],
-        entity: focal,
-        contextMetadata: { organizationId: 'organization', projectId: 'project' },
-      } as unknown as AgenticSession;
-      const message = 'Explain this feature and what should happen next.';
-      const caseTarget = {
-        situation: 'The feature is under review.',
-        focalItemId: focal.entityId,
-        focalItemType: focal.entityType,
-        supportingItemIds: ['cccccccc-cccc-4ccc-8ccc-cccccccccccc'],
-        initiatingRequest: message,
-        ...(scenario === 'project_assistant'
-          ? { targetHandler: 'project_assistant', consumerHandler: 'entity_conversation' }
-          : { targetHandler: 'entity_conversation' }),
-      } satisfies EvalCaseTarget;
-      const session = buildEvalAttemptSession(
-        coordinatorSession,
-        {
-          provider: 'claude',
-          model: 'selected-target',
-          handlerConfig: {
-            projectAssistant: { enabled: scenario !== 'entity_conversation_opt_out' },
-          },
-        },
-        caseTarget,
-      );
-      const token = `header.${Buffer.from(JSON.stringify({ organizationId: 'organization' })).toString('base64url')}.signature`;
-      const deps = createPromptTypeHandlerTestDeps({
-        auth: createPromptTypeHandlerTestAuth(token),
-        fetchImpl: async () => new Response(JSON.stringify({ data: [] })),
-      });
-      vi.spyOn(WorkflowAboutReader.prototype, 'read').mockResolvedValue({
-        workflowAboutId: focal.entityId,
-        workflowAboutType: 'project',
-      });
-      const registry = new PromptTypeRegistry({
-        ...PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES,
-        createReportProxy: new CreateReportProxy({
-          auth: deps.auth,
-          apiBaseUrl: deps.apiBaseUrl,
-          reportEmissionEvents: new ReportEmissionEvents(),
-          fetchImpl: async () =>
-            new Response(JSON.stringify({ data: { id: 'report', mention: 'research' } }), {
-              status: 201,
-            }),
-        }),
-      });
-      const handler = registry.get(caseTarget.targetHandler)!;
-      const payload = buildEvalTargetPayload(caseTarget, {
-        session,
-        entity: resolveEvalTargetEntity(caseTarget),
-        resolveHandler: (id) => registry.getChildHandler(id),
-        logger: deps.logger,
-      });
-      if ('userMessage' in payload) {
-        expect(payload.userMessage).toBe(message);
-      }
-      if ('entity' in payload) {
-        expect(payload.entity).toEqual(focal);
-      }
-      const searchTarget = {
-        situation: caseTarget.situation,
-        supportingItemIds: caseTarget.supportingItemIds,
-        initiatingRequest: message,
-        targetHandler: 'agent_search',
-      } satisfies EvalCaseTarget;
-      expect(resolveEvalTargetEntity(searchTarget)).toBeNull();
-      expect(
-        buildEvalTargetPayload(searchTarget, {
-          session,
-          entity: null,
-          resolveHandler: (id) => registry.getChildHandler(id),
-          logger: deps.logger,
-        }),
-      ).toEqual({ payloadVersion: 1, userMessage: message });
-      const research: CodingResearchReportPayload = {
-        reportType: 'CODING_RESEARCH',
-        frame: { focalId: focal.entityId, nodes: [] },
-        analysis: 'Grounded research handed to the conversation.',
-        summary: 'Research completed.',
-        provenance: { discoveryCalls: [], edgesTraversed: [] },
-        updates: [],
-        readinessEvidence: [],
-      };
-      const expectedMemos =
-        scenario === 'entity_conversation'
-          ? [
-              {
-                source: 'project_assistant',
-                content: renderCodingResearchMemo(research),
-                writtenAt: '2026-01-01',
-              },
-            ]
-          : [];
-      const ordinary = await resolvePrompt({
-        handler,
-        run: session,
-        runState: { ...createFirstTurnPromptRunState(), memos: expectedMemos },
-        input: {
-          promptType: handler.promptType,
-          payload,
-          references: { resolved: [], unresolved: [] },
-          triggerContext: null,
-        },
-        handlerDeps: deps,
-        turnId: 'real-turn',
-        abortSignal: () => undefined,
-        recentUserReplies: [],
-        triggerParentMessageId: null,
-        providerSessionDecision: 'first-turn-mint',
-      });
-      const role = await new SessionRoleGuidance(deps).prepare({
-        session,
-        handler,
-        payload: ordinary.preparedPayload ?? payload,
-        fresh: true,
-        ...(ordinary.startupPromptInput ? { startup: ordinary.startupPromptInput } : {}),
-        definitions: [],
-      });
-      const expected = [
-        role.text,
-        [ordinary.startupPromptInput?.renderedInput, ordinary.resolvedPrompt]
-          .filter(Boolean)
-          .join('\n\n---\n\n'),
-      ]
-        .filter(Boolean)
-        .join('\n\n');
-      const endpoint = new LocalAgentEndpoint();
-      endpoint.set('http://local.test');
-      const runStore = createPromptTypeHandlerTestRunStore();
-      await runStore.initialize();
-      const launcher = new ChildAgentLauncher({
-        runStore,
-        handlerDeps: deps,
-        promptTypeRegistry: registry,
-        repoStore: createTestRepoMappingStore(),
-        oauthClient: createRunTestOAuthClient({ success: true, data: 'token' }),
-        submissionToolRegistry: new SubmissionToolRegistry(),
-        localAgentEndpoint: endpoint,
-        logger: NOOP_LOGGER,
-      });
-      const forwarder = new PlatformMcpForwarder({
-        oauthClient: createRunTestOAuthClient({ success: true, data: 'token' }),
-        logger: NOOP_LOGGER,
-      });
-      let received: string | undefined;
-      let researchCalls = 0;
-      sdk.start.mockReset();
-      sdk.start.mockImplementation(async (config, emit) => {
-        const servers = config['mcpServers'] as Record<string, { url: string }>;
-        const researchServer = servers['heyhey-submission-tools'];
-        if (researchServer) {
-          researchCalls += 1;
-          const url = new URL(researchServer.url);
-          const [, , , runId, turnId, token] = url.pathname.split('/').map(decodeURIComponent);
-          const proxy = childPlatformMcpProxies.find({
-            runId: runId!,
-            turnId: turnId!,
-            token: token!,
-          });
-          const result = await proxy!.handleJsonRpc(
-            {
-              jsonrpc: '2.0',
-              id: 1,
-              method: 'tools/call',
-              params: {
-                name: 'create_coding_research',
-                arguments: JSON.parse(
-                  JSON.stringify({
-                    frame: research.frame,
-                    analysis: research.analysis,
-                    summary: research.summary,
-                    provenance: research.provenance,
-                    updates: research.updates,
-                    readinessEvidence: research.readinessEvidence,
-                  }),
-                ),
-              },
-            },
-            forwarder,
-          );
-          expect(JSON.stringify(result)).not.toContain('isError');
-        }
-        if (scenario === 'project_assistant' || !researchServer) {
-          received = String(config['prompt']);
-        }
-        emit({
-          type: 'assistant',
-          message: { id: 'answer', content: [{ type: 'text', text: 'Completed.' }] },
-        });
-        emit({ type: 'result', subtype: 'success' });
-      });
-      const result = await launcher.launch({
-        parentSession: {
-          ...session,
-          memos: [
-            {
-              source: 'coordinator',
-              content: 'SECRET COORDINATOR CONTEXT',
-              writtenAt: '2026-01-01',
-            },
-          ],
-          sessionContext: {
-            sessionRoleGuidance: { references: [], deliveries: {}, hasResearchFrame: true },
-          },
-        },
-        handler,
-        payload,
-        entity: focal,
-        handlerDeps: deps,
+const storeAt = (baseDir: string): RunStore => {
+  const runsDir = path.join(baseDir, 'runs');
+  return new RunStore({
+    paths: {
+      baseDir,
+      runsDir,
+      indexPath: path.join(runsDir, 'run-index.json'),
+      preferencesPath: path.join(baseDir, 'preferences.json'),
+    },
+  });
+};
+
+const makeHarness = async () => {
+  vi.spyOn(WorkflowAboutReader.prototype, 'read').mockResolvedValue({
+    workflowAboutId: ENTITY.entityId,
+    workflowAboutType: 'TASK',
+  });
+  const baseDir = await mkdtemp(path.join(os.tmpdir(), 'heyhey-provider-switch-'));
+  tempDirs.push(baseDir);
+  const runStore = storeAt(baseDir);
+  await runStore.initialize();
+  const runPrompt = vi.fn(() =>
+    Promise.resolve({ providerSessionId: null, providerConversationId: null, errorCount: 0 }),
+  );
+  const projectModeBundleMaterializer = new ProjectModeBundleMaterializer();
+  const postMessage = vi.fn(() => Promise.resolve({ id: 'message' }));
+  const updateMessage = vi.fn<MessagePosterApiClient['updateMessage']>(() => Promise.resolve({}));
+  const execution = new EvalAttemptExecution(NOOP_LOGGER);
+  const wiring = createTestRunRegistryWiring({
+    handlerDeps: createPromptTypeHandlerTestDeps({
+      runStore,
+      evalAttemptExecution: execution,
+      fetchImpl: () => Promise.resolve(Response.json({ data: [] })),
+    }),
+    poster: new MessagePoster({
+      apiClient: { postMessage, updateMessage },
+      logger: NOOP_LOGGER,
+      dataDir: baseDir,
+    }),
+    runStore,
+    sessionRunner: { runPrompt, resumeSession: runPrompt },
+    oauthClient: createTestOAuthClient({
+      getAccessToken: vi.fn(() => Promise.resolve({ success: true as const, data: 'test-token' })),
+    }),
+    projectModeBundleMaterializer,
+  });
+  const service = new LocalAgentService({
+    capabilityCatalog: SETTLED_CATALOG_AVAILABILITY,
+    ...LOCAL_AGENT_SERVICE_TEST_DEPENDENCIES,
+    runStore,
+    repoStore: createTestRepoMappingStore(),
+    runRegistry: wiring.runRegistry,
+    promptTypeRegistry: wiring.promptTypeRegistry,
+    workflowsApi: wiring.workflowsApi,
+    messagesApi: wiring.messagesApi,
+    projectModeBundleMaterializer,
+  });
+  execution.bind(service, runStore);
+  return { baseDir, runStore, service, runPrompt, wiring, postMessage, updateMessage, execution };
+};
+
+const startRunPayload = (overrides: Partial<StartRunTriggerPayload>): StartRunTriggerPayload =>
+  ({
+    agentSessionId: AGENT_SESSION_ID,
+    workflowName: 'coding_session',
+    provider: 'claude',
+    model: 'claude-test',
+    contextMetadata: {
+      capturedAt: '2026-10-06T00:00:00.000Z',
+      organizationId: 'org-1',
+      projectId: 'project-1',
+      agentSessionId: AGENT_SESSION_ID,
+      userComments: [],
+      fileReferences: { resolved: [], unresolved: [] },
+    },
+    payload: { promptType: 'workflow_kickoff', entity: ENTITY, userMessage: 'Start' },
+    ...overrides,
+  }) as unknown as StartRunTriggerPayload;
+
+import { EvalAttemptExecution } from './eval-attempt-execution';
+import type { EvalRecordedAttempt } from '../../shared/api/generated/api';
+import type { AgenticSession } from '../../session/types';
+
+const attempt = (
+  handler: 'agent_search' | 'entity_conversation' | 'project_assistant',
+): EvalRecordedAttempt => ({
+  attemptId: '33333333-3333-4333-8333-333333333333',
+  targetSessionId: AGENT_SESSION_ID,
+  targetConversationId: CONVERSATION_ID,
+  configuration: {
+    id: 'configuration',
+    target: {
+      provider: 'claude',
+      model: 'claude-test',
+      reasoningEffort: 'high',
+      handlerConfig: { projectAssistant: { enabled: false } },
+    },
+  },
+  caseInput: {
+    id: 'case',
+    evalCaseId: 'eval-case',
+    title: 'Review',
+    target: {
+      targetHandler: handler,
+      ...(handler === 'project_assistant'
+        ? { consumerHandler: 'entity_conversation' as const }
+        : {}),
+      focalItemId: ENTITY.entityId,
+      focalItemType: 'TASK',
+      initiatingRequest: 'Review this item.',
+      situation: 'SECRET-SITUATION',
+    },
+    grading: { checks: [], rubric: [], expectations: 'SECRET-EXPECTATIONS' },
+  },
+});
+const coordinator = { contextMetadata: startRunPayload({}).contextMetadata } as AgenticSession;
+
+describe('eval attempts through ordinary Runs', () => {
+  it.each(['agent_search', 'entity_conversation', 'project_assistant'] as const)(
+    'creates and prepares the actual %s handler',
+    async (handler) => {
+      const { runStore, runPrompt, wiring, postMessage, execution } = await makeHarness();
+      const result = await execution.execute(coordinator, attempt(handler), {
         signal: new AbortController().signal,
-        evalExecution: {
-          attemptId: 'attempt',
-          targetSessionId: 'target',
-          targetConversationId: 'target-conversation',
-        },
       });
-      expect(result.assistantCompleted).toBe(true);
-      // Claude's platform system instructions occupy a separate system slot;
-      // this is the complete per-turn prompt passed to the provider, byte for byte.
-      expect(received).toBe(expected);
-      expect(researchCalls).toBe(scenario === 'entity_conversation_opt_out' ? 0 : 1);
+      expect(result.preparationMeasurements?.[0]?.scope).toBe('TARGET_PREPARATION');
+      expect(result.preparationMeasurements?.[0]?.elapsedMs).toBeGreaterThanOrEqual(0);
+      expect(runPrompt).toHaveBeenCalledOnce();
+      expect(JSON.stringify(runPrompt.mock.calls)).not.toContain('SECRET-');
+      expect(wiring.runRegistry.get(AGENT_SESSION_ID)?.session).toMatchObject({
+        inert: true,
+        conversationId: CONVERSATION_ID,
+        model: 'claude-test',
+        reasoningEffort: 'high',
+      });
+      expect((await runStore.getRunMetadata(AGENT_SESSION_ID))?.latestTurn?.state).toBe('settled');
+      expect(JSON.stringify(postMessage.mock.calls)).not.toContain('SECRET-');
+      if (handler === 'project_assistant') {
+        expect(JSON.stringify(runPrompt.mock.calls)).toContain('project_assistant');
+      }
+    },
+  );
+
+  it('does not start an attempt cancelled before creation', async () => {
+    const { service, runStore, runPrompt } = await makeHarness();
+    const execution = new EvalAttemptExecution(NOOP_LOGGER);
+    execution.bind(service, runStore);
+    const controller = new AbortController();
+    controller.abort();
+    const result = await execution.execute(coordinator, attempt('agent_search'), {
+      signal: controller.signal,
+    });
+    expect(result.assistantCompleted).toBe(false);
+    expect(runPrompt).not.toHaveBeenCalled();
+  });
+
+  it('preserves measured usage when a final total exceeds the token limit', async () => {
+    const { service, runStore, runPrompt } = await makeHarness();
+    runPrompt.mockImplementationOnce(async () => {
+      await runStore.updateRunTokenUsage(AGENT_SESSION_ID, { inputTokens: 11, outputTokens: 2 });
+      return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+    });
+    const execution = new EvalAttemptExecution(NOOP_LOGGER);
+    execution.bind(service, runStore);
+    const onTokenLimit = vi.fn();
+    const result = await execution.execute(coordinator, attempt('agent_search'), {
+      signal: new AbortController().signal,
+      tokenBudget: 10,
+      onTokenLimit,
+    });
+    expect(result).toMatchObject({
+      assistantCompleted: false,
+      budgetExhausted: true,
+      usage: { inputTokens: 11, outputTokens: 2 },
+    });
+    expect(onTokenLimit).toHaveBeenCalledOnce();
+  });
+});
+
+describe('eval startup and execution cancellation', () => {
+  it('cancels during materialization without dispatching an orphan first input', async () => {
+    const { service, runStore, runPrompt } = await makeHarness();
+    const original = service.createRun.bind(service);
+    let release = (): void => undefined;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    vi.spyOn(service, 'createRun').mockImplementation(async (request) => {
+      await pending;
+      return original(request);
+    });
+    const controller = new AbortController();
+    const execution = new EvalAttemptExecution(NOOP_LOGGER);
+    execution.bind(service, runStore);
+    const result = execution.execute(coordinator, attempt('agent_search'), {
+      signal: controller.signal,
+    });
+    controller.abort();
+    release();
+    expect(await result).toMatchObject({ assistantCompleted: false, usage: {} });
+    expect(runPrompt).not.toHaveBeenCalled();
+    expect(await runStore.getRunMetadata(AGENT_SESSION_ID)).toMatchObject({ inert: true });
+  });
+
+  it.each(['USER', 'TOKEN_LIMIT'] as const)(
+    'stops the active Run for %s and retains usage',
+    async (reason) => {
+      const { service, runStore, runPrompt, wiring } = await makeHarness();
+      const controller = new AbortController();
+      let started = (): void => undefined;
+      const entered = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      runPrompt.mockImplementationOnce(async (...args: unknown[]) => {
+        const input = args[0] as import('../providers/session-runner').RunPromptArgs;
+        await runStore.updateRunTokenUsage(AGENT_SESSION_ID, { inputTokens: 11, outputTokens: 2 });
+        started();
+        await new Promise<void>((resolve) => {
+          if (input.signal?.aborted) {
+            resolve();
+            return;
+          }
+          input.signal?.addEventListener('abort', () => resolve(), { once: true });
+        });
+        return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+      });
+      const execution = new EvalAttemptExecution(NOOP_LOGGER);
+      execution.bind(service, runStore);
+      const onTokenLimit = vi.fn(() => controller.abort());
+      const running = execution.execute(coordinator, attempt('agent_search'), {
+        signal: controller.signal,
+        ...(reason === 'TOKEN_LIMIT' ? { tokenBudget: 10, onTokenLimit } : {}),
+      });
+      await entered;
+      if (reason === 'USER') {
+        controller.abort();
+      }
+      const result = await running;
+      expect(result).toMatchObject({
+        assistantCompleted: false,
+        budgetExhausted: reason === 'TOKEN_LIMIT',
+        usage: { inputTokens: 11, outputTokens: 2 },
+      });
+      expect(wiring.runRegistry.get(AGENT_SESSION_ID)?.isProcessing).toBe(false);
     },
   );
 });
+
+import { runEvalAttempts, type EvalAttemptPatch } from './eval-runner';
+
+it.each(['USER', 'TOKEN_LIMIT'] as const)(
+  'keeps the first %s reason when cancellation races final token settlement',
+  async (firstReason) => {
+    const { runStore, runPrompt, execution } = await makeHarness();
+    const controller = new AbortController();
+    runPrompt.mockImplementationOnce(async () => {
+      await runStore.updateRunTokenUsage(AGENT_SESSION_ID, { inputTokens: 11, outputTokens: 2 });
+      if (firstReason === 'USER') {
+        controller.abort();
+      }
+      return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+    });
+    const patches: EvalAttemptPatch[] = [];
+    const judge = vi.fn();
+    await runEvalAttempts(
+      {
+        attempts: [attempt('agent_search')],
+        settings: { maxConcurrentAttempts: 1, attemptTokenLimit: 10 },
+        signal: controller.signal,
+      },
+      {
+        now: () => new Date(),
+        recorder: {
+          setRunStatus: () => Promise.resolve(),
+          updateAttempt: (_id, patch) => {
+            patches.push(patch);
+            return Promise.resolve();
+          },
+        },
+        async launchTarget(recorded, options) {
+          const result = await execution.execute(coordinator, recorded, options);
+          controller.abort();
+          return result;
+        },
+        judge,
+      },
+    );
+    expect(patches.at(-1)).toMatchObject({
+      status: 'STOPPED',
+      stopReason: firstReason,
+    });
+    expect(
+      patches.at(-1)?.measurements?.find(({ scope }) => scope === 'TARGET_HANDLER'),
+    ).toMatchObject({ inputTokens: 11, outputTokens: 2 });
+    expect(judge).not.toHaveBeenCalled();
+  },
+);

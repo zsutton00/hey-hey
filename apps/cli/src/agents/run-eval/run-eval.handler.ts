@@ -3,7 +3,7 @@ import {
   type LocalRunEvalPromptPayload,
 } from '../../shared/agent-bridge-contract/generated';
 import { LocalReasoningEffort } from '../../shared/agent-bridge-contract/contract';
-import type { EvalModelSetting, EvalRecordedAttempt } from '../../shared/api/generated/api';
+import type { EvalModelSetting } from '../../shared/api/generated/api';
 import type { RegisteredChildLaunchRequest } from '../../run/child-agent-launcher';
 import {
   defaultAddUserMessage,
@@ -11,16 +11,8 @@ import {
   type UserLaunchablePromptTypeHandler,
 } from '../prompt-type-handler';
 import { EVAL_JUDGE_HANDLER_ID, parseEvalJudgeOutput } from './eval-judge.handler';
-import type { EvalExecutionContext } from './eval-execution-context';
 import { EvalReportRecorder } from './eval-report-recorder';
 import { runEvalAttempts, type EvalRunnerPorts, type EvalRunTally } from './eval-runner';
-import { EvalTargetMessages } from './eval-target-messages';
-import {
-  buildEvalAttemptSession,
-  resolveEvalTargetEntity,
-  buildEvalTargetPayload,
-} from './eval-targets';
-
 const EVAL_WORK_ITEM_TYPE_KEY = 'EVAL' as const;
 
 const REASONING_EFFORTS: ReadonlySet<string> = new Set(Object.values(LocalReasoningEffort));
@@ -44,13 +36,6 @@ const toLaunchSettings = (
 
 const describeFailure = (error: unknown): string =>
   error instanceof Error ? (error.stack ?? error.message) : String(error);
-
-/** Every child of an attempt reaches the platform as that attempt's target session. */
-const toEvalExecution = (attempt: EvalRecordedAttempt): EvalExecutionContext => ({
-  attemptId: attempt.attemptId,
-  targetSessionId: attempt.targetSessionId,
-  targetConversationId: attempt.targetConversationId,
-});
 
 const describeTally = (tally: EvalRunTally, stopped: boolean): string => {
   const parts = [
@@ -76,62 +61,11 @@ const runRecordedAttempts = async (
   const ports: EvalRunnerPorts = {
     recorder,
     now: () => new Date(),
-    async launchTarget(attempt, { signal: attemptSignal, tokenBudget }) {
-      const target = attempt.caseInput.target;
-      const handlerId = target.targetHandler;
-      const entity = resolveEvalTargetEntity(target);
-      const attemptSession = buildEvalAttemptSession(session, attempt.configuration.target, target);
-      const targetPayload = buildEvalTargetPayload(target, {
-        session: attemptSession,
-        entity,
-        resolveHandler: (id) => launcher.resolveChildHandler(id),
-        logger: deps.logger,
-      });
-      let messages: EvalTargetMessages | undefined;
-      deps.logger.info('run_eval.attempt.target_started', {
-        runId: session.agentic_session_id,
-        attemptId: attempt.attemptId,
-        handlerId,
-        provider: attempt.configuration.target.provider,
-        model: attempt.configuration.target.model,
-      });
-      try {
-        return await launcher.launchRegistered(handlerId, {
-          parentSession: attemptSession,
-          payload: targetPayload,
-          onAgentOutput: (output) => {
-            if (!messages) {
-              throw new Error('Evaluation messages require persisted execution metadata.');
-            }
-            messages.onAgentOutput(output);
-          },
-          onExecutionCreated: async (targetSession) => {
-            messages = await EvalTargetMessages.create(
-              targetSession,
-              toEvalExecution(attempt),
-              handlerId,
-              deps,
-            );
-            await messages.savePrompt(target.initiatingRequest);
-          },
-          signal: attemptSignal,
-          ...toLaunchSettings(attempt.configuration.target),
-          ...(tokenBudget !== undefined ? { tokenBudget } : {}),
-          evalExecution: toEvalExecution(attempt),
-          handlerDeps: deps,
-          ...(entity ? { entity } : {}),
-        });
-      } catch (error) {
-        deps.logger.error('run_eval.attempt.target_failed', {
-          runId: session.agentic_session_id,
-          attemptId: attempt.attemptId,
-          handlerId,
-          error: describeFailure(error),
-        });
-        throw error;
-      } finally {
-        await messages?.drain();
+    async launchTarget(attempt, options) {
+      if (!deps.evalAttemptExecution) {
+        throw new Error('Eval attempt execution is unavailable.');
       }
+      return deps.evalAttemptExecution.execute(session, attempt, options);
     },
     async judge(attempt, outputText, judgeSignal) {
       const startedAt = Date.now();
@@ -141,7 +75,6 @@ const runRecordedAttempts = async (
           payload: { caseInput: attempt.caseInput, outputText },
           signal: judgeSignal,
           ...toLaunchSettings(payload.judgeSetup),
-          evalExecution: toEvalExecution(attempt),
         })
         .catch((error: unknown) => {
           deps.logger.error('run_eval.attempt.judge_failed', {
@@ -189,7 +122,7 @@ const runRecordedAttempts = async (
 
 /**
  * Runs a launched eval as a fixed procedure: every recorded attempt as a fresh
- * child of its real target handler, then a separate judge. No coordinating
+ * ordinary inert Run of its real target handler, then a separate judge. No coordinating
  * agent exists; only the targets and the judge are agents.
  */
 export const runEvalHandler: UserLaunchablePromptTypeHandler<LocalRunEvalPromptPayload> = {

@@ -1,3 +1,6 @@
+import { EvalAttemptExecution } from '../agents/run-eval/eval-attempt-execution';
+import type { AgenticSession } from '../session/types';
+import type { EvalRecordedAttempt } from '../shared/api/generated/api';
 import { TasksApi, EntityContextApi } from '../shared/api/generated';
 import { z } from 'zod';
 import { AgentStartupPromptInput } from '../commands/agent-startup-prompt-input';
@@ -257,9 +260,13 @@ const toolCallSchema = z.object({
 });
 
 describe('ordinary Run output boundaries', () => {
-  it.each([true, false])(
-    'keeps every output and tool surface governed by stored inertness (%s)',
-    async (inert) => {
+  it.each([
+    { inert: true, evalAttempt: true },
+    { inert: true, evalAttempt: false },
+    { inert: false, evalAttempt: false },
+  ])(
+    'keeps outputs governed by stored inertness ($inert), eval attempt ($evalAttempt)',
+    async ({ inert, evalAttempt }) => {
       const baseDir = await mkdtemp(path.join(os.tmpdir(), 'heyhey-inert-boundaries-'));
       tempDirs.push(baseDir);
       vi.stubEnv('CLAUDE_CONFIG_DIR', baseDir);
@@ -582,21 +589,62 @@ describe('ordinary Run output boundaries', () => {
         }
         emit({ type: 'result', subtype: 'success' });
       });
-      await service.createRun({
-        ...toCreateRunRequest(startRunPayload({}), CONVERSATION_ID),
-        inert,
-        config: {
-          type: 'ENTITY_CONVERSATION',
-          version: 'v1',
-          model: 'claude-test',
-          projectAssistant: { enabled: false },
-        },
-        payload: {
-          promptType: 'entity_conversation',
-          entity: { entityType: 'TASK', entityId: ENTITY.entityId },
-          userMessage: 'Review this item.',
-        },
-      });
+      if (evalAttempt) {
+        const execution = new EvalAttemptExecution(NOOP_LOGGER);
+        execution.bind(service, runStore);
+        const result = await execution.execute(
+          { contextMetadata: startRunPayload({}).contextMetadata } as AgenticSession,
+          {
+            attemptId: '33333333-3333-4333-8333-333333333333',
+            targetSessionId: AGENT_SESSION_ID,
+            targetConversationId: CONVERSATION_ID,
+            configuration: {
+              id: 'configuration',
+              target: {
+                provider: 'claude',
+                model: 'claude-test',
+                handlerConfig: { projectAssistant: { enabled: false } },
+              },
+            },
+            caseInput: {
+              id: 'case',
+              evalCaseId: 'eval-case',
+              title: 'Review',
+              target: {
+                targetHandler: 'entity_conversation',
+                focalItemId: ENTITY.entityId,
+                focalItemType: 'TASK',
+                initiatingRequest: 'Review this item.',
+                situation: 'SECRET-SITUATION',
+              },
+              grading: { checks: [], rubric: [], expectations: 'SECRET-EXPECTATIONS' },
+            },
+          } satisfies EvalRecordedAttempt,
+          { signal: new AbortController().signal },
+        );
+        expect(result).toMatchObject({ assistantCompleted: true, outputText: 'Evidence answer.' });
+        expect(await runStore.getRunMetadata(AGENT_SESSION_ID)).toMatchObject({
+          inert: true,
+          conversationId: CONVERSATION_ID,
+        });
+        expect(String(provider.start.mock.calls[0]?.[0]['prompt'])).not.toContain('SECRET-');
+      } else {
+        await service.createRun({
+          ...toCreateRunRequest(startRunPayload({}), CONVERSATION_ID),
+          inert,
+          config: {
+            type: 'ENTITY_CONVERSATION',
+            version: 'v1',
+            model: 'claude-test',
+            projectAssistant: { enabled: false },
+          },
+          payload: {
+            promptType: 'entity_conversation',
+            entity: { entityType: 'TASK', entityId: ENTITY.entityId },
+            userMessage: 'Review this item.',
+          },
+        });
+      }
       await wiring.runRegistry.get(AGENT_SESSION_ID)?.awaitIdle();
       expect(errors.mock.calls).toEqual([]);
       expect(provider.start).toHaveBeenCalledOnce();

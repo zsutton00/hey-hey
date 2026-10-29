@@ -1,11 +1,9 @@
-import type { AgenticSession } from '../../session/types';
 import { describe, expect, it, vi } from 'vitest';
 import {
   LocalPromptType,
   type LocalRunEvalPromptPayload,
 } from '../../shared/agent-bridge-contract/generated';
 import type { ProceduralRunContext } from '../prompt-type-handler';
-import type { AgentOutputHandler } from '../agent-event-stream';
 import { runEvalHandler } from './run-eval.handler';
 
 const attempt = {
@@ -63,26 +61,6 @@ describe('runEvalHandler', () => {
       [];
     const launchRegistered = vi.fn(async (handlerId: string, request: Record<string, unknown>) => {
       launches.push({ handlerId, payload: request['payload'], request });
-      await (
-        request['onExecutionCreated'] as ((session: AgenticSession) => Promise<void>) | undefined
-      )?.({ ...(request['parentSession'] as AgenticSession), inert: true });
-      if (handlerId === 'agent_search') {
-        (request['onAgentOutput'] as AgentOutputHandler | undefined)?.({
-          event: {
-            source: 'provider',
-            eventType: 'agent_output',
-            timestamp: new Date().toISOString(),
-            sessionId: 'provider-session',
-            agentId: 'agent_search',
-            payload: { messageType: 'assistant', summary: 'Found it.', taskComplete: true },
-          },
-        });
-        return {
-          assistantCompleted: true,
-          outputText: 'Found it.',
-          usage: { inputTokens: 10, outputTokens: 5, toolCalls: 2 },
-        };
-      }
       return {
         assistantCompleted: true,
         outputText: JSON.stringify({
@@ -130,6 +108,20 @@ describe('runEvalHandler', () => {
         auth: { getAccessToken: async () => 'token' },
         apiBaseUrl: 'http://api.test',
         logger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        evalAttemptExecution: {
+          execute: (_session: unknown, recorded: typeof attempt) => {
+            launches.push({
+              handlerId: recorded.caseInput.target.targetHandler,
+              payload: { userMessage: recorded.caseInput.target.initiatingRequest },
+              request: {},
+            });
+            return Promise.resolve({
+              assistantCompleted: true,
+              outputText: 'Found it.',
+              usage: { inputTokens: 10, outputTokens: 5, toolCalls: 2 },
+            });
+          },
+        },
         childAgentLauncher: { launchRegistered },
       },
     } as unknown as ProceduralRunContext;
@@ -140,21 +132,6 @@ describe('runEvalHandler', () => {
     expect(launches.map((launch) => launch.handlerId)).toEqual(['agent_search', 'eval_judge']);
     const targetLaunch = launches[0]!;
     expect(JSON.stringify(targetLaunch.payload)).not.toMatch(/SECRET/);
-    expect(targetLaunch.request).toMatchObject({
-      provider: 'claude',
-      model: 'sonnet',
-      reasoningEffort: 'high',
-      evalExecution: {
-        attemptId: attempt.attemptId,
-        targetSessionId: attempt.targetSessionId,
-        targetConversationId: attempt.targetConversationId,
-      },
-    });
-    expect(targetLaunch.request).not.toHaveProperty('tokenBudget');
-    // The run setup's Project Assistant choice reaches the attempt as its session config.
-    expect(targetLaunch.request['parentSession']).toMatchObject({
-      config: { type: 'ENTITY_CONVERSATION', projectAssistant: { enabled: false } },
-    });
     expect(reports.get(payload.evalRunId)).toMatchObject({ status: 'FINISHED' });
     expect(reports.get(attempt.attemptId)).toMatchObject({
       status: 'COMPLETED',
@@ -168,20 +145,7 @@ describe('runEvalHandler', () => {
       reports.get(attempt.attemptId)!['measurements'] as Record<string, unknown>[]
     )[1]!;
     expect(judgeMeasurement).not.toHaveProperty('inputTokens');
-    expect(saved).toHaveLength(2);
-    expect(saved[0]).toMatchObject({
-      conversationId: attempt.targetConversationId,
-      parentMessageId: null,
-      data: { response: expect.stringContaining('Find what is out of date.'), ragEnabled: false },
-      headers: { 'X-Agent-Session-ID': attempt.targetSessionId },
-    });
-    expect(saved[1]).toMatchObject({
-      conversationId: attempt.targetConversationId,
-      parentMessageId: null,
-      data: { response: 'Found it.', ragEnabled: false },
-      headers: { 'X-Agent-Session-ID': attempt.targetSessionId },
-    });
-    expect(JSON.stringify(saved)).not.toMatch(/SECRET/);
+    expect(saved).toHaveLength(0);
     expect(launches[1]!.request).not.toHaveProperty('onAgentOutput');
     expect(fetchSpy).not.toHaveBeenCalled();
     vi.restoreAllMocks();
