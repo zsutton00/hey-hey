@@ -575,6 +575,37 @@ describe('SearchToolsProvider', () => {
       expect(searchRequest.embeddings.queryMode).toBe('default');
     });
 
+    it.each([true, false])(
+      'returns exact match text independently of snippet (spans: %s)',
+      async (withSpans) => {
+        const matchText = 'A 😀 matching passage';
+        const matchSpans = [{ start: 2, end: 4, strength: 0.9 }];
+        (mockSearchService.search as jest.Mock).mockResolvedValue(
+          makeSearchResponse([
+            makeResult({
+              content: 'Different display text '.repeat(30),
+              embeddings: withSpans ? { text: matchText, matchSpans } : {},
+            }),
+          ]),
+        );
+        const result = (await provider.unifiedSearch(
+          { query: 'passage', limit: 10, offset: 0 },
+          dummyContext as any,
+          makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
+        )) as SearchResult;
+        const hit = searchResultOutput.parse(result).results[0]!;
+        if (withSpans) {
+          expect(hit.matchSpans).toEqual(matchSpans);
+          expect(hit.matchText).toBe(matchText);
+          expect(hit.matchText!.slice(2, 4)).toBe('😀');
+          expect(hit.snippet).not.toBe(matchText);
+        } else {
+          expect(hit).not.toHaveProperty('matchSpans');
+          expect(hit).not.toHaveProperty('matchText');
+        }
+      },
+    );
+
     it('passes MESSAGE results through mapResult unchanged', async () => {
       (mockSearchService.search as jest.Mock).mockResolvedValue(
         makeSearchResponse([

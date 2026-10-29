@@ -530,6 +530,14 @@ UnifiedGraphSearchResponse:
 UnifiedEmbeddingsSearchResult:
   type: object
   properties:
+    matchSpans:
+      type: array
+      description: Matched spans with end-exclusive UTF-16 code-unit offsets into text. Present together with text, or both omitted.
+      items:
+        $ref: "../embeddings/openapi.yaml#/components/schemas/MatchSpan"
+    text:
+      type: string
+      description: Exact source text indexed by matchSpans. UTF-16 code-unit offsets are valid only against this string, not the result content. Present together with matchSpans, or both omitted.
     id:
       type: string
     similarity:

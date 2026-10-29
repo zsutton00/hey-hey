@@ -343,6 +343,70 @@ describe('UnifiedSearchService', () => {
     },
   );
 
+  it.each([
+    {
+      text: 'matching passage',
+      matchSpans: [{ start: 0, end: 8, strength: 0.8 }],
+      expectedSlice: 'matching',
+    },
+    {
+      text: 'A 😀 passage',
+      matchSpans: [{ start: 2, end: 4, strength: 0.9 }],
+      expectedSlice: '😀',
+    },
+    { text: 'no positions', matchSpans: undefined },
+    {
+      text: 'malformed positions',
+      matchSpans: [{ start: 'bad', end: 4, strength: 0.8 }],
+    },
+  ])(
+    'preserves paired match text and spans: $text',
+    async ({ text, matchSpans, expectedSlice }) => {
+      embeddingsClient.searchEmbeddingsWithUserTokenPost.mockResolvedValue(
+        JSON.parse(
+          JSON.stringify({
+            success: true,
+            results: 2,
+            data: [
+              {
+                id: 'task-1_chunk_0',
+                text: 'Different display chunk',
+                similarity: 0.9,
+                metadata: { id: 'task-1', type: 'task' },
+              },
+              {
+                id: 'task-1_chunk_1',
+                text,
+                matchSpans,
+                similarity: 0.8,
+                metadata: { id: 'task-1', type: 'task' },
+              },
+            ],
+          }),
+        ),
+      );
+      taskService.findManyByIds.mockResolvedValue(new Map());
+      const result = await service.search(
+        organizationId,
+        projectId,
+        { intent: 'semantic', query: 'passage' },
+        userToken,
+      );
+      const hit = result.results?.find((item) => item.entityId === 'task-1');
+      expect(hit).toBeDefined();
+      if (expectedSlice !== undefined) {
+        expect(hit?.embeddings).toMatchObject({ text, matchSpans });
+        const span = hit!.embeddings!.matchSpans![0]!;
+        expect(hit!.embeddings!.text!.slice(span.start, span.end)).toBe(
+          expectedSlice,
+        );
+      } else {
+        expect(hit?.embeddings).not.toHaveProperty('matchSpans');
+        expect(hit?.embeddings).not.toHaveProperty('text');
+      }
+    },
+  );
+
   it('routes semantic intent to embeddings search', async () => {
     const infoLog = jest.spyOn((service as any).logger, 'log');
     embeddingsClient.searchEmbeddingsWithUserTokenPost.mockResolvedValue({

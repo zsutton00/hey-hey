@@ -56512,6 +56512,31 @@ export interface ManualTaskStub {
     'shortDescription': string;
 }
 /**
+ * A matched stretch of the hit text, using end-exclusive UTF-16 code units.
+ * @export
+ * @interface MatchSpan
+ */
+export interface MatchSpan {
+    /**
+     * Start offset in UTF-16 code units into the hit text.
+     * @type {number}
+     * @memberof MatchSpan
+     */
+    'start': number;
+    /**
+     * Exclusive end offset in UTF-16 code units into the hit text.
+     * @type {number}
+     * @memberof MatchSpan
+     */
+    'end': number;
+    /**
+     * Best query-token cosine similarity within the span.
+     * @type {number}
+     * @memberof MatchSpan
+     */
+    'strength': number;
+}
+/**
  * 
  * @export
  * @interface MaterializedDesignDocSection
@@ -98941,6 +98966,18 @@ export interface UnifiedEmbeddingsSearchResponse {
  * @interface UnifiedEmbeddingsSearchResult
  */
 export interface UnifiedEmbeddingsSearchResult {
+    /**
+     * Matched spans with end-exclusive UTF-16 code-unit offsets into text. Present together with text, or both omitted.
+     * @type {Array<MatchSpan>}
+     * @memberof UnifiedEmbeddingsSearchResult
+     */
+    'matchSpans'?: Array<MatchSpan>;
+    /**
+     * Exact source text indexed by matchSpans. UTF-16 code-unit offsets are valid only against this string, not the result content. Present together with matchSpans, or both omitted.
+     * @type {string}
+     * @memberof UnifiedEmbeddingsSearchResult
+     */
+    'text'?: string;
     /**
      * 
      * @type {string}

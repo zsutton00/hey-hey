@@ -43,6 +43,7 @@ import {
   WorkStatus,
 } from 'src/generated';
 import {
+  MatchSpan,
   SearchRequest as EmbeddingsSearchRequest,
   SearchResponse as EmbeddingsSearchResponse,
   SearchFilters as EmbeddingsSearchFiltersContract,
@@ -139,6 +140,23 @@ const ENTITY_TYPES_WITH_CANONICAL_STATUS: ApiEntityType[] = [
   ApiEntityType.Initiative,
   ApiEntityType.DesignDoc,
 ];
+
+function isMatchSpanArray(value: unknown): value is MatchSpan[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (span: unknown) =>
+        typeof span === 'object' &&
+        span !== null &&
+        'start' in span &&
+        typeof span.start === 'number' &&
+        'end' in span &&
+        typeof span.end === 'number' &&
+        'strength' in span &&
+        typeof span.strength === 'number',
+    )
+  );
+}
 
 @Injectable()
 export class UnifiedSearchService {
@@ -2653,6 +2671,9 @@ export class UnifiedSearchService {
           metadata: this.stripEmbeddingsMetadata(
             item.metadata as UnifiedEmbeddingsSearchResult['metadata'],
           ),
+          ...(isMatchSpanArray(item.matchSpans) && typeof item.text === 'string'
+            ? { matchSpans: item.matchSpans, text: item.text }
+            : {}),
           chunkIndex: item.chunkIndex,
           matchType: item.matchType,
         })),

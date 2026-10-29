@@ -1529,6 +1529,7 @@ export * from './machineSecurityEventType';
 export * from './makeBetaAccessOpenEndedRequestDto';
 export * from './makeBetaAccessOpenEndedResponse';
 export * from './manualTaskStub';
+export * from './matchSpan';
 export * from './materializedDesignDocSection';
 export * from './materializedWorkItemSection';
 export * from './mcpHealthResponse';

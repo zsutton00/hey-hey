@@ -2044,6 +2044,7 @@ Class | Method | HTTP request | Description
  - [MakeBetaAccessOpenEndedRequestDto](docs/MakeBetaAccessOpenEndedRequestDto.md)
  - [MakeBetaAccessOpenEndedResponse](docs/MakeBetaAccessOpenEndedResponse.md)
  - [ManualTaskStub](docs/ManualTaskStub.md)
+ - [MatchSpan](docs/MatchSpan.md)
  - [MaterializedDesignDocSection](docs/MaterializedDesignDocSection.md)
  - [MaterializedWorkItemSection](docs/MaterializedWorkItemSection.md)
  - [McpHealthResponse](docs/McpHealthResponse.md)
