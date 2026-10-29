@@ -70,12 +70,16 @@ export function ThreeWayReview({
   // Where current content already says what the proposal says, there is nothing to decide.
   const fields = threeWayFields(projection).filter(
     (path) =>
-      !projection.live ||
-      !projection.intended ||
-      !equivalentContent(
-        threeWayValue(projection.live, path),
-        threeWayValue(projection.intended, path),
-      ),
+      state.overlaps.some(
+        (overlap) =>
+          overlap.path === path || overlap.path.startsWith(`${path}.`),
+      ) &&
+      (!projection.live ||
+        !projection.intended ||
+        !equivalentContent(
+          threeWayValue(projection.live, path),
+          threeWayValue(projection.intended, path),
+        )),
   );
   const sectionOrder = new Map(
     definition?.sections.map((section, index) => [
@@ -93,8 +97,7 @@ export function ThreeWayReview({
       </Typography>
       <Typography>
         The live content and this proposal changed from the same starting point.
-        Compare both changes, including whether proposed additions still belong
-        even without textual overlap.
+        Resolve the changes that overlap below.
       </Typography>
       <Box sx={{ overflowX: "auto" }}>
         <Box
@@ -175,6 +178,13 @@ export function ThreeWayReview({
                         : []
                     }
                     overlapping={overlapping}
+                    conflictingIds={state.conflictingPaths
+                      .filter((conflict) =>
+                        conflict.startsWith(`${path}.records.`),
+                      )
+                      .map((conflict) =>
+                        conflict.slice(`${path}.records.`.length),
+                      )}
                   />
                 ) : (
                   values.map((value, index) => (

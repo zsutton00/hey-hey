@@ -78,18 +78,19 @@ export function resolutionItems(
       if (before && now && after) {
         const ids = new Set([...before, ...after].map((record) => record.id));
         return [...ids]
-          .filter(
-            (id) =>
-              !isEqual(
-                before.find((r) => r.id === id),
-                after.find((r) => r.id === id),
-              ) ||
-              (conflicts.some((conflict) => conflict.startsWith(path)) &&
-                !isEqual(
-                  before.find((r) => r.id === id),
-                  now.find((r) => r.id === id),
-                )),
-          )
+          .filter((id) => {
+            const requirementPath = `${path}.records.${id}`;
+            const hasIndividualConflicts = conflicts.some((conflict) =>
+              conflict.startsWith(`${path}.records.`),
+            );
+            if (hasIndividualConflicts) {
+              return conflicts.includes(requirementPath);
+            }
+            return !isEqual(
+              before.find((record) => record.id === id),
+              after.find((record) => record.id === id),
+            );
+          })
           .map((id) => ({
             path,
             requirementId: id,

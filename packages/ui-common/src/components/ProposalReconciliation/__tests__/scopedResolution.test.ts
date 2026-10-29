@@ -55,23 +55,33 @@ describe("scoped manual resolution", () => {
       expect(writeResolution(restored, item, undefined)).toEqual(removed);
     },
   );
-  it("limits rows to a conflicting requirement and proposed addition", () => {
+  it("limits decisions to the overlapping requirement and carries clean changes forward", () => {
+    const liveB = { ...b, statement: "Live only" };
     const projection = {
       original: content([a, b]),
-      live: content([{ ...a, statement: "Live" }, b]),
-      intended: content([a, b, c]),
+      live: content([{ ...a, statement: "Live" }, liveB]),
+      intended: content([{ ...a, statement: "Proposed" }, b, c]),
     };
     expect(
-      resolutionItems(projection, ["sections.requirements.records"]).map(
-        (item) => item.requirementId,
-      ),
-    ).toEqual([a.id, c.id]);
+      resolutionItems(projection, [
+        `sections.requirements.records.${a.id}`,
+      ]).map((item) => item.requirementId),
+    ).toEqual([a.id]);
+    const carried = preserveUnaffectedRequirements(
+      projection.intended,
+      projection,
+    );
+    expect(records(carried.sections.requirements)).toEqual([
+      { ...a, statement: "Proposed" },
+      liveB,
+      c,
+    ]);
   });
   it.each([
     { conflictingPaths: [] },
     { conflictingPaths: ["sections.requirements.records"] },
   ])(
-    "keeps the existing changed requirement when overlap details are absent (%j)",
+    "does not offer a live-only requirement as a decision when overlap details are absent (%j)",
     ({ conflictingPaths }) => {
       const projection = {
         original: content([a, b]),
@@ -85,7 +95,7 @@ describe("scoped manual resolution", () => {
       });
       expect(
         resolutionItems(projection, paths).map((item) => item.requirementId),
-      ).toEqual([a.id, c.id]);
+      ).toEqual([c.id]);
       expect(
         resolutionItems(projection, paths).some(
           (item) => item.path === "sections.description",
