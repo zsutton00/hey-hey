@@ -18,6 +18,7 @@ import type { RunnerContext } from './runners/types';
 import type { Runner } from '../turn/turn';
 import type { AgentSessionRunner } from '../agents/providers/session-runner';
 import { codingFreeformHandler, freeFormHandler } from '../agents/coding-conversation';
+import { proposalRefinerHandler } from '../agents/proposal-refiner/proposal-refiner.handler';
 
 // Two stub handlers — Run.resolveTurnInputs looks up the handler keyed off
 // the request's promptType. The follow-up handler stays a `provider_session`
@@ -79,10 +80,14 @@ const subagentHandler = {
 const getHandler = (promptType: string | undefined): PromptTypeHandler<unknown> | undefined => {
   if (promptType === 'agent_search') return handlerB;
   if (promptType === 'quick') return handlerC;
+  if (promptType === 'proposal_refiner') return proposalRefinerHandler;
   if (promptType === 'debug') return missingIdHandler;
   if (promptType === 'commit') return subagentHandler;
   if (promptType === 'coding_freeform') return handlerA;
-  if (promptType === 'implement') return { ...handlerA, promptType: 'implement' };
+  if (promptType === 'implement') return { ...handlerA, id: 'implement', promptType: 'implement' };
+  if (promptType === 'project_mode') {
+    return { ...handlerA, id: 'project_mode', promptType: 'project_mode' };
+  }
   return undefined;
 };
 
@@ -211,9 +216,16 @@ describe('Run implement provider switch', () => {
       return { run: async () => {} };
     });
     vi.spyOn(collaborators.runStore, 'updateRunImplementRuntime').mockResolvedValue(
-      makeSession({ provider: 'codex', model: 'gpt-6.1-sol' }),
+      makeSession({
+        provider: 'codex',
+        model: 'gpt-6.1-sol',
+        provider_session_agent_id: 'implement',
+      }),
     );
-    const run = new Run(makeRunArgs(), collaborators);
+    const run = new Run(
+      makeRunArgs({ session: makeSession({ provider_session_agent_id: 'implement' }) }),
+      collaborators,
+    );
 
     await run.handleMessage({
       promptType: 'implement',
@@ -400,6 +412,53 @@ describe('Run preserves provider session across same-handler turns', () => {
     expect(captured[1]!.run.hasProviderSession).toBe(true);
     expect(captured[1]!.run.session.provider_session_id).toBe('prov-existing');
     expect(captured[1]!.providerSessionMintReason).toBeUndefined();
+  });
+});
+
+describe('Run keeps ordinary replies with the agent that owns the session', () => {
+  async function replyAsCodingFreeform(
+    ownerId: string,
+    overrides: Partial<ReturnType<typeof makeInput>> = {},
+  ) {
+    resolveResult.promptTypeChanged = false;
+    const discardSession = vi.fn().mockResolvedValue(undefined);
+    const pickRunner = vi.fn((): Runner => ({ run: async () => {} }));
+    const collaborators = makeCollaborators(pickRunner);
+    const session = makeSession({ provider_session_agent_id: ownerId, promptType: ownerId });
+    const run = new Run(makeRunArgs({ session }), collaborators);
+    run.setRunner({ discardSession } as unknown as AgentSessionRunner);
+
+    await run.handleMessage({ ...makeInput('coding_freeform'), ...overrides });
+    await drainMicrotasks();
+
+    return { run, discardSession };
+  }
+
+  it.each(['proposal_refiner', 'implement', 'project_mode'])(
+    'resumes the %s session for an ordinary reply instead of rotating to coding_freeform',
+    async (ownerId) => {
+      const { run, discardSession } = await replyAsCodingFreeform(ownerId);
+
+      expect(discardSession).not.toHaveBeenCalled();
+      expect(run.hasProviderSession).toBe(true);
+      expect(run.session.provider_session_id).toBe('prov-existing');
+      expect(run.session.provider_session_agent_id).toBe(ownerId);
+    },
+  );
+
+  it.each(['free_form', 'quick', 'project_assistant'])(
+    'hands the %s reply to coding_freeform',
+    async (ownerId) => {
+      const { run } = await replyAsCodingFreeform(ownerId);
+
+      expect(run.session.provider_session_agent_id).toBe('coding_freeform');
+    },
+  );
+
+  it('hands a reply to coding_freeform while a workflow is parked on a user review', async () => {
+    const { run } = await replyAsCodingFreeform('implement', { awaitingUserReview: true });
+
+    expect(run.session.provider_session_agent_id).toBe('coding_freeform');
   });
 });
 

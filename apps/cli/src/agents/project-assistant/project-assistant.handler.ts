@@ -48,6 +48,7 @@ type EnrichedPayload = ProjectAssistantPromptPayload & {
 
 export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssistantPromptPayload> {
   public readonly id = 'project_assistant';
+  public readonly handsOffOrdinaryReplies = true as const;
   public readonly sessionRole = SessionRole.Research;
   public readonly promptType = LocalPromptType.ProjectAssistant;
   public readonly service = 'optional';

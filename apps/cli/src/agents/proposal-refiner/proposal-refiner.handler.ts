@@ -45,7 +45,10 @@ export const proposalRefinerHandler: PromptTypeHandler<LocalProposalRefinerPromp
     }
 
     const reconciliation = await reconciliationSubmission.prepare(run.agentic_session_id, {
-      proposalId: payload.proposal.id, organizationId, projectId, deps,
+      proposalId: payload.proposal.id,
+      organizationId,
+      projectId,
+      deps,
     });
     payload = { ...payload, proposal: { ...payload.proposal, reconciliation } };
 
