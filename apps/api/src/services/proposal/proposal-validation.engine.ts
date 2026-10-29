@@ -473,6 +473,7 @@ const workItemTypeSectionSchema = z
   .object({
     key: z.string().min(1),
     label: z.string().min(1),
+    required: z.boolean().optional(),
     writingStandard: z.string().nullable().optional(),
     kind: z.nativeEnum(WorkItemTypeSectionDefinition.KindEnum).optional(),
     schemaRef: z.string().nullable().optional(),
