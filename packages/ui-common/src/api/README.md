@@ -73,6 +73,7 @@ Class | Method | HTTP request | Description
 *AgentSessionsApi* | [**deleteAgentSession**](docs/AgentSessionsApi.md#deleteagentsession) | **DELETE** /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId} | Delete an agent session
 *AgentSessionsApi* | [**getAgentInteraction**](docs/AgentSessionsApi.md#getagentinteraction) | **GET** /organizations/{organizationId}/projects/{projectId}/agent-interactions/{interactionId} | Read an Agent Interaction owned by the authenticated user
 *AgentSessionsApi* | [**getAgentSession**](docs/AgentSessionsApi.md#getagentsession) | **GET** /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId} | Get an agent session
+*AgentSessionsApi* | [**getAgentSessionRouting**](docs/AgentSessionsApi.md#getagentsessionrouting) | **GET** /organizations/{organizationId}/projects/{projectId}/agent-sessions/routing | Find the session that routes machine-hosted reads
 *AgentSessionsApi* | [**getRuntimeModelCatalog**](docs/AgentSessionsApi.md#getruntimemodelcatalog) | **POST** /organizations/{organizationId}/projects/{projectId}/machines/{machineId}/model-catalog | Read the model catalog of the CLI on a machine
 *AgentSessionsApi* | [**grantAgentSessionServices**](docs/AgentSessionsApi.md#grantagentsessionservices) | **POST** /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/service-grants | Add Services to an Agent Session
 *AgentSessionsApi* | [**heartbeatSubagentDispatch**](docs/AgentSessionsApi.md#heartbeatsubagentdispatch) | **POST** /organizations/{organizationId}/projects/{projectId}/subagent-dispatches/{effectId}/heartbeat | Renew the authenticated machine\&#39;s child dispatch lease
@@ -396,6 +397,7 @@ Class | Method | HTTP request | Description
 *ProposalsApi* | [**rejectProposal**](docs/ProposalsApi.md#rejectproposal) | **POST** /organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/reject | Reject a proposal
 *ProposalsApi* | [**removeProposalGroupMember**](docs/ProposalsApi.md#removeproposalgroupmember) | **DELETE** /organizations/{organizationId}/projects/{projectId}/proposal-groups/{groupId}/members/{memberId} | Remove a proposal-group member
 *ProposalsApi* | [**replaceProposalGroupMemberPrerequisites**](docs/ProposalsApi.md#replaceproposalgroupmemberprerequisites) | **PUT** /organizations/{organizationId}/projects/{projectId}/proposal-groups/{groupId}/members/{memberId}/prerequisites | Replace a proposal-group member\&#39;s prerequisites
+*ProposalsApi* | [**saveProposalReviewNote**](docs/ProposalsApi.md#saveproposalreviewnote) | **POST** /organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/review-notes | Save a frozen screen review annotation without starting a revision
 *ProposalsApi* | [**startProposalGroup**](docs/ProposalsApi.md#startproposalgroup) | **POST** /organizations/{organizationId}/projects/{projectId}/proposal-groups | Start proposal-group authoring
 *ProposalsApi* | [**updateProposal**](docs/ProposalsApi.md#updateproposal) | **PATCH** /organizations/{organizationId}/projects/{projectId}/proposals/{proposalId} | Update a proposal
 *ProposalsApi* | [**updateProposalGroupMember**](docs/ProposalsApi.md#updateproposalgroupmember) | **PUT** /organizations/{organizationId}/projects/{projectId}/proposal-groups/{groupId}/members/{memberId} | Replace a proposal-group member draft
@@ -663,6 +665,7 @@ Class | Method | HTTP request | Description
  - [AgentSessionParentEntitySummary](docs/AgentSessionParentEntitySummary.md)
  - [AgentSessionReviewFileScopeRequest](docs/AgentSessionReviewFileScopeRequest.md)
  - [AgentSessionReviewFileScopeRequestFile](docs/AgentSessionReviewFileScopeRequestFile.md)
+ - [AgentSessionRoutingDto](docs/AgentSessionRoutingDto.md)
  - [AgentSessionServiceScopeRequest](docs/AgentSessionServiceScopeRequest.md)
  - [AgentSessionServiceSummary](docs/AgentSessionServiceSummary.md)
  - [AgentSessionStatus](docs/AgentSessionStatus.md)
@@ -1587,6 +1590,7 @@ Class | Method | HTTP request | Description
  - [GetAgentSessionErrorCode](docs/GetAgentSessionErrorCode.md)
  - [GetAgentSessionRequest](docs/GetAgentSessionRequest.md)
  - [GetAgentSessionResponse](docs/GetAgentSessionResponse.md)
+ - [GetAgentSessionRouting200Response](docs/GetAgentSessionRouting200Response.md)
  - [GetAllConversations200Response](docs/GetAllConversations200Response.md)
  - [GetAttentionEvents200Response](docs/GetAttentionEvents200Response.md)
  - [GetAttentionEvents200ResponseAllOfData](docs/GetAttentionEvents200ResponseAllOfData.md)
@@ -2540,6 +2544,11 @@ Class | Method | HTTP request | Description
  - [ProposalReconciliationSuggestion](docs/ProposalReconciliationSuggestion.md)
  - [ProposalReconciliationSuggestionDecision](docs/ProposalReconciliationSuggestionDecision.md)
  - [ProposalResponseDto](docs/ProposalResponseDto.md)
+ - [ProposalResponseDtoRetainedOriginalTargetContent](docs/ProposalResponseDtoRetainedOriginalTargetContent.md)
+ - [ProposalReviewNoteDto](docs/ProposalReviewNoteDto.md)
+ - [ProposalReviewNoteDtoTarget](docs/ProposalReviewNoteDtoTarget.md)
+ - [ProposalReviewNoteRecord](docs/ProposalReviewNoteRecord.md)
+ - [ProposalReviewNoteResult](docs/ProposalReviewNoteResult.md)
  - [ProposalStatus](docs/ProposalStatus.md)
  - [ProposalType](docs/ProposalType.md)
  - [ProposalUpdates](docs/ProposalUpdates.md)
@@ -2797,6 +2806,7 @@ Class | Method | HTTP request | Description
  - [RunReferences](docs/RunReferences.md)
  - [RuntimeModelCatalogHostActionPreparation](docs/RuntimeModelCatalogHostActionPreparation.md)
  - [RuntimeModelCatalogReadResponseDto](docs/RuntimeModelCatalogReadResponseDto.md)
+ - [SaveProposalReviewNote200Response](docs/SaveProposalReviewNote200Response.md)
  - [SearchConversationMessages200Response](docs/SearchConversationMessages200Response.md)
  - [SearchConversationMessagesResponseDto](docs/SearchConversationMessagesResponseDto.md)
  - [SearchEntities200Response](docs/SearchEntities200Response.md)

@@ -1760,11 +1760,11 @@ paths:
         - name: organizationId
           in: path
           required: true
-          schema: {type: string, format: uuid}
+          schema: { type: string, format: uuid }
         - name: projectId
           in: path
           required: true
-          schema: {type: string, format: uuid}
+          schema: { type: string, format: uuid }
       responses:
         "200":
           description: Live project hints with connections and strengths.
@@ -19524,6 +19524,64 @@ paths:
         "401":
           description: Unauthorized
 
+  /organizations/{organizationId}/projects/{projectId}/agent-sessions/routing:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Organization ID
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+    get:
+      operationId: getAgentSessionRouting
+      summary: Find the session that routes machine-hosted reads
+      description: >-
+        Returns the single most recently active session owned by the user that
+        is bound to one of the given machines, without loading the session list.
+      tags: [AgentSessions]
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: machineIds
+          in: query
+          required: true
+          description: Ready machine IDs a routing session may be bound to (repeat query param or comma-separated values).
+          schema:
+            type: array
+            items:
+              type: string
+              format: uuid
+          style: form
+          explode: true
+      responses:
+        "200":
+          description: The routing session, or null agentSessionId when none exists.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AgentSessionRoutingDto"
+        "400":
+          description: Invalid query
+        "401":
+          description: Unauthorized
+
   /organizations/{organizationId}/projects/{projectId}/agent-sessions/work-item-coordinator:
     parameters:
       - name: organizationId
@@ -21645,10 +21703,28 @@ paths:
       tags: [Proposals]
       summary: List approved staged project futures with ready implementation work, including baseline drift
       parameters:
-        - {name: organizationId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: projectId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
-        - {name: offset, in: query, schema: {type: integer, minimum: 0, default: 0}}
+        - {
+            name: organizationId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: projectId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: limit,
+            in: query,
+            schema: { type: integer, minimum: 1, maximum: 100, default: 20 },
+          }
+        - {
+            name: offset,
+            in: query,
+            schema: { type: integer, minimum: 0, default: 0 },
+          }
       responses:
         "200":
           description: Distinct qualifying futures, filtered before pagination; applicability is a snapshot and never authorizes Apply
@@ -21662,9 +21738,9 @@ paths:
                     properties:
                       data:
                         $ref: "../schemas/future-revisions.yaml#/ProjectReadyFuturesPage"
-        "400": {description: Invalid pagination}
-        "401": {description: Unauthorized}
-        "403": {description: Project read access denied}
+        "400": { description: Invalid pagination }
+        "401": { description: Unauthorized }
+        "403": { description: Project read access denied }
 
   /organizations/{organizationId}/projects/{projectId}/proposals/futures:
     get:
@@ -22501,6 +22577,55 @@ paths:
           description: Proposal not found
         "409":
           description: User already voted on this proposal
+
+  /organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/review-notes:
+    parameters:
+      - {
+          name: organizationId,
+          in: path,
+          required: true,
+          schema: { type: string, format: uuid },
+        }
+      - {
+          name: projectId,
+          in: path,
+          required: true,
+          schema: { type: string, format: uuid },
+        }
+      - {
+          name: proposalId,
+          in: path,
+          required: true,
+          schema: { type: string, format: uuid },
+        }
+    post:
+      operationId: saveProposalReviewNote
+      tags: [Proposals]
+      summary: Save a frozen screen review annotation without starting a revision
+      description: Saves a human annotation in the authoring conversation, bound to the exact frozen proposal revision and section. Repeated saves with the same note identity and content are idempotent. Neither proposal content nor review decisions change and no executable input is emitted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProposalReviewNoteDto"
+      responses:
+        "200":
+          description: Note saved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ProposalReviewNoteResult"
+        "400":
+          { description: Invalid annotation or missing authoring conversation }
+        "404": { description: Proposal not found }
+        "409":
+          { description: Frozen revision changed or note identity already used }
 
   /analytics/events:
     post:
@@ -24457,6 +24582,8 @@ components:
       $ref: "../schemas/coding-sessions.yaml#/ResolveWorkItemCoordinatorAgentSessionDto"
     ResolveWorkItemCoordinatorAgentSessionResponseDto:
       $ref: "../schemas/coding-sessions.yaml#/ResolveWorkItemCoordinatorAgentSessionResponseDto"
+    AgentSessionRoutingDto:
+      $ref: "../schemas/coding-sessions.yaml#/AgentSessionRoutingDto"
     UpdateAgentSessionDto:
       $ref: "../schemas/coding-sessions.yaml#/UpdateAgentSessionDto"
     GrantAgentSessionServicesDto:
@@ -24561,6 +24688,12 @@ components:
       $ref: "../schemas/proposals.yaml#/ProposalGroupMembership"
     ProposalGroupMemberSnapshot:
       $ref: "../schemas/proposals.yaml#/ProposalGroupMemberSnapshot"
+    ProposalReviewNoteDto:
+      $ref: "../schemas/proposals.yaml#/ProposalReviewNoteDto"
+    ProposalReviewNoteRecord:
+      $ref: "../schemas/proposals.yaml#/ProposalReviewNoteRecord"
+    ProposalReviewNoteResult:
+      $ref: "../schemas/proposals.yaml#/ProposalReviewNoteResult"
     ProposalGroupSnapshot:
       $ref: "../schemas/proposals.yaml#/ProposalGroupSnapshot"
     StartProposalGroupRequest:

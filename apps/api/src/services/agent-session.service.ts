@@ -61,6 +61,7 @@ import {
   SessionMonitorTerminalPolicyAction,
   MessageStatus,
   MessageType,
+  AgentSessionRoutingDto,
   PaginatedAgentSessionItemDto,
   PaginatedAgentSessionResponseDto,
   ProjectAssistantConfig,
@@ -1245,6 +1246,26 @@ export class AgentSessionService {
       dtos,
       sessions.map((session) => this.toCurrentStateIdentity(session)),
     );
+  }
+
+  async findRouting(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    userId: string,
+    machineIds: string[],
+  ): Promise<AgentSessionRoutingDto> {
+    const session = await this.prisma.db.agentSession.findFirst({
+      where: {
+        organizationId,
+        projectId,
+        userId,
+        machineId: { in: machineIds },
+      },
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+      select: { id: true },
+    });
+
+    return { agentSessionId: session?.id ?? null };
   }
 
   async findPaginated(

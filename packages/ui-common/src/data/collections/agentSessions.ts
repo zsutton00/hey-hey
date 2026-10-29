@@ -76,7 +76,11 @@ export const agentSessionKeys = {
     [...agentSessionKeys.root(), organizationId] as const,
   project: (organizationId: string, projectId: string) =>
     [...agentSessionKeys.all(organizationId), projectId] as const,
-  session: (organizationId: string, projectId: string, agentSessionId: string) =>
+  session: (
+    organizationId: string,
+    projectId: string,
+    agentSessionId: string,
+  ) =>
     [
       ...agentSessionKeys.project(organizationId, projectId),
       "session",
@@ -90,7 +94,7 @@ export const agentSessionKeys = {
   currentState: (
     organizationId: string,
     projectId: string,
-    agentSessionId: string
+    agentSessionId: string,
   ) =>
     [
       ...agentSessionKeys.session(organizationId, projectId, agentSessionId),
@@ -99,7 +103,7 @@ export const agentSessionKeys = {
   contextSize: (
     organizationId: string,
     projectId: string,
-    agentSessionId: string
+    agentSessionId: string,
   ) =>
     [
       ...agentSessionKeys.session(organizationId, projectId, agentSessionId),
@@ -108,7 +112,7 @@ export const agentSessionKeys = {
   outputAttention: (
     organizationId: string,
     projectId: string,
-    agentSessionId: string
+    agentSessionId: string,
   ) =>
     [
       ...agentSessionKeys.session(organizationId, projectId, agentSessionId),
@@ -119,11 +123,23 @@ export const agentSessionKeys = {
   list: (
     organizationId: string,
     projectId: string,
-    filters: AgentSessionsFilters = {}
+    filters: AgentSessionsFilters = {},
   ) =>
     [
       ...agentSessionKeys.lists(organizationId, projectId),
       { ...filters, ids: normalizeIds(filters.ids) },
+    ] as const,
+  routing: (
+    organizationId: string,
+    projectId: string,
+    userId: string,
+    machineIds: readonly string[],
+  ) =>
+    [
+      ...agentSessionKeys.project(organizationId, projectId),
+      "routing",
+      userId,
+      normalizeIds(machineIds),
     ] as const,
   paginatedLists: (organizationId: string, projectId: string) =>
     [
@@ -133,7 +149,7 @@ export const agentSessionKeys = {
   paginated: (
     organizationId: string,
     projectId: string,
-    filters: PaginatedAgentSessionsFilters = {}
+    filters: PaginatedAgentSessionsFilters = {},
   ) =>
     [
       ...agentSessionKeys.paginatedLists(organizationId, projectId),
@@ -157,7 +173,7 @@ const filterOrder: Array<keyof AgentSessionsFilters> = [
 ];
 
 function normalizeFilters(
-  filters: AgentSessionsFilters
+  filters: AgentSessionsFilters,
 ): Record<string, string | boolean> {
   const params: Record<string, string | boolean> = {};
 
@@ -186,7 +202,7 @@ async function fetchAgentSession(
   organizationId: string,
   projectId: string,
   agentSessionId: string,
-  requestOptions: AxiosRequestConfig
+  requestOptions: AxiosRequestConfig,
 ): Promise<AgentSessionDto> {
   logger.info("data_core", "[agentSessions] Fetch agent session", {
     organizationId,
@@ -210,7 +226,7 @@ async function fetchAgentSession(
 
   if (!data || typeof data !== "object" || !("id" in data)) {
     throw new Error(
-      `[agentSessions] Invalid response for session ${agentSessionId}`
+      `[agentSessions] Invalid response for session ${agentSessionId}`,
     );
   }
 
@@ -221,7 +237,7 @@ async function fetchAgentSessions(
   organizationId: string,
   projectId: string,
   filters: AgentSessionsFilters,
-  requestOptions: AxiosRequestConfig
+  requestOptions: AxiosRequestConfig,
 ): Promise<AgentSessionDto[]> {
   logger.info("data_core", "[agentSessions] Fetch agent session list", {
     organizationId,
@@ -244,7 +260,7 @@ async function fetchAgentSessions(
 
   if (!Array.isArray(data)) {
     throw new Error(
-      `[agentSessions] Invalid list response for project ${projectId}`
+      `[agentSessions] Invalid list response for project ${projectId}`,
     );
   }
 
@@ -256,7 +272,7 @@ export async function fetchPaginatedAgentSessions(
   projectId: string,
   filters: PaginatedAgentSessionsFilters,
   cursor: string | null,
-  requestOptions: AxiosRequestConfig = captureRequestOptions()
+  requestOptions: AxiosRequestConfig = captureRequestOptions(),
 ): Promise<PaginatedAgentSessionsPage> {
   const response = await agentSessionsClient.listAgentSessionsPaginated(
     {
@@ -273,7 +289,7 @@ export async function fetchPaginatedAgentSessions(
       limit: filters.limit,
       cursor: cursor?.trim() || undefined,
     },
-    requestOptions
+    requestOptions,
   );
   const page = response.data?.data;
 
@@ -283,20 +299,49 @@ export async function fetchPaginatedAgentSessions(
   };
 }
 
-export function agentSessionQueryOptions(
+export function agentSessionRoutingQueryOptions(
   organizationId: string,
   projectId: string,
-  agentSessionId: string
+  userId: string,
+  machineIds: readonly string[],
 ) {
   return queryOptions({
     ...dataLayerQueryPolicy,
-    queryKey: agentSessionKeys.detail(organizationId, projectId, agentSessionId),
+    queryKey: agentSessionKeys.routing(
+      organizationId,
+      projectId,
+      userId,
+      machineIds,
+    ),
+    queryFn: async ({ signal }) => {
+      const response = await agentSessionsClient.getAgentSessionRouting(
+        { organizationId, projectId, userId, machineIds: [...machineIds] },
+        requestOptionsWith(signal),
+      );
+
+      return response.data.data?.agentSessionId ?? null;
+    },
+  });
+}
+
+export function agentSessionQueryOptions(
+  organizationId: string,
+  projectId: string,
+  agentSessionId: string,
+) {
+  return queryOptions({
+    ...dataLayerQueryPolicy,
+    queryKey: agentSessionKeys.detail(
+      organizationId,
+      projectId,
+      agentSessionId,
+    ),
     queryFn: ({ signal }) =>
       fetchAgentSession(
         organizationId,
         projectId,
         agentSessionId,
-        requestOptionsWith(signal)
+        requestOptionsWith(signal),
       ),
   });
 }
@@ -304,7 +349,7 @@ export function agentSessionQueryOptions(
 export function agentSessionListQueryOptions(
   organizationId: string,
   projectId: string,
-  filters: AgentSessionsFilters = {}
+  filters: AgentSessionsFilters = {},
 ) {
   return queryOptions({
     ...dataLayerQueryPolicy,
@@ -314,7 +359,7 @@ export function agentSessionListQueryOptions(
         organizationId,
         projectId,
         { ...filters, ids: normalizeIds(filters.ids) },
-        requestOptionsWith(signal)
+        requestOptionsWith(signal),
       ),
   });
 }
@@ -322,7 +367,7 @@ export function agentSessionListQueryOptions(
 export function paginatedAgentSessionsQueryOptions(
   organizationId: string,
   projectId: string,
-  filters: PaginatedAgentSessionsFilters = {}
+  filters: PaginatedAgentSessionsFilters = {},
 ) {
   return infiniteQueryOptions({
     ...dataLayerQueryPolicy,
@@ -336,7 +381,7 @@ export function paginatedAgentSessionsQueryOptions(
         projectId,
         filters,
         pageParam,
-        requestOptionsWith(signal)
+        requestOptionsWith(signal),
       ),
   });
 }
@@ -365,7 +410,7 @@ const scopeKey = (organizationId: string, projectId: string | undefined) =>
 export function invalidateAgentSessionFeeds(
   queryClient: QueryClient,
   organizationId: string,
-  projectId?: string
+  projectId?: string,
 ): Promise<void> {
   return invalidateWithFollowUpRead(queryClient, {
     queryKey: scopeKey(organizationId, projectId),
@@ -378,7 +423,7 @@ export function invalidateAgentSessionDetail(
   queryClient: QueryClient,
   organizationId: string,
   projectId: string | undefined,
-  agentSessionId: string
+  agentSessionId: string,
 ): Promise<void> {
   return invalidateWithFollowUpRead(queryClient, {
     queryKey: scopeKey(organizationId, projectId),
@@ -398,11 +443,11 @@ export function writeAgentSession(
   queryClient: QueryClient,
   organizationId: string,
   projectId: string,
-  agentSession: AgentSessionDto
+  agentSession: AgentSessionDto,
 ): void {
   queryClient.setQueryData<AgentSessionDto>(
     agentSessionKeys.detail(organizationId, projectId, agentSession.id),
-    (current) => (current ? { ...current, ...agentSession } : agentSession)
+    (current) => (current ? { ...current, ...agentSession } : agentSession),
   );
   queryClient.setQueriesData<AgentSessionDto[]>(
     {
@@ -411,8 +456,8 @@ export function writeAgentSession(
     },
     (current) =>
       current?.map((row) =>
-        row.id === agentSession.id ? { ...row, ...agentSession } : row
-      )
+        row.id === agentSession.id ? { ...row, ...agentSession } : row,
+      ),
   );
 }
 
@@ -424,7 +469,7 @@ export function removeAgentSession(
   queryClient: QueryClient,
   organizationId: string,
   projectId: string | undefined,
-  agentSessionId: string
+  agentSessionId: string,
 ): Promise<void> {
   const queryKey = scopeKey(organizationId, projectId);
   queryClient.removeQueries({
@@ -438,7 +483,7 @@ export function removeAgentSession(
       predicate: ({ queryKey: key, state }) =>
         isListKey(key) && listContains(state.data, agentSessionId),
     },
-    (current) => current?.filter((row) => row.id !== agentSessionId)
+    (current) => current?.filter((row) => row.id !== agentSessionId),
   );
   return invalidateAgentSessionFeeds(queryClient, organizationId, projectId);
 }

@@ -109,6 +109,7 @@ export { useProjectPlans } from "./useProjectPlans";
 // Design doc hooks
 export { useAgentSession } from "./useAgentSession";
 export { useAgentSessions } from "./useAgentSessions";
+export { useAgentSessionRouting } from "./useAgentSessionRouting";
 export { usePaginatedAgentSessions } from "./usePaginatedAgentSessions";
 export { useCreateAgentSession } from "./useCreateAgentSession";
 export { useCreateAgentSessionConversation } from "./useCreateAgentSessionConversation";

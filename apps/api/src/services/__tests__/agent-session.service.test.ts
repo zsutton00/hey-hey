@@ -1887,6 +1887,41 @@ describe('AgentSessionService', () => {
     expect(listed[0]!.type).toBe('VALIDATION');
   });
 
+  it('finds the routing session as the most recent session on the given machines', async () => {
+    prisma.db.agentSession.findFirst.mockResolvedValue({ id: 'cs-routing' });
+
+    const result = await service.findRouting(
+      'org-1' as any,
+      'proj-1' as any,
+      'user-1',
+      ['machine-1'],
+    );
+
+    expect(prisma.db.agentSession.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          userId: 'user-1',
+          machineId: { in: ['machine-1'] },
+        }),
+        orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+      }),
+    );
+    expect(result).toEqual({ agentSessionId: 'cs-routing' });
+  });
+
+  it('reports no routing session when none is bound to the given machines', async () => {
+    prisma.db.agentSession.findFirst.mockResolvedValue(null);
+
+    const result = await service.findRouting(
+      'org-1' as any,
+      'proj-1' as any,
+      'user-1',
+      ['machine-1'],
+    );
+
+    expect(result).toEqual({ agentSessionId: null });
+  });
+
   it('lists agent sessions filtered by PLAN entity', async () => {
     const session: AgentSession = {
       id: 'cs-3',

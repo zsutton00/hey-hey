@@ -1021,6 +1021,20 @@ ResolveWorkItemCoordinatorAgentSessionResponseDto:
       type: boolean
       description: True when this request created the canonical coordinator.
 
+AgentSessionRoutingDto:
+  type: object
+  additionalProperties: false
+  required:
+    - agentSessionId
+  properties:
+    agentSessionId:
+      type: string
+      format: uuid
+      nullable: true
+      description: >-
+        The most recently active session bound to one of the requested machines,
+        or null when none is.
+
 UpdateAgentSessionDto:
   type: object
   required:

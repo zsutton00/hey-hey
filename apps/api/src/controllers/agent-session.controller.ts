@@ -27,6 +27,7 @@ import {
 } from '@nestjs/swagger';
 import {
   AgentSessionDto,
+  AgentSessionRoutingDto,
   HostActionPreparation,
   PaginatedAgentSessionResponseDto,
   CreateAgentSessionDto,
@@ -381,6 +382,33 @@ export class AgentSessionController {
     }
 
     return normalized;
+  }
+
+  @Get('routing')
+  @ApiOperation({
+    summary: 'Find the session that routes machine-hosted reads',
+  })
+  @ApiParam({ name: 'organizationId', description: 'Organization ID' })
+  @ApiParam({ name: 'projectId', description: 'Project ID' })
+  @ApiQuery({ name: 'userId', required: true, type: String })
+  @ApiQuery({ name: 'machineIds', required: true, isArray: true })
+  async findRouting(
+    @Param('projectId', ParseUUIDPipe) projectId: ProjectId,
+    @CurrentOrganization() organizationId: OrganizationId,
+    @Query('userId') userId?: string,
+    @Query('machineIds') machineIds?: string | string[],
+  ): Promise<AgentSessionRoutingDto> {
+    const validUserId = parseAgentSessionUserIdQuery(userId);
+    if (!validUserId) {
+      throw new BadRequestException('userId is required');
+    }
+
+    return this.agentSessionService.findRouting(
+      organizationId,
+      projectId,
+      validUserId,
+      this.normalizeIds(machineIds) ?? [],
+    );
   }
 
   @Get('paginated')
