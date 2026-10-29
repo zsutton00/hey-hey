@@ -6,6 +6,7 @@ import type { Request } from 'express';
 import { AgentEdgeType } from '../../generated/graphs/model/agentEdgeType';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AgentEdgeClientService } from '../../services/agent-edge-client.service';
+import { WorkItemTypeRegistryService } from '../../services/tasks/work-item-type-registry.service';
 import { TaskService } from '../../services/tasks/task.service';
 import type { FeatureRequirementsSection } from '../../generated/model/featureRequirementsSection';
 import {
@@ -21,11 +22,7 @@ import {
 } from './mcp-tool.utils';
 import { admitWholeRecords, SIZE_BUDGET_REASON } from './response-budget';
 
-/**
- * Supported entity types for full retrieval.
- * Matches the types searchable via unified_search, task_search,
- * plan_search, search_design_docs, search_features, and list_services.
- */
+/** Dedicated handler keys; registered work-item type keys alias TASK. */
 const SUPPORTED_TYPES = [
   'TASK',
   'INITIATIVE',
@@ -52,9 +49,10 @@ interface ReplacementMetadata {
 
 const pair = z.object({
   entityType: z
-    .enum(SUPPORTED_TYPES)
+    .string()
     .describe(
-      'The type of entity. Must be one of: ' + SUPPORTED_TYPES.join(', '),
+      'Any registered work-item type key (such as CONTRACT) aliases TASK; also accepts ' +
+        SUPPORTED_TYPES.join(', '),
     ),
   entityId: z.string().uuid().describe('The UUID of the entity to retrieve'),
 });
@@ -73,7 +71,7 @@ type EntityRead = Record<string, unknown> | null;
 type EntityOmission = {
   omitted: true;
   reason: typeof SIZE_BUDGET_REASON;
-  entityType: SupportedEntityType;
+  entityType: string;
   entityId: string;
 };
 
@@ -126,6 +124,7 @@ export class GetFullEntityToolsProvider {
     private readonly prisma: PrismaService,
     private readonly taskService: TaskService,
     private readonly agentEdgeClient: AgentEdgeClientService,
+    private readonly workItemTypeRegistry: WorkItemTypeRegistryService,
   ) {}
 
   @Tool({
@@ -133,6 +132,7 @@ export class GetFullEntityToolsProvider {
     description:
       'Retrieve the full, untruncated content of one or more entities in a single call. ' +
       'Accepts 1–10 { entityType, entityId } pairs in the entities array. ' +
+      'Any registered project work-item type key is accepted as an alias of TASK. ' +
       'Search tools (unified_search, task_search, plan_search, etc.) return truncated snippets — ' +
       'use them to find entities first, then call get_full_entity to read complete content ' +
       'including all sections and replacement metadata. Every full record preserves the ' +
@@ -163,10 +163,44 @@ export class GetFullEntityToolsProvider {
     if (!isProjectId(resolvedProjectId)) return resolvedProjectId;
     const projectId = resolvedProjectId;
 
+    const handlerKeys = params.entities.map(({ entityType }) =>
+      this.resolveHandlerKey(entityType, projectId),
+    );
+    if (handlerKeys.some((key) => key === undefined)) {
+      const acceptedTypes = [
+        ...new Set([
+          ...SUPPORTED_TYPES,
+          ...this.workItemTypeRegistry
+            .getDefinitions(projectId)
+            .filter(({ definition }) =>
+              this.workItemTypeRegistry.getRulesForProject(
+                definition.key,
+                projectId,
+              ),
+            )
+            .map(({ definition }) => definition.key),
+        ]),
+      ];
+      return {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text:
+              'Invalid entityType. Accepted types: ' + acceptedTypes.join(', '),
+          },
+        ],
+      };
+    }
+
     const reads: EntityRead[] = [];
 
-    for (const { entityType, entityId } of params.entities) {
-      const handler = this.handlers[entityType];
+    for (const [index, { entityType, entityId }] of params.entities.entries()) {
+      const handlerKey = handlerKeys[index];
+      if (!handlerKey) {
+        continue;
+      }
+      const handler = this.handlers[handlerKey];
       if (!handler) {
         reads.push(null);
         continue;
@@ -178,7 +212,7 @@ export class GetFullEntityToolsProvider {
             ? {
                 ...entity,
                 replacement: await this.buildReplacementMetadata(
-                  entityType,
+                  handlerKey,
                   entityId,
                   entity,
                   organizationId,
@@ -216,6 +250,22 @@ export class GetFullEntityToolsProvider {
         },
       ],
     };
+  }
+
+  private resolveHandlerKey(
+    entityType: string,
+    projectId: ProjectId,
+  ): SupportedEntityType | undefined {
+    const legacyType = SUPPORTED_TYPES.find((key) => key === entityType);
+    if (legacyType) {
+      return legacyType;
+    }
+
+    if (this.workItemTypeRegistry.getRulesForProject(entityType, projectId)) {
+      return 'TASK';
+    }
+
+    return undefined;
   }
 
   private async buildReplacementMetadata(
