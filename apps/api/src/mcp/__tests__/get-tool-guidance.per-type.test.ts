@@ -405,6 +405,39 @@ describe('get_tool_guidance per-work-item-type contract', () => {
       expect(text).not.toContain('workflowSteps');
     });
 
+    it('Diagram create guidance states the operations/outer-field exclusivity and root parent field', async () => {
+      const text = await guidanceFor(provider, 'create_work_item', 'DIAGRAM');
+
+      expect(text).toContain(
+        'outer `sections`, `parentTaskId`, `priority`, `dueDate`,',
+      );
+      expect(text).toContain('rejected together with');
+      expect(text).toContain('parent: { refType: "existing", id: <parentId> }');
+      expect(text).toContain("operation's own `parent` field instead");
+    });
+
+    it('Diagram create guidance states section.replace addressing by ref, not target', async () => {
+      const text = await guidanceFor(provider, 'create_work_item', 'DIAGRAM');
+
+      expect(text).toContain('`section.replace` has no `target`');
+      expect(text).toContain('"op": "section.replace"');
+      expect(text).toContain('"key": "diagramMetadata"');
+      expect(text).toContain('"kind": "UX_FLOW"');
+    });
+
+    it('Diagram create guidance gives a worked grouped Mockup + Diagram authoring example', async () => {
+      const text = await guidanceFor(provider, 'create_work_item', 'DIAGRAM');
+
+      expect(text).toContain(
+        '## Grouped authoring: Mockups and a Diagram together',
+      );
+      expect(text).toContain('`start_proposal_group`');
+      expect(text).toContain('groupedAuthoring.member.memberId');
+      expect(text).toContain('.reservedEntityId');
+      expect(text).toContain('replace_proposal_group_prerequisites');
+      expect(text).toContain('finalize_proposal_group');
+    });
+
     it('create_work_item teaches per-element Diagram links without sourceRef', async () => {
       const text = await guidanceFor(provider, 'create_work_item', 'DIAGRAM');
 
