@@ -45,6 +45,8 @@ export interface ClaudeCodeSessionConfig {
   reasoningEffort?: string | undefined;
   mcpServers?: Record<string, unknown> | undefined;
   allowedTools?: string[] | undefined;
+  /** Ignore MCP servers from user and project configuration. */
+  strictMcpConfig?: boolean;
   /**
    * Structural allowlist for the agent's built-in tool surface, passed as
    * `--tools <names...>` to the Claude CLI. When set, the agent's built-in
@@ -531,6 +533,10 @@ export class ClaudeCodeSdkClient {
       const configPath = join(tempDir, 'mcp-servers.json');
       writeFileSync(configPath, JSON.stringify({ mcpServers: config.mcpServers }), 'utf8');
       args.push('--mcp-config', configPath);
+    }
+
+    if (config.strictMcpConfig) {
+      args.push('--strict-mcp-config');
     }
 
     if (config.allowedTools && config.allowedTools.length > 0) {

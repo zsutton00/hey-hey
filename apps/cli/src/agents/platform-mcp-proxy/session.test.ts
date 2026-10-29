@@ -1,4 +1,3 @@
-import { EvalChildPlatformMcpProxy } from './eval-child-proxy';
 import { describe, expect, it, vi } from 'vitest';
 import { ActivePlatformToolCatalog } from './catalog';
 import { PlatformMcpForwarder } from './forwarder';
@@ -67,48 +66,6 @@ const snapshotResult = (members: Array<{ memberId: string; prerequisiteMemberIds
 });
 
 describe('PlatformMcpProxySession', () => {
-  it.each([false, true])('child proposal stamping follows Run inertness: %s', async (inert) => {
-    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { content: [] } }), {
-        status: 200,
-      }),
-    );
-    const forwarder = new PlatformMcpForwarder({
-      oauthClient: createTestOAuthClient(),
-      logger: makeLogger().logger,
-      fetchImpl,
-      endpointUrl: 'https://api.test/mcp',
-    });
-    const proxy = new EvalChildPlatformMcpProxy({
-      runId: 'run',
-      attemptId: 'attempt',
-      context: { projectId: 'project', inert },
-      allowedTools: ['edit_work_item'],
-      activeHandlerPromptType: 'entity_conversation',
-    });
-    try {
-      await proxy.handleJsonRpc(
-        {
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'tools/call',
-          params: {
-            name: 'edit_work_item',
-            arguments: { ragEnabled: true, applicationEligible: true },
-          },
-        },
-        forwarder,
-      );
-      const sent = JSON.parse(String(fetchImpl.mock.calls[0]![1]!.body));
-      expect(sent.params.arguments).toMatchObject({
-        ragEnabled: !inert,
-        applicationEligible: !inert,
-      });
-    } finally {
-      proxy.close();
-    }
-  });
-
   it.each(['create_work_item', 'edit_work_item', 'create_design_doc'])(
     'overrides supplied output eligibility for inert %s calls',
     async (name) => {

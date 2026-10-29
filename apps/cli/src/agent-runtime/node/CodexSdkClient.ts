@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { RunAttachmentContent } from '../../../../../packages/ui-common/src/utils/run-attachment-format';
 import { spawn, type ChildProcess } from 'node:child_process';
 import type { ToolExecutionHookLaunch } from '../tool-execution-hooks';
@@ -77,6 +78,8 @@ export interface CodexSdkSessionConfig {
    * such as MCP servers that are not top-level thread params.
    */
   config?: CodexSdkConfigOverrides | undefined;
+  /** Disable inherited MCP servers; retain only explicitly supplied servers. */
+  disableMcpServers?: boolean;
   /**
    * Reasoning effort level. Forwarded as `effort` on the `turn/start`
    * ClientRequest the client writes after `thread/started`. The codex app-server
@@ -321,6 +324,11 @@ export class CodexSdkClient {
   private pendingReject: ((reason: Error) => void) | null = null;
   private activeAbortCleanup: (() => void) | null = null;
   private requestIdCounter = 0;
+  private pendingConfigRead: {
+    id: number;
+    resolve: (value: unknown) => void;
+    reject: (error: Error) => void;
+  } | null = null;
   private pendingAttachments: readonly RunAttachmentContent[] = [];
   private pendingPrompt: string | null = null;
   private pendingSkill: CodexSdkSkillTurnInput | null = null;
@@ -513,7 +521,7 @@ export class CodexSdkClient {
     config: CodexSdkSessionConfig,
     options: { signal?: AbortSignal | undefined } | undefined,
     rootThreadId: string | null,
-    sendInitial: () => void,
+    sendInitial: () => void | Promise<void>,
   ): Promise<void> {
     if (this.process) {
       throw new Error('Session already active. Call disconnect() first.');
@@ -535,10 +543,39 @@ export class CodexSdkClient {
     this.setupReadline();
     this.setupSignalHandler(options?.signal);
 
-    return this.waitForInitializedResult(sendInitial);
+    return this.waitForInitializedResult(async () => {
+      if (config.disableMcpServers) {
+        const response = await new Promise<unknown>((resolve, reject) => {
+          const id = this.writeRequest('config/read', { cwd: config.cwd, includeLayers: false });
+          if (id === null) {
+            reject(new Error('Cannot read effective MCP configuration.'));
+            return;
+          }
+          this.pendingConfigRead = { id, resolve, reject };
+        });
+        const parsed = z
+          .object({
+            config: z.object({ mcp_servers: z.record(z.string(), z.unknown()).optional() }),
+          })
+          .parse(response);
+        config.config = {
+          ...config.config,
+          mcp_servers: {
+            ...Object.fromEntries(
+              Object.keys(parsed.config.mcp_servers ?? {}).map((name) => [
+                name,
+                { enabled: false },
+              ]),
+            ),
+            ...(isConfigRecord(config.config?.['mcp_servers']) ? config.config['mcp_servers'] : {}),
+          },
+        };
+      }
+      await sendInitial();
+    });
   }
 
-  private async waitForInitializedResult(sendInitial: () => void): Promise<void> {
+  private async waitForInitializedResult(sendInitial: () => void | Promise<void>): Promise<void> {
     // Register the result before initialization and observe both promises
     // immediately. A spawn/pipe/handshake failure must reject the caller,
     // including when it happens before initialize has replied.
@@ -731,6 +768,16 @@ export class CodexSdkClient {
     if (hasResult || hasError) {
       // Check if this is the initialize response for the handshake
       const requestId = parsed['id'] as number;
+      if (this.pendingConfigRead?.id === requestId) {
+        const pending = this.pendingConfigRead;
+        this.pendingConfigRead = null;
+        if (hasError) {
+          pending.reject(new Error('Cannot read effective MCP configuration.'));
+        } else {
+          pending.resolve(parsed['result']);
+        }
+        return;
+      }
       // The initialize request is always the first request, so its id is 1
       if (requestId === 1 && this.handshakeResolve !== null) {
         if (hasError) {
@@ -966,6 +1013,8 @@ export class CodexSdkClient {
   }
 
   private rejectPending(error: Error): void {
+    this.pendingConfigRead?.reject(error);
+    this.pendingConfigRead = null;
     this.activeAbortCleanup?.();
     this.activeAbortCleanup = null;
     const reject = this.pendingReject;

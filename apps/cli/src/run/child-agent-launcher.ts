@@ -23,8 +23,6 @@ import type { LocalReasoningEffort } from '../shared/agent-bridge-contract/index
 import { SubAgent, type SubAgentResult } from './subagent';
 import type { AgentOutputHandler } from '../agents/agent-event-stream';
 import type { ReportChainEntry } from './types';
-import type { EvalExecutionContext } from '../agents/run-eval/eval-execution-context';
-import { EvalChildExecution } from '../agents/run-eval/eval-child-execution';
 import type { RunEntityReference } from '../shared/agent-bridge-contract/contract';
 
 export interface ChildLaunchRequest {
@@ -49,8 +47,6 @@ export interface ChildLaunchRequest {
   launchServiceId?: string;
   /** Host-enforced provider token budget; the child is stopped once usage passes it. */
   tokenBudget?: number;
-  /** Runs the child as one eval attempt: mutation tools withheld, eval reports hidden. */
-  evalExecution?: EvalExecutionContext;
   /** The case's focal entity and normal preparation dependencies, isolated from its coordinator. */
   entity?: RunEntityReference;
   handlerDeps?: PromptTypeHandlerDeps;
@@ -203,67 +199,30 @@ export class ChildAgentLauncher {
     if (request.provider) session = { ...session, provider: request.provider };
     if (request.model) session = { ...session, model: request.model };
     if (request.reasoningEffort) session = { ...session, reasoningEffort: request.reasoningEffort };
-    const evalChild = request.evalExecution
-      ? new EvalChildExecution({ ...request, evalExecution: request.evalExecution }, session, this)
-      : undefined;
-    if (evalChild) {
-      const store = this.deps.runStore;
-      if (!store) {
-        throw new Error('Evaluation execution requires durable Run storage.');
-      }
-      const stored = await store.getRunMetadata(evalChild.execution.targetSessionId);
-      if (stored && !stored.inert) {
-        throw new Error('Evaluation cannot reuse an ordinary Run identity.');
-      }
-      if (!stored) {
-        await store.createRun({
-          ...evalChild.session,
-          inert: true,
-          provider_session_id: '',
-          provider_conversation_id: null,
-          provider_session_agent_id: null,
-        });
-      }
-    }
-    if (!evalChild && session.inert) {
-      throw new Error('Inert execution requires its original evaluation context.');
-    }
-    await request.onExecutionCreated?.(evalChild?.session ?? session);
-    try {
-      await evalChild?.prepare();
-    } catch (error) {
-      if (evalChild?.execution.tokenBudget?.isExhausted)
-        return { assistantCompleted: false, budgetExhausted: true, usage: {} };
-      throw error;
-    }
-    if (evalChild) session = evalChild.session;
-    const startupPromptInput = evalChild?.startupPromptInput ?? request.startupPromptInput;
+    await request.onExecutionCreated?.(session);
+    const startupPromptInput = request.startupPromptInput;
     const sessionStartContext = await readSessionStartContext({
       oauthClient: this.deps.oauthClient,
       projectId: session.contextMetadata?.projectId,
     });
-    const baseHandlerDeps: PromptTypeHandlerDeps = {
+    const handlerDeps: PromptTypeHandlerDeps = {
       ...(request.handlerDeps ?? this.deps.handlerDeps),
       childAgentLauncher: this,
-      // Preparation uses the same tool-free launch for ordinary children and
-      // evals. Evals carry only their identity, cancellation and shared budget.
+      // Preparation uses the shared tool-free child handler.
       promptOnce: async ({ prompt }) => {
         const result = await this.launchRegistered('eval_preparation', {
           parentSession: session,
           payload: { prompt },
-          signal: evalChild?.execution.tokenBudget?.signal ?? request.signal,
+          signal: request.signal,
           serviceIds: [],
-          ...(evalChild ? { evalExecution: evalChild.execution } : {}),
           ...(request.tokenBudget !== undefined ? { tokenBudget: request.tokenBudget } : {}),
         });
-        evalChild?.recordPreparation(result);
         if (!result.assistantCompleted || !result.outputText) {
           throw new Error('Child preparation ended without a result.');
         }
         return result.outputText;
       },
     };
-    const handlerDeps = evalChild?.preparationDeps(baseHandlerDeps) ?? baseHandlerDeps;
     const resolved = await resolvePrompt({
       handler: request.handler,
       run: session,
@@ -271,16 +230,16 @@ export class ChildAgentLauncher {
         ...createFirstTurnPromptRunState(),
         startupPromptInput: startupPromptInput ?? null,
         reportChain: config.includePriorReports === false ? [] : (request.priorReports ?? []),
-        memos: evalChild?.memos ?? [],
+        memos: [],
         startedPromptTypes: request.promptContext?.startedPromptTypes ?? new Set(),
       },
       input: {
         promptType: request.handler.promptType,
-        payload: evalChild?.payload ?? request.payload,
+        payload: request.payload,
       } as InternalRunPromptRequest,
       handlerDeps,
-      turnId: request.promptContext?.turnId ?? request.evalExecution?.attemptId ?? randomUUID(),
-      abortSignal: () => evalChild?.execution.tokenBudget?.signal ?? request.signal,
+      turnId: request.promptContext?.turnId ?? randomUUID(),
+      abortSignal: () => request.signal,
       recentUserReplies: request.promptContext?.recentUserReplies ?? [],
       triggerParentMessageId: request.promptContext?.triggerParentMessageId ?? null,
       childExecution: {
@@ -290,7 +249,6 @@ export class ChildAgentLauncher {
         definitions: sessionStartContext.workItemTypeDefinitions,
       },
     });
-    evalChild?.resolved(resolved.preparedPayload ?? request.payload, resolved.startupPromptInput);
     if (!resolved.resolvedPrompt) {
       throw new Error(`Child handler "${request.handler.id}" produced no prompt.`);
     }
@@ -331,7 +289,7 @@ export class ChildAgentLauncher {
       ...(workspace.allowedRepositoryRoots
         ? { allowedRepositoryRoots: workspace.allowedRepositoryRoots }
         : {}),
-      priorReports: request.priorReports ?? [],
+      priorReports: config.includePriorReports === false ? [] : (request.priorReports ?? []),
       ...(resolved.startupPromptInput ? { startupPromptInput: resolved.startupPromptInput } : {}),
       submissionToolRegistry: this.deps.submissionToolRegistry,
       localAgentEndpoint: this.deps.localAgentEndpoint,
@@ -340,11 +298,7 @@ export class ChildAgentLauncher {
       ...(request.reasoningEffort ? { reasoningEffort: request.reasoningEffort } : {}),
       ...(request.fastMode !== undefined ? { fastMode: request.fastMode } : {}),
       ...(request.tokenBudget !== undefined ? { tokenBudget: request.tokenBudget } : {}),
-      ...(evalChild ? { evalExecution: evalChild.execution } : {}),
-      ...(evalChild?.researchTools ? { researchTools: evalChild.researchTools } : {}),
     });
-    const startedAt = Date.now();
-    const result = await child.execute();
-    return evalChild?.complete(result, Date.now() - startedAt) ?? result;
+    return child.execute();
   }
 }

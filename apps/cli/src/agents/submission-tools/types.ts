@@ -22,7 +22,6 @@
 // `Run` itself imports from this file. `import type` is erased at compile time
 // so no module resolution actually happens at runtime.
 import type { Run } from '../../run/run';
-import type { EvalResearchTools } from '../run-eval/eval-research-tools';
 
 /**
  * A JSON-schema-compatible object describing a submission tool's input.
@@ -85,7 +84,6 @@ export interface SubmissionToolExecuteContext {
    * surfaces a typed error if resolution fails.
    */
   run?: Run;
-  evalResearch?: EvalResearchTools;
 }
 
 /**

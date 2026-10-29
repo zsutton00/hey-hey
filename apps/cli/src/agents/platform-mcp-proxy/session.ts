@@ -1,4 +1,4 @@
-import { isEvalWithheldTool } from '../run-eval/eval-execution-context';
+import { isInertPlatformToolAllowed } from '../../run/inert-execution-policy';
 import type { McpSessionContext } from '../mcp-server-config';
 import type { ServerLogger } from '../../server/logger';
 import type { ActivePlatformToolCatalog } from './catalog';
@@ -310,7 +310,8 @@ export class PlatformMcpProxySession {
       return (
         name !== null &&
         this.runtime.catalog.has(name) &&
-        (!this.runtime.context.inert || !isEvalWithheldTool(this.runtime.catalog.normalize(name)))
+        (!this.runtime.context.inert ||
+          isInertPlatformToolAllowed(this.runtime.catalog.normalize(name)))
       );
     });
     const normalizedActiveTools = activeUpstreamTools.map((entry) => ({
@@ -398,7 +399,7 @@ export class PlatformMcpProxySession {
     }
 
     const normalizedName = this.runtime.catalog.normalize(toolName);
-    if (this.runtime.context.inert && isEvalWithheldTool(normalizedName)) {
+    if (this.runtime.context.inert && !isInertPlatformToolAllowed(normalizedName)) {
       return {
         statusCode: 200,
         body: failure(request.id, -32602, 'Tool unavailable to inert execution.'),

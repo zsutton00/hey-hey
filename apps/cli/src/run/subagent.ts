@@ -1,4 +1,13 @@
-import { filterInertBuiltinTools } from './inert-execution-policy';
+import { randomUUID } from 'node:crypto';
+import { TurnPlatformMcpProxy } from '../agents/platform-mcp-proxy/turn-proxy';
+import { childPlatformMcpProxies } from '../agents/platform-mcp-proxy/child-proxy-registry';
+import { ActivePlatformToolCatalog } from '../agents/platform-mcp-proxy/catalog';
+import { buildPlatformMcpProxyMcpConfig } from '../agents/platform-mcp-proxy/mcp-config';
+import {
+  filterInertBuiltinTools,
+  filterInertPlatformTools,
+  isInertSubmissionToolAllowed,
+} from './inert-execution-policy';
 import type { CreateReportProxy } from '../agents/submission-tools/create-report-proxy';
 import { CODEX_MCP_ONLY_FEATURE_OVERRIDES } from '../agents/providers/codex/mcp-only-features';
 import {
@@ -12,7 +21,6 @@ import { applyCodexSessionReviewerPolicy } from '../agents/providers/codex/codex
 
 import path from 'node:path';
 import { RunWorkspaceWriteBoundary } from '../agents/workspace-write-boundary';
-import { randomUUID } from 'node:crypto';
 import {
   ClaudeCodeSdkClient,
   CodexSdkClient,
@@ -52,14 +60,6 @@ import type { AgenticSession } from '../session/types';
 import type { LocalReasoningEffort } from '../shared/agent-bridge-contract/index';
 import type { LocalContextData } from '../shared/agent-bridge-contract/runtime-types';
 import type { ProviderPhase, ReportChainEntry } from './types';
-import {
-  withholdEvalMutationTools,
-  type EvalExecutionContext,
-} from '../agents/run-eval/eval-execution-context';
-import { EvalChildPlatformMcpProxy } from '../agents/platform-mcp-proxy/eval-child-proxy';
-import { childPlatformMcpProxies } from '../agents/platform-mcp-proxy/child-proxy-registry';
-import { buildPlatformMcpProxyMcpConfig } from '../agents/platform-mcp-proxy/mcp-config';
-import type { EvalResearchTools } from '../agents/run-eval/eval-research-tools';
 
 const MCP_SERVER_NAME = 'heyhey-platform';
 const AGENT_ID = 'claude-subagent';
@@ -299,7 +299,6 @@ const applyCodexWorkspaceContainment = (
 
 export interface SubAgentArgs {
   reportProxy?: CreateReportProxy;
-  researchTools?: EvalResearchTools;
   session: AgenticSession;
   handler: PromptTypeHandler<unknown>;
   config: SubagentConfig;
@@ -326,8 +325,6 @@ export interface SubAgentArgs {
    * alone is not honoured by models.
    */
   tokenBudget?: number;
-  /** Present when the child runs one eval attempt; narrows its tools and hides eval reports. */
-  evalExecution?: EvalExecutionContext;
 }
 
 /** Context usage read from a subagent's live session just before it disconnects. */
@@ -337,10 +334,6 @@ export interface SubAgentContextReading {
 }
 
 export interface SubAgentResult {
-  /** Typed run-local research handoff; retained as inert evidence during evals. */
-  projectAssistantMemo?: import('../session/types').RunMemo;
-  preparationMeasurements?: import('../shared/api/generated/api').EvalMeasurement[];
-  handlerElapsedMs?: number;
   assistantCompleted: boolean;
   outputText?: string;
   /** Present only for a handler whose session counts for context; null when unreadable. */
@@ -501,9 +494,8 @@ const readContextBeforeDisconnect = async (input: {
 };
 
 export class SubAgent {
-  private readonly budgetIdentity = randomUUID();
+  private releaseProxy: (() => void) | null = null;
   private readonly usageMeter = new ChildUsageMeter();
-  private releaseEvalProxy: (() => void) | null = null;
 
   constructor(private readonly args: SubAgentArgs) {}
 
@@ -511,8 +503,7 @@ export class SubAgent {
     try {
       return await this.executeSession();
     } finally {
-      this.releaseEvalProxy?.();
-      await this.args.researchTools?.settle();
+      this.releaseProxy?.();
     }
   }
 
@@ -538,15 +529,7 @@ export class SubAgent {
       submissionToolRegistry,
       localAgentEndpoint,
       tokenBudget,
-      evalExecution,
-      researchTools,
     } = this.args;
-    if (evalExecution && !session.inert) {
-      throw new Error('Evaluation execution requires an inert Run.');
-    }
-    if (session.inert && !evalExecution) {
-      throw new Error('Inert execution requires its original evaluation context.');
-    }
     const config = session.inert
       ? {
           ...requestedConfig,
@@ -554,7 +537,7 @@ export class SubAgent {
           codexSandboxMode: 'read-only' as const,
         }
       : requestedConfig;
-    const signal = evalExecution?.tokenBudget?.signal ?? parentSignal;
+    const signal = parentSignal;
     const runId = session.agentic_session_id;
 
     logger.debug('local.subagent.provider_session.action', {
@@ -582,22 +565,22 @@ export class SubAgent {
         revisionNumber: provenance.revisionNumber,
       });
     }
-    // An eval child writes as its attempt's target session, never the Run's,
-    // so the platform attributes its output to that attempt.
     const mcpContext = {
       inert: session.inert === true,
       ...(session.contextMetadata?.projectId
         ? { projectId: session.contextMetadata.projectId }
         : {}),
-      ...(evalExecution
-        ? { conversationId: evalExecution.targetConversationId }
-        : session.conversationId
-          ? { conversationId: session.conversationId }
-          : {}),
+      ...(session.conversationId ? { conversationId: session.conversationId } : {}),
       ...(session.launchServiceId ? { serviceId: session.launchServiceId } : {}),
-      agentSessionId: evalExecution ? evalExecution.targetSessionId : session.agentic_session_id,
+      agentSessionId: session.agentic_session_id,
     };
-    const mcpConfig = await buildMcpServerConfig(oauthClient, mcpContext);
+    const toolFree =
+      config.mcpAllowedTools.length === 0 &&
+      config.builtinAllowedTools.length === 0 &&
+      config.submissionTools === 'none';
+    const mcpConfig = toolFree
+      ? { mcpServers: {} }
+      : await buildMcpServerConfig(oauthClient, mcpContext);
 
     const providerId = resolveAgentProviderId(session.provider);
     const platformSystemPrompt = buildPlatformSystemPrompt(
@@ -617,10 +600,7 @@ export class SubAgent {
     );
 
     const mcpAllowedShortNames = session.inert
-      ? [
-          ...withholdEvalMutationTools(config.mcpAllowedTools),
-          ...(this.args.reportProxy ? ['create_report'] : []),
-        ]
+      ? [...filterInertPlatformTools(config.mcpAllowedTools)]
       : [...config.mcpAllowedTools];
     const allowedMcpTools = mcpAllowedShortNames.map((tool) => `mcp__${MCP_SERVER_NAME}__${tool}`);
     const allowedMcpToolsSet = new Set(allowedMcpTools);
@@ -643,52 +623,26 @@ export class SubAgent {
     const cliBaseUrl = localAgentEndpoint.get();
     let submissionAllowedTools: readonly string[] = [];
     let mcpServers: Record<string, unknown> = mcpConfig.mcpServers;
-    if (evalExecution) {
-      // Eval children reach the platform only through a CLI proxy that hides
-      // eval reports; they never mount the Run's submission tools.
-      if (!cliBaseUrl) throw new Error('Eval child requires the local agent endpoint.');
-      const proxy = new EvalChildPlatformMcpProxy({
+    if (session.inert && mcpAllowedShortNames.length > 0) {
+      if (!cliBaseUrl) {
+        throw new Error('Inert children require the local MCP endpoint.');
+      }
+      const proxy = new TurnPlatformMcpProxy({
         runId,
-        ...(this.args.reportProxy ? { reportProxy: this.args.reportProxy } : {}),
-        attemptId: evalExecution.attemptId,
+        turnId: randomUUID(),
         context: mcpContext,
-        allowedTools: mcpAllowedShortNames,
+        catalog: new ActivePlatformToolCatalog({ exactTools: mcpAllowedShortNames }),
         activeHandlerPromptType: handler.promptType,
         logger,
       });
       const unregister = childPlatformMcpProxies.register(proxy);
-      this.releaseEvalProxy = () => {
+      this.releaseProxy = () => {
         proxy.close();
         unregister();
       };
       mcpServers = buildPlatformMcpProxyMcpConfig({ mount: proxy.mount, cliBaseUrl }).mcpServers;
-      if (researchTools) {
-        const researchProxy = new EvalChildPlatformMcpProxy({
-          runId,
-          attemptId: evalExecution.attemptId,
-          context: mcpContext,
-          allowedTools: [],
-          activeHandlerPromptType: handler.promptType,
-          logger,
-          researchTools,
-        });
-        const unregisterResearch = childPlatformMcpProxies.register(researchProxy);
-        this.releaseEvalProxy = () => {
-          proxy.close();
-          unregister();
-          researchProxy.close();
-          unregisterResearch();
-        };
-        const researchConfig = buildPlatformMcpProxyMcpConfig({
-          mount: researchProxy.mount,
-          cliBaseUrl,
-        });
-        mcpServers = { ...mcpServers, 'heyhey-submission-tools': researchConfig.serverEntry };
-        submissionAllowedTools = researchTools.toolNames.map(
-          (name) => `mcp__heyhey-submission-tools__${name}`,
-        );
-      }
-    } else if (
+    }
+    if (
       config.submissionTools !== 'none' &&
       runRegistration &&
       cliBaseUrl &&
@@ -697,7 +651,9 @@ export class SubAgent {
       const submissionConfig = buildSubmissionToolsMcpConfig({
         token: runRegistration.token,
         cliBaseUrl,
-        tools: runRegistration.tools,
+        tools: session.inert
+          ? runRegistration.tools.filter((tool) => isInertSubmissionToolAllowed(tool.name))
+          : runRegistration.tools,
       });
       mcpServers = { ...mcpServers, [submissionConfig.serverName]: submissionConfig.serverEntry };
       submissionAllowedTools = submissionConfig.allowedTools;
@@ -753,6 +709,10 @@ export class SubAgent {
           : {}),
       mcpServers,
       allowedTools,
+      ...(session.inert
+        ? { builtinTools: [...config.builtinAllowedTools], strictMcpConfig: true }
+        : {}),
+      ...(toolFree ? { builtinTools: [], strictMcpConfig: true } : {}),
       ...(model ? { model } : {}),
       ...(reasoningEffort ? { reasoningEffort } : {}),
     };
@@ -819,7 +779,7 @@ export class SubAgent {
           allowedMcpToolsSet.has(toolName) ||
           allowedBuiltinSet.has(toolName) ||
           submissionAllowedSet.has(toolName);
-        if (session.inert && !inAllowlist) {
+        if ((session.inert || toolFree) && !inAllowlist) {
           return { behavior: 'deny', message: 'Tool unavailable to inert execution.' };
         }
         if (config.decidePermission) {
@@ -894,7 +854,6 @@ export class SubAgent {
           let tokensUsed = 0;
           for (const tokens of tokensByMessage.values()) tokensUsed += tokens;
           budgetGuard.record(tokensUsed);
-          this.args.evalExecution?.tokenBudget?.record(this.budgetIdentity, tokensUsed);
         }
       }
       const eventTimestamp =
@@ -1086,7 +1045,7 @@ export class SubAgent {
         assistantCompleted,
       });
     } catch (error) {
-      if (!budgetGuard?.isExhausted && !this.args.evalExecution?.tokenBudget?.isExhausted) {
+      if (!budgetGuard?.isExhausted) {
         requestContext.log(logger, 'error', 'local.subagent.failed', {
           runId,
           adapterId: config.adapterId,
@@ -1139,9 +1098,7 @@ export class SubAgent {
       assistantCompleted,
       outputText: lastAssistantText,
       ...(contextReading !== undefined ? { contextReading } : {}),
-      ...(budgetGuard?.isExhausted || this.args.evalExecution?.tokenBudget?.isExhausted
-        ? { budgetExhausted: true }
-        : {}),
+      ...(budgetGuard?.isExhausted ? { budgetExhausted: true } : {}),
       usage: this.usageMeter.read(),
     };
   }
@@ -1238,17 +1195,21 @@ export class SubAgent {
         : mcpConfig,
       codexPermissionPlan.sandboxMode,
     );
-    const codexConfig = session.inert
-      ? {
-          ...baseCodexConfig,
-          features: CODEX_MCP_ONLY_FEATURE_OVERRIDES,
-        }
-      : baseCodexConfig;
+    const toolFree =
+      config.mcpAllowedTools.length === 0 &&
+      config.builtinAllowedTools.length === 0 &&
+      config.submissionTools === 'none';
+    const codexConfig =
+      session.inert || toolFree
+        ? {
+            ...baseCodexConfig,
+            features: CODEX_MCP_ONLY_FEATURE_OVERRIDES,
+            ...(toolFree ? { mcp_servers: {}, web_search: 'disabled' } : {}),
+          }
+        : baseCodexConfig;
     const allowedMcpToolNames = new Set([...allowedMcpTools, ...submissionAllowedTools]);
     const client = new CodexSdkClient();
-    const normalizationConfig = emitNormalizedEvents
-      ? loadProviderEventNormalizationConfig()
-      : null;
+    const normalizationConfig = loadProviderEventNormalizationConfig();
     let bufferedAssistantText = '';
     let lastAssistantText = '';
     let assistantCompleted = false;
@@ -1304,6 +1265,12 @@ export class SubAgent {
     const decideCodexServerRequest = async (
       request: CodexSdkServerRequest,
     ): Promise<{ accepted: boolean; kind: 'mcp_elicitation' | 'approval'; reason?: string }> => {
+      if (toolFree) {
+        return {
+          accepted: false,
+          kind: request.method === CODEX_MCP_ELICITATION_METHOD ? 'mcp_elicitation' : 'approval',
+        };
+      }
       if (request.method === CODEX_MCP_ELICITATION_METHOD) {
         const tool = readMcpElicitationTool(request);
         if (tool.qualifiedToolName && allowedMcpToolNames.has(tool.qualifiedToolName)) {
@@ -1407,20 +1374,20 @@ export class SubAgent {
       const eventTimestamp = new Date().toISOString();
       const fallbackSessionId = client.getSessionId();
 
-      if (normalizationConfig) {
-        const normalized = mapCodexEvent({
-          provider: 'codex',
-          runId,
-          eventType: event.method,
-          timestamp: eventTimestamp,
-          sessionId: fallbackSessionId,
-          agentId: CODEX_AGENT_ID,
-          rawEvent: event.params ?? {},
-          config: normalizationConfig,
-        });
-        const payloadSessionId = normalized.payload['session_id'];
-        const sessionIdForEmit =
-          typeof payloadSessionId === 'string' ? payloadSessionId : fallbackSessionId;
+      const normalized = mapCodexEvent({
+        provider: 'codex',
+        runId,
+        eventType: event.method,
+        timestamp: eventTimestamp,
+        sessionId: fallbackSessionId,
+        agentId: CODEX_AGENT_ID,
+        rawEvent: event.params ?? {},
+        config: normalizationConfig,
+      });
+      const payloadSessionId = normalized.payload['session_id'];
+      const sessionIdForEmit =
+        typeof payloadSessionId === 'string' ? payloadSessionId : fallbackSessionId;
+      if (emitNormalizedEvents) {
         emit({
           source: 'provider',
           eventType: normalized.resolvedEventType ?? event.method,
@@ -1429,64 +1396,17 @@ export class SubAgent {
           agentId: CODEX_AGENT_ID,
           payload: normalized.payload,
         });
+      }
 
-        if (normalized.assistantText && normalized.assistantText.kind === 'text') {
-          if (normalized.assistantText.isFinal) {
-            bufferedAssistantText = normalized.assistantText.text;
-          } else if (normalized.assistantText.text.length > bufferedAssistantText.length) {
-            bufferedAssistantText = normalized.assistantText.text;
-          }
+      if (normalized.assistantText && normalized.assistantText.kind === 'text') {
+        if (normalized.assistantText.isFinal) {
+          bufferedAssistantText = normalized.assistantText.text;
+        } else if (normalized.assistantText.text.length > bufferedAssistantText.length) {
+          bufferedAssistantText = normalized.assistantText.text;
         }
-        if (normalized.assistantTextDelta) {
-          bufferedAssistantText += normalized.assistantTextDelta;
-        }
-
-        if (!firstProviderEventReceived) {
-          firstProviderEventReceived = true;
-          lastProcessingKind = 'thinking';
-          emitProcessingStatus(
-            { kind: 'loading.update', loadingText: 'Thinking...', phase: 'thinking' },
-            sessionIdForEmit,
-          );
-        }
-        if (normalized.assistantText && lastProcessingKind !== 'writing') {
-          lastProcessingKind = 'writing';
-          emitProcessingStatus(
-            { kind: 'loading.update', loadingText: 'Writing response...', phase: 'writing' },
-            sessionIdForEmit,
-          );
-        } else if (
-          !normalized.assistantText &&
-          !normalized.isTerminal &&
-          lastProcessingKind !== 'thinking'
-        ) {
-          lastProcessingKind = 'thinking';
-          emitProcessingStatus(
-            { kind: 'loading.update', loadingText: 'Thinking...', phase: 'thinking' },
-            sessionIdForEmit,
-          );
-        }
-
-        if (normalized.isTerminal) {
-          assistantCompleted = true;
-          if (bufferedAssistantText.length > 0) {
-            lastAssistantText = bufferedAssistantText;
-            emit({
-              source: 'provider',
-              eventType: 'agent_output',
-              timestamp: eventTimestamp,
-              sessionId: sessionIdForEmit,
-              agentId: CODEX_AGENT_ID,
-              payload: {
-                messageType: 'assistant',
-                summary: bufferedAssistantText,
-                taskComplete: true,
-              },
-            });
-            bufferedAssistantText = '';
-          }
-        }
-        return;
+      }
+      if (normalized.assistantTextDelta) {
+        bufferedAssistantText += normalized.assistantTextDelta;
       }
 
       if (!firstProviderEventReceived) {
@@ -1494,8 +1414,45 @@ export class SubAgent {
         lastProcessingKind = 'thinking';
         emitProcessingStatus(
           { kind: 'loading.update', loadingText: 'Thinking...', phase: 'thinking' },
-          fallbackSessionId,
+          sessionIdForEmit,
         );
+      }
+      if (normalized.assistantText && lastProcessingKind !== 'writing') {
+        lastProcessingKind = 'writing';
+        emitProcessingStatus(
+          { kind: 'loading.update', loadingText: 'Writing response...', phase: 'writing' },
+          sessionIdForEmit,
+        );
+      } else if (
+        !normalized.assistantText &&
+        !normalized.isTerminal &&
+        lastProcessingKind !== 'thinking'
+      ) {
+        lastProcessingKind = 'thinking';
+        emitProcessingStatus(
+          { kind: 'loading.update', loadingText: 'Thinking...', phase: 'thinking' },
+          sessionIdForEmit,
+        );
+      }
+
+      if (normalized.isTerminal) {
+        assistantCompleted = true;
+        if (bufferedAssistantText.length > 0) {
+          lastAssistantText = bufferedAssistantText;
+          emit({
+            source: 'provider',
+            eventType: 'agent_output',
+            timestamp: eventTimestamp,
+            sessionId: sessionIdForEmit,
+            agentId: CODEX_AGENT_ID,
+            payload: {
+              messageType: 'assistant',
+              summary: bufferedAssistantText,
+              taskComplete: true,
+            },
+          });
+          bufferedAssistantText = '';
+        }
       }
     });
 
@@ -1503,10 +1460,6 @@ export class SubAgent {
     client.onTokenUsage((usage) => {
       this.usageMeter.recordCodexTotals(usage);
       budgetGuard?.record(
-        (usage.inputTokens ?? 0) + (usage.cacheReadInputTokens ?? 0) + usage.outputTokens,
-      );
-      this.args.evalExecution?.tokenBudget?.record(
-        this.budgetIdentity,
         (usage.inputTokens ?? 0) + (usage.cacheReadInputTokens ?? 0) + usage.outputTokens,
       );
     });
@@ -1591,6 +1544,7 @@ export class SubAgent {
             ? { baseInstructions: delivery.baseInstructions }
             : {}),
           cwd: codexPermissionPlan.cwd,
+          ...(toolFree || session.inert ? { disableMcpServers: true } : {}),
           ...(codexPermissionPlan.sandboxMode ? { sandbox: codexPermissionPlan.sandboxMode } : {}),
           ...(codexPermissionPlan.extraWritableDirs.length > 0
             ? { extraWritableDirs: codexPermissionPlan.extraWritableDirs }
@@ -1603,7 +1557,7 @@ export class SubAgent {
         signal ? { signal } : undefined,
       );
     } catch (error) {
-      if (!budgetGuard?.isExhausted && !this.args.evalExecution?.tokenBudget?.isExhausted) {
+      if (!budgetGuard?.isExhausted) {
         requestContext.log(logger, 'error', 'local.subagent.codex.failed', {
           runId,
           adapterId: config.adapterId,
@@ -1615,10 +1569,7 @@ export class SubAgent {
       client.onEvent(null);
       client.onServerRequest(null);
       client.onTokenUsage(null);
-      if (
-        (budgetGuard?.isExhausted || this.args.evalExecution?.tokenBudget?.isExhausted) &&
-        lastAssistantText.length === 0
-      ) {
+      if (budgetGuard?.isExhausted && lastAssistantText.length === 0) {
         lastAssistantText = bufferedAssistantText;
       }
       if (bufferedAssistantText.length > 0) {
@@ -1660,9 +1611,7 @@ export class SubAgent {
       assistantCompleted,
       outputText: lastAssistantText,
       ...(contextReading !== undefined ? { contextReading } : {}),
-      ...(budgetGuard?.isExhausted || this.args.evalExecution?.tokenBudget?.isExhausted
-        ? { budgetExhausted: true }
-        : {}),
+      ...(budgetGuard?.isExhausted ? { budgetExhausted: true } : {}),
       usage: this.usageMeter.read(),
     };
   }

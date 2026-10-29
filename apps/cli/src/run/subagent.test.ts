@@ -1,11 +1,10 @@
+import { evalJudgeHandler, parseEvalJudgeOutput } from '../agents/run-eval/eval-judge.handler';
+import type { EvalRunCaseInput } from '../shared/api/generated/api';
 import { ChildAgentLauncher, type ChildAgentLauncherDependencies } from './child-agent-launcher';
-import { EvalTargetMessages } from '../agents/run-eval/eval-target-messages';
-import { agentSearchHandler } from '../agents/agent-search/agent-search.handler';
 import {
   createPromptTypeHandlerTestDeps,
   createPromptTypeHandlerTestRunStore,
 } from '../agents/prompt-type-handler.test-support';
-import { ConversationsApi, type PostMessageRequest } from '../shared/api/generated/api';
 import { EntityContextApi, WorkItemTypesApi } from '../shared/api/generated/api';
 import { researchHandler } from '../agents/research/research.handler';
 import { LocalPromptType } from '../shared/agent-bridge-contract/generated';
@@ -222,11 +221,121 @@ const makeSubAgent = (
       ...(args.reasoningEffort ? { reasoningEffort: args.reasoningEffort } : {}),
       ...(args.fastMode !== undefined ? { fastMode: args.fastMode } : {}),
       ...(args.tokenBudget !== undefined ? { tokenBudget: args.tokenBudget } : {}),
-      ...(args.evalExecution ? { evalExecution: args.evalExecution } : {}),
     }),
 });
 
 describe('SubAgent — unified runtime contract', () => {
+  it.each(['claude', 'codex'] as const)(
+    'judges supplied evidence with no %s tools or prior reports',
+    async (provider) => {
+      const caseInput: EvalRunCaseInput = {
+        id: 'case',
+        evalCaseId: 'case',
+        title: 'Evidence case',
+        target: {
+          targetHandler: 'entity_conversation',
+          situation: 'Recorded situation',
+          initiatingRequest: 'Recorded request',
+        },
+        grading: { checks: [], rubric: [] },
+      };
+      const answer = JSON.stringify({
+        checkResults: [],
+        recognition: { recognized: true, explanation: 'Evidence supplied' },
+        quality: [],
+      });
+      let permission: unknown;
+      if (provider === 'claude') {
+        startSessionMock.mockImplementationOnce(async (config) => {
+          expect(config).toMatchObject({
+            builtinTools: [],
+            strictMcpConfig: true,
+            mcpServers: {},
+            allowedTools: [],
+          });
+          expect(JSON.stringify(config)).toContain('Recorded situation');
+          expect(JSON.stringify(config)).toContain('Recorded answer');
+          const decide = onPermissionRequestMock.mock.calls.at(-1)![0] as (
+            name: string,
+            input: unknown,
+          ) => Promise<unknown>;
+          permission = await decide('mcp__external__read', {});
+          const emit = claudeEmitters.get(config)!;
+          emit({
+            type: 'assistant',
+            message: { id: 'judge', content: [{ type: 'text', text: answer }] },
+          });
+          emit({ type: 'result', subtype: 'success' });
+          return undefined;
+        });
+      } else {
+        codexStartSessionMock.mockImplementationOnce(async (config) => {
+          expect(config).toMatchObject({
+            disableMcpServers: true,
+            config: { web_search: 'disabled' },
+            sandbox: 'read-only',
+          });
+          const decide = codexOnServerRequestMock.mock.calls.at(-1)![0] as (
+            request: unknown,
+          ) => void;
+          decide({
+            id: 12,
+            method: 'mcpServer/elicitation/request',
+            params: {
+              serverName: 'external',
+              message: 'Allow the external MCP server to run tool "read"?',
+            },
+          });
+          await new Promise((resolve) => setImmediate(resolve));
+          expect(codexSubmitClientResponseMock).toHaveBeenCalledWith(
+            12,
+            expect.objectContaining({ action: 'decline' }),
+          );
+          const emit = codexEmitters.get(config)!;
+          emit({
+            method: 'item/completed',
+            params: { item: { type: 'agentMessage', text: answer } },
+          });
+          emit({ method: 'turn/completed', params: { turn: { status: 'completed' } } });
+          return undefined;
+        });
+      }
+      const result = await makeSubAgent({
+        session: makeSession({ provider }),
+        handler: evalJudgeHandler,
+        config: evalJudgeHandler.childConfig!,
+        payload: { caseInput, outputText: 'Recorded answer' },
+        touchedFiles: [],
+        priorReports: [
+          {
+            reportType: 'EVAL_ATTEMPT',
+            reportId: 'SECRET-REPORT',
+            createdAt: '2026-01-01T00:00:00Z',
+            phase: LocalPromptType.RunEval,
+            summary: 'SECRET-REPORT',
+            audience: 'INTERNAL',
+          },
+        ],
+        cwd: '/repo',
+        oauthClient: makeOauth(),
+        logger: makeLogger(),
+        onAgentOutput: () => {},
+      }).execute();
+      if (provider === 'claude') {
+        expect(permission).toMatchObject({ behavior: 'deny' });
+      }
+      expect(result.assistantCompleted).toBe(true);
+      expect(
+        parseEvalJudgeOutput(result.outputText!, caseInput, 'now').recognition.recognized,
+      ).toBe(true);
+      expect(result.usage).toEqual({});
+      const config = (
+        provider === 'claude' ? startSessionMock : codexStartSessionMock
+      ).mock.calls.at(-1)![0];
+      expect(JSON.stringify(config)).not.toContain('SECRET-REPORT');
+    },
+  );
+
   it('refuses inert built-in execution before a handler policy can allow it', async () => {
     const runStore = createPromptTypeHandlerTestRunStore();
     await runStore.initialize();
@@ -271,143 +380,16 @@ describe('SubAgent — unified runtime contract', () => {
       logger: makeLogger(),
     });
     await launcher.launch({
-      parentSession: makeSession(),
+      parentSession: makeSession({ inert: true }),
       handler,
       payload: { userMessage: 'Evaluate' },
       prepared: true,
       signal: new AbortController().signal,
       workspace: { cwd: '/repo' },
-      evalExecution: {
-        attemptId: 'attempt',
-        targetSessionId: 'target',
-        targetConversationId: 'evidence',
-      },
     });
     expect(decision).toMatchObject({ behavior: 'deny' });
     expect(decidePermission).not.toHaveBeenCalled();
   });
-
-  it.each(['claude', 'codex'] as const)(
-    'persists isolated eval prompts and all %s replies through real child launch and message transport',
-    async (provider) => {
-      const stored = new Map<string, PostMessageRequest[]>();
-      const post = vi
-        .spyOn(ConversationsApi.prototype, 'postMessage')
-        .mockImplementation(async (request, options) => {
-          expect(options?.headers).toMatchObject({
-            'X-Agent-Session-ID': `target-${request.postMessageRequest.conversationId}`,
-          });
-          await new Promise((resolve) => setTimeout(resolve, 1));
-          const rows = stored.get(request.postMessageRequest.conversationId) ?? [];
-          rows.push(structuredClone(request.postMessageRequest));
-          stored.set(request.postMessageRequest.conversationId, rows);
-          return { data: { data: { id: `message-${rows.length}` } } } as never;
-        });
-      const session = makeSession({ provider, services: [] });
-      const deps = createPromptTypeHandlerTestDeps();
-      const localAgentEndpoint = new LocalAgentEndpoint();
-      localAgentEndpoint.set('http://127.0.0.1:3849');
-      const runStore = createPromptTypeHandlerTestRunStore();
-      await runStore.initialize();
-      const launcher = new ChildAgentLauncher({
-        runStore,
-        handlerDeps: createPromptTypeHandlerTestDeps(),
-        promptTypeRegistry: new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES),
-        repoStore: createTestRepoMappingStore(),
-        oauthClient: makeOauth(),
-        submissionToolRegistry: new SubmissionToolRegistry(),
-        localAgentEndpoint,
-        logger: makeLogger(),
-      });
-      try {
-        await Promise.all(
-          ['a', 'b'].map(async (conversation) => {
-            const execution = {
-              attemptId: `attempt-${conversation}`,
-              targetSessionId: `target-${conversation}`,
-              targetConversationId: conversation,
-            };
-            const messages = await EvalTargetMessages.create(
-              session,
-              execution,
-              agentSearchHandler.id,
-              deps,
-            );
-            await messages.savePrompt(`Request ${conversation}`);
-            if (provider === 'claude') {
-              startSessionMock.mockImplementationOnce(async (config) => {
-                const emit = claudeEmitters.get(config);
-                const currentConversation = /Request ([ab])/.exec(JSON.stringify(config))?.[1];
-                if (!emit || !currentConversation)
-                  throw new Error('Missing isolated SDK execution.');
-                emit({
-                  type: 'assistant',
-                  message: { content: [{ type: 'text', text: `Looking ${currentConversation}` }] },
-                });
-                emit({
-                  type: 'assistant',
-                  message: { content: [{ type: 'text', text: `Answer ${currentConversation}` }] },
-                });
-                emit({ type: 'result', subtype: 'success' });
-              });
-            } else {
-              codexStartSessionMock.mockImplementationOnce(async (config) => {
-                const emit = codexEmitters.get(config);
-                const currentConversation = /Request ([ab])/.exec(JSON.stringify(config))?.[1];
-                if (!emit || !currentConversation)
-                  throw new Error('Missing isolated SDK execution.');
-                emit({
-                  method: 'item/completed',
-                  params: {
-                    item: {
-                      id: `first-${currentConversation}`,
-                      type: 'agentMessage',
-                      text: `Looking ${currentConversation}`,
-                    },
-                  },
-                });
-                emit({
-                  method: 'item/completed',
-                  params: {
-                    item: {
-                      id: `last-${currentConversation}`,
-                      type: 'agentMessage',
-                      text: `Answer ${currentConversation}`,
-                    },
-                  },
-                });
-                emit({
-                  method: 'turn/completed',
-                  params: { turn: { id: `turn-${currentConversation}`, status: 'completed' } },
-                });
-              });
-            }
-            await launcher.launchRegistered(agentSearchHandler.id, {
-              parentSession: session,
-              payload: { payloadVersion: 1, userMessage: `Request ${conversation}` },
-              evalExecution: execution,
-              signal: new AbortController().signal,
-              onAgentOutput: messages.onAgentOutput,
-            });
-            await messages.drain();
-          }),
-        );
-        expect(stored.size).toBe(2);
-        for (const conversation of ['a', 'b']) {
-          const rows = stored.get(conversation)!;
-          expect(rows.map((row) => row.data)).toEqual([
-            expect.objectContaining({ response: `Request ${conversation}`, ragEnabled: false }),
-            expect.objectContaining({ response: `Looking ${conversation}`, ragEnabled: false }),
-            expect.objectContaining({ response: `Answer ${conversation}`, ragEnabled: false }),
-          ]);
-          expect(rows.every((row) => row.parentMessageId === null)).toBe(true);
-        }
-        expect(stored.has(session.conversationId)).toBe(false);
-      } finally {
-        post.mockRestore();
-      }
-    },
-  );
 
   beforeEach(() => {
     startSessionMock.mockClear();

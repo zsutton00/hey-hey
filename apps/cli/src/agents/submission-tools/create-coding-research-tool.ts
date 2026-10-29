@@ -252,12 +252,11 @@ export class CodingResearchTool implements PassThroughSubmissionToolDeclaration 
 
   public readonly execute = async (ctx: SubmissionToolExecuteContext) => {
     const run = ctx.run;
-    const evalResearch = ctx.evalResearch;
-    if (!run && !evalResearch) {
+    if (!run) {
       throw new Error('create_coding_research wrapper: ctx.run is required for pass-through tools');
     }
 
-    const phase = (evalResearch?.session ?? run!.session).promptType as LocalPromptType | undefined;
+    const phase = run.session.promptType as LocalPromptType | undefined;
     if (!phase) {
       throw new Error(
         'create_coding_research wrapper: run.session.promptType is required to derive chain entry phase',
@@ -329,19 +328,6 @@ export class CodingResearchTool implements PassThroughSubmissionToolDeclaration 
       audience: 'PROJECT_VISIBLE',
       payload: reportPayload,
     };
-
-    if (evalResearch) {
-      await this.proxy.create({
-        runId: evalResearch.session.agentic_session_id,
-        args: platformArgs,
-        conversationId: evalResearch.session.conversationId,
-        projectId: evalResearch.session.contextMetadata.projectId,
-      });
-      evalResearch.recordOutput(reportPayload);
-      return { content: [{ type: 'text', text: analysis }] };
-    }
-
-    if (!run) throw new Error('Project Assistant report has no owning Run.');
 
     const result = await this.proxy.create({
       runId: ctx.runId,
