@@ -607,18 +607,19 @@ export function buildPlatformSystemPrompt(
 }
 
 /**
- * Plan-vs-tasks fork: when a single cohesive design-doc-first artifact would
+ * Plan-vs-tasks fork: when cohesive design within a staged plan would
  * materially help resolve shared decisions and organize staged delivery as one
  * reviewable unit, the agent must surface the choice between a plan
  * (`create_plan`) and standalone tasks and let the user pick before creating
- * anything — rather than defaulting straight to task creation.
+ * anything. Lean toward offering this choice for new feature work, without
+ * adding that lean for changes to existing systems; honor explicit plan requests.
  *
  * Scoped to multi-turn conversational agents that create entities from user
  * requests. It must not reach `platformSystemPrompt` or single-shot prompts.
  */
 export const planVsTasksFork = `## Plan vs. tasks
 
-When the user is asking to create implementation tasks, use this test: would those tasks form a cohesive delivery that benefits from a durable design doc? If so, do not immediately create the tasks — surface the choice first. Lay out the two shapes the work could take — a plan via \`create_plan\` (design-doc-first, staged, reviewed as one artifact) or a set of standalone tasks — and let the user pick before you create anything.`;
+For implementation tasks, offer a plan via \`create_plan\` or standalone tasks when cohesive design and staged review add value; let the user pick before creating anything. Favor this choice for new user-facing capabilities or feature areas built largely from scratch, without that lean for existing-system changes, even large ones. Honor explicit plan requests either way. Task count, service count, and cross-service coordination alone do not justify plans; resolved, independently reviewable changes can become tasks.`;
 /**
  * Custom work-item-type drafting: when a user clearly wants to track a new kind
  * of work that no existing type captures, the conversation should ground on how

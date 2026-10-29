@@ -717,16 +717,70 @@ describe('planVsTasksFork', () => {
     expect(planVsTasksFork).toContain('## Plan vs. tasks');
     expect(planVsTasksFork).toContain('plan via `create_plan`');
     expect(planVsTasksFork).toContain('standalone tasks');
-    expect(planVsTasksFork).toContain('let the user pick before you create anything');
+    expect(planVsTasksFork).toContain('let the user pick before creating anything');
   });
 
-  it('uses a cohesive delivery and durable design doc as the plan-versus-tasks test', () => {
+  it('uses cohesive design and staged review within the plan as the test', () => {
+    expect(planVsTasksFork).toContain('when cohesive design and staged review add value');
+    expect(planVsTasksFork).toContain('offer a plan via `create_plan` or standalone tasks');
+  });
+
+  it('prefers new feature work while preserving existing-system judgment and user choice', () => {
     expect(planVsTasksFork).toContain(
-      'use this test: would those tasks form a cohesive delivery that benefits from a durable design doc?',
+      'Favor this choice for new user-facing capabilities or feature areas built largely from scratch',
     );
     expect(planVsTasksFork).toContain(
-      'If so, do not immediately create the tasks — surface the choice first',
+      'without that lean for existing-system changes, even large ones',
     );
+    expect(planVsTasksFork).toContain('Honor explicit plan requests either way');
+    expect(planVsTasksFork).toContain(
+      'Task count, service count, and cross-service coordination alone do not justify plans',
+    );
+    expect(planVsTasksFork).toContain(
+      'resolved, independently reviewable changes can become tasks',
+    );
+    expect(planVsTasksFork).not.toMatch(
+      /telephone|drift|rewrites|design-doc-first|separate.*design doc/i,
+    );
+  });
+
+  it.each([
+    [
+      'new capability',
+      'Create tasks for a new customer reporting area built from scratch, with shared design decisions and staged delivery.',
+    ],
+    [
+      'existing system',
+      'Create tasks to overhaul the existing notification system while preserving its delivered behavior.',
+    ],
+    [
+      'resolved changes',
+      'Create tasks for an already-decided admin-only UI gate and an independent CLI startup flag.',
+    ],
+    [
+      'cohesive delivery',
+      'Create tasks for live collaboration with unresolved shared design decisions and dependent delivery stages.',
+    ],
+  ])('delivers the choice guidance with a %s request', (_name, userMessage) => {
+    const prompt = buildCodingConversationPrompt(
+      { userMessage },
+      { kind: 'follow_up', awaitingUserReview: false, taskId: null },
+    );
+    // The provider receives the user message separately from the system prompt.
+    expect(prompt).toContain(planVsTasksFork);
+    expect({ systemPrompt: prompt, userMessage }).toMatchSnapshot();
+  });
+
+  it('stays out of representative single-shot prompts', () => {
+    expect(buildCodingPlanPrompt({})).not.toContain(planVsTasksFork);
+    expect(
+      buildFinalAssessmentPrompt({
+        context: makeContext(),
+        startupInput: makeStartupInput(),
+        executionSummary: 'Done.',
+        taskNeighborhood: emptyNeighborhood(),
+      }),
+    ).not.toContain(planVsTasksFork);
   });
 
   it('is not bundled into the platform system prompt', () => {
@@ -1664,6 +1718,7 @@ describe('buildEntityConversationPrompt', () => {
 
   it('matches the full Contract-aware entity conversation prompt', () => {
     const prompt = buildEntityConversationPrompt(makeEntityPayload());
+    expect(prompt).toContain(planVsTasksFork);
     expect(prompt).toMatch(/Contract Companion Proposals/i);
     expect(prompt).toContain('ambient Contract-recognition boundary');
     expect(prompt).toContain("relevant element's concrete inputs, outputs, and responsibility");

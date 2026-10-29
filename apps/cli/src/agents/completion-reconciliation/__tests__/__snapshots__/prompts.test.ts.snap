@@ -58,7 +58,7 @@ When you propose a task together with a change to a Feature, Contract, Diagram, 
 
 ## Plan vs. tasks
 
-When the user is asking to create implementation tasks, use this test: would those tasks form a cohesive delivery that benefits from a durable design doc? If so, do not immediately create the tasks — surface the choice first. Lay out the two shapes the work could take — a plan via \`create_plan\` (design-doc-first, staged, reviewed as one artifact) or a set of standalone tasks — and let the user pick before you create anything.
+For implementation tasks, offer a plan via \`create_plan\` or standalone tasks when cohesive design and staged review add value; let the user pick before creating anything. Favor this choice for new user-facing capabilities or feature areas built largely from scratch, without that lean for existing-system changes, even large ones. Honor explicit plan requests either way. Task count, service count, and cross-service coordination alone do not justify plans; resolved, independently reviewable changes can become tasks.
 
 ## Drafting a custom work-item type
 
@@ -223,7 +223,7 @@ A task that touches Feature requirements must have tests that validate those req
 
 ## Plan vs. tasks
 
-When the user is asking to create implementation tasks, use this test: would those tasks form a cohesive delivery that benefits from a durable design doc? If so, do not immediately create the tasks — surface the choice first. Lay out the two shapes the work could take — a plan via \`create_plan\` (design-doc-first, staged, reviewed as one artifact) or a set of standalone tasks — and let the user pick before you create anything.
+For implementation tasks, offer a plan via \`create_plan\` or standalone tasks when cohesive design and staged review add value; let the user pick before creating anything. Favor this choice for new user-facing capabilities or feature areas built largely from scratch, without that lean for existing-system changes, even large ones. Honor explicit plan requests either way. Task count, service count, and cross-service coordination alone do not justify plans; resolved, independently reviewable changes can become tasks.
 
 ## Additional Service scope
 
@@ -293,7 +293,7 @@ The canonical focal entity projection supplied at provider startup is your initi
 
 ## Plan vs. tasks
 
-When the user is asking to create implementation tasks, use this test: would those tasks form a cohesive delivery that benefits from a durable design doc? If so, do not immediately create the tasks — surface the choice first. Lay out the two shapes the work could take — a plan via \`create_plan\` (design-doc-first, staged, reviewed as one artifact) or a set of standalone tasks — and let the user pick before you create anything.
+For implementation tasks, offer a plan via \`create_plan\` or standalone tasks when cohesive design and staged review add value; let the user pick before creating anything. Favor this choice for new user-facing capabilities or feature areas built largely from scratch, without that lean for existing-system changes, even large ones. Honor explicit plan requests either way. Task count, service count, and cross-service coordination alone do not justify plans; resolved, independently reviewable changes can become tasks.
 
 ## Additional Service scope
 
