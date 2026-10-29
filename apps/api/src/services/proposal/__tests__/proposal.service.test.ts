@@ -2118,77 +2118,6 @@ describe('ProposalService.create — apply-on-create', () => {
     expect(result.status).toBe('APPROVED');
   });
 
-  it('materializes auto-approved workflow graph change sets after a batch-create transaction commits', async () => {
-    jest.spyOn(permissionEvaluation, 'evaluatePermissions').mockReturnValue({
-      requiresProposal: true,
-      threshold: 0,
-      allowsProposerApproval: false,
-    });
-    const updates = workflowGraphChangeSet();
-    const draftProposal = makeStoredProposal({
-      type: 'BATCH',
-      action: 'UPDATE',
-      status: 'DRAFT',
-      updates,
-      requestorContext: makeUserRequestorContext(),
-    });
-    const approvedProposal = { ...draftProposal, status: 'APPROVED' };
-    (mockPrisma.db as any).proposal.create.mockResolvedValue(draftProposal);
-    (mockPrisma.db as any).task.findFirst = jest.fn().mockResolvedValue({
-      type: 'workflow',
-      parentTaskId: null,
-    });
-    approvalService.genericChangeSetRequest.mockReturnValue(updates);
-    const prepared = { validationRevision: 'revision', operationSet: updates };
-    let transactionStarted = false;
-    const projectedBeforeTransaction: boolean[] = [];
-    approvalService.projectGenericPreparation.mockImplementation(async () => {
-      projectedBeforeTransaction.push(!transactionStarted);
-      return prepared;
-    });
-
-    let transactionCommitted = false;
-    (mockPrisma.db as any).$transaction.mockImplementation(
-      async (callback: (tx: unknown) => unknown) => {
-        transactionStarted = true;
-        const result = await callback(mockPrisma.db);
-        transactionCommitted = true;
-        return result;
-      },
-    );
-    approvalService.materializeGenericWorkItemChangeSet.mockImplementation(
-      async () => {
-        expect(transactionCommitted).toBe(true);
-        return {
-          proposal: approvedProposal,
-          rootWorkItemId: testIds.task,
-        };
-      },
-    );
-
-    const [result] = await service.createBatch(
-      testIds.organization,
-      testIds.project,
-      approvingUserId,
-      [
-        {
-          ...updateBaseDto,
-          type: 'BATCH',
-          updates,
-          requestorContext: makeUserRequestorContext(),
-        } as never,
-      ],
-    );
-
-    expect(projectedBeforeTransaction).toEqual([true]);
-    expect(approvalService.applyInTransaction).not.toHaveBeenCalled();
-    expect(
-      approvalService.materializeGenericWorkItemChangeSet,
-    ).toHaveBeenCalledTimes(1);
-    expect(result?.status).toBe('APPROVED');
-    expect(projectApprovalPolicyService.resolve).toHaveBeenCalledTimes(1);
-  });
-
   it('derives the same changed fields from raw and prepared FEATURE requirement authoring', async () => {
     const raw = {
       targetEntityType: 'TASK',
@@ -2220,132 +2149,121 @@ describe('ProposalService.create — apply-on-create', () => {
     ).toEqual(['sections.requirements']);
   });
 
-  it.each(['create', 'createBatch'] as const)(
-    'projects a FEATURE %s with initialRequirements once before the transaction and replays its minted requirement IDs',
-    async (operation) => {
-      jest.spyOn(permissionEvaluation, 'evaluatePermissions').mockReturnValue({
-        requiresProposal: true,
-        threshold: 1,
-        allowsProposerApproval: true,
-      });
-      type TaskPayload = Record<string, unknown>;
-      type ProposalPayload = { updates: TaskPayload };
-      const prepareTaskMutationRequirements = jest.fn(
-        (
-          dto: ProposalPayload,
-          _org: string,
-          _project: string,
-          _db: unknown,
-          mint: () => string,
-        ): Promise<ProposalPayload> => {
-          const { initialRequirements: _initial, ...rest } = dto.updates;
-          void _initial;
-          return Promise.resolve({
-            ...dto,
-            updates: {
-              ...rest,
-              sections: [
-                { key: 'requirements', content: { records: [{ id: mint() }] } },
-              ],
-            },
-          });
-        },
-      );
-      Object.assign(validationEngine, { prepareTaskMutationRequirements });
-      const storedUpdates: TaskPayload[] = [];
-      const proposalCreate = jest.fn(
-        ({ data }: { data: { updates: TaskPayload } }) => {
-          storedUpdates.push(data.updates);
-          return Promise.resolve(
-            makeStoredProposal({
-              action: 'CREATE',
-              status: 'DRAFT',
-              updates: data.updates,
-              requestorContext: makeUserRequestorContext(),
-            }),
-          );
-        },
-      );
-      Object.assign(mockPrisma.db, {
-        proposal: { create: proposalCreate, findFirst: jest.fn() },
-      });
-      approvalService.genericChangeSetRequest.mockImplementation(
-        (proposal: ProposalPayload) => ({
-          root: 'root',
-          operations: [proposal.updates],
-        }),
-      );
-      let transactionStarted = false;
-      const projected: Array<{
-        beforeTransaction: boolean;
-        request: { operations: TaskPayload[] };
-      }> = [];
-      approvalService.projectGenericPreparation.mockImplementation(
-        (
-          _org: string,
-          _project: string,
-          request: { operations: TaskPayload[] },
-        ) => {
-          projected.push({ beforeTransaction: !transactionStarted, request });
-          return Promise.resolve({
-            validationRevision: 'revision',
-            operationSet: request,
-          });
-        },
-      );
-      approvalService.materializeGenericWorkItemChangeSet.mockImplementation(
-        ({ proposalId: id }: { proposalId: string }) =>
-          Promise.resolve({
-            proposal: makeStoredProposal({ id, status: 'APPROVED' }),
-            rootWorkItemId: testIds.task,
+  it('projects a FEATURE create with initialRequirements once before the transaction and replays its minted requirement IDs', async () => {
+    jest.spyOn(permissionEvaluation, 'evaluatePermissions').mockReturnValue({
+      requiresProposal: true,
+      threshold: 1,
+      allowsProposerApproval: true,
+    });
+    type TaskPayload = Record<string, unknown>;
+    type ProposalPayload = { updates: TaskPayload };
+    const prepareTaskMutationRequirements = jest.fn(
+      (
+        dto: ProposalPayload,
+        _org: string,
+        _project: string,
+        _db: unknown,
+        mint: () => string,
+      ): Promise<ProposalPayload> => {
+        const { initialRequirements: _initial, ...rest } = dto.updates;
+        void _initial;
+        return Promise.resolve({
+          ...dto,
+          updates: {
+            ...rest,
+            sections: [
+              { key: 'requirements', content: { records: [{ id: mint() }] } },
+            ],
+          },
+        });
+      },
+    );
+    Object.assign(validationEngine, { prepareTaskMutationRequirements });
+    const storedUpdates: TaskPayload[] = [];
+    const proposalCreate = jest.fn(
+      ({ data }: { data: { updates: TaskPayload } }) => {
+        storedUpdates.push(data.updates);
+        return Promise.resolve(
+          makeStoredProposal({
+            action: 'CREATE',
+            status: 'DRAFT',
+            updates: data.updates,
+            requestorContext: makeUserRequestorContext(),
           }),
-      );
-      (mockPrisma.db.$transaction as jest.Mock).mockImplementation(
-        (callback: (tx: unknown) => Promise<unknown>) => {
-          transactionStarted = true;
-          return callback(mockPrisma.db);
-        },
-      );
-
-      const dto = {
-        type: 'SINGLE',
-        action: 'CREATE',
-        eli5: 'Creates the billing feature.',
-        title: 'Billing',
-        targetEntityId: '00000000-0000-4000-8000-000000000000',
-        targetEntityType: 'TASK',
-        updates: {
-          name: 'Billing',
-          type: 'FEATURE',
-          initialRequirements: [{ statement: 'Invoices are emailed' }],
-        },
-        requestorContext: makeUserRequestorContext(),
-      };
-      if (operation === 'create') {
-        await service.create(
-          testIds.organization,
-          testIds.project,
-          approvingUserId,
-          dto as never,
         );
-      } else {
-        await service.createBatch(
-          testIds.organization,
-          testIds.project,
-          approvingUserId,
-          [dto as never],
-        );
-      }
+      },
+    );
+    Object.assign(mockPrisma.db, {
+      proposal: { create: proposalCreate, findFirst: jest.fn() },
+    });
+    approvalService.genericChangeSetRequest.mockImplementation(
+      (proposal: ProposalPayload) => ({
+        root: 'root',
+        operations: [proposal.updates],
+      }),
+    );
+    let transactionStarted = false;
+    const projected: Array<{
+      beforeTransaction: boolean;
+      request: { operations: TaskPayload[] };
+    }> = [];
+    approvalService.projectGenericPreparation.mockImplementation(
+      (
+        _org: string,
+        _project: string,
+        request: { operations: TaskPayload[] },
+      ) => {
+        projected.push({ beforeTransaction: !transactionStarted, request });
+        return Promise.resolve({
+          validationRevision: 'revision',
+          operationSet: request,
+        });
+      },
+    );
+    approvalService.materializeGenericWorkItemChangeSet.mockImplementation(
+      ({ proposalId: id }: { proposalId: string }) =>
+        Promise.resolve({
+          proposal: makeStoredProposal({ id, status: 'APPROVED' }),
+          rootWorkItemId: testIds.task,
+        }),
+    );
+    (mockPrisma.db.$transaction as jest.Mock).mockImplementation(
+      (callback: (tx: unknown) => Promise<unknown>) => {
+        transactionStarted = true;
+        return callback(mockPrisma.db);
+      },
+    );
 
-      expect(projected).toHaveLength(1);
-      expect(projected[0]!.beforeTransaction).toBe(true);
-      expect(projected[0]!.request.operations[0]).toEqual(storedUpdates[0]);
-      expect(prepareTaskMutationRequirements).toHaveBeenCalledTimes(2);
-      expect(
-        approvalService.queueGenericWorkItemChangeSetInTransaction,
-      ).toHaveBeenCalledTimes(1);
-    },
-  );
+    const dto = {
+      type: 'SINGLE',
+      action: 'CREATE',
+      eli5: 'Creates the billing feature.',
+      title: 'Billing',
+      targetEntityId: '00000000-0000-4000-8000-000000000000',
+      targetEntityType: 'TASK',
+      updates: {
+        name: 'Billing',
+        type: 'FEATURE',
+        initialRequirements: [{ statement: 'Invoices are emailed' }],
+      },
+      requestorContext: makeUserRequestorContext(),
+    };
+
+    await service.create(
+      testIds.organization,
+      testIds.project,
+      approvingUserId,
+      dto as never,
+    );
+
+    expect(projected).toHaveLength(1);
+    expect(projected[0]!.beforeTransaction).toBe(true);
+    expect(projected[0]!.request.operations[0]).toEqual(storedUpdates[0]);
+    expect(prepareTaskMutationRequirements).toHaveBeenCalledTimes(2);
+    expect(
+      approvalService.queueGenericWorkItemChangeSetInTransaction,
+    ).toHaveBeenCalledTimes(1);
+  });
 
   it('never projects a create whose proposer approval stays below the threshold', async () => {
     jest.spyOn(permissionEvaluation, 'evaluatePermissions').mockReturnValue({
@@ -2389,90 +2307,77 @@ describe('ProposalService.create — apply-on-create', () => {
     expect(result.status).toBe('DRAFT');
   });
 
-  it.each(['create', 'createBatch'] as const)(
-    'prepares below-threshold FEATURE requirements only inside the %s transaction',
-    async (operation) => {
-      jest.spyOn(permissionEvaluation, 'evaluatePermissions').mockReturnValue({
-        requiresProposal: true,
-        threshold: 2,
-        allowsProposerApproval: true,
-      });
-      let transactionStarted = false;
-      const preparationCalls: boolean[] = [];
-      const section = { key: 'requirements', content: { records: [] } };
-      Object.assign(validationEngine, {
-        prepareTaskMutationRequirements: jest.fn(
-          (dto: { updates: Record<string, unknown> }) => {
-            preparationCalls.push(transactionStarted);
-            const { initialRequirements: _initial, ...rest } = dto.updates;
-            void _initial;
-            return Promise.resolve({
-              ...dto,
-              updates: { ...rest, sections: [section] },
-            });
-          },
+  it('prepares below-threshold FEATURE requirements only inside the create transaction', async () => {
+    jest.spyOn(permissionEvaluation, 'evaluatePermissions').mockReturnValue({
+      requiresProposal: true,
+      threshold: 2,
+      allowsProposerApproval: true,
+    });
+    let transactionStarted = false;
+    const preparationCalls: boolean[] = [];
+    const section = { key: 'requirements', content: { records: [] } };
+    Object.assign(validationEngine, {
+      prepareTaskMutationRequirements: jest.fn(
+        (dto: { updates: Record<string, unknown> }) => {
+          preparationCalls.push(transactionStarted);
+          const { initialRequirements: _initial, ...rest } = dto.updates;
+          void _initial;
+          return Promise.resolve({
+            ...dto,
+            updates: { ...rest, sections: [section] },
+          });
+        },
+      ),
+    });
+    (mockPrisma.db.$transaction as jest.Mock).mockImplementation(
+      (callback: (tx: unknown) => Promise<unknown>) => {
+        transactionStarted = true;
+        return callback(mockPrisma.db);
+      },
+    );
+    (mockPrisma.db.proposal.create as jest.Mock).mockImplementation(
+      ({ data }: { data: { updates: unknown } }) =>
+        Promise.resolve(
+          makeStoredProposal({
+            action: 'CREATE',
+            status: 'DRAFT',
+            updates: data.updates,
+            requestorContext: makeUserRequestorContext(),
+          }),
         ),
-      });
-      (mockPrisma.db.$transaction as jest.Mock).mockImplementation(
-        (callback: (tx: unknown) => Promise<unknown>) => {
-          transactionStarted = true;
-          return callback(mockPrisma.db);
-        },
-      );
-      (mockPrisma.db.proposal.create as jest.Mock).mockImplementation(
-        ({ data }: { data: { updates: unknown } }) =>
-          Promise.resolve(
-            makeStoredProposal({
-              action: 'CREATE',
-              status: 'DRAFT',
-              updates: data.updates,
-              requestorContext: makeUserRequestorContext(),
-            }),
-          ),
-      );
-      const dto = {
-        type: 'SINGLE',
-        action: 'CREATE',
-        title: 'Billing',
-        eli5: 'Creates billing.',
-        targetEntityType: 'TASK',
-        targetEntityId: testIds.task,
-        updates: {
-          name: 'Billing',
-          type: 'FEATURE',
-          tag: 'product',
-          initialRequirements: [],
-        },
-        requestorContext: makeUserRequestorContext(),
-      };
-      const result =
-        operation === 'create'
-          ? await service.create(
-              testIds.organization,
-              testIds.project,
-              approvingUserId,
-              dto as never,
-            )
-          : (
-              await service.createBatch(
-                testIds.organization,
-                testIds.project,
-                approvingUserId,
-                [dto as never],
-              )
-            )[0]!;
-      expect(preparationCalls).toEqual([true]);
-      expect(approvalService.projectGenericPreparation).not.toHaveBeenCalled();
-      expect(approvalService.applyInTransaction).not.toHaveBeenCalled();
-      expect(result.status).toBe('DRAFT');
-      expect(result.updates).toEqual({
+    );
+    const dto = {
+      type: 'SINGLE',
+      action: 'CREATE',
+      title: 'Billing',
+      eli5: 'Creates billing.',
+      targetEntityType: 'TASK',
+      targetEntityId: testIds.task,
+      updates: {
         name: 'Billing',
         type: 'FEATURE',
         tag: 'product',
-        sections: [section],
-      });
-    },
-  );
+        initialRequirements: [],
+      },
+      requestorContext: makeUserRequestorContext(),
+    };
+    const result = await service.create(
+      testIds.organization,
+      testIds.project,
+      approvingUserId,
+      dto as never,
+    );
+    expect(preparationCalls).toEqual([true]);
+    expect(approvalService.projectGenericPreparation).not.toHaveBeenCalled();
+    expect(approvalService.applyInTransaction).not.toHaveBeenCalled();
+    expect(result.status).toBe('DRAFT');
+    expect(result.updates).toEqual({
+      name: 'Billing',
+      type: 'FEATURE',
+      tag: 'product',
+      sections: [section],
+    });
+  });
 
   describe('early apply-on-create failures', () => {
     const preparerCalls: boolean[] = [];
@@ -3130,584 +3035,6 @@ describe('ProposalService.create — apply-on-create', () => {
     );
 
     expect(runPostCommit).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('ProposalService.createBatch — origin influence stamping', () => {
-  let service: ProposalService;
-  let mockPrisma: ReturnType<typeof TestUtils.createMockPrismaService>;
-
-  beforeEach(async () => {
-    mockPrisma = TestUtils.createMockPrismaService();
-    (mockPrisma.db as any).task.findMany.mockResolvedValue([]);
-    (mockPrisma.db as any).task.findUnique.mockResolvedValue({
-      lastAppliedProposalId: null,
-    });
-    (mockPrisma.db as any).proposal = {
-      create: jest.fn(),
-      findFirst: jest.fn(),
-      update: jest.fn(),
-    };
-    (mockPrisma.db as any).projectMember.findMany.mockResolvedValue([
-      { userId: approvingUserId },
-      { userId: 'other-project-member-id' },
-    ]);
-
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        {
-          provide: ProjectAccessService,
-          useValue: { assertProjectRole: jest.fn() },
-        },
-        ProposalService,
-        {
-          provide: ProposalReconciliationService,
-          useValue: { captureAuthoring: jest.fn() },
-        },
-        { provide: ProposalReconciliationGroupService, useValue: {} },
-        ProjectApprovalPolicyService,
-        {
-          provide: WorkItemTypeRegistryService,
-          useValue: createMockWorkItemTypeRegistry(),
-        },
-        { provide: PrismaService, useValue: mockPrisma },
-        {
-          provide: ProposalValidationEngine,
-          useValue: createMockValidationEngine(),
-        },
-        {
-          provide: WorkItemChangeSetProjectorService,
-          useValue: { project: jest.fn() },
-        },
-        {
-          provide: DOMAIN_EVENT_PUBLISHER_TOKEN,
-          useValue: TestUtils.createMockDomainEventPublisher(),
-        },
-        {
-          provide: ProposalApprovalService,
-          useValue: {
-            approve: jest.fn(),
-            applyInTransaction: jest.fn(),
-            genericChangeSetRequest: jest.fn().mockReturnValue(null),
-            projectGenericPreparation: jest.fn(),
-            assertPreparedChangeSetCurrent: jest.fn(
-              (_id, _request, prepared) => prepared,
-            ),
-            materializeGenericWorkItemChangeSet: jest.fn(),
-          },
-        },
-        {
-          provide: PendingEdgeService,
-          useValue: {
-            materializeEdges: jest.fn(),
-            rollbackMaterializedEdges: jest.fn(),
-            processDeclaredEdges: jest.fn().mockResolvedValue([]),
-            cleanupForProposal: jest.fn(),
-          },
-        },
-      ],
-    }).compile();
-
-    service = module.get<ProposalService>(ProposalService);
-  });
-
-  it('rejects typed relationship fields on batch influences before persistence', async () => {
-    (mockPrisma.db as any).entityRegistry.findMany.mockResolvedValue([]);
-    const typedInfluence = {
-      entityId: testIds.designDoc,
-      entityType: 'DESIGN_DOC',
-      reasoning: 'typed topology must use proposal edges',
-      reasonType: 'explicit_mention',
-      edgeType: 'DEPENDS_ON',
-    } as unknown as NonNullable<
-      Parameters<typeof service.createBatch>[3][number]['influences']
-    >[number];
-
-    await expect(
-      service.createBatch(
-        testIds.organization,
-        testIds.project,
-        approvingUserId,
-        [
-          {
-            eli5: 'Explains the proposed change.',
-            type: 'SINGLE',
-            action: 'CREATE',
-            targetEntityId: testIds.task,
-            targetEntityType: 'TASK',
-            updates: { name: 'Task one' },
-            title: 'Task one',
-            influences: [typedInfluence],
-            requestorContext: {
-              source: 'agent',
-              userId: testIds.user,
-              organizationId: testIds.organization,
-              toolName: 'mcp.create_task',
-              timestamp: '2026-03-18T00:00:00.000Z',
-            },
-          },
-        ],
-      ),
-    ).rejects.toThrow(
-      'unsupported field "edgeType"; declare typed relationships through edges',
-    );
-
-    expect((mockPrisma.db as any).proposal.create).not.toHaveBeenCalled();
-  });
-
-  it('persists no batch proposal when aggregate Plan Stage topology is invalid', async () => {
-    const proposalCreate = jest.fn();
-    const txMock = {
-      project: {
-        findFirst: jest.fn().mockResolvedValue({ id: testIds.project }),
-      },
-      proposal: { create: proposalCreate, findMany: jest.fn() },
-      entityRegistry: { findMany: jest.fn().mockResolvedValue([]) },
-      task: { findMany: jest.fn().mockResolvedValue([]) },
-      designDoc: { findMany: jest.fn().mockResolvedValue([]) },
-      conversation: { findUnique: jest.fn().mockResolvedValue(null) },
-      message: { create: jest.fn() },
-    };
-    mockTransaction(mockPrisma, txMock);
-    const validationEngine = (service as any).validationEngine as ReturnType<
-      typeof createMockValidationEngine
-    >;
-    validationEngine.assertPlanStageProposalTopologyValid.mockRejectedValueOnce(
-      new BadRequestException({
-        message: 'Plan Stage proposals contain an invalid projected change set',
-        errors: [{ code: 'plan_stage_branching' }],
-      }),
-    );
-    const requestorContext = {
-      source: 'agent' as const,
-      userId: testIds.user,
-      organizationId: testIds.organization,
-      toolName: 'create_work_item',
-      timestamp: '2026-09-09T00:00:00.000Z',
-    };
-
-    await expect(
-      service.createBatch(
-        testIds.organization,
-        testIds.project,
-        approvingUserId,
-        [
-          {
-            eli5: 'Explains the proposed change.',
-            type: 'BATCH',
-            action: 'CREATE',
-            targetEntityId: testIds.task,
-            targetEntityType: 'TASK',
-            title: 'Stage A',
-            updates: {
-              name: 'Stage A',
-              type: 'PLAN_STAGE',
-              parentTaskId: testIds.task,
-            },
-            requestorContext,
-          },
-          {
-            eli5: 'Explains the proposed change.',
-            type: 'BATCH',
-            action: 'CREATE',
-            targetEntityId: testIds.task,
-            targetEntityType: 'TASK',
-            title: 'Stage B',
-            updates: {
-              name: 'Stage B',
-              type: 'PLAN_STAGE',
-              parentTaskId: testIds.task,
-            },
-            requestorContext,
-          },
-        ],
-      ),
-    ).rejects.toBeInstanceOf(BadRequestException);
-
-    expect(
-      validationEngine.assertPlanStageProposalTopologyValid,
-    ).toHaveBeenCalledTimes(1);
-    expect(proposalCreate).not.toHaveBeenCalled();
-  });
-
-  it('validates every batch edge before snapshotting or creating any proposal or message', async () => {
-    const proposalCreate = jest.fn();
-    const messageCreate = jest.fn();
-    const txMock = {
-      project: {
-        findFirst: jest.fn().mockResolvedValue({ id: testIds.project }),
-      },
-      proposal: { create: proposalCreate, findMany: jest.fn() },
-      entityRegistry: { findMany: jest.fn().mockResolvedValue([]) },
-      task: { findMany: jest.fn().mockResolvedValue([]) },
-      designDoc: { findMany: jest.fn().mockResolvedValue([]) },
-      conversation: { findUnique: jest.fn().mockResolvedValue(null) },
-      message: { create: messageCreate },
-    };
-    mockTransaction(mockPrisma, txMock);
-    const requestorContext = {
-      source: 'agent' as const,
-      userId: testIds.user,
-      organizationId: testIds.organization,
-      toolName: 'mcp.create_task',
-      timestamp: '2026-03-18T00:00:00.000Z',
-    };
-
-    await expect(
-      service.createBatch(
-        testIds.organization,
-        testIds.project,
-        approvingUserId,
-        [
-          {
-            eli5: 'Explains the proposed change.',
-            type: 'SINGLE',
-            action: 'CREATE',
-            targetEntityId: testIds.task,
-            targetEntityType: 'TASK',
-            updates: { name: 'Task one' },
-            title: 'Task one',
-            requestorContext,
-          },
-          {
-            eli5: 'Explains the proposed change.',
-            type: 'SINGLE',
-            action: 'CREATE',
-            targetEntityId: testIds.task,
-            targetEntityType: 'TASK',
-            updates: { name: 'Task two' },
-            title: 'Task two',
-            conversationId: testIds.conversation,
-            requestorContext,
-            edges: [
-              {
-                targetEntityId: '99999999-9999-4999-8999-999999999998',
-                targetEntityType: 'TASK' as any,
-                targetEntityTitle: 'Caller-supplied but unverified',
-                edgeType: 'RELATED_TO' as any,
-              },
-            ],
-          },
-        ],
-      ),
-    ).rejects.toMatchObject({
-      response: {
-        errors: [
-          expect.objectContaining({
-            field: 'edges[0].targetEntityId',
-            code: 'unresolved_reference',
-          }),
-        ],
-      },
-    });
-
-    expect(proposalCreate).not.toHaveBeenCalled();
-    expect(messageCreate).not.toHaveBeenCalled();
-  });
-
-  it('rejects a nonexistent parentTaskId in a batch before creating any proposal rows', async () => {
-    const missingParentId = '123e4567-e89b-42d3-a456-426614174099';
-    const validationEngine = (service as any).validationEngine as ReturnType<
-      typeof createMockValidationEngine
-    >;
-    validationEngine.assertTaskMutationAuthoringValid.mockImplementation(
-      async ({
-        candidate: dto,
-      }: {
-        candidate: { updates?: { parentTaskId?: string } };
-      }) => {
-        if (dto.updates?.parentTaskId === missingParentId) {
-          throw new BadRequestException(
-            `Parent work item ${missingParentId} was not found as an existing, non-archived materialized work item.`,
-          );
-        }
-      },
-    );
-
-    const proposalCreate = jest.fn();
-    const txMock = {
-      project: {
-        findFirst: jest.fn().mockResolvedValue({ id: testIds.project }),
-      },
-      proposal: { create: proposalCreate },
-      entityRegistry: { findMany: jest.fn().mockResolvedValue([]) },
-      projectMember: {
-        findMany: jest
-          .fn()
-          .mockResolvedValue([
-            { userId: approvingUserId },
-            { userId: 'other-project-member-id' },
-          ]),
-      },
-    };
-    mockTransaction(mockPrisma, txMock);
-
-    await expect(
-      service.createBatch(
-        testIds.organization,
-        testIds.project,
-        approvingUserId,
-        [
-          {
-            eli5: 'Explains the proposed change.',
-            type: 'SINGLE',
-            action: 'CREATE',
-            targetEntityId: testIds.task,
-            targetEntityType: 'TASK',
-            updates: { name: 'Task one', initiativeId: testIds.initiative },
-            title: 'Task one',
-            requestorContext: {
-              source: 'agent',
-              userId: testIds.user,
-              organizationId: testIds.organization,
-              toolName: 'mcp.create_task',
-              timestamp: '2026-03-18T00:00:00.000Z',
-            },
-          },
-          {
-            eli5: 'Explains the proposed change.',
-            type: 'SINGLE',
-            action: 'CREATE',
-            targetEntityId: testIds.task,
-            targetEntityType: 'TASK',
-            updates: {
-              name: 'Task two',
-              initiativeId: testIds.initiative,
-              parentTaskId: missingParentId,
-            },
-            title: 'Task two',
-            requestorContext: {
-              source: 'agent',
-              userId: testIds.user,
-              organizationId: testIds.organization,
-              toolName: 'mcp.create_task',
-              timestamp: '2026-03-18T00:00:00.000Z',
-            },
-          },
-        ],
-      ),
-    ).rejects.toThrow(/Parent work item/);
-
-    expect(
-      validationEngine.assertTaskMutationAuthoringValid,
-    ).toHaveBeenCalledTimes(2);
-    expect(proposalCreate).not.toHaveBeenCalled();
-  });
-
-  it('rejects an untyped TASK CREATE batch atomically', async () => {
-    const validationEngine = (service as any).validationEngine as ReturnType<
-      typeof createMockValidationEngine
-    >;
-    validationEngine.assertTaskMutationAuthoringValid.mockImplementation(
-      async ({
-        candidate: dto,
-      }: {
-        candidate: {
-          targetEntityType?: string;
-          action?: string;
-          updates?: object;
-        };
-      }) => {
-        if (
-          dto.targetEntityType === 'TASK' &&
-          dto.action === 'CREATE' &&
-          !Object.prototype.hasOwnProperty.call(dto.updates ?? {}, 'type')
-        ) {
-          throw new BadRequestException(
-            'Proposal contains invalid work-item updates',
-          );
-        }
-      },
-    );
-    const proposalCreate = jest.fn();
-    const txMock = {
-      project: {
-        findFirst: jest.fn().mockResolvedValue({ id: testIds.project }),
-      },
-      proposal: { create: proposalCreate },
-      entityRegistry: { findMany: jest.fn().mockResolvedValue([]) },
-      projectMember: {
-        findMany: jest
-          .fn()
-          .mockResolvedValue([
-            { userId: approvingUserId },
-            { userId: 'other-project-member-id' },
-          ]),
-      },
-    };
-    mockTransaction(mockPrisma, txMock);
-
-    await expect(
-      service.createBatch(
-        testIds.organization,
-        testIds.project,
-        approvingUserId,
-        [
-          {
-            type: 'SINGLE',
-            action: 'CREATE',
-            targetEntityId: testIds.task,
-            targetEntityType: 'TASK',
-            updates: { name: 'Typed task', type: 'STANDARD' },
-            title: 'Typed task',
-            requestorContext: {
-              source: 'agent',
-              userId: testIds.user,
-              organizationId: testIds.organization,
-              toolName: 'mcp.create_work_item',
-              timestamp: '2026-08-10T00:00:00.000Z',
-            },
-          },
-          {
-            type: 'SINGLE',
-            action: 'CREATE',
-            targetEntityId: testIds.designDoc,
-            targetEntityType: 'TASK',
-            updates: { name: 'Untyped task' },
-            title: 'Untyped task',
-            requestorContext: {
-              source: 'agent',
-              userId: testIds.user,
-              organizationId: testIds.organization,
-              toolName: 'mcp.create_work_item',
-              timestamp: '2026-08-10T00:00:00.000Z',
-            },
-          },
-        ] as never,
-      ),
-    ).rejects.toThrow('invalid work-item updates');
-
-    expect(
-      validationEngine.assertTaskMutationAuthoringValid,
-    ).toHaveBeenCalledTimes(2);
-    expect(proposalCreate).not.toHaveBeenCalled();
-  });
-
-  it('stamps origin per proposal inside the same transaction', async () => {
-    const firstProposalId = '20000000-0000-4000-8000-000000000021';
-    const secondProposalId = '20000000-0000-4000-8000-000000000022';
-    const conversationFindUnique = jest
-      .fn()
-      .mockResolvedValueOnce({
-        workflowAboutId: testIds.task,
-        workflowAboutType: 'task',
-      })
-      .mockResolvedValueOnce({
-        workflowAboutId: testIds.designDoc,
-        workflowAboutType: 'design-doc',
-      });
-    const proposalCreate = jest
-      .fn()
-      .mockResolvedValueOnce(
-        makeStoredProposal({
-          id: firstProposalId,
-          conversationId: testIds.conversation,
-        }),
-      )
-      .mockResolvedValueOnce(
-        makeStoredProposal({
-          id: secondProposalId,
-          conversationId: testIds.conversation,
-        }),
-      );
-
-    const txMock = {
-      project: {
-        findFirst: jest.fn().mockResolvedValue({ id: testIds.project }),
-      },
-      conversation: { findUnique: conversationFindUnique },
-      proposal: { create: proposalCreate },
-      message: { create: jest.fn().mockResolvedValue({}) },
-      entityRegistry: { findMany: jest.fn().mockResolvedValue([]) },
-      task: {
-        findMany: jest
-          .fn()
-          .mockResolvedValue([{ id: testIds.task, type: 'FEATURE' }]),
-      },
-      projectMember: {
-        findMany: jest
-          .fn()
-          .mockResolvedValue([
-            { userId: approvingUserId },
-            { userId: 'other-project-member-id' },
-          ]),
-      },
-    };
-    mockTransaction(mockPrisma, txMock);
-
-    const result = await service.createBatch(
-      testIds.organization,
-      testIds.project,
-      approvingUserId,
-      [
-        {
-          eli5: 'Explains the proposed change.',
-          type: 'SINGLE',
-          action: 'CREATE',
-          targetEntityId: testIds.task,
-          targetEntityType: 'TASK',
-          updates: { name: 'Task one' },
-          title: 'Task one',
-          conversationId: testIds.conversation,
-          requestorContext: {
-            source: 'agent',
-            userId: testIds.user,
-            organizationId: testIds.organization,
-            toolName: 'mcp.create_task',
-            timestamp: '2026-03-18T00:00:00.000Z',
-          },
-        },
-        {
-          eli5: 'Explains the proposed change.',
-          type: 'SINGLE',
-          action: 'CREATE',
-          targetEntityId: testIds.designDoc,
-          targetEntityType: 'DESIGN_DOC',
-          updates: { name: 'Doc one' },
-          title: 'Doc one',
-          conversationId: testIds.conversation,
-          requestorContext: {
-            source: 'agent',
-            userId: testIds.user,
-            organizationId: testIds.organization,
-            toolName: 'mcp.create_design_doc',
-            timestamp: '2026-03-18T00:00:00.000Z',
-          },
-        },
-      ],
-    );
-
-    expect(conversationFindUnique).toHaveBeenCalledTimes(2);
-    expect(proposalCreate).toHaveBeenCalledTimes(2);
-    expect(txMock.message.create).not.toHaveBeenCalled();
-    expect(
-      proposalCreate.mock.calls.map((call) => call[0].data.messageId),
-    ).toEqual([null, null]);
-    expect(result.map((proposal) => proposal.id)).toEqual([
-      firstProposalId,
-      secondProposalId,
-    ]);
-    expect(txMock.entityRegistry.findMany).toHaveBeenCalledTimes(1);
-    expect(txMock.task.findMany).toHaveBeenCalledTimes(1);
-
-    const firstInfluences = proposalCreate.mock.calls[0]![0]!.data.influences;
-    const secondInfluences = proposalCreate.mock.calls[1]![0]!.data.influences;
-
-    expect(firstInfluences).toEqual([
-      expect.objectContaining({
-        entityId: testIds.task,
-        entityType: 'TASK',
-        reasonType: 'origin',
-        taskType: 'FEATURE',
-      }),
-    ]);
-    expect(secondInfluences).toEqual([
-      expect.objectContaining({
-        entityId: testIds.designDoc,
-        entityType: 'DESIGN_DOC',
-        reasonType: 'origin',
-      }),
-    ]);
   });
 });
 

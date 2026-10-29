@@ -327,7 +327,7 @@ Each entry in the \`dependentTaskWalk\` array must contain:
 
 ## After assessment: update neighborhood tasks
 
-Once you have formed your assessment, walk the parent and child tasks surfaced in **Task neighborhood context** above and call \`edit_work_item\` (or \`edit_tasks\` for batches) on each neighbor whose description or acceptance criteria need material updates based on what this session implemented. These edits land as proposals — they are not applied automatically, and they are distinct from any \`edit_work_item\` calls you make on the worked-on task itself.
+Once you have formed your assessment, walk the parent and child tasks surfaced in **Task neighborhood context** above and call \`edit_work_item\` on each neighbor whose description or acceptance criteria need material updates based on what this session implemented. Use separate calls for independent edits. Before proposing each edit, call get_tool_guidance for edit_work_item and the target’s workItemType. These edits land as proposals — they are not applied automatically, and they are distinct from any \`edit_work_item\` calls you make on the worked-on task itself.
 
 Before each neighborhood section edit, apply the work-item section edit safety policy above. In this one-shot assessment, skip the section edit and report that direction is required whenever the target's status does not permit it; do not guess approval.
 

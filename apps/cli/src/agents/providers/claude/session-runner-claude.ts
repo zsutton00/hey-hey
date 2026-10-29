@@ -269,7 +269,6 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
     // proposals
     'create_work_item',
     'edit_work_item',
-    'edit_tasks',
     'create_design_doc',
     'edit_design_doc',
     'update_proposal',

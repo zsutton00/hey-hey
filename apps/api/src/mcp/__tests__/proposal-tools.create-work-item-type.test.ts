@@ -124,7 +124,6 @@ function createProvider(
     opts.proposalCreate ?? jest.fn().mockResolvedValue(makeCreatedProposal());
   const proposalService = {
     create: proposalCreate,
-    createBatch: jest.fn(),
     findOne: jest.fn(),
   } as unknown as ProposalService;
   const taskService = {

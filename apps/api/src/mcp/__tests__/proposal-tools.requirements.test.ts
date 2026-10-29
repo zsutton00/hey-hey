@@ -127,7 +127,6 @@ function createProvider(
   const taskFindOne = opts.taskFindOne ?? jest.fn();
   const proposalService = {
     create: proposalCreate,
-    createBatch: jest.fn(),
     findOne: jest.fn(),
   } as unknown as ProposalService;
   const taskService = {
@@ -336,7 +335,9 @@ describe('create_work_item (FEATURE) — initialRequirements', () => {
     );
 
     expect((result as any).isError).toBe(true);
-    expect((result as any).content[0].text).toContain("Expected 'DESIGN_DOC' | 'MOCKUP' | 'DIAGRAM'");
+    expect((result as any).content[0].text).toContain(
+      "Expected 'DESIGN_DOC' | 'MOCKUP' | 'DIAGRAM'",
+    );
     expect(proposalCreate).not.toHaveBeenCalled();
   });
 
@@ -1059,7 +1060,9 @@ describe('edit_work_item (FEATURE) — requirementOps', () => {
     );
 
     expect((result as any).isError).toBe(true);
-    expect((result as any).content[0].text).toContain("Expected 'DESIGN_DOC' | 'MOCKUP' | 'DIAGRAM'");
+    expect((result as any).content[0].text).toContain(
+      "Expected 'DESIGN_DOC' | 'MOCKUP' | 'DIAGRAM'",
+    );
     expect(proposalCreate).not.toHaveBeenCalled();
   });
 });

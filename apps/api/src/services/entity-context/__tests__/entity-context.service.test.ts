@@ -578,7 +578,6 @@ describe('EntityContextService', () => {
       const toolNames = result.availableMcpTools!.map((t) => t.toolName);
       expect(toolNames).toContain('create_work_item');
       expect(toolNames).not.toContain('edit_work_item');
-      expect(toolNames).not.toContain('edit_tasks');
       expect(
         result.availableMcpTools!.every((t) => t.targetEntityType === 'TASK'),
       ).toBe(true);

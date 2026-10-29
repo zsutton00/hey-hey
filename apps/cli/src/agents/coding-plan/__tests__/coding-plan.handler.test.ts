@@ -126,7 +126,6 @@ describe('codingPlanHandler', () => {
     for (const tool of [
       'create_work_item',
       'edit_work_item',
-      'edit_tasks',
       'create_step',
       'update_step',
       'update_proposal',

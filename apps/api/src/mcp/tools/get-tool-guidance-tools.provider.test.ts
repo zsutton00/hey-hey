@@ -151,7 +151,7 @@ describe('GetToolGuidanceToolsProvider', () => {
       expect(text.split(STANDARD_WRITING_GUIDANCE)).toHaveLength(2);
       expect(text).toContain(guidanceTokenForType('STANDARD', PROJECT_ID));
       expect(text).toContain(
-        '`create_work_item`, `edit_work_item`, and `edit_tasks` require this',
+        '`create_work_item` and `edit_work_item` require this',
       );
     }
   });

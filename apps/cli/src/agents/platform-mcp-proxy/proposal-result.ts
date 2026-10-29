@@ -5,7 +5,6 @@ const PROPOSAL_AUTHORING_TOOLS: ReadonlySet<string> = new Set([
   'edit_plan',
   'create_work_item',
   'edit_work_item',
-  'edit_tasks',
   'create_work_item_type',
   'edit_work_item_type',
   'create_design_doc',
@@ -172,24 +171,6 @@ const collectCreatedProposalGroupMembers = (
     const member = groupedAuthoring['member'];
     if (isJsonObject(member) && typeof member['memberId'] === 'string') {
       found.push({ memberId: member['memberId'], proposalId });
-    }
-  }
-
-  const proposals = value['proposals'];
-  const members = isJsonObject(groupedAuthoring) ? groupedAuthoring['members'] : undefined;
-  if (Array.isArray(proposals) && Array.isArray(members) && proposals.length === members.length) {
-    for (const [index, proposal] of proposals.entries()) {
-      const member = members[index];
-      if (!isJsonObject(proposal) || !isJsonObject(member)) continue;
-      const batchProposalId = proposal['proposalId'] ?? proposal['id'];
-      const memberId = member['memberId'];
-      if (
-        typeof batchProposalId === 'string' &&
-        UUID_PATTERN.test(batchProposalId) &&
-        typeof memberId === 'string'
-      ) {
-        found.push({ memberId, proposalId: batchProposalId });
-      }
     }
   }
 

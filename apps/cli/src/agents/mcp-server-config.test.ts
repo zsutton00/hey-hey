@@ -453,7 +453,6 @@ describe('buildMcpServerConfig', () => {
     const PROPOSAL_AND_EDGE_MUTATIONS = [
       'create_work_item',
       'edit_work_item',
-      'edit_tasks',
       'update_proposal',
       'create_edge',
       'update_edge',
@@ -589,7 +588,6 @@ describe('buildMcpServerConfig', () => {
       const forbidden = [
         'create_work_item',
         'edit_work_item',
-        'edit_tasks',
         'create_step',
         'update_step',
         'create_plan',
@@ -662,7 +660,6 @@ describe('buildMcpServerConfig', () => {
       for (const tool of [
         'create_work_item',
         'edit_work_item',
-        'edit_tasks',
         'create_edge',
         'update_edge',
         'delete_edge',

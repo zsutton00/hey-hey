@@ -965,12 +965,12 @@ complete.`,
 
   describe('proof-of-read guidance', () => {
     it.each(GENERIC_TOOLS)(
-      '%s keeps edit_tasks on the shared per-type proof-of-read path',
+      '%s keeps the shared per-type proof-of-read path',
       async (toolName) => {
         const text = await guidanceFor(provider, toolName, 'STANDARD');
 
         expect(text).toContain(
-          '`create_work_item`, `edit_work_item`, and `edit_tasks` require this',
+          '`create_work_item` and `edit_work_item` require this',
         );
         expect(text).toContain(
           'It is keyed to project `123e4567-e89b-42d3-a456-426614174003`',

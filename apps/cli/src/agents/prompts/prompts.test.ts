@@ -1018,7 +1018,6 @@ describe('buildFinalAssessmentPrompt', () => {
     const result = buildFinalAssessmentPrompt(payload);
     expect(result).toContain('After assessment: update neighborhood tasks');
     expect(result).toContain('edit_work_item');
-    expect(result).toContain('edit_tasks');
     expect(result).toContain('Task neighborhood context');
   });
 

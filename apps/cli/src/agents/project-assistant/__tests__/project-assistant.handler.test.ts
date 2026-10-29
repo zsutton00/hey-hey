@@ -142,7 +142,6 @@ describe('projectAssistantHandler — read-only by construction', () => {
     const forbidden = [
       'create_work_item',
       'edit_work_item',
-      'edit_tasks',
       'create_edge',
       'delete_edge',
       'update_edge',

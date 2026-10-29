@@ -180,23 +180,6 @@ describe('grouped Proposal identity reconciliation', () => {
     ).toEqual([{ memberId: 'member-1', proposalId: FIRST_ID }]);
   });
 
-  it('maps grouped batch members to their canonical Proposals in response order', () => {
-    expect(
-      readCreatedProposalGroupMembers(
-        'edit_tasks',
-        success({
-          proposals: [{ id: FIRST_ID }, { id: SECOND_ID }],
-          groupedAuthoring: {
-            members: [{ memberId: 'member-1' }, { memberId: 'member-2' }],
-          },
-        }),
-      ),
-    ).toEqual([
-      { memberId: 'member-1', proposalId: FIRST_ID },
-      { memberId: 'member-2', proposalId: SECOND_ID },
-    ]);
-  });
-
   it('reads a removed member only from a successful removal result', () => {
     const args = { memberId: 'member-1' };
     expect(

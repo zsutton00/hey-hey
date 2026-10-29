@@ -374,7 +374,6 @@ describe('Accepted work-item type is immediately usable (live registry snapshot)
     });
     const proposalService = {
       create: proposalCreate,
-      createBatch: jest.fn(),
       findOne: jest.fn(),
     } as unknown as ProposalService;
     const taskService = { findOne: jest.fn() } as any;

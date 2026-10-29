@@ -139,7 +139,6 @@ function createProvider(create = jest.fn()) {
   );
   const proposalService = {
     create,
-    createBatch: jest.fn(),
     findOne: jest.fn(),
     materializeFutureRevision: materialize,
   } as unknown as ProposalService;
