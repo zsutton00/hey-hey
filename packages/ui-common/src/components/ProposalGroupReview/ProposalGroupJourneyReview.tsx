@@ -64,16 +64,18 @@ const SavedScreen: React.FC<{ id: string; group: ProposalGroupSnapshot }> = ({
     projectId: group.projectId,
   });
   const paths = usePathService();
-  if (
-    !read.workItem ||
-    read.workItem.type !== "mockup" ||
-    read.workItem.status === "ARCHIVED"
-  ) {
-    return (
-      <Alert severity="info">
-        {read.isLoading ? "Loading saved screen…" : "Screen unavailable"}
-      </Alert>
-    );
+  if (read.isLoading) {
+    return <Alert severity="info">Loading saved screen…</Alert>;
+  }
+  // A reference that resolves to something other than a Mockup (a Feature, a
+  // Service, another Task type) is not this component's concern: the node's
+  // own card already renders its generic content. Only a Mockup that is
+  // missing or archived is this control's "unavailable" case.
+  if (read.workItem && read.workItem.type !== "mockup") {
+    return null;
+  }
+  if (!read.workItem || read.workItem.status === "ARCHIVED") {
+    return <Alert severity="info">Screen unavailable</Alert>;
   }
   const description = read.workItem.sections?.find(
     ({ key }) => key === "purpose" || key === "description",

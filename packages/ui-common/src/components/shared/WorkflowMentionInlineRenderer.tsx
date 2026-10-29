@@ -902,7 +902,7 @@ const DiagramBoundaryLayer: React.FC<{
 };
 
 export const getDiagramElementMetadata = (
-  workItem: GraphWorkItem,
+  workItem: Pick<GraphWorkItem, "sections">,
 ): DiagramElementMetadata | null =>
   (() => {
     const value = parseJsonSection(workItem.sections, "diagramElementMetadata");

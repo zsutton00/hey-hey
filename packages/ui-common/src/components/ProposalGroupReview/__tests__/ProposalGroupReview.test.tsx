@@ -246,9 +246,17 @@ vi.mock("../../../data/hooks/useWorkItem", () => ({
             status: "BACKLOG",
             sections: [],
           }
-        : options.enabled
-          ? { id: workItemId, name: `Target ${workItemId}`, type: "STANDARD" }
-          : null,
+        : workItemId === "other-task"
+          ? {
+              id: workItemId,
+              name: "Ship order",
+              type: "STANDARD",
+              status: "BACKLOG",
+              sections: [],
+            }
+          : options.enabled
+            ? { id: workItemId, name: `Target ${workItemId}`, type: "STANDARD" }
+            : null,
     isLoading: false,
   }),
 }));
@@ -565,6 +573,231 @@ describe("ProposalGroupReview", () => {
       within(review).getByTestId("journey-saved-screen-review"),
     ).toBeInTheDocument();
     expect(within(review).getByText("Payment declined")).toBeInTheDocument();
+    const flatCards = screen.getAllByTestId("proposal-group-member-review");
+    expect(flatCards.map((card) => card.dataset.memberId)).toEqual([
+      "journey-member",
+    ]);
+  });
+
+  it("renders a non-UX_FLOW Diagram's sibling Mockup references as cohesive nodes", () => {
+    const journey = member("journey-member", 0, {
+      ...proposal("journey-proposal", "System diagram", ProposalAction.Create),
+      updates: {
+        root: { refType: "temporary", tempId: "journey" },
+        operations: [
+          {
+            op: "workItem.create",
+            ref: { refType: "temporary", tempId: "journey" },
+            type: "DIAGRAM",
+            name: "System diagram",
+          },
+          {
+            op: "section.replace",
+            ref: { refType: "temporary", tempId: "journey" },
+            key: "diagramMetadata",
+            content: { kind: "GENERAL", level: "OVERVIEW" },
+          },
+          ...["new-screen"].flatMap((entityId) => [
+            {
+              op: "workItem.create",
+              ref: { refType: "temporary", tempId: entityId },
+              parent: { refType: "temporary", tempId: "journey" },
+              type: "DIAGRAM_ELEMENT",
+              name: "Payment",
+            },
+            {
+              op: "section.replace",
+              ref: { refType: "temporary", tempId: entityId },
+              key: "diagramElementMetadata",
+              content: {
+                role: "GENERIC",
+                canonicalReference: { entityType: "TASK", entityId },
+              },
+            },
+          ]),
+        ],
+      },
+    });
+    const payment = {
+      ...member("payment-member", 1, {
+        ...proposal("payment-proposal", "Payment", ProposalAction.Create),
+        updates: { name: "Payment", type: "mockup", sections: [] },
+      }),
+      reservedEntityId: "new-screen",
+      dependencies: [],
+    };
+    renderedGroup = {
+      ...group,
+      members: [{ ...journey, reservedEntityId: "journey-id" }, payment],
+      dependencies: [],
+    };
+    render(
+      <ProposalGroupReview
+        organizationId="org-1"
+        projectId="project-1"
+        groupId="group-1"
+      />,
+    );
+    expect(
+      screen.getByTestId("proposal-group-journey-review"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("proposal-group-graph-preview"),
+    ).not.toBeInTheDocument();
+    const flatCards = screen.getAllByTestId("proposal-group-member-review");
+    expect(flatCards.map((card) => card.dataset.memberId)).toEqual([
+      "journey-member",
+    ]);
+  });
+
+  it("does not flag a non-Mockup sibling reference as an unavailable screen", () => {
+    const journey = member("journey-member", 0, {
+      ...proposal("journey-proposal", "System diagram", ProposalAction.Create),
+      updates: {
+        root: { refType: "temporary", tempId: "journey" },
+        operations: [
+          {
+            op: "workItem.create",
+            ref: { refType: "temporary", tempId: "journey" },
+            type: "DIAGRAM",
+            name: "System diagram",
+          },
+          {
+            op: "section.replace",
+            ref: { refType: "temporary", tempId: "journey" },
+            key: "diagramMetadata",
+            content: { kind: "GENERAL", level: "OVERVIEW" },
+          },
+          {
+            op: "workItem.create",
+            ref: { refType: "temporary", tempId: "new-screen" },
+            parent: { refType: "temporary", tempId: "journey" },
+            type: "DIAGRAM_ELEMENT",
+            name: "Payment",
+          },
+          {
+            op: "section.replace",
+            ref: { refType: "temporary", tempId: "new-screen" },
+            key: "diagramElementMetadata",
+            content: {
+              role: "GENERIC",
+              canonicalReference: {
+                entityType: "TASK",
+                entityId: "new-screen",
+              },
+            },
+          },
+          {
+            op: "workItem.create",
+            ref: { refType: "temporary", tempId: "other-task" },
+            parent: { refType: "temporary", tempId: "journey" },
+            type: "DIAGRAM_ELEMENT",
+            name: "Ship order",
+          },
+          {
+            op: "section.replace",
+            ref: { refType: "temporary", tempId: "other-task" },
+            key: "diagramElementMetadata",
+            content: {
+              role: "GENERIC",
+              canonicalReference: {
+                entityType: "TASK",
+                entityId: "other-task",
+              },
+            },
+          },
+        ],
+      },
+    });
+    const payment = {
+      ...member("payment-member", 1, {
+        ...proposal("payment-proposal", "Payment", ProposalAction.Create),
+        updates: { name: "Payment", type: "mockup", sections: [] },
+      }),
+      reservedEntityId: "new-screen",
+      dependencies: [],
+    };
+    renderedGroup = {
+      ...group,
+      members: [{ ...journey, reservedEntityId: "journey-id" }, payment],
+      dependencies: [],
+    };
+    render(
+      <ProposalGroupReview
+        organizationId="org-1"
+        projectId="project-1"
+        groupId="group-1"
+      />,
+    );
+    const review = screen.getByTestId("proposal-group-journey-review");
+    expect(
+      within(review).queryByText("Screen unavailable"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the journey view for a UX_FLOW revision whose screens are already accepted", () => {
+    const journey = member("journey-member", 0, {
+      ...proposal(
+        "journey-proposal",
+        "Checkout journey",
+        ProposalAction.Create,
+      ),
+      updates: {
+        root: { refType: "temporary", tempId: "journey" },
+        operations: [
+          {
+            op: "workItem.create",
+            ref: { refType: "temporary", tempId: "journey" },
+            type: "DIAGRAM",
+            name: "Checkout journey",
+          },
+          {
+            op: "section.replace",
+            ref: { refType: "temporary", tempId: "journey" },
+            key: "diagramMetadata",
+            content: { kind: "UX_FLOW", level: "OVERVIEW" },
+          },
+          {
+            op: "workItem.create",
+            ref: { refType: "temporary", tempId: "saved-screen" },
+            parent: { refType: "temporary", tempId: "journey" },
+            type: "DIAGRAM_ELEMENT",
+            name: "Cart",
+          },
+          {
+            op: "section.replace",
+            ref: { refType: "temporary", tempId: "saved-screen" },
+            key: "diagramElementMetadata",
+            content: {
+              role: "GENERIC",
+              canonicalReference: {
+                entityType: "TASK",
+                entityId: "saved-screen",
+              },
+            },
+          },
+        ],
+      },
+    });
+    renderedGroup = {
+      ...group,
+      members: [{ ...journey, reservedEntityId: "journey-id" }],
+      dependencies: [],
+    };
+    render(
+      <ProposalGroupReview
+        organizationId="org-1"
+        projectId="project-1"
+        groupId="group-1"
+      />,
+    );
+    const review = screen.getByTestId("proposal-group-journey-review");
+    expect(
+      screen.queryByTestId("proposal-group-graph-preview"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(review).getByTestId("journey-saved-screen-review"),
+    ).toBeInTheDocument();
   });
 
   it("preserves API member order and renders mixed action content", () => {
