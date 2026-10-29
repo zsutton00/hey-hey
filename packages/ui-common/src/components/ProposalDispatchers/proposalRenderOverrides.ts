@@ -62,6 +62,7 @@ export function getProposalRenderOverrides(
       return overrides;
     case "evaluation-output":
       return { ...overrides, evaluationOutput: true };
+    case "detail":
     case "standalone":
       return overrides;
   }

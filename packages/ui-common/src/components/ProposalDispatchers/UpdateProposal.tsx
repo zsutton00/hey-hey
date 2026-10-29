@@ -564,6 +564,13 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
         return (
           <ProposalOutOfDateReview
             key={proposal.id}
+            inlineBody={
+              !enclosingReview &&
+              renderMode !== "detail" &&
+              !isWorkItemGraphProposal(proposal) &&
+              !isEdgeOnlyUpdateProposal(proposal) &&
+              (entityData?.type === "task" || entityData?.type === "designDoc")
+            }
             proposal={original}
             onApply={(request) =>
               isUpdateWorkItemTypeUpdates(proposal)

@@ -104,6 +104,7 @@ export type OnRejectProposal = (
 export type ProposalRenderMode =
   | "standalone"
   | "group-member"
+  | "detail"
   | "future-review"
   | "reconciliation-refinement"
   | "evaluation-output";

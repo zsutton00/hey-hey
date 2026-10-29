@@ -54,6 +54,9 @@ const AgentConversationView = lazy(() =>
   })),
 );
 
+export const InlineReconciliationBodyContext =
+  createContext<React.ReactNode>(null);
+
 export const ProposalReconciliationContext = createContext<{
   approvalDisabled: boolean;
   state: ProposalReconciliationState | null;
@@ -301,6 +304,7 @@ function ChangedSinceList({
  */
 export function ProposalReconciliationReview(props: {
   proposal: ProposalResponseDto;
+  inlineBody?: boolean;
   grouped?: boolean;
   onApply: (request: ProposalApprovalRequest) => void;
   children: React.ReactNode;
@@ -320,10 +324,12 @@ export function ProposalReconciliationReview(props: {
 function PendingProposalReconciliationReview({
   proposal,
   grouped = false,
+  inlineBody = false,
   onApply,
   children,
 }: {
   proposal: ProposalResponseDto;
+  inlineBody?: boolean;
   grouped?: boolean;
   onApply: (request: ProposalApprovalRequest) => void;
   children: React.ReactNode;
@@ -457,6 +463,250 @@ function PendingProposalReconciliationReview({
     onAgentFix: () => setAgentFixOpen(true),
     busy,
   };
+  const comparison = (
+    <InlineReconciliationBodyContext.Provider value={null}>
+      {children}
+    </InlineReconciliationBodyContext.Provider>
+  );
+  const body = (
+    <Stack spacing={1} data-testid="proposal-reconciliation-review">
+      {saved && state && (
+        <Alert severity={requiresReconciliation ? "warning" : "success"}>
+          {requiresReconciliation
+            ? `Proposal updated; conflicts remain: ${state.conflictingPaths.join(", ")}`
+            : "Proposal updated; reconciliation resolved."}{" "}
+          Fresh approvals are required. Live content is unchanged.
+        </Alert>
+      )}
+      {outOfDate && !threeWay && (requiresReconciliation || !staged) ? (
+        <OutOfDateHeadsUp state={state} />
+      ) : null}
+      {staged ? (
+        <Stepper
+          activeStep={approvalDisabled ? 0 : 1}
+          data-testid="proposal-reconciliation-stages"
+        >
+          <Step>
+            <StepLabel>Resolve conflict</StepLabel>
+          </Step>
+          <Step>
+            <StepLabel>Apply</StepLabel>
+          </Step>
+        </Stepper>
+      ) : null}
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: { xs: "column", lg: "row" },
+          gap: 2,
+          minWidth: 0,
+        }}
+      >
+        <Stack spacing={1} sx={{ flex: 1, minWidth: 0 }}>
+          {!state && !error ? (
+            <CircularProgress size={18} aria-label="Checking current content" />
+          ) : null}
+          {error ? (
+            <Alert
+              severity="error"
+              action={<Button onClick={() => void refresh()}>Refresh</Button>}
+            >
+              {error}
+            </Alert>
+          ) : null}
+          {outOfDate && !threeWay && !staged ? (
+            <>
+              <ChangedSinceList
+                state={state}
+                proposal={proposal}
+                resolve={resolve}
+              />
+            </>
+          ) : null}
+          {threeWay ? (
+            <ThreeWayReview proposal={proposal} state={state} />
+          ) : null}
+          {requiresReconciliation && (threeWay || !hasOverlaps) ? (
+            <Stack spacing={1}>
+              {state.status === "AGENT_FIX_REQUIRED" ? (
+                <Typography variant="body2" color="text.secondary">
+                  This change can&apos;t be merged into the current content
+                  automatically.
+                </Typography>
+              ) : null}
+              <Stack direction="row" spacing={1}>
+                {grouped ? (
+                  <Button
+                    variant="contained"
+                    data-testid="proposal-reconciliation-merge"
+                    disabled={busy || state.status === "AGENT_FIX_REQUIRED"}
+                    onClick={() => void merge()}
+                  >
+                    Merge with current content
+                  </Button>
+                ) : null}
+                <Button
+                  variant="outlined"
+                  startIcon={<EditOutlined />}
+                  data-testid="proposal-reconciliation-edit-by-hand"
+                  disabled={busy || !state.currentBases.length}
+                  onClick={resolve.onEdit}
+                >
+                  Edit by hand
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<SmartToyOutlined />}
+                  data-testid="proposal-reconciliation-agent-fix"
+                  disabled={busy}
+                  onClick={resolve.onAgentFix}
+                >
+                  Agent fix
+                </Button>
+              </Stack>
+            </Stack>
+          ) : null}
+          {manualState ? (
+            <ManualReconciliationEditor
+              proposal={proposal}
+              state={manualState}
+              busy={busy}
+              error={error}
+              onClose={() => setManualState(null)}
+              onSave={(result) => {
+                setBusy(true);
+                setError(null);
+                void proposalsClient
+                  .createProposalReconciliationCandidate({
+                    ...scope,
+                    createProposalReconciliationCandidate: {
+                      method: "MANUAL",
+                      expectedFutureRevision: manualState.futureRevision,
+                      expectedCandidateRevisionId:
+                        manualState.candidateRevisionId,
+                      proposedResult: result,
+                      expectedCurrentBases: manualState.currentBases,
+                    },
+                  })
+                  .then(async (response) => {
+                    setState(response.data.data);
+                    setSaved(true);
+                    setManualState(null);
+                    void invalidateReview(
+                      proposal.organizationId,
+                      proposal.projectId,
+                    );
+                  })
+                  .catch(async (caught) => {
+                    setError(
+                      caught instanceof Error
+                        ? caught.message
+                        : "The result could not be prepared. Refresh and try again.",
+                    );
+                  })
+                  .finally(() => setBusy(false));
+              }}
+            />
+          ) : null}
+          {agentFixOpen ? (
+            <AgentFixConfirmDialog
+              proposal={proposal}
+              onClose={() => setAgentFixOpen(false)}
+              onStarted={setAgentRequest}
+            />
+          ) : null}
+          {grouped && state?.replacementProposalId ? (
+            <Button
+              variant="contained"
+              data-testid="proposal-reconciliation-open-replacement"
+              href={paths.proposal({
+                projectId: proposal.projectId,
+                proposalId: state.replacementProposalId,
+              })}
+            >
+              Review revised result
+            </Button>
+          ) : null}
+          {usesReplacement && state?.replacementGroupId ? (
+            <Button
+              variant="contained"
+              href={paths.proposalGroup({
+                projectId: proposal.projectId,
+                groupId: state.replacementGroupId,
+              })}
+            >
+              Review replacement group
+            </Button>
+          ) : null}
+          {state?.status === "READY_FOR_REVIEW" && !staged ? (
+            <Typography
+              variant="subtitle2"
+              data-testid="proposal-reconciliation-merged-result"
+            >
+              {proposal.action === "VERSIONED_UPDATE"
+                ? "Complete revised result"
+                : "Merged result compared with current content"}
+            </Typography>
+          ) : null}
+          {threeWay ? (
+            proposal.action === "VERSIONED_UPDATE" ? null : (
+              comparison
+            )
+          ) : (
+            <DiffLabelsContext.Provider
+              value={
+                staged
+                  ? { before: "Live now", after: "After applying" }
+                  : undefined
+              }
+            >
+              {staged && state && !approvalDisabled ? (
+                <Typography variant="h6">
+                  Review what Apply will change
+                </Typography>
+              ) : null}
+              {comparison}
+            </DiffLabelsContext.Provider>
+          )}
+        </Stack>
+        {agentRequest ? (
+          <Stack
+            spacing={1}
+            sx={{ flex: 1, minWidth: 0 }}
+            data-testid="proposal-reconciliation-agent-panel"
+          >
+            <Stack
+              direction="row"
+              justifyContent="space-between"
+              alignItems="center"
+            >
+              <Typography variant="subtitle2">Agent fix</Typography>
+              <Button onClick={() => setAgentRequest(null)}>
+                Close conversation
+              </Button>
+            </Stack>
+            <Suspense
+              fallback={
+                <CircularProgress
+                  size={18}
+                  aria-label="Loading agent conversation"
+                />
+              }
+            >
+              <AgentConversationView
+                organizationId={agentRequest.organizationId}
+                projectId={agentRequest.projectId}
+                agentSessionId={agentRequest.agentSessionId}
+                conversationId={agentRequest.conversationId}
+                sessionResumability="resumable"
+                onProposalsAccepted={() => void reviewOutcome()}
+              />
+            </Suspense>
+          </Stack>
+        ) : null}
+      </Box>
+    </Stack>
+  );
   return (
     <ProposalReconciliationContext.Provider
       value={{
@@ -468,246 +718,13 @@ function PendingProposalReconciliationReview({
         staged,
       }}
     >
-      <Stack spacing={1} data-testid="proposal-reconciliation-review">
-        {saved && state && (
-          <Alert severity={requiresReconciliation ? "warning" : "success"}>
-            {requiresReconciliation
-              ? `Proposal updated; conflicts remain: ${state.conflictingPaths.join(", ")}`
-              : "Proposal updated; reconciliation resolved."}{" "}
-            Fresh approvals are required. Live content is unchanged.
-          </Alert>
-        )}
-        {outOfDate && !threeWay && (requiresReconciliation || !staged) ? (
-          <OutOfDateHeadsUp state={state} />
-        ) : null}
-        {staged ? (
-          <Stepper
-            activeStep={approvalDisabled ? 0 : 1}
-            data-testid="proposal-reconciliation-stages"
-          >
-            <Step>
-              <StepLabel>Resolve conflict</StepLabel>
-            </Step>
-            <Step>
-              <StepLabel>Apply</StepLabel>
-            </Step>
-          </Stepper>
-        ) : null}
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: { xs: "column", lg: "row" },
-            gap: 2,
-            minWidth: 0,
-          }}
-        >
-          <Stack spacing={1} sx={{ flex: 1, minWidth: 0 }}>
-            {!state && !error ? (
-              <CircularProgress
-                size={18}
-                aria-label="Checking current content"
-              />
-            ) : null}
-            {error ? (
-              <Alert
-                severity="error"
-                action={<Button onClick={() => void refresh()}>Refresh</Button>}
-              >
-                {error}
-              </Alert>
-            ) : null}
-            {outOfDate && !threeWay && !staged ? (
-              <>
-                <ChangedSinceList
-                  state={state}
-                  proposal={proposal}
-                  resolve={resolve}
-                />
-              </>
-            ) : null}
-            {threeWay ? (
-              <ThreeWayReview proposal={proposal} state={state} />
-            ) : null}
-            {requiresReconciliation && (threeWay || !hasOverlaps) ? (
-              <Stack spacing={1}>
-                {state.status === "AGENT_FIX_REQUIRED" ? (
-                  <Typography variant="body2" color="text.secondary">
-                    This change can&apos;t be merged into the current content
-                    automatically.
-                  </Typography>
-                ) : null}
-                <Stack direction="row" spacing={1}>
-                  {grouped ? (
-                    <Button
-                      variant="contained"
-                      data-testid="proposal-reconciliation-merge"
-                      disabled={busy || state.status === "AGENT_FIX_REQUIRED"}
-                      onClick={() => void merge()}
-                    >
-                      Merge with current content
-                    </Button>
-                  ) : null}
-                  <Button
-                    variant="outlined"
-                    startIcon={<EditOutlined />}
-                    data-testid="proposal-reconciliation-edit-by-hand"
-                    disabled={busy || !state.currentBases.length}
-                    onClick={resolve.onEdit}
-                  >
-                    Edit by hand
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    startIcon={<SmartToyOutlined />}
-                    data-testid="proposal-reconciliation-agent-fix"
-                    disabled={busy}
-                    onClick={resolve.onAgentFix}
-                  >
-                    Agent fix
-                  </Button>
-                </Stack>
-              </Stack>
-            ) : null}
-            {manualState ? (
-              <ManualReconciliationEditor
-                proposal={proposal}
-                state={manualState}
-                busy={busy}
-                error={error}
-                onClose={() => setManualState(null)}
-                onSave={(result) => {
-                  setBusy(true);
-                  setError(null);
-                  void proposalsClient
-                    .createProposalReconciliationCandidate({
-                      ...scope,
-                      createProposalReconciliationCandidate: {
-                        method: "MANUAL",
-                        expectedFutureRevision: manualState.futureRevision,
-                        expectedCandidateRevisionId:
-                          manualState.candidateRevisionId,
-                        proposedResult: result,
-                        expectedCurrentBases: manualState.currentBases,
-                      },
-                    })
-                    .then(async (response) => {
-                      setState(response.data.data);
-                      setSaved(true);
-                      setManualState(null);
-                      void invalidateReview(
-                        proposal.organizationId,
-                        proposal.projectId,
-                      );
-                    })
-                    .catch(async (caught) => {
-                      setError(
-                        caught instanceof Error
-                          ? caught.message
-                          : "The result could not be prepared. Refresh and try again.",
-                      );
-                    })
-                    .finally(() => setBusy(false));
-                }}
-              />
-            ) : null}
-            {agentFixOpen ? (
-              <AgentFixConfirmDialog
-                proposal={proposal}
-                onClose={() => setAgentFixOpen(false)}
-                onStarted={setAgentRequest}
-              />
-            ) : null}
-            {grouped && state?.replacementProposalId ? (
-              <Button
-                variant="contained"
-                data-testid="proposal-reconciliation-open-replacement"
-                href={paths.proposal({
-                  projectId: proposal.projectId,
-                  proposalId: state.replacementProposalId,
-                })}
-              >
-                Review revised result
-              </Button>
-            ) : null}
-            {usesReplacement && state?.replacementGroupId ? (
-              <Button
-                variant="contained"
-                href={paths.proposalGroup({
-                  projectId: proposal.projectId,
-                  groupId: state.replacementGroupId,
-                })}
-              >
-                Review replacement group
-              </Button>
-            ) : null}
-            {state?.status === "READY_FOR_REVIEW" && !staged ? (
-              <Typography
-                variant="subtitle2"
-                data-testid="proposal-reconciliation-merged-result"
-              >
-                {proposal.action === "VERSIONED_UPDATE"
-                  ? "Complete revised result"
-                  : "Merged result compared with current content"}
-              </Typography>
-            ) : null}
-            {threeWay ? (
-              proposal.action === "VERSIONED_UPDATE" ? null : (
-                children
-              )
-            ) : (
-              <DiffLabelsContext.Provider
-                value={
-                  staged
-                    ? { before: "Live now", after: "After applying" }
-                    : undefined
-                }
-              >
-                {staged && state && !approvalDisabled ? (
-                  <Typography variant="h6">
-                    Review what Apply will change
-                  </Typography>
-                ) : null}
-                {children}
-              </DiffLabelsContext.Provider>
-            )}
-          </Stack>
-          {agentRequest ? (
-            <Stack
-              spacing={1}
-              sx={{ flex: 1, minWidth: 0 }}
-              data-testid="proposal-reconciliation-agent-panel"
-            >
-              <Stack
-                direction="row"
-                justifyContent="space-between"
-                alignItems="center"
-              >
-                <Typography variant="subtitle2">Agent fix</Typography>
-                <Button onClick={() => setAgentRequest(null)}>
-                  Close conversation
-                </Button>
-              </Stack>
-              <Suspense
-                fallback={
-                  <CircularProgress
-                    size={18}
-                    aria-label="Loading agent conversation"
-                  />
-                }
-              >
-                <AgentConversationView
-                  organizationId={agentRequest.organizationId}
-                  projectId={agentRequest.projectId}
-                  agentSessionId={agentRequest.agentSessionId}
-                  conversationId={agentRequest.conversationId}
-                  sessionResumability="resumable"
-                  onProposalsAccepted={() => void reviewOutcome()}
-                />
-              </Suspense>
-            </Stack>
-          ) : null}
-        </Box>
-      </Stack>
+      {inlineBody && staged ? (
+        <InlineReconciliationBodyContext.Provider value={body}>
+          {children}
+        </InlineReconciliationBodyContext.Provider>
+      ) : (
+        body
+      )}
     </ProposalReconciliationContext.Provider>
   );
 }

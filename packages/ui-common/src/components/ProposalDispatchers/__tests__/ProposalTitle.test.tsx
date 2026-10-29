@@ -1,3 +1,4 @@
+import { InlineReconciliationBodyContext } from "../../ProposalReconciliation/ProposalReconciliationReview";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
@@ -17,9 +18,8 @@ const { interaction, preview } = vi.hoisted(() => ({
   preview: vi.fn(),
 }));
 vi.mock("../../InteractionComponent", async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import("../../InteractionComponent")
-  >();
+  const actual =
+    await importOriginal<typeof import("../../InteractionComponent")>();
   return {
     ...actual,
     InteractionComponent: (props: {
@@ -53,7 +53,7 @@ afterEach(() => {
 });
 
 const proposal = (
-  action: ProposalAction = ProposalAction.Update
+  action: ProposalAction = ProposalAction.Update,
 ): ProposalResponseDto =>
   ({
     id: "proposal",
@@ -69,9 +69,9 @@ const proposal = (
     requestorId: "user",
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
-  } as ProposalResponseDto);
+  }) as ProposalResponseDto;
 const typePresentation = staticProposalEntityTypePresentation(
-  TargetEntityType.Task
+  TargetEntityType.Task,
 );
 
 describe("ProposalTitle", () => {
@@ -80,7 +80,7 @@ describe("ProposalTitle", () => {
       <ProposalTitle
         proposal={proposal()}
         typePresentation={typePresentation}
-      />
+      />,
     );
 
     expect(preview).toHaveBeenCalledWith(
@@ -88,7 +88,7 @@ describe("ProposalTitle", () => {
         sx: expect.arrayContaining([
           expect.objectContaining({ typography: "subtitle2" }),
         ]),
-      })
+      }),
     );
   });
 
@@ -103,11 +103,11 @@ describe("ProposalTitle", () => {
           proposal={proposal()}
           typePresentation={typePresentation}
         />
-      </>
+      </>,
     );
     expect(screen.getAllByTestId("proposal-eli5")).toHaveLength(1);
     expect(screen.getByTestId("proposal-eli5")).toHaveTextContent(
-      "Explains the change quickly."
+      "Explains the change quickly.",
     );
   });
   it("always renders an UPDATE title as an entity-preview link", () => {
@@ -115,13 +115,13 @@ describe("ProposalTitle", () => {
       <ProposalTitle
         proposal={proposal()}
         typePresentation={typePresentation}
-      />
+      />,
     );
     expect(preview).toHaveBeenCalledWith(
       expect.objectContaining({
         entityId: "target",
         entityType: TargetEntityType.Task,
-      })
+      }),
     );
   });
 
@@ -130,7 +130,7 @@ describe("ProposalTitle", () => {
       <ProposalTitle
         proposal={proposal(ProposalAction.Delete)}
         typePresentation={typePresentation}
-      />
+      />,
     );
     expect(preview).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -138,10 +138,10 @@ describe("ProposalTitle", () => {
         sx: expect.arrayContaining([
           expect.objectContaining({ textDecoration: "line-through" }),
         ]),
-      })
+      }),
     );
     expect(screen.getByTestId("proposal-header-action")).toHaveTextContent(
-      "Delete"
+      "Delete",
     );
   });
 
@@ -150,7 +150,7 @@ describe("ProposalTitle", () => {
       <ProposalTitle
         proposal={proposal(ProposalAction.Create)}
         typePresentation={typePresentation}
-      />
+      />,
     );
     expect(screen.getByTestId("proposal-title")).toHaveTextContent("Reporting");
     expect(preview).not.toHaveBeenCalled();
@@ -164,10 +164,10 @@ describe("ProposalTitle", () => {
           status: ProposalStatus.Approved,
         }}
         typePresentation={typePresentation}
-      />
+      />,
     );
     expect(preview).toHaveBeenCalledWith(
-      expect.objectContaining({ entityId: "target" })
+      expect.objectContaining({ entityId: "target" }),
     );
     expect(interaction).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -177,13 +177,13 @@ describe("ProposalTitle", () => {
         draggable: true,
         entityTitle: "Reporting",
         projectId: "project",
-      })
+      }),
     );
     expect(screen.getByTestId("title-interaction")).toContainElement(
-      screen.getByTestId("proposal-title")
+      screen.getByTestId("proposal-title"),
     );
     expect(screen.getByTestId("title-interaction")).not.toContainElement(
-      screen.getByTestId("proposal-header-action")
+      screen.getByTestId("proposal-header-action"),
     );
     expect(screen.getByTestId("proposal-title-layout")).toHaveStyle({
       flex: "1 1 0%",
@@ -204,7 +204,7 @@ describe("ProposalTitle", () => {
           sx: { fontSize: "16px" },
         }}
         titleSx={{ fontSize: "18px" }}
-      />
+      />,
     );
     expect(preview).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -215,7 +215,7 @@ describe("ProposalTitle", () => {
           { fontSize: "16px" },
           { fontSize: "18px" },
         ]),
-      })
+      }),
     );
   });
 
@@ -229,7 +229,7 @@ describe("ProposalTitle", () => {
           status: ProposalStatus.Approved,
         }}
         typePresentation={typePresentation}
-      />
+      />,
     );
 
     expect(interaction).toHaveBeenCalledWith(
@@ -237,7 +237,7 @@ describe("ProposalTitle", () => {
         entityId: "materialized-task",
         entityType: TargetEntityType.Task,
         draggable: true,
-      })
+      }),
     );
   });
 
@@ -253,7 +253,7 @@ describe("ProposalTitle", () => {
           status,
         }}
         typePresentation={typePresentation}
-      />
+      />,
     );
 
     expect(interaction).not.toHaveBeenCalled();
@@ -268,9 +268,9 @@ describe("ProposalTitle", () => {
           targetEntityType: TargetEntityType.Conversation,
         }}
         typePresentation={staticProposalEntityTypePresentation(
-          TargetEntityType.Conversation
+          TargetEntityType.Conversation,
         )}
-      />
+      />,
     );
 
     expect(interaction).toHaveBeenCalledWith(
@@ -279,7 +279,7 @@ describe("ProposalTitle", () => {
         entityType: TargetEntityType.Conversation,
         hasProposalSupport: true,
         draggable: false,
-      })
+      }),
     );
   });
 
@@ -292,10 +292,35 @@ describe("ProposalTitle", () => {
           targetEntityId: "00000000-0000-0000-0000-000000000000",
         }}
         typePresentation={typePresentation}
-      />
+      />,
     );
 
     expect(interaction).not.toHaveBeenCalled();
     expect(screen.getByTestId("proposal-title")).toHaveTextContent("Reporting");
   });
+});
+
+it("keeps proposal navigation distinct from target navigation during reconciliation", () => {
+  render(
+    <InlineReconciliationBodyContext.Provider
+      value={<div>Resolve conflict</div>}
+    >
+      <ProposalTitle
+        proposal={proposal()}
+        typePresentation={staticProposalEntityTypePresentation(
+          TargetEntityType.Task,
+        )}
+        target={{ entityId: "target", href: "/target" }}
+      />
+    </InlineReconciliationBodyContext.Provider>,
+  );
+  expect(screen.getByTestId("proposal-open-detail")).toHaveAttribute(
+    "href",
+    expect.stringContaining("proposal"),
+  );
+  expect(screen.getByTestId("proposal-title")).toHaveAttribute(
+    "href",
+    "/target",
+  );
+  expect(screen.getAllByTestId("proposal-identity-header")).toHaveLength(1);
 });

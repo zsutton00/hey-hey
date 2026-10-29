@@ -1,3 +1,5 @@
+import { useContext as useInlineBodyContext } from "react";
+import { InlineReconciliationBodyContext } from "../ProposalReconciliation/ProposalReconciliationReview";
 import { useUpdateProposalExpansion } from "./useUpdateProposalExpansion";
 import { useReconciledUpdate } from "../ProposalReconciliation/useReconciledUpdate";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
@@ -90,9 +92,13 @@ export const DesignDocUpdateRenderer: React.FC<{
     { kind: "entity", entityType: proposal.targetEntityType },
   );
 
+  const reconciliationBody = useInlineBodyContext(
+    InlineReconciliationBodyContext,
+  );
+
   const content = (
     <Stack spacing={1.5}>
-      {!overrides?.hideHeader && !staged && (
+      {!overrides?.hideHeader && (!staged || !!reconciliationBody) && (
         <ProposalTitle
           presentationAction={presentationAction}
           proposal={proposal}
@@ -128,62 +134,66 @@ export const DesignDocUpdateRenderer: React.FC<{
           }
         />
       )}
-      {overrides?.hideHeader && collapsible && (
-        <IconButton
-          onClick={toggleExpanded}
-          aria-label={expanded ? "Collapse update" : "Expand update"}
-          aria-expanded={expanded}
-          data-testid="update-proposal-expand"
-        >
-          <ExpandMoreIcon fontSize="small" />
-        </IconButton>
+      {reconciliationBody ?? (
+        <>
+          {overrides?.hideHeader && collapsible && (
+            <IconButton
+              onClick={toggleExpanded}
+              aria-label={expanded ? "Collapse update" : "Expand update"}
+              aria-expanded={expanded}
+              data-testid="update-proposal-expand"
+            >
+              <ExpandMoreIcon fontSize="small" />
+            </IconButton>
+          )}
+          <Collapse in={expanded && !hideDiff}>
+            <Stack spacing={1.5}>
+              {notice}
+              {isApplied ? (
+                <Box sx={{ px: 1 }}>
+                  <MarkdownRenderer allowMentionEscapes>
+                    {newContent}
+                  </MarkdownRenderer>
+                </Box>
+              ) : (
+                <DiffRenderer
+                  oldContent={oldContent}
+                  newContent={newContent}
+                  defaultViewMode={diffDefaultViewMode ?? "split"}
+                  showViewModeToggle
+                />
+              )}
+              {siblingProposals && (
+                <ProposalEdges
+                  edges={proposal.edges}
+                  siblingProposals={siblingProposals}
+                  organizationId={proposal.organizationId}
+                  projectId={proposal.projectId}
+                  ownerApplied={isApplied}
+                />
+              )}
+            </Stack>
+          </Collapse>
+          {footer && !overrides?.hideStateIndicator
+            ? footer
+            : !overrides?.hideStateIndicator && (
+                <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
+                  <ProposalStateIndicator
+                    status={status}
+                    action={ProposalAction.Update}
+                    onApply={onApply}
+                    onReject={onReject}
+                    disabled={disabled}
+                    approvalProgress={approvalProgress}
+                  />
+                </Box>
+              )}
+        </>
       )}
-      <Collapse in={expanded && !hideDiff}>
-        <Stack spacing={1.5}>
-          {notice}
-          {isApplied ? (
-            <Box sx={{ px: 1 }}>
-              <MarkdownRenderer allowMentionEscapes>
-                {newContent}
-              </MarkdownRenderer>
-            </Box>
-          ) : (
-            <DiffRenderer
-              oldContent={oldContent}
-              newContent={newContent}
-              defaultViewMode={diffDefaultViewMode ?? "split"}
-              showViewModeToggle
-            />
-          )}
-          {siblingProposals && (
-            <ProposalEdges
-              edges={proposal.edges}
-              siblingProposals={siblingProposals}
-              organizationId={proposal.organizationId}
-              projectId={proposal.projectId}
-              ownerApplied={isApplied}
-            />
-          )}
-        </Stack>
-      </Collapse>
-      {footer && !overrides?.hideStateIndicator
-        ? footer
-        : !overrides?.hideStateIndicator && (
-            <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
-              <ProposalStateIndicator
-                status={status}
-                action={ProposalAction.Update}
-                onApply={onApply}
-                onReject={onReject}
-                disabled={disabled}
-                approvalProgress={approvalProgress}
-              />
-            </Box>
-          )}
     </Stack>
   );
 
-  return overrides?.hideCard ? (
+  return overrides?.hideCard || (staged && !reconciliationBody) ? (
     content
   ) : (
     <Paper variant="outlined" sx={{ p: 2 }}>

@@ -1,3 +1,7 @@
+import { useContext } from "react";
+import { InlineReconciliationBodyContext } from "../ProposalReconciliation/ProposalReconciliationReview";
+import { usePathService } from "../../contexts/PathServiceContext";
+import { Link } from "@mui/material";
 import {
   Box,
   Stack,
@@ -101,6 +105,8 @@ export const ProposalTitle: FC<ProposalTitleProps> = ({
   typeTestId,
   endAdornment,
 }) => {
+  const reconciliationBody = useContext(InlineReconciliationBodyContext);
+  const paths = usePathService();
   const deleteSx =
     proposal.action === "DELETE"
       ? { color: "text.secondary", textDecoration: "line-through" }
@@ -183,6 +189,17 @@ export const ProposalTitle: FC<ProposalTitleProps> = ({
         data-testid="proposal-identity-header"
       >
         {interactiveTitle}
+        {reconciliationBody ? (
+          <Link
+            data-testid="proposal-open-detail"
+            href={paths.proposal({
+              projectId: proposal.projectId,
+              proposalId: proposal.id,
+            })}
+          >
+            Open proposal
+          </Link>
+        ) : null}
         {!hideHeaderMetadata && (
           <ProposalHeader
             proposal={proposal}

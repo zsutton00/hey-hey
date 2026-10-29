@@ -425,7 +425,7 @@ const ProposalContent: React.FC<{
   // Eval output is never application-eligible: show it read-only from its
   // retained content. The server refuses approval regardless.
   const renderMode =
-    proposal.applicationEligible === false ? "evaluation-output" : undefined;
+    proposal.applicationEligible === false ? "evaluation-output" : "detail";
 
   if (proposal.action === ProposalAction.Create) {
     return (
