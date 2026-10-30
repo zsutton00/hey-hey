@@ -14,5 +14,7 @@ describe('Feature intent conversation prompt', () => {
     expect(prompt).toContain('There is no round limit');
     expect(prompt).toContain('description and structured requirements together');
     expect(prompt).toContain('the user can still continue');
+    expect(prompt).toContain('entry points');
+    expect(prompt).toContain('neighboring capabilities');
   });
 });
