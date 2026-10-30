@@ -138,7 +138,10 @@ import { TaskDraft } from './types';
 import { FeatureRequirementAuthoringService } from './feature-requirement-authoring.service';
 import { EMPTY_FEATURE_REQUIREMENTS_CONTENT } from './feature-requirements-reader';
 import { WorkItemTypeRegistryService } from './work-item-type-registry.service';
-import { formatWorkItemStatusNotAllowedMessage } from './work-item-status-policy';
+import {
+  formatWorkItemStatusNotAllowedMessage,
+  isOrdinaryStatusAssignmentAllowed,
+} from './work-item-status-policy';
 import { WorkItemParentageValidator } from './work-item-parentage-validator.service';
 import {
   resolveWorkItemSectionContentKind,
@@ -369,10 +372,17 @@ export class TaskService {
       taskType,
       projectId,
     );
-    if (policy.hasSetInitialStatus) {
-      return policy.initialStatus;
+    const status = dtoStatus ?? policy.initialStatus;
+    const allowed = this.workItemTypeRegistry.getAllowedStatuses(
+      taskType,
+      projectId,
+    );
+    if (!isOrdinaryStatusAssignmentAllowed(status, allowed)) {
+      throw new BadRequestException(
+        formatWorkItemStatusNotAllowedMessage(status, taskType, allowed),
+      );
     }
-    return dtoStatus ?? policy.initialStatus;
+    return status;
   }
 
   private getSectionFieldsForTaskType(
@@ -4653,6 +4663,7 @@ export class TaskService {
     userId?: UserId,
     materializationId?: string,
     effectiveParentId?: string | null,
+    supersessionTransition = false,
   ): Promise<{ task: TaskEntity; postCommit: TaskUpdatePostCommit }> {
     const contextManager = EventContextManager.getInstance();
     const currentContext = contextManager.getCurrentContext();
@@ -4740,17 +4751,17 @@ export class TaskService {
       throw new BadRequestException('GOAL tasks require a dueDate.');
     }
 
-    // Enforce the type's allowedStatuses contract on edit, mirroring the
-    // create-path constraint in resolveInitialStatus. Only a status that is
-    // actually changing is checked, so unchanged-status updates (and legacy
-    // rows whose persisted status predates the current policy) are unaffected.
+    // Validate explicit assignments even when they match a retained status.
     if (
       updateTaskDto.status !== undefined &&
-      updateTaskDto.status !== existingTask.status &&
-      !this.workItemTypeRegistry.isStatusAllowed(
-        targetTaskType,
+      !(
+        supersessionTransition &&
+        updateTaskDto.status === WorkStatus.Superseded &&
+        this.workItemTypeRegistry.isSupersedable(targetTaskType, projectId)
+      ) &&
+      !isOrdinaryStatusAssignmentAllowed(
         updateTaskDto.status,
-        projectId,
+        this.workItemTypeRegistry.getAllowedStatuses(targetTaskType, projectId),
       )
     ) {
       const allowed = this.workItemTypeRegistry.getAllowedStatuses(

@@ -705,6 +705,9 @@ export class PendingEdgeService {
       predecessorTaskId as TaskId,
       { status: WorkStatus.Superseded },
       proposal.requestorId as UserId,
+      undefined,
+      undefined,
+      true,
     );
     options?.onTaskPostCommit?.({
       taskId: predecessorTaskId as TaskId,

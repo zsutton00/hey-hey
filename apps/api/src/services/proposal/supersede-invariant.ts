@@ -1,5 +1,4 @@
 import type { CreateProposalDto } from 'src/generated';
-import { ProposalEdgeEndpointMode } from 'src/generated/model/proposalEdgeEndpointMode';
 
 /**
  * A proposal that violates the supersede invariant, with the directive
@@ -22,13 +21,8 @@ const SUPERSEDE_TRANSITION_HINT =
 /**
  * The supersede invariant.
  *
- * `SUPERSEDED` status and a `SUPERSEDES` edge are inseparable halves of the
- * supersede transition. A task proposal may not set status to `SUPERSEDED`
- * directly; the status-edit compatibility path remains valid only for the
- * older transition wrapper that pairs it with exactly one `SUPERSEDES` edge to
- * the successor. A proposal may also declare `SUPERSEDES` without setting its
- * own status; approval treats the target as the predecessor and routes that
- * declaration through the same transition semantics.
+ * Only successor approval may set the predecessor's `SUPERSEDED` status and
+ * record the lineage together. Ordinary proposal status assignments cannot.
  *
  * This is the single rule both the create boundary (`ProposalService`) and
  * the advisory validator (`ProposalValidationEngine`) enforce, so the plain
@@ -50,31 +44,13 @@ export function evaluateSupersedeInvariant(
       : undefined;
   const wantsSuperseded = status === 'SUPERSEDED';
 
-  const supersedesEdges = (dto.edges ?? []).filter(
-    (edge) =>
-      edge.edgeType === 'SUPERSEDES' &&
-      edge.endpointMode !== ProposalEdgeEndpointMode.Proposal,
-  );
-  const declaresSupersedes = supersedesEdges.length > 0;
-
-  if (wantsSuperseded && !declaresSupersedes) {
+  if (wantsSuperseded) {
     return {
       code: 'forbidden_status',
       field: 'updates.status',
       reason:
-        'A task cannot be moved to SUPERSEDED through a plain status edit — ' +
-        'the proposal must also declare the SUPERSEDES edge to the successor.',
+        'A task cannot be moved to SUPERSEDED through a status assignment.',
       suggestion: SUPERSEDE_TRANSITION_HINT,
-    };
-  }
-  if (wantsSuperseded && supersedesEdges.length > 1) {
-    return {
-      code: 'ambiguous_successor',
-      field: 'edges',
-      reason:
-        'A supersede proposal must declare exactly one SUPERSEDES edge — a ' +
-        'task is superseded by a single named successor.',
-      suggestion: 'Declare exactly one SUPERSEDES edge to the successor task.',
     };
   }
   return null;

@@ -4,6 +4,7 @@ import {
   writtenAgentSettableStatuses,
 } from '../work-item-type-registry.service';
 import type { WorkItemTypeDefinitionDto } from '../../../generated/model/workItemTypeDefinitionDto';
+import { resolveWorkItemStatusAuthoring } from '../work-item-status-inference';
 
 const recipe = {
   key: 'recipe',
@@ -60,6 +61,66 @@ describe('effective custom status rules', () => {
 });
 
 describe('status definitions at the authoring boundary', () => {
+  it('recognizes clear status names regardless of their order', () => {
+    expect(
+      resolveWorkItemStatusAuthoring({
+        purpose: 'Work',
+        names: ['Active', 'Idea', 'In progress', 'Blocked', 'Done'],
+      }).statuses,
+    ).toEqual([
+      { name: 'Active', meaning: 'IN_PROGRESS' },
+      { name: 'Idea', meaning: 'NOT_STARTED' },
+      { name: 'In progress', meaning: 'IN_PROGRESS' },
+      { name: 'Blocked', meaning: 'UNFINISHED' },
+      { name: 'Done', meaning: 'FINISHED' },
+    ]);
+  });
+  it('suggests and resolves a recipe lifecycle', () => {
+    expect(resolveWorkItemStatusAuthoring({ purpose: 'Recipe' })).toEqual({
+      suggestions: ['Idea', 'Testing', 'Made', 'Rejected'],
+      state: 'RESOLVED',
+      statuses: recipe.statuses,
+    });
+  });
+
+  it('asks about ambiguous finished states and accepts none', () => {
+    const input = { purpose: 'Résumé', names: ['Draft', 'Maintained'] };
+    expect(resolveWorkItemStatusAuthoring(input).state).toBe('CLARIFICATION');
+    expect(
+      resolveWorkItemStatusAuthoring({ ...input, finishedNames: [] }).statuses,
+    ).toEqual([
+      { name: 'Draft', meaning: 'NOT_STARTED' },
+      { name: 'Maintained', meaning: 'IN_PROGRESS' },
+    ]);
+  });
+
+  it('preserves authored meanings and completion metadata when editing', () => {
+    const existingStatuses = [
+      { name: 'ACTIVE', label: 'In progress', meaning: 'IN_PROGRESS' as const },
+      {
+        name: 'CANCELLED',
+        meaning: 'FINISHED' as const,
+        completionBehavior: 'CANCELLED' as const,
+      },
+      { name: 'BLOCKED', meaning: 'UNFINISHED' as const },
+    ];
+    expect(
+      resolveWorkItemStatusAuthoring({
+        purpose: 'Work',
+        names: existingStatuses.map((status) => status.name),
+        existingStatuses,
+      }).statuses,
+    ).toEqual(existingStatuses);
+  });
+
+  it('rejects whitespace, reserved names and duplicate names', () => {
+    for (const names of [[' '], [' Archived '], ['Idea', ' idea ']]) {
+      expect(() =>
+        resolveWorkItemStatusAuthoring({ purpose: 'Recipe', names }),
+      ).toThrow();
+    }
+  });
+
   it('accepts a resolved custom list', () => {
     expect(workItemTypeStatusesSchema.parse(recipe.statuses)).toEqual(
       recipe.statuses,

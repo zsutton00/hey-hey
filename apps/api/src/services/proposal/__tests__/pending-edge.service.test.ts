@@ -562,6 +562,9 @@ describe('PendingEdgeService', () => {
         entityB,
         { status: 'SUPERSEDED' },
         testIds.user,
+        undefined,
+        undefined,
+        true,
       );
       expect(postCommits).toEqual([
         {

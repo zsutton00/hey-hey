@@ -500,6 +500,7 @@ Class | Method | HTTP request | Description
 *WorkItemTypesApi* | [**organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyResetPost**](docs/WorkItemTypesApi.md#organizationsorganizationidprojectsprojectidworkitemtypestypekeyresetpost) | **POST** /organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/reset | Reset a canonical work-item type to the current canonical definition
 *WorkItemTypesApi* | [**organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeySectionContentImpactGet**](docs/WorkItemTypesApi.md#organizationsorganizationidprojectsprojectidworkitemtypestypekeysectioncontentimpactget) | **GET** /organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/section-content-impact | Read removed-section content impact
 *WorkItemTypesApi* | [**organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyTrackingLinkRevocationImpactGet**](docs/WorkItemTypesApi.md#organizationsorganizationidprojectsprojectidworkitemtypestypekeytrackinglinkrevocationimpactget) | **GET** /organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/tracking-link-revocation-impact | Read tracking-link revocation impact
+*WorkItemTypesApi* | [**resolveWorkItemTypeStatuses**](docs/WorkItemTypesApi.md#resolveworkitemtypestatuses) | **POST** /organizations/{organizationId}/projects/{projectId}/work-item-types/status-authoring | Suggest and resolve work-item statuses
 *WorkflowsApi* | [**debugWorkflowTemplate**](docs/WorkflowsApi.md#debugworkflowtemplate) | **POST** /workflows/templates/{templateId}/debug | Debug workflow template step-by-step
 *WorkflowsApi* | [**executeWorkflowTemplate**](docs/WorkflowsApi.md#executeworkflowtemplate) | **POST** /workflows/templates/{templateId}/execute | Execute workflow template
 *WorkflowsApi* | [**getConversationPromptType**](docs/WorkflowsApi.md#getconversationprompttype) | **GET** /organizations/{organizationId}/projects/{projectId}/conversations/{conversationId}/prompt-type | Get the current prompt-type for a conversation
@@ -2744,6 +2745,7 @@ Class | Method | HTTP request | Description
  - [ResolveWorkItemCoordinator200Response](docs/ResolveWorkItemCoordinator200Response.md)
  - [ResolveWorkItemCoordinatorAgentSessionDto](docs/ResolveWorkItemCoordinatorAgentSessionDto.md)
  - [ResolveWorkItemCoordinatorAgentSessionResponseDto](docs/ResolveWorkItemCoordinatorAgentSessionResponseDto.md)
+ - [ResolveWorkItemTypeStatuses200Response](docs/ResolveWorkItemTypeStatuses200Response.md)
  - [RestartPlanGenerationResponseDto](docs/RestartPlanGenerationResponseDto.md)
  - [RetryConversationOpenTrigger200Response](docs/RetryConversationOpenTrigger200Response.md)
  - [RetryMessage200Response](docs/RetryMessage200Response.md)
@@ -3523,6 +3525,8 @@ Class | Method | HTTP request | Description
  - [WorkItemSectionInput](docs/WorkItemSectionInput.md)
  - [WorkItemSectionReplaceOperation](docs/WorkItemSectionReplaceOperation.md)
  - [WorkItemStandardRelationshipCreateOperation](docs/WorkItemStandardRelationshipCreateOperation.md)
+ - [WorkItemStatusAuthoringRequest](docs/WorkItemStatusAuthoringRequest.md)
+ - [WorkItemStatusAuthoringResponse](docs/WorkItemStatusAuthoringResponse.md)
  - [WorkItemStatusCompletionBehavior](docs/WorkItemStatusCompletionBehavior.md)
  - [WorkItemStatusMeaning](docs/WorkItemStatusMeaning.md)
  - [WorkItemStructuredMockupAnnotation](docs/WorkItemStructuredMockupAnnotation.md)

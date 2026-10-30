@@ -413,6 +413,7 @@ export {
   useWorkItemTypeCascadeImpact,
   useWorkItemTypeSectionContentImpact,
   useWorkItemTypeTrackingLinkRevocationImpact,
+  useResolveWorkItemTypeStatuses,
 } from "./useWorkItemTypeLifecycle";
 
 // Entity context hooks

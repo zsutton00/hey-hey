@@ -4359,7 +4359,7 @@ paths:
           schema:
             type: array
             items:
-              $ref: "../schemas/common.yaml#/WorkStatus"
+              $ref: "../schemas/common.yaml#/WorkItemStatus"
           style: form
           explode: false
           description: Filter by initiative statuses (comma-separated)
@@ -5312,7 +5312,7 @@ paths:
           schema:
             type: array
             items:
-              $ref: "../schemas/common.yaml#/WorkStatus"
+              $ref: "../schemas/common.yaml#/WorkItemStatus"
           style: form
           explode: false
           description: Filter by task statuses (comma-separated)
@@ -5555,7 +5555,7 @@ paths:
           schema:
             type: array
             items:
-              $ref: "#/components/schemas/WorkStatus"
+              $ref: "#/components/schemas/WorkItemStatus"
           style: form
           explode: false
           description: Optional status set applied before counting and pagination.
@@ -6478,6 +6478,43 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+
+  /organizations/{organizationId}/projects/{projectId}/work-item-types/status-authoring:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      summary: Suggest and resolve work-item statuses
+      operationId: resolveWorkItemTypeStatuses
+      tags: [WorkItemTypes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkItemStatusAuthoringRequest"
+      responses:
+        "200":
+          description: Suggestions and either a resolved definition or a clarification.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/WorkItemStatusAuthoringResponse"
+        "400":
+          description: Invalid status names or finished selection.
+        "401":
+          description: Unauthorized.
 
   /organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/guidance:
     parameters:
@@ -12105,7 +12142,7 @@ paths:
                                 type: string
                                 format: date-time
                               finalStatus:
-                                $ref: "#/components/schemas/WorkStatus"
+                                $ref: "#/components/schemas/WorkItemStatus"
         "400":
           description: Bad request - not at acceptanceCriteria level
           content:
@@ -12189,7 +12226,7 @@ paths:
                                 enum: [description, details, acceptanceCriteria]
                                 nullable: true
                               status:
-                                $ref: "#/components/schemas/WorkStatus"
+                                $ref: "#/components/schemas/WorkItemStatus"
                               progress:
                                 type: object
                                 properties:
@@ -28298,6 +28335,8 @@ components:
     # Schema references for initiatives
     WorkStatus:
       $ref: "../schemas/common.yaml#/WorkStatus"
+    WorkItemStatus:
+      $ref: "../schemas/common.yaml#/WorkItemStatus"
     InitiativeResponseDto:
       $ref: "../schemas/initiatives.yaml#/InitiativeResponseDto"
     CreateInitiativeDto:
@@ -28427,6 +28466,10 @@ components:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeGuidanceBatchDto"
     WorkItemTypeDefinitionDto:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeDefinitionDto"
+    WorkItemStatusAuthoringRequest:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusAuthoringRequest"
+    WorkItemStatusAuthoringResponse:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusAuthoringResponse"
     WorkItemTypeSectionDefinition:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeSectionDefinition"
     WorkItemHtmlCssSectionContent:
@@ -28481,6 +28524,12 @@ components:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeWritingStandards"
     WorkItemTypeCapabilities:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeCapabilities"
+    WorkItemTypeStatus:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeStatus"
+    WorkItemStatusMeaning:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusMeaning"
+    WorkItemStatusCompletionBehavior:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusCompletionBehavior"
     WorkItemTypeGraphCapability:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeGraphCapability"
     WorkItemTypeGraphReadExpansion:

@@ -1,4 +1,3 @@
-import type { TaskResponseDto } from '../../generated/model/taskResponseDto';
 import { workItemTypeStatusesSchema } from '../tasks/work-item-type-status.schema';
 import { sectionContent } from './future-application';
 import { rootChildrenView } from './work-item-change-set-projector.service';
@@ -88,7 +87,10 @@ import {
   WORK_ITEM_SERVICE_SCOPE_INVALID_REASON,
   WORK_ITEM_SERVICE_SCOPE_INVALID_SUGGESTION,
 } from '../tasks/work-item-service-scope-policy';
-import { formatWorkItemStatusNotAllowedMessage } from '../tasks/work-item-status-policy';
+import {
+  formatWorkItemStatusNotAllowedMessage,
+  isOrdinaryStatusAssignmentAllowed,
+} from '../tasks/work-item-status-policy';
 import { WorkItemParentageValidator } from '../tasks/work-item-parentage-validator.service';
 import {
   validateWorkItemConfigForType,
@@ -3328,33 +3330,42 @@ export class ProposalValidationEngine {
     db: AnyTransactionClient,
   ): Promise<ProposalValidationIssue | null> {
     if (
-      dto.action !== 'UPDATE' ||
+      (dto.action !== 'UPDATE' && dto.action !== 'CREATE') ||
       typeof updates.status !== 'string' ||
       isWorkItemChangeSetPayload(dto.updates)
     ) {
       return null;
     }
 
-    const existingTask = await db.task.findFirst({
-      where: {
-        id: dto.targetEntityId,
-        organizationId: ctx.organizationId,
-        projectId: ctx.projectId,
-        archivedAt: null,
-      },
-      select: { type: true, status: true },
-    });
-    if (!existingTask || existingTask.status === updates.status) return null;
+    const existingTask =
+      dto.action === 'UPDATE'
+        ? await db.task.findFirst({
+            where: {
+              id: dto.targetEntityId,
+              organizationId: ctx.organizationId,
+              projectId: ctx.projectId,
+              archivedAt: null,
+            },
+            select: { type: true, status: true },
+          })
+        : null;
+    const type = dto.action === 'CREATE' ? updates.type : existingTask?.type;
+    if (typeof type !== 'string') return null;
 
     const rules = this.workItemTypeRegistry.getRulesForProject(
-      existingTask.type,
+      type,
       ctx.projectId,
     );
     if (
       !rules ||
-      rules.agentSettableStatuses.includes(
-        updates.status as TaskResponseDto['status'],
-      )
+      (isOrdinaryStatusAssignmentAllowed(
+        updates.status,
+        rules.allowedStatuses,
+      ) &&
+        isOrdinaryStatusAssignmentAllowed(
+          updates.status,
+          rules.agentSettableStatuses,
+        ))
     ) {
       return null;
     }
@@ -3364,7 +3375,7 @@ export class ProposalValidationEngine {
       code: 'status_not_allowed',
       reason: formatWorkItemStatusNotAllowedMessage(
         updates.status,
-        existingTask.type,
+        type,
         rules.agentSettableStatuses,
       ),
       layer: 'referential',

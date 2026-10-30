@@ -84,6 +84,9 @@ import type { WorkItemTypeMaintenanceGuidanceDto } from '../generated/model/work
 import type { WorkItemTypeGuidanceBatchDto } from '../generated/model/workItemTypeGuidanceBatchDto';
 import type { WorkItemTypeGuidanceBatchRequestDto as WorkItemTypeGuidanceBatchRequest } from '../generated/model/workItemTypeGuidanceBatchRequestDto';
 import { WorkItemTypeGuidancePurpose } from '../generated/model/workItemTypeGuidancePurpose';
+import type { WorkItemStatusAuthoringRequest } from '../generated/model/workItemStatusAuthoringRequest';
+import type { WorkItemStatusAuthoringResponse } from '../generated/model/workItemStatusAuthoringResponse';
+import { resolveWorkItemStatusAuthoring } from '../services/tasks/work-item-status-inference';
 
 export class WorkItemTypeGuidanceQueryDto {
   @ApiProperty({ enum: WorkItemTypeGuidancePurpose })
@@ -332,6 +335,20 @@ export class WorkItemTypeController {
       query.purpose,
       query.sessionRole,
     );
+  }
+
+  @Post('status-authoring')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Suggest and resolve work-item statuses' })
+  async resolveStatuses(
+    @CurrentOrganization() organizationId: OrganizationId,
+    @Param('projectId') projectId: ProjectId,
+    @Body() body: WorkItemStatusAuthoringRequest,
+  ): Promise<WorkItemStatusAuthoringResponse> {
+    if (!(await this.projectService.findOne(projectId, organizationId))) {
+      throw new NotFoundException('Project not found or not accessible.');
+    }
+    return resolveWorkItemStatusAuthoring(body);
   }
 
   @Post('guidance/batch')

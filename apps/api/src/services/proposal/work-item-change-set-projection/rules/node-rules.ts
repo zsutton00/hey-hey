@@ -284,7 +284,13 @@ export const nodeStatusRule: ProjectionRule<StatusScope> = {
     const validate = (key: NodeKey, node: ProjectedNode | undefined) => {
       if (!node || node.status === undefined) return;
       const rules = ctx.registry.getRulesForProject(node.type, ctx.projectId);
-      if (!rules || rules.agentSettableStatuses.includes(node.status)) return;
+      if (
+        !rules ||
+        (node.status !== 'SUPERSEDED' &&
+          rules.allowedStatuses.includes(node.status) &&
+          rules.agentSettableStatuses.includes(node.status))
+      )
+        return;
       ctx.addIssue(
         `nodes.${key}.status`,
         'status_not_allowed',

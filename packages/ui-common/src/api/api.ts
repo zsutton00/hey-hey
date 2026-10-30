@@ -79843,6 +79843,49 @@ export interface ResolveWorkItemCoordinatorAgentSessionResponseDto {
     'created': boolean;
 }
 /**
+ * 
+ * @export
+ * @interface ResolveWorkItemTypeStatuses200Response
+ */
+export interface ResolveWorkItemTypeStatuses200Response {
+    /**
+     * Indicates if the request was successful
+     * @type {boolean}
+     * @memberof ResolveWorkItemTypeStatuses200Response
+     */
+    'success': boolean;
+    /**
+     * Human-readable message about the operation
+     * @type {string}
+     * @memberof ResolveWorkItemTypeStatuses200Response
+     */
+    'message': string;
+    /**
+     * 
+     * @type {WorkItemStatusAuthoringResponse}
+     * @memberof ResolveWorkItemTypeStatuses200Response
+     */
+    'data'?: WorkItemStatusAuthoringResponse;
+    /**
+     * ISO timestamp of when the response was generated
+     * @type {string}
+     * @memberof ResolveWorkItemTypeStatuses200Response
+     */
+    'timestamp': string;
+    /**
+     * HTTP status code
+     * @type {number}
+     * @memberof ResolveWorkItemTypeStatuses200Response
+     */
+    'statusCode': number;
+    /**
+     * Request path
+     * @type {string}
+     * @memberof ResolveWorkItemTypeStatuses200Response
+     */
+    'path'?: string;
+}
+/**
  * Result of a plan-generation restart. Tears down the prior run and relaunches a fresh PlanFromDesignDoc run from the preserved design doc, returning the new conversation id. Idempotent — an already-terminated run with nothing to tear down returns restarted=false and no conversationId.
  * @export
  * @interface RestartPlanGenerationResponseDto
@@ -111227,6 +111270,76 @@ export const WorkItemStandardRelationshipCreateOperationCategoryEnum = {
 } as const;
 
 export type WorkItemStandardRelationshipCreateOperationCategoryEnum = typeof WorkItemStandardRelationshipCreateOperationCategoryEnum[keyof typeof WorkItemStandardRelationshipCreateOperationCategoryEnum];
+
+/**
+ * 
+ * @export
+ * @interface WorkItemStatusAuthoringRequest
+ */
+export interface WorkItemStatusAuthoringRequest {
+    /**
+     * Purpose of the work-item type, used to suggest statuses.
+     * @type {string}
+     * @memberof WorkItemStatusAuthoringRequest
+     */
+    'purpose': string;
+    /**
+     * Ordered ordinary names. Omit to request suggestions.
+     * @type {Array<string>}
+     * @memberof WorkItemStatusAuthoringRequest
+     */
+    'names'?: Array<string>;
+    /**
+     * Existing resolved statuses whose meanings and labels should be preserved.
+     * @type {Array<WorkItemTypeStatus>}
+     * @memberof WorkItemStatusAuthoringRequest
+     */
+    'existingStatuses'?: Array<WorkItemTypeStatus>;
+    /**
+     * Explicit selection of finished statuses; an empty array means none.
+     * @type {Array<string>}
+     * @memberof WorkItemStatusAuthoringRequest
+     */
+    'finishedNames'?: Array<string>;
+}
+/**
+ * 
+ * @export
+ * @interface WorkItemStatusAuthoringResponse
+ */
+export interface WorkItemStatusAuthoringResponse {
+    /**
+     * 
+     * @type {Array<string>}
+     * @memberof WorkItemStatusAuthoringResponse
+     */
+    'suggestions': Array<string>;
+    /**
+     * 
+     * @type {string}
+     * @memberof WorkItemStatusAuthoringResponse
+     */
+    'state': WorkItemStatusAuthoringResponseStateEnum;
+    /**
+     * Fully resolved definition, present only when state is RESOLVED.
+     * @type {Array<WorkItemTypeStatus>}
+     * @memberof WorkItemStatusAuthoringResponse
+     */
+    'statuses'?: Array<WorkItemTypeStatus>;
+    /**
+     * Question to ask when finished statuses are unclear.
+     * @type {string}
+     * @memberof WorkItemStatusAuthoringResponse
+     */
+    'question'?: string;
+}
+
+export const WorkItemStatusAuthoringResponseStateEnum = {
+    Resolved: 'RESOLVED',
+    Clarification: 'CLARIFICATION'
+} as const;
+
+export type WorkItemStatusAuthoringResponseStateEnum = typeof WorkItemStatusAuthoringResponseStateEnum[keyof typeof WorkItemStatusAuthoringResponseStateEnum];
 
 /**
  * Legacy completion semantics a FINISHED status carries: COMPLETED counts toward Goal completion and emits completion events; CANCELLED ends work without counting as done. Absent for statuses with neither behavior. 
@@ -177428,6 +177541,54 @@ export const WorkItemTypesApiAxiosParamCreator = function (configuration?: Confi
                 options: localVarRequestOptions,
             };
         },
+        /**
+         * 
+         * @summary Suggest and resolve work-item statuses
+         * @param {string} organizationId 
+         * @param {string} projectId 
+         * @param {WorkItemStatusAuthoringRequest} workItemStatusAuthoringRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        resolveWorkItemTypeStatuses: async (organizationId: string, projectId: string, workItemStatusAuthoringRequest: WorkItemStatusAuthoringRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('resolveWorkItemTypeStatuses', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('resolveWorkItemTypeStatuses', 'projectId', projectId)
+            // verify required parameter 'workItemStatusAuthoringRequest' is not null or undefined
+            assertParamExists('resolveWorkItemTypeStatuses', 'workItemStatusAuthoringRequest', workItemStatusAuthoringRequest)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/work-item-types/status-authoring`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(workItemStatusAuthoringRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
     }
 };
 
@@ -177612,6 +177773,21 @@ export const WorkItemTypesApiFp = function(configuration?: Configuration) {
             const localVarOperationServerBasePath = operationServerMap['WorkItemTypesApi.organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyTrackingLinkRevocationImpactGet']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
+        /**
+         * 
+         * @summary Suggest and resolve work-item statuses
+         * @param {string} organizationId 
+         * @param {string} projectId 
+         * @param {WorkItemStatusAuthoringRequest} workItemStatusAuthoringRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async resolveWorkItemTypeStatuses(organizationId: string, projectId: string, workItemStatusAuthoringRequest: WorkItemStatusAuthoringRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ResolveWorkItemTypeStatuses200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.resolveWorkItemTypeStatuses(organizationId, projectId, workItemStatusAuthoringRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['WorkItemTypesApi.resolveWorkItemTypeStatuses']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
     }
 };
 
@@ -177732,6 +177908,16 @@ export const WorkItemTypesApiFactory = function (configuration?: Configuration, 
         organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyTrackingLinkRevocationImpactGet(requestParameters: WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyTrackingLinkRevocationImpactGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<OrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyTrackingLinkRevocationImpactGet200Response> {
             return localVarFp.organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyTrackingLinkRevocationImpactGet(requestParameters.organizationId, requestParameters.projectId, requestParameters.typeKey, requestParameters.revokedTrackingSourceTypeKeys, options).then((request) => request(axios, basePath));
         },
+        /**
+         * 
+         * @summary Suggest and resolve work-item statuses
+         * @param {WorkItemTypesApiResolveWorkItemTypeStatusesRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        resolveWorkItemTypeStatuses(requestParameters: WorkItemTypesApiResolveWorkItemTypeStatusesRequest, options?: RawAxiosRequestConfig): AxiosPromise<ResolveWorkItemTypeStatuses200Response> {
+            return localVarFp.resolveWorkItemTypeStatuses(requestParameters.organizationId, requestParameters.projectId, requestParameters.workItemStatusAuthoringRequest, options).then((request) => request(axios, basePath));
+        },
     };
 };
 
@@ -177850,6 +178036,16 @@ export interface WorkItemTypesApiInterface {
      * @memberof WorkItemTypesApiInterface
      */
     organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyTrackingLinkRevocationImpactGet(requestParameters: WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyTrackingLinkRevocationImpactGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<OrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyTrackingLinkRevocationImpactGet200Response>;
+
+    /**
+     * 
+     * @summary Suggest and resolve work-item statuses
+     * @param {WorkItemTypesApiResolveWorkItemTypeStatusesRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof WorkItemTypesApiInterface
+     */
+    resolveWorkItemTypeStatuses(requestParameters: WorkItemTypesApiResolveWorkItemTypeStatusesRequest, options?: RawAxiosRequestConfig): AxiosPromise<ResolveWorkItemTypeStatuses200Response>;
 
 }
 
@@ -178225,6 +178421,34 @@ export interface WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWor
 }
 
 /**
+ * Request parameters for resolveWorkItemTypeStatuses operation in WorkItemTypesApi.
+ * @export
+ * @interface WorkItemTypesApiResolveWorkItemTypeStatusesRequest
+ */
+export interface WorkItemTypesApiResolveWorkItemTypeStatusesRequest {
+    /**
+     * 
+     * @type {string}
+     * @memberof WorkItemTypesApiResolveWorkItemTypeStatuses
+     */
+    readonly organizationId: string
+
+    /**
+     * 
+     * @type {string}
+     * @memberof WorkItemTypesApiResolveWorkItemTypeStatuses
+     */
+    readonly projectId: string
+
+    /**
+     * 
+     * @type {WorkItemStatusAuthoringRequest}
+     * @memberof WorkItemTypesApiResolveWorkItemTypeStatuses
+     */
+    readonly workItemStatusAuthoringRequest: WorkItemStatusAuthoringRequest
+}
+
+/**
  * WorkItemTypesApi - object-oriented interface
  * @export
  * @class WorkItemTypesApi
@@ -178361,6 +178585,18 @@ export class WorkItemTypesApi extends BaseAPI implements WorkItemTypesApiInterfa
      */
     public organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyTrackingLinkRevocationImpactGet(requestParameters: WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyTrackingLinkRevocationImpactGetRequest, options?: RawAxiosRequestConfig) {
         return WorkItemTypesApiFp(this.configuration).organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyTrackingLinkRevocationImpactGet(requestParameters.organizationId, requestParameters.projectId, requestParameters.typeKey, requestParameters.revokedTrackingSourceTypeKeys, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * 
+     * @summary Suggest and resolve work-item statuses
+     * @param {WorkItemTypesApiResolveWorkItemTypeStatusesRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof WorkItemTypesApi
+     */
+    public resolveWorkItemTypeStatuses(requestParameters: WorkItemTypesApiResolveWorkItemTypeStatusesRequest, options?: RawAxiosRequestConfig) {
+        return WorkItemTypesApiFp(this.configuration).resolveWorkItemTypeStatuses(requestParameters.organizationId, requestParameters.projectId, requestParameters.workItemStatusAuthoringRequest, options).then((request) => request(this.axios, this.basePath));
     }
 }
 

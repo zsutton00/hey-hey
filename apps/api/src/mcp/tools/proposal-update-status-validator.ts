@@ -6,20 +6,8 @@ import { formatWorkItemStatusNotAllowedMessage } from '../../services/tasks/work
 // proposal-tools.provider.ts (updateWorkItemFields.status). The create tools no
 // longer expose `status` — a new task's initial status is decided per type by
 // WorkItemTypeRegistryService.getInitialStatusPolicy, not chosen by the caller.
-const TASK_USER_SETTABLE_STATUSES = [
-  'BACKLOG',
-  'ACTIVE',
-  'ON_HOLD',
-  'VERIFYING',
-  'COMPLETED',
-  'CANCELLED',
-  'ARCHIVED',
-] as const;
-
 const DESIGN_DOC_STATUSES: ReadonlyArray<AdrStatus> = Object.values(AdrStatus);
 const ALLOWED_STATUSES_BY_TARGET: Record<string, ReadonlyArray<string>> = {
-  TASK: TASK_USER_SETTABLE_STATUSES,
-  FEATURE: TASK_USER_SETTABLE_STATUSES,
   DESIGN_DOC: DESIGN_DOC_STATUSES,
 };
 

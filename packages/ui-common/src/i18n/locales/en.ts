@@ -14,6 +14,16 @@ import { KEYS } from "../keys";
 import { compose, patterns } from "../compose";
 
 export const en = {
+  "workItemType.status.new": "New status name",
+  "workItemType.status.add": "Add status",
+  "workItemType.status.suggest": "Suggest statuses",
+  "workItemType.status.remove": "Remove status",
+  "workItemType.status.moveUp": "Move status up",
+  "workItemType.status.moveDown": "Move status down",
+  "workItemType.status.finished": "Which of these mean the work is finished?",
+  "workItemType.status.none": "Leave all unchecked if none mean finished.",
+  "workItemType.status.required": "Add at least one status.",
+  "workItemType.status.resolveError": "Could not resolve statuses. Try again.",
   "demo.start.checking": "Checking for your demo…",
   "demo.start.resumeError":
     "We couldn't check for your demo. Please try again.",
