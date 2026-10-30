@@ -1,5 +1,6 @@
 import { AgentSessionType, type AgentSessionDto } from "@hey-hey/ui-common/api";
 import { describe, expect, it } from "vitest";
+import { buildAgentSessionLabel } from "./agentic/agentSessionLabel";
 import { buildAgentSessionPresentation } from "./agentSessionPresentation";
 
 describe("buildAgentSessionPresentation", () => {
@@ -40,4 +41,38 @@ describe("buildAgentSessionPresentation", () => {
       "Fix retries",
     );
   });
+});
+
+describe("Agent Session labels", () => {
+  it.each([
+    ["Discuss retries", undefined, undefined, "Discuss retries"],
+    ["", undefined, "Retries", "Agent Session - Retries"],
+    ["Agent Session", "API", "Retries", "API - Agent Session - Retries"],
+    ["", undefined, undefined, "Agent Session"],
+    ["Agent Session", "API", undefined, "API - Agent Session"],
+    ["  ", "API", " Retries ", "API - Agent Session - Retries"],
+    ["Retries", "API", " retries ", "API"],
+    ["Retries", undefined, "Retries", "Agent Session"],
+  ])(
+    "labels title %j, service %j and parent %j",
+    (title, service, parent, expected) => {
+      expect(buildAgentSessionLabel({ title }, service, parent)).toBe(expected);
+    },
+  );
+
+  it.each(Object.values(AgentSessionType))(
+    "prefers the conversation title for %s",
+    (type) => {
+      const session = { title: "Session title", type } as AgentSessionDto;
+      expect(
+        buildAgentSessionPresentation(
+          session,
+          "API",
+          undefined,
+          " Discuss retries ",
+          "Retries",
+        ).label,
+      ).toBe("Discuss retries");
+    },
+  );
 });

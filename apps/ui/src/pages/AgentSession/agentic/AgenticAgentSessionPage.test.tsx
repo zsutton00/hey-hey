@@ -11,7 +11,7 @@ const agentSession = {
   entityType: null,
   entityId: null,
   projectId: "project-1",
-} as never;
+};
 const useAcknowledgeOnOpenMock = vi.hoisted(() => vi.fn());
 const acceptInitialPromptMock = vi.hoisted(() => vi.fn());
 const codingSessionPropsMock = vi.hoisted(() => vi.fn());
@@ -22,6 +22,8 @@ const layoutMainScrollOwnerMock = vi.hoisted(() => ({
   taskContextStickyTop: { xs: "50px", md: "48px" },
 }));
 const pageStateModeMock = vi.hoisted(() => ({
+  title: "Coding session",
+  conversationTitle: null as string | null,
   mode: "setup" as "setup" | "active",
   provider: null as string | null,
   serviceId: null as string | null,
@@ -195,7 +197,12 @@ vi.mock("./useAgenticAgentSessionPageState", () => ({
     },
     planWorktreeBranch: pageStateModeMock.planWorktreeBranch,
     initiativeQuery: { data: null },
-    agentSession,
+    agentSession: {
+      ...agentSession,
+      title: pageStateModeMock.title,
+      entityId: pageStateModeMock.taskData?.id,
+    },
+    conversationTitle: pageStateModeMock.conversationTitle,
     taskData: pageStateModeMock.taskData,
     hasRequiredRouteParams: true,
     mode: pageStateModeMock.mode,
@@ -233,6 +240,8 @@ import { AgenticAgentSessionPage } from "./AgenticAgentSessionPage";
 describe("AgenticAgentSessionPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    pageStateModeMock.title = "Coding session";
+    pageStateModeMock.conversationTitle = null;
     pageStateModeMock.mode = "setup";
     pageStateModeMock.provider = null;
     pageStateModeMock.serviceId = null;
@@ -281,6 +290,44 @@ describe("AgenticAgentSessionPage", () => {
       });
     },
   );
+
+  it("refreshes the snapshot as the parent and conversation title arrive", () => {
+    pageStateModeMock.title = "Agent Session";
+    const { rerender } = render(
+      <AgenticAgentSessionPage routeFamily="project" />,
+    );
+    const expectLabel = (label: string) => {
+      expect(canonicalCompositionMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          kind: "canonical",
+          descriptor: expect.objectContaining({
+            entityId: "session-1",
+            presentation: expect.objectContaining({ label }),
+          }),
+        }),
+      );
+    };
+    expectLabel("Agent Session");
+
+    pageStateModeMock.taskData = {
+      id: "parent-task",
+      name: "Retries",
+      type: "STANDARD",
+    };
+    rerender(<AgenticAgentSessionPage routeFamily="project" />);
+    expectLabel("Agent Session - Retries");
+
+    pageStateModeMock.conversationTitle = "Discuss retries";
+    rerender(<AgenticAgentSessionPage routeFamily="project" />);
+    expectLabel("Discuss retries");
+    rerender(<AgenticAgentSessionPage routeFamily="project" />);
+    expectLabel("Discuss retries");
+
+    rerender(<AgenticAgentSessionPage routeFamily="project" preview />);
+    expect(canonicalCompositionMock).toHaveBeenLastCalledWith({
+      kind: "observational",
+    });
+  });
 
   it("opens graph-only feature verification without a Service", () => {
     pageStateModeMock.mode = "active";

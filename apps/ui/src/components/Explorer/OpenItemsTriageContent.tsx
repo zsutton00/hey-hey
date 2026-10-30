@@ -253,7 +253,12 @@ export function OpenItemsTriagePage({
                 "agent_session",
                 agentSession.id,
                 null,
-                buildAgentSessionPresentation(agentSession),
+                buildAgentSessionPresentation(
+                  agentSession,
+                  undefined,
+                  undefined,
+                  agentSession.title,
+                ),
               ),
             }
       }
