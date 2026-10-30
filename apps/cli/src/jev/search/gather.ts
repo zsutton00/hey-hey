@@ -94,6 +94,7 @@ export const gather = async (input: GatherInput): Promise<GatherResult> => {
     focal: input.focal,
     ask: input.ask,
     reader: stage.reader,
+    hits: stage.hits,
     seedIds: stage.seeds.map(({ id }) => id),
     jev: input.jev,
     limits: input.limits,

@@ -451,7 +451,7 @@ describe('projectAssistantHandler — recent report startup context', () => {
   });
 
   describe('Jev setting', () => {
-    const mockParentRead = () =>
+    const mockParentRead = (description = 'Full parent description.') =>
       vi
         .spyOn(TasksApi.prototype, 'organizationsOrganizationIdProjectsProjectIdTasksTaskIdGet')
         .mockResolvedValue({
@@ -467,7 +467,7 @@ describe('projectAssistantHandler — recent report startup context', () => {
                   id: 's1',
                   key: 'description',
                   order: 0,
-                  materializedMarkdown: 'Full parent description.',
+                  materializedMarkdown: description,
                   materializedProposalId: 'p',
                 },
                 {
@@ -625,7 +625,9 @@ describe('projectAssistantHandler — recent report startup context', () => {
         }) as PromptTypeHandlerContext;
 
       it('puts the gathered entities in the first prompt and mounts no search tool', async () => {
-        const read = mockParentRead();
+        const read = mockParentRead(
+          'Full parent description.\n\n@[feature:other-feature|Related feature] governs another capability.',
+        );
         const gather = vi
           .spyOn(await import('../context-gathering'), 'gatherProjectContext')
           .mockResolvedValue('## Gathered context\n\ntask kept-1\n\nKept body');
@@ -647,6 +649,7 @@ describe('projectAssistantHandler — recent report startup context', () => {
         expect(gather).toHaveBeenCalledWith(
           expect.objectContaining({
             deps: gathering,
+            fullEntityIds: ['feature-1'],
             runId: 'run-1',
             turnId: 'turn-1',
             project: { organizationId: 'org-1', projectId: 'proj-1' },
