@@ -3200,6 +3200,42 @@ describe('WorkItemTypeRegistryService', () => {
       return { tx, findFirst, updateMany, deleteMany };
     }
 
+    it('changes the type definition without rewriting existing work items or their relationships', async () => {
+      const { registry } = buildRegistry([]);
+      const { tx, updateMany } = buildLifecycleTx([storedRow]);
+      const updateItems = jest.fn();
+      const deleteItems = jest.fn();
+      const deleteEdges = jest.fn();
+      Object.assign(tx, {
+        task: {
+          update: updateItems,
+          updateMany: updateItems,
+          deleteMany: deleteItems,
+        },
+        pendingProposalEdge: { deleteMany: deleteEdges },
+      });
+      await registry.updateAcceptedDefinitionInTransaction(
+        tx,
+        'MARKETING',
+        {
+          ...editedDefinition,
+          statuses: [{ name: 'Idea', meaning: 'NOT_STARTED' }],
+        },
+        PROJECT,
+        ORG,
+      );
+      expect(updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            statuses: [{ name: 'Idea', meaning: 'NOT_STARTED' }],
+          }),
+        }),
+      );
+      expect(updateItems).not.toHaveBeenCalled();
+      expect(deleteItems).not.toHaveBeenCalled();
+      expect(deleteEdges).not.toHaveBeenCalled();
+    });
+
     it.each([undefined, {}, { supportsSupersession: false }])(
       'preserves protected supersession through edits with capabilities %j',
       async (capabilities) => {

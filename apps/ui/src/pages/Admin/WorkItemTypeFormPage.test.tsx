@@ -47,6 +47,7 @@ const mockHardDeleteMutate = vi.fn();
 const mockCascadeImpact = vi.fn();
 const mockSectionImpact = vi.fn();
 const mockTrackingImpact = vi.fn();
+const mockResolveStatuses = vi.fn();
 const mockRefetchWorkItemTypes = vi.fn();
 const mockRefetchWorkItemType = vi.fn();
 let mockTypeKey: string | undefined;
@@ -79,6 +80,10 @@ vi.mock("@hey-hey/ui-common/data", async () => {
   >("@hey-hey/ui-common/data");
   return {
     ...actual,
+    useResolveWorkItemTypeStatuses: () => ({
+      mutate: mockResolveStatuses,
+      isPending: false,
+    }),
     analyzeWorkItemTypeEdit: (
       ...args: Parameters<typeof actual.analyzeWorkItemTypeEdit>
     ) => {
@@ -198,6 +203,9 @@ function activeCustomSummary(
     effectiveSource: WorkItemTypeEffectiveSource.ProjectCustom,
     definition: {
       ...definition,
+      statuses: definition.statuses.length
+        ? definition.statuses
+        : legacyStatuses([WorkStatus.Backlog]),
       tracking: definition.tracking ?? {
         allowedSourceEntityTypes: [],
         allowedSourceTaskTypes: [],
@@ -253,6 +261,17 @@ function prepareArchivedCustomEdit(): WorkItemTypeSummaryDto {
 describe("WorkItemTypeFormPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockResolveStatuses.mockReset();
+    mockResolveStatuses.mockImplementation(async ({ request }) => ({
+      state: "RESOLVED",
+      suggestions: ["BACKLOG"],
+      statuses: (request.names ?? ["BACKLOG"]).map(
+        (name: string) =>
+          request.existingStatuses?.find(
+            (status: { name: string }) => status.name === name,
+          ) ?? { name, meaning: "NOT_STARTED" },
+      ),
+    }));
     capturedCreateOptions = undefined;
     capturedEditOptions = undefined;
     capturedArchiveOptions = undefined;
@@ -658,7 +677,7 @@ describe("WorkItemTypeFormPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("does not submit an icon name outside the closed palette", () => {
+  it("does not submit an icon name outside the closed palette", async () => {
     renderForm();
     fillField("wit-form-key", "CUSTOM");
     fillField("wit-form-name", "Custom work");
@@ -667,7 +686,9 @@ describe("WorkItemTypeFormPage", () => {
     const iconInput = iconField.querySelector("input");
     if (!iconInput) throw new Error("Missing work-item icon input");
     fireEvent.change(iconInput, { target: { value: "not-a-work-item-icon" } });
-    fireEvent.click(screen.getByTestId("wit-form-submit"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+    });
 
     expect(mockCreateMutate.mock.calls[0][0].definition).not.toHaveProperty(
       "iconKey",
@@ -765,6 +786,63 @@ describe("WorkItemTypeFormPage", () => {
     expect(screen.getByTestId("wit-form-add-capability")).toBeInTheDocument();
   });
 
+  it("uses the shared resolver for a custom status and accepts no finished statuses", async () => {
+    const user = userEvent.setup();
+    mockResolveStatuses
+      .mockResolvedValueOnce({ state: "CLARIFICATION", suggestions: [] })
+      .mockResolvedValueOnce({
+        state: "RESOLVED",
+        suggestions: [],
+        statuses: [{ name: "Maintained", meaning: "IN_PROGRESS" }],
+      });
+    renderForm();
+    fillField("wit-form-key", "resume");
+    fillField("wit-form-name", "Résumé");
+    await openTab(user, "Lifecycle");
+    await user.type(
+      within(screen.getByTestId("wit-status-name")).getByRole("textbox"),
+      "Maintained",
+    );
+    await user.click(screen.getByTestId("wit-status-add"));
+    await user.click(screen.getByTestId("wit-form-submit"));
+    expect(
+      await screen.findByTestId("wit-status-clarification"),
+    ).toBeInTheDocument();
+    await user.click(screen.getByTestId("wit-form-submit"));
+    await waitFor(() => expect(mockCreateMutate).toHaveBeenCalledTimes(1));
+    expect(mockResolveStatuses).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        request: expect.objectContaining({
+          names: ["Maintained"],
+          finishedNames: [],
+        }),
+      }),
+    );
+    expect(mockCreateMutate.mock.calls[0][0].definition.statuses).toEqual([
+      { name: "Maintained", meaning: "IN_PROGRESS" },
+    ]);
+  });
+
+  it("requests suggestions for the type purpose", async () => {
+    const user = userEvent.setup();
+    mockResolveStatuses.mockResolvedValue({
+      state: "RESOLVED",
+      suggestions: ["Idea", "Testing", "Made", "Rejected"],
+    });
+    renderForm();
+    fillField("wit-form-name", "Recipe");
+    await openTab(user, "Lifecycle");
+    await user.click(screen.getByTestId("wit-status-suggest"));
+    expect(mockResolveStatuses).toHaveBeenCalledWith(
+      expect.objectContaining({
+        request: { purpose: "Recipe" },
+      }),
+    );
+    expect(
+      await within(screen.getByTestId("wit-form-statuses")).findByText("Idea"),
+    ).toBeInTheDocument();
+  });
+
   it("keeps one draft across tabs and submits visited and unvisited create fields", async () => {
     const user = userEvent.setup();
     renderForm();
@@ -819,7 +897,7 @@ describe("WorkItemTypeFormPage", () => {
       sections: [
         { key: "details", label: "Details", writingStandard: "Be specific." },
       ],
-      statuses: legacyStatuses([]),
+      statuses: [{ name: "BACKLOG", meaning: "NOT_STARTED" }],
       writingStandards: { create: "Lead with the audience.", edit: "" },
     });
   });
@@ -848,7 +926,7 @@ describe("WorkItemTypeFormPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows All for a new relationship and serializes it as any type", () => {
+  it("shows All for a new relationship and serializes it as any type", async () => {
     renderForm();
     fillField("wit-form-key", "marketing");
     fillField("wit-form-name", "Marketing");
@@ -857,7 +935,9 @@ describe("WorkItemTypeFormPage", () => {
     expect(screen.getByTestId("wit-form-edge-targets-0")).toHaveTextContent(
       "All",
     );
-    fireEvent.click(screen.getByTestId("wit-form-submit"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+    });
 
     expect(mockCreateMutate.mock.calls[0][0].definition.edgeTargets).toEqual([
       {
@@ -1223,7 +1303,7 @@ describe("WorkItemTypeFormPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("authors TASK as the only entity kind when tracking sources are selected", () => {
+  it("authors TASK as the only entity kind when tracking sources are selected", async () => {
     const allowedSource = activeCustomSummary({
       key: "GOAL",
       name: "Goal",
@@ -1258,7 +1338,9 @@ describe("WorkItemTypeFormPage", () => {
     );
     fireEvent.click(screen.getByRole("option", { name: "GOAL" }));
     fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" });
-    fireEvent.click(screen.getByTestId("wit-form-submit"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+    });
 
     expect(mockCreateMutate.mock.calls[0][0].definition.tracking).toEqual({
       allowedSourceEntityTypes: [EntityType.Task],
@@ -1543,13 +1625,15 @@ describe("WorkItemTypeFormPage", () => {
     ).toEqual([EntityType.Task]);
   });
 
-  it("submits an assembled definition with tracking zeroed and writing standards null when left blank", () => {
+  it("submits an assembled definition with tracking zeroed and writing standards null when left blank", async () => {
     renderForm();
 
     fillField("wit-form-key", "marketing");
     fillField("wit-form-name", "Marketing");
 
-    fireEvent.click(screen.getByTestId("wit-form-submit"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+    });
 
     expect(mockCreateMutate).toHaveBeenCalledTimes(1);
     expect(mockCreateMutate).toHaveBeenCalledWith({
@@ -1565,7 +1649,7 @@ describe("WorkItemTypeFormPage", () => {
         sections: [],
         requiredScalars: [],
         forbiddenScalars: [],
-        statuses: legacyStatuses([]),
+        statuses: [{ name: "BACKLOG", meaning: "NOT_STARTED" }],
         allowedParentTypes: [],
         edgeTargets: [],
         allowedParentEntityTypes: [],
@@ -1573,7 +1657,7 @@ describe("WorkItemTypeFormPage", () => {
           allowedSourceEntityTypes: [],
           allowedSourceTaskTypes: [],
         },
-        agentSettableStatuses: [],
+        agentSettableStatuses: ["BACKLOG", "ARCHIVED"],
         anchorableReportTypes: [],
         // Null because both create/edit standards are blank.
         writingStandards: null,
@@ -1582,7 +1666,7 @@ describe("WorkItemTypeFormPage", () => {
     });
   });
 
-  it("assembles writing standards and description when those fields are filled", () => {
+  it("assembles writing standards and description when those fields are filled", async () => {
     renderForm();
 
     fillField("wit-form-key", "marketing");
@@ -1590,7 +1674,9 @@ describe("WorkItemTypeFormPage", () => {
     fillField("wit-form-description", "Captures go-to-market work.");
     fillField("wit-form-writing-standard-create", "Lead with the audience.");
 
-    fireEvent.click(screen.getByTestId("wit-form-submit"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+    });
 
     expect(mockCreateMutate).toHaveBeenCalledTimes(1);
     const variables = mockCreateMutate.mock.calls[0][0];
@@ -1640,7 +1726,9 @@ describe("WorkItemTypeFormPage", () => {
       capturedCreateOptions?.onError?.(failure);
       throw failure;
     });
-    fireEvent.click(screen.getByTestId("wit-form-submit"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+    });
     await screen.findByText("Submission failed");
     expect(screen.getByRole("tab", { name: "Agent guidance" })).toHaveAttribute(
       "aria-selected",
@@ -1651,7 +1739,9 @@ describe("WorkItemTypeFormPage", () => {
       "  Build from reviewed intent.  ",
     );
     expect(screen.getByLabelText("Review guidance")).toHaveValue("");
-    fireEvent.click(screen.getByTestId("wit-form-submit"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+    });
     expect(mockCreateMutate).toHaveBeenCalledTimes(2);
     expect(
       mockCreateMutate.mock.calls[1][0].definition.sessionRoleGuidance,
@@ -1667,7 +1757,7 @@ describe("WorkItemTypeFormPage", () => {
     { implementation: "  Preserve prose  ", review: "Review" },
   ])(
     "preserves unvisited role fields and allows explicit clearing: %j",
-    (sessionRoleGuidance) => {
+    async (sessionRoleGuidance) => {
       mockTypeKey = "CUSTOM";
       const definition = {
         key: "CUSTOM",
@@ -1688,7 +1778,9 @@ describe("WorkItemTypeFormPage", () => {
         isLoading: false,
       });
       renderForm();
-      fireEvent.click(screen.getByTestId("wit-form-submit"));
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("wit-form-submit"));
+      });
       const submitted = mockEditMutate.mock.calls[0][0].definition;
       expect(Object.hasOwn(submitted, "sessionRoleGuidance")).toBe(
         sessionRoleGuidance !== undefined,
@@ -1702,7 +1794,9 @@ describe("WorkItemTypeFormPage", () => {
         target: { value: "" },
       });
       selectTab("Content");
-      fireEvent.click(screen.getByTestId("wit-form-submit"));
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("wit-form-submit"));
+      });
       const cleared = mockEditMutate.mock.calls[1][0].definition;
       expect(cleared.sessionRoleGuidance).toEqual(
         sessionRoleGuidance?.review ? { review: "Review" } : undefined,
@@ -1710,7 +1804,7 @@ describe("WorkItemTypeFormPage", () => {
     },
   );
 
-  it("submits maintenance advice as its own optional definition field", () => {
+  it("submits maintenance advice as its own optional definition field", async () => {
     renderForm();
     fillField("wit-form-key", "marketing");
     fillField("wit-form-name", "Marketing");
@@ -1718,7 +1812,9 @@ describe("WorkItemTypeFormPage", () => {
       "wit-form-maintenance-guidance",
       "  Review campaign previews against approved behavior.  ",
     );
-    fireEvent.click(screen.getByTestId("wit-form-submit"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+    });
 
     expect(mockCreateMutate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1730,13 +1826,15 @@ describe("WorkItemTypeFormPage", () => {
     );
   });
 
-  it("stays on the form, links the created proposal, and refreshes registry data", () => {
+  it("stays on the form, links the created proposal, and refreshes registry data", async () => {
     renderForm();
 
     fillField("wit-form-key", "marketing");
     fillField("wit-form-name", "Marketing");
 
-    fireEvent.click(screen.getByTestId("wit-form-submit"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+    });
 
     expect(mockNavigate).not.toHaveBeenCalled();
     expect(screen.getByTestId("wit-form-proposal-created")).toHaveTextContent(
@@ -1874,7 +1972,7 @@ describe("WorkItemTypeFormPage", () => {
       ],
       requiredScalars: [],
       forbiddenScalars: [],
-      statuses: legacyStatuses([]),
+      statuses: legacyStatuses([WorkStatus.Backlog]),
       allowedParentTypes: [],
       edgeTargets: [],
       allowedParentEntityTypes: [],
@@ -2330,7 +2428,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Minimal",
       role: "work-item",
       sections: [],
-      statuses: legacyStatuses([]),
+      statuses: legacyStatuses([WorkStatus.Backlog]),
     };
     const summary: WorkItemTypeSummaryDto = {
       id: "minimal-type",
@@ -2406,7 +2504,7 @@ describe("WorkItemTypeFormPage", () => {
     });
   });
 
-  it("preserves remaining status metadata when removing an ordinary status", () => {
+  it("preserves remaining status metadata when removing an ordinary status", async () => {
     mockTypeKey = "STATUSFUL";
     const summary: WorkItemTypeSummaryDto = {
       id: "statusful-type",
@@ -2434,9 +2532,14 @@ describe("WorkItemTypeFormPage", () => {
     renderForm();
     selectTab("Lifecycle");
     const selector = screen.getByTestId("wit-form-statuses");
-    fireEvent.mouseDown(within(selector).getByRole("combobox"));
-    fireEvent.click(screen.getByRole("option", { name: WorkStatus.Backlog }));
-    fireEvent.click(screen.getByTestId("wit-form-submit"));
+    fireEvent.click(
+      within(selector).getAllByRole("button", {
+        name: "workItemType.status.remove",
+      })[0],
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+    });
 
     expect(mockEditMutate.mock.calls[0][0].definition.statuses).toEqual(
       legacyStatuses([WorkStatus.Active]),
@@ -3196,7 +3299,7 @@ describe("WorkItemTypeFormPage", () => {
         role: "work-item",
         description: "Original description",
         sections: [],
-        statuses: legacyStatuses([]),
+        statuses: legacyStatuses([WorkStatus.Backlog]),
         capabilities: { planEligible: false },
       },
     } as WorkItemTypeSummaryDto;
@@ -3237,7 +3340,9 @@ describe("WorkItemTypeFormPage", () => {
     await waitFor(() =>
       expect(screen.getByTestId("wit-form-submit")).not.toBeDisabled(),
     );
-    fireEvent.click(screen.getByTestId("wit-form-submit"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+    });
 
     expect(mockEditMutate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -3303,7 +3408,7 @@ describe("WorkItemTypeFormPage", () => {
         name: "Custom work",
         role: "work-item",
         sections: [],
-        statuses: legacyStatuses([]),
+        statuses: legacyStatuses([WorkStatus.Backlog]),
       });
       mockUseWorkItemTypeByKey.mockReturnValue({
         workItemTypeSummary: summary,
@@ -3326,7 +3431,9 @@ describe("WorkItemTypeFormPage", () => {
         "wit-form-writing-standard-create",
         "My unsaved writing guidance",
       );
-      fireEvent.click(screen.getByTestId("wit-form-submit"));
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("wit-form-submit"));
+      });
       await waitFor(() =>
         expect(screen.getByTestId("wit-form-error")).toHaveTextContent(message),
       );
@@ -3352,7 +3459,9 @@ describe("WorkItemTypeFormPage", () => {
           screen.getByTestId("wit-form-writing-standard-create"),
         ).getByRole("textbox"),
       ).toHaveValue("My unsaved writing guidance");
-      fireEvent.click(screen.getByTestId("wit-form-submit"));
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("wit-form-submit"));
+      });
       expect(mockEditMutate.mock.calls[1][0]).toEqual(submitted);
       expect(mockNavigate).not.toHaveBeenCalled();
     },

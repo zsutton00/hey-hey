@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { TaskResponseDto } from "@hey-hey/contracts/api";
 import { useModalState } from "@hey-hey/ui-common/components/Modals";
 import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
@@ -21,6 +22,7 @@ import {
   useWorkItemTypeByKey,
   useWorkItemTypeRelationshipIndex,
   useWorkItemTypes,
+  useResolveWorkItemTypeStatuses,
 } from "@hey-hey/ui-common/data";
 import {
   projectCapabilitiesForRole,
@@ -351,6 +353,11 @@ export const WorkItemTypeFormPage: React.FC = () => {
   const [allowedStatuses, setAllowedStatuses] = useState<
     TaskResponseDto["status"][]
   >([]);
+  const { t } = useTranslation();
+  const statusResolver = useResolveWorkItemTypeStatuses();
+  const [statusName, setStatusName] = useState("");
+  const [needsFinishedSelection, setNeedsFinishedSelection] = useState(false);
+  const [finishedNames, setFinishedNames] = useState<string[]>([]);
   const [allowedParentTypes, setAllowedParentTypes] = useState<string[]>([]);
   const [edgeTargets, setEdgeTargets] = useState<EdgeTargetRow[]>([]);
   const [capabilities, setCapabilities] = useState<CapabilityRow[]>([]);
@@ -622,7 +629,8 @@ export const WorkItemTypeFormPage: React.FC = () => {
     editMutation.isPending ||
     archiveMutation.isPending ||
     resetMutation.isPending ||
-    hardDeleteMutation.isPending;
+    hardDeleteMutation.isPending ||
+    statusResolver.isPending;
 
   const cascadeImpact = useWorkItemTypeCascadeImpact(
     currentOrgId,
@@ -745,17 +753,10 @@ export const WorkItemTypeFormPage: React.FC = () => {
       requiredScalars,
       forbiddenScalars,
       statuses: allowedStatuses.map((name) => {
-        const status =
-          workItemTypeSummary?.definition.statuses.find(
-            (entry) => entry.name === name,
-          ) ??
-          workItemTypes
-            .flatMap((entry) => entry.definition.statuses)
-            .find((entry) => entry.name === name);
-        if (!status) {
-          throw new Error(`Status definition is unavailable: ${name}`);
-        }
-        return status;
+        const status = workItemTypeSummary?.definition.statuses.find(
+          (entry) => entry.name === name,
+        );
+        return status ?? { name, meaning: "UNFINISHED" };
       }),
       allowedParentTypes,
       edgeTargets: edgeTargetDtos,
@@ -985,7 +986,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
     submitEdit(definition, true);
   };
 
-  const handleSubmit = (event: React.FormEvent): void => {
+  const handleSubmit = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
     setError(null);
     setFailureDiagnostic(undefined);
@@ -1033,10 +1034,9 @@ export const WorkItemTypeFormPage: React.FC = () => {
       return;
     }
 
-    const definition = draftDefinition;
     const submissionImpact = analyzeWorkItemTypeEdit(
       isEditMode ? workItemTypeSummary : undefined,
-      definition,
+      draftDefinition,
     );
     if (submissionImpact.kind === "unsupported") {
       const reason = submissionImpact.unsupportedReasons.join(" ");
@@ -1070,6 +1070,62 @@ export const WorkItemTypeFormPage: React.FC = () => {
       return;
     }
 
+    const existingStatuses = workItemTypeSummary?.definition.statuses ?? [];
+    const statusesUnchanged =
+      isEditMode &&
+      existingStatuses.length > 0 &&
+      existingStatuses.length === allowedStatuses.length &&
+      existingStatuses.every(
+        (status, index) => status.name === allowedStatuses[index],
+      );
+    let resolved;
+    try {
+      resolved = statusesUnchanged
+        ? { state: "RESOLVED" as const, statuses: existingStatuses }
+        : await statusResolver.mutate({
+            organizationId: currentOrgId,
+            projectId,
+            request: {
+              purpose: description || name,
+              ...(allowedStatuses.length > 0 ? { names: allowedStatuses } : {}),
+              existingStatuses,
+              ...(needsFinishedSelection ? { finishedNames } : {}),
+            },
+          });
+    } catch {
+      setError(t("workItemType.status.resolveError"));
+      return;
+    }
+    if (resolved.state === "CLARIFICATION") {
+      setNeedsFinishedSelection(true);
+      setFinishedNames(
+        (workItemTypeSummary?.definition.statuses ?? [])
+          .filter(
+            (status) =>
+              status.meaning === "FINISHED" &&
+              allowedStatuses.includes(status.name),
+          )
+          .map((status) => status.name),
+      );
+      setActiveTab("Lifecycle");
+      return;
+    }
+    if (!resolved.statuses) {
+      setError(t("workItemType.status.resolveError"));
+      return;
+    }
+    const definition = {
+      ...draftDefinition,
+      statuses: resolved.statuses,
+      ...(!isEditMode && allowedStatuses.length === 0
+        ? {
+            agentSettableStatuses: [
+              ...resolved.statuses.map((status) => status.name),
+              "ARCHIVED",
+            ],
+          }
+        : {}),
+    };
     if (
       isEditMode &&
       workItemTypeSummary?.effectiveSource ===
@@ -2093,63 +2149,170 @@ export const WorkItemTypeFormPage: React.FC = () => {
                 Statuses
               </Typography>
               <Stack spacing={2.5}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>
-                    {WORK_ITEM_TYPE_FIELD_PRESENTATION.statuses.label}
-                  </InputLabel>
-                  <Select<TaskResponseDto["status"][]>
-                    multiple
-                    value={allowedStatuses}
-                    label={WORK_ITEM_TYPE_FIELD_PRESENTATION.statuses.label}
-                    data-testid="wit-form-statuses"
-                    onChange={(
-                      e: SelectChangeEvent<TaskResponseDto["status"][]>,
-                    ) =>
-                      setAllowedStatuses(
-                        (typeof e.target.value === "string"
-                          ? e.target.value.split(",")
-                          : e.target.value) as TaskResponseDto["status"][],
-                      )
-                    }
-                    input={
-                      <OutlinedInput
-                        label={WORK_ITEM_TYPE_FIELD_PRESENTATION.statuses.label}
-                      />
-                    }
-                    renderValue={(selected: TaskResponseDto["status"][]) => (
-                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                        {selected.map((v) => (
-                          <Chip key={v} label={v} size="small" />
-                        ))}
-                      </Box>
-                    )}
-                  >
-                    {Array.from(
-                      new Set(
-                        workItemTypes.flatMap((entry) =>
-                          entry.definition.statuses.map(
-                            (status) => status.name,
+                <Stack spacing={1} data-testid="wit-form-statuses">
+                  {allowedStatuses.map((status, index) => (
+                    <Stack
+                      key={status}
+                      direction="row"
+                      alignItems="center"
+                      spacing={1}
+                    >
+                      <Typography sx={{ flex: 1 }}>{status}</Typography>
+                      <Button
+                        type="button"
+                        disabled={index === 0 || isPending || isReadOnly}
+                        aria-label={t("workItemType.status.moveUp")}
+                        onClick={() => {
+                          const next = [...allowedStatuses];
+                          [next[index - 1], next[index]] = [
+                            next[index]!,
+                            next[index - 1]!,
+                          ];
+                          setAllowedStatuses(next);
+                          setNeedsFinishedSelection(false);
+                        }}
+                      >
+                        ↑
+                      </Button>
+                      <Button
+                        type="button"
+                        disabled={
+                          index === allowedStatuses.length - 1 ||
+                          isPending ||
+                          isReadOnly
+                        }
+                        aria-label={t("workItemType.status.moveDown")}
+                        onClick={() => {
+                          const next = [...allowedStatuses];
+                          [next[index], next[index + 1]] = [
+                            next[index + 1]!,
+                            next[index]!,
+                          ];
+                          setAllowedStatuses(next);
+                          setNeedsFinishedSelection(false);
+                        }}
+                      >
+                        ↓
+                      </Button>
+                      <Button
+                        type="button"
+                        disabled={isPending || isReadOnly}
+                        aria-label={t("workItemType.status.remove")}
+                        onClick={() => {
+                          setAllowedStatuses(
+                            allowedStatuses.filter((name) => name !== status),
+                          );
+                          setAgentSettableStatuses(
+                            agentSettableStatuses.filter(
+                              (name) => name !== status,
+                            ),
+                          );
+                          setNeedsFinishedSelection(false);
+                        }}
+                      >
+                        ×
+                      </Button>
+                    </Stack>
+                  ))}
+                  <Stack direction="row" spacing={1}>
+                    <TextField
+                      size="small"
+                      label={t("workItemType.status.new")}
+                      value={statusName}
+                      onChange={(event) => setStatusName(event.target.value)}
+                      data-testid="wit-status-name"
+                      disabled={isReadOnly || isPending}
+                    />
+                    <Button
+                      type="button"
+                      data-testid="wit-status-add"
+                      disabled={
+                        isReadOnly ||
+                        isPending ||
+                        !statusName.trim() ||
+                        [
+                          "archived",
+                          "superseded",
+                          ...allowedStatuses.map((status) =>
+                            status.trim().toLowerCase(),
                           ),
-                        ),
-                      ),
-                    ).map((status) => (
-                      <MenuItem key={status} value={status}>
-                        <Checkbox
-                          checked={allowedStatuses.includes(status)}
-                          size="small"
+                        ].includes(statusName.trim().toLowerCase())
+                      }
+                      onClick={() => {
+                        const next = statusName.trim();
+                        setAllowedStatuses([...allowedStatuses, next]);
+                        setAgentSettableStatuses([
+                          ...agentSettableStatuses,
+                          ...(!isEditMode && allowedStatuses.length === 0
+                            ? ["ARCHIVED"]
+                            : []),
+                          next,
+                        ]);
+                        setStatusName("");
+                        setNeedsFinishedSelection(false);
+                      }}
+                    >
+                      {t("workItemType.status.add")}
+                    </Button>
+                    <Button
+                      type="button"
+                      data-testid="wit-status-suggest"
+                      disabled={
+                        isReadOnly || isPending || !currentOrgId || !projectId
+                      }
+                      onClick={async () => {
+                        if (!currentOrgId || !projectId) return;
+                        try {
+                          const result = await statusResolver.mutate({
+                            organizationId: currentOrgId,
+                            projectId,
+                            request: { purpose: description || name },
+                          });
+                          setAllowedStatuses(result.suggestions);
+                          setAgentSettableStatuses([
+                            ...result.suggestions,
+                            "ARCHIVED",
+                          ]);
+                          setNeedsFinishedSelection(false);
+                        } catch {
+                          setError(t("workItemType.status.resolveError"));
+                        }
+                      }}
+                    >
+                      {t("workItemType.status.suggest")}
+                    </Button>
+                  </Stack>
+                  {needsFinishedSelection && (
+                    <Box data-testid="wit-status-clarification">
+                      <Typography>
+                        {t("workItemType.status.finished")}
+                      </Typography>
+                      <Typography variant="caption">
+                        {t("workItemType.status.none")}
+                      </Typography>
+                      {allowedStatuses.map((status) => (
+                        <FormControlLabel
+                          key={status}
+                          label={status}
+                          control={
+                            <Checkbox
+                              checked={finishedNames.includes(status)}
+                              onChange={(event) =>
+                                setFinishedNames(
+                                  event.target.checked
+                                    ? [...finishedNames, status]
+                                    : finishedNames.filter(
+                                        (name) => name !== status,
+                                      ),
+                                )
+                              }
+                            />
+                          }
                         />
-                        {status}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    sx={{ mt: 0.5 }}
-                  >
-                    {WORK_ITEM_TYPE_FIELD_PRESENTATION.statuses.help}
-                  </Typography>
-                </FormControl>
+                      ))}
+                    </Box>
+                  )}
+                </Stack>
                 {renderEnumMultiSelect<TaskResponseDto["status"]>(
                   WORK_ITEM_TYPE_FIELD_PRESENTATION.agentSettableStatuses.label,
                   allowedStatuses,

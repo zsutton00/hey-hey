@@ -21,6 +21,12 @@ import type { WorkItemTypeGuidanceBatchDto } from '@hey-hey/contracts/api/models
 import type { WorkItemTypeGuidanceBatchRequestDto } from '@hey-hey/contracts/api/models';
 import { WorkItemTypeGuidancePurpose } from '@hey-hey/contracts/api/models';
 import { workItemTypeGuidanceResponseSchema } from '../../services/tasks/work-item-type-agent-guidance.schema';
+import {
+  resolveWorkItemStatusAuthoring,
+  statusAuthoringRequestSchema,
+} from '../../services/tasks/work-item-status-inference';
+import { workItemTypeStatusSchema } from '../../services/tasks/work-item-type-status.schema';
+import type { WorkItemStatusAuthoringResponse } from '../../generated/model/workItemStatusAuthoringResponse';
 
 // MCP schema generation requires a plain ZodObject; the handler enforces
 // the conditional sessionRole requirement instead of a top-level refinement.
@@ -71,6 +77,41 @@ export class WorkItemTypeToolsProvider {
     private readonly workItemTypeRegistry: WorkItemTypeRegistryService,
     private readonly projectService: ProjectService,
   ) {}
+
+  @Tool({
+    name: 'resolve_work_item_type_statuses',
+    description:
+      'Suggest statuses based on purpose and resolve their meanings. Pass existing statuses unchanged when editing; if clarification is returned, ask which names mean finished and submit finishedNames, including an empty array when none do.',
+    parameters: statusAuthoringRequestSchema,
+    outputSchema: z
+      .object({
+        suggestions: z.array(z.string()),
+        state: z.enum(['RESOLVED', 'CLARIFICATION']),
+        statuses: z.array(workItemTypeStatusSchema).optional(),
+        question: z.string().optional(),
+      })
+      .strict(),
+  })
+  async resolveStatuses(
+    params: z.infer<typeof statusAuthoringRequestSchema>,
+    _context: Context,
+    request: Request,
+  ): Promise<WorkItemStatusAuthoringResponse | CallToolResult> {
+    const auth = extractAuthContext({}, request);
+    if (!isAuthContext(auth)) return auth;
+    const projectId = resolveProjectId({}, request);
+    if (!isProjectId(projectId)) return projectId;
+    if (!(await this.projectService.findOne(projectId, auth.organizationId))) {
+      return mcpError('Project not found or not accessible.');
+    }
+    try {
+      return resolveWorkItemStatusAuthoring(params);
+    } catch (error) {
+      return mcpError(
+        error instanceof Error ? error.message : 'Invalid statuses.',
+      );
+    }
+  }
 
   @Tool({
     name: 'get_work_item_type_guidance_batch',

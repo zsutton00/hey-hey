@@ -526,6 +526,16 @@ describe('TaskService', () => {
       },
       CUSTOM_TYPE_SPEC,
       {
+        typeKey: 'recipe',
+        projectId: testIds.project,
+        statuses: [
+          { name: 'Idea', meaning: 'NOT_STARTED' },
+          { name: 'Testing', meaning: 'IN_PROGRESS' },
+          { name: 'Made', meaning: 'FINISHED' },
+          { name: 'Rejected', meaning: 'FINISHED' },
+        ],
+      },
+      {
         typeKey: 'mockup',
         projectId: testIds.project,
         initialStatus: 'ACTIVE',
@@ -5303,6 +5313,46 @@ describe('TaskService', () => {
   });
 
   describe('update', () => {
+    it('retains a removed recipe status for unrelated edits but rejects explicitly resubmitting it', async () => {
+      const existing = {
+        ...mockTaskData,
+        type: 'recipe',
+        status: 'Retired',
+        projectId: testIds.project,
+      };
+      const updated = { ...existing, name: 'Renamed soup' };
+      const tx = {
+        ...mockPrismaService.db,
+        task: {
+          ...mockPrismaService.db.task,
+          findFirst: jest.fn().mockResolvedValue(existing),
+          findUniqueOrThrow: jest.fn().mockResolvedValue(updated),
+          update: jest.fn().mockResolvedValue(updated),
+        },
+      };
+      const result = await service.updateInTransaction(
+        tx as any,
+        testIds.organization,
+        testIds.initiative,
+        testIds.task,
+        { name: 'Renamed soup' },
+      );
+      expect(result.task.status).toBe('Retired');
+      expect(tx.task.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.not.objectContaining({ status: expect.anything() }),
+        }),
+      );
+      await expect(
+        service.updateInTransaction(
+          tx as any,
+          testIds.organization,
+          testIds.initiative,
+          testIds.task,
+          { status: 'Retired' },
+        ),
+      ).rejects.toThrow('Status Retired is not allowed');
+    });
     it('should update task with new acceptanceCriteria', async () => {
       const updateTaskDto: UpdateTaskDto = {
         sections: TestUtils.createMockTaskSectionInputs({
@@ -6969,19 +7019,19 @@ describe('TaskService', () => {
         forced: true,
         initial: WorkStatus.Active,
         requested: WorkStatus.Backlog,
-        expected: WorkStatus.Active,
+        expected: WorkStatus.Backlog,
       },
       {
         forced: true,
         initial: WorkStatus.Active,
         requested: WorkStatus.Ready,
-        expected: WorkStatus.Active,
+        expected: WorkStatus.Ready,
       },
       {
         forced: true,
         initial: WorkStatus.Backlog,
         requested: WorkStatus.Active,
-        expected: WorkStatus.Backlog,
+        expected: WorkStatus.Active,
       },
       {
         forced: false,
@@ -7051,6 +7101,45 @@ describe('TaskService', () => {
         mockPrismaService.db.taskSection.findMany as jest.Mock
       ).mockResolvedValue(createTaskSectionRecords(mockTaskData.id));
     };
+
+    it('defaults a recipe to Idea and accepts only its listed status assignments', async () => {
+      const createSpy = jest.fn().mockImplementation(async ({ data }) => ({
+        ...mockTaskData,
+        type: data.type,
+        status: data.status,
+      }));
+      buildTx(createSpy);
+      await service.create(
+        testIds.organization,
+        testIds.initiative,
+        { name: 'Soup', type: 'recipe' },
+        testIds.project,
+      );
+      expect(createSpy.mock.calls[0][0].data.status).toBe('Idea');
+      await service.create(
+        testIds.organization,
+        testIds.initiative,
+        { name: 'Soup', type: 'recipe', status: 'Testing' },
+        testIds.project,
+      );
+      expect(createSpy.mock.calls[1][0].data.status).toBe('Testing');
+      await expect(
+        service.create(
+          testIds.organization,
+          testIds.initiative,
+          { name: 'Soup', type: 'recipe', status: 'Unknown' },
+          testIds.project,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.create(
+          testIds.organization,
+          testIds.initiative,
+          { name: 'Soup', type: 'recipe', status: 'SUPERSEDED' },
+          testIds.project,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
 
     it('persists the custom type key and derives its sections from the custom definition', async () => {
       const createSpy = jest.fn().mockResolvedValue({

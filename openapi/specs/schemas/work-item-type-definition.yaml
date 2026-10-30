@@ -1719,6 +1719,53 @@ WorkItemTypeStatus:
     completionBehavior:
       $ref: "#/WorkItemStatusCompletionBehavior"
 
+WorkItemStatusAuthoringRequest:
+  type: object
+  additionalProperties: false
+  required: [purpose]
+  properties:
+    purpose:
+      type: string
+      description: Purpose of the work-item type, used to suggest statuses.
+    names:
+      type: array
+      minItems: 1
+      items:
+        type: string
+        minLength: 1
+      description: Ordered ordinary names. Omit to request suggestions.
+    existingStatuses:
+      type: array
+      items:
+        $ref: "#/WorkItemTypeStatus"
+      description: Existing resolved statuses whose meanings and labels should be preserved.
+    finishedNames:
+      type: array
+      items:
+        type: string
+      description: Explicit selection of finished statuses; an empty array means none.
+
+WorkItemStatusAuthoringResponse:
+  type: object
+  additionalProperties: false
+  required: [suggestions, state]
+  properties:
+    suggestions:
+      type: array
+      items:
+        type: string
+    state:
+      type: string
+      enum: [RESOLVED, CLARIFICATION]
+    statuses:
+      type: array
+      items:
+        $ref: "#/WorkItemTypeStatus"
+      description: Fully resolved definition, present only when state is RESOLVED.
+    question:
+      type: string
+      description: Question to ask when finished statuses are unclear.
+
 WorkItemTypeCapabilities:
   type: object
   description: >

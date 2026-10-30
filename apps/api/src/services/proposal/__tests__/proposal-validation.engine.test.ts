@@ -2892,7 +2892,7 @@ describe('ProposalValidationEngine', () => {
       expect(issue!.suggestion).toContain('supersede transition');
     });
 
-    it('passes a SUPERSEDED status edit paired with a SUPERSEDES edge', async () => {
+    it('rejects a SUPERSEDED status assignment even with a SUPERSEDES edge', async () => {
       mockPrisma.db.project.findFirst.mockResolvedValue({
         id: testIds.project,
       });
@@ -2914,14 +2914,11 @@ describe('ProposalValidationEngine', () => {
         context: makeContext(),
       });
 
-      // The co-presence guard must not flag a well-formed supersede proposal.
-      const supersedeIssue = result.proposals[0]!.errors.find(
-        (e) =>
-          e.code === 'forbidden_status' ||
-          e.code === 'orphan_supersedes_edge' ||
-          e.code === 'ambiguous_successor',
+      expect(result.proposals[0]!.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: 'forbidden_status' }),
+        ]),
       );
-      expect(supersedeIssue).toBeUndefined();
     });
 
     it('allows a SUPERSEDES edge declared without a SUPERSEDED status change', async () => {
