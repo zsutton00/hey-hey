@@ -1823,6 +1823,7 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
           sessionStartContext.workItemTypeDefinitions,
           undefined,
           {
+            provider: 'opencode',
             intentFirst: sessionStartContext.intentFirst,
             maturity: sessionStartContext.maturity,
             hints: resolveHintPromptAccess(

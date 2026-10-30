@@ -24,6 +24,7 @@ import {
 import { LocalAgentApiError } from '../shared/agent-bridge-contract/errors';
 import { buildServiceContextNote, mentionFormatReminder } from '../agents/prompts/common';
 import { renderReportChainBlock } from '../agents/prompts/report-chain';
+import { resolveAgentProviderId } from '../agents/providers/provider-config';
 import { renderMemoBlock } from '../agents/prompts/memo-block';
 import { createReadinessSourceSnapshotFromStartupInput } from '../agents/implementation-readiness/source-snapshot';
 import { resolvePromptString } from '../agents/prompts/resolve';
@@ -233,6 +234,7 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
 
   const handlerCtx: PromptTypeHandlerContext = {
     runId: run.agentic_session_id,
+    provider: resolveAgentProviderId(run.provider),
     turnId: args.turnId,
     abortSignal: args.abortSignal,
     logger: handlerDeps.logger,

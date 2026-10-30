@@ -27,8 +27,9 @@ export const planShapingFeatureSyncIterateHandler: UserLaunchablePromptTypeHandl
 
     addUserMessage: (payload) => turnUserMessageBlock(payload.userMessage),
 
-    buildPrompt(payload): string {
+    buildPrompt(payload, ctx): string {
       return buildPlanShapingIteratePrompt({
+        provider: ctx?.provider,
         planId: payload.planId,
         designDocId: payload.designDocId,
         discrepancies: payload.discrepancies,

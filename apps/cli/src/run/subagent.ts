@@ -602,6 +602,7 @@ export class SubAgent {
           }
         : undefined,
       {
+        provider: providerId,
         intentFirst: sessionStartContext.intentFirst,
         maturity: sessionStartContext.maturity,
         hints: resolveHintPromptAccess(sessionStartContext.hintsEnabled, config.mcpAllowedTools),

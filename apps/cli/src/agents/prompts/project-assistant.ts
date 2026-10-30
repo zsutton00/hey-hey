@@ -13,6 +13,7 @@ import {
   type ServicesContextInput,
 } from './common';
 import { withSubmissionToolTerminationSuffix } from '../submission-tools/prompt-suffix';
+import type { AgentProviderId } from '../providers/provider-config';
 import type { ProjectAssistantPolicy } from '../prompt-type-handler';
 import { implementationReadinessDecisionGuidance } from './implementation-readiness';
 import { modeFreshnessDiscoveryGuidance } from './mode-freshness';
@@ -185,6 +186,8 @@ These are the Project Assistant's gates for this Run. They decide what it may do
 };
 
 export interface ProjectAssistantPromptOptions {
+  /** Provider executing the Run; selects how the submission tools are named. */
+  provider?: AgentProviderId | undefined;
   /**
    * Who consumes this research next, named in-prompt as the handoff target.
    * The downstream consumer is not fixed, so the framing is parameterized
@@ -395,5 +398,5 @@ ${overallPosture}`,
     );
   }
 
-  return withSubmissionToolTerminationSuffix(sections.join('\n\n'));
+  return withSubmissionToolTerminationSuffix(sections.join('\n\n'), options.provider);
 };

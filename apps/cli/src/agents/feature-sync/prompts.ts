@@ -34,12 +34,14 @@ import { buildDecisionReportInstructions } from './prompts/decision-report';
 
 import type { FeatureSyncDiscrepancy } from '../../shared/agent-bridge-contract/generated/api';
 import type { ImplementationReadinessSourceSnapshot } from '../../shared/api/generated/api';
+import type { AgentProviderId } from '../providers/provider-config';
 import { withSubmissionToolTerminationSuffix } from '../submission-tools/prompt-suffix';
 import { implementationReadinessDecisionGuidance } from '../prompts/implementation-readiness';
 import { futureRevisionAuthoring } from '../prompts/common';
 import { modeFreshnessDiscoveryGuidance } from '../prompts/mode-freshness';
 
 export interface AnalyzePromptInput {
+  provider?: AgentProviderId | undefined;
   implementationReadinessSourceSnapshot?: ImplementationReadinessSourceSnapshot | null;
   featureSeed?: boolean;
   /** Task id the current coding session is anchored on. Drives the feature-tree walk. */
@@ -74,6 +76,7 @@ export interface AnalyzePromptInput {
 }
 
 export interface IteratePromptInput {
+  provider?: AgentProviderId | undefined;
   /** The outstanding discrepancies surfaced by the previous turn. Rendered into the prompt body. */
   discrepancies: FeatureSyncDiscrepancy[];
 }
@@ -469,6 +472,7 @@ export const buildAnalyzePrompt = (input: AnalyzePromptInput): string => {
         ANALYZE_REPORTS,
         'When verification finds no material discrepancy, persist the required reports and call submit_no_discrepancy.',
       ].join('\n\n'),
+      input.provider,
     );
   }
   const launchPlanId = input.launchPlanId?.trim();
@@ -496,10 +500,10 @@ Copy the JSON object below exactly into \`disposition.sourceSnapshot\` when call
 ${JSON.stringify(sourceSnapshot, null, 2)}
 \`\`\``
     : withTask;
-  return withSubmissionToolTerminationSuffix(withSourceSnapshot);
+  return withSubmissionToolTerminationSuffix(withSourceSnapshot, input.provider);
 };
 
 export const buildIteratePrompt = (input: IteratePromptInput): string => {
   const withItems = insertOutstandingItems(ITERATE_SYSTEM_PROMPT, input.discrepancies);
-  return withSubmissionToolTerminationSuffix(withItems);
+  return withSubmissionToolTerminationSuffix(withItems, input.provider);
 };

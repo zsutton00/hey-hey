@@ -219,7 +219,7 @@ Persist both reports before calling the submission tool. If \`create_report\` re
 
 Current task id: task-123
 
-End each turn by calling one of the submission tools (the only legal completion paths) or by asking the user a clarifying question. Submission tools appear in your catalog as \`mcp__heyhey-submission-tools__<name>\` — bare names in this prompt map to those. If your environment supports deferred tool discovery, search for that exact prefix before reporting a missing tool. If discovery still does not expose the required tool, stop and report it; do not invent an alternative. No freeform JSON or narrative-only completions.
+End each turn by calling one of the submission tools (the only legal completion paths) or by asking the user a clarifying question. Submission tools are identified by their bare name (as used in this prompt). The submission tools appear in your catalog under the \`heyhey-submission-tools\` server, as \`mcp__heyhey-submission-tools__<name>\` or, where hyphens in server names become underscores, \`mcp__heyhey_submission_tools__<name>\`. Match on the bare name, and list your full tool catalog if search finds nothing. If the required tool still is not exposed, stop and report it; do not invent an alternative. No freeform JSON or narrative-only completions.
 "
 `;
 
@@ -472,7 +472,7 @@ Persist both reports before calling the submission tool. If \`create_report\` re
 
 Current task id: task-123
 
-End each turn by calling one of the submission tools (the only legal completion paths) or by asking the user a clarifying question. Submission tools appear in your catalog as \`mcp__heyhey-submission-tools__<name>\` — bare names in this prompt map to those. If your environment supports deferred tool discovery, search for that exact prefix before reporting a missing tool. If discovery still does not expose the required tool, stop and report it; do not invent an alternative. No freeform JSON or narrative-only completions.
+End each turn by calling one of the submission tools (the only legal completion paths) or by asking the user a clarifying question. Submission tools are identified by their bare name (as used in this prompt). The submission tools appear in your catalog under the \`heyhey-submission-tools\` server, as \`mcp__heyhey-submission-tools__<name>\` or, where hyphens in server names become underscores, \`mcp__heyhey_submission_tools__<name>\`. Match on the bare name, and list your full tool catalog if search finds nothing. If the required tool still is not exposed, stop and report it; do not invent an alternative. No freeform JSON or narrative-only completions.
 "
 `;
 
@@ -709,7 +709,7 @@ Copy the JSON object below exactly into \`disposition.sourceSnapshot\` when call
 }
 \`\`\`
 
-End each turn by calling one of the submission tools (the only legal completion paths) or by asking the user a clarifying question. Submission tools appear in your catalog as \`mcp__heyhey-submission-tools__<name>\` — bare names in this prompt map to those. If your environment supports deferred tool discovery, search for that exact prefix before reporting a missing tool. If discovery still does not expose the required tool, stop and report it; do not invent an alternative. No freeform JSON or narrative-only completions.
+End each turn by calling one of the submission tools (the only legal completion paths) or by asking the user a clarifying question. Submission tools are identified by their bare name (as used in this prompt). The submission tools appear in your catalog under the \`heyhey-submission-tools\` server, as \`mcp__heyhey-submission-tools__<name>\` or, where hyphens in server names become underscores, \`mcp__heyhey_submission_tools__<name>\`. Match on the bare name, and list your full tool catalog if search finds nothing. If the required tool still is not exposed, stop and report it; do not invent an alternative. No freeform JSON or narrative-only completions.
 "
 `;
 
@@ -976,7 +976,7 @@ Copy the JSON object below exactly into \`disposition.sourceSnapshot\` when call
 }
 \`\`\`
 
-End each turn by calling one of the submission tools (the only legal completion paths) or by asking the user a clarifying question. Submission tools appear in your catalog as \`mcp__heyhey-submission-tools__<name>\` — bare names in this prompt map to those. If your environment supports deferred tool discovery, search for that exact prefix before reporting a missing tool. If discovery still does not expose the required tool, stop and report it; do not invent an alternative. No freeform JSON or narrative-only completions.
+End each turn by calling one of the submission tools (the only legal completion paths) or by asking the user a clarifying question. Submission tools are identified by their bare name (as used in this prompt). The submission tools appear in your catalog under the \`heyhey-submission-tools\` server, as \`mcp__heyhey-submission-tools__<name>\` or, where hyphens in server names become underscores, \`mcp__heyhey_submission_tools__<name>\`. Match on the bare name, and list your full tool catalog if search finds nothing. If the required tool still is not exposed, stop and report it; do not invent an alternative. No freeform JSON or narrative-only completions.
 "
 `;
 
@@ -1100,7 +1100,7 @@ Persist both reports before calling the submission tool. If \`create_report\` re
 
 When verification finds no material discrepancy, persist the required reports and call submit_no_discrepancy.
 
-End each turn by calling one of the submission tools (the only legal completion paths) or by asking the user a clarifying question. Submission tools appear in your catalog as \`mcp__heyhey-submission-tools__<name>\` — bare names in this prompt map to those. If your environment supports deferred tool discovery, search for that exact prefix before reporting a missing tool. If discovery still does not expose the required tool, stop and report it; do not invent an alternative. No freeform JSON or narrative-only completions.
+End each turn by calling one of the submission tools (the only legal completion paths) or by asking the user a clarifying question. Submission tools are identified by their bare name (as used in this prompt). The submission tools appear in your catalog under the \`heyhey-submission-tools\` server, as \`mcp__heyhey-submission-tools__<name>\` or, where hyphens in server names become underscores, \`mcp__heyhey_submission_tools__<name>\`. Match on the bare name, and list your full tool catalog if search finds nothing. If the required tool still is not exposed, stop and report it; do not invent an alternative. No freeform JSON or narrative-only completions.
 "
 `;
 
@@ -1139,6 +1139,6 @@ If — and only if — the user's request explicitly requires re-verification of
 
 Any re-verification triggered by the user's request applies the same scope rule as the analyze prompt: a target entity using deliberately-general phrasing where today's code has one specific instance is **not** a discrepancy — the breadth is the point. The exception is the same too: real drift against a source-of-truth contract (OpenAPI specs, typed schemas, or other authoritative documents the user has directed you to verify against) remains flaggable.
 
-End each turn by calling one of the submission tools (the only legal completion paths) or by asking the user a clarifying question. Submission tools appear in your catalog as \`mcp__heyhey-submission-tools__<name>\` — bare names in this prompt map to those. If your environment supports deferred tool discovery, search for that exact prefix before reporting a missing tool. If discovery still does not expose the required tool, stop and report it; do not invent an alternative. No freeform JSON or narrative-only completions.
+End each turn by calling one of the submission tools (the only legal completion paths) or by asking the user a clarifying question. Submission tools are identified by their bare name (as used in this prompt). The submission tools appear in your catalog under the \`heyhey-submission-tools\` server, as \`mcp__heyhey-submission-tools__<name>\` or, where hyphens in server names become underscores, \`mcp__heyhey_submission_tools__<name>\`. Match on the bare name, and list your full tool catalog if search finds nothing. If the required tool still is not exposed, stop and report it; do not invent an alternative. No freeform JSON or narrative-only completions.
 "
 `;

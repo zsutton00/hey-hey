@@ -252,6 +252,7 @@ export const codingPlanHandler: CodingPlanHandler = {
     const enriched = payload as EnrichedCodingPlanPromptPayload;
     const replies = enriched._recentUserReplies ?? ctx?.recentUserReplies ?? [];
     return buildCodingPlanPrompt(payload, replies, {
+      provider: ctx?.provider,
       planningConversation: enriched._planningConversation,
       ...(enriched._services ? { services: enriched._services } : {}),
       ...(enriched._launchServiceId ? { launchServiceId: enriched._launchServiceId } : {}),

@@ -3,6 +3,7 @@ import { projectModeSettingsJsonSchema } from '../generated/project-mode-contrac
 import type { SessionRole } from '../shared/agent-bridge-contract/generated/api';
 import type { LocalPromptType } from '../shared/agent-bridge-contract/generated';
 import type { AgenticSession } from '../session/types';
+import type { AgentProviderId } from './providers/provider-config';
 import type { RunStore } from '../run-store/run-store';
 import type { PreparationRecords } from './preparation-records';
 import type { ReportAudience, ReportType, UpdateMessageDto } from '../shared/api/index';
@@ -62,6 +63,8 @@ export type { RecentUserReply };
 export interface PromptTypeHandlerContext {
   /** Agentic Run identity used to correlate handler diagnostics across a Turn. */
   runId?: string;
+  /** Provider executing the Run; prompts name provider-specific tool forms from it. */
+  provider?: AgentProviderId | undefined;
   /** The Turn being prepared; set on Turn prompts only. */
   turnId?: string;
   /** The Run's abort signal, read when called; undefined once the Run is not running. */

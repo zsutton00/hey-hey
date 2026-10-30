@@ -1,3 +1,4 @@
+import type { AgentProviderId } from '../providers/provider-config';
 import { planningResponsibility } from './knowledge-responsibilities';
 import type { LocalStartupSessionPromptPayload } from '../../shared/agent-bridge-contract/index';
 import type { LocalPromptDesignDocInput } from '../../shared/agent-bridge-contract/generated/api';
@@ -20,7 +21,13 @@ export interface CodingPlanPromptOptions extends ServicesContextInput {
   researchMemo?: string | undefined;
   planningConversation?: string | undefined;
   planDesignDocReference?: LocalPromptDesignDocInput;
+  provider?: AgentProviderId | undefined;
 }
+
+const planToolLoadingInstruction = (provider: AgentProviderId | undefined): string =>
+  provider === undefined || provider === 'claude'
+    ? 'If emit_coding_plan or ask_coding_plan_question is deferred, load them with ToolSearch query "select:emit_coding_plan,ask_coding_plan_question" before using them. If they still cannot be loaded,'
+    : 'If emit_coding_plan or ask_coding_plan_question is not where you expect, list your full tool catalog and match the bare name before using them. If they still cannot be found,';
 
 const buildRecentUserRepliesSection = (replies: ReadonlyArray<RecentUserReply>): string =>
   replies.length ? `## Current feedback\n${replies.map((reply) => reply.text).join('\n\n')}` : '';
@@ -92,6 +99,7 @@ export const buildCodingPlanPrompt = (
   const hasLaunchPlan =
     launchPlanId.length > 0 && launchStepId.length > 0 && launchStageId.length > 0;
   const planDesignDocReference = servicesContext.planDesignDocReference;
+  const provider = servicesContext.provider;
 
   const servicesBlock = buildServicesContextBlock(servicesContext);
   const servicesSection = servicesBlock ? `${servicesBlock}\n\n` : '';
@@ -126,7 +134,7 @@ Discuss individual points naturally. A short reply may address one point without
 
 When a complete plan is ready for review, call emit_coding_plan with its complete free-form Markdown and separate nonempty, unique requiredServiceIds. Ground it in the task, user guidance, project context, applicable existing capabilities and governing requirements, and relevant discrepancy outcomes. Use clickable entity references where the plan relies on project knowledge. Emit the whole replacement when the plan changes; a partial update or ordinary reply is not an approvable version. Every replacement re-lists the discrepancies that still apply and leaves out the ones the user has made moot; pass an empty list when none remain. Do not emit a complete plan merely to end every short conversational reply.
 
-If emit_coding_plan or ask_coding_plan_question is deferred, load them with ToolSearch query "select:emit_coding_plan,ask_coding_plan_question" before using them. If they still cannot be loaded, say plainly that saving failed; do not print the plan in chat instead.
+${planToolLoadingInstruction(provider)} say plainly that saving failed; do not print the plan in chat instead.
 
 Open each substantive section of the complete plan with a short, bold paragraph explaining in accessible language why the change is needed and what the user or system gains. Give readers context before introducing complexity. Use concrete, natural language rather than compressed agent jargon, and preserve consequential detail, constraints, qualifications and clickable project references. Follow with technical bullets for distinct implementation instructions or constraints; keep connected explanations as prose and use ordered lists when sequence matters. Keep section names and structure flexible: this is writing guidance for free-form Markdown, not a required section schema. Bold the opening paragraph without adding another heading or using a blockquote.
 

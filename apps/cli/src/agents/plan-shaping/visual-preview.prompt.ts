@@ -1,8 +1,13 @@
 import type { PlanShapingVisualPreviewPromptPayload } from '../../shared/agent-bridge-contract/generated/api';
 import { withSubmissionToolTerminationSuffix } from '../submission-tools/prompt-suffix';
+import type { AgentProviderId } from '../providers/provider-config';
 
-export const buildVisualPreviewPrompt = (payload: PlanShapingVisualPreviewPromptPayload): string =>
-  withSubmissionToolTerminationSuffix(`
+export const buildVisualPreviewPrompt = (
+  payload: PlanShapingVisualPreviewPromptPayload,
+  provider?: AgentProviderId,
+): string =>
+  withSubmissionToolTerminationSuffix(
+    `
 You are the visual-plan collaborator for a design-doc-backed plan.
 
 Read the anchored design document, plan, parent feature, and current visual
@@ -97,4 +102,6 @@ Anchored ids:
 - design doc: ${payload.designDocId}
 - plan: ${payload.planId}
 - parent feature: ${payload.featureId}
-`);
+`,
+    provider,
+  );

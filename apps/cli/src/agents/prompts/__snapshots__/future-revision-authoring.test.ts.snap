@@ -92,7 +92,7 @@ Approval and refinement store non-live knowledge. Apply remains a separate user 
 Current plan id: canonical-plan
 Design doc id: seed-doc
 
-End each turn by calling one of the submission tools (the only legal completion paths) or by asking the user a clarifying question. Submission tools appear in your catalog as \`mcp__heyhey-submission-tools__<name>\` — bare names in this prompt map to those. If your environment supports deferred tool discovery, search for that exact prefix before reporting a missing tool. If discovery still does not expose the required tool, stop and report it; do not invent an alternative. No freeform JSON or narrative-only completions.
+End each turn by calling one of the submission tools (the only legal completion paths) or by asking the user a clarifying question. Submission tools are identified by their bare name (as used in this prompt). The submission tools appear in your catalog under the \`heyhey-submission-tools\` server, as \`mcp__heyhey-submission-tools__<name>\` or, where hyphens in server names become underscores, \`mcp__heyhey_submission_tools__<name>\`. Match on the bare name, and list your full tool catalog if search finds nothing. If the required tool still is not exposed, stop and report it; do not invent an alternative. No freeform JSON or narrative-only completions.
 "
 `;
 
@@ -203,6 +203,6 @@ Approval and refinement store non-live knowledge. Apply remains a separate user 
 Current plan id: canonical-plan
 Design doc id: seed-doc
 
-End each turn by calling one of the submission tools (the only legal completion paths) or by asking the user a clarifying question. Submission tools appear in your catalog as \`mcp__heyhey-submission-tools__<name>\` — bare names in this prompt map to those. If your environment supports deferred tool discovery, search for that exact prefix before reporting a missing tool. If discovery still does not expose the required tool, stop and report it; do not invent an alternative. No freeform JSON or narrative-only completions.
+End each turn by calling one of the submission tools (the only legal completion paths) or by asking the user a clarifying question. Submission tools are identified by their bare name (as used in this prompt). The submission tools appear in your catalog under the \`heyhey-submission-tools\` server, as \`mcp__heyhey-submission-tools__<name>\` or, where hyphens in server names become underscores, \`mcp__heyhey_submission_tools__<name>\`. Match on the bare name, and list your full tool catalog if search finds nothing. If the required tool still is not exposed, stop and report it; do not invent an alternative. No freeform JSON or narrative-only completions.
 "
 `;

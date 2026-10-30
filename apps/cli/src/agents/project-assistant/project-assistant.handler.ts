@@ -237,6 +237,7 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
         focalTaskType: resolveProjectAssistantTaskType(loadedWorkItemType),
         parallelResearchSubagents: this.parallelResearchSubagents,
         hasNearestParentFeature: enriched._nearestParentFeature !== undefined,
+        provider: ctx?.provider,
       },
     );
     const sections: string[] = [base];

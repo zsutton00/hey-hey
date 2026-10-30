@@ -15,6 +15,7 @@ import {
   renderFeatureTagVocabulary,
   renderWorkItemTypeOntologyEntry,
 } from './render-type-ontology';
+import type { AgentProviderId } from '../providers/provider-config';
 import {
   selectGpt56EpistemicCalibration,
   type PlatformPromptContext,
@@ -442,6 +443,10 @@ MCP tools listed as "deferred" or behind "still connecting" reminders are not di
 - Never tell the user a platform tool is unavailable because MCP is reconnecting or disconnected. Call \`ToolSearch\` with \`select:<tool_name>\` to load the schema, then invoke the tool normally.
 - "Still connecting" reminders refer to session bootstrap and resolve in seconds; they are not steady-state status.`;
 
+/** Only Claude defers MCP tools behind `ToolSearch`; an unspecified provider keeps the guidance. */
+const providerDefersMcpTools = (provider: AgentProviderId | undefined): boolean =>
+  provider === undefined || provider === 'claude';
+
 /**
  * Consult-the-graph-before-asking rule: the entity graph is the answer source.
  * Before surfacing a question to the user, the agent must check the entity's
@@ -545,6 +550,8 @@ ${hintDefinition}
 Read the hints connected to the focused item with \`get_hints_for_items\` and include the relevant ones in the context you hand forward, as candidates for the next phase to weigh. Never write hints.`;
 
 export interface PlatformPromptOptions {
+  /** Provider executing the session; only Claude defers MCP tools behind `ToolSearch`. */
+  provider?: AgentProviderId | undefined;
   /** The machine-wide Intent-first choice, read once when the provider session starts. */
   intentFirst: boolean;
   /** The project's maturity stage, read once when the provider session starts. */
@@ -595,7 +602,7 @@ export function buildPlatformSystemPrompt(
         ? hintReadingGuidance
         : null,
     ephemeralAgentIterationGuidance,
-    deferredMcpTools,
+    providerDefersMcpTools(options?.provider) ? deferredMcpTools : null,
     consultGraphBeforeAsking,
     options?.maturity === ProjectMaturity.TakingShape ? takingShapeGuidance : null,
     topologyIsImplementationWork,

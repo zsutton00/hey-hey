@@ -56,8 +56,9 @@ export const planShapingFeatureSyncAnalyzeHandler: UserLaunchablePromptTypeHandl
 
     addUserMessage: (payload) => turnUserMessageBlock(payload.userMessage),
 
-    buildPrompt(payload: LocalPlanShapingFeatureSyncAnalyzePromptPayload): string {
+    buildPrompt(payload: LocalPlanShapingFeatureSyncAnalyzePromptPayload, ctx): string {
       return buildPlanShapingAnalyzePrompt({
+        provider: ctx?.provider,
         planId: payload.planId,
         designDocId: payload.designDocId,
       });

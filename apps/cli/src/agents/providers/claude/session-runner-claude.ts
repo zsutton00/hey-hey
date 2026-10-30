@@ -1944,6 +1944,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       // resume turns inherit the session's original appended prompt.
       const platformSystemPrompt = sessionStartContext
         ? buildPlatformSystemPrompt(sessionStartContext.workItemTypeDefinitions, undefined, {
+            provider: 'claude',
             intentFirst: sessionStartContext.intentFirst,
             maturity: sessionStartContext.maturity,
             hints: resolveHintPromptAccess(sessionStartContext.hintsEnabled, [
@@ -2756,6 +2757,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
           sessionStartContext.workItemTypeDefinitions,
           undefined,
           {
+            provider: 'claude',
             intentFirst: sessionStartContext.intentFirst,
             maturity: sessionStartContext.maturity,
             hints: resolveHintPromptAccess(sessionStartContext.hintsEnabled, [

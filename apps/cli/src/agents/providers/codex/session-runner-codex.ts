@@ -1734,6 +1734,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
             ...(epistemicCalibration ? { epistemicCalibration } : {}),
           },
           {
+            provider: 'codex',
             intentFirst: sessionStartContext.intentFirst,
             maturity: sessionStartContext.maturity,
             hints: resolveHintPromptAccess(

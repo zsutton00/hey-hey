@@ -204,6 +204,20 @@ describe('focalContextOrientation', () => {
 });
 
 describe('buildPlatformSystemPrompt', () => {
+  it('tells only Claude sessions that deferred MCP tools load through ToolSearch', () => {
+    const build = (provider: 'claude' | 'codex' | 'opencode') =>
+      buildPlatformSystemPrompt(sampleDefs, undefined, {
+        provider,
+        intentFirst: false,
+        maturity: ProjectMaturity.Established,
+        hints: 'none',
+      });
+
+    expect(build('claude')).toContain('ToolSearch');
+    expect(build('codex')).not.toContain('ToolSearch');
+    expect(build('opencode')).not.toContain('ToolSearch');
+  });
+
   it('adds hint guidance only for sessions with hint tools, after implementation hints', () => {
     const options = (hints: 'write' | 'read' | 'none') =>
       buildPlatformSystemPrompt(sampleDefs, undefined, {

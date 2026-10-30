@@ -477,6 +477,17 @@ const getPersistedProviderPayload = (
   return null;
 };
 
+const buildCodexPlatformPrompt = (
+  definitions: Parameters<typeof buildPlatformSystemPrompt>[0],
+  context?: Parameters<typeof buildPlatformSystemPrompt>[1],
+): string =>
+  buildPlatformSystemPrompt(definitions, context, {
+    provider: 'codex',
+    intentFirst: false,
+    maturity: 'ESTABLISHED',
+    hints: 'none',
+  });
+
 describe('session-runner-codex', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -1920,7 +1931,7 @@ describe('session-runner-codex', () => {
         oauthClient: createProviderTestOAuthClient({ success: true, data: 'test-token' }),
       });
       const firstTurnInput = 'Fresh pilot prompt.';
-      const expectedPlatformPrompt = buildPlatformSystemPrompt([]);
+      const expectedPlatformPrompt = buildCodexPlatformPrompt([]);
 
       await runner.runPrompt({
         session: makeSession({
@@ -1970,7 +1981,7 @@ describe('session-runner-codex', () => {
       oauthClient: createProviderTestOAuthClient({ success: true, data: 'test-token' }),
     });
     const firstTurnInput = '  Fresh codex prompt.\nwith formatting.  ';
-    const expectedPlatformPrompt = buildPlatformSystemPrompt([]);
+    const expectedPlatformPrompt = buildCodexPlatformPrompt([]);
 
     await runner.runPrompt({
       session: makeSession(),
@@ -2099,7 +2110,7 @@ describe('session-runner-codex', () => {
     });
     const firstTurnInput = 'First turn.';
     const followUpInput = 'Second turn.';
-    const expectedPlatformPrompt = buildPlatformSystemPrompt(BASELINE_DEFINITIONS, {
+    const expectedPlatformPrompt = buildCodexPlatformPrompt(BASELINE_DEFINITIONS, {
       provider: 'codex',
       model: 'gpt-5.6-sol',
       epistemicCalibration: true,
@@ -2164,7 +2175,7 @@ describe('session-runner-codex', () => {
       'prompt'
     ] as string;
     expect(turn1Prompt).toBe(
-      `${buildPlatformSystemPrompt(BASELINE_DEFINITIONS, undefined, { intentFirst: true, maturity: 'ESTABLISHED', hints: 'none' })}\n\nFirst turn.`,
+      `${buildPlatformSystemPrompt(BASELINE_DEFINITIONS, undefined, { provider: 'codex', intentFirst: true, maturity: 'ESTABLISHED', hints: 'none' })}\n\nFirst turn.`,
     );
     expect(turn1Prompt).toContain(intentFirstGuidance);
 

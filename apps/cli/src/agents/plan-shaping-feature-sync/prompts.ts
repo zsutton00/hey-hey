@@ -28,9 +28,11 @@ import type {
   FeatureSyncDiscrepancy,
   PlanShapingFeatureSyncItemDecision,
 } from '../../shared/agent-bridge-contract/generated/api';
+import type { AgentProviderId } from '../providers/provider-config';
 import { withSubmissionToolTerminationSuffix } from '../submission-tools/prompt-suffix';
 
 export interface PlanShapingAnalyzePromptInput {
+  provider?: AgentProviderId | undefined;
   /** Plan id the analyze turn is anchored on. Seeds the structure walk. */
   planId: string;
   /** Design doc id — the declared structure the walk treats as authoritative. */
@@ -226,7 +228,7 @@ const insertOutstandingItems = (
 export const buildPlanShapingAnalyzePrompt = (input: PlanShapingAnalyzePromptInput): string => {
   const baseBody = buildAnalyzePromptBody();
   const withContext = appendPlanContext(baseBody, input.planId, input.designDocId);
-  return withSubmissionToolTerminationSuffix(withContext);
+  return withSubmissionToolTerminationSuffix(withContext, input.provider);
 };
 
 const CHOICE_LABELS: Record<PlanShapingFeatureSyncItemDecision['choice'], string> = {
@@ -261,6 +263,7 @@ const insertChoices = (
 };
 
 export interface PlanShapingIteratePromptInput {
+  provider?: AgentProviderId | undefined;
   planId: string;
   designDocId: string;
   discrepancies: FeatureSyncDiscrepancy[];
@@ -276,6 +279,7 @@ export const buildPlanShapingIteratePrompt = (input: PlanShapingIteratePromptInp
       input.planId,
       input.designDocId,
     ),
+    input.provider,
   );
 };
 

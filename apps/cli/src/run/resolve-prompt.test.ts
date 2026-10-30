@@ -1040,6 +1040,7 @@ describe('resolvePrompt — registered handlers consume one preloaded entity Con
         expect(providerPrompt).toContain(
           handler.buildPrompt(result.preparedPayload, {
             runId: run.agentic_session_id,
+            provider: 'claude',
             logger: deps.logger,
             ...(result.startupPromptInput
               ? { loadedEntityContext: result.startupPromptInput.loadedEntityContext }
@@ -1063,6 +1064,39 @@ describe('resolvePrompt — registered handlers consume one preloaded entity Con
       String(url).includes('/entities/TASK/task-1/context'),
     );
     expect(focalContextCalls).toHaveLength(0);
+  });
+
+  it('names the submission tools in the Run provider form for a Codex Run', async () => {
+    const startupResolve = vi
+      .fn<PromptTypeHandlerDeps['startupPromptInput']['resolve']>()
+      .mockResolvedValue(startupResultWithContext('PRELOADED ENTITY CONTEXT'));
+    const { deps } = makeRegisteredDeps(startupResolve);
+    const handler = productionRegistry.get(LocalPromptType.Research);
+    if (!handler) throw new Error('Missing registered handler: research');
+    const run = makeSession({
+      entity: { entityType: RunEntityType.Task, entityId: 'task-1' },
+    });
+    run.provider = 'codex';
+    run.provider_session_id = '';
+
+    const result = await resolvePrompt({
+      handler,
+      run,
+      runState: createFirstTurnPromptRunState(),
+      input: makeInput({
+        promptType: LocalPromptType.Research,
+        payload: { userMessage: 'Look into it.' },
+      }),
+      handlerDeps: deps,
+      turnId: 'turn-1',
+      abortSignal: () => undefined,
+      recentUserReplies: [],
+      triggerParentMessageId: null,
+    });
+
+    const providerPrompt = composeProviderPrompt(result, 'first-turn-mint');
+    expect(providerPrompt).toContain('mcp__heyhey_submission_tools__<name>');
+    expect(providerPrompt).not.toContain('mcp__heyhey-submission-tools__');
   });
 
   it('refreshes the registered Feature Sync prompt with mutated entity and graph Context on remint', async () => {
