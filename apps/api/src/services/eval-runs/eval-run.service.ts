@@ -29,6 +29,7 @@ import {
   type EvalRecordedAttempt,
   type EvalRunCaseInput,
   type EvalRunReportPayload,
+  type EvalResolvedExecution,
   type EvalRunSettings,
   type LaunchEvalRunRequest,
   type ReportDto,
@@ -46,6 +47,10 @@ import { AgentSessionService } from '../agent-session.service';
 import { ReportService } from '../reports/report.service';
 import { WORK_ITEM_TYPE_KEYS } from '../tasks/work-item-type-keys';
 import { toEvalRunCaseInput } from './eval-case-input.mapper';
+import {
+  assertEvaluableRunHandler,
+  resolveEvalExecution,
+} from './eval-case-handlers';
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -184,6 +189,10 @@ export class EvalRunService {
         for (const caseInput of caseInputs) {
           for (const configuration of request.configurations) {
             const summary = `${caseInput.title} on ${configuration.target.model}`;
+            const execution = resolveEvalExecution(
+              caseInput.target,
+              configuration.target.handlerConfig,
+            );
             const target = await this.prepareSession(
               organizationId,
               projectId,
@@ -194,6 +203,7 @@ export class EvalRunService {
               },
               caseInput.target,
               configuration,
+              execution,
             );
             preparedSessionIds.push(target.agentSessionId);
             attemptPayloads.push({
@@ -201,6 +211,7 @@ export class EvalRunService {
               summary,
               caseInputId: caseInput.id,
               configuration,
+              execution,
               status: 'QUEUED',
               measurements: [],
               targetSessionId: target.agentSessionId,
@@ -449,15 +460,16 @@ export class EvalRunService {
     names: { title: string; conversationTitle: string },
     focal?: EvalRunCaseInput['target'],
     configuration?: EvalConfiguration,
+    execution?: EvalResolvedExecution,
   ): Promise<{
     agentSessionId: AgentSessionId;
     conversationId: ConversationId;
   }> {
     // Project Assistant runs inside its explicitly named consumer interaction.
     const interaction =
-      focal?.targetHandler === 'project_assistant'
-        ? focal.consumerHandler
-        : focal?.targetHandler;
+      execution?.handler === 'project_assistant'
+        ? execution.consumerHandler
+        : execution?.handler;
     const entityConversation = interaction === 'entity_conversation';
     const entityType = focal?.focalItemType ?? 'PROJECT';
     const entityId = focal?.focalItemId ?? projectId;
@@ -582,6 +594,7 @@ export class EvalRunService {
           attemptId: child.id,
           caseInput: caseInputs.get(attempt.caseInputId)!,
           configuration: attempt.configuration,
+          execution: attempt.execution!,
           targetSessionId: attempt.targetSessionId!,
           targetConversationId: attempt.targetConversationId!,
         };
@@ -625,6 +638,9 @@ export class EvalRunService {
     }
     if (!request.judgeSetup?.provider || !request.judgeSetup?.model) {
       throw new BadRequestException('judgeSetup requires a provider and model');
+    }
+    for (const configuration of request.configurations) {
+      assertEvaluableRunHandler(configuration.target.handlerConfig);
     }
   }
 

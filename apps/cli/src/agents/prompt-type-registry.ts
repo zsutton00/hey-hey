@@ -271,9 +271,9 @@ export class PromptTypeRegistry {
     }
 
     for (const handlerId of EVAL_TARGET_HANDLER_IDS) {
-      if (!this.handlersById.get(handlerId)?.childConfig) {
+      if (!this.handlersById.has(handlerId)) {
         throw new Error(
-          `PromptTypeRegistry: eval target '${handlerId}' must be a registered handler with a child configuration.`,
+          `PromptTypeRegistry: eval target '${handlerId}' must be a registered handler.`,
         );
       }
     }

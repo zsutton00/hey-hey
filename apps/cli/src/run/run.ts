@@ -3701,6 +3701,8 @@ export class Run {
 
   private inertInput: InternalRunPromptRequest | null = null;
   private inertInputStarted = false;
+  /** The admitted input's own Project Assistant research turn; part of its execution, not follow-up input. */
+  private inertPreparation: InternalRunPromptRequest | null = null;
   private initialInertInputAllowed = false;
 
   public admitInitialInertInput(): void {
@@ -3712,6 +3714,9 @@ export class Run {
       return;
     }
     if (input && this.inertInput === input && !this.inertInputStarted) {
+      return;
+    }
+    if (input && this.inertPreparation === input) {
       return;
     }
     this.logger.debug('local.run.inert.input_refused', { runId: this.runId });
@@ -4013,6 +4018,9 @@ export class Run {
         // Turn keeps the admission's Turn identity and owns settlement.
         ...(preparedAdmission ? { [BOOTSTRAP_INPUT_ADMISSION_MARKER]: preparedAdmission } : {}),
       } as InternalRunPromptRequest;
+      if (this.session.inert) {
+        this.inertPreparation = projectAssistantRequest;
+      }
       this.enqueue(stamped);
       await this.startTurn(projectAssistantRequest);
       return;
@@ -4083,7 +4091,9 @@ export class Run {
    */
   private async startTurn(input: InternalRunPromptRequest): Promise<void> {
     this.assertOrdinaryExecution(input);
-    this.inertInputStarted = this.session.inert === true;
+    if (this.session.inert && input === this.inertInput) {
+      this.inertInputStarted = true;
+    }
     input = this.routeImplementationReadinessClarification(input);
     const admission = this.inputAdmissionFor(input);
     const timelineTurnId = admission?.turnId;

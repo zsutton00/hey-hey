@@ -296,7 +296,11 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
         request: {
           evalCaseIds: approvedCases.map((evalCase) => evalCase.id),
           configurations: selectedSetups.map((setup) =>
-            toConfiguration(setup.setting, settings.projectAssistantEnabled),
+            toConfiguration(
+              setup.setting,
+              settings.projectAssistantEnabled,
+              settings.handler,
+            ),
           ),
           judgeSetup: judge.setting,
           settings: launchSettings,
@@ -332,6 +336,7 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
     projectId,
     selectedSetups,
     session,
+    settings.handler,
     settings.projectAssistantEnabled,
   ]);
 

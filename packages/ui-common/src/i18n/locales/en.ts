@@ -1331,10 +1331,22 @@ export const en = {
   "eval.run.settings.custom": "Custom…",
   "eval.run.settings.customMinutes": "Minutes",
   "eval.run.settings.customTokens": "Tokens",
+  "eval.run.settings.handler": "Handler to run",
+  "eval.run.settings.handlerCaseOwn": "Each case's own handler",
+  "eval.run.settings.handlerNoteCaseOwn":
+    "Every case runs the handler it names. Choose a handler to run all cases through it instead; the cases themselves are not changed.",
+  "eval.run.settings.handlerNoteHandler":
+    "Every case in this run runs this handler on its initiating request, in place of the handler the case names. The handler's reply is what gets judged. It is saved with the run.",
+  "eval.run.settings.handlerNoteProjectAssistantAlone":
+    "Only Project Assistant research runs; no answering handler starts, and the research report is what gets judged. It is saved with the run.",
+  "eval.run.handler.project_assistant": "Project Assistant alone",
+  "eval.run.handler.entity_conversation": "Entity conversation",
+  "eval.run.handler.feature_sync_analyze": "Feature sync",
+  "eval.run.handler.agent_search": "Agent search",
   "eval.run.settings.projectAssistant":
-    "Project Assistant prepares entity conversations",
+    "Project Assistant prepares the handler",
   "eval.run.settings.projectAssistantNote":
-    "Applies to every entity conversation case in this run, so you can compare with and without it. Turn it off to run them without Project Assistant. It is saved with the run.",
+    "Applies to every case in this run, so you can compare with and without it. When on, Project Assistant researches first and hands off to the handler as in real use. Turn it off to run the handler without Project Assistant. It is saved with the run.",
   "eval.run.settings.limitsNote":
     "Attempts run until they finish unless you set a limit here. Any limit is saved with the run and shown on every attempt it stops.",
   "eval.run.page.attempts": "Attempts",
@@ -1344,9 +1356,10 @@ export const en = {
     "You can leave this page; the run keeps going.",
   "eval.run.page.stop": "Stop run",
   "eval.run.page.settingsSummary":
-    "{{concurrency}} at once · Time limit: {{time}} · Token limit: {{tokens}} · Project Assistant: {{projectAssistant}}",
+    "{{concurrency}} at once · Time limit: {{time}} · Token limit: {{tokens}} · Handler: {{handler}} · Project Assistant: {{projectAssistant}}",
   "eval.run.page.projectAssistantOn": "on",
   "eval.run.page.projectAssistantOff": "off",
+  "eval.run.page.projectAssistantAlone": "research only",
   "eval.run.page.timeLimitValue": "{{value}} per attempt",
   "eval.run.page.tokenLimitValue": "{{value}} tokens per attempt",
   "eval.run.page.limitNone": "none",
@@ -1453,6 +1466,21 @@ export const en = {
   "eval.results.attempt.produced": "What this attempt produced",
   "eval.results.attempt.savedNote":
     "Shown read-only, as saved when the attempt ran.",
+  "eval.results.sessions.target": "Attempt session (what the handler did)",
+  "eval.results.sessions.noTarget": "No attempt session was recorded.",
+  "eval.results.sessions.judge": "Judge",
+  "eval.results.sessions.judgeNote":
+    "runs inside the run session and has no session of its own. Run session:",
+  "eval.results.sessions.judged": "Given to the judge ({{count}} characters)",
+  "eval.results.sessions.judgedNone":
+    "Nothing was given to the judge: the attempt ended before judging started.",
+  "eval.results.attempt.ran":
+    "Ran: {{handler}} · Project Assistant: {{projectAssistant}} · Assessed: {{output}}",
+  "eval.results.attempt.projectAssistantAlone": "research only",
+  "eval.results.attempt.projectAssistantPrepared": "prepared it first",
+  "eval.results.attempt.projectAssistantNotUsed": "not used",
+  "eval.results.attempt.assessed.RESEARCH_REPORT": "research report",
+  "eval.results.attempt.assessed.HANDLER_REPLY": "handler reply",
   "eval.results.attempt.openProposal": "Open in proposal view",
   "eval.results.attempt.openLiveItem": "Open the live item",
   "eval.results.attempt.noOutput":

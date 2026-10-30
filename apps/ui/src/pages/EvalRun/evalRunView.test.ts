@@ -10,6 +10,7 @@ import {
   attemptCellView,
   defaultRunSettings,
   isProjectAssistantEnabled,
+  runHandlerOf,
   formatElapsed,
   progressEntries,
   toConfiguration,
@@ -75,6 +76,41 @@ describe("toConfiguration", () => {
     expect(isProjectAssistantEnabled([toConfiguration(target, true)])).toBe(
       true,
     );
+  });
+});
+
+describe("toConfiguration with a run-level handler", () => {
+  const target = { provider: "claude", model: "claude-opus-5-5" };
+
+  it("records the chosen handler with Project Assistant's setting", () => {
+    expect(
+      toConfiguration(target, true, "feature_sync_analyze").target,
+    ).toEqual({
+      ...target,
+      handlerConfig: { handler: "feature_sync_analyze" },
+    });
+    expect(
+      toConfiguration(target, false, "feature_sync_analyze").target,
+    ).toEqual({
+      ...target,
+      handlerConfig: {
+        handler: "feature_sync_analyze",
+        projectAssistant: { enabled: false },
+      },
+    });
+  });
+
+  it("records no preparation setting for Project Assistant alone", () => {
+    const alone = toConfiguration(target, false, "project_assistant");
+
+    expect(alone.target.handlerConfig).toEqual({
+      handler: "project_assistant",
+    });
+    expect(runHandlerOf([alone])).toBe("project_assistant");
+  });
+
+  it("leaves each case's own handler alone when none is chosen", () => {
+    expect(runHandlerOf([toConfiguration(target, true)])).toBeUndefined();
   });
 });
 

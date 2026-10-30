@@ -39,6 +39,9 @@ import {
 } from "@hey-hey/ui-common/data";
 import { WebPathService } from "@hey-hey/ui-common/services";
 
+import { AttemptExecutionSummary } from "./AttemptExecutionSummary";
+import { AttemptSessions } from "./AttemptSessions";
+
 import { EvalHumanReviewForm } from "./EvalHumanReviewForm";
 import {
   automatedAssessment,
@@ -404,6 +407,8 @@ export const EvalCaseDetail: React.FC<EvalCaseDetailProps> = ({
   row,
 }) => (
   <Box sx={{ p: 2 }} data-testid={`eval-attempt-detail-${attempt.id}`}>
+    <AttemptExecutionSummary attempt={attempt} />
+    <AttemptSessions projectId={projectId} run={run} attempt={attempt} />
     <ExpectedVersusResult row={row} />
     <WorkBreakdown rows={row.breakdown} />
     <Grid container spacing={2}>

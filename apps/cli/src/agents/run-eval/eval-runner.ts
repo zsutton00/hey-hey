@@ -34,6 +34,7 @@ export type EvalAttemptPatch = Partial<
     | 'completedAt'
     | 'measurements'
     | 'automatedAssessment'
+    | 'judgedOutput'
     | 'summary'
   >
 >;
@@ -184,6 +185,7 @@ export const runEvalAttempts = async (
       await ports.recorder.updateAttempt(attempt.attemptId, {
         status: 'JUDGING',
         measurements,
+        judgedOutput: target.outputText,
         summary,
       });
       try {

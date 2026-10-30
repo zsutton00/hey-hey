@@ -1,9 +1,12 @@
 import { BadRequestException } from '@nestjs/common';
 import {
+  EvalAssessedOutput,
   EvalConsumerHandlerKey,
   EvalTargetHandlerKey,
   WorkStatus,
   type EvalCaseTarget,
+  type EvalHandlerConfig,
+  type EvalResolvedExecution,
   type ProjectedWorkItem,
 } from 'src/generated';
 
@@ -49,6 +52,60 @@ export function assertApprovedEvalCaseHandlers(
     sectionText(root.sections, 'handler'),
     sectionText(root.sections, 'consumerHandler'),
   );
+}
+
+/**
+ * Eval attempts never change the project, so Project Assistant research that
+ * has no consumer of its own runs under entity conversation's real policy:
+ * edge updates, discrepancy notices and work item proposals all off.
+ */
+const PROJECT_ASSISTANT_ALONE_CONSUMER =
+  EvalConsumerHandlerKey.EntityConversation;
+
+/** Launch rejects a run-level handler that is not an evaluable handler key. */
+export function assertEvaluableRunHandler(
+  handlerConfig: EvalHandlerConfig | undefined,
+): void {
+  const handler = handlerConfig?.handler;
+  if (handler !== undefined && !isTargetHandlerKey(handler)) {
+    throw new BadRequestException(
+      `Eval run cannot start: handler "${handler}" is not evaluable. Evaluable handlers: ${TARGET_HANDLER_KEYS.join(', ')}.`,
+    );
+  }
+}
+
+/**
+ * What one attempt executes. The run's chosen handler replaces the handler the
+ * case names, without editing the case; without one the case's own handler
+ * runs. A real handler is prepared by Project Assistant unless the setup turns
+ * it off or the handler declares no Project Assistant policy. Resolved once at
+ * launch and recorded, so the CLI and results read the same answer.
+ */
+export function resolveEvalExecution(
+  caseTarget: Pick<EvalCaseTarget, 'targetHandler' | 'consumerHandler'>,
+  handlerConfig: EvalHandlerConfig | undefined,
+): EvalResolvedExecution {
+  const handler = handlerConfig?.handler ?? caseTarget.targetHandler;
+
+  if (handler === EvalTargetHandlerKey.ProjectAssistant) {
+    const consumerHandler = handlerConfig?.handler
+      ? PROJECT_ASSISTANT_ALONE_CONSUMER
+      : caseTarget.consumerHandler;
+    return {
+      handler,
+      ...(consumerHandler ? { consumerHandler } : {}),
+      projectAssistantPrepares: false,
+      assessedOutput: EvalAssessedOutput.ResearchReport,
+    };
+  }
+
+  return {
+    handler,
+    projectAssistantPrepares:
+      isConsumerHandlerKey(handler) &&
+      handlerConfig?.projectAssistant?.enabled !== false,
+    assessedOutput: EvalAssessedOutput.HandlerReply,
+  };
 }
 
 /**

@@ -124,13 +124,32 @@ const startRunPayload = (overrides: Partial<StartRunTriggerPayload>): StartRunTr
   }) as unknown as StartRunTriggerPayload;
 
 import { EvalAttemptExecution } from './eval-attempt-execution';
-import type { EvalRecordedAttempt } from '../../shared/api/generated/api';
+import type {
+  EvalRecordedAttempt,
+  EvalResolvedExecution,
+  EvalTargetHandlerKey,
+} from '../../shared/api/generated/api';
 import type { AgenticSession } from '../../session/types';
 
+const executionOf = (
+  handler: EvalTargetHandlerKey,
+  projectAssistantPrepares: boolean,
+): EvalResolvedExecution =>
+  handler === 'project_assistant'
+    ? {
+        handler,
+        consumerHandler: 'entity_conversation',
+        projectAssistantPrepares: false,
+        assessedOutput: 'RESEARCH_REPORT',
+      }
+    : { handler, projectAssistantPrepares, assessedOutput: 'HANDLER_REPLY' };
+
 const attempt = (
-  handler: 'agent_search' | 'entity_conversation' | 'project_assistant',
+  handler: EvalTargetHandlerKey,
+  options: { projectAssistantPrepares?: boolean; focalItemType?: 'TASK' | 'PROJECT' } = {},
 ): EvalRecordedAttempt => ({
   attemptId: '33333333-3333-4333-8333-333333333333',
+  execution: executionOf(handler, options.projectAssistantPrepares ?? false),
   targetSessionId: AGENT_SESSION_ID,
   targetConversationId: CONVERSATION_ID,
   configuration: {
@@ -139,7 +158,6 @@ const attempt = (
       provider: 'claude',
       model: 'claude-test',
       reasoningEffort: 'high',
-      handlerConfig: { projectAssistant: { enabled: false } },
     },
   },
   caseInput: {
@@ -152,20 +170,48 @@ const attempt = (
         ? { consumerHandler: 'entity_conversation' as const }
         : {}),
       focalItemId: ENTITY.entityId,
-      focalItemType: 'TASK',
+      focalItemType: options.focalItemType ?? 'TASK',
       initiatingRequest: 'Review this item.',
       situation: 'SECRET-SITUATION',
     },
     grading: { checks: [], rubric: [], expectations: 'SECRET-EXPECTATIONS' },
   },
 });
+/** Saves research and a different completion note, as a research turn does. */
+const finishWith = async (
+  h: Awaited<ReturnType<typeof makeHarness>>,
+  { research, finalMessage }: { research?: string; finalMessage: string },
+): Promise<void> => {
+  h.runPrompt.mockImplementationOnce(async () => {
+    const turnId = (await h.runStore.getRunMetadata(AGENT_SESSION_ID))?.latestTurn?.turnId;
+    if (research !== undefined) {
+      await h.runStore.appendRunMemo(AGENT_SESSION_ID, {
+        source: 'project_assistant',
+        content: research,
+        writtenAt: new Date().toISOString(),
+      });
+    }
+    await h.runStore.updateRunFinalAssistantMessage(AGENT_SESSION_ID, {
+      turnId: turnId ?? '',
+      messageId: 'final',
+      text: finalMessage,
+      committedAt: new Date().toISOString(),
+    });
+    return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+  });
+};
+
 const coordinator = { contextMetadata: startRunPayload({}).contextMetadata } as AgenticSession;
 
 describe('eval attempts through ordinary Runs', () => {
   it.each(['agent_search', 'entity_conversation', 'project_assistant'] as const)(
     'creates and prepares the actual %s handler',
     async (handler) => {
-      const { runStore, runPrompt, wiring, postMessage, execution } = await makeHarness();
+      const harness = await makeHarness();
+      const { runStore, runPrompt, wiring, postMessage, execution } = harness;
+      if (handler === 'project_assistant') {
+        await finishWith(harness, { research: 'Saved research.', finalMessage: 'Done.' });
+      }
       const result = await execution.execute(coordinator, attempt(handler), {
         signal: new AbortController().signal,
       });
@@ -186,6 +232,119 @@ describe('eval attempts through ordinary Runs', () => {
       }
     },
   );
+
+  describe('run-level handler choice', () => {
+    /** The prompts the provider actually ran, in order. */
+    const promptsRun = (runPrompt: ReturnType<typeof vi.fn>): readonly string[] =>
+      runPrompt.mock.calls.map(
+        ([args]) => (args as import('../providers/session-runner').RunPromptArgs).prompt,
+      );
+
+    it('runs research alone for Project Assistant alone, starting no answering handler', async () => {
+      const harness = await makeHarness();
+      const { runStore, runPrompt, execution } = harness;
+      await finishWith(harness, { research: 'Saved research.', finalMessage: 'Done.' });
+      await execution.execute(coordinator, attempt('project_assistant'), {
+        signal: new AbortController().signal,
+      });
+      expect(runPrompt).toHaveBeenCalledOnce();
+      expect((await runStore.getRunMetadata(AGENT_SESSION_ID))?.startedPromptTypes).toEqual([
+        'project_assistant',
+      ]);
+    });
+
+    it('has Project Assistant research first and hand off to the chosen handler when it prepares', async () => {
+      const { runPrompt, execution } = await makeHarness();
+      await execution.execute(
+        coordinator,
+        attempt('entity_conversation', { projectAssistantPrepares: true }),
+        { signal: new AbortController().signal },
+      );
+      expect(runPrompt).toHaveBeenCalledTimes(2);
+      const [research, answer] = promptsRun(runPrompt);
+      // Research is told which handler it prepares and quotes the unchanged request for it.
+      expect(research).toContain('queued for the "entity_conversation" handler');
+      expect(research).toContain('> Review this item.');
+      expect(answer).not.toContain('queued for the "entity_conversation" handler');
+    });
+
+    it('runs the chosen handler without Project Assistant when preparation is off', async () => {
+      const { runPrompt, execution } = await makeHarness();
+      await execution.execute(coordinator, attempt('entity_conversation'), {
+        signal: new AbortController().signal,
+      });
+      expect(runPrompt).toHaveBeenCalledOnce();
+      expect(promptsRun(runPrompt)[0]).not.toContain(
+        'queued for the "entity_conversation" handler',
+      );
+    });
+
+    describe('which output is judged', () => {
+      it('judges the saved research, not the completion note, for Project Assistant alone', async () => {
+        const harness = await makeHarness();
+        await finishWith(harness, {
+          research: 'FULL-RESEARCH-REPORT',
+          finalMessage: 'Done, report saved.',
+        });
+        const result = await harness.execution.execute(coordinator, attempt('project_assistant'), {
+          signal: new AbortController().signal,
+        });
+        expect(result).toMatchObject({
+          assistantCompleted: true,
+          outputText: 'FULL-RESEARCH-REPORT',
+        });
+      });
+
+      it('judges the handler reply, not the research, when a handler answers', async () => {
+        const harness = await makeHarness();
+        await finishWith(harness, {
+          research: 'FULL-RESEARCH-REPORT',
+          finalMessage: 'The handler answer.',
+        });
+        const result = await harness.execution.execute(
+          coordinator,
+          attempt('entity_conversation'),
+          {
+            signal: new AbortController().signal,
+          },
+        );
+        expect(result).toMatchObject({ outputText: 'The handler answer.' });
+      });
+
+      it('fails the attempt when research ended without saving a report', async () => {
+        const harness = await makeHarness();
+        await finishWith(harness, { finalMessage: 'Here is what I found.' });
+        await expect(
+          harness.execution.execute(coordinator, attempt('project_assistant'), {
+            signal: new AbortController().signal,
+          }),
+        ).rejects.toThrow(/research ended without saving a research report/);
+      });
+    });
+
+    it('fails only the attempt whose handler cannot start as the first agent, with the reason', async () => {
+      const { runPrompt, execution } = await makeHarness();
+      // Feature sync declares it needs a Service folder, which attempts do not have.
+      await expect(
+        execution.execute(coordinator, attempt('feature_sync_analyze'), {
+          signal: new AbortController().signal,
+        }),
+      ).rejects.toThrow(/feature_sync_analyze failed before producing an answer/);
+      expect(runPrompt).not.toHaveBeenCalled();
+    });
+
+    it('refuses a handler that analyzes a work item when the case has none', async () => {
+      const { runPrompt, execution } = await makeHarness();
+      await expect(
+        execution.execute(
+          coordinator,
+          attempt('feature_sync_analyze', { focalItemType: 'PROJECT' }),
+          { signal: new AbortController().signal },
+        ),
+      ).rejects.toThrow(/feature_sync_analyze cannot start as the first agent/);
+      expect(runPrompt).not.toHaveBeenCalled();
+    });
+  });
 
   it('does not start an attempt cancelled before creation', async () => {
     const { service, runStore, runPrompt } = await makeHarness();

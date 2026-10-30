@@ -336,14 +336,21 @@ export function buildRunEvalStartPayload(
         `Attempt ${attempt.id} names case ${attempt.payload.caseInputId}, which run ${run.id} did not record`,
       );
     }
-    const { targetSessionId, targetConversationId } = attempt.payload;
+    const { targetSessionId, targetConversationId, execution } =
+      attempt.payload;
     if (!targetSessionId || !targetConversationId) {
       throw new Error(
         `Attempt ${attempt.id} is missing its recorded target session or conversation`,
       );
     }
+    if (!execution) {
+      throw new Error(
+        `Attempt ${attempt.id} did not record what it executes, so it cannot be started`,
+      );
+    }
     return {
       attemptId: attempt.id,
+      execution,
       targetSessionId,
       targetConversationId,
       caseInput,

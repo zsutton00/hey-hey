@@ -54,6 +54,12 @@ const caseInput = {
   target: {},
   grading: {},
 } as unknown as EvalRunReport["payload"]["cases"][number];
+const execution = {
+  handler: "entity_conversation",
+  projectAssistantPrepares: true,
+  assessedOutput: "HANDLER_REPLY",
+} as const;
+
 const configuration = {
   key: "setup-a",
 } as unknown as EvalRunReport["payload"]["configurations"][number];
@@ -99,6 +105,7 @@ const attemptReport = (
       reportType: ReportType.EvalAttempt,
       caseInputId: "case-input-1",
       configuration,
+      execution,
       status,
       measurements,
       targetSessionId: "target-session-1",
@@ -371,6 +378,7 @@ describe("run_eval start payload", () => {
       attempts: [
         {
           attemptId: "attempt-1",
+          execution,
           targetSessionId: "target-session-1",
           targetConversationId: "target-conversation-1",
           caseInput,
@@ -378,6 +386,14 @@ describe("run_eval start payload", () => {
         },
       ],
     });
+  });
+
+  it("refuses to start an attempt that did not record what it executes", () => {
+    const attempt = attemptReport("QUEUED");
+    attempt.payload.execution = undefined;
+    expect(() =>
+      buildRunEvalStartPayload(runReport("QUEUED"), [attempt], "Run the eval"),
+    ).toThrow(/did not record what it executes/);
   });
 
   it.each(["targetSessionId", "targetConversationId"] as const)(

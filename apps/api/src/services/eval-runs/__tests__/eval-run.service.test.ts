@@ -481,6 +481,125 @@ describe('EvalRunService.launch', () => {
     });
   });
 
+  describe('run-level handler', () => {
+    const attemptPayloads = (
+      reports: ReturnType<typeof build>['reports'],
+    ): Array<{ execution: unknown }> =>
+      reports.createWithIdInTransaction.mock.calls
+        .slice(1)
+        .map(([, , , dto]) => dto.payload);
+
+    it('runs the chosen handler for every case without editing the case, and records what ran', async () => {
+      const { service, reports, sessions } = build();
+      const chosen = {
+        id: CONFIG_A.id,
+        target: {
+          ...CONFIG_A.target,
+          handlerConfig: {
+            handler: 'feature_sync_analyze',
+            projectAssistant: { enabled: false },
+          },
+        },
+      };
+
+      await service.launch(ORG, PROJECT, USER, EVAL_ID, {
+        ...request,
+        configurations: [chosen],
+      } as never);
+
+      const [, , , runDto] = reports.createWithIdInTransaction.mock.calls[0]!;
+      expect(runDto.payload.cases[0].target.targetHandler).toBe(
+        'entity_conversation',
+      );
+      expect(attemptPayloads(reports)).toEqual([
+        expect.objectContaining({
+          execution: {
+            handler: 'feature_sync_analyze',
+            projectAssistantPrepares: false,
+            assessedOutput: 'HANDLER_REPLY',
+          },
+        }),
+      ]);
+      expect(sessions.createConversationForSession).toHaveBeenLastCalledWith(
+        ORG,
+        PROJECT,
+        'session-2',
+        expect.objectContaining({ workflowType: 'agent-session' }),
+      );
+    });
+
+    it('has Project Assistant prepare the chosen handler unless the setup turns it off', async () => {
+      const { service, reports } = build();
+      const chosen = {
+        id: CONFIG_A.id,
+        target: {
+          ...CONFIG_A.target,
+          handlerConfig: { handler: 'entity_conversation' },
+        },
+      };
+
+      await service.launch(ORG, PROJECT, USER, EVAL_ID, {
+        ...request,
+        configurations: [chosen],
+      } as never);
+
+      expect(attemptPayloads(reports)[0]!.execution).toMatchObject({
+        handler: 'entity_conversation',
+        projectAssistantPrepares: true,
+      });
+    });
+
+    it('runs research alone under entity conversation policy when Project Assistant alone is chosen', async () => {
+      const { service, reports, sessions } = build();
+      const chosen = {
+        id: CONFIG_A.id,
+        target: {
+          ...CONFIG_A.target,
+          handlerConfig: { handler: 'project_assistant' },
+        },
+      };
+
+      await service.launch(ORG, PROJECT, USER, EVAL_ID, {
+        ...request,
+        configurations: [chosen],
+      } as never);
+
+      expect(attemptPayloads(reports)[0]!.execution).toEqual({
+        handler: 'project_assistant',
+        consumerHandler: 'entity_conversation',
+        projectAssistantPrepares: false,
+        assessedOutput: 'RESEARCH_REPORT',
+      });
+      expect(sessions.createConversationForSession).toHaveBeenLastCalledWith(
+        ORG,
+        PROJECT,
+        'session-2',
+        expect.objectContaining({ workflowType: 'agent-entity-conversation' }),
+      );
+    });
+
+    it('rejects a run-level handler that is not evaluable before preparing or recording anything', async () => {
+      const { service, reports, sessions } = build();
+
+      await expect(
+        service.launch(ORG, PROJECT, USER, EVAL_ID, {
+          ...request,
+          configurations: [
+            {
+              id: CONFIG_A.id,
+              target: {
+                ...CONFIG_A.target,
+                handlerConfig: { handler: 'run_eval' },
+              },
+            },
+          ],
+        } as never),
+      ).rejects.toThrow(/handler "run_eval" is not evaluable/);
+      expect(reports.createWithIdInTransaction).not.toHaveBeenCalled();
+      expect(sessions.createInTransaction).not.toHaveBeenCalled();
+    });
+  });
+
   it.each([
     ['no cases', { ...request, evalCaseIds: [] }],
     ['no setups', { ...request, configurations: [] }],
@@ -537,10 +656,16 @@ describe('EvalRunService.assertStartRun', () => {
       coordinatorConversationId: CONVERSATION,
     },
   };
+  const execution = {
+    handler: 'entity_conversation',
+    projectAssistantPrepares: true,
+    assessedOutput: 'HANDLER_REPLY',
+  };
   const recordedAttempt = {
     attemptId,
     caseInput,
     configuration: CONFIG_A,
+    execution,
     targetSessionId: 'target-session-1',
     targetConversationId: 'target-conversation-1',
   };
@@ -570,6 +695,7 @@ describe('EvalRunService.assertStartRun', () => {
         payload: {
           caseInputId: caseInput.id,
           configuration: CONFIG_A,
+          execution,
           targetSessionId: 'target-session-1',
           targetConversationId: 'target-conversation-1',
         },

@@ -9,6 +9,11 @@ import {
 
 const makeAttempt = (id: string): EvalRecordedAttempt => ({
   attemptId: id,
+  execution: {
+    handler: 'entity_conversation',
+    projectAssistantPrepares: false,
+    assessedOutput: 'HANDLER_REPLY',
+  },
   targetSessionId: `session-${id}`,
   targetConversationId: `conversation-${id}`,
   configuration: { id: 'cfg', target: { provider: 'claude', model: 'sonnet' } },
@@ -94,6 +99,32 @@ describe('runEvalAttempts', () => {
     expect(tally).toEqual({ completed: 5, errored: 0, stopped: 0 });
     expect(runStatuses).toEqual(['RUNNING', 'FINISHED']);
     expect(finalPatch(attempts, 'a')).toMatchObject({ status: 'COMPLETED' });
+  });
+
+  it('records the exact text the judge was given, kept even if the judge then fails', async () => {
+    const { ports, attempts } = makePorts(async () => ({
+      ...completed,
+      outputText: 'THE-SAVED-RESEARCH',
+    }));
+    const judge = vi.fn<EvalRunnerPorts['judge']>(async () => {
+      throw new Error('judge down');
+    });
+
+    await runEvalAttempts(
+      {
+        attempts: [makeAttempt('a')],
+        settings: { maxConcurrentAttempts: 1 },
+        signal: new AbortController().signal,
+      },
+      { ...ports, judge },
+    );
+
+    expect(judge).toHaveBeenCalledWith(expect.anything(), 'THE-SAVED-RESEARCH', expect.anything());
+    const patches = attempts.get('a')!;
+    expect(patches.find((patch) => patch.status === 'JUDGING')).toMatchObject({
+      judgedOutput: 'THE-SAVED-RESEARCH',
+    });
+    expect(finalPatch(attempts, 'a')).toMatchObject({ status: 'ERROR' });
   });
 
   it('passes no token budget and sets no timer when the run recorded no limits', async () => {

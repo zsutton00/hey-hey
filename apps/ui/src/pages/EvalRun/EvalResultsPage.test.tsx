@@ -221,6 +221,7 @@ const attempt = (
 const attempts = [
   attempt("opus-attempt", opusHigh, {
     automatedAssessment: assessed,
+    judgedOutput: "THE-SAVED-RESEARCH-TEXT",
     measurements: [
       {
         scope: "TARGET_PREPARATION",
@@ -444,6 +445,28 @@ describe("EvalResultsPage", () => {
     );
     // The automated assessment is still shown, untouched.
     expect(screen.getByTestId("eval-rubric-recognition")).toBeInTheDocument();
+  });
+
+  it("shows which sessions an attempt ran in and exactly what the judge was given", () => {
+    render(<EvalResultsPage />);
+    expand("opus-attempt");
+    const detail = screen.getByTestId("eval-attempt-detail-opus-attempt");
+
+    expect(
+      within(detail).getByTestId("eval-attempt-session-target"),
+    ).toHaveAttribute("href", expect.stringContaining("session-opus-attempt"));
+    expect(
+      within(detail).getByTestId("eval-attempt-session-run"),
+    ).toHaveAttribute("href", expect.stringContaining("coordinator"));
+    expect(
+      within(detail).getByTestId("eval-attempt-judged-output"),
+    ).toHaveTextContent("THE-SAVED-RESEARCH-TEXT");
+
+    expand("sonnet-attempt");
+    const unjudged = screen.getByTestId("eval-attempt-detail-sonnet-attempt");
+    expect(
+      within(unjudged).getByTestId("eval-attempt-judged-none"),
+    ).toBeInTheDocument();
   });
 
   it("keeps each open row's review draft apart", () => {
