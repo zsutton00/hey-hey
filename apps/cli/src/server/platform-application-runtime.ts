@@ -104,6 +104,7 @@ export class PlatformApplicationRuntime {
         logger: logger.child({ component: 'run-restore' }),
       });
     this.triggerVerificationRuntime = new TriggerVerificationRuntime({
+      servicesApi: dependencies.apiRuntime.clients.services,
       ...(dependencies.diagnosticFeed ? { diagnosticFeed: dependencies.diagnosticFeed } : {}),
       keyPairStore: dependencies.keyPairStore,
       initialAccessToken: dependencies.initialAccessToken,

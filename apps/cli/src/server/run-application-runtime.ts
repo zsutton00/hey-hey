@@ -588,6 +588,7 @@ export class RunApplicationRuntime {
       dependencies.logger,
       () => this.subagentInteractionRuntime.readyForInputPickup,
       dependencies.runStore,
+      this.messagePoster,
       dependencies.operationTimeline,
     );
     this.agentService.bindInputAdmission(this.inputAdmissionLifecycle);

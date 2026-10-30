@@ -537,6 +537,7 @@ describe('stale permission recovery after CLI restart', () => {
         NOOP_LOGGER,
         () => true,
         {} as never,
+        createTestMessagePoster(),
       );
     const paths = {
       directory: join(directory, 'inputs'),

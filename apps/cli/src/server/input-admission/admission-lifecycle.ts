@@ -1,3 +1,5 @@
+import type { MessagePoster } from '../../run/message-poster';
+import { isAxiosError } from 'axios';
 import { DeterministicE2EEvidence } from '../../run/runners/deterministic-e2e-evidence';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
@@ -16,6 +18,7 @@ import { z as durable } from 'zod/v4';
 import {
   AgentSessionsApi,
   ProjectsApi,
+  ServicesApi,
   type InputExecutionProjection,
   type AgentInteractionSettledTurn,
 } from '../../shared/api/generated/api';
@@ -52,7 +55,11 @@ const isTerminalInputDeliveryRejection = (error: unknown): boolean =>
   error instanceof RunAttachmentNotFoundError ||
   error instanceof StagedBrowserTabNotFoundError ||
   error instanceof MissingServiceBindingError ||
-  (error instanceof LocalAgentApiError && error.statusCode === 400);
+  (error instanceof LocalAgentApiError && error.statusCode === 400) ||
+  !(
+    (isAxiosError(error) && (!error.response || error.response.status >= 500)) ||
+    (error instanceof LocalAgentApiError && error.statusCode >= 500)
+  );
 
 const settledSchema = z.object({
   turnId: id,
@@ -67,7 +74,12 @@ class ProjectionRejectedError extends Error {}
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-type PlatformApis = { machineId: string; projects: ProjectsApi; sessions: AgentSessionsApi };
+type PlatformApis = {
+  machineId: string;
+  projects: ProjectsApi;
+  sessions: AgentSessionsApi;
+  services: ServicesApi;
+};
 
 /** A pass that did no work is logged only when at least this slow. */
 const SLOW_PASS_LOG_MS = 100;
@@ -145,6 +157,7 @@ export class InputAdmissionLifecycle implements RunFollowUpAdmission {
     private readonly logger: ServerLogger,
     private readonly pickupReady: () => boolean,
     private readonly runStore: RunStore,
+    private readonly poster: MessagePoster,
     private readonly operationTimeline?: OperationTimelineRegistry,
     private readonly attachmentStore = new RunAttachmentStore(),
   ) {}
@@ -157,7 +170,12 @@ export class InputAdmissionLifecycle implements RunFollowUpAdmission {
     );
     if (!credential) return null;
     const config = new Configuration({ accessToken: credential, basePath: this.apiBaseUrl });
-    return { machineId, projects: new ProjectsApi(config), sessions: new AgentSessionsApi(config) };
+    return {
+      machineId,
+      projects: new ProjectsApi(config),
+      sessions: new AgentSessionsApi(config),
+      services: new ServicesApi(config),
+    };
   }
   /** Settles a Turn a restart interrupted; false when the record needs no recovery. */
   private async recover(record: ReadableInputRecord): Promise<boolean> {
@@ -514,6 +532,41 @@ export class InputAdmissionLifecycle implements RunFollowUpAdmission {
               }
             : null,
         );
+        const session = this.runs.get(picked.runId)?.session;
+        const conversationId =
+          picked.kind === 'trigger_frame' ? picked.payload.conversationId : session?.conversationId;
+        if (conversationId) {
+          const serviceNames: string[] = [];
+          if (error instanceof MissingServiceBindingError) {
+            try {
+              const platform = await this.platform();
+              for (const serviceId of error.serviceIds) {
+                const service = await platform?.services.getService({
+                  organizationId: picked.organizationId,
+                  serviceId,
+                });
+                if (service?.data.data) {
+                  serviceNames.push(service.data.data.name);
+                }
+              }
+            } catch (lookupError) {
+              this.logger.warn('input_admission.service_name_unavailable', { error: lookupError });
+            }
+          }
+          await this.poster.postFailureMessage({
+            organizationId: picked.organizationId,
+            projectId: picked.projectId,
+            conversationId,
+            reason:
+              error instanceof MissingServiceBindingError
+                ? 'SERVICE_FOLDER_NOT_BOUND'
+                : error instanceof RunAttachmentNotFoundError
+                  ? 'ATTACHMENT_NOT_FOUND'
+                  : 'STARTUP_FAILED',
+            inert: session?.inert === true,
+            serviceNames,
+          });
+        }
         this.operationTimeline?.emit(picked.key, 'rejected', {
           admissionId: picked.admissionId,
           agentSessionId: picked.agentSessionId,
@@ -875,8 +928,25 @@ export class InputAdmissionLifecycle implements RunFollowUpAdmission {
           const started = await this.owner.transition(record.agentSessionId, record.key, 'started');
           await this.projectStartedUntilAccepted(started);
         },
-        onRejected: async () => {
-          const failed = await this.owner.transition(record.agentSessionId, record.key, 'failed');
+        onRejected: async (terminalOutcome = 'FAILED') => {
+          const current = await this.owner.record(record.agentSessionId, record.key);
+          const failed = await this.owner.transition(
+            record.agentSessionId,
+            record.key,
+            current.state === 'started' ? 'settled' : 'failed',
+            current.state === 'started'
+              ? {
+                  turnId: record.turnId,
+                  terminalOutcome,
+                  completedAssistantMessageId: null,
+                  reports: [],
+                  settledAt: new Date().toISOString(),
+                }
+              : null,
+          );
+          if (failed.state === 'settled') {
+            await this.settleCommitted(failed);
+          }
           this.operationTimeline?.emit(record.key, 'rejected', {
             admissionId: failed.admissionId,
             agentSessionId: failed.agentSessionId,

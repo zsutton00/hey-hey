@@ -1582,6 +1582,63 @@ describe("canonical Message lifecycle", () => {
       screen.queryByLabelText("Retry last message"),
     ).not.toBeInTheDocument();
   });
+  it.each([
+    "Service Example isn't bound to a folder on this machine. Bind a folder, then send your message again.",
+    "The session could not start because its preparation failed. Please try again.",
+    "The session failed while working on your message. Please try again.",
+    "A response was generated but could not be published. Please try again.",
+  ])(
+    "renders one persistent terminal explanation after reload: %s",
+    async (response) => {
+      const conversation = { ...metadata, id: "terminal-failure-read" };
+      canonicalMessageRead.mockResolvedValue({
+        data: {
+          data: {
+            messages: [
+              {
+                id: "terminal-explanation",
+                projectId: project.id,
+                conversationId: conversation.id,
+                type: "SYSTEM",
+                status: "completed",
+                parentMessageId: null,
+                createdAt: metadata.createdAt,
+                awaitingResponse: false,
+                data: {
+                  type: "AGENT",
+                  response,
+                  detectedIntent: "agent_response",
+                  intentConfidence: 1,
+                },
+              },
+            ],
+          },
+        },
+      });
+      const viewer = () =>
+        render(
+          <ConversationViewer
+            conversation={conversation}
+            project={project}
+            readOnly
+            timelineAnimationMode="none"
+            animationType="minimal"
+            scrollPolicy={{ mode: "disabled" }}
+          />,
+          { wrapper: createTestWrapper() },
+        );
+      const first = viewer();
+      await screen.findByText(response);
+      expect(screen.getAllByText(response)).toHaveLength(1);
+      first.unmount();
+      testQueryClient.clear();
+      viewer();
+      await screen.findByText(response);
+      expect(screen.getAllByText(response)).toHaveLength(1);
+      expect(canonicalMessageRead.mock.calls.length).toBeGreaterThanOrEqual(2);
+    },
+  );
+
   it("keeps a preview outside persisted reads", async () => {
     canonicalMessageRead.mockClear();
     render(

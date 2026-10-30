@@ -274,6 +274,9 @@ const createTestRouter = (dependencies: TestRouterDependencies): TriggerFrameRou
   });
   if (dropSurfacing) projectContext.learn('proj-1');
   return new TriggerFrameRouter({
+    servicesApi: {
+      getService: async () => ({ data: { data: { name: 'Test Service' } } }),
+    } as never,
     verifier: dependencies.verifier,
     machinesApi:
       dropSurfacing?.machinesApi ??
@@ -2621,7 +2624,14 @@ describe('createTestRouter', () => {
       serviceIds: [serviceId],
       launchServiceId: serviceId,
     });
+    const poster = createTestMessagePoster();
     const router = createTestRouter({
+      dropSurfacing: {
+        poster,
+        initialMachineId: 'test-machine',
+        keyPairStore: createTestKeyPairStore(),
+        machinesApi: {} as never,
+      },
       verifier,
       resolveConversationRun: vi.fn(),
       sendMessage: vi.fn(),
@@ -2638,6 +2648,17 @@ describe('createTestRouter', () => {
       reason: 'SERVICE_FOLDER_NOT_BOUND',
       unboundServiceIds: [serviceId],
     });
+    expect(poster.createOutOfBand).toHaveBeenCalledOnce();
+    expect(poster.createOutOfBand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dto: expect.objectContaining({
+          data: expect.objectContaining({
+            response:
+              "Service Test Service isn't bound to a folder on this machine. Bind a folder, then send your message again.",
+          }),
+        }),
+      }),
+    );
   });
 
   it('binds a Run on the materialize-only workflow arm with its focal payload and never calls sendMessage', async () => {
@@ -4252,6 +4273,7 @@ describe('admission disposition in the acknowledgement', () => {
       NOOP_LOGGER,
       () => true,
       {} as never,
+      createTestMessagePoster(),
     );
     await lifecycle.start();
     const frames = [followUp(1)];
@@ -4413,6 +4435,7 @@ describe('verified cancellation telemetry', () => {
       NOOP_LOGGER,
       () => false,
       {} as never,
+      createTestMessagePoster(),
     );
     const cancel = vi.spyOn(owner, 'cancel').mockResolvedValue(record);
     const advance = vi.spyOn(inputAdmission, 'advance').mockResolvedValue(undefined);

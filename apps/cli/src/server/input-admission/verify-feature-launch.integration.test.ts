@@ -1,3 +1,4 @@
+import { createTestMessagePoster } from '../../run/run.test-support';
 /** @vitest-environment node */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -208,6 +209,7 @@ describe('Verify Feature launch', () => {
       logger,
       () => true,
       runStore,
+      createTestMessagePoster(),
     );
     service.bindInputAdmission(lifecycle);
     await lifecycle.start();

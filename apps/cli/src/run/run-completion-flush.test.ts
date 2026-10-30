@@ -265,7 +265,7 @@ describe('Run.flushPendingCompletion', () => {
       .mockRejectedValueOnce(new Error('begin failed'));
     const run = new Run(makeRunArgs(), collaborators);
     try {
-      await expect(run.handleMessage(makeInput())).rejects.toThrow('begin failed');
+      await expect(run.handleMessage(makeInput())).resolves.toBeUndefined();
       expect(collaborators.logger.error).toHaveBeenCalledWith(
         'local.run.start_turn.begin_failed',
         expect.anything(),
@@ -762,17 +762,12 @@ describe('Run terminal output attention', () => {
       { terminalOutcome: 'FAILED', completedAssistantMessageId: null },
     ]);
     expect(poster.createOutOfBand).toHaveBeenCalledTimes(2);
-    const failureMessageDto = (
-      vi.mocked(poster.createOutOfBand).mock.calls[1]?.[0] as MessagePosterCreateOutOfBandArgs
-    ).dto;
-    expect(failureMessageDto).toMatchObject({
-      data: {
-        response:
-          'I generated a response, but could not publish it. This Turn was marked as failed; please try again.',
-      },
-    });
-    expect(failureMessageDto).not.toHaveProperty('proposalIds');
-    expect(failureMessageDto).not.toHaveProperty('reportIds');
+    expect(poster.postFailureMessage).toHaveBeenCalledOnce();
+    expect(poster.postFailureMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: 'PUBLICATION_FAILED',
+      }),
+    );
   });
 
   it('does not advance a pending external completion after final Message publication fails', async () => {

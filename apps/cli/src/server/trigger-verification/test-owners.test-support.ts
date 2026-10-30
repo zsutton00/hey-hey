@@ -33,6 +33,9 @@ export const createTestTriggerVerificationRuntime = (
   });
   const apiRuntime = createBrowserApiRuntime({ baseUrl: 'https://api.trigger.test' });
   return new TriggerVerificationRuntime({
+    servicesApi: {
+      getService: async () => ({ data: { data: { name: 'Test Service' } } }),
+    } as never,
     keyPairStore: createTestKeyPairStore(),
     initialAccessToken: 'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJ0ZXN0LXVzZXIifQ.',
     machinesApi: apiRuntime.clients.machines,

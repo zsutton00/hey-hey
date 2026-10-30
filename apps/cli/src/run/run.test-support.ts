@@ -146,6 +146,7 @@ export const createTestMessagePoster = (overrides: MessagePosterOverrides = {}):
     logger: NOOP_LOGGER,
     dataDir: testPath('message-poster'),
   });
+  vi.spyOn(poster, 'postFailureMessage');
   vi.spyOn(poster, 'createOutOfBand').mockImplementation(
     overrides.createOutOfBand ?? (async () => 'test-message-id'),
   );

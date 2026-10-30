@@ -1,3 +1,5 @@
+import { isAxiosError } from 'axios';
+import type { FailureReason } from './failure-message';
 import { isInertSubmissionToolAllowed } from './inert-execution-policy';
 import { SessionRoleGuidance } from '../agents/session-role-guidance/session-role-guidance';
 import { resolveHandlerSessionRole } from '../agents/prompt-type-handler';
@@ -58,7 +60,6 @@ import {
   AgentSessionRunnerError,
   type AgentSessionRunner,
 } from '../agents/providers/session-runner';
-import { CAPACITY_RETRY_MESSAGE } from '../agents/providers/codex/session-runner-codex';
 import type {
   PermissionCallbackType,
   PermissionDecision,
@@ -4135,6 +4136,12 @@ export class Run {
           state: 'settled',
           outcome: 'ABORTED',
         });
+        const stoppedAdmission = admission ?? readBootstrapInputAdmission(input);
+        if (stoppedAdmission) {
+          this.clearQueue();
+          await stoppedAdmission.onRejected('ABORTED');
+        }
+        await this.postFailureMessage('STOPPED');
         void this.drainQueue();
         return;
       }
@@ -4154,21 +4161,30 @@ export class Run {
         this.readStateChanged();
       }
       if (this.activeTurnInput !== null || this._processing) this.settleTurnPreparation();
-      const admission = this.inputAdmissionFor(input);
+      const admission = this.inputAdmissionFor(input) ?? readBootstrapInputAdmission(input);
       const failedHandler = this.promptTypeRegistry.get(input.promptType);
       if (failedHandler?.onStartupFailure) {
-        await failedHandler.onStartupFailure(
-          input.payload,
-          {
-            session: this.session,
-            deps: this.handlerDeps,
-          },
-          error instanceof Error ? error.message : 'The session could not start.',
-        );
+        try {
+          await failedHandler.onStartupFailure(
+            input.payload,
+            {
+              session: this.session,
+              deps: this.handlerDeps,
+            },
+            error instanceof Error ? error.message : 'The session could not start.',
+          );
+        } catch (reportError) {
+          this.logger.error('local.run.start_turn.handler_report_failed', {
+            runId: this.runId,
+            turnId,
+            error: reportError,
+          });
+        }
         if (admission) {
           await admission.onRejected();
           this.projectedInputStartTurnIds.delete(admission.turnId);
         }
+        await this.postFailureMessage('STARTUP_FAILED');
         this.logger.error('local.run.start_turn.failure_reported', {
           turnId,
           runId: this.runId,
@@ -4178,97 +4194,32 @@ export class Run {
         void this.drainQueue();
         return;
       }
-      const definitiveRejection =
-        error instanceof RunAttachmentNotFoundError ||
-        (error instanceof LocalAgentApiError && error.statusCode === 400);
-      if (definitiveRejection && admission) {
-        await admission.onRejected();
-        this.projectedInputStartTurnIds.delete(admission.turnId);
-      }
       this.logger.error('local.run.start_turn.resolve_failed', {
         turnId,
         runId: this.runId,
         error,
       });
-      if (error instanceof LocalAgentApiError && error.code === 'REPO_REQUIRED') {
-        try {
-          await this.postAgentSystemMessage(error.message);
-        } catch (postError) {
-          this.logger.error('local.run.start_turn.missing_service_post_failed', {
-            turnId,
-            runId: this.runId,
-            error: postError,
-          });
-        }
+      const transient = isAxiosError(error) && (!error.response || error.response.status >= 500);
+      if (admission && transient && !preparationAbortController.signal.aborted) {
+        throw error;
       }
-      // Startup context errors can wrap transient API failures. Let the durable
-      // owner retry preparation with the same input and selected Turn identity.
-      if (admission && !definitiveRejection) throw error;
-      // Project Assistant preparation failure is terminal for the admitted input it
-      // prepares. Draining would run the queued main Turn without the assistant.
-      if (error instanceof ProjectAssistantPreparationError) {
-        this._processing = true;
-        const preparedAdmission = readBootstrapInputAdmission(input);
-        if (preparedAdmission) {
-          await preparedAdmission.onRejected();
-          this.projectedInputStartTurnIds.delete(preparedAdmission.turnId);
-        }
-        try {
-          await this.postAgentSystemMessage(
-            `I could not start this session because Project Assistant could not be prepared: ${error.message}`,
-          );
-        } catch (postError) {
-          this.logger.error('local.run.start_turn.project_assistant_failure_post_failed', {
-            turnId,
-            runId: this.runId,
-            error: postError,
-          });
-        }
-        const queuedCount = this.queueLength;
-        this.clearQueue();
-        this.logger.info('local.run.start_turn.project_assistant_failure_queue_cleared', {
-          turnId,
-          runId: this.runId,
-          queuedCount,
-        });
-        this._processing = false;
-        this.armInactivityTimerIfIdle();
-        this.notifyIfDurableInputAcceptable();
-        return;
+      const reason = preparationAbortController.signal.aborted
+        ? 'STOPPED'
+        : this.failureReasonFor(error, 'STARTUP_FAILED');
+      const rejectedAdmission = admission ?? readBootstrapInputAdmission(input);
+      if (rejectedAdmission) {
+        await rejectedAdmission.onRejected(reason === 'STOPPED' ? 'ABORTED' : 'FAILED');
+        this.projectedInputStartTurnIds.delete(rejectedAdmission.turnId);
       }
-      if (error instanceof AgentStartupPromptInputError) {
-        this._processing = true;
-        this.logger.error('local.run.start_turn.startup_input_failed', {
-          turnId,
-          runId: this.runId,
-          boundary: error.boundary,
-        });
-        try {
-          await this.postAgentSystemMessage(
-            'I could not start this session because its current entity context could not be prepared. Please try again.',
-          );
-        } catch (postError) {
-          this.logger.error('local.run.start_turn.startup_failure_post_failed', {
-            turnId,
-            runId: this.runId,
-            boundary: error.boundary,
-            error: postError,
-          });
-        }
-        const queuedCount = this.queueLength;
+      await this.postFailureMessage(reason);
+      if (
+        error instanceof ProjectAssistantPreparationError ||
+        error instanceof AgentStartupPromptInputError
+      ) {
         this.clearQueue();
-        this.logger.info('local.run.start_turn.startup_failure_queue_cleared', {
-          turnId,
-          runId: this.runId,
-          queuedCount,
-        });
-        this._processing = false;
-        this.armInactivityTimerIfIdle();
-        this.notifyIfDurableInputAcceptable();
-        return;
       }
       void this.drainQueue();
-      throw error;
+      return;
     }
 
     let turn: Turn;
@@ -4339,8 +4290,14 @@ export class Run {
         runId: this.runId,
         error,
       });
+      const failedAdmission = admission ?? readBootstrapInputAdmission(input);
+      const failureReason = this.failureReasonFor(error, 'STARTUP_FAILED');
+      if (failedAdmission) {
+        await failedAdmission.onRejected();
+      }
+      await this.postFailureMessage(failureReason);
       void this.drainQueue();
-      throw error;
+      return;
     }
 
     const PHASE_HEARTBEAT_INTERVAL_MS = 10_000;
@@ -4568,6 +4525,39 @@ export class Run {
     if (event) await this.dispatcher.dispatch(event, this, Symbol('retained_completion'));
   }
 
+  private failureReasonFor(error: unknown, fallback: FailureReason): FailureReason {
+    if (error instanceof RunAttachmentNotFoundError) {
+      return 'ATTACHMENT_NOT_FOUND';
+    }
+    if (error instanceof LocalAgentApiError && error.code === 'REPO_REQUIRED') {
+      return 'SERVICE_FOLDER_NOT_BOUND';
+    }
+    if (error instanceof AgentSessionRunnerError) {
+      if (['INVALID_CREDENTIAL', 'REFRESH_FAILED', 'MISSING_CREDENTIAL'].includes(error.code)) {
+        return 'AUTHORIZATION_REJECTED';
+      }
+      if (error.code === 'REPO_BINDING_MISSING') {
+        return 'SERVICE_FOLDER_NOT_BOUND';
+      }
+      if (error.code === 'MODEL_CAPACITY') {
+        return 'MODEL_CAPACITY';
+      }
+    }
+    return fallback;
+  }
+
+  private readonly terminalFailureReasons = new Map<string, FailureReason>();
+
+  private async postFailureMessage(reason: FailureReason): Promise<void> {
+    await this.poster.postFailureMessage({
+      organizationId: this.organizationId,
+      projectId: this.projectId,
+      conversationId: this.session.conversationId,
+      reason,
+      inert: this.session.inert === true,
+    });
+  }
+
   async onTurnRunnerCompleted(turn: Turn): Promise<void> {
     await this.drainInFlightDispatch(IN_FLIGHT_DISPATCH_DRAIN_TIMEOUT_MS);
 
@@ -4579,17 +4569,7 @@ export class Run {
         terminalOutcome: turn.terminalOutcome,
         completedAssistantMessageId: turn.completedAssistantMessageId,
       });
-      try {
-        await this.postAgentSystemMessage(
-          'I generated a response, but could not publish it. This Turn was marked as failed; please try again.',
-        );
-      } catch (error) {
-        this.logger.error('local.run.turn_completion.failure_message_failed', {
-          runId: this.runId,
-          turnId: turn.turnId,
-          error,
-        });
-      }
+      this.terminalFailureReasons.set(turn.turnId, 'PUBLICATION_FAILED');
     }
 
     const completedAssistantMessageId = turn.completedAssistantMessageId;
@@ -4626,6 +4606,7 @@ export class Run {
   }
 
   async onTurnRunnerFailed(turn: Turn, error: unknown): Promise<void> {
+    this.terminalFailureReasons.set(turn.turnId, this.failureReasonFor(error, 'EXECUTION_FAILED'));
     const runnerFailureAction = turn.handler.getRunnerFailureAction?.(error, turn.payload) ?? null;
     if (runnerFailureAction) {
       const externalAgentNodeId = turn.externalAgentNodeId;
@@ -4673,7 +4654,7 @@ export class Run {
       provider: this.provider,
       error,
     });
-    await this.postAgentSystemMessage(CAPACITY_RETRY_MESSAGE);
+    this.terminalFailureReasons.set(turn.turnId, 'MODEL_CAPACITY');
   }
 
   private async persistLatestTurn(
@@ -4704,19 +4685,6 @@ export class Run {
       });
     }
     try {
-      await this.runStore.updateRunLatestTurn(this.runId, {
-        turnId: turn.turnId,
-        state: 'settled',
-        outcome: turn.terminalOutcome,
-      });
-    } catch (error) {
-      this.logger.error('local.run.latest_turn.save_failed', {
-        runId: this.runId,
-        turnId: turn.turnId,
-        error,
-      });
-    }
-    try {
       this.setLastSubmissionAction(null);
       const filesTouchedThisTurnSet = this._filesTouchedByTurn.get(turn.turnId);
       const filesTouchedThisTurn = filesTouchedThisTurnSet?.size ?? 0;
@@ -4725,17 +4693,6 @@ export class Run {
       const reportChainStartIndex = this._reportChainStartByTurn.get(turn.turnId);
       const finalizedReports =
         reportChainStartIndex === undefined ? [] : this._reportChain.slice(reportChainStartIndex);
-      if (this.taskMonitorManagedTurnRuntime) {
-        await this.taskMonitorManagedTurnRuntime.publishSettledTurn({
-          agentSessionId: this.session.agentic_session_id,
-          turnId: turn.turnId,
-          promptType: turn.handler.promptType,
-          terminalOutcome: turn.terminalOutcome,
-          completedAssistantMessageId: turn.completedAssistantMessageId,
-          reports: finalizedReports.map(({ reportId, reportType }) => ({ reportId, reportType })),
-          settledAt: new Date().toISOString(),
-        });
-      }
       const settledAdmission =
         (this.activeTurnInput && this.inputAdmissionFor(this.activeTurnInput)) ?? null;
       const evidence: InputSettlementEvidence = {
@@ -4745,6 +4702,23 @@ export class Run {
         reports: finalizedReports.map(({ reportId }) => reportId),
         settledAt: new Date().toISOString(),
       };
+      if (turn.terminalOutcome !== 'COMPLETED') {
+        const reason =
+          turn.terminalOutcome === 'ABORTED'
+            ? 'STOPPED'
+            : (this.terminalFailureReasons.get(turn.turnId) ?? 'EXECUTION_FAILED');
+        await this.postFailureMessage(reason);
+        const bootstrapAdmission =
+          !settledAdmission && this.activeTurnInput
+            ? readBootstrapInputAdmission(this.activeTurnInput)
+            : null;
+        if (bootstrapAdmission) {
+          this.clearQueue();
+          await bootstrapAdmission.onRejected(turn.terminalOutcome);
+          this.projectedInputStartTurnIds.delete(bootstrapAdmission.turnId);
+        }
+      }
+      this.terminalFailureReasons.delete(turn.turnId);
       const inputSettlement = this.serviceScope.settleTurnInput(
         turn.turnId,
         settledAdmission,
@@ -4767,6 +4741,30 @@ export class Run {
           await settledAdmission.onSettled(evidence);
           this.projectedInputStartTurnIds.delete(settledAdmission.turnId);
         }
+      }
+      try {
+        await this.runStore.updateRunLatestTurn(this.runId, {
+          turnId: turn.turnId,
+          state: 'settled',
+          outcome: turn.terminalOutcome,
+        });
+      } catch (error) {
+        this.logger.error('local.run.latest_turn.save_failed', {
+          runId: this.runId,
+          turnId: turn.turnId,
+          error,
+        });
+      }
+      if (this.taskMonitorManagedTurnRuntime) {
+        await this.taskMonitorManagedTurnRuntime.publishSettledTurn({
+          agentSessionId: this.session.agentic_session_id,
+          turnId: turn.turnId,
+          promptType: turn.handler.promptType,
+          terminalOutcome: turn.terminalOutcome,
+          completedAssistantMessageId: turn.completedAssistantMessageId,
+          reports: finalizedReports.map(({ reportId, reportType }) => ({ reportId, reportType })),
+          settledAt: new Date().toISOString(),
+        });
       }
       if (this.activeTurnInput)
         readUserMessageBoundary(this.activeTurnInput)?.onTurnSettled?.({
@@ -5109,9 +5107,11 @@ export class Run {
           this.logger.error('local.run.drain.failed', { runId: this.runId, error });
           this.clearQueue();
           try {
-            await this.postAgentSystemMessage(
-              'I could not start your queued message. Please try sending it again.',
-            );
+            const admission = this.inputAdmissionFor(batch[0]!);
+            if (admission) {
+              await admission.onRejected();
+            }
+            await this.postFailureMessage('STARTUP_FAILED');
           } catch (postError) {
             this.logger.error('local.run.drain.failure_post_failed', {
               runId: this.runId,

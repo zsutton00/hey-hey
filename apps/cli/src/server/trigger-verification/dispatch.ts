@@ -1,3 +1,4 @@
+import { isAxiosError } from 'axios';
 import { ControlReductionTelemetry } from '../control-reduction-telemetry';
 import type { DiagnosticFeed } from '../diagnostic-feed';
 import { DeterministicE2EEvidence } from '../../run/runners/deterministic-e2e-evidence';
@@ -130,6 +131,7 @@ export interface ConversationRunBinding {
 export interface TriggerFrameRouterDependencies {
   verifier: TriggerVerifier;
   machinesApi: ApiRuntime['clients']['machines'];
+  servicesApi: Pick<ApiRuntime['clients']['services'], 'getService'>;
   keyPairStore: KeyPairStore;
   /**
    * Resolve the active run that owns the given conversation. Returns null
@@ -860,6 +862,14 @@ export class TriggerFrameRouter {
           userId: verified.envelope.userId,
           messageId: body.messageId,
         });
+        if (cancelled.state === 'cancelled' && verified.frame.conversationId) {
+          await this.dependencies.dropSurfacing.poster.postFailureMessage({
+            organizationId: verified.frame.organizationId,
+            projectId,
+            conversationId: verified.frame.conversationId,
+            reason: 'STOPPED',
+          });
+        }
         this.controlTelemetry.cancellation(cancelled, context?.transportAckAvailable ?? null);
         void agentService.inputAdmission.advance(body.agentSessionId);
         return;
@@ -1486,78 +1496,124 @@ export class TriggerFrameRouter {
       ...(timelineIdentity ? { key: timelineIdentity.key, keyKind: timelineIdentity.keyKind } : {}),
       admissionAttempt,
     });
-    return this.admitVerified(result.verified, admissionLogger).then((admission) => {
-      if (admission.admitted) {
-        if (timelineIdentity)
-          this.dependencies.operationTimeline?.mark(timelineIdentity.key, 'admitted');
-        return this.dispatchVerified(result.verified, admission.capability, context)
-          .then((dispatchResult) => {
-            if (dispatchResult?.status === 'REJECTED' && timelineIdentity) {
-              this.dependencies.operationTimeline?.emit(timelineIdentity.key, 'rejected', {
-                promptType: timelineIdentity.promptType,
-              });
-            }
-            return dispatchResult;
-          })
-          .catch((error) => {
-            if (
-              result.verified.kind === 'trigger.control' &&
-              result.verified.body.kind === 'cancel_input'
-            ) {
-              const body = result.verified.body;
-              this.controlTelemetry.cancellationFailed(
-                body.operationId,
-                body.messageId,
-                body.agentSessionId,
-              );
-            }
-            if (error instanceof InputAdmissionIdentityError) {
-              if (timelineIdentity)
+    return this.admitVerified(result.verified, admissionLogger)
+      .then((admission) => {
+        if (admission.admitted) {
+          if (timelineIdentity)
+            this.dependencies.operationTimeline?.mark(timelineIdentity.key, 'admitted');
+          return this.dispatchVerified(result.verified, admission.capability, context)
+            .then((dispatchResult) => {
+              if (dispatchResult?.status === 'REJECTED' && timelineIdentity) {
                 this.dependencies.operationTimeline?.emit(timelineIdentity.key, 'rejected', {
                   promptType: timelineIdentity.promptType,
                 });
-              return {
-                status: 'REJECTED',
-                stage: 'ADMISSION',
-                reason: 'OPERATION_FINGERPRINT_MISMATCH',
-              } satisfies AgentOperationDispatchAcknowledgement;
-            }
-            throw error;
-          });
-      }
-      // A fresh signature can reconcile a previously committed input after its
-      // short-lived ingress authority expires. This returns evidence only; it cannot execute.
-      return this.reconcileCommittedInput(result.verified).then((replayed) => {
-        if (replayed) {
-          if (timelineIdentity) {
-            this.dependencies.operationTimeline?.markPartial(timelineIdentity.key);
-            this.dependencies.operationTimeline?.emit(
-              timelineIdentity.key,
-              replayed.status === 'REJECTED' ? 'rejected' : 'no_provider_output',
-              { promptType: timelineIdentity.promptType },
-            );
-          }
-          return replayed;
+              }
+              return dispatchResult;
+            })
+            .catch((error) => {
+              if (
+                result.verified.kind === 'trigger.control' &&
+                result.verified.body.kind === 'cancel_input'
+              ) {
+                const body = result.verified.body;
+                this.controlTelemetry.cancellationFailed(
+                  body.operationId,
+                  body.messageId,
+                  body.agentSessionId,
+                );
+              }
+              if (error instanceof InputAdmissionIdentityError) {
+                if (timelineIdentity)
+                  this.dependencies.operationTimeline?.emit(timelineIdentity.key, 'rejected', {
+                    promptType: timelineIdentity.promptType,
+                  });
+                return {
+                  status: 'REJECTED',
+                  stage: 'ADMISSION',
+                  reason: 'OPERATION_FINGERPRINT_MISMATCH',
+                } satisfies AgentOperationDispatchAcknowledgement;
+              }
+              throw error;
+            });
         }
-        if (admission.retryable) return;
-        if (timelineIdentity)
-          this.dependencies.operationTimeline?.emit(timelineIdentity.key, 'rejected', {
-            promptType: timelineIdentity.promptType,
-          });
-        if (admission.unboundServiceIds)
+        // A fresh signature can reconcile a previously committed input after its
+        // short-lived ingress authority expires. This returns evidence only; it cannot execute.
+        return this.reconcileCommittedInput(result.verified).then((replayed) => {
+          if (replayed) {
+            if (timelineIdentity) {
+              this.dependencies.operationTimeline?.markPartial(timelineIdentity.key);
+              this.dependencies.operationTimeline?.emit(
+                timelineIdentity.key,
+                replayed.status === 'REJECTED' ? 'rejected' : 'no_provider_output',
+                { promptType: timelineIdentity.promptType },
+              );
+            }
+            return replayed;
+          }
+          if (admission.retryable) return;
+          if (timelineIdentity)
+            this.dependencies.operationTimeline?.emit(timelineIdentity.key, 'rejected', {
+              promptType: timelineIdentity.promptType,
+            });
+          if (admission.unboundServiceIds)
+            return {
+              status: 'REJECTED',
+              stage: 'ADMISSION',
+              reason: 'SERVICE_FOLDER_NOT_BOUND',
+              unboundServiceIds: admission.unboundServiceIds,
+            } satisfies AgentOperationDispatchAcknowledgement;
           return {
             status: 'REJECTED',
             stage: 'ADMISSION',
-            reason: 'SERVICE_FOLDER_NOT_BOUND',
-            unboundServiceIds: admission.unboundServiceIds,
+            reason: 'AUTHORIZATION_REJECTED',
           } satisfies AgentOperationDispatchAcknowledgement;
+        });
+      })
+      .catch((error) => {
+        if (isAxiosError(error) && (!error.response || error.response.status >= 500)) {
+          throw error;
+        }
+        logger.error('trigger-verification.request_failed', { error });
         return {
           status: 'REJECTED',
-          stage: 'ADMISSION',
-          reason: 'AUTHORIZATION_REJECTED',
+          stage: 'EXECUTION',
+          reason: 'INTERNAL_ERROR',
         } satisfies AgentOperationDispatchAcknowledgement;
+      })
+      .then(async (outcome) => {
+        if (outcome?.status === 'REJECTED' && result.verified.kind === 'trigger.conversation') {
+          const { organizationId, projectId, conversationId } = result.verified.frame;
+          if (projectId && conversationId) {
+            const serviceNames: string[] = [];
+            if (outcome.reason === 'SERVICE_FOLDER_NOT_BOUND') {
+              for (const serviceId of outcome.unboundServiceIds ?? []) {
+                try {
+                  const service = await this.dependencies.servicesApi.getService({
+                    organizationId,
+                    serviceId,
+                  });
+                  if (service.data.data) {
+                    serviceNames.push(service.data.data.name);
+                  }
+                } catch (error) {
+                  logger.warn('trigger-verification.service_name_unavailable', {
+                    serviceId,
+                    error,
+                  });
+                }
+              }
+            }
+            await this.dependencies.dropSurfacing.poster.postFailureMessage({
+              organizationId,
+              projectId,
+              conversationId,
+              reason: outcome.reason,
+              serviceNames,
+            });
+          }
+        }
+        return outcome;
       });
-    });
   }
 
   private async reconcileCommittedInput(

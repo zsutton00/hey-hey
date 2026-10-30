@@ -811,3 +811,63 @@ describe('MessagePoster — retry logic works with queue', () => {
     await expect(fs.access(failedPath)).rejects.toThrow();
   });
 });
+
+describe('failure messages use ordinary message publication', () => {
+  it('posts a readable missing-folder error at the conversation tail', async () => {
+    const apiClient = makeApiClient();
+    const poster = new MessagePoster({ apiClient, logger: makeLogger(), dataDir });
+    await poster.postFailureMessage({
+      organizationId: 'org-1',
+      projectId: 'proj-1',
+      conversationId: 'conv-1',
+      reason: 'SERVICE_FOLDER_NOT_BOUND',
+      serviceNames: ['Backend'],
+      inert: true,
+    });
+    expect(apiClient.postMessage).toHaveBeenCalledOnce();
+    expect(apiClient.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        createMessageDto: expect.objectContaining({
+          conversationId: 'conv-1',
+          type: 'SYSTEM',
+          status: MessageStatus.Completed,
+          data: expect.objectContaining({
+            response:
+              "Service Backend isn't bound to a folder on this machine. Bind a folder, then send your message again.",
+            ragEnabled: false,
+          }),
+        }),
+      }),
+    );
+    await poster.cleanup();
+  });
+
+  it('does not prevent cleanup or another message when posting the error fails', async () => {
+    const apiClient = makeApiClient({
+      postMessage: vi
+        .fn()
+        .mockRejectedValueOnce({ response: { status: 400 } })
+        .mockResolvedValue({ data: { data: { id: 'next-message' } } }),
+    });
+    const poster = new MessagePoster({ apiClient, logger: makeLogger(), dataDir });
+    await expect(
+      poster.postFailureMessage({
+        organizationId: 'org-1',
+        projectId: 'proj-1',
+        conversationId: 'conv-1',
+        reason: 'EXECUTION_FAILED',
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      poster.createOutOfBand({
+        organizationId: 'org-1',
+        projectId: 'proj-1',
+        conversationId: 'conv-1',
+        dto: systemDto(),
+        stamp: null,
+      }),
+    ).resolves.toBe('next-message');
+    expect(apiClient.postMessage).toHaveBeenCalledTimes(2);
+    await poster.cleanup();
+  });
+});

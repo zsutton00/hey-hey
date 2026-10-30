@@ -358,6 +358,7 @@ async function makeHarness(rejectFirstContext = false) {
     logger,
     () => true,
     runStore,
+    createTestMessagePoster(),
   );
   service.bindInputAdmission(lifecycle);
   await lifecycle.start();

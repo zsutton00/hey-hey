@@ -249,7 +249,7 @@ describe('Run Agent Session current-state replay', () => {
 
     await expect(
       run.handleMessage(makeInput('unregistered_prompt_type' as LocalPromptType)),
-    ).rejects.toThrow('No PromptHandler registered');
+    ).resolves.toBeUndefined();
 
     expect(pickRunner).not.toHaveBeenCalled();
     expect(
@@ -320,7 +320,7 @@ describe('Run Agent Session current-state replay', () => {
     );
     vi.spyOn(Turn.prototype, 'begin').mockRejectedValueOnce(new Error('begin failed'));
 
-    await expect(run.handleMessage(makeInput())).rejects.toThrow('begin failed');
+    await expect(run.handleMessage(makeInput())).resolves.toBeUndefined();
 
     expect(run.isProcessing).toBe(false);
     expect(run.activeTurn).toBeNull();
@@ -369,15 +369,8 @@ describe('Run Agent Session current-state replay', () => {
     expect(run.activeTurn).toBeNull();
     expect(run.isProcessing).toBe(false);
     expect(run.hasProviderSession).toBe(false);
-    expect(poster.createOutOfBand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        dto: expect.objectContaining({
-          data: expect.objectContaining({
-            response:
-              'I could not start this session because its current entity context could not be prepared. Please try again.',
-          }),
-        }),
-      }),
+    expect(poster.postFailureMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'STARTUP_FAILED' }),
     );
   });
 
@@ -425,7 +418,7 @@ describe('Run Agent Session current-state replay', () => {
     expect(startupPromptInput.resolve).toHaveBeenCalledTimes(1);
     expect(pickRunner).not.toHaveBeenCalled();
     expect(run.queueLength).toBe(0);
-    expect(poster.createOutOfBand).toHaveBeenCalledTimes(1);
+    expect(poster.postFailureMessage).toHaveBeenCalledTimes(1);
   });
 
   it('maps provider activity to ordered Agent Session states and refreshes heartbeat observations', async () => {
@@ -612,53 +605,86 @@ describe('Run Agent Session current-state replay', () => {
     expect(states.slice(finalPlanReadyIndex + 1)).toEqual(['STARTING', 'IDLE']);
   });
 
-  it('posts one capacity retry message, returns to idle, and accepts a later retry', async () => {
-    const broadcaster = makeBroadcaster();
+  it('reports a stopped execution once even when provider abort throws', async () => {
     const poster = makePoster();
-    let runs = 0;
-    const pickRunner = (): Runner => ({
-      run: async () => {
-        runs += 1;
-        if (runs === 1) {
-          throw new AgentSessionRunnerError(
-            'MODEL_CAPACITY',
-            'Codex is temporarily at capacity for the selected model. Please retry.',
-          );
-        }
-      },
-    });
+    let started = false;
     const run = new Run(
-      makeRunArgs({ provider: 'codex' }),
-      makeCollaborators(pickRunner, broadcaster, poster),
-    );
-
-    await run.handleMessage(makeInput());
-    await run.awaitIdle();
-
-    expect(poster.createOutOfBand).toHaveBeenCalledTimes(1);
-    expect(poster.createOutOfBand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        dto: expect.objectContaining({
-          data: expect.objectContaining({
-            response:
-              'The provider is temporarily at capacity for the selected model. Please retry.',
-          }),
+      makeRunArgs(),
+      makeCollaborators(
+        () => ({
+          run: async (signal) => {
+            started = true;
+            await new Promise<void>((_resolve, reject) =>
+              signal.addEventListener('abort', () => reject(new Error('provider stopped')), {
+                once: true,
+              }),
+            );
+          },
         }),
-      }),
+        makeBroadcaster(),
+        poster,
+      ),
     );
-    expect(broadcaster.emitAgentSessionCurrentStateObservation).toHaveBeenLastCalledWith(
-      expect.objectContaining({ agentSessionId: 'run-1', currentState: 'IDLE' }),
-    );
-
     await run.handleMessage(makeInput());
+    await vi.waitFor(() => expect(started).toBe(true));
+    run.abort();
     await run.awaitIdle();
-
-    expect(runs).toBe(2);
-    expect(poster.createOutOfBand).toHaveBeenCalledTimes(1);
-    expect(broadcaster.emitAgentSessionCurrentStateObservation).toHaveBeenLastCalledWith(
-      expect.objectContaining({ agentSessionId: 'run-1', currentState: 'IDLE' }),
+    expect(poster.postFailureMessage).toHaveBeenCalledOnce();
+    expect(poster.postFailureMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'STOPPED' }),
     );
+    expect(run.activeTurn).toBeNull();
+    run.cleanup();
   });
+
+  it.each([
+    [
+      'MODEL_CAPACITY',
+      new AgentSessionRunnerError('MODEL_CAPACITY', 'private capacity diagnostic'),
+    ],
+    ['EXECUTION_FAILED', new Error('private execution diagnostic')],
+    [
+      'AUTHORIZATION_REJECTED',
+      new AgentSessionRunnerError('MISSING_CREDENTIAL', 'private credential diagnostic'),
+    ],
+  ] as const)(
+    'reports %s once, returns to idle, and accepts a later retry',
+    async (reason, failure) => {
+      const broadcaster = makeBroadcaster();
+      const poster = makePoster();
+      let runs = 0;
+      const pickRunner = (): Runner => ({
+        run: async () => {
+          runs += 1;
+          if (runs === 1) {
+            throw failure;
+          }
+        },
+      });
+      const run = new Run(
+        makeRunArgs({ provider: 'codex' }),
+        makeCollaborators(pickRunner, broadcaster, poster),
+      );
+
+      await run.handleMessage(makeInput());
+      await run.awaitIdle();
+
+      expect(poster.postFailureMessage).toHaveBeenCalledOnce();
+      expect(poster.postFailureMessage).toHaveBeenCalledWith(expect.objectContaining({ reason }));
+      expect(broadcaster.emitAgentSessionCurrentStateObservation).toHaveBeenLastCalledWith(
+        expect.objectContaining({ agentSessionId: 'run-1', currentState: 'IDLE' }),
+      );
+
+      await run.handleMessage(makeInput());
+      await run.awaitIdle();
+
+      expect(runs).toBe(2);
+      expect(poster.postFailureMessage).toHaveBeenCalledTimes(1);
+      expect(broadcaster.emitAgentSessionCurrentStateObservation).toHaveBeenLastCalledWith(
+        expect.objectContaining({ agentSessionId: 'run-1', currentState: 'IDLE' }),
+      );
+    },
+  );
 });
 
 describe('Run decided-proposal notices', () => {
@@ -708,7 +734,7 @@ describe('Run decided-proposal notices', () => {
     const { run, prompts } = makeHarness();
     vi.spyOn(Turn.prototype, 'begin').mockRejectedValueOnce(new Error('begin failed'));
 
-    await expect(run.handleMessage(makeInput())).rejects.toThrow('begin failed');
+    await expect(run.handleMessage(makeInput())).resolves.toBeUndefined();
     await run.handleMessage(makeInput());
     await run.awaitIdle();
 

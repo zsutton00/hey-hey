@@ -1,3 +1,4 @@
+import { failureMessage, type FailureReason } from './failure-message';
 /**
  * Message-write transport owner. Generic create/update/complete remain
  * projection-only; executable workflow completion uses its typed API client.
@@ -227,6 +228,39 @@ export class MessagePoster {
 
   public constructor(private readonly dependencies: MessagePosterDependencies) {
     this.failedMessagesPath = path.join(dependencies.dataDir, 'failed-messages.jsonl');
+  }
+
+  public async postFailureMessage(args: {
+    organizationId: string;
+    projectId: string;
+    conversationId: string;
+    reason: FailureReason;
+    serviceNames?: readonly string[];
+    inert?: boolean;
+  }): Promise<void> {
+    try {
+      await this.createOutOfBand({
+        organizationId: args.organizationId,
+        projectId: args.projectId,
+        conversationId: args.conversationId,
+        dto: {
+          type: 'SYSTEM',
+          status: MessageStatus.Completed,
+          projectId: args.projectId,
+          data: {
+            type: 'AGENT',
+            response: failureMessage(args.reason, args.serviceNames),
+            detectedIntent: 'agent_response',
+            intentConfidence: 1,
+            ...(args.inert ? { ragEnabled: false } : {}),
+          },
+        },
+        stamp: null,
+      });
+    } catch (error) {
+      // A failed notice must not prevent request cleanup or accepting the next message.
+      this.dependencies.logger.error('local.failure_message.post_failed', { error });
+    }
   }
 
   private async callWithRetry<T>(
