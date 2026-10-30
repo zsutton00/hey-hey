@@ -332,7 +332,7 @@ const updateTaskUpdatesSchema = z
     status: z.nativeEnum(WorkStatus).optional(),
     priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
     dueDate: z.string().datetime().optional(),
-    assigneeId: z.string().uuid().optional(),
+    assigneeId: z.string().uuid().nullable().optional(),
     parentTaskId: z.string().uuid().nullable().optional(),
     type: workItemTypeFieldSchema.optional(),
     tag: featureTagSchema.optional(),

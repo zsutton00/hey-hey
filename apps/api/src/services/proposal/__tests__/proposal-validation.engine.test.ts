@@ -189,6 +189,17 @@ const reconciliationProvider = {
   ),
 };
 
+describe('task assignment update structure', () => {
+  it.each([undefined, testIds.user, null])(
+    'accepts a task update with assigneeId %s',
+    (assigneeId) => {
+      const proposal = makeUpdateTaskDto({ updates: { assigneeId } });
+
+      expect(validateProposalStructure(proposal)).toEqual([]);
+    },
+  );
+});
+
 describe('ProposalValidationEngine', () => {
   let engine: ProposalValidationEngine;
   let mockPrisma: ReturnType<typeof mockPrismaWithValidationSession>;
