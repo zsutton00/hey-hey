@@ -36,6 +36,7 @@ const knownUnfinished = new Set([
   'idea',
   'backlog',
   'planned',
+  'ready',
   'todo',
   'to do',
   'testing',
@@ -51,6 +52,7 @@ const notStartedNames = new Set([
   'idea',
   'backlog',
   'planned',
+  'ready',
   'todo',
   'to do',
   'refining',
@@ -65,6 +67,28 @@ const inProgressNames = new Set([
 const normalized = (name: string) =>
   name.trim().toLowerCase().replace(/[_-]+/g, ' ');
 
+const standardStatuses: WorkItemTypeStatus[] = [
+  { name: 'BACKLOG', label: 'Backlog', meaning: 'NOT_STARTED' },
+  { name: 'REFINING', label: 'Refining', meaning: 'NOT_STARTED' },
+  { name: 'READY', label: 'Ready', meaning: 'NOT_STARTED' },
+  { name: 'ACTIVE', label: 'In progress', meaning: 'IN_PROGRESS' },
+  { name: 'BLOCKED', label: 'Blocked', meaning: 'UNFINISHED' },
+  { name: 'ON_HOLD', label: 'On Hold', meaning: 'UNFINISHED' },
+  { name: 'VERIFYING', label: 'Verifying', meaning: 'IN_PROGRESS' },
+  {
+    name: 'COMPLETED',
+    label: 'Completed',
+    meaning: 'FINISHED',
+    completionBehavior: 'COMPLETED',
+  },
+  {
+    name: 'CANCELLED',
+    label: 'Cancelled',
+    meaning: 'FINISHED',
+    completionBehavior: 'CANCELLED',
+  },
+];
+
 export function resolveWorkItemStatusAuthoring(
   input: WorkItemStatusAuthoringRequest,
 ): WorkItemStatusAuthoringResponse {
@@ -72,7 +96,7 @@ export function resolveWorkItemStatusAuthoring(
   if (!parsed.success) {
     throw new BadRequestException(parsed.error.message);
   }
-  const { purpose, existingStatuses = [], finishedNames } = parsed.data;
+  const { existingStatuses = [], finishedNames } = parsed.data;
   if (existingStatuses.length > 0) {
     const validExisting =
       workItemTypeStatusesSchema.safeParse(existingStatuses);
@@ -80,9 +104,7 @@ export function resolveWorkItemStatusAuthoring(
       throw new BadRequestException(validExisting.error.message);
     }
   }
-  const suggestions = /recipe|recipes|cooking/i.test(purpose)
-    ? ['Idea', 'Testing', 'Made', 'Rejected']
-    : ['Backlog', 'In progress', 'Done'];
+  const suggestions = standardStatuses.map((status) => status.name);
   const names = parsed.data.names ?? suggestions;
   const placeholders = names.map((name) => ({
     name,
@@ -102,7 +124,10 @@ export function resolveWorkItemStatusAuthoring(
     );
   }
   const existing = new Map(
-    existingStatuses.map((status) => [status.name, status]),
+    [...standardStatuses, ...existingStatuses].map((status) => [
+      status.name,
+      status,
+    ]),
   );
   const needsClarification =
     finishedNames === undefined &&

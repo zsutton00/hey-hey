@@ -75,12 +75,37 @@ describe('status definitions at the authoring boundary', () => {
       { name: 'Done', meaning: 'FINISHED' },
     ]);
   });
-  it('suggests and resolves a recipe lifecycle', () => {
-    expect(resolveWorkItemStatusAuthoring({ purpose: 'Recipe' })).toEqual({
-      suggestions: ['Idea', 'Testing', 'Made', 'Rejected'],
-      state: 'RESOLVED',
-      statuses: recipe.statuses,
-    });
+  it('offers the same standard statuses regardless of purpose', () => {
+    const result = resolveWorkItemStatusAuthoring({ purpose: 'Recipe' });
+    expect(result.state).toBe('RESOLVED');
+    expect(result.suggestions).toEqual([
+      'BACKLOG',
+      'REFINING',
+      'READY',
+      'ACTIVE',
+      'BLOCKED',
+      'ON_HOLD',
+      'VERIFYING',
+      'COMPLETED',
+      'CANCELLED',
+    ]);
+    expect(
+      resolveWorkItemStatusAuthoring({ purpose: 'Research' }).suggestions,
+    ).toEqual(result.suggestions);
+    expect(result.statuses).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'ACTIVE',
+          label: 'In progress',
+          meaning: 'IN_PROGRESS',
+        }),
+        expect.objectContaining({
+          name: 'CANCELLED',
+          meaning: 'FINISHED',
+          completionBehavior: 'CANCELLED',
+        }),
+      ]),
+    );
   });
 
   it('asks about ambiguous finished states and accepts none', () => {
