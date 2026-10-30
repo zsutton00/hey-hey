@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../test/setup/legacy-status.fixture';
 import { SessionRole } from '@hey-hey/contracts/api/models';
 import { NotFoundException } from '@nestjs/common';
 import {
@@ -36,7 +37,7 @@ const COMPLETE_SUMMARY = {
     ],
     requiredScalars: ['dueDate' as const],
     forbiddenScalars: ['tag' as const],
-    allowedStatuses: ['BACKLOG' as const, 'ACTIVE' as const],
+    statuses: legacyStatuses(['BACKLOG' as const, 'ACTIVE' as const]),
     allowedParentTypes: ['FEATURE'],
     edgeTargets: [
       { edgeType: 'RELATED_TO' as const, targetTypeKeys: ['STANDARD'] },

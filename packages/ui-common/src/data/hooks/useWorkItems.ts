@@ -75,7 +75,7 @@ export interface WorkItemHookOptions extends CollectionHookOptions<WorkItemRespo
   includeTrackedEntities?: boolean;
   /** Request the compact GOAL tracked-work aggregate; independent of snapshots. */
   includeTrackedWorkSummary?: boolean;
-  status?: WorkStatus | WorkStatus[];
+  status?: TaskResponseDto["status"] | TaskResponseDto["status"][];
   taskIds?: string[];
   websocketsEnabled?: boolean;
   taskType?: string;
@@ -182,7 +182,7 @@ export function useWorkItems(
       initiativeId,
       parentTaskId,
       parentTaskIds: split(parentTaskIdsKey),
-      status: split<WorkStatus>(statusKey),
+      status: split<TaskResponseDto["status"]>(statusKey),
       taskIds: split(taskIdsKey),
       includeSectionKeys: split(sectionKey),
       includeServiceRelations,

@@ -39,7 +39,7 @@ const taskTypeDefinition: WorkItemTypeDefinitionDto = {
     { key: "description", label: "Description" },
     { key: "acceptanceCriteria", label: "Acceptance Criteria" },
   ],
-  allowedStatuses: [],
+  statuses: [],
   capabilities: {
     planEligible: true,
   },

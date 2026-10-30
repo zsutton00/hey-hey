@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "@hey-hey/contracts/api";
 import { useModalState } from "@hey-hey/ui-common/components/Modals";
 import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import {
@@ -31,14 +32,13 @@ import type {
   InitiativeResponseDto,
   Priority,
   UpdateInitiativeDto,
-  WorkStatus,
 } from "@hey-hey/contracts/api";
 import { PageBreadcrumbs } from "../../components/Layout";
 
 interface InitiativeFormData {
   title: string;
   description: string;
-  status: WorkStatus;
+  status: TaskResponseDto["status"];
   priority: Priority;
   tags: string[];
 }
@@ -68,7 +68,9 @@ export const InitiativesPage: React.FC = () => {
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<WorkStatus | "">("");
+  const [statusFilter, setStatusFilter] = useState<
+    TaskResponseDto["status"] | ""
+  >("");
   const [sortBy, setSortBy] = useState("status");
 
   // Dialog states
@@ -364,7 +366,7 @@ export const InitiativesPage: React.FC = () => {
               onChange={(e) =>
                 setFormData({
                   ...formData,
-                  status: e.target.value as WorkStatus,
+                  status: e.target.value as TaskResponseDto["status"],
                 })
               }
               select

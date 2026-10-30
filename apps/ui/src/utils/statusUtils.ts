@@ -1,4 +1,4 @@
-import type { AdrStatus, WorkStatus } from "@hey-hey/contracts/api";
+import type { AdrStatus, TaskResponseDto } from "@hey-hey/contracts/api";
 import {
   BrainstormStatus,
   DecisionStatus,
@@ -8,7 +8,7 @@ import {
 /**
  * Get user-friendly label for work status
  */
-export const getStatusLabel = (status: WorkStatus): string => {
+export const getStatusLabel = (status: TaskResponseDto["status"]): string => {
   switch (status) {
     case "REFINING_DESCRIPTION":
       return "Needs review";
@@ -49,7 +49,7 @@ export const getStatusLabel = (status: WorkStatus): string => {
  * Get MUI color for work status
  */
 export const getStatusColor = (
-  status: WorkStatus,
+  status: TaskResponseDto["status"],
 ):
   | "default"
   | "primary"
@@ -95,11 +95,11 @@ export const getStatusColor = (
  * These states indicate the task content is being actively refined or generated
  */
 export const isTaskRefining = (
-  task: { status?: WorkStatus } | null | undefined,
+  task: { status?: TaskResponseDto["status"] } | null | undefined,
 ): boolean => {
   if (!task?.status) return false;
 
-  const refiningStatuses: WorkStatus[] = [
+  const refiningStatuses: TaskResponseDto["status"][] = [
     "GENERATED",
     "REFINING_DESCRIPTION",
     "REFINING_DETAILS",

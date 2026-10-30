@@ -1,8 +1,8 @@
+import type { TaskResponseDto } from "../../api/api";
 import {
   type CreateInitiativeDto,
   type InitiativeResponseDto,
   type UpdateInitiativeDto,
-  WorkStatus,
 } from "../../api";
 import { type WorkItemSectionKey } from "../../utils/workItemSections";
 import { initiativesQueryOptions } from "../collections/initiatives";
@@ -19,17 +19,19 @@ import {
 } from "./initiativeMutations";
 import { useWebsocketSubscriptions } from "./useWebsocketSubscriptions";
 export const ENTITY_TYPE = "Initiative";
-export interface UseInitiativesReturn
-  extends Omit<DataCollectionHookReturn<InitiativeResponseDto>, "data"> {
+export interface UseInitiativesReturn extends Omit<
+  DataCollectionHookReturn<InitiativeResponseDto>,
+  "data"
+> {
   initiatives: InitiativeResponseDto[];
   create: (
     newInitiative: CreateInitiativeDto,
-    callbacks?: MutationCallbacks<InitiativeResponseDto>
+    callbacks?: MutationCallbacks<InitiativeResponseDto>,
   ) => Promise<InitiativeResponseDto>;
   update: (
     id: string,
     updates: UpdateInitiativeDto,
-    callbacks?: MutationCallbacks<InitiativeResponseDto>
+    callbacks?: MutationCallbacks<InitiativeResponseDto>,
   ) => Promise<InitiativeResponseDto>;
   remove: (id: string, callbacks?: MutationCallbacks<void>) => Promise<void>;
 }
@@ -37,13 +39,13 @@ type Options = CollectionHookOptions<InitiativeResponseDto> & {
   includeDesignDocCounts?: boolean;
   includeSectionKeys?: WorkItemSectionKey[];
   websocketsEnabled?: boolean;
-  status?: WorkStatus | WorkStatus[];
+  status?: TaskResponseDto["status"] | TaskResponseDto["status"][];
 };
 export function useInitiatives(
   organizationId: string,
   projectId: string,
   conversationId?: string,
-  options: Options = {}
+  options: Options = {},
 ): UseInitiativesReturn {
   const readOptions = initiativesQueryOptions(organizationId, {
     projectId,
@@ -71,7 +73,7 @@ export function useInitiatives(
     },
     {
       enabled: options.websocketsEnabled !== false && options.enabled !== false,
-    }
+    },
   );
   return { ...query, initiatives, create, update, remove };
 }

@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from '../../generated/model/taskResponseDto';
 import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
@@ -364,13 +365,13 @@ export class TaskOptimizationService extends BaseOptimizationService<TaskRefinab
     changeIntensity: number,
   ): boolean {
     // Tasks in certain statuses might always need processing
-    const alwaysProcessStatuses: WorkStatus[] = [
+    const alwaysProcessStatuses: TaskResponseDto['status'][] = [
       'BACKLOG',
       'REFINING_DESCRIPTION',
     ];
     if (
       task.status &&
-      alwaysProcessStatuses.includes(task.status as WorkStatus)
+      alwaysProcessStatuses.includes(task.status as TaskResponseDto['status'])
     ) {
       return changeIntensity > 0.1; // Lower threshold for new tasks
     }

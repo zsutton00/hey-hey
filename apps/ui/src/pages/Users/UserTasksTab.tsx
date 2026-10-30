@@ -1,4 +1,5 @@
-import type { WorkStatus } from "@hey-hey/contracts/api";
+import type { TaskResponseDto } from "@hey-hey/contracts/api";
+
 import {
   TaskList,
   useFilteredWorkItems,
@@ -23,7 +24,9 @@ export const UserTasksTab: React.FC<UserTasksTabProps> = ({
 }) => {
   const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<WorkStatus | "">("");
+  const [statusFilter, setStatusFilter] = useState<
+    TaskResponseDto["status"] | ""
+  >("");
   const [sortBy, setSortBy] = useState("created-desc");
 
   const { workItems, isLoading } = useWorkItems(

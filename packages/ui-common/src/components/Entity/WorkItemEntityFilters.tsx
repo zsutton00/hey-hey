@@ -1,14 +1,15 @@
+import type { TaskResponseDto } from "../../api/api";
 import React from "react";
 import { useTranslation } from "react-i18next";
-import type { WorkStatus } from "../../api";
+
 import { KEYS } from "../../i18n/keys";
 import { EntityFilters, type FilterConfig } from "./EntityFilters";
 
 interface WorkItemEntityFiltersProps {
   searchTerm: string;
   onSearchChange: (value: string) => void;
-  statusFilter: WorkStatus | "";
-  onStatusFilterChange: (value: WorkStatus | "") => void;
+  statusFilter: TaskResponseDto["status"] | "";
+  onStatusFilterChange: (value: TaskResponseDto["status"] | "") => void;
   sortBy: string;
   onSortByChange: (value: string) => void;
 }
@@ -129,7 +130,7 @@ export const WorkItemEntityFilters: React.FC<WorkItemEntityFiltersProps> = ({
     if (key === "search") {
       onSearchChange(value as string);
     } else if (key === "status") {
-      onStatusFilterChange(value as WorkStatus | "");
+      onStatusFilterChange(value as TaskResponseDto["status"] | "");
     }
   };
 

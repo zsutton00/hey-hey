@@ -1,9 +1,11 @@
-import { Prisma, WorkStatus } from '@prisma/client';
+import type { TaskResponseDto } from '../../../generated/model/taskResponseDto';
+
+import { Prisma } from '@prisma/client';
 
 export interface FakeHierarchyTask {
   id: string;
   type: string;
-  status: WorkStatus;
+  status: TaskResponseDto['status'];
   parentTaskId: string | null;
   archivedAt?: Date | null;
 }

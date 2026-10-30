@@ -1,3 +1,4 @@
+import { WorkStatus } from '../generated/model/workStatus';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { ProjectAccessGuard } from '../auth/guards/project-access.guard';
 import {
@@ -30,7 +31,6 @@ import {
   SummaryCategory,
   TopologyConsolidationSchedule,
   TopologyConsolidationScheduleStatus,
-  WorkStatus,
 } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { InjectTemporalClient } from '../prisma/temporal.module';
@@ -269,9 +269,9 @@ export class TopologyController {
 
     // Collect entities to re-summarize.
     const targetStatuses = [
-      WorkStatus.BACKLOG,
-      WorkStatus.ACTIVE,
-      WorkStatus.COMPLETED,
+      WorkStatus.Backlog,
+      WorkStatus.Active,
+      WorkStatus.Completed,
     ];
 
     const tasks = await this.prisma.db.task.findMany({

@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
 import {
   ProjectAccessGuard,
   ProjectResourceId,
@@ -22,7 +23,6 @@ import {
   InitiativeSourceType,
   Priority,
   UpdateInitiativeDto,
-  WorkStatus,
 } from '@hey-hey/contracts/api/models';
 import { InitiativeLifecycleService } from '../services/initiatives/initiative-lifecycle.service';
 import { InitiativeService } from '../services/initiatives/initiative.service';
@@ -147,7 +147,7 @@ export class InitiativeController {
 
   private normalizeStatuses(
     status?: string | string[],
-  ): WorkStatus[] | undefined {
+  ): TaskResponseDto['status'][] | undefined {
     const statuses = Array.isArray(status)
       ? status
       : typeof status === 'string'
@@ -157,7 +157,7 @@ export class InitiativeController {
     const filteredStatuses = statuses?.filter(
       (value) =>
         value && value !== 'undefined' && value !== 'null' && value !== 'false',
-    ) as WorkStatus[] | undefined;
+    ) as TaskResponseDto['status'][] | undefined;
 
     return filteredStatuses && filteredStatuses.length > 0
       ? filteredStatuses

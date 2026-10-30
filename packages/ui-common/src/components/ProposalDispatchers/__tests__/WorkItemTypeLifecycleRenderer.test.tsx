@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import {
   fireEvent,
   render as testingLibraryRender,
@@ -75,7 +76,7 @@ const currentDefinition: WorkItemTypeDefinitionDto = {
     { key: "audience", label: "Audience" },
     { key: "constraints", label: "Constraints" },
   ],
-  allowedStatuses: ["NOT_STARTED"],
+  statuses: legacyStatuses(["NOT_STARTED"]),
   allowedParentTypes: ["FEATURE", "INITIATIVE"],
   tracking: {
     allowedSourceEntityTypes: [],

@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../../../packages/ui-common/src/test/fixtures/workItemStatuses";
 import {
   act,
   fireEvent,
@@ -233,7 +234,7 @@ function prepareArchivedCustomEdit(): WorkItemTypeSummaryDto {
       name: "Custom work",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     }),
     status: WorkItemTypeLifecycleStatus.Archived,
   };
@@ -436,7 +437,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Custom work",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     mockUseWorkItemTypeByKey.mockReturnValue({
       workItemTypeSummary: summary,
@@ -596,7 +597,7 @@ describe("WorkItemTypeFormPage", () => {
         iconKey: "bug",
         colorKey: "primary",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       });
       mockUseWorkItemTypeByKey.mockReturnValue({
         workItemTypeSummary: summary,
@@ -638,7 +639,7 @@ describe("WorkItemTypeFormPage", () => {
         role: "work-item",
         iconKey: "bug",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       }),
       effectiveSource,
     };
@@ -681,7 +682,7 @@ describe("WorkItemTypeFormPage", () => {
       role: "work-item",
       iconKey: "bug",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     mockUseWorkItemTypeByKey.mockReturnValue({
       workItemTypeSummary: summary,
@@ -818,7 +819,7 @@ describe("WorkItemTypeFormPage", () => {
       sections: [
         { key: "details", label: "Details", writingStandard: "Be specific." },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       writingStandards: { create: "Lead with the audience.", edit: "" },
     });
   });
@@ -872,7 +873,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Feature",
       role: "project-info",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     mockUseWorkItemTypes.mockReturnValue({
       workItemTypes: [activeType],
@@ -902,7 +903,7 @@ describe("WorkItemTypeFormPage", () => {
         role: "work-item",
         description: "Current project task",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       }),
       isLoading: false,
       error: null,
@@ -1030,7 +1031,7 @@ describe("WorkItemTypeFormPage", () => {
           role: "work-item",
           description: "Archived project task",
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         },
         WorkItemTypeLifecycleStatus.Archived,
       ),
@@ -1082,7 +1083,7 @@ describe("WorkItemTypeFormPage", () => {
         name: "Retired type",
         role: "work-item",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       }),
       status: WorkItemTypeLifecycleStatus.Archived,
     };
@@ -1107,7 +1108,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Active type",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     const archivedType = {
       ...activeCustomSummary({
@@ -1115,7 +1116,7 @@ describe("WorkItemTypeFormPage", () => {
         name: "Archived type",
         role: "work-item",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       }),
       status: WorkItemTypeLifecycleStatus.Archived,
     };
@@ -1148,14 +1149,14 @@ describe("WorkItemTypeFormPage", () => {
       name: "Allowed source",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     const disallowedSource = activeCustomSummary({
       key: "DISALLOWED_SOURCE",
       name: "Disallowed source",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     const archivedSource = {
       ...activeCustomSummary({
@@ -1163,7 +1164,7 @@ describe("WorkItemTypeFormPage", () => {
         name: "Archived source",
         role: "work-item",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       }),
       status: WorkItemTypeLifecycleStatus.Archived,
     };
@@ -1172,7 +1173,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Tracking target",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       tracking: {
         allowedSourceEntityTypes: [EntityType.Task],
         allowedSourceTaskTypes: ["ALLOWED_SOURCE", "ARCHIVED_SOURCE"],
@@ -1228,14 +1229,14 @@ describe("WorkItemTypeFormPage", () => {
       name: "Goal",
       role: "project-info",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     const existingTarget = activeCustomSummary({
       key: "FEATURE",
       name: "Feature",
       role: "project-info",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       tracking: {
         allowedSourceEntityTypes: [EntityType.Task],
         allowedSourceTaskTypes: ["GOAL"],
@@ -1332,14 +1333,14 @@ describe("WorkItemTypeFormPage", () => {
       name: "Active type",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     const deletedType = activeCustomSummary({
       key: "DELETED_TYPE",
       name: "Deleted type",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     mockUseWorkItemTypes.mockReturnValue({
       workItemTypes: [activeType, deletedType],
@@ -1402,7 +1403,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Custom work",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       allowedParentTypes: ["ARCHIVED_PARENT"],
       edgeTargets: [
         {
@@ -1427,7 +1428,7 @@ describe("WorkItemTypeFormPage", () => {
           name: "Active type",
           role: "work-item",
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         }),
       ],
       isLoading: false,
@@ -1473,7 +1474,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Feature",
       role: "project-info",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       tracking: {
         allowedSourceEntityTypes: [EntityType.Message],
         allowedSourceTaskTypes: ["GOAL"],
@@ -1492,7 +1493,7 @@ describe("WorkItemTypeFormPage", () => {
           name: "Goal",
           role: "project-info",
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         }),
       ],
       isLoading: false,
@@ -1514,7 +1515,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Custom work",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       allowedParentTypes: ["FEATURE"],
       allowedParentEntityTypes: [],
     });
@@ -1564,7 +1565,7 @@ describe("WorkItemTypeFormPage", () => {
         sections: [],
         requiredScalars: [],
         forbiddenScalars: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
         allowedParentTypes: [],
         edgeTargets: [],
         allowedParentEntityTypes: [],
@@ -1673,7 +1674,7 @@ describe("WorkItemTypeFormPage", () => {
         name: "Custom work",
         role: "work-item" as const,
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
         ...(sessionRoleGuidance === undefined ? {} : { sessionRoleGuidance }),
       };
       const summary = activeCustomSummary(definition);
@@ -1750,7 +1751,15 @@ describe("WorkItemTypeFormPage", () => {
 
   it("blocks submission and surfaces an error when the key collides with an existing type", () => {
     mockUseWorkItemTypes.mockReturnValue({
-      workItemTypes: [{ definition: { key: "MARKETING" } }],
+      workItemTypes: [
+        activeCustomSummary({
+          key: "MARKETING",
+          name: "Marketing",
+          role: "work-item",
+          sections: [],
+          statuses: legacyStatuses([WorkStatus.Backlog]),
+        }),
+      ],
       isLoading: false,
     });
     renderForm();
@@ -1772,7 +1781,7 @@ describe("WorkItemTypeFormPage", () => {
       role: "work-item",
       description: "A delivered behavior defect.",
       sections: [],
-      allowedStatuses: [WorkStatus.Active],
+      statuses: legacyStatuses([WorkStatus.Active]),
       tracking: {
         allowedSourceEntityTypes: [],
         allowedSourceTaskTypes: [],
@@ -1815,7 +1824,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Custom work",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       edgeTargets: [
         {
           edgeType: AgentEdgeType.RelatedTo,
@@ -1865,7 +1874,7 @@ describe("WorkItemTypeFormPage", () => {
       ],
       requiredScalars: [],
       forbiddenScalars: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       allowedParentTypes: [],
       edgeTargets: [],
       allowedParentEntityTypes: [],
@@ -1966,7 +1975,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Workflow",
       role: "project-info",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       capabilities: {
         graph,
         rendersInline: true,
@@ -2017,7 +2026,7 @@ describe("WorkItemTypeFormPage", () => {
         ],
         requiredScalars: [WorkItemTypeScalarField.DueDate],
         forbiddenScalars: [WorkItemTypeScalarField.Tag],
-        allowedStatuses: [WorkStatus.Ready, WorkStatus.Active],
+        statuses: legacyStatuses([WorkStatus.Ready, WorkStatus.Active]),
         allowedParentTypes: ["FEATURE"],
         edgeTargets: [
           {
@@ -2092,7 +2101,7 @@ describe("WorkItemTypeFormPage", () => {
       role: "work-item",
       description: "A custom type.",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     mockUseWorkItemTypeByKey.mockReturnValue({
       workItemTypeSummary: summary,
@@ -2147,7 +2156,7 @@ describe("WorkItemTypeFormPage", () => {
       role: "work-item",
       description: "A custom type.",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     mockUseWorkItemTypeByKey.mockReturnValue({
       workItemTypeSummary: summary,
@@ -2191,7 +2200,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Feature",
       role: "project-info",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       capabilities: { isHierarchyNode: true },
     });
     mockUseWorkItemTypeByKey.mockReturnValue({
@@ -2224,7 +2233,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Capability source",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       capabilities: {
         requiresParent: false,
         showsInExplorerSidebar: false,
@@ -2271,7 +2280,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Custom work",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       capabilities: {
         requiresParent: false,
         showsInExplorerSidebar: false,
@@ -2321,7 +2330,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Minimal",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     };
     const summary: WorkItemTypeSummaryDto = {
       id: "minimal-type",
@@ -2356,7 +2365,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Custom work",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     mockUseWorkItemTypeByKey.mockReturnValue({
       workItemTypeSummary: summary,
@@ -2397,7 +2406,7 @@ describe("WorkItemTypeFormPage", () => {
     });
   });
 
-  it("submits allowed-status edits for custom definitions", () => {
+  it("preserves remaining status metadata when removing an ordinary status", () => {
     mockTypeKey = "STATUSFUL";
     const summary: WorkItemTypeSummaryDto = {
       id: "statusful-type",
@@ -2409,7 +2418,7 @@ describe("WorkItemTypeFormPage", () => {
         name: "Statusful",
         role: "work-item",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([WorkStatus.Backlog, WorkStatus.Active]),
       },
     };
     mockUseWorkItemTypeByKey.mockReturnValue({
@@ -2426,12 +2435,12 @@ describe("WorkItemTypeFormPage", () => {
     selectTab("Lifecycle");
     const selector = screen.getByTestId("wit-form-statuses");
     fireEvent.mouseDown(within(selector).getByRole("combobox"));
-    fireEvent.click(screen.getByRole("option", { name: WorkStatus.Active }));
+    fireEvent.click(screen.getByRole("option", { name: WorkStatus.Backlog }));
     fireEvent.click(screen.getByTestId("wit-form-submit"));
 
-    expect(mockEditMutate.mock.calls[0][0].definition.allowedStatuses).toEqual([
-      WorkStatus.Active,
-    ]);
+    expect(mockEditMutate.mock.calls[0][0].definition.statuses).toEqual(
+      legacyStatuses([WorkStatus.Active]),
+    );
     expect(
       screen.queryByTestId("wit-form-unsupported-impact"),
     ).not.toBeInTheDocument();
@@ -2444,7 +2453,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Standard task",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     mockUseWorkItemTypeByKey.mockReturnValue({
       workItemTypeSummary: summary,
@@ -2499,7 +2508,7 @@ describe("WorkItemTypeFormPage", () => {
           name: "Editable type",
           role: "work-item",
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         }),
         effectiveSource,
       };
@@ -2539,7 +2548,7 @@ describe("WorkItemTypeFormPage", () => {
         { key: "audience", label: "Audience", writingStandard: null },
         { key: "details", label: "Details", writingStandard: null },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     mockUseWorkItemTypeByKey.mockReturnValue({
       workItemTypeSummary: summary,
@@ -2581,7 +2590,7 @@ describe("WorkItemTypeFormPage", () => {
       role: "work-item",
       description: "A custom type.",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       tracking: {
         allowedSourceEntityTypes: [EntityType.Task],
         allowedSourceTaskTypes: ["BUG", "FEATURE"],
@@ -2600,14 +2609,14 @@ describe("WorkItemTypeFormPage", () => {
           name: "Bug",
           role: "work-item",
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         }),
         activeCustomSummary({
           key: "FEATURE",
           name: "Feature",
           role: "project-info",
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         }),
       ],
       isLoading: false,
@@ -2690,7 +2699,7 @@ describe("WorkItemTypeFormPage", () => {
           { key: "audience", label: "Audience", writingStandard: null },
           { key: "details", label: "Details", writingStandard: null },
         ],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       });
       mockUseWorkItemTypeByKey.mockReturnValue({
         workItemTypeSummary: summary,
@@ -2729,7 +2738,7 @@ describe("WorkItemTypeFormPage", () => {
           schemaRef: "#/components/schemas/Details",
         },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     mockUseWorkItemTypeByKey.mockReturnValue({
       workItemTypeSummary: summary,
@@ -3045,7 +3054,7 @@ describe("WorkItemTypeFormPage", () => {
               name: "Custom work",
               role: "work-item",
               sections: [],
-              allowedStatuses: [],
+              statuses: legacyStatuses([]),
             },
           },
           isLoading: false,
@@ -3090,7 +3099,7 @@ describe("WorkItemTypeFormPage", () => {
           name: "Custom work",
           role: "work-item",
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         },
       },
       isLoading: false,
@@ -3117,7 +3126,7 @@ describe("WorkItemTypeFormPage", () => {
           name: "Custom work",
           role: "work-item",
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         },
       },
       isLoading: false,
@@ -3151,7 +3160,7 @@ describe("WorkItemTypeFormPage", () => {
           role: "work-item",
           description: null,
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
           tracking: {
             allowedSourceEntityTypes: [],
             allowedSourceTaskTypes: [],
@@ -3187,7 +3196,7 @@ describe("WorkItemTypeFormPage", () => {
         role: "work-item",
         description: "Original description",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
         capabilities: { planEligible: false },
       },
     } as WorkItemTypeSummaryDto;
@@ -3294,7 +3303,7 @@ describe("WorkItemTypeFormPage", () => {
         name: "Custom work",
         role: "work-item",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       });
       mockUseWorkItemTypeByKey.mockReturnValue({
         workItemTypeSummary: summary,
@@ -3363,7 +3372,7 @@ describe("WorkItemTypeFormPage", () => {
           writingStandard: "  Preserve this section guidance.  ",
         },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       writingStandards: {
         create: "  Create carefully.  ",
         edit: "  Edit carefully.  ",
@@ -3406,7 +3415,7 @@ describe("WorkItemTypeFormPage", () => {
       ],
       requiredScalars: [WorkItemTypeScalarField.DueDate],
       forbiddenScalars: [],
-      allowedStatuses: [WorkStatus.Active],
+      statuses: legacyStatuses([WorkStatus.Active]),
       allowedParentTypes: [],
       edgeTargets: [],
       allowedParentEntityTypes: [],
@@ -3463,7 +3472,7 @@ describe("WorkItemTypeFormPage", () => {
           name: "Foreign work",
           role: "work-item",
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         },
       },
       isLoading: false,
@@ -3490,7 +3499,7 @@ describe("WorkItemTypeFormPage", () => {
         name: "Archived custom",
         role: "work-item",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       }),
       status: WorkItemTypeLifecycleStatus.Archived,
     };
@@ -3545,7 +3554,7 @@ describe("WorkItemTypeFormPage", () => {
           name: "Other project type",
           role: "work-item",
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         }),
         projectId: "proj-2",
       },

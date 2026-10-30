@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from '../shared/api/generated/api';
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
 import { z } from 'zod';
@@ -550,7 +551,7 @@ export class TaskMonitorStartRuntime {
     reason,
   }: {
     monitor: TaskMonitorStartMonitor;
-    status: WorkStatus;
+    status: TaskResponseDto['status'];
     reason: string;
   }): Promise<TaskMonitorStartMonitor> {
     const token = await this.dependencies.authContext.getAccessToken();

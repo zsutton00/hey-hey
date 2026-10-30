@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../../test/setup/legacy-status.fixture';
 import { SessionRole } from '@hey-hey/contracts/api/models';
 import type { WorkItemType } from '@prisma/client';
 import { InMemoryMessageBus } from '../../../core/events/in-memory-message-bus.service';
@@ -77,7 +78,7 @@ function buildRow(o: RowOverrides): WorkItemType {
         : o.sectionDefinitions,
     allowedParentTypes: ['STANDARD'],
     edgeTargets: [{ edgeType: 'RELATED_TO', targetTypeKeys: [] }],
-    allowedStatuses: [WorkStatus.Active],
+    statuses: legacyStatuses([WorkStatus.Active]),
     ...LEAN_AXES,
     // The summary projects these closed-enum scalar axes from the lean columns.
     ...(o.requiredScalars === undefined
@@ -496,7 +497,7 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
         ],
         requiredScalars: ['tag'],
         forbiddenScalars: ['dueDate'],
-        allowedStatuses: [WorkStatus.Active],
+        statuses: legacyStatuses([WorkStatus.Active]),
         allowedParentTypes: ['FEATURE'],
         edgeTargets: [{ edgeType: 'DEPENDS_ON', targetTypeKeys: ['CONTRACT'] }],
         writingStandards: providerOwnedStandards,
@@ -550,7 +551,7 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
         ],
         requiredScalars: [],
         forbiddenScalars: ['tag'],
-        allowedStatuses: [WorkStatus.Active],
+        statuses: legacyStatuses([WorkStatus.Active]),
         allowedParentTypes: ['STANDARD'],
         edgeTargets: [{ edgeType: 'RELATED_TO', targetTypeKeys: ['FEATURE'] }],
         allowedParentEntityTypes: [],

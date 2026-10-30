@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../../../packages/ui-common/src/test/fixtures/workItemStatuses";
 import { render, screen } from "@testing-library/react";
 import { AxiosError } from "axios";
 import React from "react";
@@ -9,7 +10,7 @@ import { WorkItemTypeCollectionPage } from "./WorkItemTypeCollectionPage";
 const customDefinition = {
   key: "CUSTOM_DELIVERABLE",
   name: "Deliverables",
-  allowedStatuses: ["COMPLETED", "ACTIVE", "BACKLOG"],
+  statuses: legacyStatuses(["COMPLETED", "ACTIVE", "BACKLOG"]),
 };
 const useWorkItemTypeByKeyMock = vi.fn();
 const collectionPropsMock = vi.fn();
@@ -160,7 +161,7 @@ describe("WorkItemTypeCollectionPage", () => {
       .getAllByTestId("entity-collection-status-tab")
       .map((tab) => tab.textContent);
     expect(labels[0]).toBe("In progress");
-    expect(labels).toHaveLength(customDefinition.allowedStatuses.length);
+    expect(labels).toHaveLength(customDefinition.statuses.length + 1);
     expect(labels).not.toContain("All");
   });
 
@@ -195,7 +196,9 @@ describe("WorkItemTypeCollectionPage", () => {
     expect(
       screen.getByTestId("work-item-type-collection-loading"),
     ).toBeInTheDocument();
-    expect(screen.queryByTestId("entity-collection-page")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("entity-collection-page"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole("heading")).not.toBeInTheDocument();
     expect(screen.queryByTestId("breadcrumbs")).not.toBeInTheDocument();
     expect(screen.queryByTestId("not-found")).not.toBeInTheDocument();
@@ -213,7 +216,9 @@ describe("WorkItemTypeCollectionPage", () => {
     renderPage();
 
     expect(screen.getByTestId("not-found")).toBeInTheDocument();
-    expect(screen.queryByTestId("entity-collection-page")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("entity-collection-page"),
+    ).not.toBeInTheDocument();
   });
 
   it("renders not-found when the registry answers 404 for the key", () => {
@@ -237,14 +242,19 @@ describe("WorkItemTypeCollectionPage", () => {
   it("renders not-found for an inactive type", () => {
     useWorkItemTypeByKeyMock.mockReturnValue(
       readyType({
-        workItemTypeSummary: { status: "ARCHIVED", definition: customDefinition },
+        workItemTypeSummary: {
+          status: "ARCHIVED",
+          definition: customDefinition,
+        },
       }),
     );
 
     renderPage();
 
     expect(screen.getByTestId("not-found")).toBeInTheDocument();
-    expect(screen.queryByTestId("entity-collection-page")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("entity-collection-page"),
+    ).not.toBeInTheDocument();
   });
 
   it("surfaces non-404 registry failures instead of an empty collection", () => {

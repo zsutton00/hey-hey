@@ -1,4 +1,5 @@
 import { restrictTaskWhere } from 'src/read-restriction/read-policy';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { withApiSpan } from 'src/telemetry/api-tracing';
 import type { ProjectModeSettings } from '@hey-hey/contracts/api/models';
 import {
@@ -40,7 +41,6 @@ import {
   TaskDependencySourceType,
   TaskSource,
   WorkItemTypeCascadeExecutionState,
-  WorkStatus,
 } from '@prisma/client';
 import {
   ArtifactType,
@@ -166,7 +166,10 @@ import {
 export type TaskEntity = Prisma.TaskGetPayload<Prisma.TaskDefaultArgs>;
 
 export type TaskUpdatePostCommit = {
-  statusChange?: { previousStatus: WorkStatus; newStatus: WorkStatus };
+  statusChange?: {
+    previousStatus: TaskResponseDto['status'];
+    newStatus: TaskResponseDto['status'];
+  };
   updateOriginalArtifact?: boolean;
 };
 
@@ -216,7 +219,7 @@ type TaskWithCountsAndInitiative = TaskWithCountsAndRelations & {
 type TrackedTaskRow = {
   id: string;
   name: string;
-  status: WorkStatus;
+  status: TaskResponseDto['status'];
   dueDate: Date | null;
 };
 
@@ -241,25 +244,27 @@ type ChildCounts = {
   backlog: number;
 };
 
-const BACKLOG_STATUSES = new Set<WorkStatus>([
-  WorkStatus.GENERATED,
-  WorkStatus.BACKLOG,
-  WorkStatus.GENERATING_DESCRIPTION,
-  WorkStatus.REFINING_DESCRIPTION,
-  WorkStatus.REFINING_DETAILS,
-  WorkStatus.REFINING_ACCEPTANCE_CRITERIA,
-  WorkStatus.GENERATING_DETAILS,
-  WorkStatus.GENERATING_DESCRIPTION_AND_DETAILS,
-  WorkStatus.GENERATING_ACCEPTANCE_CRITERIA,
-  WorkStatus.GENERATING_ALL,
-  WorkStatus.ON_HOLD,
+const BACKLOG_STATUSES = new Set<TaskResponseDto['status']>([
+  WorkStatus.Generated,
+  WorkStatus.Backlog,
+  WorkStatus.GeneratingDescription,
+  WorkStatus.RefiningDescription,
+  WorkStatus.RefiningDetails,
+  WorkStatus.RefiningAcceptanceCriteria,
+  WorkStatus.GeneratingDetails,
+  WorkStatus.GeneratingDescriptionAndDetails,
+  WorkStatus.GeneratingAcceptanceCriteria,
+  WorkStatus.GeneratingAll,
+  WorkStatus.OnHold,
 ]);
 
-const IN_PROGRESS_STATUSES = new Set<WorkStatus>([WorkStatus.ACTIVE]);
+const IN_PROGRESS_STATUSES = new Set<TaskResponseDto['status']>([
+  WorkStatus.Active,
+]);
 
-const DONE_STATUSES = new Set<WorkStatus>([
-  WorkStatus.COMPLETED,
-  WorkStatus.CANCELLED,
+const DONE_STATUSES = new Set<TaskResponseDto['status']>([
+  WorkStatus.Completed,
+  WorkStatus.Cancelled,
 ]);
 
 const INCIDENT_AGENT_EDGE_TYPES = new Set<string>(Object.values(AgentEdgeType));
@@ -365,17 +370,17 @@ export class TaskService {
 
   private resolveInitialStatus(
     taskType: WorkItemTypeKey,
-    dtoStatus: WorkStatus | undefined,
+    dtoStatus: TaskResponseDto['status'] | undefined,
     projectId: string,
-  ): WorkStatus {
+  ): TaskResponseDto['status'] {
     const policy = this.workItemTypeRegistry.getInitialStatusPolicy(
       taskType,
       projectId,
     );
     if (policy.hasSetInitialStatus) {
-      return policy.initialStatus as WorkStatus;
+      return policy.initialStatus;
     }
-    return dtoStatus ?? (policy.initialStatus as WorkStatus);
+    return dtoStatus ?? policy.initialStatus;
   }
 
   private getSectionFieldsForTaskType(
@@ -949,8 +954,8 @@ export class TaskService {
     tx: Prisma.TransactionClient,
     params: {
       taskId: TaskId;
-      previousStatus: WorkStatus;
-      newStatus: WorkStatus;
+      previousStatus: TaskResponseDto['status'];
+      newStatus: TaskResponseDto['status'];
       organizationId: OrganizationId;
       initiativeId: InitiativeId | null;
       projectId: ProjectId;
@@ -2203,11 +2208,11 @@ export class TaskService {
     };
     const nowMs = now.getTime();
     for (const row of rows) {
-      if (row.status === WorkStatus.COMPLETED) {
+      if (row.status === WorkStatus.Completed) {
         summary.completedCount += 1;
         continue;
       }
-      if (row.status === WorkStatus.CANCELLED) {
+      if (row.status === WorkStatus.Cancelled) {
         summary.cancelledCount += 1;
         continue;
       }
@@ -2754,7 +2759,7 @@ export class TaskService {
         organizationId,
         archivedAt: null,
         ...(projectId
-          ? { projectId, status: { not: WorkStatus.ARCHIVED } }
+          ? { projectId, status: { not: WorkStatus.Archived } }
           : {}),
       },
       select: { id: true, type: true },
@@ -3049,7 +3054,7 @@ export class TaskService {
             archivedAt: null,
             ...(taskType === WORK_ITEM_TYPE_KEYS.Diagram ||
             taskType === WORK_ITEM_TYPE_KEYS.DiagramElement
-              ? { status: { not: WorkStatus.ARCHIVED } }
+              ? { status: { not: WorkStatus.Archived } }
               : {}),
           },
           select: { id: true, type: true, projectId: true },
@@ -3427,7 +3432,7 @@ export class TaskService {
               organizationId,
               projectId,
               initiativeId: initiativeId ?? undefined,
-              status: WorkStatus.GENERATED, // AI generated, pending user acceptance
+              status: WorkStatus.Generated, // AI generated, pending user acceptance
               source: TaskSource.system,
               priority,
               type: taskType,
@@ -3739,7 +3744,7 @@ export class TaskService {
     page: number,
     limit: number,
     filter?: string,
-    statuses?: WorkStatus[],
+    statuses?: TaskResponseDto['status'][],
     sortBy: 'name' | 'createdAt' = 'name',
     sortOrder: 'asc' | 'desc' = 'asc',
   ): Promise<PaginatedWorkItemReferenceResponseDto> {
@@ -3750,7 +3755,7 @@ export class TaskService {
       type,
       archivedAt: null,
       status: {
-        not: WorkStatus.ARCHIVED,
+        not: WorkStatus.Archived,
         ...(statuses && statuses.length > 0 ? { in: statuses } : {}),
       },
       ...(normalizedFilter
@@ -3816,7 +3821,7 @@ export class TaskService {
       edgeTypes?: RelationshipType[];
       relatedEntityId?: string;
       relatedEntityType?: AgentEdgeEndpointEntityType;
-      statuses?: WorkStatus[];
+      statuses?: TaskResponseDto['status'][];
       taskIds?: TaskId[];
       includeSectionKeys?: string[];
       taskType?: string;
@@ -4144,7 +4149,7 @@ export class TaskService {
         id: taskId,
         organizationId,
         archivedAt: null,
-        status: { not: WorkStatus.ARCHIVED },
+        status: { not: WorkStatus.Archived },
       }),
     };
     if (taskInclude) {
@@ -4269,7 +4274,7 @@ export class TaskService {
         parentTaskId: root.id,
         type: capability.nodeChildType,
         archivedAt: null,
-        status: { not: WorkStatus.ARCHIVED },
+        status: { not: WorkStatus.Archived },
       }),
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     })) as TaskWithCountsAndRelations[];
@@ -4441,7 +4446,7 @@ export class TaskService {
           projectId,
           id: { in: targetIds },
           archivedAt: null,
-          status: { not: WorkStatus.ARCHIVED },
+          status: { not: WorkStatus.Archived },
         },
         select: { id: true, type: true, name: true },
       }),
@@ -5848,9 +5853,9 @@ export class TaskService {
         // Handle GENERATED → REFINING_* transition (user acceptance)
         // STANDARD tasks go to REFINING_ACCEPTANCE_CRITERIA, others to REFINING_DESCRIPTION
         if (
-          existingTask.status === WorkStatus.GENERATED &&
-          (newStatus === WorkStatus.REFINING_DESCRIPTION ||
-            newStatus === WorkStatus.REFINING_ACCEPTANCE_CRITERIA)
+          existingTask.status === WorkStatus.Generated &&
+          (newStatus === WorkStatus.RefiningDescription ||
+            newStatus === WorkStatus.RefiningAcceptanceCriteria)
         ) {
           await this.createArtifactOnAcceptance(
             { ...updated, type: updated.type as WorkItemTypeKey },
@@ -5955,7 +5960,7 @@ export class TaskService {
   async findAllByOrganizationForAdapter(
     organizationId: OrganizationId,
     filters?: {
-      statuses?: WorkStatus[];
+      statuses?: TaskResponseDto['status'][];
       priority?: string;
       assigneeId?: string;
       parentTaskId?: string | null;

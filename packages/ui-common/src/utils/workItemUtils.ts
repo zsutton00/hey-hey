@@ -1,4 +1,5 @@
-import type { WorkStatus } from "../api";
+import type { TaskResponseDto } from "../api/api";
+
 import { WorkStatus as WorkStatusValues } from "../api";
 import {
   hasSelectedSection,
@@ -12,7 +13,7 @@ interface WorkItemLevelProfile {
 
 // Helper function to determine current level from work item status
 export function getCurrentLevelFromStatus(
-  status: WorkStatus | string,
+  status: TaskResponseDto["status"] | string,
   profile: WorkItemLevelProfile = {},
 ): "description" | "acceptanceCriteria" {
   if (profile.entityType === "task") {

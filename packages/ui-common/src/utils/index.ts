@@ -1,5 +1,6 @@
 export {
   formatStatus,
+  getWorkItemTypeStatusNames,
   getStatusColorMapping,
   getPlanStatusLabel,
 } from "./statusUtils";

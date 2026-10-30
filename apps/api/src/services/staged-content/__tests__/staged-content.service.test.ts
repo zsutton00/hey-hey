@@ -1,3 +1,5 @@
+import type { TaskResponseDto } from '../../../generated/model/taskResponseDto';
+
 /* eslint-disable @typescript-eslint/unbound-method */
 /**
  * Staged Content Service – Design Doc Focused Tests
@@ -45,7 +47,6 @@ import { WorkflowTypeRegistryService } from '../../workflows/workflow-type-regis
 import { ContentTypeRegistryService } from '../content-type-registry.service';
 import { StagedContentService } from '../staged-content.service';
 import { createServiceTestingModule } from '../../../../test/setup/testing-module.factory';
-import { WorkStatus } from '@prisma/client';
 
 const { testIds } = TestUtils;
 
@@ -95,7 +96,7 @@ describe('StagedContentService (design docs)', () => {
     description: 'Original task description',
     details: 'Existing details',
     acceptanceCriteria: 'Existing AC',
-    status: 'REFINING_DESCRIPTION' as WorkStatus,
+    status: 'REFINING_DESCRIPTION' as TaskResponseDto['status'],
     currentStage: 'description',
     projectId: testIds.project,
     organizationId: testIds.organization,

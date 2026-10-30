@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { describe, it, expect } from "vitest";
 import {
   taskAdapter,
@@ -35,14 +36,14 @@ describe("Entity Adapters", () => {
       key: "BUG",
       name: "Bug",
       sections: [],
-      allowedStatuses: [WorkStatus.Active, WorkStatus.Completed],
+      statuses: legacyStatuses([WorkStatus.Active, WorkStatus.Completed]),
       iconKey: "bug",
     };
     const statuslessDefinition: WorkItemTypeDefinitionDto = {
       key: "FEATURE",
       name: "Feature",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       iconKey: "feature",
     };
 
@@ -116,7 +117,7 @@ describe("Entity Adapters", () => {
         {
           showEntityKind: true,
           workItemTypeDefinition: statuslessDefinition,
-        }
+        },
       );
 
       expect(result.entityKindLabel).toBe("Feature");
@@ -191,11 +192,11 @@ describe("Entity Adapters", () => {
       const result = taskAdapter.toEntityListItemProps(mockTask, options);
 
       const designDocGroup = result.counts?.find((group) =>
-        group.some((item) => item.label === "design doc")
+        group.some((item) => item.label === "design doc"),
       );
       expect(designDocGroup).toBeDefined();
       const designDocCount = designDocGroup?.find(
-        (item) => item.label === "design doc"
+        (item) => item.label === "design doc",
       );
       expect(designDocCount?.count).toBe(2);
     });
@@ -209,11 +210,11 @@ describe("Entity Adapters", () => {
       const result = taskAdapter.toEntityListItemProps(mockTask, options);
 
       const agentSessionGroup = result.counts?.find((group) =>
-        group.some((item) => item.label === "agent session")
+        group.some((item) => item.label === "agent session"),
       );
       expect(agentSessionGroup).toBeDefined();
       const agentSessionCount = agentSessionGroup?.find(
-        (item) => item.label === "agent session"
+        (item) => item.label === "agent session",
       );
       expect(agentSessionCount?.count).toBe(5);
     });
@@ -248,7 +249,7 @@ describe("Entity Adapters", () => {
 
       const result = taskAdapter.toEntityListItemProps(
         taskWithoutAssignee,
-        options
+        options,
       );
 
       expect(result.title).toBe("Fix authentication bug");
@@ -268,7 +269,7 @@ describe("Entity Adapters", () => {
 
       const result = taskAdapter.toEntityListItemProps(
         taskWithoutDueDate,
-        options
+        options,
       );
 
       expect(result.title).toBe("Fix authentication bug");
@@ -349,7 +350,7 @@ describe("Entity Adapters", () => {
 
       const result = taskAdapter.toEntityListItemProps(
         taskWithNoCounts,
-        options
+        options,
       );
 
       expect(result.counts).toBeUndefined();
@@ -373,7 +374,7 @@ describe("Entity Adapters", () => {
       it("omits dependencies when task.edges is empty", () => {
         const result = taskAdapter.toEntityListItemProps(
           { ...mockTask, edges: [] },
-          { projectId: "project-1", pathService: stubPathService }
+          { projectId: "project-1", pathService: stubPathService },
         );
 
         expect(result.dependencies).toBeUndefined();
@@ -643,11 +644,11 @@ describe("Entity Adapters", () => {
         });
 
         const trackedGroup = result.counts?.find((group) =>
-          group.some((item) => item.label === "tracked")
+          group.some((item) => item.label === "tracked"),
         );
         expect(trackedGroup).toBeDefined();
         const trackedCount = trackedGroup?.find(
-          (item) => item.label === "tracked"
+          (item) => item.label === "tracked",
         );
         expect(trackedCount?.count).toBe(trackedEntities.length);
         expect(result.href).toBe("/projects/project-1/tasks/task-1");
@@ -694,7 +695,7 @@ describe("Entity Adapters", () => {
         });
 
         expect(
-          result.counts?.flat().some((item) => item.label === "tracked")
+          result.counts?.flat().some((item) => item.label === "tracked"),
         ).toBe(false);
       });
 
@@ -717,7 +718,7 @@ describe("Entity Adapters", () => {
         });
 
         const trackedGroup = result.counts?.find((group) =>
-          group.some((item) => item.label === "tracked")
+          group.some((item) => item.label === "tracked"),
         );
         expect(trackedGroup).toBeUndefined();
         expect(result.href).toContain("/tasks/task-1");
@@ -817,7 +818,7 @@ describe("Entity Adapters", () => {
 
       const result = initiativeAdapter.toEntityListItemProps(
         mockInitiative,
-        options
+        options,
       );
 
       expect(result.title).toBe("Implement dark mode");
@@ -830,17 +831,17 @@ describe("Entity Adapters", () => {
 
     it("supplies its canonical kind only when requested", () => {
       expect(
-        initiativeAdapter.toEntityListItemProps(mockInitiative).entityKindLabel
+        initiativeAdapter.toEntityListItemProps(mockInitiative).entityKindLabel,
       ).toBeUndefined();
       expect(
         initiativeAdapter.toEntityListItemProps(mockInitiative, {
           showEntityKind: true,
-        }).entityKindLabel
+        }).entityKindLabel,
       ).toBe("Initiative");
       expect(
         initiativeAdapter.toEntityListItemProps(mockInitiative, {
           showEntityKind: true,
-        }).entityKindIcon
+        }).entityKindIcon,
       ).toBe("initiative");
     });
 
@@ -851,7 +852,7 @@ describe("Entity Adapters", () => {
 
       const result = initiativeAdapter.toEntityListItemProps(
         mockInitiative,
-        options
+        options,
       );
 
       expect(result.counts).toBeDefined();
@@ -870,7 +871,7 @@ describe("Entity Adapters", () => {
 
       const result = initiativeAdapter.toEntityListItemProps(
         initiativeWithoutTags,
-        options
+        options,
       );
 
       expect(result.tags).toBeUndefined();
@@ -888,7 +889,7 @@ describe("Entity Adapters", () => {
 
       const result = initiativeAdapter.toEntityListItemProps(
         initiativeWithoutAssignee,
-        options
+        options,
       );
 
       expect(result.title).toBe("Implement dark mode");
@@ -897,7 +898,7 @@ describe("Entity Adapters", () => {
     it("should not generate href without project ID", () => {
       const result = initiativeAdapter.toEntityListItemProps(
         mockInitiative,
-        {}
+        {},
       );
 
       expect(result.href).toBeUndefined();
@@ -914,7 +915,7 @@ describe("Entity Adapters", () => {
 
       const result = initiativeAdapter.toEntityListItemProps(
         mockInitiative,
-        options
+        options,
       );
 
       expect(result.onClick).toBe(handleClick);
@@ -960,7 +961,7 @@ describe("Entity Adapters", () => {
 
       const result = agentSessionAdapter.toEntityListItemProps(
         sessionWithDetails,
-        options
+        options,
       );
 
       expect(result.title).toBe("Implement OAuth flow");
@@ -989,7 +990,7 @@ describe("Entity Adapters", () => {
 
       const result = agentSessionAdapter.toEntityListItemProps(
         mockSession,
-        options
+        options,
       );
 
       expect(result.tags).toContain("Bob Johnson");
@@ -1007,7 +1008,7 @@ describe("Entity Adapters", () => {
 
       const result = agentSessionAdapter.toEntityListItemProps(
         untitledSession,
-        options
+        options,
       );
 
       expect(result.title).toBe("Untitled agent session");
@@ -1021,7 +1022,7 @@ describe("Entity Adapters", () => {
 
       const result = agentSessionAdapter.toEntityListItemProps(
         sessionWithCodex,
-        { projectId: "project-1" }
+        { projectId: "project-1" },
       );
 
       expect(result.tags).toContain("Codex");
@@ -1089,7 +1090,7 @@ describe("Entity Adapters", () => {
 
       const result = agentSessionAdapter.toEntityListItemProps(
         sessionWithSubtype,
-        { projectId: "project-1" }
+        { projectId: "project-1" },
       );
 
       expect(result.agentSessionType).toBe(AgentSessionType.EntityConversation);
@@ -1120,7 +1121,7 @@ describe("Entity Adapters", () => {
 
       const result = agentSessionAdapter.toEntityListItemProps(
         sessionWithoutDate,
-        { projectId: "project-1" }
+        { projectId: "project-1" },
       );
 
       expect(result.description).toBe("No date");
@@ -1155,7 +1156,7 @@ describe("Entity Adapters", () => {
 
       const result = designDocAdapter.toEntityListItemProps(
         mockDesignDoc,
-        options
+        options,
       );
 
       expect(result.title).toBe("Authentication Architecture");
@@ -1199,7 +1200,7 @@ describe("Entity Adapters", () => {
 
       const result = designDocAdapter.toEntityListItemProps(
         mockDesignDoc,
-        options
+        options,
       );
 
       expect(result.tags).toContain("Template: architecture");
@@ -1217,7 +1218,7 @@ describe("Entity Adapters", () => {
 
       const result = designDocAdapter.toEntityListItemProps(
         docWithoutTags,
-        options
+        options,
       );
 
       // Should still have template tag
@@ -1236,7 +1237,7 @@ describe("Entity Adapters", () => {
 
       const result = designDocAdapter.toEntityListItemProps(
         docWithoutSummary,
-        options
+        options,
       );
 
       expect(result.description).toBeUndefined();
@@ -1259,7 +1260,7 @@ describe("Entity Adapters", () => {
 
       const result = designDocAdapter.toEntityListItemProps(
         mockDesignDoc,
-        options
+        options,
       );
 
       expect(result.onClick).toBe(handleClick);
@@ -1358,7 +1359,7 @@ describe("Entity Adapters", () => {
 
       const result = serviceAdapter.toEntityListItemProps(
         serviceWithoutDescription,
-        options
+        options,
       );
 
       expect(result.description).toBeUndefined();
@@ -1378,7 +1379,7 @@ describe("Entity Adapters", () => {
 
       const result = serviceAdapter.toEntityListItemProps(
         serviceWithoutTags,
-        options
+        options,
       );
 
       expect(result.tags).toBeUndefined();
@@ -1468,27 +1469,27 @@ describe("Entity Adapters", () => {
     it("supplies canonical conversation and plan kinds only when requested", () => {
       expect(
         conversationAdapter.toEntityListItemProps(mockConversation)
-          .entityKindLabel
+          .entityKindLabel,
       ).toBeUndefined();
       expect(
         conversationAdapter.toEntityListItemProps(mockConversation, {
           showEntityKind: true,
-        }).entityKindLabel
+        }).entityKindLabel,
       ).toBe("Conversation");
       expect(
         conversationAdapter.toEntityListItemProps(mockConversation, {
           showEntityKind: true,
-        }).entityKindIcon
+        }).entityKindIcon,
       ).toBe("conversation");
       expect(
         planAdapter.toEntityListItemProps(mockPlan, {
           showEntityKind: true,
-        }).entityKindLabel
+        }).entityKindLabel,
       ).toBe("Plan");
       expect(
         planAdapter.toEntityListItemProps(mockPlan, {
           showEntityKind: true,
-        }).entityKindIcon
+        }).entityKindIcon,
       ).toBe("plan");
     });
 
@@ -1498,7 +1499,7 @@ describe("Entity Adapters", () => {
           projectId: "project-1",
           showEntityKind: true,
           presentation: "reference",
-        })
+        }),
       ).toEqual({
         title: "Delivery plan",
         entityKindLabel: "Plan",
@@ -1510,7 +1511,7 @@ describe("Entity Adapters", () => {
     it("formats plan lifecycle statuses for list consumers", () => {
       const result = planAdapter.toEntityListItemProps(
         { ...mockPlan, status: WorkStatus.Verifying },
-        { projectId: "project-1" }
+        { projectId: "project-1" },
       );
 
       expect(result.status).toBe("Verifying");

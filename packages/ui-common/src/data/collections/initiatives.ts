@@ -1,10 +1,11 @@
+import type { TaskResponseDto } from "../../api/api";
 import { captureRequestOptions } from "../core/requestInitiator";
 import {
   queryOptions,
   type InvalidateQueryFilters,
   type QueryKey,
 } from "@tanstack/react-query";
-import type { WorkStatus } from "../../api";
+
 import {
   platformClient,
   conversationsClient,
@@ -16,7 +17,7 @@ export interface InitiativeListFilters {
   projectId?: string;
   conversationId?: string;
   includeSectionKeys?: WorkItemSectionKey[];
-  status?: WorkStatus | WorkStatus[];
+  status?: TaskResponseDto["status"] | TaskResponseDto["status"][];
 }
 const normalizeFilters = (filters: InitiativeListFilters) => ({
   projectId: filters.projectId || undefined,

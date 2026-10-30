@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
@@ -78,11 +79,11 @@ const fullDefinition: Required<WorkItemTypeDefinitionDto> = {
   ],
   requiredScalars: ["dueDate"],
   forbiddenScalars: ["tag"],
-  allowedStatuses: [
+  statuses: legacyStatuses([
     WorkStatus.Backlog,
     WorkStatus.Active,
     WorkStatus.Completed,
-  ],
+  ]),
   agentSettableStatuses: [WorkStatus.Backlog, WorkStatus.Active],
   allowedParentTypes: ["FEATURE"],
   allowedParentEntityTypes: [EntityType.Initiative],
@@ -336,7 +337,7 @@ describe("WorkItemTypeCreateRenderer", () => {
       name: "Minimal Type",
       role: "project-info",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
 
     render(

@@ -1,12 +1,10 @@
+import type { TaskResponseDto } from "@hey-hey/contracts/api";
 import AddIcon from "@mui/icons-material/Add";
 import ForumIcon from "@mui/icons-material/ForumOutlined";
 import { Box, Button, Stack } from "@mui/material";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type {
-  ConversationResponseDto,
-  WorkStatus,
-} from "@hey-hey/contracts/api";
+import type { ConversationResponseDto } from "@hey-hey/contracts/api";
 import type { WorkItemResponseDto } from "@hey-hey/ui-common/data";
 import { CardHeader } from "../CardHeader";
 import {
@@ -58,7 +56,9 @@ export const TaskTab: React.FC<TaskTabProps> = ({
   const { t } = useTranslation();
   const { currentOrgId } = useUserIdentity() || {};
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<WorkStatus | "">("");
+  const [statusFilter, setStatusFilter] = useState<
+    TaskResponseDto["status"] | ""
+  >("");
   const [sortBy, setSortBy] = useState("status");
 
   // Use the deleteTask hook

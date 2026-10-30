@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../api/api";
 import {
   AdrStatus,
   BrainstormStatus,
@@ -43,7 +44,7 @@ const ACTIVITY_GANTT_SERVICE_STATUS_VALUES = [
 
 export type ActivityGanttEntityStatus =
   | (typeof ActivityGanttEntityStatus)[keyof typeof ActivityGanttEntityStatus]
-  | WorkStatus
+  | TaskResponseDto["status"]
   | AgentSessionStatus
   | BrainstormStatus
   | DecisionStatus

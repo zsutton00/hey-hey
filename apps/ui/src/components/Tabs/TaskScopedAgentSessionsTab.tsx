@@ -1,7 +1,5 @@
-import type {
-  ContextRelatedEntityDto,
-  WorkStatus,
-} from "@hey-hey/contracts/api";
+import type { TaskResponseDto } from "@hey-hey/contracts/api";
+import type { ContextRelatedEntityDto } from "@hey-hey/contracts/api";
 import { AgentSessionType, EntityType } from "@hey-hey/contracts/api";
 import {
   useAgentSessions,
@@ -27,13 +25,13 @@ interface TaskScopedAgentSessionsTabProps {
   relatedEntities?: readonly ContextRelatedEntityDto[];
   initiativeId?: string;
   taskName?: string;
-  taskStatus?: WorkStatus;
+  taskStatus?: TaskResponseDto["status"];
   loading?: boolean;
   emptyMessage?: string;
   enableFilters?: boolean;
   sessionList?: React.ReactNode;
   buildSessionPath: (agentSessionId: string) => string;
-  onTaskStatusChange?: (newStatus: WorkStatus) => Promise<void>;
+  onTaskStatusChange?: (newStatus: TaskResponseDto["status"]) => Promise<void>;
 }
 
 export const TaskScopedAgentSessionsTab: React.FC<

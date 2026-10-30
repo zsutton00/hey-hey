@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../test/setup/legacy-status.fixture';
 import { SessionRole } from '@hey-hey/contracts/api/models';
 import { ProjectAccessGuard } from '../../auth/guards/project-access.guard';
 import { ProjectService } from '../../services/project.service';
@@ -73,7 +74,7 @@ const definition: WorkItemTypeDefinitionDto = {
       schemaRef: '#/components/schemas/TaskMonitorExecutionDefinition',
     },
   ],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
   capabilities: { showsInExplorerSidebar: true },
 };
 
@@ -586,7 +587,7 @@ describe('WorkItemTypeController', () => {
           definition: {
             ...definition,
             name: 'Campaign',
-            allowedStatuses: [WorkStatus.Active],
+            statuses: legacyStatuses([WorkStatus.Active]),
           },
         },
         makeRequest(),

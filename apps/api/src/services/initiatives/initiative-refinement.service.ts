@@ -1,3 +1,5 @@
+import type { TaskResponseDto } from '../../generated/model/taskResponseDto';
+
 /**
  * Concrete Initiative Refinement Service
  *
@@ -32,7 +34,7 @@ import {
 } from '../base/base-refinement.service';
 import { InitiativeLifecycleService } from './initiative-lifecycle.service';
 import { InitiativeService } from './initiative.service';
-import { Priority, WorkStatus } from '@prisma/client';
+import { Priority } from '@prisma/client';
 
 /**
  * Initiative-specific refinement service implementation
@@ -119,7 +121,9 @@ export class InitiativeRefinementService
       sectionUpdateSource?: InitiativeSectionUpdateSource;
     } = {
       ...(updates.name && { name: updates.name }),
-      ...(updates.status && { status: updates.status as WorkStatus }),
+      ...(updates.status && {
+        status: updates.status as TaskResponseDto['status'],
+      }),
       ...(updates.priority !== undefined && {
         priority: updates.priority as Priority,
       }),

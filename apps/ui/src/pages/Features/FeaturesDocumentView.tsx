@@ -160,7 +160,7 @@ export const FeaturesDocumentView: React.FC<FeaturesDocumentView> = ({
         return;
       }
 
-      const initialStatus = workItemTypeDefinition.allowedStatuses[0];
+      const initialStatus = workItemTypeDefinition.statuses[0]?.name;
       if (!initialStatus) {
         return;
       }

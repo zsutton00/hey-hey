@@ -1,3 +1,5 @@
+import type { TaskResponseDto } from '../../generated/model/taskResponseDto';
+
 import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
@@ -9,7 +11,6 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { WorkStatus } from '@prisma/client';
 
 import {
   AgentEdgeResponseDto,
@@ -441,7 +442,7 @@ export class GoalTracksService {
         targetEntityId: task.id,
         targetEntityType: 'TASK',
         title: task.name,
-        status: task.status as WorkStatus,
+        status: task.status as TaskResponseDto['status'],
         dueDate: task.dueDate ? task.dueDate.toISOString() : null,
       };
     }

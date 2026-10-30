@@ -2,14 +2,20 @@ import { restrictTaskWhere } from 'src/read-restriction/read-policy';
 import { ReadVisibilityService } from 'src/read-restriction/read-visibility.service';
 import { forwardRef, Inject } from '@nestjs/common';
 import { ProposalReconciliationService } from '../proposal/proposal-reconciliation.service';
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { PlanDependenciesService } from '../plan/plan-dependencies.service';
 import { orderPlanStages } from '../plan/order-plan-stages';
 import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
 } from 'src/services/tasks/work-item-type-keys';
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { WorkStatus } from '@prisma/client';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 
 import { WorkItemTypeRegistryService } from '../tasks/work-item-type-registry.service';
 import { TaskService, type TaskEntity } from '../tasks/task.service';
@@ -1863,7 +1869,7 @@ export class EntityContextService {
     projectId: ProjectId,
     limit: number,
     offset: number,
-    statuses?: WorkStatus[],
+    statuses?: TaskResponseDto['status'][],
   ): Promise<ListGoalsResponseDto> {
     this.logger.log('listGoals called', {
       organizationId,
@@ -1966,9 +1972,9 @@ export class EntityContextService {
         archivedAt: null,
         status: {
           notIn: [
-            WorkStatus.COMPLETED,
-            WorkStatus.CANCELLED,
-            WorkStatus.ARCHIVED,
+            WorkStatus.Completed,
+            WorkStatus.Cancelled,
+            WorkStatus.Archived,
           ],
         },
         OR: [{ dueDate: null }, { dueDate: { gte: now, lte: windowEnd } }],

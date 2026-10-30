@@ -1,4 +1,5 @@
 import { createTestProjectApprovalPolicyService } from 'src/utils/testUtils';
+import { legacyStatuses } from '../../../../test/setup/legacy-status.fixture';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ProposalApprovalService } from '../../proposal/proposal-approval.service';
@@ -79,13 +80,13 @@ const experimentDefinition: WorkItemTypeDefinitionDto = {
   ],
   requiredScalars: ['dueDate'],
   forbiddenScalars: ['tag'],
-  allowedStatuses: [
+  statuses: legacyStatuses([
     WorkStatus.Backlog,
     WorkStatus.Active,
     WorkStatus.Completed,
     WorkStatus.Cancelled,
     WorkStatus.Archived,
-  ],
+  ]),
   allowedParentTypes: [],
   edgeTargets: [],
   allowedParentEntityTypes: Object.values(EntityType),

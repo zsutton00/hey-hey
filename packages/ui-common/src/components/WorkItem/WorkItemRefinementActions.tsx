@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../api/api";
 import FastForwardIcon from "@mui/icons-material/FastForward";
 import { Button, CircularProgress } from "@mui/material";
 import React from "react";
@@ -7,13 +8,13 @@ interface WorkItemRefinementActionsProps {
   canRevealAll: boolean;
   isRevealingAll: boolean;
   disabled: boolean;
-  workItemStatus?: WorkStatus;
+  workItemStatus?: TaskResponseDto["status"];
   onRevealAll: () => void;
 }
 
 const SHOW_REFINEMENT_SKIP_BUTTON = false;
 
-const getSkipLabel = (workItemStatus?: WorkStatus): string => {
+const getSkipLabel = (workItemStatus?: TaskResponseDto["status"]): string => {
   if (workItemStatus === WorkStatus.RefiningAcceptanceCriteria) {
     return "Ready - Add to backlog";
   }

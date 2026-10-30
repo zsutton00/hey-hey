@@ -1,3 +1,5 @@
+import { legacyStatuses } from '../../../../test/setup/legacy-status.fixture';
+import type { TaskResponseDto } from '../../../generated/model/taskResponseDto';
 import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
@@ -115,7 +117,7 @@ const FROZEN_SEED_REPORT_TYPES = ALL_REPORT_TYPES.filter(
     type !== ReportType.EvalHumanReview,
 );
 
-const BASE_STATUSES: WorkStatus[] = [
+const BASE_STATUSES: TaskResponseDto['status'][] = [
   WorkStatus.Generated,
   WorkStatus.Backlog,
   WorkStatus.RefiningDescription,
@@ -133,7 +135,7 @@ const BASE_STATUSES: WorkStatus[] = [
   WorkStatus.Cancelled,
   WorkStatus.Archived,
 ];
-const SUPERSEDABLE_STATUSES: WorkStatus[] = [
+const SUPERSEDABLE_STATUSES: TaskResponseDto['status'][] = [
   ...BASE_STATUSES,
   WorkStatus.Superseded,
 ];
@@ -814,7 +816,7 @@ const EFFECTIVE_ALLOWED_CHILD_TYPES: Record<BuiltInTaskType, string[]> = {
 };
 
 // The intended initial status per type — first in the reseeded allowed_statuses.
-const INITIAL_STATUS: Record<BuiltInTaskType, WorkStatus> = {
+const INITIAL_STATUS: Record<BuiltInTaskType, TaskResponseDto['status']> = {
   STANDARD: WorkStatus.Backlog,
   FEATURE: WorkStatus.Active,
   GOAL: WorkStatus.Active,
@@ -822,8 +824,11 @@ const INITIAL_STATUS: Record<BuiltInTaskType, WorkStatus> = {
 };
 
 /** allowed_statuses with the intended initial status hoisted to the front. */
-function orderedStatusesFor(taskType: BuiltInTaskType): WorkStatus[] {
-  const base = expectedRowFor(taskType).allowedStatuses as WorkStatus[];
+function orderedStatusesFor(
+  taskType: BuiltInTaskType,
+): TaskResponseDto['status'][] {
+  const base = expectedRowFor(taskType)
+    .allowedStatuses as TaskResponseDto['status'][];
   const initial = INITIAL_STATUS[taskType];
   return [initial, ...base.filter((status) => status !== initial)];
 }
@@ -1216,7 +1221,7 @@ function storedDefinitionFor(
       rich.requiredScalars as WorkItemTypeDefinitionDto['requiredScalars'],
     forbiddenScalars:
       rich.forbiddenScalars as WorkItemTypeDefinitionDto['forbiddenScalars'],
-    allowedStatuses: orderedStatusesFor(taskType),
+    statuses: legacyStatuses(orderedStatusesFor(taskType)),
     allowedParentTypes: rich.allowedParentTypes as string[],
     // The stored definition reflects the post-migration state: the
     // V2026.06.22.1 delta appended EVOLVES onto the frozen reseed's
@@ -1226,11 +1231,17 @@ function storedDefinitionFor(
       EFFECTIVE_EDGE_TARGETS as WorkItemTypeDefinitionDto['edgeTargets'],
     allowedParentEntityTypes: parentage.allowedParentEntityTypes,
     tracking: lean.tracking as WorkItemTypeDefinitionDto['tracking'],
-    agentSettableStatuses: lean.agentSettableStatuses as WorkStatus[],
+    agentSettableStatuses:
+      lean.agentSettableStatuses as TaskResponseDto['status'][],
     anchorableReportTypes: ALL_REPORT_TYPES as ReportType[],
     writingStandards:
       lean.writingStandards as WorkItemTypeDefinitionDto['writingStandards'],
-    capabilities: EFFECTIVE_CAPABILITIES[taskType],
+    capabilities: {
+      ...EFFECTIVE_CAPABILITIES[taskType],
+      supportsSupersession: orderedStatusesFor(taskType).includes(
+        WorkStatus.Superseded,
+      ),
+    },
   };
 }
 
@@ -1245,7 +1256,7 @@ describe('deriveRules reproduces the historical rules from the stored definition
 
     it('derives the allowed statuses by membership', () => {
       expect([...rules.allowedStatuses].sort()).toEqual(
-        [...(expected.allowedStatuses as WorkStatus[])].sort(),
+        [...(expected.allowedStatuses as TaskResponseDto['status'][])].sort(),
       );
     });
 
@@ -1309,7 +1320,7 @@ describe('deriveRules supports workflow built-in definitions', () => {
     forbiddenScalars: ['tag', 'dueDate'],
     edgeTargets:
       EFFECTIVE_EDGE_TARGETS as WorkItemTypeDefinitionDto['edgeTargets'],
-    allowedStatuses: orderedStatusesFor('STANDARD'),
+    statuses: legacyStatuses(orderedStatusesFor('STANDARD')),
     allowedParentEntityTypes: [EntityType.Task],
     tracking: NO_INBOUND_TRACKING,
     agentSettableStatuses: orderedStatusesFor('STANDARD'),
@@ -1389,7 +1400,7 @@ describe('deriveRules supports CONTRACT built-in definition', () => {
           targetTypeKeys: [WORK_ITEM_TYPE_KEYS.Contract],
         },
       ],
-      allowedStatuses: [WorkStatus.Active, WorkStatus.Superseded],
+      statuses: legacyStatuses([WorkStatus.Active, WorkStatus.Superseded]),
       allowedParentTypes: [WORK_ITEM_TYPE_KEYS.Feature],
       allowedParentEntityTypes: [EntityType.Task],
       tracking: NO_INBOUND_TRACKING,
@@ -1397,6 +1408,7 @@ describe('deriveRules supports CONTRACT built-in definition', () => {
       anchorableReportTypes: [],
       writingStandards: { create: '', edit: '' },
       capabilities: {
+        supportsSupersession: true,
         requiresParent: true,
         planEligible: false,
         hasSetInitialStatus: false,
@@ -1410,6 +1422,7 @@ describe('deriveRules supports CONTRACT built-in definition', () => {
     });
     expect(rules.allowedStatuses).toEqual([
       WorkStatus.Active,
+      WorkStatus.Archived,
       WorkStatus.Superseded,
     ]);
     expect(rules.sections).toEqual([TaskSectionKey.Description]);

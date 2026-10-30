@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../../../../packages/ui-common/src/api/api";
 import { Box, Checkbox, FormControlLabel, Stack } from "@mui/material";
 import LayersIcon from "@mui/icons-material/Layers";
 import {
@@ -90,7 +91,9 @@ export const ProjectWorkItemsTab: React.FC<ProjectWorkItemsTabProps> = ({
       limit: PAGE_LIMIT,
       sortBy,
       sortDir,
-      status: statusFilter ? (statusFilter as WorkStatus) : undefined,
+      status: statusFilter
+        ? (statusFilter as TaskResponseDto["status"])
+        : undefined,
       includeSectionKeys: ["description"],
       parentTaskId: parentTaskId ?? undefined,
       includeDescendants: includeDescendants || undefined,

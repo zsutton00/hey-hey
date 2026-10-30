@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from '../../generated/model/taskResponseDto';
 import { ProjectAccessService } from '../../auth/services/project-access.service';
 import {
   BadRequestException,
@@ -1278,8 +1279,8 @@ export class NotificationService {
       return {
         taskId: record.taskId,
         taskName: record.taskName,
-        previousStatus: record.previousStatus as WorkStatus,
-        newStatus: record.newStatus as WorkStatus,
+        previousStatus: record.previousStatus as TaskResponseDto['status'],
+        newStatus: record.newStatus as TaskResponseDto['status'],
       };
     }
     this.logger.warn('Legacy task.completed payload missing taskId/taskName');

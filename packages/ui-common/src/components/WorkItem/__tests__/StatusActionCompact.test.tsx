@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../../api/api";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Provider } from "jotai";
@@ -46,7 +47,7 @@ const mockedUseServices = vi.mocked(useServices);
 const mockedUseTaskAllowedStatuses = vi.mocked(useTaskAllowedStatuses);
 const mockedUseAuth = vi.mocked(useAuth);
 
-const COMPACT_ALLOWED_STATUSES: WorkStatus[] = [
+const COMPACT_ALLOWED_STATUSES: TaskResponseDto["status"][] = [
   WorkStatus.Backlog,
   WorkStatus.Active,
   WorkStatus.Verifying,

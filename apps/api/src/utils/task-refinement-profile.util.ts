@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
 import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { TaskActiveSectionEnum } from 'src/generated/agents/models';
 
@@ -129,7 +130,7 @@ export function getTaskPreviousRefinementLevel(
 
 export function getTaskRefiningStatusForLevel(
   level: TaskRefinementLevel,
-): WorkStatus {
+): TaskResponseDto['status'] {
   return level === 'acceptanceCriteria'
     ? WorkStatus.RefiningAcceptanceCriteria
     : WorkStatus.RefiningDescription;
@@ -137,7 +138,7 @@ export function getTaskRefiningStatusForLevel(
 
 export function getTaskGeneratingStatusForLevel(
   level: TaskRefinementLevel,
-): WorkStatus {
+): TaskResponseDto['status'] {
   return level === 'acceptanceCriteria'
     ? WorkStatus.GeneratingAcceptanceCriteria
     : WorkStatus.GeneratingDescription;
@@ -156,7 +157,7 @@ export function isGeneratingTaskRefinementStatus(status: string): boolean {
 export function getTaskNextStatus(
   status: string,
   levels: readonly TaskRefinementLevel[],
-): WorkStatus {
+): TaskResponseDto['status'] {
   if (LEGACY_DETAILS_STATUSES.has(status)) {
     return getTaskRefiningStatusForLevel('acceptanceCriteria');
   }

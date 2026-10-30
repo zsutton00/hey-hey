@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
 import { Injectable, Logger } from '@nestjs/common';
 import { uuidv4 } from 'lib0/random';
 import {
@@ -5,7 +6,6 @@ import {
   TaskSectionInput,
   TaskSectionUpdateSource,
   UIElement,
-  WorkStatus,
 } from '@hey-hey/contracts/api/models';
 import { ArtifactService } from 'src/services/artifacts/artifact.service';
 import { InitiativeService } from 'src/services/initiatives/initiative.service';
@@ -250,7 +250,7 @@ export class TaskRefinementAgentNextLevelNode extends AgentNodeBase<
       }));
 
       const update: {
-        status: WorkStatus;
+        status: TaskResponseDto['status'];
         sections?: TaskSectionInput[];
         sectionUpdateSource?: TaskSectionUpdateSource;
       } = {

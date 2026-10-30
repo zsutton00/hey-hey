@@ -1,11 +1,11 @@
+import type { TaskResponseDto } from "../../api/api";
 import React from "react";
 import { Box, Chip, Typography, Button } from "@mui/material";
 import { Pulse } from "../../animations";
 import { getStatusLabel, getStatusColorMapping } from "../../utils/statusUtils";
-import type { WorkStatus } from "../../api";
 
 export interface WorkItemStatusChipProps {
-  status: WorkStatus;
+  status: TaskResponseDto["status"];
   itemId: string;
   testIdPrefix?: string;
 }

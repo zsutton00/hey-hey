@@ -4,6 +4,7 @@ import { taskMonitorEventFromVerifiedInput } from '../../task-monitor/state-mach
 import { normalizeEvent } from '../../../run/normalize';
 import { taskMonitorExactActionInputFromProviderEvent } from '../../task-monitor/state-machine/provider-event-adapter';
 import type { AgentOutputMessage } from '../../agent-event-stream';
+import { legacyStatuses } from '../../../../../../packages/ui-common/src/test/fixtures/workItemStatuses';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -115,9 +116,9 @@ vi.mock('../../prompts/session-start-context', () => ({
 // point with each in turn and assert the delivered prompt tracks whichever the
 // stubbed read returns — proving a registry change alone re-shapes the next
 // session's ontology with no builder or runner edit.
-const TYPE_DEF_BASE: Pick<WorkItemTypeDefinitionDto, 'sections' | 'allowedStatuses'> = {
+const TYPE_DEF_BASE: Pick<WorkItemTypeDefinitionDto, 'sections' | 'statuses'> = {
   sections: [],
-  allowedStatuses: [WorkStatus.Active],
+  statuses: legacyStatuses([WorkStatus.Active]),
 };
 const baselineContract: WorkItemTypeDefinitionDto = {
   ...TYPE_DEF_BASE,

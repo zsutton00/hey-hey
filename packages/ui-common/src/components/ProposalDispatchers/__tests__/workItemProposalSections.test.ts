@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { describe, expect, it } from "vitest";
 import type { WorkItemTypeDefinitionDto } from "../../../api";
 import { resolveProposalWorkItemSections } from "../workItemProposalSections";
@@ -9,7 +10,7 @@ const definition = {
     { key: "audience", label: "Audience" },
     { key: "description", label: "Summary" },
   ],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
 } as unknown as WorkItemTypeDefinitionDto;
 
 describe("resolveProposalWorkItemSections", () => {

@@ -1,3 +1,4 @@
+import { getWorkItemTypeStatusNames } from "../../utils/statusUtils";
 import { SessionRole } from "../../api";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import {
@@ -111,7 +112,7 @@ const ChipRow: React.FC<{
 
 /** A wrap-flow row of work-status chips, colored by the shared status mapping. */
 const StatusChipRow: React.FC<{
-  statuses: WorkItemTypeDefinitionDto["allowedStatuses"];
+  statuses: string[];
 }> = ({ statuses }) => (
   <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap">
     {statuses.map((statusValue) => (
@@ -169,7 +170,7 @@ export const WorkItemTypeCreateRenderer: React.FC<{
   const sections = updates.sections ?? [];
   const requiredScalars = updates.requiredScalars ?? [];
   const forbiddenScalars = updates.forbiddenScalars ?? [];
-  const allowedStatuses = updates.allowedStatuses ?? [];
+  const allowedStatuses = getWorkItemTypeStatusNames(updates);
   const agentSettableStatuses = updates.agentSettableStatuses ?? [];
   const allowedParentTypes = updates.allowedParentTypes ?? [];
   const allowedParentEntityTypes = updates.allowedParentEntityTypes ?? [];

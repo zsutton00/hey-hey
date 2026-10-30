@@ -198,7 +198,7 @@ const configuration: PlanConfigurationV1 = {
   worktreeBranch: null,
 };
 const buildPlan = (
-  status: WorkStatus = WorkStatus.Backlog,
+  status: TaskResponseDto["status"] = WorkStatus.Backlog,
 ): Pick<TaskResponseDto, "id" | "name" | "status"> => ({
   id: "plan-1",
   name: "Test Plan",
@@ -207,7 +207,7 @@ const buildPlan = (
 
 const renderChat = (
   conversationStatus: ConversationStatus = ConversationStatus.InProgress,
-  planStatus: WorkStatus = WorkStatus.Backlog,
+  planStatus: TaskResponseDto["status"] = WorkStatus.Backlog,
 ) =>
   render(
     <PlanFromDesignDocChat

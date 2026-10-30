@@ -1,5 +1,5 @@
 import { Alert, LinearProgress, Stack, Typography } from "@mui/material";
-import type { WorkStatus } from "../../api";
+import type { TaskResponseDto } from "../../api";
 import { usePathService } from "../../contexts";
 import { resolveAgentSessionMetadata } from "../AgentSession/resolveAgentSessionMetadata";
 import { TaskMonitorConversationPane } from "./TaskMonitorConversationPane";
@@ -11,7 +11,7 @@ import { useTaskMonitorConversation } from "./useTaskMonitorSessionReports";
 export interface TaskMonitorInspectorViewProps {
   organizationId: string;
   projectId: string;
-  monitorStatus: WorkStatus;
+  monitorStatus: TaskResponseDto["status"];
   node: TaskMonitorProjectedNode;
 }
 

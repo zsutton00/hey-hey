@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { __resetForTests as resetProposalState } from "../proposalSelectedStateCache";
 import { createPortal } from "react-dom";
 import {
@@ -227,7 +228,7 @@ const featureDefinition: WorkItemTypeDefinitionDto = {
       schemaRef: "#/components/schemas/FeatureRequirementsSection",
     },
   ],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
 };
 
 const requirement = (id: string, statement: string) => ({

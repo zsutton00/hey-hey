@@ -1,3 +1,4 @@
+import { getWorkItemTypeStatusNames } from "../../utils/statusUtils";
 import { SessionRole } from "../../api";
 import type {
   WorkItemTypeDefinitionDto,
@@ -80,7 +81,7 @@ function definitionFields(
     ),
     "Required scalars": d.requiredScalars ?? [],
     "Forbidden scalars": d.forbiddenScalars ?? [],
-    "Allowed statuses": d.allowedStatuses,
+    "Allowed statuses": getWorkItemTypeStatusNames(d),
     "Allowed parent types": d.allowedParentTypes ?? [],
     "Edge targets": d.edgeTargets ?? [],
     "Allowed parent entity types": d.allowedParentEntityTypes ?? [],

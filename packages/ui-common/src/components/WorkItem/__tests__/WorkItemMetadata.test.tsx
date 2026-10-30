@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../../api/api";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -87,7 +88,7 @@ vi.mock("../../Selectors/WorkItemStatusSelector", () => ({
     onChange,
     disabled,
   }: {
-    onChange?: (status: WorkStatus) => void;
+    onChange?: (status: TaskResponseDto["status"]) => void;
     disabled?: boolean;
   }) => (
     <button

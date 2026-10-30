@@ -94,7 +94,7 @@ export interface InitiativePageProps {
   preview?: boolean;
 }
 
-const PLAN_CREATION_ELIGIBLE_STATUSES = new Set<WorkStatus>([
+const PLAN_CREATION_ELIGIBLE_STATUSES = new Set<TaskResponseDto["status"]>([
   WorkStatus.Active,
   WorkStatus.Backlog,
 ]);
@@ -310,7 +310,7 @@ export const InitiativePage: React.FC<InitiativePageProps> = ({
   });
 
   const handleStatusChange = useCallback(
-    async (newStatus: WorkStatus) => {
+    async (newStatus: TaskResponseDto["status"]) => {
       if (!initiative?.id) return;
 
       try {
@@ -417,7 +417,7 @@ export const InitiativePage: React.FC<InitiativePageProps> = ({
     setIsConfirmDialogOpen(false);
   }, []);
 
-  const getProgressFromStatus = (status: WorkStatus): number => {
+  const getProgressFromStatus = (status: TaskResponseDto["status"]): number => {
     switch (status) {
       case "REFINING_DESCRIPTION":
         return 33;
