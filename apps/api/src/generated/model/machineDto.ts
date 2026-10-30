@@ -49,7 +49,7 @@ export interface MachineDto {
      */
     currentControllerEligibility: CurrentControllerMachineEligibilityState | null;
     /**
-     * Exact active credential selected by the server for this browser and machine. Selection may use a valid browser identity after its prior authorization window expires. When no identity exists, the server returns the sole active credential only when selection is unambiguous; otherwise null.
+     * Exact active credential selected by the server for this browser and machine. Selection may use a valid browser identity after its prior authorization window expires. When no proven browser binding exists, returns null; account-wide credential inventory does not recover browser enrollment. Multiple proven credentials return null and AMBIGUOUS eligibility until explicitly selected.
      */
     currentControllerCredentialId: string | null;
     /**

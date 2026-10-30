@@ -6,6 +6,7 @@ ConversationResponseDto:
   required:
     - id
     - createdBy
+    - restricted
     - projectId
     - organizationId
     - initiatedBy
@@ -17,6 +18,9 @@ ConversationResponseDto:
   properties:
     id:
       $ref: "./common.yaml#/ConversationId"
+    restricted:
+      type: boolean
+      description: Whether only the creator may read this conversation.
     createdBy:
       type: string
       nullable: true

@@ -1017,6 +1017,19 @@ export const REPORT_SCHEMAS = {
                 },
               ],
             },
+            attemptProviderSessionIds: {
+              type: 'array',
+              description:
+                'Real provider session ids from the attempt Run history, in observation order.',
+              items: {
+                type: 'string',
+              },
+            },
+            judgeProviderSessionId: {
+              type: 'string',
+              description:
+                'Real provider session id of the child that judged this attempt. Never a pending placeholder.',
+            },
             measurements: {
               type: 'array',
               description:

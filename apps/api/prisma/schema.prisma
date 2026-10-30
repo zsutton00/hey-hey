@@ -754,6 +754,7 @@ model FeatureFlag {
 }
 
 model Conversation {
+  restricted            Boolean                @default(true) @map("restricted")
   id                    String                 @id @default(uuid())
   createdBy             String?                @map("created_by")
   projectId             String?                @map("project_id")
@@ -4182,7 +4183,7 @@ model PendingMachineEnrollment {
   credentialBackupState         Boolean?                  @map("credential_backup_state")
   credentialFingerprint         String?                   @map("credential_fingerprint") @db.VarChar(64)
   credentialVerifiedAt          DateTime?                 @map("credential_verified_at")
-  browserBindingCredentialHash  String?                   @unique @map("browser_binding_credential_hash") @db.VarChar(64)
+  browserBindingCredentialHash  String?                   @map("browser_binding_credential_hash") @db.VarChar(64)
   browserBindingIssuedAt        DateTime?                 @map("browser_binding_issued_at")
   browserBindingExpiresAt       DateTime?                 @map("browser_binding_expires_at")
   localOutcomeCode              String?                   @map("local_outcome_code") @db.VarChar(64)
@@ -4312,20 +4313,34 @@ model MachineControllerCredential {
   @@map("machine_controller_credentials")
 }
 
+model ControllerBrowserContext {
+  expiresAt DateTime @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  id             String                     @id @default(uuid()) @db.Uuid
+  credentialHash String                     @unique @map("credential_hash") @db.VarChar(64)
+  userId         String                     @map("user_id")
+  createdAt      DateTime                   @default(now()) @map("created_at")
+  bindings       ControllerBrowserBinding[]
+
+  @@map("controller_browser_contexts")
+}
+
 model ControllerBrowserBinding {
-  id                       String    @id @default(uuid()) @db.Uuid
-  credentialHash           String    @unique @map("credential_hash") @db.VarChar(64)
-  controllerInstallationId String    @map("controller_installation_id") @db.Uuid
-  controllerCredentialId   String    @map("controller_credential_id")
-  userId                   String    @map("user_id")
-  organizationId           String    @map("organization_id")
-  issuedAt                 DateTime  @map("issued_at")
-  expiresAt                DateTime  @map("expires_at")
-  lastUsedAt               DateTime? @map("last_used_at")
-  revokedAt                DateTime? @map("revoked_at")
-  revocationReason         String?   @map("revocation_reason") @db.VarChar(64)
-  createdAt                DateTime  @default(now()) @map("created_at")
-  updatedAt                DateTime  @updatedAt @map("updated_at")
+  browserContextId         String?                   @map("browser_context_id") @db.Uuid
+  browserContext           ControllerBrowserContext? @relation(fields: [browserContextId], references: [id], onDelete: Restrict)
+  id                       String                    @id @default(uuid()) @db.Uuid
+  credentialHash           String                    @unique @map("credential_hash") @db.VarChar(64)
+  controllerInstallationId String                    @map("controller_installation_id") @db.Uuid
+  controllerCredentialId   String                    @map("controller_credential_id")
+  userId                   String                    @map("user_id")
+  organizationId           String                    @map("organization_id")
+  issuedAt                 DateTime                  @map("issued_at")
+  expiresAt                DateTime                  @map("expires_at")
+  lastUsedAt               DateTime?                 @map("last_used_at")
+  revokedAt                DateTime?                 @map("revoked_at")
+  revocationReason         String?                   @map("revocation_reason") @db.VarChar(64)
+  createdAt                DateTime                  @default(now()) @map("created_at")
+  updatedAt                DateTime                  @updatedAt @map("updated_at")
 
   controllerCredential MachineControllerCredential @relation(fields: [controllerCredentialId], references: [id], onDelete: Restrict)
   user                 User                        @relation(fields: [userId], references: [id], onDelete: Restrict)
@@ -4333,6 +4348,7 @@ model ControllerBrowserBinding {
 
   @@index([credentialHash, userId, organizationId, revokedAt, expiresAt], map: "controller_browser_bindings_lookup_idx")
   @@index([controllerCredentialId, revokedAt, expiresAt], map: "controller_browser_bindings_credential_revocation_idx")
+  @@index([browserContextId], map: "controller_browser_bindings_context_idx")
   @@map("controller_browser_bindings")
 }
 

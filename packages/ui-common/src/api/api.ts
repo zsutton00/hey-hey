@@ -20452,6 +20452,12 @@ export interface ConversationResponseDto {
      */
     'id': string;
     /**
+     * Whether only the creator may read this conversation.
+     * @type {boolean}
+     * @memberof ConversationResponseDto
+     */
+    'restricted': boolean;
+    /**
      * User who initiated the conversation, when human initiated
      * @type {string}
      * @memberof ConversationResponseDto

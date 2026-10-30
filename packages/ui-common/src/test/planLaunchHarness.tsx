@@ -142,6 +142,7 @@ const launchMachine: MachineDto = {
   bindings: [],
 };
 export const launchConversation: ConversationResponseDto = {
+  restricted: true,
   id: launchScope.conversationId,
   createdBy: null,
   organizationId: launchScope.organizationId,

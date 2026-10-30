@@ -160,6 +160,7 @@ export class ConversationService {
     const dto: ConversationResponseDto = {
       id: conversation.id,
       createdBy: conversation.createdBy,
+      restricted: conversation.restricted,
       projectId: conversation.projectId,
       organizationId: conversation.organizationId as OrganizationId,
       workflowId: conversation.workflowId ?? undefined,
@@ -229,6 +230,7 @@ export class ConversationService {
     createdBy?: UserId,
   ): Prisma.ConversationUncheckedCreateInput {
     return {
+      restricted: true,
       projectId: createConversationDto.projectId,
       organizationId,
       createdBy,

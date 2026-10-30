@@ -14,13 +14,14 @@
 
 
 /**
- * Server-derived relationship between the requesting browser controller installation and one paired machine. ELIGIBLE requires a retained opaque browser identity and an active locally-confirmed controller credential binding for that installation and machine. Expiry of a prior reusable authorization window does not erase the browser identity needed for fresh exact-action proof. Missing legacy bindings are NOT_ENROLLED; a binding with no active credential is REVOKED. This state is independent of machine connectivity and global execution readiness and never substitutes for exact-action controller proof.
+ * Server-derived relationship between the requesting browser controller installation and one paired machine. ELIGIBLE requires a retained opaque browser identity and an active locally-confirmed controller credential binding for that installation and machine. Expiry of a prior reusable authorization window does not erase the browser identity needed for fresh exact-action proof. Missing legacy bindings are NOT_ENROLLED; a binding with no active credential is REVOKED. AMBIGUOUS means this browser proves multiple active credentials for the machine and must explicitly select one before authorization. This state is independent of machine connectivity and global execution readiness and never substitutes for exact-action controller proof.
  */
-export type CurrentControllerMachineEligibilityState = 'ELIGIBLE' | 'NOT_ENROLLED' | 'REVOKED';
+export type CurrentControllerMachineEligibilityState = 'ELIGIBLE' | 'NOT_ENROLLED' | 'AMBIGUOUS' | 'REVOKED';
 
 export const CurrentControllerMachineEligibilityState = {
     Eligible: 'ELIGIBLE' as CurrentControllerMachineEligibilityState,
     NotEnrolled: 'NOT_ENROLLED' as CurrentControllerMachineEligibilityState,
+    Ambiguous: 'AMBIGUOUS' as CurrentControllerMachineEligibilityState,
     Revoked: 'REVOKED' as CurrentControllerMachineEligibilityState
 };
 

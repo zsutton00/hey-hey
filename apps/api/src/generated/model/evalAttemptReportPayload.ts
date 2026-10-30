@@ -50,6 +50,14 @@ export interface EvalAttemptReportPayload {
     startedAt?: string | null;
     completedAt?: string | null;
     /**
+     * Real provider session ids from the attempt Run history, in observation order.
+     */
+    attemptProviderSessionIds?: Array<string>;
+    /**
+     * Real provider session id of the child that judged this attempt. Never a pending placeholder.
+     */
+    judgeProviderSessionId?: string;
+    /**
      * At most one each of TARGET_PREPARATION, TARGET_HANDLER and JUDGE.
      */
     measurements: Array<EvalMeasurement>;

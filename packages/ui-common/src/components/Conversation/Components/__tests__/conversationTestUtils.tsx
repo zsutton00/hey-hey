@@ -287,6 +287,7 @@ export const createMockProject = (
 export const createMockConversation = (
   overrides: Partial<ConversationResponseDto> = {},
 ): ConversationResponseDto => ({
+  restricted: true,
   id: "test-conversation-id",
   createdBy: null,
   projectId: "test-project-id",

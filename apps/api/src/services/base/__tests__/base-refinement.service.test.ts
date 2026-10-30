@@ -81,6 +81,7 @@ class MockWorkItemService
     const workflowId = workflowIdString as WorkflowId;
 
     const conversation: ConversationResponseDto = {
+      restricted: true,
       id: conversationId,
       createdBy: null,
       projectId: (projectId as ProjectId) || testIds.project,
