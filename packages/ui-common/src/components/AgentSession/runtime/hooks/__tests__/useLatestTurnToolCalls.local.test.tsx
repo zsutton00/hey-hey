@@ -37,7 +37,6 @@ const params = {
   agentSessionId: "run",
   activityKey: "",
   enabled: true,
-  replyPending: false,
 };
 const result = {
   state: "available",

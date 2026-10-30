@@ -63,27 +63,19 @@ export const useLatestTurnToolCalls = (params: {
   projectId: string;
   agentSessionId: string | undefined;
   activityKey: string;
-  /** True while the Turn is active; reading stops when it turns false. */
+  /**
+   * True once the Turn is running; reading stops when it turns false. Must be
+   * false while the Turn is still starting, since the CLI's latest Turn is then
+   * the previous one.
+   */
   enabled: boolean;
-  /** A follow-up has been submitted, including before STARTING arrives. */
-  replyPending: boolean;
 }): LatestTurnToolCallsState => {
-  const {
-    organizationId,
-    projectId,
-    agentSessionId,
-    activityKey,
-    enabled,
-    replyPending,
-  } = params;
+  const { organizationId, projectId, agentSessionId, activityKey, enabled } =
+    params;
   const [state, setState] = useState<LatestTurnToolCallsState>(idleState);
   const inFlightRef = useRef(false);
   const haltedRef = useRef(false);
   const generationRef = useRef(0);
-  const replyStartedAtRef = useRef<number | null>(null);
-  const lastTurnIdRef = useRef<string | null>(null);
-  const excludedTurnIdRef = useRef<string | null>(null);
-  const previousPendingRef = useRef(false);
   const previousSessionRef = useRef(agentSessionId);
   const previousActiveRef = useRef(false);
   const mountedRef = useRef(true);
@@ -242,30 +234,7 @@ export const useLatestTurnToolCalls = (params: {
           haltedRef.current = true;
           return { status: "disabled" };
         }
-        const snapshot = result.result;
-        if (
-          snapshot.turnId === excludedTurnIdRef.current &&
-          snapshot.turnId !== null
-        ) {
-          return idleState;
-        }
-        lastTurnIdRef.current = snapshot.turnId;
-        const startedAt = replyStartedAtRef.current;
-        if (startedAt === null || excludedTurnIdRef.current !== null)
-          return { status: "available", result: snapshot };
-        // The latest CLI Turn may still be the completed one during startup.
-        // Keep this boundary after STARTING ends, including delayed snapshots.
-        return {
-          status: "available",
-          result: {
-            ...snapshot,
-            toolCalls: snapshot.toolCalls.filter(
-              ({ createdAt }) => Date.parse(createdAt) >= startedAt,
-            ),
-            omittedEarlierCount: 0,
-            evictedCount: 0,
-          },
-        };
+        return { status: "available", result: result.result };
       })
       .catch((error: unknown): LatestTurnToolCallsState => {
         if (!isCurrent()) return idleState;
@@ -295,36 +264,23 @@ export const useLatestTurnToolCalls = (params: {
       });
   }, [agentSessionId, authorize, organizationId, projectId]);
 
-  // Clear both consumers before paint and invalidate outstanding reads at the
-  // send boundary, rather than waiting for the remote STARTING event.
+  // Clear both consumers before paint and invalidate outstanding reads when the
+  // Turn becomes active or the session changes, so a snapshot requested for an
+  // earlier Turn can never land in this one.
   useLayoutEffect(() => {
     generationRef.current += 1;
     const sessionChanged = previousSessionRef.current !== agentSessionId;
-    const replyStarted = replyPending && !previousPendingRef.current;
     const becameActive = active && !previousActiveRef.current;
-    if (sessionChanged) {
-      replyStartedAtRef.current = null;
-      lastTurnIdRef.current = null;
-      excludedTurnIdRef.current = null;
-      previousSessionRef.current = agentSessionId;
-    }
-    if (becameActive) {
-      excludedTurnIdRef.current = lastTurnIdRef.current;
-    }
+    previousSessionRef.current = agentSessionId;
     previousActiveRef.current = active;
-    if (replyStarted) {
-      replyStartedAtRef.current = Date.now();
-      excludedTurnIdRef.current = lastTurnIdRef.current;
-    }
-    previousPendingRef.current = replyPending;
-    if (sessionChanged || replyStarted || becameActive || !active) {
+    if (sessionChanged || becameActive || !active) {
       haltedRef.current = false;
       setState(idleState);
     }
     return () => {
       generationRef.current += 1;
     };
-  }, [active, agentSessionId, replyPending]);
+  }, [active, agentSessionId]);
 
   useEffect(() => {
     if (!active || !machineId) return;

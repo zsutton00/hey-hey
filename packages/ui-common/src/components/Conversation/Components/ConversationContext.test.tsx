@@ -1055,7 +1055,7 @@ describe("ConversationContext Timeline Calculation", () => {
       toolCallsHook.use.mockReset();
       toolCallsHook.use.mockReturnValue({ status: "idle" });
     });
-    it.each(["STARTING", "THINKING", "WRITING"] as const)(
+    it.each(["THINKING", "WRITING"] as const)(
       "polls while the session is %s, before any narration exists",
       (state) => {
         const { getByTestId } = renderProvider(
@@ -1068,12 +1068,11 @@ describe("ConversationContext Timeline Calculation", () => {
           agentSessionId: "agent-session-1",
           activityKey: "",
           enabled: true,
-          replyPending: false,
         });
         expect(getByTestId("tool-calls").textContent).toBe("idle|false");
       },
     );
-    it.each(["IDLE", "AWAITING_APPROVAL", undefined] as const)(
+    it.each(["IDLE", "STARTING", "AWAITING_APPROVAL", undefined] as const)(
       "does not poll when the session is %s",
       (state) => {
         renderProvider(withCanonicalMessages(testConversationData), state);

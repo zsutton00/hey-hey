@@ -56,7 +56,6 @@ const baseParams = {
   agentSessionId: sessionId,
   activityKey: "thought one",
   enabled: true,
-  replyPending: false,
 };
 
 const respond = (result: CliReadToolCallsLatestTurnResult) =>
@@ -327,31 +326,7 @@ describe("useLatestTurnToolCalls", () => {
     expect(read).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps the previous Turn out after send, then accepts the new Turn before narration", async () => {
-    respond(available);
-    const { result, rerender } = renderHook(
-      (props) => useLatestTurnToolCalls(props),
-      { initialProps: baseParams },
-    );
-    await flush();
-    rerender({ ...baseParams, enabled: false });
-    rerender({ ...baseParams, replyPending: true });
-    expect(result.current.status).toBe("idle");
-    await tick();
-    rerender(baseParams);
-    await tick();
-    expect(result.current.status).toBe("idle");
-    const next = {
-      ...available,
-      turnId: "turn-2",
-      toolCalls: [call(new Date().toISOString())],
-    };
-    respond(next);
-    await tick();
-    expect(result.current).toEqual({ status: "available", result: next });
-  });
-
-  it("ignores a delayed read from before the follow-up and keeps polling", async () => {
+  it("never shows the previous Turn's calls and ignores a read that was in flight when the new Turn became active", async () => {
     let finish: (value: Awaited<ReturnType<typeof read>>) => void = () => {};
     read.mockImplementationOnce(
       () =>
@@ -361,41 +336,19 @@ describe("useLatestTurnToolCalls", () => {
     );
     const { result, rerender } = renderHook(
       (props) => useLatestTurnToolCalls(props),
-      { initialProps: baseParams },
+      { initialProps: { ...baseParams, enabled: true } },
     );
     await flush();
-    rerender({ ...baseParams, replyPending: true });
-    rerender(baseParams);
+    rerender({ ...baseParams, enabled: false });
+    rerender({ ...baseParams, enabled: true });
     await act(async () => {
       finish(wrapped(available));
     });
     expect(result.current.status).toBe("idle");
-    respond({ ...available, turnId: "turn-2" });
+    const next = { ...available, turnId: "turn-2" };
+    respond(next);
     await tick();
-    expect(result.current.status).toBe("available");
-  });
-
-  it("filters old calls when send precedes the first successful read", async () => {
-    respond(available);
-    const { result, rerender } = renderHook(
-      (props) => useLatestTurnToolCalls(props),
-      {
-        initialProps: { ...baseParams, enabled: false },
-      },
-    );
-    rerender({ ...baseParams, replyPending: true });
-    await flush();
-    expect(result.current).toMatchObject({
-      status: "available",
-      result: { toolCalls: [] },
-    });
-    const fresh = call(new Date().toISOString());
-    respond({ ...available, turnId: "turn-2", toolCalls: [fresh] });
-    await tick();
-    expect(result.current).toMatchObject({
-      status: "available",
-      result: { toolCalls: [fresh] },
-    });
+    expect(result.current).toEqual({ status: "available", result: next });
   });
 
   it("never writes tool calls to browser storage", async () => {
