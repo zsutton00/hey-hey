@@ -637,6 +637,36 @@ describe('Run Agent Session current-state replay', () => {
     run.cleanup();
   });
 
+  it('does not report a Turn paused for Service approval as stopped', async () => {
+    const poster = makePoster();
+    let run: Run;
+    const started = new Promise<void>((resolve) => {
+      run = new Run(
+        makeRunArgs(),
+        makeCollaborators(
+          () => ({
+            run: async (signal) => {
+              resolve();
+              await new Promise<void>((_resolve, reject) =>
+                signal.addEventListener('abort', () => reject(new Error('Aborted')), {
+                  once: true,
+                }),
+              );
+            },
+          }),
+          makeBroadcaster(),
+          poster,
+        ),
+      );
+    });
+    await run!.handleMessage(makeInput());
+    await started;
+    await run!.serviceScope.pauseForServiceScopeRequest('scope-request-1', 'human');
+    await run!.awaitIdle();
+    expect(poster.postFailureMessage).not.toHaveBeenCalled();
+    run!.cleanup();
+  });
+
   it.each([
     [
       'MODEL_CAPACITY',

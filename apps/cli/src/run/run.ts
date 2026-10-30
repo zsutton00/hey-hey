@@ -4559,6 +4559,12 @@ export class Run {
   private readonly terminalFailureReasons = new Map<string, FailureReason>();
 
   private async postFailureMessage(reason: FailureReason): Promise<void> {
+    // A Turn aborted to wait for Service approval is paused, not stopped; the approval request
+    // already tells the user what is happening.
+    if (reason === 'STOPPED' && this.serviceScope.hasServiceScopeContinuation()) {
+      return;
+    }
+
     await this.poster.postFailureMessage({
       organizationId: this.organizationId,
       projectId: this.projectId,
