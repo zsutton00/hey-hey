@@ -1,3 +1,12 @@
+import { Test } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
+import * as request from 'supertest';
+import { ControllerAuthorizationController } from '../../../controllers/controller-authorization.controller';
+import { ControllerBindingCookieService } from '../controller-binding-cookie.service';
+import { JwtAuthGuard } from '../../../auth/guards/jwt-auth.guard';
+import { OrganizationGuard } from '../../../auth/guards/organization.guard';
+import { ProjectAccessGuard } from '../../../auth/guards/project-access.guard';
+import { ControllerBindingOriginGuard } from '../../../common/guards/controller-binding-origin.guard';
 import {
   hashControllerAction,
   startControllerInputs,
@@ -269,6 +278,106 @@ describe('ControllerAuthorizationService', () => {
       }),
     ).rejects.toMatchObject({
       reason: ControllerAuthorizationDenialReason.ActionMismatch,
+    });
+  });
+
+  describe('rejected resolve requests over HTTP', () => {
+    let app: INestApplication;
+    let warn: jest.SpyInstance;
+
+    beforeEach(async () => {
+      warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const moduleRef = await Test.createTestingModule({
+        controllers: [ControllerAuthorizationController],
+        providers: [
+          { provide: ControllerAuthorizationService, useValue: service },
+          { provide: ControllerBindingCookieService, useValue: {} },
+        ],
+      })
+        .overrideGuard(JwtAuthGuard)
+        .useValue({ canActivate: () => true })
+        .overrideGuard(OrganizationGuard)
+        .useValue({ canActivate: () => true })
+        .overrideGuard(ProjectAccessGuard)
+        .useValue({ canActivate: () => true })
+        .overrideGuard(ControllerBindingOriginGuard)
+        .useValue({ canActivate: () => true })
+        .compile();
+      app = moduleRef.createNestApplication();
+      app.use((req: any, _res: unknown, next: () => void) => {
+        req.user = { userId: ids.user };
+        next();
+      });
+      await app.init();
+    });
+
+    afterEach(async () => {
+      await app.close();
+      warn.mockRestore();
+    });
+
+    const postResolve = (body: object) =>
+      request(app.getHttpServer())
+        .post(
+          `/api/v1/organizations/${ids.organization}/projects/${ids.project}/controller-authorizations/resolve`,
+        )
+        .send(body);
+
+    it('logs the failing schema path and action type for an invalid action', async () => {
+      const userMessage = 'private user-authored kickoff text';
+      const inputs = startControllerInputs({
+        agentSessionId: ids.agentSession,
+        workflowName: 'feature-sync',
+        model: 'gpt-5',
+        provider: 'codex',
+        payload: { promptType: 'workflow_kickoff', userMessage },
+      } as any);
+      const response = await postResolve({
+        machineId: ids.machine,
+        action: { ...action, inputs: { ...inputs, extra: userMessage } },
+      });
+
+      expect(response.status).toBe(403);
+      expect(response.body.message).toBe('ACTION_MISMATCH');
+      const [, logged] = warn.mock.calls.find(
+        ([message]) =>
+          message === 'Controller authorization preparation denied',
+      )!;
+      expect(logged).toMatchObject({
+        reasonCode: ControllerAuthorizationDenialReason.ActionMismatch,
+        failedCheck: 'action_schema',
+        actionType: action.actionType,
+      });
+      expect(logged.schemaFailures).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ path: expect.stringContaining('/inputs') }),
+        ]),
+      );
+      expect(JSON.stringify(warn.mock.calls)).not.toContain(userMessage);
+    });
+
+    it('names the key-set check when the request has unexpected keys', async () => {
+      const response = await postResolve({
+        machineId: ids.machine,
+        action,
+        extra: true,
+      });
+
+      expect(response.status).toBe(403);
+      expect(warn).toHaveBeenCalledWith(
+        'Controller authorization preparation denied',
+        expect.objectContaining({ failedCheck: 'request_keys' }),
+      );
+    });
+
+    it('names the machine id check when the machine id is not a UUID', async () => {
+      const response = await postResolve({ machineId: 'machine', action });
+
+      expect(response.status).toBe(403);
+      expect(warn).toHaveBeenCalledWith(
+        'Controller authorization preparation denied',
+        expect.objectContaining({ failedCheck: 'machine_id' }),
+      );
     });
   });
 

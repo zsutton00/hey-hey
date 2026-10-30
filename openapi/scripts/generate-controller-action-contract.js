@@ -30,6 +30,11 @@ const validateAction = ajv.compile<HostActionPreparation>({
   $ref: '#/definitions/HostActionPreparation',
 });
 export const isHostActionPreparation = (value: object): value is HostActionPreparation => validateAction(value);
+/** Schema locations that rejected the value, without the rejected values. */
+export const hostActionPreparationFailures = (value: object): { path: string; keyword: string }[] => {
+  validateAction(value);
+  return (validateAction.errors ?? []).map((error) => ({ path: error.instancePath, keyword: error.keyword }));
+};
 const validateInputs = ajv.compile<ControllerActionInputs>({
   ...controllerActionRuntimeSchema,
   $ref: '#/definitions/ControllerActionInputs',

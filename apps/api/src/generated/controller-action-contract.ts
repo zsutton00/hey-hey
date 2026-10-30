@@ -5835,6 +5835,15 @@ export const controllerActionRuntimeSchema = {
               description:
                 'Handler settings recorded with a run setup, shared by every case in the run.',
               properties: {
+                handler: {
+                  allOf: [
+                    {
+                      $ref: '#/definitions/LocalRunEvalPromptPayload/properties/attempts/items/properties/execution/properties/handler',
+                    },
+                  ],
+                  description:
+                    "The handler every case in the run executes, in place of the handler each case names. `project_assistant` runs Project Assistant research alone, ignoring `projectAssistant`. Omission keeps each case's own handler. Never edits the cases.\n",
+                },
                 projectAssistant: {
                   allOf: [
                     {
@@ -5901,6 +5910,7 @@ export const controllerActionRuntimeSchema = {
               'attemptId',
               'caseInput',
               'configuration',
+              'execution',
               'targetSessionId',
               'targetConversationId',
             ],
@@ -5908,6 +5918,64 @@ export const controllerActionRuntimeSchema = {
               attemptId: {
                 type: 'string',
                 format: 'uuid',
+              },
+              execution: {
+                type: 'object',
+                additionalProperties: false,
+                description:
+                  "What one attempt runs, resolved at launch from the run's chosen handler (or the case's own) and the Project Assistant setting. Recorded so later changes to defaults never rewrite what ran.\n",
+                required: [
+                  'handler',
+                  'projectAssistantPrepares',
+                  'assessedOutput',
+                ],
+                properties: {
+                  handler: {
+                    type: 'string',
+                    description:
+                      'Registry key of a handler an Eval Case or an eval run may execute. Each key must be a registered handler the Hey Hey CLI can start directly as the first agent; the CLI refuses to start when one is not registered.\n',
+                    enum: [
+                      'agent_search',
+                      'entity_conversation',
+                      'project_assistant',
+                      'feature_sync_analyze',
+                    ],
+                  },
+                  consumerHandler: {
+                    allOf: [
+                      {
+                        type: 'string',
+                        description:
+                          'Registry key of a handler whose real Project Assistant policy a Project Assistant case runs under. Each key must be a registered handler that declares a Project Assistant policy; the Hey Hey CLI tests the list against its registry.\n',
+                        enum: [
+                          'startup_session',
+                          'design_doc_refiner',
+                          'feature_sync_analyze',
+                          'feature_refiner',
+                          'task_refiner',
+                          'plan_shaping_feature_sync_analyze',
+                          'free_form',
+                          'entity_conversation',
+                          'html_css_mockup_revision',
+                          'validation_walkthrough',
+                        ],
+                      },
+                    ],
+                    description:
+                      'Present exactly when `handler` is `project_assistant`: the handler whose real policy Project Assistant runs under.\n',
+                  },
+                  projectAssistantPrepares: {
+                    type: 'boolean',
+                    description:
+                      'True when Project Assistant runs first and hands its research to `handler`. False when `handler` runs alone, and for `project_assistant`, which is the research itself.\n',
+                  },
+                  assessedOutput: {
+                    type: 'string',
+                    description:
+                      'Which output the judge assesses for an attempt.',
+                    enum: ['RESEARCH_REPORT', 'HANDLER_REPLY'],
+                  },
+                },
               },
               targetSessionId: {
                 type: 'string',
@@ -5978,32 +6046,13 @@ export const controllerActionRuntimeSchema = {
                         description: 'The single request that starts the case.',
                       },
                       targetHandler: {
+                        $ref: '#/definitions/LocalRunEvalPromptPayload/properties/attempts/items/properties/execution/properties/handler',
                         description: 'Registry key of the handler under test.',
-                        type: 'string',
-                        enum: [
-                          'agent_search',
-                          'entity_conversation',
-                          'project_assistant',
-                        ],
                       },
                       consumerHandler: {
                         allOf: [
                           {
-                            type: 'string',
-                            description:
-                              'Registry key of a handler whose real Project Assistant policy a Project Assistant case runs under. Each key must be a registered handler that declares a Project Assistant policy; the Hey Hey CLI tests the list against its registry.\n',
-                            enum: [
-                              'startup_session',
-                              'design_doc_refiner',
-                              'feature_sync_analyze',
-                              'feature_refiner',
-                              'task_refiner',
-                              'plan_shaping_feature_sync_analyze',
-                              'free_form',
-                              'entity_conversation',
-                              'html_css_mockup_revision',
-                              'validation_walkthrough',
-                            ],
+                            $ref: '#/definitions/LocalRunEvalPromptPayload/properties/attempts/items/properties/execution/properties/consumerHandler/allOf/0',
                           },
                         ],
                         description:
@@ -9433,6 +9482,16 @@ const validateAction = ajv.compile<HostActionPreparation>({
 export const isHostActionPreparation = (
   value: object,
 ): value is HostActionPreparation => validateAction(value);
+/** Schema locations that rejected the value, without the rejected values. */
+export const hostActionPreparationFailures = (
+  value: object,
+): { path: string; keyword: string }[] => {
+  validateAction(value);
+  return (validateAction.errors ?? []).map((error) => ({
+    path: error.instancePath,
+    keyword: error.keyword,
+  }));
+};
 const validateInputs = ajv.compile<ControllerActionInputs>({
   ...controllerActionRuntimeSchema,
   $ref: '#/definitions/ControllerActionInputs',

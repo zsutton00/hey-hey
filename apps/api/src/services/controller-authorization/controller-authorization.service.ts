@@ -36,6 +36,7 @@ import {
 } from '../../generated';
 import {
   hashControllerAction,
+  hostActionPreparationFailures,
   isHostActionPreparation,
 } from '../../generated/controller-action-contract';
 import { canonicalizeJcs } from '../../core/websockets/trigger-canonicalization';
@@ -1405,18 +1406,56 @@ export class ControllerAuthorizationService {
   private assertResolveRequest(
     input: ResolveControllerAuthorizationRequestDto,
   ): void {
-    if (
-      !input ||
-      typeof input !== 'object' ||
-      !this.hasExactKeys(input, ['machineId', 'action']) ||
-      !this.isUuid(input.machineId) ||
-      !this.isAction(input.action)
-    ) {
-      this.rejectPreparation(
-        ControllerAuthorizationDenialReason.ActionMismatch,
-        {},
-      );
+    const failure = this.findResolveRequestFailure(input);
+    if (!failure) {
+      return;
     }
+
+    this.rejectPreparation(
+      ControllerAuthorizationDenialReason.ActionMismatch,
+      {},
+      failure,
+    );
+  }
+
+  /**
+   * Names the first check a resolve request fails. Only check names, the
+   * action type and schema paths are reported, never request values.
+   */
+  private findResolveRequestFailure(
+    input: ResolveControllerAuthorizationRequestDto,
+  ): Record<string, unknown> | null {
+    if (!input || typeof input !== 'object') {
+      return { failedCheck: 'request_shape' };
+    }
+
+    if (!this.hasExactKeys(input, ['machineId', 'action'])) {
+      return { failedCheck: 'request_keys', keys: Object.keys(input) };
+    }
+
+    if (!this.isUuid(input.machineId)) {
+      return { failedCheck: 'machine_id' };
+    }
+
+    if (this.isAction(input.action)) {
+      return null;
+    }
+
+    const action: unknown = input.action;
+    const actionObject =
+      typeof action === 'object' && action !== null ? action : null;
+    const actionType =
+      actionObject && 'actionType' in actionObject
+        ? actionObject.actionType
+        : undefined;
+
+    return {
+      failedCheck: 'action_schema',
+      actionType: typeof actionType === 'string' ? actionType : undefined,
+      schemaFailures: actionObject
+        ? hostActionPreparationFailures(actionObject)
+        : [{ path: '', keyword: 'type' }],
+    };
   }
 
   private isAction(value: unknown): value is HostActionPreparation {
@@ -1496,8 +1535,10 @@ export class ControllerAuthorizationService {
   private rejectPreparation(
     reason: ControllerAuthorizationDenialReason,
     context: Record<string, unknown>,
+    diagnostics: Record<string, unknown> = {},
   ): never {
     this.logger.warn('Controller authorization preparation denied', {
+      ...diagnostics,
       machineId: context.machineId,
       organizationId: context.organizationId,
       projectId: context.projectId,
