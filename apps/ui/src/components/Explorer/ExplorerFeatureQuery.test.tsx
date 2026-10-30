@@ -33,7 +33,10 @@ vi.mock("./ExplorerTreeNode", () => ({
   ),
 }));
 
-const feature = (id: string, status: WorkStatus): TaskResponseDto => ({
+const feature = (
+  id: string,
+  status: TaskResponseDto["status"],
+): TaskResponseDto => ({
   id,
   name: id,
   type: "FEATURE",
@@ -95,7 +98,7 @@ it("shows a root only when metadata resolves to ACTIVE and uses feature children
       [root, inactive].map((data) => [
         data.id,
         { status: "ready" as const, data },
-      ])
+      ]),
     ),
     retry: vi.fn(),
   });
@@ -117,7 +120,7 @@ it("shows a root only when metadata resolves to ACTIVE and uses feature children
     "project",
     [root.id, inactive.id],
     undefined,
-    "metadata"
+    "metadata",
   );
 });
 
@@ -141,7 +144,7 @@ it("renders cached children before status hydration and never treats non-feature
   expect(screen.getByText(child.name)).toBeVisible();
   expect(screen.getByTestId("feature-node")).toHaveAttribute(
     "data-has-children",
-    "false"
+    "false",
   );
   vi.mocked(useFeatureDocumentContent).mockReturnValue({
     entries: new Map([[child.id, { status: "ready", data: child }]]),
@@ -150,7 +153,7 @@ it("renders cached children before status hydration and never treats non-feature
   rerender(React.cloneElement(children));
   expect(screen.getByTestId("feature-node")).toHaveAttribute(
     "data-status",
-    WorkStatus.Backlog
+    WorkStatus.Backlog,
   );
   expect(useWorkItems).not.toHaveBeenCalled();
   expect(useFeatureDocumentContent).toHaveBeenCalledWith(
@@ -158,6 +161,6 @@ it("renders cached children before status hydration and never treats non-feature
     "project",
     [child.id],
     undefined,
-    "metadata"
+    "metadata",
   );
 });

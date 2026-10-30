@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../../test/fixtures/workItemStatuses";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -250,7 +251,7 @@ describe("EntityHoverCard plan preview", () => {
             kind: WorkItemTypeSectionDefinitionKindEnum.Markdown,
           },
         ],
-        allowedStatuses: [WorkStatus.Active],
+        statuses: legacyStatuses([WorkStatus.Active]),
       },
       isLoading: false,
       isFetching: false,
@@ -336,7 +337,7 @@ describe("EntityHoverCard plan preview", () => {
             kind: WorkItemTypeSectionDefinitionKindEnum.Markdown,
           },
         ],
-        allowedStatuses: [WorkStatus.Active],
+        statuses: legacyStatuses([WorkStatus.Active]),
       },
       isLoading: false,
       isFetching: false,
@@ -427,7 +428,7 @@ describe("EntityHoverCard plan preview", () => {
             ],
           },
         ],
-        allowedStatuses: [WorkStatus.Active],
+        statuses: legacyStatuses([WorkStatus.Active]),
       },
       isLoading: false,
       isFetching: false,
@@ -475,7 +476,7 @@ describe("EntityHoverCard plan preview", () => {
             kind: WorkItemTypeSectionDefinitionKindEnum.Json,
           },
         ],
-        allowedStatuses: [WorkStatus.Active],
+        statuses: legacyStatuses([WorkStatus.Active]),
       },
       isLoading: false,
       isFetching: false,
@@ -696,7 +697,7 @@ describe("EntityHoverCard plan preview", () => {
           ],
         },
       ],
-      allowedStatuses: [WorkStatus.Active],
+      statuses: legacyStatuses([WorkStatus.Active]),
     };
 
     const renderProposalCard = (proposal: ProposalResponseDto) => {

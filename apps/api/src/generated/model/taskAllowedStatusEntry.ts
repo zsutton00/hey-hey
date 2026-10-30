@@ -11,7 +11,6 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
-import { WorkStatus } from './workStatus';
 
 
 /**
@@ -23,8 +22,8 @@ export interface TaskAllowedStatusEntry {
      */
     taskType: string;
     /**
-     * Every WorkStatus value valid for this task type.
+     * Every status value an item of this task type may hold — its ordinary statuses, ARCHIVED, and SUPERSEDED when eligible.
      */
-    allowedStatuses: Array<WorkStatus>;
+    allowedStatuses: Array<string>;
 }
 

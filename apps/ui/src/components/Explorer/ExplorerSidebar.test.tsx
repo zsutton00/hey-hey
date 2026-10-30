@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../../../packages/ui-common/src/test/fixtures/workItemStatuses";
 import { http, HttpResponse } from "msw";
 import { renderWithQueryClient as render } from "../../test/renderWithQueryClient";
 import { createEntityActivation } from "@hey-hey/ui-common/context";
@@ -485,7 +486,7 @@ describe("ExplorerSidebar", () => {
       key: "PLAN",
       name: "Plan",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       capabilities: { showsInExplorerSidebar: true },
     };
     const registry = {
@@ -584,7 +585,7 @@ describe("ExplorerSidebar", () => {
           projectId: "project-1",
           status: "ACTIVE",
           definition: {
-            allowedStatuses: [],
+            statuses: legacyStatuses([]),
             capabilities: { showsInExplorerSidebar: true },
             key: WORK_ITEM_TYPE_KEYS.Feature,
             name: "Feature",
@@ -732,7 +733,7 @@ describe("ExplorerSidebar", () => {
         {
           id: "feature-type",
           definition: {
-            allowedStatuses: [],
+            statuses: legacyStatuses([]),
             capabilities: { showsInExplorerSidebar: true },
             key: WORK_ITEM_TYPE_KEYS.Feature,
             name: "Feature",
@@ -744,7 +745,7 @@ describe("ExplorerSidebar", () => {
         {
           id: "goal-type",
           definition: {
-            allowedStatuses: [],
+            statuses: legacyStatuses([]),
             capabilities: { showsInExplorerSidebar: true },
             key: WORK_ITEM_TYPE_KEYS.Goal,
             name: "Goal",
@@ -1599,7 +1600,7 @@ describe("ExplorerSidebar", () => {
         {
           id: "feature-type",
           definition: {
-            allowedStatuses: [],
+            statuses: legacyStatuses([]),
             capabilities: { showsInExplorerSidebar: true },
             key: WORK_ITEM_TYPE_KEYS.Feature,
             name: "Feature",
@@ -1611,7 +1612,7 @@ describe("ExplorerSidebar", () => {
         {
           id: "goal-type",
           definition: {
-            allowedStatuses: [],
+            statuses: legacyStatuses([]),
             capabilities: { showsInExplorerSidebar: true },
             key: WORK_ITEM_TYPE_KEYS.Goal,
             name: "Goal",
@@ -1623,7 +1624,7 @@ describe("ExplorerSidebar", () => {
         {
           id: "plan-type",
           definition: {
-            allowedStatuses: [],
+            statuses: legacyStatuses([]),
             capabilities: { showsInExplorerSidebar: true },
             key: "PLAN",
             name: "Plan",
@@ -1635,7 +1636,7 @@ describe("ExplorerSidebar", () => {
         {
           id: "custom-type",
           definition: {
-            allowedStatuses: [],
+            statuses: legacyStatuses([]),
             capabilities: { showsInExplorerSidebar: true },
             key: "CUSTOM_DELIVERABLE",
             name: "Deliverable",
@@ -1893,7 +1894,7 @@ describe("ExplorerSidebar", () => {
         {
           id: "feature-type",
           definition: {
-            allowedStatuses: [],
+            statuses: legacyStatuses([]),
             capabilities: { showsInExplorerSidebar: true },
             key: WORK_ITEM_TYPE_KEYS.Feature,
             name: "Feature",
@@ -1905,7 +1906,7 @@ describe("ExplorerSidebar", () => {
         {
           id: "custom-type",
           definition: {
-            allowedStatuses: [],
+            statuses: legacyStatuses([]),
             capabilities: { showsInExplorerSidebar: true },
             key: "CUSTOM_DELIVERABLE",
             name: "Deliverables",
@@ -1917,7 +1918,7 @@ describe("ExplorerSidebar", () => {
         {
           id: "hidden-type",
           definition: {
-            allowedStatuses: [],
+            statuses: legacyStatuses([]),
             capabilities: { showsInExplorerSidebar: false },
             key: "HIDDEN_TYPE",
             name: "Hidden",
@@ -1929,7 +1930,7 @@ describe("ExplorerSidebar", () => {
         {
           id: "omitted-type",
           definition: {
-            allowedStatuses: [],
+            statuses: legacyStatuses([]),
             key: "OMITTED_TYPE",
             name: "Omitted",
             sections: [],
@@ -2027,7 +2028,7 @@ describe("ExplorerSidebar", () => {
         {
           id: "custom-type",
           definition: {
-            allowedStatuses: [],
+            statuses: legacyStatuses([]),
             capabilities: { showsInExplorerSidebar: true },
             key: "CUSTOM_DELIVERABLE",
             name: "Deliverables",

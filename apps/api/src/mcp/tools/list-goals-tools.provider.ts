@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from '../../generated/model/taskResponseDto';
 import { Injectable, Logger } from '@nestjs/common';
 import { Tool, Context } from '@rekog/mcp-nest';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
@@ -25,7 +26,7 @@ const MAX_LIMIT = 500;
 // list_goals and search_goals normalize the same simplified status
 // surface (BACKLOG / IN_PROGRESS / IN_REVIEW / DONE / CANCELLED) onto
 // the underlying WorkStatus enum.
-const MCP_TO_WORK_STATUSES: Record<string, WorkStatus[]> = {
+const MCP_TO_WORK_STATUSES: Record<string, TaskResponseDto['status'][]> = {
   BACKLOG: [
     WorkStatus.Generated,
     WorkStatus.Backlog,

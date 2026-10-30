@@ -334,9 +334,9 @@ export const FeaturePageView: React.FC<FeaturePageViewProps> = ({
   const isStandardTaskTab = activeChildTypeKey === WORK_ITEM_TYPE_KEYS.Standard;
 
   const [childSearchTerm, setChildSearchTerm] = useState("");
-  const [childStatusFilter, setChildStatusFilter] = useState<WorkStatus | "">(
-    "",
-  );
+  const [childStatusFilter, setChildStatusFilter] = useState<
+    TaskResponseDto["status"] | ""
+  >("");
   const [childSortBy, setChildSortBy] = useState("status");
   const [titleDraft, setTitleDraft] = useState(task.name);
 

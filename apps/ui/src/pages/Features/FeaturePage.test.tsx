@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../../../packages/ui-common/src/test/fixtures/workItemStatuses";
 import {
   WorkItemTypeRole,
   WorkStatus,
@@ -62,7 +63,7 @@ const parentDefinition: WorkItemTypeDefinitionDto = {
   key: "FEATURE",
   name: "Feature",
   sections: [{ key: "description", label: "Description" }],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
   allowedParentTypes: [],
 };
 
@@ -70,14 +71,12 @@ const createDefinition = (
   key: string,
   name: string,
   allowedParentTypes: string[] = ["FEATURE"],
-  allowedStatuses: WorkItemTypeDefinitionDto["allowedStatuses"] = [
-    WorkStatus.Backlog,
-  ],
+  allowedStatuses: string[] = [WorkStatus.Backlog],
 ): WorkItemTypeDefinitionDto => ({
   key,
   name,
   sections: [{ key: "description", label: "Description" }],
-  allowedStatuses,
+  statuses: legacyStatuses(allowedStatuses),
   allowedParentTypes,
 });
 
@@ -490,7 +489,7 @@ describe("FeaturePage registry-derived children", () => {
       onSubmitNewTask: (formData: {
         name: string;
         initiativeId: string;
-        status: WorkStatus;
+        status: TaskResponseDto["status"];
         sectionContent: Record<string, string>;
       }) => Promise<void>;
     };

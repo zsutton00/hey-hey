@@ -1896,8 +1896,8 @@ export class UnifiedSearchService {
     }
   }
 
-  private isWorkStatus(status: string): status is WorkStatus {
-    return Object.values(WorkStatus).includes(status as WorkStatus);
+  private isWorkStatus(status: string): status is TaskResponseDto['status'] {
+    return status.length > 0;
   }
 
   private isDesignDocRefiningStatus(status: string): boolean {

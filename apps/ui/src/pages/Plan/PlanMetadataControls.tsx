@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../../../../packages/ui-common/src/api/api";
 import { useState } from "react";
 import { Alert, Stack } from "@mui/material";
 import { WorkItemMetadata } from "@hey-hey/ui-common/components";
@@ -5,7 +6,6 @@ import {
   useCanonicalPlanMutations,
   type PlanWorkItem,
 } from "@hey-hey/ui-common/data";
-import type { WorkStatus } from "@hey-hey/ui-common/api";
 
 export const PlanMetadataControls = ({
   plan,
@@ -16,12 +16,12 @@ export const PlanMetadataControls = ({
 }) => {
   const { updatePlan } = useCanonicalPlanMutations(
     plan.organizationId,
-    plan.projectId
+    plan.projectId,
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const changeStatus = async (status: WorkStatus) => {
+  const changeStatus = async (status: TaskResponseDto["status"]) => {
     if (saving || readOnly) return;
     setSaving(true);
     setError(null);
@@ -31,7 +31,9 @@ export const PlanMetadataControls = ({
       setPending(result.status === "pending");
     } catch (cause) {
       setError(
-        cause instanceof Error ? cause.message : "Unable to update Plan status."
+        cause instanceof Error
+          ? cause.message
+          : "Unable to update Plan status.",
       );
     } finally {
       setSaving(false);

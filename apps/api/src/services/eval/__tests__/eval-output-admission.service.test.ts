@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../../test/setup/legacy-status.fixture';
 import { Test } from '@nestjs/testing';
 import type { WorkItemType } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -41,7 +42,7 @@ describe('EvalOutputAdmissionService', () => {
       ],
       allowedParentTypes: [],
       edgeTargets: [],
-      allowedStatuses: ['NOT_STARTED'],
+      statuses: legacyStatuses(['NOT_STARTED']),
       requiredScalars: [],
       forbiddenScalars: [],
       parentage: { allowedParentEntityTypes: ['PROJECT'] },

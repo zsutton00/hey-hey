@@ -1,4 +1,5 @@
-import type { WorkStatus } from '../../../shared/api/generated/api';
+import type { TaskResponseDto } from '../../../shared/api/generated/api';
+
 import type {
   TaskMonitorExecutionNode,
   TaskMonitorLaunchDeclaration,
@@ -142,7 +143,7 @@ export interface HaltTaskMonitorControlEffect {
   readonly failureContext: string;
 }
 
-export type TaskMonitorControlStatus = Extract<WorkStatus, 'ACTIVE' | 'ON_HOLD'>;
+export type TaskMonitorControlStatus = TaskResponseDto['status'] & ('ACTIVE' | 'ON_HOLD');
 
 export interface ProjectTaskMonitorControlStatusEffect {
   readonly type: 'PROJECT_TASK_MONITOR_CONTROL_STATUS';

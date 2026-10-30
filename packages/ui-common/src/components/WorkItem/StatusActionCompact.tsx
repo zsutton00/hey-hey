@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../api/api";
 import { useModalState } from "../Modals/useModalState";
 import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
@@ -22,7 +23,7 @@ import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { DateCalendar } from "@mui/x-date-pickers/DateCalendar";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import type { Priority, ServiceDto, WorkStatus } from "../../api";
+import type { Priority, ServiceDto } from "../../api";
 import { WorkStatus as WorkStatusEnum } from "../../api";
 import { FEATURE_TASK_TYPE } from "../../constants/taskTypes";
 import { useAuth } from "../../contexts/AuthContext";
@@ -43,7 +44,7 @@ import type { WorkItemMetadataFields } from "./WorkItemMetadata";
 
 const SELECTABLE_PRIORITIES: Priority[] = ["LOW", "MEDIUM", "HIGH"];
 
-const featureStatusLabel = (status: WorkStatus): string => {
+const featureStatusLabel = (status: TaskResponseDto["status"]): string => {
   if (status === WorkStatusEnum.Active) return "Ready";
   return getStatusLabel(status);
 };
@@ -175,7 +176,8 @@ export const StatusActionCompact: React.FC<StatusActionCompactProps> = ({
     [getAllowedStatuses, taskType, taskId],
   );
   const resolveStatusLabel = useCallback(
-    (s: WorkStatus) => (isFeature ? featureStatusLabel(s) : getStatusLabel(s)),
+    (s: TaskResponseDto["status"]) =>
+      isFeature ? featureStatusLabel(s) : getStatusLabel(s),
     [isFeature],
   );
 
@@ -202,7 +204,7 @@ export const StatusActionCompact: React.FC<StatusActionCompactProps> = ({
           selectedServiceIds.length === 1 ? "" : "s"
         }`;
 
-  const handleStatusSelect = (next: WorkStatus): void => {
+  const handleStatusSelect = (next: TaskResponseDto["status"]): void => {
     if (fields.status?.mode !== "editable") return;
     // SUPERSEDED never travels the plain status-update path — it requires a
     // named successor, collected in the supersede dialog.

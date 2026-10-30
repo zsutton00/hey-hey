@@ -1,7 +1,8 @@
+import type { TaskResponseDto } from "../../api/api";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import PauseIcon from "@mui/icons-material/Pause";
 import { Button, CircularProgress, Paper, Stack } from "@mui/material";
-import { WorkStatus } from "../../api";
+
 import {
   resolveTaskMonitorLifecycleAction,
   type TaskMonitorStartPresentation,
@@ -18,7 +19,7 @@ const primaryControlButtonSx = {
 } as const;
 
 export interface TaskMonitorControlDockProps {
-  monitorStatus: WorkStatus;
+  monitorStatus: TaskResponseDto["status"];
   presentation: TaskMonitorStartPresentation;
   pendingAction: TaskMonitorPauseResumeAction | null;
   controlsDisabled?: boolean;

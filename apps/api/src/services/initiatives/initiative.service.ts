@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from '../../generated/model/taskResponseDto';
 import {
   BadRequestException,
   Inject,
@@ -12,7 +13,6 @@ import {
   InitiativeCreatorType,
   Prisma,
   TagSource as PrismaTagSource,
-  WorkStatus as PrismaWorkStatus,
 } from '@prisma/client';
 import {
   buildInitiativeCreatedEventPayload,
@@ -438,27 +438,27 @@ export class InitiativeService {
       return new Map();
     }
 
-    const backlogStatuses = new Set<PrismaWorkStatus>([
-      PrismaWorkStatus.GENERATED,
-      PrismaWorkStatus.BACKLOG,
-      PrismaWorkStatus.GENERATING_DESCRIPTION,
-      PrismaWorkStatus.REFINING_DESCRIPTION,
-      PrismaWorkStatus.REFINING_DETAILS,
-      PrismaWorkStatus.REFINING_ACCEPTANCE_CRITERIA,
-      PrismaWorkStatus.GENERATING_DETAILS,
-      PrismaWorkStatus.GENERATING_DESCRIPTION_AND_DETAILS,
-      PrismaWorkStatus.GENERATING_ACCEPTANCE_CRITERIA,
-      PrismaWorkStatus.GENERATING_ALL,
-      PrismaWorkStatus.ON_HOLD,
+    const backlogStatuses = new Set<TaskResponseDto['status']>([
+      WorkStatus.Generated,
+      WorkStatus.Backlog,
+      WorkStatus.GeneratingDescription,
+      WorkStatus.RefiningDescription,
+      WorkStatus.RefiningDetails,
+      WorkStatus.RefiningAcceptanceCriteria,
+      WorkStatus.GeneratingDetails,
+      WorkStatus.GeneratingDescriptionAndDetails,
+      WorkStatus.GeneratingAcceptanceCriteria,
+      WorkStatus.GeneratingAll,
+      WorkStatus.OnHold,
     ]);
 
-    const inProgressStatuses = new Set<PrismaWorkStatus>([
-      PrismaWorkStatus.ACTIVE,
+    const inProgressStatuses = new Set<TaskResponseDto['status']>([
+      WorkStatus.Active,
     ]);
 
-    const doneStatuses = new Set<PrismaWorkStatus>([
-      PrismaWorkStatus.COMPLETED,
-      PrismaWorkStatus.CANCELLED,
+    const doneStatuses = new Set<TaskResponseDto['status']>([
+      WorkStatus.Completed,
+      WorkStatus.Cancelled,
     ]);
 
     const grouped = await this.prisma.db.task.groupBy({
@@ -499,7 +499,6 @@ export class InitiativeService {
 
     return countsMap;
   }
-
 
   /**
    * Validates that sourceConversationId belongs to the organization
@@ -587,7 +586,7 @@ export class InitiativeService {
    * Stores original initiative artifacts if the status qualifies for it
    */
   private async storeOriginalArtifactIfNeeded(
-    initiatives: Array<InitiativeDraft & { status: WorkStatus }>,
+    initiatives: Array<InitiativeDraft & { status: TaskResponseDto['status'] }>,
     organizationId: OrganizationId,
     projectId: ProjectId,
     context?: {
@@ -754,7 +753,7 @@ export class InitiativeService {
 
     const linkedProjectIds = this.extractLinkedProjectIds(initiative);
     const filteredSections = this.filterSectionsForStatus(
-      initiative.status as WorkStatus,
+      initiative.status as TaskResponseDto['status'],
       sections,
     );
     return {
@@ -783,7 +782,7 @@ export class InitiativeService {
   }
 
   private filterSectionsForStatus(
-    status: WorkStatus,
+    status: TaskResponseDto['status'],
     sections?: MaterializedWorkItemSection[],
   ): MaterializedWorkItemSection[] | undefined {
     if (!sections) {
@@ -1137,7 +1136,7 @@ export class InitiativeService {
     organizationId: OrganizationId,
     filters: {
       projectId: ProjectId;
-      statuses?: WorkStatus[];
+      statuses?: TaskResponseDto['status'][];
       priority?: string;
       tags?: string[];
       sourceType?: Prisma.InitiativeWhereInput['sourceType'];
@@ -1751,7 +1750,7 @@ export class InitiativeService {
     organizationId: OrganizationId,
     filters: {
       projectId: string;
-      statuses?: WorkStatus[];
+      statuses?: TaskResponseDto['status'][];
       priority?: string;
       tags?: string[];
       sourceType?: Prisma.InitiativeWhereInput['sourceType'];
@@ -1781,8 +1780,8 @@ export class InitiativeService {
 
     where.status =
       filters?.statuses && filters.statuses.length > 0
-        ? { in: filters.statuses as PrismaWorkStatus[] }
-        : { not: PrismaWorkStatus.CANCELLED };
+        ? { in: filters.statuses }
+        : { not: WorkStatus.Cancelled };
 
     if (filters?.priority) {
       where.priority = filters.priority as Priority;
@@ -2180,9 +2179,7 @@ export class InitiativeService {
 
     const incomingSections = (
       'sections' in updateInitiativeDto &&
-      Array.isArray(
-        (updateInitiativeDto as InitiativeUpdateInput).sections,
-      )
+      Array.isArray((updateInitiativeDto as InitiativeUpdateInput).sections)
         ? (updateInitiativeDto as InitiativeUpdateInput).sections
         : []
     ) as Array<{ key: string; content: string }>;

@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from '../../generated/model/taskResponseDto';
 import { ProjectAccessService } from '../../auth/services/project-access.service';
 import { ProjectResourceAccessService } from '../../auth/services/project-resource-access.service';
 import {
@@ -1570,7 +1571,7 @@ describe('TaskController', () => {
         id: testIds.task,
         type: WORK_ITEM_TYPE_KEYS.Feature,
         parentTaskId: undefined,
-        status: 'ACTIVE' as WorkStatus,
+        status: 'ACTIVE' as TaskResponseDto['status'],
         priority: 'HIGH',
       });
 
@@ -1791,7 +1792,9 @@ describe('TaskController', () => {
     });
 
     it('appends a USER influence with empty reasoning on a status-only PATCH (no reason text)', async () => {
-      const updateTaskDto: UpdateTaskDto = { status: 'BACKLOG' as WorkStatus };
+      const updateTaskDto: UpdateTaskDto = {
+        status: 'BACKLOG' as TaskResponseDto['status'],
+      };
 
       mockProposalService.create.mockResolvedValue(
         buildProposalResponse({ status: 'APPROVED' as ProposalStatus }),

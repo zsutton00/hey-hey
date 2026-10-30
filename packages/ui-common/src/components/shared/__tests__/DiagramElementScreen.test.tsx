@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { queryOptions } from "@tanstack/react-query";
@@ -97,7 +98,7 @@ const mockupTypeSummary = (
       name: "Mockup",
       role: "project-info",
       sections,
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     },
   }) as unknown as WorkItemTypeSummaryDto;
 

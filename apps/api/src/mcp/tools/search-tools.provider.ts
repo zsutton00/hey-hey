@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from '../../generated/model/taskResponseDto';
 import { Injectable, Logger } from '@nestjs/common';
 import { Tool, Context } from '@rekog/mcp-nest';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
@@ -478,7 +479,7 @@ const DEFAULT_TYPES: EntityType[] = [
 // IN_PROGRESS: actively being worked on
 // IN_REVIEW: verification phase
 // DONE / CANCELLED: terminal states
-const MCP_TO_TASK_STATUSES: Record<string, WorkStatus[]> = {
+const MCP_TO_TASK_STATUSES: Record<string, TaskResponseDto['status'][]> = {
   BACKLOG: [
     WorkStatus.Generated,
     WorkStatus.Backlog,
@@ -990,7 +991,9 @@ export class SearchToolsProvider {
         const before = items.length;
         const statusSet = new Set(mappedStatuses);
         items = items.filter(
-          (item) => item.status && statusSet.has(item.status as WorkStatus),
+          (item) =>
+            item.status &&
+            statusSet.has(item.status as TaskResponseDto['status']),
         );
         this.logger.debug(`${toolName} status filter`, {
           filter: status,

@@ -1,11 +1,13 @@
-import type { WorkItemTypeDefinitionDto, WorkStatus } from "../../api";
+import type { TaskResponseDto } from "../../api/api";
+import { getWorkItemTypeStatusNames } from "../../utils/statusUtils";
+import type { WorkItemTypeDefinitionDto } from "../../api";
 import { getStatusLabel } from "../../utils/statusUtils";
 
 export interface EntityCollectionStatusTab {
   id: string;
   label: string;
   /** Lifecycle statuses included by this tab; empty means every status. */
-  statuses: WorkStatus[];
+  statuses: TaskResponseDto["status"][];
 }
 
 /**
@@ -15,13 +17,15 @@ export interface EntityCollectionStatusTab {
 export const entityCollectionQueryKeyPrefix = (
   organizationId: string,
   projectId: string,
-  typeKey: string
+  typeKey: string,
 ) => ["work-item-reference-page", organizationId, projectId, typeKey] as const;
 
 export const buildDefaultStatusTabs = (
-  typeDefinition: WorkItemTypeDefinitionDto | undefined
+  typeDefinition: WorkItemTypeDefinitionDto | undefined,
 ): EntityCollectionStatusTab[] => {
-  const statuses = typeDefinition?.allowedStatuses ?? [];
+  const statuses = typeDefinition
+    ? getWorkItemTypeStatusNames(typeDefinition)
+    : [];
   const orderedStatuses = statuses.includes("ACTIVE")
     ? ["ACTIVE" as const, ...statuses.filter((status) => status !== "ACTIVE")]
     : statuses;

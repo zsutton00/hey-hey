@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -62,7 +63,7 @@ vi.mock("../../../services/editorSync/suggestionAppliedBus", () => ({
 
 vi.mock("../SuggestedContent", async () => {
   const actual = await vi.importActual<typeof import("../SuggestedContent")>(
-    "../SuggestedContent"
+    "../SuggestedContent",
   );
   return {
     ...actual,
@@ -98,7 +99,7 @@ const renderSuggestion = (): void => {
       projectId="project-1"
       taskId="research-1"
       onDecision={mockOnDecision}
-    />
+    />,
   );
 };
 
@@ -113,16 +114,16 @@ describe("TaskSuggestedContent registry section selection", () => {
         { key: "sources", label: "Sources" },
         { key: "findings", label: "Findings" },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     };
     mockUpdateTask.mockImplementation(
       async (
         _taskId: unknown,
         _updates: unknown,
-        callbacks?: { onSuccess?: () => void }
+        callbacks?: { onSuccess?: () => void },
       ) => {
         callbacks?.onSuccess?.();
-      }
+      },
     );
   });
 
@@ -130,7 +131,7 @@ describe("TaskSuggestedContent registry section selection", () => {
     renderSuggestion();
 
     expect(screen.getByTestId("current-findings")).toHaveTextContent(
-      "Old finding"
+      "Old finding",
     );
     await userEvent.click(screen.getByTestId("accept-custom-section"));
 

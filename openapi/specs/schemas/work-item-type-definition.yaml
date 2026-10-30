@@ -130,7 +130,7 @@ WorkItemTypeDefinitionDto:
     - name
     - role
     - sections
-    - allowedStatuses
+    - statuses
   properties:
     key:
       type: string
@@ -196,13 +196,20 @@ WorkItemTypeDefinitionDto:
         from both lists is optional.
       items:
         $ref: "#/WorkItemTypeScalarField"
-    allowedStatuses:
+    statuses:
       type: array
+      minItems: 1
       description: >
-        The work statuses an item of this type may occupy. Reuses the shared
-        WorkStatus enum rather than declaring a type-local status set.
+        The type's ordered ordinary statuses — the authority for which statuses
+        items of this type may be created in and moved between. The first entry
+        is the status new items start in. Each entry carries the internal
+        meaning the platform reads for progress and active filters, and the
+        metadata that preserves legacy labels and completion/cancellation
+        behavior. ARCHIVED is universal and SUPERSEDED is protected and
+        platform-owned (see `capabilities.supportsSupersession`); neither
+        appears in this list.
       items:
-        $ref: "./common.yaml#/WorkStatus"
+        $ref: "#/WorkItemTypeStatus"
     allowedParentTypes:
       type: array
       description: >
@@ -232,11 +239,11 @@ WorkItemTypeDefinitionDto:
     agentSettableStatuses:
       type: array
       description: >
-        The subset of `allowedStatuses` an agent may set directly on an item
-        of this type. Statuses the engine reserves for system transitions are
-        absent here. Reuses the shared WorkStatus enum.
+        The subset of the type's status names (`statuses`, plus the universal
+        ARCHIVED) an agent may set directly on an item of this type. Statuses
+        the engine reserves for system transitions are absent here.
       items:
-        $ref: "./common.yaml#/WorkStatus"
+        $ref: "./common.yaml#/WorkItemStatus"
     anchorableReportTypes:
       type: array
       description: >
@@ -448,7 +455,16 @@ WorkItemHtmlCssAnnotation:
   type: object
   additionalProperties: false
   required:
-    [id, note, author, category, lifecycle, authoredProposalId, authoredSizeKey, target]
+    [
+      id,
+      note,
+      author,
+      category,
+      lifecycle,
+      authoredProposalId,
+      authoredSizeKey,
+      target,
+    ]
   properties:
     id:
       $ref: "#/WorkItemStructuredMockupAnnotationId"
@@ -986,7 +1002,19 @@ WorkItemStructuredMockupSemanticRole:
 
 WorkItemStructuredMockupColor:
   type: string
-  enum: [primary, secondary, success, warning, error, info, neutral, muted, surface, transparent]
+  enum:
+    [
+      primary,
+      secondary,
+      success,
+      warning,
+      error,
+      info,
+      neutral,
+      muted,
+      surface,
+      transparent,
+    ]
   description: Host palette token used for constrained component color.
 
 WorkItemStructuredMockupOverflow:
@@ -1638,6 +1666,59 @@ WorkItemTypeWritingStandards:
       type: string
       description: Authoring prose read before editing an item of this type.
 
+WorkItemStatusMeaning:
+  type: string
+  enum:
+    - NOT_STARTED
+    - IN_PROGRESS
+    - UNFINISHED
+    - FINISHED
+  description: >
+    What an ordinary status means for progress: NOT_STARTED work has not begun,
+    IN_PROGRESS work is underway, FINISHED work needs no further effort.
+    UNFINISHED preserves an unfinished state whose start state is unspecified
+    (for example legacy Blocked and On Hold). Goal progress and active filters
+    read this, never the status name.
+
+WorkItemStatusCompletionBehavior:
+  type: string
+  enum:
+    - COMPLETED
+    - CANCELLED
+  description: >
+    Legacy completion semantics a FINISHED status carries: COMPLETED counts
+    toward Goal completion and emits completion events; CANCELLED ends work
+    without counting as done. Absent for statuses with neither behavior.
+
+WorkItemTypeStatus:
+  type: object
+  additionalProperties: false
+  description: >
+    One ordinary status of a work-item type. `name` is the exact value stored
+    on items and is never rewritten by a type edit.
+  required:
+    - name
+    - meaning
+  properties:
+    name:
+      type: string
+      minLength: 1
+      description: >
+        The status name, stored verbatim on items (e.g. "BACKLOG" for a
+        migrated platform status, "Testing" for a custom one). Unique within
+        the type, and never ARCHIVED or SUPERSEDED.
+    label:
+      type: string
+      minLength: 1
+      description: >
+        Display label when it differs from `name` (preserves the labels
+        existing statuses have always shown, e.g. ACTIVE shows "In progress").
+        Absent means `name` is shown as written.
+    meaning:
+      $ref: "#/WorkItemStatusMeaning"
+    completionBehavior:
+      $ref: "#/WorkItemStatusCompletionBehavior"
+
 WorkItemTypeCapabilities:
   type: object
   description: >
@@ -1656,7 +1737,13 @@ WorkItemTypeCapabilities:
       description: Whether this type may be planned as plan implementation work.
     hasSetInitialStatus:
       type: boolean
-      description: Whether this type's first allowed status is an explicit initial-status policy.
+      description: Whether this type's first status is an explicit initial-status policy.
+    supportsSupersession:
+      type: boolean
+      description: >
+        Whether items of this type are eligible for the protected SUPERSEDED
+        status. SUPERSEDED is set only by successor proposal approval, never
+        through the ordinary status list or ordinary status edits.
     rendersInline:
       type: boolean
       description: Whether mentions of this type may render as an inline rich surface instead of a badge.

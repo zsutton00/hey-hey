@@ -1,4 +1,5 @@
-import type { WorkStatus } from "@hey-hey/ui-common/api";
+import type { TaskResponseDto } from "../../../../../packages/ui-common/src/api/api";
+
 import {
   TaskList,
   useFilteredWorkItems,
@@ -23,7 +24,9 @@ export const UserTasksTab: React.FC<UserTasksTabProps> = ({
 }) => {
   const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<WorkStatus | "">("");
+  const [statusFilter, setStatusFilter] = useState<
+    TaskResponseDto["status"] | ""
+  >("");
   const [sortBy, setSortBy] = useState("created-desc");
 
   const { workItems, isLoading } = useWorkItems(
@@ -73,10 +76,7 @@ export const UserTasksTab: React.FC<UserTasksTabProps> = ({
                   "userPage.tasks.noResults",
                   "No tasks match the current filters.",
                 )
-              : t(
-                  "userPage.tasks.empty",
-                  "No tasks assigned to this user.",
-                )}
+              : t("userPage.tasks.empty", "No tasks assigned to this user.")}
           </Typography>
         </Box>
       ) : (

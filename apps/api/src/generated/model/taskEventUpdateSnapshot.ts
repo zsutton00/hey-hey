@@ -15,7 +15,6 @@ import { TaskId, UserId } from '../../types';
 
 import { FeatureTag } from './featureTag';
 import { TaskPriority } from './taskPriority';
-import { WorkStatus } from './workStatus';
 
 
 export interface TaskEventUpdateSnapshot { 
@@ -31,7 +30,10 @@ export interface TaskEventUpdateSnapshot {
      * Updated feature tag. Only meaningful for FEATURE tasks; absent on non-FEATURE update events. 
      */
     tag?: FeatureTag;
-    status?: WorkStatus;
+    /**
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     */
+    status?: string;
     priority?: TaskPriority;
     dueDate?: string | null;
     /**

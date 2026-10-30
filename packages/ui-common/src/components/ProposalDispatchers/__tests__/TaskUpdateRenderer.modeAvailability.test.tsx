@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -78,7 +79,7 @@ vi.mock("../../SmarterTextAreaCard/EntityHoverCard", () => ({
 
 const modeId = "mode-1";
 const makeGraphEdge = (
-  overrides: Partial<AgentEdgeResponseDto>
+  overrides: Partial<AgentEdgeResponseDto>,
 ): AgentEdgeResponseDto =>
   ({
     id: "edge-1",
@@ -93,7 +94,7 @@ const makeGraphEdge = (
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
     ...overrides,
-  } as AgentEdgeResponseDto);
+  }) as AgentEdgeResponseDto;
 
 const existing: TaskResponseDto = {
   id: modeId,
@@ -111,7 +112,7 @@ const workItemTypeDefinition: WorkItemTypeDefinitionDto = {
   key: "MODE",
   name: "Agent Mode",
   sections: [{ key: "description", label: "Guidance" }],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
 };
 
 const makeProposal = (): ProposalResponseDto =>
@@ -158,7 +159,7 @@ const makeProposal = (): ProposalResponseDto =>
     approvals: [],
     createdAt: "2026-09-01T00:00:00Z",
     updatedAt: "2026-09-01T00:00:00Z",
-  } as unknown as ProposalResponseDto);
+  }) as unknown as ProposalResponseDto;
 
 const featureNames: Record<string, string> = {
   "feature-existing": "Existing Feature",
@@ -195,12 +196,12 @@ beforeEach(() => {
               ],
             }
           : taskId === "task-existing" || taskId === "task-proposed"
-          ? { id: taskId, name: "Ordinary task", type: "STANDARD" }
-          : {
-              id: taskId,
-              name: featureNames[taskId] ?? "Feature name unavailable",
-              type: "FEATURE",
-            },
+            ? { id: taskId, name: "Ordinary task", type: "STANDARD" }
+            : {
+                id: taskId,
+                name: featureNames[taskId] ?? "Feature name unavailable",
+                type: "FEATURE",
+              },
     },
   }));
 });
@@ -221,26 +222,26 @@ describe("TaskUpdateRenderer Agent Mode availability", () => {
           siblingProposals={new Map()}
           workItemTypeDefinition={workItemTypeDefinition}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const featureLinks = await screen.findAllByTestId(
-      "mode-availability-feature-link"
+      "mode-availability-feature-link",
     );
     expect(featureLinks).toHaveLength(2);
     const availability = screen.getByTestId("mode-availability-summary");
     expect(
-      within(availability).getByRole("link", { name: "Existing Feature" })
+      within(availability).getByRole("link", { name: "Existing Feature" }),
     ).toHaveAttribute("href", "/features/feature-existing");
     expect(
-      within(availability).getByRole("link", { name: "New Feature" })
+      within(availability).getByRole("link", { name: "New Feature" }),
     ).toHaveAttribute("href", "/features/feature-new");
     expect(
-      screen.queryByRole("link", { name: "Related Feature" })
+      screen.queryByRole("link", { name: "Related Feature" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Relationships")).toBeInTheDocument();
     expect(screen.getByTestId("diff-renderer")).toHaveTextContent(
-      "Updated mode guidance"
+      "Updated mode guidance",
     );
 
     expect(getTaskMock).toHaveBeenCalledWith({

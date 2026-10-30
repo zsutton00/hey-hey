@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import {
   cleanup,
   fireEvent,
@@ -145,7 +146,7 @@ beforeEach(() => {
         key: "MARKETING",
         name: "Marketing",
         sections: [],
-        allowedStatuses: ["NOT_STARTED"],
+        statuses: legacyStatuses(["NOT_STARTED"]),
       },
       status: WorkItemTypeLifecycleStatus.Active,
       projectId: PROJ_ID,

@@ -29,7 +29,7 @@ export interface WorkItemListParams {
   /** `undefined` = no parent filter; `null` = only items without a parent. */
   parentTaskId?: string | null;
   parentTaskIds?: string[];
-  status?: WorkStatus[];
+  status?: TaskResponseDto["status"][];
   taskIds?: string[];
   includeSectionKeys?: string[];
   includeServiceRelations?: boolean;
@@ -71,7 +71,11 @@ export const workItemKeys = {
     [...workItemKeys.all(organizationId), projectId] as const,
   lists: (organizationId: string, projectId: string) =>
     [...workItemKeys.project(organizationId, projectId), "list"] as const,
-  list: (organizationId: string, projectId: string, params: WorkItemListParams) =>
+  list: (
+    organizationId: string,
+    projectId: string,
+    params: WorkItemListParams,
+  ) =>
     [
       ...workItemKeys.lists(organizationId, projectId),
       normalizeWorkItemListParams(params),
@@ -82,7 +86,7 @@ export const workItemKeys = {
     organizationId: string,
     projectId: string,
     taskId: string,
-    variant: WorkItemDetailVariant = {}
+    variant: WorkItemDetailVariant = {},
   ) =>
     [
       ...workItemKeys.details(organizationId, projectId),
@@ -95,7 +99,7 @@ export const workItemKeys = {
     organizationId: string,
     projectId: string,
     taskId: string,
-    variant: WorkItemHierarchyVariant = {}
+    variant: WorkItemHierarchyVariant = {},
   ) =>
     [
       ...workItemKeys.hierarchies(organizationId, projectId),
@@ -115,7 +119,7 @@ const sortedUnique = <T extends string>(values: T[] | undefined) =>
  * Statuses an unfiltered list may omit (archived and superseded items are
  * only returned on request), so a filter naming them stays server-side.
  */
-const SERVER_ONLY_STATUSES: readonly WorkStatus[] = [
+const SERVER_ONLY_STATUSES: readonly TaskResponseDto["status"][] = [
   WorkStatus.Archived,
   WorkStatus.Superseded,
 ];
@@ -125,7 +129,9 @@ const SERVER_ONLY_STATUSES: readonly WorkStatus[] = [
  * filter, so it is applied as a `select` over the shared unfiltered entry.
  * Paged or limited reads are not complete lists and keep the server filter.
  */
-function statusAsSelect(params: WorkItemListParams): WorkStatus[] | null {
+function statusAsSelect(
+  params: WorkItemListParams,
+): TaskResponseDto["status"][] | null {
   const status = sortedUnique(params.status);
   if (!status) return null;
   if (params.page !== undefined || params.limit !== undefined) return null;
@@ -182,7 +188,7 @@ async function fetchWorkItemList(
   organizationId: string,
   projectId: string,
   params: ReturnType<typeof normalizeWorkItemListParams>,
-  requestOptions: AxiosRequestConfig
+  requestOptions: AxiosRequestConfig,
 ): Promise<WorkItemResponseDto[]> {
   const response = await unifiedApiClient.getTasks(
     {
@@ -213,18 +219,16 @@ async function fetchWorkItemList(
       sortBy: params.sortBy ?? undefined,
       sortDir: params.sortDir ?? undefined,
     },
-    requestOptions
+    requestOptions,
   );
-  return (
-    (response as { data?: { data?: TaskResponseDto[] | null } })?.data?.data ??
-    []
-  ) as WorkItemResponseDto[];
+  return ((response as { data?: { data?: TaskResponseDto[] | null } })?.data
+    ?.data ?? []) as WorkItemResponseDto[];
 }
 
 export function workItemListQueryOptions(
   organizationId: string,
   projectId: string,
-  params: WorkItemListParams
+  params: WorkItemListParams,
 ) {
   const queryKey = workItemKeys.list(organizationId, projectId, params);
   const selectedStatus = statusAsSelect(params);
@@ -249,9 +253,14 @@ export function workItemDetailQueryOptions(
   organizationId: string,
   projectId: string,
   taskId: string,
-  variant: WorkItemDetailVariant = {}
+  variant: WorkItemDetailVariant = {},
 ) {
-  const queryKey = workItemKeys.detail(organizationId, projectId, taskId, variant);
+  const queryKey = workItemKeys.detail(
+    organizationId,
+    projectId,
+    taskId,
+    variant,
+  );
   const { includeServiceRelations, includeEdges, edgeTypes } = queryKey[5];
   return queryOptions({
     ...dataLayerQueryPolicy,
@@ -266,7 +275,7 @@ export function workItemDetailQueryOptions(
           includeEdges,
           ...(edgeTypes ? { edgeTypes } : {}),
         },
-        { ...captureRequestOptions(), signal }
+        { ...captureRequestOptions(), signal },
       );
       return (
         ((response as { data?: { data?: TaskResponseDto | null } })?.data
@@ -281,13 +290,13 @@ export function workItemHierarchyQueryOptions(
   organizationId: string,
   projectId: string,
   taskId: string,
-  variant: WorkItemHierarchyVariant = {}
+  variant: WorkItemHierarchyVariant = {},
 ) {
   const queryKey = workItemKeys.hierarchy(
     organizationId,
     projectId,
     taskId,
-    variant
+    variant,
   );
   return queryOptions({
     ...dataLayerQueryPolicy,
@@ -301,7 +310,7 @@ export function workItemHierarchyQueryOptions(
             taskId,
             ...queryKey[5],
           },
-          { ...captureRequestOptions(), signal }
+          { ...captureRequestOptions(), signal },
         );
       return response.data?.data ?? null;
     },
@@ -340,7 +349,7 @@ export function snapshotWorkItemCaches(
   queryClient: QueryClient,
   organizationId: string,
   projectId: string,
-  taskId?: string
+  taskId?: string,
 ): WorkItemCacheSnapshot {
   const project = queryClient.getQueriesData<CachedWorkItemData>({
     queryKey: workItemKeys.project(organizationId, projectId),
@@ -356,7 +365,7 @@ export function snapshotWorkItemCaches(
 /** Puts every snapshotted entry back, re-creating removed ones. */
 export function restoreWorkItemCaches(
   queryClient: QueryClient,
-  snapshot: WorkItemCacheSnapshot
+  snapshot: WorkItemCacheSnapshot,
 ): void {
   for (const [queryKey, data] of snapshot) {
     queryClient.setQueryData(queryKey, data);
@@ -368,11 +377,11 @@ export function updateWorkItemLists(
   queryClient: QueryClient,
   organizationId: string,
   projectId: string,
-  update: (items: WorkItemResponseDto[]) => WorkItemResponseDto[]
+  update: (items: WorkItemResponseDto[]) => WorkItemResponseDto[],
 ): void {
   queryClient.setQueriesData<WorkItemResponseDto[]>(
     { queryKey: workItemKeys.lists(organizationId, projectId) },
-    (items) => (items ? update(items) : items)
+    (items) => (items ? update(items) : items),
   );
 }
 
@@ -380,7 +389,7 @@ export function updateWorkItemLists(
 // are kept from the cached entry.
 const merge = (
   cached: WorkItemResponseDto,
-  item: WorkItemResponseDto
+  item: WorkItemResponseDto,
 ): WorkItemResponseDto => ({ ...cached, ...item });
 
 /**
@@ -391,18 +400,18 @@ export function writeWorkItem(
   queryClient: QueryClient,
   organizationId: string,
   projectId: string,
-  item: WorkItemResponseDto
+  item: WorkItemResponseDto,
 ): void {
   updateWorkItemLists(queryClient, organizationId, projectId, (items) =>
     items.some((candidate) => candidate.id === item.id)
       ? items.map((candidate) =>
-          candidate.id === item.id ? merge(candidate, item) : candidate
+          candidate.id === item.id ? merge(candidate, item) : candidate,
         )
-      : items
+      : items,
   );
   queryClient.setQueriesData<WorkItemResponseDto | null>(
     detailsOf(organizationId, item.id),
-    (cached) => (cached ? merge(cached, item) : cached)
+    (cached) => (cached ? merge(cached, item) : cached),
   );
   queryClient.setQueriesData<TaskHierarchyResponseDto | null>(
     { queryKey: workItemKeys.hierarchies(organizationId, projectId) },
@@ -423,7 +432,7 @@ export function writeWorkItem(
         ...(hierarchy.parent ? { parent: writeTask(hierarchy.parent) } : {}),
         children: hierarchy.children.map(writeTask),
       };
-    }
+    },
   );
 }
 
@@ -435,12 +444,12 @@ export function removeWorkItem(
   queryClient: QueryClient,
   organizationId: string,
   projectId: string,
-  taskId: string
+  taskId: string,
 ): void {
   updateWorkItemLists(queryClient, organizationId, projectId, (items) =>
     items.some((item) => item.id === taskId)
       ? items.filter((item) => item.id !== taskId)
-      : items
+      : items,
   );
   queryClient.setQueriesData<TaskHierarchyResponseDto | null>(
     { queryKey: workItemKeys.hierarchies(organizationId, projectId) },
@@ -450,7 +459,7 @@ export function removeWorkItem(
             ...hierarchy,
             children: hierarchy.children.filter((child) => child.id !== taskId),
           }
-        : hierarchy
+        : hierarchy,
   );
   queryClient.removeQueries(detailsOf(organizationId, taskId));
 }
@@ -459,14 +468,14 @@ export function removeWorkItem(
 function holdsWorkItem(
   queryKey: QueryKey,
   data: CachedWorkItemData,
-  taskId: string
+  taskId: string,
 ): boolean {
   switch (keyKind(queryKey)) {
     case "detail":
       return queryKey[KEY_TASK_ID_INDEX] === taskId;
     case "list":
       return !!(data as WorkItemResponseDto[] | undefined)?.some(
-        (item) => item.id === taskId
+        (item) => item.id === taskId,
       );
     case "hierarchy": {
       const hierarchy = data as TaskHierarchyResponseDto | null | undefined;
@@ -491,7 +500,7 @@ function holdsWorkItem(
 export function invalidateWorkItemHolders(
   queryClient: QueryClient,
   organizationId: string,
-  taskId: string
+  taskId: string,
 ): Promise<void> {
   return invalidateWithFollowUpRead(queryClient, {
     queryKey: workItemKeys.all(organizationId),
@@ -499,7 +508,7 @@ export function invalidateWorkItemHolders(
       holdsWorkItem(
         query.queryKey,
         query.state.data as CachedWorkItemData,
-        taskId
+        taskId,
       ),
   });
 }
@@ -509,29 +518,31 @@ export function findCachedWorkItem(
   queryClient: QueryClient,
   organizationId: string,
   projectId: string,
-  id: string
+  id: string,
 ): WorkItemResponseDto | undefined {
   for (const [, item] of queryClient.getQueriesData<WorkItemResponseDto | null>(
-    detailsOf(organizationId, id)
+    detailsOf(organizationId, id),
   )) {
     if (item) return item;
   }
   for (const [queryKey, data] of snapshotWorkItemCaches(
     queryClient,
     organizationId,
-    projectId
+    projectId,
   )) {
     if (!data) continue;
     if (keyKind(queryKey) === "list") {
       const listed = (data as WorkItemResponseDto[]).find(
-        (candidate) => candidate.id === id
+        (candidate) => candidate.id === id,
       );
       if (listed) return listed;
     } else if (keyKind(queryKey) === "hierarchy") {
       const hierarchy = data as TaskHierarchyResponseDto;
-      const held = [hierarchy.task, hierarchy.parent, ...hierarchy.children].find(
-        (candidate) => candidate?.id === id
-      );
+      const held = [
+        hierarchy.task,
+        hierarchy.parent,
+        ...hierarchy.children,
+      ].find((candidate) => candidate?.id === id);
       if (held) return held as WorkItemResponseDto;
     }
   }
@@ -546,7 +557,7 @@ export function invalidateWorkItemParents(
   queryClient: QueryClient,
   organizationId: string,
   projectId: string,
-  parentIds: Array<string | null | undefined>
+  parentIds: Array<string | null | undefined>,
 ): Promise<void> {
   const ids = new Set(parentIds.filter((id): id is string => !!id));
   if (ids.size === 0) return Promise.resolve();
@@ -587,7 +598,7 @@ export function createWorkItemInvalidator(
   organizationId: string,
   projectId: string | undefined,
   invalidate: (filters: InvalidateQueryFilters) => void,
-  { listsInvalidated = false }: { listsInvalidated?: boolean } = {}
+  { listsInvalidated = false }: { listsInvalidated?: boolean } = {},
 ): CollectionInvalidator<QueryKey> {
   return {
     dispatch: ({ queryKey }) => {
@@ -595,8 +606,8 @@ export function createWorkItemInvalidator(
         invalidate(
           workItemDetailFilter(
             organizationId,
-            queryKey[KEY_TASK_ID_INDEX] as string
-          )
+            queryKey[KEY_TASK_ID_INDEX] as string,
+          ),
         );
       } else if (!listsInvalidated) {
         invalidate({ queryKey });
@@ -604,7 +615,9 @@ export function createWorkItemInvalidator(
     },
     buildScopeKey: ({ lookupField, lookupValue }) => {
       const project =
-        lookupField === "projectId" && typeof lookupValue === "string" && lookupValue
+        lookupField === "projectId" &&
+        typeof lookupValue === "string" &&
+        lookupValue
           ? lookupValue
           : projectId;
       return project === undefined

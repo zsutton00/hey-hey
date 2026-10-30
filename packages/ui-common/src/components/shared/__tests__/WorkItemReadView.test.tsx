@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -415,7 +416,7 @@ const setDefaultHookMocks = (): void => {
       key: "workflow",
       name: "Workflow",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       iconKey: "workflow",
     },
     isLoading: false,
@@ -951,7 +952,7 @@ describe("WorkItemReadView requirements section", () => {
         key: "FEATURE",
         name: "Feature",
         sections: sectionSelections.FEATURE.sections,
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
         iconKey: "feature",
       },
       isFetched: true,

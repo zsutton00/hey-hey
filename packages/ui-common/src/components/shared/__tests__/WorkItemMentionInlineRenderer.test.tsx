@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import React from "react";
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -106,7 +107,7 @@ const readyType = () => ({
     key: "mockups_v3",
     name: "Mockups V3",
     capabilities: { rendersInline: true },
-    allowedStatuses: [],
+    statuses: legacyStatuses([]),
     sections: [
       { key: "description", label: "Description" },
       { key: "desktop", label: "Desktop", kind: "structured-mockup" as const },
@@ -401,7 +402,7 @@ describe("WorkItemMentionInlineRenderer", () => {
         key: "mockups_v3",
         name: "Mockups V3",
         capabilities: { rendersInline: true },
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
         sections: [{ key: "description", label: "Description" }],
       },
     });
@@ -477,7 +478,7 @@ describe("WorkItemMentionInlineRenderer", () => {
         key: "DIAGRAM",
         name: "Diagram",
         capabilities: { rendersInline: true },
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
         sections: [
           { key: "description", label: "Description" },
           { key: "graphLayout", label: "Graph Layout" },
@@ -563,7 +564,7 @@ describe("WorkItemMentionInlineRenderer", () => {
         key: "mockups_v3",
         name: "Mockups V3",
         capabilities: { rendersInline: true },
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
         sections: [{ key: "description", label: "Description" }],
       },
     });
@@ -583,7 +584,7 @@ describe("WorkItemMentionInlineRenderer", () => {
         key: "mockups_v3",
         name: "Mockups V3",
         capabilities: { rendersInline: true },
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
         sections: [{ key: "mobile", label: "Mockup", kind: "html/css" }],
       },
     });

@@ -1,3 +1,5 @@
+import type { TaskResponseDto } from '../../generated/model/taskResponseDto';
+import { workItemTypeStatusesSchema } from '../tasks/work-item-type-status.schema';
 import { sectionContent } from './future-application';
 import { rootChildrenView } from './work-item-change-set-projector.service';
 import { isEqual } from 'lodash';
@@ -267,7 +269,7 @@ const workflowProposalStepInputSchema = z
     tempId: z.string().min(1),
     name: z.string().min(1),
     sections: z.array(taskSectionSchema).optional(),
-    status: z.nativeEnum(WorkStatus).optional(),
+    status: z.string().min(1).optional(),
     source: z.enum(['system', 'user', 'agent']).optional(),
     priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
     dueDate: z.string().datetime().optional(),
@@ -281,7 +283,7 @@ const createTaskUpdatesSchema = z
     name: z.string().min(1),
     initiativeId: z.string().uuid().optional(),
     sections: z.array(taskSectionSchema).optional(),
-    status: z.nativeEnum(WorkStatus).optional(),
+    status: z.string().min(1).optional(),
     priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
     dueDate: z.string().datetime().optional(),
     assigneeId: z.string().uuid().optional(),
@@ -327,8 +329,8 @@ const updateTaskUpdatesSchema = z
     initiativeId: z.string().uuid().optional(),
     // SUPERSEDED is accepted by the schema but gated by the supersede
     // invariant in validateStructure: a direct status edit without the legacy
-    // transition pairing is rejected before this enum parse runs.
-    status: z.nativeEnum(WorkStatus).optional(),
+    // transition pairing is rejected before this status parse runs.
+    status: z.string().min(1).optional(),
     priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
     dueDate: z.string().datetime().optional(),
     assigneeId: z.string().uuid().optional(),
@@ -613,16 +615,13 @@ const createWorkItemTypeUpdatesSchema = z
     // status is later derived from the statuses it may occupy. A definition
     // with zero allowed statuses therefore has no coherent initial-status
     // policy — there is nothing an item of the type could ever start in — so
-    // a non-empty allowedStatuses is the structural coherence check here.
-    allowedStatuses: z.array(z.nativeEnum(WorkStatus)).min(1, {
-      message:
-        'allowedStatuses must list at least one status the type can occupy',
-    }),
+    // a non-empty statuses list is the structural coherence check here.
+    statuses: workItemTypeStatusesSchema,
     allowedParentTypes: z.array(z.string()).optional(),
     edgeTargets: z.array(workItemTypeEdgeTargetSchema).optional(),
     allowedParentEntityTypes: z.array(z.nativeEnum(EntityType)).optional(),
     tracking: workItemTypeTrackingSchema.optional(),
-    agentSettableStatuses: z.array(z.nativeEnum(WorkStatus)).optional(),
+    agentSettableStatuses: z.array(z.string()).optional(),
     anchorableReportTypes: z.array(z.nativeEnum(ReportType)).optional(),
     maintenanceGuidance: z.string().optional(),
     sessionRoleGuidance: workItemTypeSessionRoleGuidanceSchema.optional(),
@@ -3353,7 +3352,9 @@ export class ProposalValidationEngine {
     );
     if (
       !rules ||
-      rules.agentSettableStatuses.includes(updates.status as WorkStatus)
+      rules.agentSettableStatuses.includes(
+        updates.status as TaskResponseDto['status'],
+      )
     ) {
       return null;
     }

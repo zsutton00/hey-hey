@@ -158,7 +158,7 @@ export interface TaskPageViewProps {
   onDone?: (taskId: string) => void;
   onTabChange: TaskPageTabChange;
   onTitleChange: (newTitle: string) => Promise<void>;
-  onStatusChange: (newStatus: WorkStatus) => Promise<void>;
+  onStatusChange: (newStatus: TaskResponseDto["status"]) => Promise<void>;
   onPriorityChange: (newPriority: Priority) => Promise<void>;
   onDueDateChange: (newDueDate: string | null) => Promise<void>;
   onAssigneeChange: (newAssigneeId: string | null) => Promise<void>;
@@ -300,9 +300,9 @@ export const TaskPageView: React.FC<TaskPageViewProps> = ({
     allowedChildTypes.includes(activeChildTypeKey);
 
   const [childSearchTerm, setChildSearchTerm] = useState("");
-  const [childStatusFilter, setChildStatusFilter] = useState<WorkStatus | "">(
-    "",
-  );
+  const [childStatusFilter, setChildStatusFilter] = useState<
+    TaskResponseDto["status"] | ""
+  >("");
   const [childSortBy, setChildSortBy] = useState("status");
 
   const visibleChildren = useFilteredWorkItems<TaskResponseDto>(

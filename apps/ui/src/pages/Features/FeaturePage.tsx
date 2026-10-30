@@ -328,7 +328,7 @@ export const FeaturePage: React.FC<FeaturePageProps> = ({ task }) => {
           sortBy: taskListPaging.sortBy,
           sortDir: taskListPaging.sortDir,
           status: taskListPaging.status
-            ? (taskListPaging.status as WorkStatus)
+            ? (taskListPaging.status as TaskResponseDto["status"])
             : undefined,
         }
       : {}),
@@ -523,7 +523,7 @@ export const FeaturePage: React.FC<FeaturePageProps> = ({ task }) => {
         return;
       }
 
-      const initialStatus = activeChildTypeDefinition.allowedStatuses[0];
+      const initialStatus = activeChildTypeDefinition.statuses[0]?.name;
       if (!initialStatus) {
         logger.warn(
           "ui",

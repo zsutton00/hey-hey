@@ -15,7 +15,7 @@ export type WorkItemTypeFormField =
       | "sections"
       | "requiredScalars"
       | "forbiddenScalars"
-      | "allowedStatuses"
+      | "statuses"
       | "agentSettableStatuses"
       | "allowedParentTypes"
       | "allowedParentEntityTypes"
@@ -83,7 +83,7 @@ export const WORK_ITEM_TYPE_FIELD_PRESENTATION = {
     label: "Availability",
     help: "Choose whether this field is optional, required, or unavailable for the type.",
   },
-  allowedStatuses: {
+  statuses: {
     label: "Available statuses",
     help: "Statuses an item of this type may occupy. The first status is the default initial status.",
   },

@@ -1,3 +1,6 @@
+import { assertProposalStructurallyValid } from '../../services/proposal/proposal-validation.engine';
+import { workItemChangeSetOperationSchema } from '../../services/proposal/work-item-change-set.schema';
+import { legacyStatuses } from '../../../test/setup/legacy-status.fixture';
 import { SessionRole } from '../../generated/model/sessionRole';
 import Ajv from 'ajv';
 import { readFileSync } from 'node:fs';
@@ -111,11 +114,11 @@ const MARKETING_DEFINITION = {
   ],
   requiredScalars: ['dueDate' as const],
   forbiddenScalars: ['tag' as const],
-  allowedStatuses: [
+  statuses: legacyStatuses([
     'BACKLOG' as const,
     'ACTIVE' as const,
     'COMPLETED' as const,
-  ],
+  ]),
   allowedParentTypes: ['FEATURE'],
   edgeTargets: [
     { edgeType: 'RELATED_TO' as const, targetTypeKeys: ['STANDARD'] },
@@ -1119,5 +1122,68 @@ describe('guidance definition schema', () => {
     expect(
       createWorkItemTypeParameters.parse(MARKETING_DEFINITION),
     ).not.toHaveProperty('maintenanceGuidance');
+  });
+});
+
+describe('custom status wire boundaries', () => {
+  it('accepts a narrowed custom agent status list for creation and editing', () => {
+    const definition = {
+      ...MARKETING_DEFINITION,
+      statuses: [
+        { name: 'Idea', meaning: 'NOT_STARTED' },
+        { name: 'Testing', meaning: 'IN_PROGRESS' },
+        { name: 'Made', meaning: 'FINISHED' },
+      ],
+      agentSettableStatuses: ['Testing'],
+    };
+    expect(
+      createWorkItemTypeParameters.parse(definition).agentSettableStatuses,
+    ).toEqual(['Testing']);
+    expect(
+      editWorkItemTypeParameters.parse({ typeKey: definition.key, definition })
+        .definition.agentSettableStatuses,
+    ).toEqual(['Testing']);
+  });
+});
+
+describe('custom item status structure', () => {
+  it('accepts custom names in ordinary create and update proposals', () => {
+    expect(() =>
+      assertProposalStructurallyValid({
+        type: 'SINGLE',
+        action: 'CREATE',
+        targetEntityType: 'TASK',
+        targetEntityId: NIL_UUID,
+        updates: { name: 'Soup', type: 'RECIPE', status: 'Testing' },
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertProposalStructurallyValid({
+        type: 'SINGLE',
+        action: 'UPDATE',
+        targetEntityType: 'TASK',
+        targetEntityId: PROPOSAL_ID,
+        updates: { status: 'Testing' },
+      }),
+    ).not.toThrow();
+  });
+  it('accepts custom status updates in change sets without opening the reserved replacement transition', () => {
+    const operation = {
+      op: 'workItem.update',
+      ref: { refType: 'existing', id: PROPOSAL_ID },
+      status: 'Testing',
+    };
+    expect(workItemChangeSetOperationSchema.parse(operation)).toMatchObject({
+      status: 'Testing',
+    });
+    expect(() =>
+      assertProposalStructurallyValid({
+        type: 'SINGLE',
+        action: 'UPDATE',
+        targetEntityType: 'TASK',
+        targetEntityId: PROPOSAL_ID,
+        updates: { status: 'SUPERSEDED' },
+      }),
+    ).toThrow();
   });
 });

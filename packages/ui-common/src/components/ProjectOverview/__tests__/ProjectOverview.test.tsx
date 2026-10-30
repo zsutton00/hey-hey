@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import userEvent from "@testing-library/user-event";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
@@ -122,7 +123,14 @@ const workItemType = (
   projectId: PROJECT_ID,
   status,
   effectiveSource: WorkItemTypeEffectiveSource.Canonical,
-  definition: { key, name, role, sections: [], allowedStatuses: [], iconKey },
+  definition: {
+    key,
+    name,
+    role,
+    sections: [],
+    statuses: legacyStatuses([]),
+    iconKey,
+  },
 });
 
 const registry: WorkItemTypeSummaryDto[] = [

@@ -2539,7 +2539,7 @@ export class ProposalApprovalService {
           ['colorKey', type.colorKey, updates.colorKey ?? null],
           ['description', type.description, updates.description ?? null],
           ['sectionDefinitions', type.sectionDefinitions, updates.sections],
-          ['allowedStatuses', type.allowedStatuses, updates.allowedStatuses],
+          ['statuses', type.statuses, updates.statuses],
           [
             'allowedParentTypes',
             type.allowedParentTypes,

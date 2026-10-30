@@ -454,7 +454,7 @@ const isWorkItemTypeDefinition = (
   typeof value.role === "string" &&
   Object.values<string>(WorkItemTypeRole).includes(value.role) &&
   Array.isArray(value.sections) &&
-  Array.isArray(value.allowedStatuses);
+  Array.isArray(value.statuses);
 
 const isWorkItemTypeEditPayload = (
   value: unknown,

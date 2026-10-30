@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
@@ -58,7 +59,7 @@ const input = {
   typeDefinition: {
     key: "workflow",
     name: "Workflow",
-    allowedStatuses: [],
+    statuses: legacyStatuses([]),
     sections: [
       {
         key: "layout",
@@ -159,7 +160,9 @@ describe("useSubmitWorkItemGraphProposal", () => {
   it("submits the exact ordered generic operation set and stable references", async () => {
     const invalidation = vi.spyOn(queryClient, "invalidateQueries");
     const draft = changedDraft();
-    const { result } = renderHook(() => useSubmitWorkItemGraphProposal(), { wrapper });
+    const { result } = renderHook(() => useSubmitWorkItemGraphProposal(), {
+      wrapper,
+    });
 
     await act(() =>
       result.current.submit({
@@ -169,10 +172,12 @@ describe("useSubmitWorkItemGraphProposal", () => {
         root,
         graphCapability,
         draft,
-      })
+      }),
     );
 
-    expect(invalidation).toHaveBeenCalledWith({ queryKey: ["proposals", "org-1", "project-1", "list"] });
+    expect(invalidation).toHaveBeenCalledWith({
+      queryKey: ["proposals", "org-1", "project-1", "list"],
+    });
     expect(createProposal).toHaveBeenCalledOnce();
     expect(createProposal).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -194,7 +199,7 @@ describe("useSubmitWorkItemGraphProposal", () => {
             ],
           },
         },
-      })
+      }),
     );
     const submittedOperations = createProposal.mock.calls[0]?.[0]
       ?.createProposalRequestDto.updates as {
@@ -217,7 +222,9 @@ describe("useSubmitWorkItemGraphProposal", () => {
       ...draft,
       projection: { ...draft.projection, projectedRoot: temporaryRoot },
     };
-    const { result } = renderHook(() => useSubmitWorkItemGraphProposal(), { wrapper });
+    const { result } = renderHook(() => useSubmitWorkItemGraphProposal(), {
+      wrapper,
+    });
 
     await act(() =>
       result.current.submit({
@@ -227,11 +234,11 @@ describe("useSubmitWorkItemGraphProposal", () => {
         root: temporaryRoot,
         graphCapability,
         draft: createDraft,
-      })
+      }),
     );
 
     expect(
-      createProposal.mock.calls[0]?.[0]?.createProposalRequestDto
+      createProposal.mock.calls[0]?.[0]?.createProposalRequestDto,
     ).toMatchObject({
       action: "CREATE",
       targetEntityId: "00000000-0000-0000-0000-000000000000",
@@ -249,7 +256,9 @@ describe("useSubmitWorkItemGraphProposal", () => {
   ] as const)(
     "rejects %s before making a network call",
     async (code, override) => {
-      const { result } = renderHook(() => useSubmitWorkItemGraphProposal(), { wrapper });
+      const { result } = renderHook(() => useSubmitWorkItemGraphProposal(), {
+        wrapper,
+      });
 
       await act(async () => {
         await expect(
@@ -261,17 +270,19 @@ describe("useSubmitWorkItemGraphProposal", () => {
             graphCapability,
             draft: changedDraft(),
             ...override,
-          })
+          }),
         ).rejects.toMatchObject<Partial<SubmitWorkItemGraphProposalError>>({
           code,
         });
       });
       expect(createProposal).not.toHaveBeenCalled();
-    }
+    },
   );
 
   it("rejects an unchanged draft before making a network call", async () => {
-    const { result } = renderHook(() => useSubmitWorkItemGraphProposal(), { wrapper });
+    const { result } = renderHook(() => useSubmitWorkItemGraphProposal(), {
+      wrapper,
+    });
 
     await act(async () => {
       await expect(
@@ -282,7 +293,7 @@ describe("useSubmitWorkItemGraphProposal", () => {
           root,
           graphCapability,
           draft: createWorkItemGraphDraftState(input),
-        })
+        }),
       ).rejects.toMatchObject({ code: "no_changes" });
     });
     expect(createProposal).not.toHaveBeenCalled();
@@ -303,9 +314,11 @@ describe("useSubmitWorkItemGraphProposal", () => {
                 statusCode: 201,
               },
             });
-        })
+        }),
     );
-    const { result } = renderHook(() => useSubmitWorkItemGraphProposal(), { wrapper });
+    const { result } = renderHook(() => useSubmitWorkItemGraphProposal(), {
+      wrapper,
+    });
     const submitInput = {
       organizationId: "org-1",
       projectId: "project-1",
@@ -333,7 +346,9 @@ describe("useSubmitWorkItemGraphProposal", () => {
   it("preserves the caller-owned draft and allows retry after failure", async () => {
     const draft = changedDraft();
     createProposal.mockRejectedValueOnce(new Error("offline"));
-    const { result } = renderHook(() => useSubmitWorkItemGraphProposal(), { wrapper });
+    const { result } = renderHook(() => useSubmitWorkItemGraphProposal(), {
+      wrapper,
+    });
     const submitInput = {
       organizationId: "org-1",
       projectId: "project-1",
@@ -345,7 +360,7 @@ describe("useSubmitWorkItemGraphProposal", () => {
 
     await act(async () => {
       await expect(result.current.submit(submitInput)).rejects.toThrow(
-        "offline"
+        "offline",
       );
     });
     expect(draft.operations).toBe(operations);
@@ -363,7 +378,9 @@ describe("useSubmitWorkItemGraphProposal", () => {
       nodeChildType: "journey_stage",
     };
     const draft = changedDraft();
-    const { result } = renderHook(() => useSubmitWorkItemGraphProposal(), { wrapper });
+    const { result } = renderHook(() => useSubmitWorkItemGraphProposal(), {
+      wrapper,
+    });
 
     await act(() =>
       result.current.submit({
@@ -373,12 +390,12 @@ describe("useSubmitWorkItemGraphProposal", () => {
         root: configuredRoot,
         graphCapability: configuredCapability,
         draft,
-      })
+      }),
     );
 
     expect(createProposal).toHaveBeenCalledOnce();
     expect(
-      createProposal.mock.calls[0]?.[0]?.createProposalRequestDto
+      createProposal.mock.calls[0]?.[0]?.createProposalRequestDto,
     ).toMatchObject({
       targetEntityId: "root-1",
       targetEntityType: "TASK",

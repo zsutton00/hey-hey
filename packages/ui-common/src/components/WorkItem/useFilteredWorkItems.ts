@@ -1,11 +1,12 @@
+import type { TaskResponseDto } from "../../api/api";
 import { useMemo } from "react";
-import type { Priority, TaskPriority, WorkStatus } from "../../api";
+import type { Priority, TaskPriority } from "../../api";
 import { WorkStatus as WorkStatusEnum } from "../../api";
 
 type FilterableItem = {
   name?: string | null;
   tags?: (string | null | undefined)[] | null;
-  status?: WorkStatus | string | null;
+  status?: TaskResponseDto["status"] | string | null;
   priority?: Priority | TaskPriority | null;
   createdAt?: string | null;
 };
@@ -31,14 +32,14 @@ const statusOrder = (
   ] as WorkStatusEnum[]
 ).reduce(
   (
-    acc: Record<WorkStatus | string, number>,
+    acc: Record<TaskResponseDto["status"] | string, number>,
     s: WorkStatusEnum,
-    idx: number
+    idx: number,
   ) => {
     acc[s] = idx;
     return acc;
   },
-  {}
+  {},
 );
 
 export function useFilteredWorkItems<T extends FilterableItem>(
@@ -46,7 +47,7 @@ export function useFilteredWorkItems<T extends FilterableItem>(
   searchTerm: string,
   statusFilter: string,
   sortBy: string,
-  _parentTaskId?: string | null
+  _parentTaskId?: string | null,
 ): T[] {
   return useMemo(() => {
     let filtered = initiatives;
@@ -57,7 +58,9 @@ export function useFilteredWorkItems<T extends FilterableItem>(
       filtered = filtered.filter(
         (i) =>
           (i.name || "").toLowerCase().includes(lowerSearch) ||
-          (i.tags || []).some((tag) => tag?.toLowerCase().includes(lowerSearch))
+          (i.tags || []).some((tag) =>
+            tag?.toLowerCase().includes(lowerSearch),
+          ),
       );
     }
 
@@ -75,28 +78,28 @@ export function useFilteredWorkItems<T extends FilterableItem>(
     switch (sortBy) {
       case "name-asc":
         return sorted.sort((a, b) =>
-          (a.name || "").localeCompare(b.name || "")
+          (a.name || "").localeCompare(b.name || ""),
         );
       case "name-desc":
         return sorted.sort((a, b) =>
-          (b.name || "").localeCompare(a.name || "")
+          (b.name || "").localeCompare(a.name || ""),
         );
       case "created-desc":
         return sorted.sort(
           (a, b) =>
             new Date(b.createdAt || 0).getTime() -
-            new Date(a.createdAt || 0).getTime()
+            new Date(a.createdAt || 0).getTime(),
         );
       case "created-asc":
         return sorted.sort(
           (a, b) =>
             new Date(a.createdAt || 0).getTime() -
-            new Date(b.createdAt || 0).getTime()
+            new Date(b.createdAt || 0).getTime(),
         );
       case "status": {
         const getStatusRank = (status?: string | null) => {
           if (!status) return Number.MAX_SAFE_INTEGER;
-          const directRank = statusOrder[status as WorkStatus];
+          const directRank = statusOrder[status as TaskResponseDto["status"]];
           if (directRank !== undefined) return directRank;
           const upper = status.toUpperCase();
           // Allow partial matches for generated/refining/generating variants not explicitly listed
@@ -132,7 +135,7 @@ export function useFilteredWorkItems<T extends FilterableItem>(
             (priorityOrder[a.priority as Priority | TaskPriority] ??
               Number.MAX_SAFE_INTEGER) -
             (priorityOrder[b.priority as Priority | TaskPriority] ??
-              Number.MAX_SAFE_INTEGER)
+              Number.MAX_SAFE_INTEGER),
         );
       }
       default:

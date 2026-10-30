@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../../api/api";
 import React from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -18,7 +19,10 @@ import { useOpenItemGoalWork } from "../useOpenItemGoalWork";
 vi.mock("../useWorkItem", () => ({ useWorkItem: vi.fn() }));
 vi.mock("../../../clients", () => ({ dataClient: { request: vi.fn() } }));
 
-const snapshot = (id: string, status: WorkStatus): TrackedEntitySnapshot => ({
+const snapshot = (
+  id: string,
+  status: TaskResponseDto["status"],
+): TrackedEntitySnapshot => ({
   targetEntityType: EntityType.Task,
   targetEntityId: id,
   title: `Work ${id}`,

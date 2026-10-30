@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { invalidateProposalReconciliation } from "../../ProposalReconciliation/reconciliationInvalidation";
 import {
   act,
@@ -121,7 +122,7 @@ const definition: WorkItemTypeDefinitionDto = {
       schemaRef: "#/components/schemas/FeatureRequirementsSection",
     },
   ],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
 };
 
 const requirement = (

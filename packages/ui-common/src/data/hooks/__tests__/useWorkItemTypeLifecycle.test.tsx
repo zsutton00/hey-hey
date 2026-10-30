@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { WorkItemTypeDefinitionDto } from "../../../api";
@@ -39,7 +40,7 @@ const definition: WorkItemTypeDefinitionDto = {
   key: "MARKETING",
   name: "Marketing",
   sections: [],
-  allowedStatuses: ["ACTIVE"],
+  statuses: legacyStatuses(["ACTIVE"]),
 };
 
 const proposal = {

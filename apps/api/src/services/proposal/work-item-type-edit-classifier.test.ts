@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../test/setup/legacy-status.fixture';
 import { AgentEdgeType } from '../../generated/model/agentEdgeType';
 import { EntityType } from '../../generated/model/entityType';
 import { ReportType } from '../../generated/model/reportType';
@@ -29,7 +30,7 @@ const baseDefinition: WorkItemTypeDefinitionDto = {
   ],
   requiredScalars: [WorkItemTypeScalarField.DueDate],
   forbiddenScalars: [WorkItemTypeScalarField.Tag],
-  allowedStatuses: [WorkStatus.Backlog, WorkStatus.Active],
+  statuses: legacyStatuses([WorkStatus.Backlog, WorkStatus.Active]),
   allowedParentTypes: ['FEATURE'],
   allowedParentEntityTypes: [EntityType.DesignDoc],
   edgeTargets: [
@@ -82,7 +83,7 @@ describe('classifyWorkItemTypeEdit', () => {
       ],
       requiredScalars: [],
       forbiddenScalars: [],
-      allowedStatuses: [WorkStatus.Completed, WorkStatus.Active],
+      statuses: legacyStatuses([WorkStatus.Completed, WorkStatus.Active]),
       allowedParentTypes: ['GOAL'],
       allowedParentEntityTypes: [],
       edgeTargets: [{ edgeType: AgentEdgeType.RelatedTo, targetTypeKeys: [] }],

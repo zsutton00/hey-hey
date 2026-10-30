@@ -1,14 +1,13 @@
+import type { TaskResponseDto } from "../../api/api";
 import { WorkStatus } from "../../api";
 
 export type TaskMonitorStartPresentation =
-  | { status: "ready" }
-  | { status: "starting" }
-  | { status: "active" };
+  { status: "ready" } | { status: "starting" } | { status: "active" };
 
 export type TaskMonitorLifecycleAction = "START" | "PAUSE" | null;
 
 export const resolveTaskMonitorLifecycleAction = (
-  monitorStatus: WorkStatus
+  monitorStatus: TaskResponseDto["status"],
 ): TaskMonitorLifecycleAction => {
   switch (monitorStatus) {
     case WorkStatus.Backlog:
@@ -33,12 +32,13 @@ export const resolveTaskMonitorLifecycleAction = (
     case WorkStatus.Cancelled:
     case WorkStatus.Archived:
     case WorkStatus.Superseded:
+    default:
       return null;
   }
 };
 
 export interface ResolveTaskMonitorStartPresentationOptions {
-  monitorStatus: WorkStatus;
+  monitorStatus: TaskResponseDto["status"];
   isSubmitting: boolean;
   acceptedAwaitingRefresh: boolean;
 }

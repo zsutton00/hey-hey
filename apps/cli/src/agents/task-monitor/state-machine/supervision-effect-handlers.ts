@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from '../../../shared/api/generated/api';
 import { z } from 'zod';
 import {
   AgentSessionStatus,
@@ -40,7 +41,7 @@ import type {
 } from './effects';
 import type { TaskMonitorMachineEffectOutcome } from './events';
 
-const workItemStatusSchema = z.object({ status: z.nativeEnum(WorkStatus) }).passthrough();
+const workItemStatusSchema = z.object({ status: z.string().min(1) }).passthrough();
 const workItemStatusEnvelopeSchema = z.object({ data: workItemStatusSchema }).passthrough();
 const guidanceEffectResponseSchema = z
   .object({ data: z.object({ messageId: z.string().uuid() }).passthrough() })
@@ -107,7 +108,10 @@ class TaskMonitorSupervisionOwners {
     });
   }
 
-  public async readTaskStatus(auth: PlatformAuth, taskId: string): Promise<WorkStatus> {
+  public async readTaskStatus(
+    auth: PlatformAuth,
+    taskId: string,
+  ): Promise<TaskResponseDto['status']> {
     const response = await this.dependencies.fetchImpl(
       this.urlFor(auth, `/work-items/${encodeURIComponent(taskId)}`),
       { headers: { Authorization: `Bearer ${auth.accessToken}` } },

@@ -1,3 +1,6 @@
+import { legacyStatuses } from '../../../../test/setup/legacy-status.fixture';
+import type { TaskResponseDto } from '../../../generated/model/taskResponseDto';
+import { WorkStatus } from '../../../generated/model/workStatus';
 import {
   BadRequestException,
   ConflictException,
@@ -12,7 +15,6 @@ import { CreateTaskDto, UpdateTaskDto } from '../../../generated';
 import {
   TaskDependencyRelationType,
   TaskDependencySourceType,
-  WorkStatus,
 } from '@prisma/client';
 import * as TestUtils from '../../../utils/testUtils';
 import { materializedSectionsToContentMap } from '../../../utils/work-item-section.util';
@@ -521,7 +523,7 @@ describe('TaskService', () => {
         typeKey: 'mockup',
         projectId: testIds.project,
         initialStatus: 'ACTIVE',
-        allowedStatuses: ['ACTIVE', 'BACKLOG', 'READY', 'ARCHIVED'],
+        statuses: legacyStatuses(['ACTIVE', 'BACKLOG', 'READY', 'ARCHIVED']),
         capabilities: { hasSetInitialStatus: true },
       },
       CUSTOM_TYPE_WITH_NONBUILTIN_SECTION,
@@ -665,7 +667,7 @@ describe('TaskService', () => {
         2,
         1,
         ' roadmap ',
-        [WorkStatus.ACTIVE, WorkStatus.COMPLETED],
+        [WorkStatus.Active, WorkStatus.Completed],
         'createdAt',
         'desc',
       );
@@ -676,8 +678,8 @@ describe('TaskService', () => {
         type: 'FEATURE',
         archivedAt: null,
         status: {
-          in: [WorkStatus.ACTIVE, WorkStatus.COMPLETED],
-          not: WorkStatus.ARCHIVED,
+          in: [WorkStatus.Active, WorkStatus.Completed],
+          not: WorkStatus.Archived,
         },
         name: { contains: 'roadmap', mode: 'insensitive' },
       };
@@ -731,7 +733,7 @@ describe('TaskService', () => {
       const root = {
         ...mockTaskData,
         type: 'GRAPH_ROOT',
-        status: WorkStatus.ACTIVE,
+        status: WorkStatus.Active,
         updatedAt: new Date('2026-09-11T05:35:12.404Z'),
       };
       const child = {
@@ -795,7 +797,7 @@ describe('TaskService', () => {
             workItems: {
               [root.id]: {
                 ...root,
-                status: WorkStatus.BACKLOG,
+                status: WorkStatus.Backlog,
                 updatedAt: '2026-09-09T21:07:24.037Z',
                 edges: [],
               },
@@ -812,11 +814,11 @@ describe('TaskService', () => {
         ['GUARANTEES'],
       );
       expect(result.root).toMatchObject({
-        status: WorkStatus.ACTIVE,
+        status: WorkStatus.Active,
         updatedAt: root.updatedAt.toISOString(),
       });
       expect(result.children).toEqual([
-        expect.objectContaining({ id: childId, status: WorkStatus.ACTIVE }),
+        expect.objectContaining({ id: childId, status: WorkStatus.Active }),
       ]);
       expect(result.root.sections).toEqual(
         expect.arrayContaining([
@@ -1346,7 +1348,7 @@ describe('TaskService', () => {
       organizationId: testIds.organization,
       projectId: testIds.project,
       initiativeId: testIds.initiative,
-      status: WorkStatus.BACKLOG,
+      status: WorkStatus.Backlog,
       source: 'user',
       parentTaskId: null,
       createdAt: '2026-08-01T00:00:00.000Z',
@@ -1996,7 +1998,7 @@ describe('TaskService', () => {
       expect(createSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            status: WorkStatus.ACTIVE,
+            status: WorkStatus.Active,
           }),
         }),
       );
@@ -2044,7 +2046,7 @@ describe('TaskService', () => {
       expect(createSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            status: WorkStatus.BACKLOG,
+            status: WorkStatus.Backlog,
           }),
         }),
       );
@@ -2092,7 +2094,7 @@ describe('TaskService', () => {
       expect(createSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            status: WorkStatus.BACKLOG,
+            status: WorkStatus.Backlog,
           }),
         }),
       );
@@ -2103,7 +2105,7 @@ describe('TaskService', () => {
         name: 'AI-generated Standard',
         initiativeId: testIds.initiative,
         type: 'STANDARD',
-        status: WorkStatus.REFINING_ACCEPTANCE_CRITERIA,
+        status: WorkStatus.RefiningAcceptanceCriteria,
       };
 
       const createSpy = jest.fn().mockResolvedValue({
@@ -2141,7 +2143,7 @@ describe('TaskService', () => {
       expect(createSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            status: WorkStatus.REFINING_ACCEPTANCE_CRITERIA,
+            status: WorkStatus.RefiningAcceptanceCriteria,
           }),
         }),
       );
@@ -2318,7 +2320,7 @@ describe('TaskService', () => {
         dueDate: '2026-12-31T00:00:00.000Z',
         // Caller tries to start the goal in BACKLOG; the service must override
         // this and pin the goal to ACTIVE.
-        status: WorkStatus.BACKLOG,
+        status: WorkStatus.Backlog,
       };
 
       const createSpy = jest.fn().mockResolvedValue({
@@ -2352,7 +2354,7 @@ describe('TaskService', () => {
       expect(createSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            status: WorkStatus.ACTIVE,
+            status: WorkStatus.Active,
           }),
         }),
       );
@@ -2530,7 +2532,7 @@ describe('TaskService', () => {
       const future = new Date('2026-11-01T00:00:00.000Z');
       const row = (
         id: string,
-        status: WorkStatus,
+        status: TaskResponseDto['status'],
         dueDate: Date | null = null,
       ) => ({ id, name: id, status, dueDate });
 
@@ -2548,8 +2550,8 @@ describe('TaskService', () => {
         expect(
           service['toTrackedWorkSummary'](
             [
-              row('a', WorkStatus.COMPLETED, past),
-              row('b', WorkStatus.COMPLETED),
+              row('a', WorkStatus.Completed, past),
+              row('b', WorkStatus.Completed),
             ],
             now,
           ),
@@ -2566,10 +2568,10 @@ describe('TaskService', () => {
         expect(
           service['toTrackedWorkSummary'](
             [
-              row('cancelled', WorkStatus.CANCELLED, past),
-              row('overdue', WorkStatus.ACTIVE, past),
-              row('upcoming', WorkStatus.BACKLOG, future),
-              row('undated', WorkStatus.ACTIVE),
+              row('cancelled', WorkStatus.Cancelled, past),
+              row('overdue', WorkStatus.Active, past),
+              row('upcoming', WorkStatus.Backlog, future),
+              row('undated', WorkStatus.Active),
             ],
             now,
           ),
@@ -3197,7 +3199,7 @@ describe('TaskService', () => {
         relatedEntityType: AgentEdgeEndpointEntityType.Task,
         edgeTypes: [RelationshipType.RelatedTo],
         taskType: 'TASK_MONITOR',
-        statuses: [WorkStatus.BACKLOG],
+        statuses: [WorkStatus.Backlog],
         page: 2,
         limit: 1,
         userToken: 'token-xyz',
@@ -3221,7 +3223,7 @@ describe('TaskService', () => {
             archivedAt: null,
             id: { in: [testIds.task, secondCandidateId] },
             type: 'TASK_MONITOR',
-            status: { in: [WorkStatus.BACKLOG] },
+            status: { in: [WorkStatus.Backlog] },
           },
           orderBy: { createdAt: 'desc' },
           skip: 1,
@@ -4609,7 +4611,7 @@ describe('TaskService', () => {
         organizationId: testIds.organization,
         projectId: testIds.project,
         initiativeId: testIds.initiative,
-        status: WorkStatus.BACKLOG,
+        status: WorkStatus.Backlog,
         source: 'user',
       };
       (
@@ -4736,7 +4738,7 @@ describe('TaskService', () => {
           id: testIds.task,
           organizationId: testIds.organization,
           archivedAt: null,
-          status: { not: WorkStatus.ARCHIVED },
+          status: { not: WorkStatus.Archived },
         },
       });
       expect(mockPrismaService.db.taskSection.findMany).not.toHaveBeenCalled();
@@ -4785,7 +4787,7 @@ describe('TaskService', () => {
           id: testIds.task,
           organizationId: testIds.organization,
           archivedAt: null,
-          status: { not: WorkStatus.ARCHIVED },
+          status: { not: WorkStatus.Archived },
         },
       });
 
@@ -5017,7 +5019,7 @@ describe('TaskService', () => {
           id: testIds.task,
           organizationId: testIds.organization,
           archivedAt: null,
-          status: { not: WorkStatus.ARCHIVED },
+          status: { not: WorkStatus.Archived },
         },
         include: {
           serviceRelations: {
@@ -6731,46 +6733,46 @@ describe('TaskService', () => {
     it.each([
       {
         forced: true,
-        initial: WorkStatus.ACTIVE,
+        initial: WorkStatus.Active,
         requested: undefined,
-        expected: WorkStatus.ACTIVE,
+        expected: WorkStatus.Active,
       },
       {
         forced: true,
-        initial: WorkStatus.ACTIVE,
-        requested: WorkStatus.BACKLOG,
-        expected: WorkStatus.ACTIVE,
+        initial: WorkStatus.Active,
+        requested: WorkStatus.Backlog,
+        expected: WorkStatus.Active,
       },
       {
         forced: true,
-        initial: WorkStatus.ACTIVE,
-        requested: WorkStatus.READY,
-        expected: WorkStatus.ACTIVE,
+        initial: WorkStatus.Active,
+        requested: WorkStatus.Ready,
+        expected: WorkStatus.Active,
       },
       {
         forced: true,
-        initial: WorkStatus.BACKLOG,
-        requested: WorkStatus.ACTIVE,
-        expected: WorkStatus.BACKLOG,
+        initial: WorkStatus.Backlog,
+        requested: WorkStatus.Active,
+        expected: WorkStatus.Backlog,
       },
       {
         forced: false,
-        initial: WorkStatus.BACKLOG,
-        requested: WorkStatus.READY,
-        expected: WorkStatus.READY,
+        initial: WorkStatus.Backlog,
+        requested: WorkStatus.Ready,
+        expected: WorkStatus.Ready,
       },
       {
         forced: false,
-        initial: WorkStatus.BACKLOG,
+        initial: WorkStatus.Backlog,
         requested: undefined,
-        expected: WorkStatus.BACKLOG,
+        expected: WorkStatus.Backlog,
       },
     ])(
       'persists Mockup policy $initial (forced=$forced, requested=$requested)',
       async ({ forced, initial, requested, expected }) => {
         // Registry tests prove canonical/override source selection; exercise the
         // same creation path with each resulting effective policy here.
-        if (initial !== WorkStatus.ACTIVE || !forced) {
+        if (initial !== WorkStatus.Active || !forced) {
           jest
             .spyOn(workItemTypeRegistry, 'getInitialStatusPolicy')
             .mockReturnValue({
@@ -6895,7 +6897,7 @@ describe('TaskService', () => {
             id: testIds.task,
             organizationId: testIds.organization,
             archivedAt: null,
-            status: { not: WorkStatus.ARCHIVED },
+            status: { not: WorkStatus.Archived },
           },
         }),
       );
@@ -8680,7 +8682,7 @@ describe('TaskService', () => {
       });
 
       it('should support additional where conditions', async () => {
-        const whereConditions = { statuses: [WorkStatus.ACTIVE] };
+        const whereConditions = { statuses: [WorkStatus.Active] };
         const mockDbTask = {
           ...mockTasks[0],
           createdAt: new Date('2024-01-01T00:00:00.000Z'),
@@ -9291,12 +9293,12 @@ describe('TaskService', () => {
       async (state) => {
         const current = {
           ...mockTaskData,
-          status: WorkStatus.ACTIVE,
+          status: WorkStatus.Active,
           updatedAt: new Date('2026-09-11T05:35:12.404Z'),
         };
         const prior = {
           ...mockTaskData,
-          status: WorkStatus.BACKLOG,
+          status: WorkStatus.Backlog,
           updatedAt: '2026-09-09T21:07:24.037Z',
         };
         const intents = [
@@ -9360,7 +9362,7 @@ describe('TaskService', () => {
           hierarchy.children[0],
         ]) {
           expect(response).toMatchObject({
-            status: WorkStatus.ACTIVE,
+            status: WorkStatus.Active,
             updatedAt: current.updatedAt.toISOString(),
           });
           expect(response?.sections).toEqual(
@@ -9684,19 +9686,23 @@ describe('TaskService', () => {
     });
   });
   describe('canonical plan rollup', () => {
-    const plan = (status: WorkStatus) => ({
+    const plan = (status: TaskResponseDto['status']) => ({
       id: 'plan',
       type: 'PLAN',
       status,
       parentTaskId: null,
     });
-    const stage = (id: string, status: WorkStatus) => ({
+    const stage = (id: string, status: TaskResponseDto['status']) => ({
       id,
       type: 'PLAN_STAGE',
       status,
       parentTaskId: 'plan',
     });
-    const step = (id: string, status: WorkStatus, parentTaskId: string) => ({
+    const step = (
+      id: string,
+      status: TaskResponseDto['status'],
+      parentTaskId: string,
+    ) => ({
       id,
       type: 'STANDARD',
       status,
@@ -9722,9 +9728,9 @@ describe('TaskService', () => {
     it('moves the plan to VERIFYING when its last stage is completed directly', async () => {
       const { tx, rows } = createPlanHierarchyFakeTx(
         [
-          plan(WorkStatus.ACTIVE),
-          stage('stage-1', WorkStatus.COMPLETED),
-          stage('stage-2', WorkStatus.ACTIVE),
+          plan(WorkStatus.Active),
+          stage('stage-1', WorkStatus.Completed),
+          stage('stage-2', WorkStatus.Active),
         ],
         { organizationId: testIds.organization, projectId: testIds.project },
       );
@@ -9734,17 +9740,17 @@ describe('TaskService', () => {
         testIds.organization,
         testIds.initiative,
         'stage-2' as TaskId,
-        { status: WorkStatus.COMPLETED } as UpdateTaskDto,
+        { status: WorkStatus.Completed } as UpdateTaskDto,
       );
 
-      expect(rows.get('stage-2')?.status).toBe(WorkStatus.COMPLETED);
-      expect(rows.get('plan')?.status).toBe(WorkStatus.VERIFYING);
+      expect(rows.get('stage-2')?.status).toBe(WorkStatus.Completed);
+      expect(rows.get('plan')?.status).toBe(WorkStatus.Verifying);
       expect(statusChangedEventsFor('stage-2')).toHaveLength(1);
       expect(statusChangedEventsFor('plan')).toEqual([
         expect.objectContaining({
           payload: expect.objectContaining({
-            previousStatus: WorkStatus.ACTIVE,
-            newStatus: WorkStatus.VERIFYING,
+            previousStatus: WorkStatus.Active,
+            newStatus: WorkStatus.Verifying,
           }),
         }),
       ]);
@@ -9753,15 +9759,15 @@ describe('TaskService', () => {
     it('recalculates the former stage and plan when the last open step is re-parented out', async () => {
       const { tx, rows } = createPlanHierarchyFakeTx(
         [
-          plan(WorkStatus.ACTIVE),
-          stage('stage-1', WorkStatus.ACTIVE),
-          stage('stage-2', WorkStatus.COMPLETED),
-          step('done', WorkStatus.COMPLETED, 'stage-1'),
-          step('open', WorkStatus.ACTIVE, 'stage-1'),
+          plan(WorkStatus.Active),
+          stage('stage-1', WorkStatus.Active),
+          stage('stage-2', WorkStatus.Completed),
+          step('done', WorkStatus.Completed, 'stage-1'),
+          step('open', WorkStatus.Active, 'stage-1'),
           {
             id: 'feature',
             type: 'FEATURE',
-            status: WorkStatus.ACTIVE,
+            status: WorkStatus.Active,
             parentTaskId: null,
           },
         ],
@@ -9779,8 +9785,8 @@ describe('TaskService', () => {
         { parentTaskId: 'feature' } as UpdateTaskDto,
       );
 
-      expect(rows.get('stage-1')?.status).toBe(WorkStatus.COMPLETED);
-      expect(rows.get('plan')?.status).toBe(WorkStatus.VERIFYING);
+      expect(rows.get('stage-1')?.status).toBe(WorkStatus.Completed);
+      expect(rows.get('plan')?.status).toBe(WorkStatus.Verifying);
       expect(statusChangedEventsFor('stage-1')).toHaveLength(1);
       expect(statusChangedEventsFor('plan')).toHaveLength(1);
     });
@@ -9788,10 +9794,10 @@ describe('TaskService', () => {
     it('recalculates the former stage and plan when the last open step is archived', async () => {
       const { tx, rows } = createPlanHierarchyFakeTx(
         [
-          plan(WorkStatus.ACTIVE),
-          stage('stage-1', WorkStatus.ACTIVE),
-          step('done', WorkStatus.COMPLETED, 'stage-1'),
-          step('open', WorkStatus.ACTIVE, 'stage-1'),
+          plan(WorkStatus.Active),
+          stage('stage-1', WorkStatus.Active),
+          step('done', WorkStatus.Completed, 'stage-1'),
+          step('open', WorkStatus.Active, 'stage-1'),
         ],
         { organizationId: testIds.organization, projectId: testIds.project },
       );
@@ -9803,17 +9809,17 @@ describe('TaskService', () => {
       );
 
       expect(rows.get('open')?.archivedAt).toBeInstanceOf(Date);
-      expect(rows.get('stage-1')?.status).toBe(WorkStatus.COMPLETED);
-      expect(rows.get('plan')?.status).toBe(WorkStatus.VERIFYING);
+      expect(rows.get('stage-1')?.status).toBe(WorkStatus.Completed);
+      expect(rows.get('plan')?.status).toBe(WorkStatus.Verifying);
       expect(statusChangedEventsFor('plan')).toHaveLength(1);
     });
 
     it('moves a VERIFYING plan back to ACTIVE when a stage is reopened directly', async () => {
       const { tx, rows } = createPlanHierarchyFakeTx(
         [
-          plan(WorkStatus.VERIFYING),
-          stage('stage-1', WorkStatus.COMPLETED),
-          stage('stage-2', WorkStatus.COMPLETED),
+          plan(WorkStatus.Verifying),
+          stage('stage-1', WorkStatus.Completed),
+          stage('stage-2', WorkStatus.Completed),
         ],
         { organizationId: testIds.organization, projectId: testIds.project },
       );
@@ -9823,10 +9829,10 @@ describe('TaskService', () => {
         testIds.organization,
         testIds.initiative,
         'stage-2' as TaskId,
-        { status: WorkStatus.ACTIVE } as UpdateTaskDto,
+        { status: WorkStatus.Active } as UpdateTaskDto,
       );
 
-      expect(rows.get('plan')?.status).toBe(WorkStatus.ACTIVE);
+      expect(rows.get('plan')?.status).toBe(WorkStatus.Active);
     });
   });
 });

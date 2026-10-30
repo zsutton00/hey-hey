@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../api/api";
 import { queryOptions } from "@tanstack/react-query";
 import type { AxiosRequestConfig } from "axios";
 import { captureRequestOptions } from "../core/requestInitiator";
@@ -7,7 +8,6 @@ import {
   type OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortByEnum as WorkItemReferenceSortBy,
   type OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortOrderEnum as WorkItemReferenceSortOrder,
   type PaginatedWorkItemReferenceResponseDto,
-  type WorkStatus,
   type WorkItemReferenceDto,
 } from "../../api";
 import { unifiedApiClient } from "../../clients/serviceClients";
@@ -29,7 +29,7 @@ export interface WorkItemReferencePageQuery extends WorkItemReferenceScope {
   page: number;
   limit: number;
   filter?: string;
-  statuses?: readonly WorkStatus[];
+  statuses?: readonly TaskResponseDto["status"][];
   sortBy?: WorkItemReferenceSortBy;
   sortOrder?: WorkItemReferenceSortOrder;
 }

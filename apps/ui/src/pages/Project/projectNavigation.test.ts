@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../../../packages/ui-common/src/test/fixtures/workItemStatuses";
 import {
   WorkItemTypeEffectiveSource,
   WorkItemTypeLifecycleStatus,
@@ -23,7 +24,7 @@ const summary = (
   projectId: "project-1",
   status: WorkItemTypeLifecycleStatus.Active,
   effectiveSource: WorkItemTypeEffectiveSource.Canonical,
-  definition: { key, name, role, sections: [], allowedStatuses: [] },
+  definition: { key, name, role, sections: [], statuses: legacyStatuses([]) },
   ...overrides,
 });
 

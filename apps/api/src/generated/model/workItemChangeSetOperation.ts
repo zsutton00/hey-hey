@@ -23,7 +23,6 @@ import { WorkItemChangeSetRelationshipIdentity } from './workItemChangeSetRelati
 import { WorkItemDeleteOperation } from './workItemDeleteOperation';
 import { FeatureTag } from './featureTag';
 import { WorkItemSectionClearOperation } from './workItemSectionClearOperation';
-import { WorkStatus } from './workStatus';
 import { AgentEdgeType } from './agentEdgeType';
 import { AgentEdgeEndpointEntityType } from './agentEdgeEndpointEntityType';
 import { WorkItemChangeSetIdentity } from './workItemChangeSetIdentity';

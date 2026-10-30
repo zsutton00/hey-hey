@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../../../../packages/ui-common/src/api/api";
 import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -55,7 +56,7 @@ vi.mock("../../components/CreatePlanDialog", () => ({
 function buildPlan(
   id: string,
   title: string,
-  status: WorkStatus
+  status: TaskResponseDto["status"],
 ): PlanWorkItem {
   return {
     id,
@@ -75,7 +76,7 @@ const renderPage = () =>
       <Routes>
         <Route path="/projects/:projectId/plans" element={<PlansPage />} />
       </Routes>
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 
 beforeEach(() => {
@@ -132,7 +133,7 @@ describe("PlansPage lifecycle presentation", () => {
     expect(screen.queryByText("Active plan")).not.toBeInTheDocument();
     expect(screen.queryByText("Completed plan")).not.toBeInTheDocument();
     expect(
-      screen.queryByText("Continue the active work")
+      screen.queryByText("Continue the active work"),
     ).not.toBeInTheDocument();
   });
 

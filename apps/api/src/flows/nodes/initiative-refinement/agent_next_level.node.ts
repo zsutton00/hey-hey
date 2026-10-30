@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from '../../../generated/model/taskResponseDto';
 import { Injectable, Logger } from '@nestjs/common';
 import { uuidv4 } from 'lib0/random';
 import {
@@ -5,7 +6,6 @@ import {
   InitiativeSectionUpdateSource,
   UIElement,
   WorkItemSectionInput,
-  WorkStatus,
 } from 'src/generated';
 import { ArtifactService } from 'src/services/artifacts/artifact.service';
 import { InitiativeService } from 'src/services/initiatives/initiative.service';
@@ -177,7 +177,7 @@ export class InitiativeRefinementAgentNextLevelNode extends AgentNodeBase<
       }
 
       const { nextSection } = getWorkItemSections(
-        initiative.status as WorkStatus,
+        initiative.status as TaskResponseDto['status'],
       );
       if (!nextSection) {
         this.logger.warn(
@@ -238,7 +238,7 @@ export class InitiativeRefinementAgentNextLevelNode extends AgentNodeBase<
       const fieldUpdates = agentData.ops?.filter(hasApplicableTarget) || [];
 
       const update: {
-        status: WorkStatus;
+        status: TaskResponseDto['status'];
         sections?: WorkItemSectionInput[];
         sectionUpdateSource?: InitiativeSectionUpdateSource;
       } = {

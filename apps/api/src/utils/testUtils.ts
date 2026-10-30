@@ -569,7 +569,9 @@ export function createMockInitiativeRefinableEntity(
     // Apply any other overrides that can be directly mapped to InitiativeResponseDto
     ...(overrides.id && { id: overrides.id as InitiativeId }),
     ...(overrides.name && { name: overrides.name }),
-    ...(overrides.status && { status: overrides.status as WorkStatus }),
+    ...(overrides.status && {
+      status: overrides.status as TaskResponseDto['status'],
+    }),
     ...(overrides.priority && { priority: overrides.priority as Priority }),
     ...(overrides.assigneeId && { assigneeId: overrides.assigneeId as UserId }),
     ...(overrides.organizationId && {

@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { renderHook } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useCreateWorkItemType } from "../useCreateWorkItemType";
@@ -22,7 +23,7 @@ describe("useCreateWorkItemType", () => {
     name: "Marketing",
     description: "Marketing work",
     sections: [],
-    allowedStatuses: ["ACTIVE"],
+    statuses: legacyStatuses(["ACTIVE"]),
   };
 
   const mockProposal = {
@@ -83,7 +84,7 @@ describe("useCreateWorkItemType", () => {
           organizationId: "org-123",
           projectId: "project-123",
           definition: mockDefinition,
-        })
+        }),
       ).rejects.toThrow("Creation failed");
 
       expect(onError).toHaveBeenCalledWith(expect.any(Error));
@@ -108,9 +109,9 @@ describe("useCreateWorkItemType", () => {
           organizationId: "org-123",
           projectId: "project-123",
           definition: mockDefinition,
-        })
+        }),
       ).rejects.toThrow(
-        "No proposal returned from create work-item-type endpoint"
+        "No proposal returned from create work-item-type endpoint",
       );
     });
   });
@@ -172,7 +173,7 @@ describe("useCreateWorkItemType", () => {
           organizationId: "org-123",
           projectId: "project-123",
           definition: mockDefinition,
-        })
+        }),
       ).rejects.toThrow();
       expect(onSettled).toHaveBeenCalled();
     });

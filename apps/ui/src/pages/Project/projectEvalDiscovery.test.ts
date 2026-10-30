@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../../../packages/ui-common/src/test/fixtures/workItemStatuses";
 import {
   WorkItemTypeEffectiveSource,
   WorkItemTypeLifecycleStatus,
@@ -18,7 +19,7 @@ const evalType: WorkItemTypeSummaryDto = {
     name: "Evaluations",
     role: WorkItemTypeRole.Monitor,
     sections: [],
-    allowedStatuses: [],
+    statuses: legacyStatuses([]),
   },
 };
 describe("selectProjectEvalType", () => {

@@ -1,9 +1,10 @@
+import { WorkStatus } from '../../generated/model/workStatus';
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 
 import { v4 as uuidv4 } from 'uuid';
 
-import { Message, WorkStatus } from '@prisma/client';
+import { Message } from '@prisma/client';
 import { MessageStatus } from '../../constants/message-status.constants';
 import { NodeRegistry } from '../../flows/nodes/node-registry.service';
 import {
@@ -484,7 +485,7 @@ describeTaskFunctional('Task Generation Flow Compensation (Runner)', () => {
         description:
           'Building a customer portal with authentication and user management',
         organizationId: runner.organizationId,
-        status: WorkStatus.ACTIVE,
+        status: WorkStatus.Active,
         priority: 'high',
         estimatedEffort: 'medium',
         createdBy: runner.userId,

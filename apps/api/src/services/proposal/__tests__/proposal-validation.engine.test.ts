@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../../test/setup/legacy-status.fixture';
 import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
@@ -83,7 +84,7 @@ function makeCreateWorkItemTypeDto(
       name: 'Marketing',
       role: 'project-info',
       sections: [{ key: 'audience', label: 'Audience' }],
-      allowedStatuses: ['BACKLOG', 'ACTIVE', 'COMPLETED'],
+      statuses: legacyStatuses(['BACKLOG', 'ACTIVE', 'COMPLETED']),
       ...defOverrides,
     },
     ...dtoOverrides,
@@ -4989,24 +4990,22 @@ describe('ProposalValidationEngine', () => {
         ).toEqual([]);
       });
 
-      it('rejects an unrecognized status enum member', async () => {
+      it('accepts resolved custom status names structurally', async () => {
         const dto = makeCreateWorkItemTypeDto({
-          allowedStatuses: ['BACKLOG', 'WIP'] as any,
+          statuses: [
+            { name: 'Idea', meaning: 'NOT_STARTED' },
+            { name: 'Testing', meaning: 'IN_PROGRESS' },
+          ],
         });
-
         const result = await engine.validate({
           proposals: [dto],
           context: makeContext(),
         });
-
-        expect(result.valid).toBe(false);
-        const issue = result.proposals[0]!.errors.find(
-          (e) =>
-            e.field.includes('updates.allowedStatuses') &&
-            e.code === 'invalid_enum',
-        );
-        expect(issue).toBeDefined();
-        expect(issue!.layer).toBe('structural');
+        expect(
+          result.proposals[0]!.errors.filter(
+            (error) => error.layer === 'structural',
+          ),
+        ).toEqual([]);
       });
 
       it('rejects a missing key with a required error', async () => {
@@ -5018,7 +5017,7 @@ describe('ProposalValidationEngine', () => {
           updates: {
             name: 'Marketing',
             sections: [{ key: 'audience', label: 'Audience' }],
-            allowedStatuses: ['BACKLOG'],
+            statuses: legacyStatuses(['BACKLOG']),
           },
         };
 
@@ -5044,7 +5043,7 @@ describe('ProposalValidationEngine', () => {
           updates: {
             key: 'MARKETING',
             sections: [{ key: 'audience', label: 'Audience' }],
-            allowedStatuses: ['BACKLOG'],
+            statuses: legacyStatuses(['BACKLOG']),
           },
         };
 
@@ -5327,8 +5326,8 @@ describe('ProposalValidationEngine', () => {
         ).toBe(false);
       });
 
-      it('rejects an empty allowedStatuses as an incoherent initial-status policy', async () => {
-        const dto = makeCreateWorkItemTypeDto({ allowedStatuses: [] });
+      it('rejects an empty ordinary status list', async () => {
+        const dto = makeCreateWorkItemTypeDto({ statuses: legacyStatuses([]) });
 
         const result = await engine.validate({
           proposals: [dto],
@@ -5337,11 +5336,10 @@ describe('ProposalValidationEngine', () => {
 
         expect(result.valid).toBe(false);
         const issue = result.proposals[0]!.errors.find((e) =>
-          e.field.includes('updates.allowedStatuses'),
+          e.field.includes('updates.statuses'),
         );
         expect(issue).toBeDefined();
         expect(issue!.layer).toBe('structural');
-        expect(issue!.reason).toContain('at least one status');
       });
 
       it('rejects a scalar field outside the closed WorkItemTypeScalarField set', async () => {
@@ -5513,7 +5511,11 @@ describe('ProposalValidationEngine', () => {
               name: 'Marketing',
               lifecycleStatus: 'archived',
               sectionDefinitions: [{ key: 'audience', label: 'Audience' }],
-              allowedStatuses: ['BACKLOG', 'ACTIVE', 'COMPLETED'] as any,
+              statuses: legacyStatuses([
+                'BACKLOG',
+                'ACTIVE',
+                'COMPLETED',
+              ] as any),
             },
           ]);
         const archivedRegistryModule: TestingModule =
@@ -5559,7 +5561,11 @@ describe('ProposalValidationEngine', () => {
               name: 'Marketing',
               lifecycleStatus: 'archived',
               sectionDefinitions: [{ key: 'audience', label: 'Audience' }],
-              allowedStatuses: ['BACKLOG', 'ACTIVE', 'COMPLETED'] as any,
+              statuses: legacyStatuses([
+                'BACKLOG',
+                'ACTIVE',
+                'COMPLETED',
+              ] as any),
             },
           ]);
         const archivedSummary = archivedRegistry.getDefinition(
@@ -5980,7 +5986,7 @@ describe('ProposalValidationEngine', () => {
                 name: targetEntityId,
                 role: 'work-item',
                 sections: [{ key: 'description', label: 'Description' }],
-                allowedStatuses: ['BACKLOG'],
+                statuses: legacyStatuses(['BACKLOG']),
               },
             },
           };
@@ -6088,7 +6094,11 @@ describe('ProposalValidationEngine', () => {
               sectionDefinitions: [
                 { key: 'description', label: 'Description' },
               ],
-              allowedStatuses: ['BACKLOG', 'ACTIVE', 'COMPLETED'] as any,
+              statuses: legacyStatuses([
+                'BACKLOG',
+                'ACTIVE',
+                'COMPLETED',
+              ] as any),
             },
           ]);
         const archivedRegistryModule: TestingModule =
@@ -6124,7 +6134,7 @@ describe('ProposalValidationEngine', () => {
                   name: 'Marketing',
                   role: 'work-item',
                   sections: [{ key: 'description', label: 'Description' }],
-                  allowedStatuses: ['BACKLOG'],
+                  statuses: legacyStatuses(['BACKLOG']),
                 },
               },
             },
@@ -6156,7 +6166,11 @@ describe('ProposalValidationEngine', () => {
                     '#/components/schemas/TaskMonitorExecutionDefinition',
                 },
               ],
-              allowedStatuses: ['BACKLOG', 'ACTIVE', 'COMPLETED'] as any,
+              statuses: legacyStatuses([
+                'BACKLOG',
+                'ACTIVE',
+                'COMPLETED',
+              ] as any),
             },
           ]);
         const customModule = await Test.createTestingModule({
@@ -6190,7 +6204,7 @@ describe('ProposalValidationEngine', () => {
                   ...existing.definition,
                   name: 'Campaign',
                   description: 'Campaign planning work',
-                  allowedStatuses: ['BACKLOG', 'COMPLETED'],
+                  statuses: legacyStatuses(['BACKLOG', 'COMPLETED']),
                 },
               },
             },

@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import {
   act,
   fireEvent,
@@ -222,7 +223,7 @@ beforeEach(() => {
         { key: "acceptanceCriteria", label: "Done When" },
         { key: "requirements", label: "Requirements" },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     },
     FEATURE: {
       key: "FEATURE",
@@ -235,7 +236,7 @@ beforeEach(() => {
           schemaRef: "#/components/schemas/FeatureRequirementsSection",
         },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     },
   };
   registryState.isLoading = false;
@@ -690,7 +691,7 @@ describe("TaskCreateRenderer — project registry type labels", () => {
           schemaRef: "#/components/schemas/ProjectModeApplicabilityV1",
         },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     };
     const proposal = makeTaskProposal();
     proposal.updates = {
@@ -809,7 +810,7 @@ describe("TaskCreateRenderer — project registry type labels", () => {
           ],
         },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     };
     const proposal = makeTaskProposal();
     proposal.updates = {
@@ -871,7 +872,7 @@ describe("TaskCreateRenderer — project registry type labels", () => {
         { key: "audience", label: "Intended Audience" },
         { key: "description", label: "Research Summary" },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     };
     const proposal = makeTaskProposal();
     proposal.updates = {
@@ -909,7 +910,7 @@ describe("TaskCreateRenderer — project registry type labels", () => {
       key: "CUSTOM",
       name: "Research Brief",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     };
 
     const customProposal = makeTaskProposal();
@@ -954,7 +955,7 @@ describe("TaskCreateRenderer — project registry type labels", () => {
       key: "ARCHIVED",
       name: "Archived Brief",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     };
 
     const proposal = makeTaskProposal();
@@ -1028,7 +1029,7 @@ describe("TaskCreateRenderer — Agent Mode availability", () => {
       key: "MODE",
       name: "Project Mode",
       sections: [{ key: "description", label: "Guidance" }],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     };
   };
 

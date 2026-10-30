@@ -1058,7 +1058,7 @@ export class TaskController {
 
   private normalizeReferenceStatuses(
     statuses?: string | string[],
-  ): WorkStatus[] | undefined {
+  ): TaskResponseDto['status'][] | undefined {
     if (statuses === undefined) return undefined;
 
     const values = (Array.isArray(statuses) ? statuses : [statuses])
@@ -1067,7 +1067,7 @@ export class TaskController {
       .filter((value) => value.length > 0);
     if (values.length === 0) return undefined;
 
-    const statusByValue = new Map<string, WorkStatus>(
+    const statusByValue = new Map<string, TaskResponseDto['status']>(
       Object.values(WorkStatus).map((status) => [status, status]),
     );
     const normalized = values.map((value) => statusByValue.get(value));
@@ -1104,7 +1104,7 @@ export class TaskController {
 
   private normalizeStatuses(
     status?: string | string[],
-  ): WorkStatus[] | undefined {
+  ): TaskResponseDto['status'][] | undefined {
     const statuses = Array.isArray(status)
       ? status
       : typeof status === 'string'
@@ -1114,7 +1114,7 @@ export class TaskController {
     const filteredStatuses = statuses?.filter(
       (value) =>
         value && value !== 'undefined' && value !== 'null' && value !== 'false',
-    ) as WorkStatus[] | undefined;
+    ) as TaskResponseDto['status'][] | undefined;
 
     return filteredStatuses && filteredStatuses.length > 0
       ? filteredStatuses

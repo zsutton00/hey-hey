@@ -1,3 +1,4 @@
+import { WorkStatus } from '../../generated/model/workStatus';
 import {
   BadRequestException,
   Injectable,
@@ -5,7 +6,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { WorkStatus } from '@prisma/client';
+
 import type {
   WorkItemGraphParticipationCanonicalIdentity,
   WorkItemGraphParticipationEntry,
@@ -152,7 +153,7 @@ export class WorkItemGraphParticipationComposer {
             organizationId,
             projectId,
             archivedAt: null,
-            status: { not: WorkStatus.ARCHIVED },
+            status: { not: WorkStatus.Archived },
           },
           select: { id: true, name: true, type: true, parentTaskId: true },
           orderBy: { id: 'asc' },
@@ -170,7 +171,7 @@ export class WorkItemGraphParticipationComposer {
             projectId,
             type: 'DIAGRAM_ELEMENT',
             archivedAt: null,
-            status: { not: WorkStatus.ARCHIVED },
+            status: { not: WorkStatus.Archived },
           },
           select: {
             id: true,
@@ -190,7 +191,7 @@ export class WorkItemGraphParticipationComposer {
             organizationId,
             projectId,
             archivedAt: null,
-            status: { not: WorkStatus.ARCHIVED },
+            status: { not: WorkStatus.Archived },
           },
           select: { id: true, name: true, type: true, parentTaskId: true },
         }),

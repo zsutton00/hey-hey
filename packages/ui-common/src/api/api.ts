@@ -8653,10 +8653,10 @@ export interface AvailableFutureDependency {
     'workItemType': string;
     /**
      * Current status on approved future reads only; absent on pending previews.
-     * @type {WorkStatus}
+     * @type {string}
      * @memberof AvailableFutureDependency
      */
-    'status'?: WorkStatus;
+    'status'?: string;
 }
 
 export const AvailableFutureDependencyAvailabilityEnum = {
@@ -15272,11 +15272,11 @@ export type CodingPromptFinalAssessmentSourceType = typeof CodingPromptFinalAsse
  */
 export interface CodingPromptFinalAssessmentStatusRecommendation {
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof CodingPromptFinalAssessmentStatusRecommendation
      */
-    'status': WorkStatus;
+    'status': string;
     /**
      * 
      * @type {string}
@@ -15284,8 +15284,6 @@ export interface CodingPromptFinalAssessmentStatusRecommendation {
      */
     'reason': string;
 }
-
-
 /**
  * Entity targeted by final-assessment recommendations
  * @export
@@ -22745,11 +22743,11 @@ export interface CreateFeatureDto {
      */
     'initiativeId'?: string;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof CreateFeatureDto
      */
-    'status'?: WorkStatus;
+    'status'?: string;
     /**
      * 
      * @type {TaskSource}
@@ -22894,11 +22892,11 @@ export interface CreateGoalDto {
      */
     'initiativeId'?: string;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof CreateGoalDto
      */
-    'status'?: WorkStatus;
+    'status'?: string;
     /**
      * 
      * @type {TaskSource}
@@ -23186,11 +23184,11 @@ export interface CreateInitiativeDto {
      */
     'reasoning'?: string;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof CreateInitiativeDto
      */
-    'status'?: WorkStatus;
+    'status'?: string;
     /**
      * 
      * @type {Priority}
@@ -26301,11 +26299,11 @@ export interface CreateTaskDto {
      */
     'initiativeId'?: string;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof CreateTaskDto
      */
-    'status'?: WorkStatus;
+    'status'?: string;
     /**
      * 
      * @type {TaskSource}
@@ -30063,7 +30061,7 @@ export interface EntityContentDto {
      */
     'sections': { [key: string]: string; };
     /**
-     * Current work status of the entity. A WorkStatus for task-backed content, a design-doc status string for design-doc content, or a PlanStepStatus for un-backed step content. Absent for non-status-bearing work-item types (FEATURE, GOAL). 
+     * Current work status of the entity. A WorkItemStatus for task-backed content, a design-doc status string for design-doc content, or a PlanStepStatus for un-backed step content. Absent for non-status-bearing work-item types (FEATURE, GOAL). 
      * @type {string}
      * @memberof EntityContentDto
      */
@@ -35481,11 +35479,11 @@ export interface FeatureSkeletonNode {
      */
     'tag': FeatureTag | null;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof FeatureSkeletonNode
      */
-    'status': WorkStatus;
+    'status': string;
     /**
      * Parent FEATURE task ID, or null when this feature is a root in the project\'s feature hierarchy. 
      * @type {string}
@@ -37302,14 +37300,12 @@ export interface FinalizeWorkItemRefinement200ResponseAllOfDataMetadata {
      */
     'finalizedAt'?: string;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof FinalizeWorkItemRefinement200ResponseAllOfDataMetadata
      */
-    'finalStatus'?: WorkStatus;
+    'finalStatus'?: string;
 }
-
-
 /**
  * 
  * @export
@@ -38324,11 +38320,11 @@ export interface FutureCompletionBlocker {
      */
     'reason': FutureCompletionBlockerReasonEnum;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof FutureCompletionBlocker
      */
-    'status'?: WorkStatus;
+    'status'?: string;
 }
 
 export const FutureCompletionBlockerReasonEnum = {
@@ -38829,11 +38825,11 @@ export interface FutureRevisionContentOneOf {
      */
     'initiativeId'?: string | null;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof FutureRevisionContentOneOf
      */
-    'status': WorkStatus;
+    'status': string;
     /**
      * 
      * @type {TaskSource}
@@ -43306,11 +43302,11 @@ export interface GetWorkItemRefinementStatus200ResponseAllOfDataData {
      */
     'nextLevel'?: GetWorkItemRefinementStatus200ResponseAllOfDataDataNextLevelEnum | null;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof GetWorkItemRefinementStatus200ResponseAllOfDataData
      */
-    'status'?: WorkStatus;
+    'status'?: string;
     /**
      * 
      * @type {GetWorkItemRefinementStatus200ResponseAllOfDataDataProgress}
@@ -47622,11 +47618,11 @@ export interface InitiativeEventSnapshot {
      */
     'linkedProjectIds'?: Array<string>;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof InitiativeEventSnapshot
      */
-    'status': WorkStatus;
+    'status': string;
     /**
      * 
      * @type {string}
@@ -47646,8 +47642,6 @@ export interface InitiativeEventSnapshot {
      */
     'tags': Array<string>;
 }
-
-
 /**
  * 
  * @export
@@ -47673,11 +47667,11 @@ export interface InitiativeEventUpdateSnapshot {
      */
     'reasoning'?: string;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof InitiativeEventUpdateSnapshot
      */
-    'status'?: WorkStatus;
+    'status'?: string;
     /**
      * 
      * @type {Priority}
@@ -47894,11 +47888,11 @@ export interface InitiativeResponseDto {
      */
     'reasoning'?: string;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof InitiativeResponseDto
      */
-    'status': WorkStatus;
+    'status': string;
     /**
      * 
      * @type {Priority}
@@ -48052,17 +48046,17 @@ export type InitiativeStatusChangedEventTypeEnum = typeof InitiativeStatusChange
  */
 export interface InitiativeStatusChangedEventPayload extends ExecutionContext {
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof InitiativeStatusChangedEventPayload
      */
-    'previousStatus': WorkStatus;
+    'previousStatus': string;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof InitiativeStatusChangedEventPayload
      */
-    'newStatus': WorkStatus;
+    'newStatus': string;
     /**
      * Unique identifier for a project (branded type)
      * @type {string}
@@ -70300,11 +70294,11 @@ export interface ProjectedWorkItem {
      */
     'parent'?: WorkItemChangeSetIdentity;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof ProjectedWorkItem
      */
-    'status'?: WorkStatus;
+    'status'?: string;
     /**
      * 
      * @type {TaskPriority}
@@ -91250,11 +91244,11 @@ export interface TaskAllowedStatusEntry {
      */
     'taskType': string;
     /**
-     * Every WorkStatus value valid for this task type.
-     * @type {Array<WorkStatus>}
+     * Every status value an item of this task type may hold — its ordinary statuses, ARCHIVED, and SUPERSEDED when eligible.
+     * @type {Array<string>}
      * @memberof TaskAllowedStatusEntry
      */
-    'allowedStatuses': Array<WorkStatus>;
+    'allowedStatuses': Array<string>;
 }
 /**
  * Per-type allowed work status sets — the single backed source for the frontend status picker. One entry per task type. 
@@ -91498,20 +91492,18 @@ export interface TaskCompletedPayload {
      */
     'taskName': string;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof TaskCompletedPayload
      */
-    'previousStatus': WorkStatus;
+    'previousStatus': string;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof TaskCompletedPayload
      */
-    'newStatus': WorkStatus;
+    'newStatus': string;
 }
-
-
 /**
  * Payload for applying suggested task field edits
  * @export
@@ -92004,11 +91996,11 @@ export interface TaskEventTaskSnapshot {
      */
     'initiativeId'?: string;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof TaskEventTaskSnapshot
      */
-    'status'?: WorkStatus;
+    'status'?: string;
     /**
      * 
      * @type {TaskPriority}
@@ -92085,11 +92077,11 @@ export interface TaskEventUpdateSnapshot {
      */
     'tag'?: FeatureTag;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof TaskEventUpdateSnapshot
      */
-    'status'?: WorkStatus;
+    'status'?: string;
     /**
      * 
      * @type {TaskPriority}
@@ -94617,11 +94609,11 @@ export interface TaskResponseDto {
      */
     'initiativeId'?: string | null;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof TaskResponseDto
      */
-    'status': WorkStatus;
+    'status': string;
     /**
      * 
      * @type {TaskSource}
@@ -94916,17 +94908,17 @@ export type TaskStatusChangedEventTypeEnum = typeof TaskStatusChangedEventTypeEn
  */
 export interface TaskStatusChangedEventPayload extends ExecutionContext {
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof TaskStatusChangedEventPayload
      */
-    'previousStatus': WorkStatus;
+    'previousStatus': string;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof TaskStatusChangedEventPayload
      */
-    'newStatus': WorkStatus;
+    'newStatus': string;
     /**
      * Unique identifier for an initiative (branded type)
      * @type {string}
@@ -97060,11 +97052,11 @@ export interface TrackedEntitySnapshot {
      */
     'title': string;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof TrackedEntitySnapshot
      */
-    'status'?: WorkStatus;
+    'status'?: string;
     /**
      * Target completion date, when the target type carries one.
      * @type {string}
@@ -100762,11 +100754,11 @@ export interface UpdateInitiativeDto {
      */
     'reasoning'?: string;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof UpdateInitiativeDto
      */
-    'status'?: WorkStatus;
+    'status'?: string;
     /**
      * 
      * @type {Priority}
@@ -101673,11 +101665,11 @@ export interface UpdateTaskDto {
      */
     'initiativeId'?: string;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof UpdateTaskDto
      */
-    'status'?: WorkStatus;
+    'status'?: string;
     /**
      * 
      * @type {TaskPriority}
@@ -109025,11 +109017,11 @@ export interface WorkItem {
      */
     'acceptanceCriteria'?: string | null;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof WorkItem
      */
-    'status': WorkStatus;
+    'status': string;
     /**
      * 
      * @type {Priority}
@@ -109570,11 +109562,11 @@ export interface WorkItemCreateOperation {
      */
     'parent'?: WorkItemChangeSetIdentity;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof WorkItemCreateOperation
      */
-    'status'?: WorkStatus;
+    'status'?: string;
     /**
      * 
      * @type {TaskPriority}
@@ -111235,6 +111227,36 @@ export const WorkItemStandardRelationshipCreateOperationCategoryEnum = {
 } as const;
 
 export type WorkItemStandardRelationshipCreateOperationCategoryEnum = typeof WorkItemStandardRelationshipCreateOperationCategoryEnum[keyof typeof WorkItemStandardRelationshipCreateOperationCategoryEnum];
+
+/**
+ * Legacy completion semantics a FINISHED status carries: COMPLETED counts toward Goal completion and emits completion events; CANCELLED ends work without counting as done. Absent for statuses with neither behavior. 
+ * @export
+ * @enum {string}
+ */
+
+export const WorkItemStatusCompletionBehavior = {
+    Completed: 'COMPLETED',
+    Cancelled: 'CANCELLED'
+} as const;
+
+export type WorkItemStatusCompletionBehavior = typeof WorkItemStatusCompletionBehavior[keyof typeof WorkItemStatusCompletionBehavior];
+
+
+/**
+ * What an ordinary status means for progress: NOT_STARTED work has not begun, IN_PROGRESS work is underway, FINISHED work needs no further effort. UNFINISHED preserves an unfinished state whose start state is unspecified (for example legacy Blocked and On Hold). Goal progress and active filters read this, never the status name. 
+ * @export
+ * @enum {string}
+ */
+
+export const WorkItemStatusMeaning = {
+    NotStarted: 'NOT_STARTED',
+    InProgress: 'IN_PROGRESS',
+    Unfinished: 'UNFINISHED',
+    Finished: 'FINISHED'
+} as const;
+
+export type WorkItemStatusMeaning = typeof WorkItemStatusMeaning[keyof typeof WorkItemStatusMeaning];
+
 
 /**
  * 
@@ -114059,11 +114081,17 @@ export interface WorkItemTypeCapabilities {
      */
     'planEligible'?: boolean;
     /**
-     * Whether this type\'s first allowed status is an explicit initial-status policy.
+     * Whether this type\'s first status is an explicit initial-status policy.
      * @type {boolean}
      * @memberof WorkItemTypeCapabilities
      */
     'hasSetInitialStatus'?: boolean;
+    /**
+     * Whether items of this type are eligible for the protected SUPERSEDED status. SUPERSEDED is set only by successor proposal approval, never through the ordinary status list or ordinary status edits. 
+     * @type {boolean}
+     * @memberof WorkItemTypeCapabilities
+     */
+    'supportsSupersession'?: boolean;
     /**
      * Whether mentions of this type may render as an inline rich surface instead of a badge.
      * @type {boolean}
@@ -114281,11 +114309,11 @@ export interface WorkItemTypeDefinitionDto {
      */
     'forbiddenScalars'?: Array<WorkItemTypeScalarField>;
     /**
-     * The work statuses an item of this type may occupy. Reuses the shared WorkStatus enum rather than declaring a type-local status set. 
-     * @type {Array<WorkStatus>}
+     * The type\'s ordered ordinary statuses — the authority for which statuses items of this type may be created in and moved between. The first entry is the status new items start in. Each entry carries the internal meaning the platform reads for progress and active filters, and the metadata that preserves legacy labels and completion/cancellation behavior. ARCHIVED is universal and SUPERSEDED is protected and platform-owned (see `capabilities.supportsSupersession`); neither appears in this list. 
+     * @type {Array<WorkItemTypeStatus>}
      * @memberof WorkItemTypeDefinitionDto
      */
-    'allowedStatuses': Array<WorkStatus>;
+    'statuses': Array<WorkItemTypeStatus>;
     /**
      * Type keys an item of this type may be parented under. An empty array means the type is top-level only. 
      * @type {Array<string>}
@@ -114311,11 +114339,11 @@ export interface WorkItemTypeDefinitionDto {
      */
     'tracking'?: WorkItemTypeTracking;
     /**
-     * The subset of `allowedStatuses` an agent may set directly on an item of this type. Statuses the engine reserves for system transitions are absent here. Reuses the shared WorkStatus enum. 
-     * @type {Array<WorkStatus>}
+     * The subset of the type\'s status names (`statuses`, plus the universal ARCHIVED) an agent may set directly on an item of this type. Statuses the engine reserves for system transitions are absent here. 
+     * @type {Array<string>}
      * @memberof WorkItemTypeDefinitionDto
      */
-    'agentSettableStatuses'?: Array<WorkStatus>;
+    'agentSettableStatuses'?: Array<string>;
     /**
      * Report types that may be anchored to an item of this type. Reuses the shared ReportType enum. An empty array means no report type anchors to this type. 
      * @type {Array<ReportType>}
@@ -115204,6 +115232,39 @@ export interface WorkItemTypeSessionRoleGuidance {
     'review'?: string;
 }
 /**
+ * One ordinary status of a work-item type. `name` is the exact value stored on items and is never rewritten by a type edit. 
+ * @export
+ * @interface WorkItemTypeStatus
+ */
+export interface WorkItemTypeStatus {
+    /**
+     * The status name, stored verbatim on items (e.g. \"BACKLOG\" for a migrated platform status, \"Testing\" for a custom one). Unique within the type, and never ARCHIVED or SUPERSEDED. 
+     * @type {string}
+     * @memberof WorkItemTypeStatus
+     */
+    'name': string;
+    /**
+     * Display label when it differs from `name` (preserves the labels existing statuses have always shown, e.g. ACTIVE shows \"In progress\"). Absent means `name` is shown as written. 
+     * @type {string}
+     * @memberof WorkItemTypeStatus
+     */
+    'label'?: string;
+    /**
+     * 
+     * @type {WorkItemStatusMeaning}
+     * @memberof WorkItemTypeStatus
+     */
+    'meaning': WorkItemStatusMeaning;
+    /**
+     * 
+     * @type {WorkItemStatusCompletionBehavior}
+     * @memberof WorkItemTypeStatus
+     */
+    'completionBehavior'?: WorkItemStatusCompletionBehavior;
+}
+
+
+/**
  * A centrally resolved project-effective definition. Canonical definitions are overlaid by complete project overrides; custom definitions are supplied only by project rows. Consumers do not merge sources locally. 
  * @export
  * @interface WorkItemTypeSummaryDto
@@ -115349,11 +115410,11 @@ export interface WorkItemUpdateOperation {
      */
     'parent'?: WorkItemChangeSetIdentity | null;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof WorkItemUpdateOperation
      */
-    'status'?: WorkStatus;
+    'status'?: string;
     /**
      * 
      * @type {TaskPriority}
@@ -115393,7 +115454,7 @@ export const WorkItemUpdateOperationOpEnum = {
 export type WorkItemUpdateOperationOpEnum = typeof WorkItemUpdateOperationOpEnum[keyof typeof WorkItemUpdateOperationOpEnum];
 
 /**
- * Unified work status for initiatives and tasks
+ * Platform-defined status names: the vocabulary canonical work-item types are seeded with, plus the universal ARCHIVED and the protected SUPERSEDED. A type may define its own ordinary statuses, so a work item\'s current status is a WorkItemStatus, not necessarily one of these. 
  * @export
  * @enum {string}
  */
@@ -117652,11 +117713,11 @@ export interface WorkflowProposalStepInput {
      */
     'sections'?: Array<TaskSectionInput>;
     /**
-     * 
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     * @type {string}
      * @memberof WorkflowProposalStepInput
      */
-    'status'?: WorkStatus;
+    'status'?: string;
     /**
      * 
      * @type {TaskSource}
@@ -145449,7 +145510,7 @@ export const InitiativesApiAxiosParamCreator = function (configuration?: Configu
          * @summary Get all initiatives in organization
          * @param {string} organizationId Organization ID
          * @param {string} [projectId] Filter by project ID
-         * @param {Array<WorkStatus>} [status] Filter by initiative statuses (comma-separated)
+         * @param {Array<string>} [status] Filter by initiative statuses (comma-separated)
          * @param {Priority} [priority] Filter by initiative priority
          * @param {Array<string>} [tags] Filter by tags (comma-separated)
          * @param {Array<string>} [includeSectionKeys] When provided, include only the requested section keys in each initiative response
@@ -145458,7 +145519,7 @@ export const InitiativesApiAxiosParamCreator = function (configuration?: Configu
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        getOrganizationInitiatives: async (organizationId: string, projectId?: string, status?: Array<WorkStatus>, priority?: Priority, tags?: Array<string>, includeSectionKeys?: Array<string>, page?: number, limit?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        getOrganizationInitiatives: async (organizationId: string, projectId?: string, status?: Array<string>, priority?: Priority, tags?: Array<string>, includeSectionKeys?: Array<string>, page?: number, limit?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'organizationId' is not null or undefined
             assertParamExists('getOrganizationInitiatives', 'organizationId', organizationId)
             const localVarPath = `/organizations/{organizationId}/initiatives`
@@ -145855,7 +145916,7 @@ export const InitiativesApiFp = function(configuration?: Configuration) {
          * @summary Get all initiatives in organization
          * @param {string} organizationId Organization ID
          * @param {string} [projectId] Filter by project ID
-         * @param {Array<WorkStatus>} [status] Filter by initiative statuses (comma-separated)
+         * @param {Array<string>} [status] Filter by initiative statuses (comma-separated)
          * @param {Priority} [priority] Filter by initiative priority
          * @param {Array<string>} [tags] Filter by tags (comma-separated)
          * @param {Array<string>} [includeSectionKeys] When provided, include only the requested section keys in each initiative response
@@ -145864,7 +145925,7 @@ export const InitiativesApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async getOrganizationInitiatives(organizationId: string, projectId?: string, status?: Array<WorkStatus>, priority?: Priority, tags?: Array<string>, includeSectionKeys?: Array<string>, page?: number, limit?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetOrganizationInitiatives200Response>> {
+        async getOrganizationInitiatives(organizationId: string, projectId?: string, status?: Array<string>, priority?: Priority, tags?: Array<string>, includeSectionKeys?: Array<string>, page?: number, limit?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetOrganizationInitiatives200Response>> {
             const localVarAxiosArgs = await localVarAxiosParamCreator.getOrganizationInitiatives(organizationId, projectId, status, priority, tags, includeSectionKeys, page, limit, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['InitiativesApi.getOrganizationInitiatives']?.[localVarOperationServerIndex]?.url;
@@ -146403,10 +146464,10 @@ export interface InitiativesApiGetOrganizationInitiativesRequest {
 
     /**
      * Filter by initiative statuses (comma-separated)
-     * @type {Array<WorkStatus>}
+     * @type {Array<string>}
      * @memberof InitiativesApiGetOrganizationInitiatives
      */
-    readonly status?: Array<WorkStatus>
+    readonly status?: Array<string>
 
     /**
      * Filter by initiative priority
@@ -171239,7 +171300,7 @@ export const TasksApiAxiosParamCreator = function (configuration?: Configuration
          * @param {boolean} [includeTrackedEntities] When true or omitted, GOAL work items include embedded TRACKS target snapshots in &#x60;trackedEntities&#x60;. When false, omit only the &#x60;trackedEntities&#x60; projection while preserving all ordinary work-item fields.
          * @param {boolean} [includeTrackedWorkSummary] When true, GOAL work items include the compact &#x60;trackedWorkSummary&#x60; aggregate (tracked, completed, cancelled, past-due and open-undated counts). Independent of &#x60;includeTrackedEntities&#x60;, so collection views can request the summary without embedded snapshots.
          * @param {Set<string>} [taskIds] Filter to a bounded repeated set of task ids for selected-work hydration.
-         * @param {Array<WorkStatus>} [status] Filter by task statuses (comma-separated)
+         * @param {Array<string>} [status] Filter by task statuses (comma-separated)
          * @param {boolean} [includeDesignDocCounts] When true, include designDocCount for each task.
          * @param {boolean} [includeAgentSessionCounts] When true, include codingSessionCount and agentSessionCount for each task.
          * @param {boolean} [includeServiceRelations] When true, include serviceRelations for each task.
@@ -171256,7 +171317,7 @@ export const TasksApiAxiosParamCreator = function (configuration?: Configuration
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        organizationsOrganizationIdProjectsProjectIdTasksGet: async (organizationId: string, projectId: string, initiativeId?: string, parentTaskId?: string | null, parentTaskIds?: Set<string>, includeDescendants?: boolean, includeTrackedEntities?: boolean, includeTrackedWorkSummary?: boolean, taskIds?: Set<string>, status?: Array<WorkStatus>, includeDesignDocCounts?: boolean, includeAgentSessionCounts?: boolean, includeServiceRelations?: boolean, includeEdges?: boolean, edgeTypes?: Array<AgentEdgeType>, includeSectionKeys?: Array<string>, type?: string, relatedEntityId?: string, relatedEntityType?: AgentEdgeEndpointEntityType, page?: number, limit?: number, sortBy?: TaskSortBy, sortDir?: TaskSortDir, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        organizationsOrganizationIdProjectsProjectIdTasksGet: async (organizationId: string, projectId: string, initiativeId?: string, parentTaskId?: string | null, parentTaskIds?: Set<string>, includeDescendants?: boolean, includeTrackedEntities?: boolean, includeTrackedWorkSummary?: boolean, taskIds?: Set<string>, status?: Array<string>, includeDesignDocCounts?: boolean, includeAgentSessionCounts?: boolean, includeServiceRelations?: boolean, includeEdges?: boolean, edgeTypes?: Array<AgentEdgeType>, includeSectionKeys?: Array<string>, type?: string, relatedEntityId?: string, relatedEntityType?: AgentEdgeEndpointEntityType, page?: number, limit?: number, sortBy?: TaskSortBy, sortDir?: TaskSortDir, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'organizationId' is not null or undefined
             assertParamExists('organizationsOrganizationIdProjectsProjectIdTasksGet', 'organizationId', organizationId)
             // verify required parameter 'projectId' is not null or undefined
@@ -171900,13 +171961,13 @@ export const TasksApiAxiosParamCreator = function (configuration?: Configuration
          * @param {number} page 1-based page number in the deterministic result set.
          * @param {number} limit Number of references to return, from 1 through 500.
          * @param {string} [filter] Optional case-insensitive substring filter on canonical name, applied before counting and pagination.
-         * @param {Array<WorkStatus>} [statuses] Optional status set applied before counting and pagination.
+         * @param {Array<string>} [statuses] Optional status set applied before counting and pagination.
          * @param {OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortByEnum} [sortBy] Reference field used for deterministic ordering.
          * @param {OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortOrderEnum} [sortOrder] Direction used for deterministic reference ordering.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        organizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGet: async (organizationId: string, projectId: string, type: string, page: number, limit: number, filter?: string, statuses?: Array<WorkStatus>, sortBy?: OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortByEnum, sortOrder?: OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortOrderEnum, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        organizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGet: async (organizationId: string, projectId: string, type: string, page: number, limit: number, filter?: string, statuses?: Array<string>, sortBy?: OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortByEnum, sortOrder?: OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortOrderEnum, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'organizationId' is not null or undefined
             assertParamExists('organizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGet', 'organizationId', organizationId)
             // verify required parameter 'projectId' is not null or undefined
@@ -172197,7 +172258,7 @@ export const TasksApiFp = function(configuration?: Configuration) {
          * @param {boolean} [includeTrackedEntities] When true or omitted, GOAL work items include embedded TRACKS target snapshots in &#x60;trackedEntities&#x60;. When false, omit only the &#x60;trackedEntities&#x60; projection while preserving all ordinary work-item fields.
          * @param {boolean} [includeTrackedWorkSummary] When true, GOAL work items include the compact &#x60;trackedWorkSummary&#x60; aggregate (tracked, completed, cancelled, past-due and open-undated counts). Independent of &#x60;includeTrackedEntities&#x60;, so collection views can request the summary without embedded snapshots.
          * @param {Set<string>} [taskIds] Filter to a bounded repeated set of task ids for selected-work hydration.
-         * @param {Array<WorkStatus>} [status] Filter by task statuses (comma-separated)
+         * @param {Array<string>} [status] Filter by task statuses (comma-separated)
          * @param {boolean} [includeDesignDocCounts] When true, include designDocCount for each task.
          * @param {boolean} [includeAgentSessionCounts] When true, include codingSessionCount and agentSessionCount for each task.
          * @param {boolean} [includeServiceRelations] When true, include serviceRelations for each task.
@@ -172214,7 +172275,7 @@ export const TasksApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async organizationsOrganizationIdProjectsProjectIdTasksGet(organizationId: string, projectId: string, initiativeId?: string, parentTaskId?: string | null, parentTaskIds?: Set<string>, includeDescendants?: boolean, includeTrackedEntities?: boolean, includeTrackedWorkSummary?: boolean, taskIds?: Set<string>, status?: Array<WorkStatus>, includeDesignDocCounts?: boolean, includeAgentSessionCounts?: boolean, includeServiceRelations?: boolean, includeEdges?: boolean, edgeTypes?: Array<AgentEdgeType>, includeSectionKeys?: Array<string>, type?: string, relatedEntityId?: string, relatedEntityType?: AgentEdgeEndpointEntityType, page?: number, limit?: number, sortBy?: TaskSortBy, sortDir?: TaskSortDir, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<OrganizationsOrganizationIdProjectsProjectIdTasksGet200Response>> {
+        async organizationsOrganizationIdProjectsProjectIdTasksGet(organizationId: string, projectId: string, initiativeId?: string, parentTaskId?: string | null, parentTaskIds?: Set<string>, includeDescendants?: boolean, includeTrackedEntities?: boolean, includeTrackedWorkSummary?: boolean, taskIds?: Set<string>, status?: Array<string>, includeDesignDocCounts?: boolean, includeAgentSessionCounts?: boolean, includeServiceRelations?: boolean, includeEdges?: boolean, edgeTypes?: Array<AgentEdgeType>, includeSectionKeys?: Array<string>, type?: string, relatedEntityId?: string, relatedEntityType?: AgentEdgeEndpointEntityType, page?: number, limit?: number, sortBy?: TaskSortBy, sortDir?: TaskSortDir, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<OrganizationsOrganizationIdProjectsProjectIdTasksGet200Response>> {
             const localVarAxiosArgs = await localVarAxiosParamCreator.organizationsOrganizationIdProjectsProjectIdTasksGet(organizationId, projectId, initiativeId, parentTaskId, parentTaskIds, includeDescendants, includeTrackedEntities, includeTrackedWorkSummary, taskIds, status, includeDesignDocCounts, includeAgentSessionCounts, includeServiceRelations, includeEdges, edgeTypes, includeSectionKeys, type, relatedEntityId, relatedEntityType, page, limit, sortBy, sortDir, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['TasksApi.organizationsOrganizationIdProjectsProjectIdTasksGet']?.[localVarOperationServerIndex]?.url;
@@ -172384,13 +172445,13 @@ export const TasksApiFp = function(configuration?: Configuration) {
          * @param {number} page 1-based page number in the deterministic result set.
          * @param {number} limit Number of references to return, from 1 through 500.
          * @param {string} [filter] Optional case-insensitive substring filter on canonical name, applied before counting and pagination.
-         * @param {Array<WorkStatus>} [statuses] Optional status set applied before counting and pagination.
+         * @param {Array<string>} [statuses] Optional status set applied before counting and pagination.
          * @param {OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortByEnum} [sortBy] Reference field used for deterministic ordering.
          * @param {OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortOrderEnum} [sortOrder] Direction used for deterministic reference ordering.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async organizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGet(organizationId: string, projectId: string, type: string, page: number, limit: number, filter?: string, statuses?: Array<WorkStatus>, sortBy?: OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortByEnum, sortOrder?: OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortOrderEnum, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGet200Response>> {
+        async organizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGet(organizationId: string, projectId: string, type: string, page: number, limit: number, filter?: string, statuses?: Array<string>, sortBy?: OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortByEnum, sortOrder?: OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortOrderEnum, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGet200Response>> {
             const localVarAxiosArgs = await localVarAxiosParamCreator.organizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGet(organizationId, projectId, type, page, limit, filter, statuses, sortBy, sortOrder, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['TasksApi.organizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGet']?.[localVarOperationServerIndex]?.url;
@@ -172967,10 +173028,10 @@ export interface TasksApiOrganizationsOrganizationIdProjectsProjectIdTasksGetReq
 
     /**
      * Filter by task statuses (comma-separated)
-     * @type {Array<WorkStatus>}
+     * @type {Array<string>}
      * @memberof TasksApiOrganizationsOrganizationIdProjectsProjectIdTasksGet
      */
-    readonly status?: Array<WorkStatus>
+    readonly status?: Array<string>
 
     /**
      * When true, include designDocCount for each task.
@@ -173506,10 +173567,10 @@ export interface TasksApiOrganizationsOrganizationIdProjectsProjectIdWorkItemsRe
 
     /**
      * Optional status set applied before counting and pagination.
-     * @type {Array<WorkStatus>}
+     * @type {Array<string>}
      * @memberof TasksApiOrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGet
      */
-    readonly statuses?: Array<WorkStatus>
+    readonly statuses?: Array<string>
 
     /**
      * Reference field used for deterministic ordering.

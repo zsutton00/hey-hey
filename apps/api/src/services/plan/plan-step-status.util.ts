@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from '../../generated/model/taskResponseDto';
 import { AdrStatus, WorkStatus } from '../../generated';
 
 export type PlanStepStatusValue =
@@ -30,7 +31,7 @@ export function getInitialStepStatusForType(
 }
 
 export function mapTaskStatusToPlanStepStatus(
-  status: WorkStatus,
+  status: TaskResponseDto['status'],
 ): PlanStepStatusValue {
   switch (status) {
     case WorkStatus.Generated:

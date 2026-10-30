@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../../../../packages/ui-common/src/api/api";
 import { useModalState } from "@hey-hey/ui-common/components/Modals";
 import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import {
@@ -34,7 +35,6 @@ import {
   WorkItemTypeScalarField,
   WorkItemTypeLifecycleStatus,
   WorkItemTypeRole,
-  WorkStatus,
 } from "@hey-hey/ui-common/api";
 import type {
   ProposalApprovalFailureDiagnostic,
@@ -135,7 +135,6 @@ const FORM_TABS = [
 ] as const;
 type FormTab = (typeof FORM_TABS)[number];
 
-const WORK_STATUS_VALUES = Object.values(WorkStatus);
 const EDGE_TYPE_VALUES = Object.values(AgentEdgeType);
 const SCALAR_FIELDS = Object.values(WorkItemTypeScalarField);
 const ENTITY_TYPE_VALUES = Object.values(EntityType);
@@ -193,7 +192,7 @@ const resolveWorkItemIconPreview = (iconKey: WorkItemIconKey) =>
     name: "Icon preview",
     role: WorkItemTypeRole.WorkItem,
     sections: [],
-    allowedStatuses: [],
+    statuses: [],
     iconKey,
   });
 
@@ -343,7 +342,9 @@ export const WorkItemTypeFormPage: React.FC = () => {
   const [scalarMembership, setScalarMembership] = useState<
     Record<string, ScalarMembership>
   >({});
-  const [allowedStatuses, setAllowedStatuses] = useState<WorkStatus[]>([]);
+  const [allowedStatuses, setAllowedStatuses] = useState<
+    TaskResponseDto["status"][]
+  >([]);
   const [allowedParentTypes, setAllowedParentTypes] = useState<string[]>([]);
   const [edgeTargets, setEdgeTargets] = useState<EdgeTargetRow[]>([]);
   const [capabilities, setCapabilities] = useState<CapabilityRow[]>([]);
@@ -352,7 +353,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
     EntityType[]
   >([]);
   const [agentSettableStatuses, setAgentSettableStatuses] = useState<
-    WorkStatus[]
+    TaskResponseDto["status"][]
   >([]);
   const [anchorableReportTypes, setAnchorableReportTypes] = useState<
     ReportType[]
@@ -431,7 +432,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
       }
       return membership;
     });
-    setAllowedStatuses(definition.allowedStatuses);
+    setAllowedStatuses(definition.statuses.map((status) => status.name));
     const sourceAllowedParentTypes = definition.allowedParentTypes ?? [];
     setAllowedParentTypes(sourceAllowedParentTypes);
     setEdgeTargets(
@@ -733,7 +734,19 @@ export const WorkItemTypeFormPage: React.FC = () => {
       sections: sectionDtos,
       requiredScalars,
       forbiddenScalars,
-      allowedStatuses,
+      statuses: allowedStatuses.map((name) => {
+        const status =
+          workItemTypeSummary?.definition.statuses.find(
+            (entry) => entry.name === name,
+          ) ??
+          workItemTypes
+            .flatMap((entry) => entry.definition.statuses)
+            .find((entry) => entry.name === name);
+        if (!status) {
+          throw new Error(`Status definition is unavailable: ${name}`);
+        }
+        return status;
+      }),
       allowedParentTypes,
       edgeTargets: edgeTargetDtos,
       allowedParentEntityTypes: normalizedAllowedParentEntityTypes,
@@ -778,7 +791,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
       ...(iconKey ? { iconKey } : {}),
       ...(canEditColor && colorKey ? { colorKey } : {}),
       sections: sectionDtos,
-      allowedStatuses,
+      statuses: authoredDefinition.statuses,
       ...(hasOwnDefinitionField(source, "description") ||
       description !== sourceDescription
         ? {
@@ -854,6 +867,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
     sections,
     trackingSourceTaskTypes,
     workItemTypeSummary,
+    workItemTypes,
     writingStandardCreate,
     writingStandardEdit,
   ]);
@@ -1828,7 +1842,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
                       name: "Presentation preview",
                       role,
                       sections: [],
-                      allowedStatuses: [],
+                      statuses: [],
                       ...(iconKey ? { iconKey } : {}),
                       ...(colorKey ? { colorKey } : {}),
                     },
@@ -2071,31 +2085,28 @@ export const WorkItemTypeFormPage: React.FC = () => {
               <Stack spacing={2.5}>
                 <FormControl fullWidth size="small">
                   <InputLabel>
-                    {WORK_ITEM_TYPE_FIELD_PRESENTATION.allowedStatuses.label}
+                    {WORK_ITEM_TYPE_FIELD_PRESENTATION.statuses.label}
                   </InputLabel>
-                  <Select<WorkStatus[]>
+                  <Select<TaskResponseDto["status"][]>
                     multiple
                     value={allowedStatuses}
-                    label={
-                      WORK_ITEM_TYPE_FIELD_PRESENTATION.allowedStatuses.label
-                    }
+                    label={WORK_ITEM_TYPE_FIELD_PRESENTATION.statuses.label}
                     data-testid="wit-form-statuses"
-                    onChange={(e: SelectChangeEvent<WorkStatus[]>) =>
+                    onChange={(
+                      e: SelectChangeEvent<TaskResponseDto["status"][]>,
+                    ) =>
                       setAllowedStatuses(
                         (typeof e.target.value === "string"
                           ? e.target.value.split(",")
-                          : e.target.value) as WorkStatus[],
+                          : e.target.value) as TaskResponseDto["status"][],
                       )
                     }
                     input={
                       <OutlinedInput
-                        label={
-                          WORK_ITEM_TYPE_FIELD_PRESENTATION.allowedStatuses
-                            .label
-                        }
+                        label={WORK_ITEM_TYPE_FIELD_PRESENTATION.statuses.label}
                       />
                     }
-                    renderValue={(selected: WorkStatus[]) => (
+                    renderValue={(selected: TaskResponseDto["status"][]) => (
                       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
                         {selected.map((v) => (
                           <Chip key={v} label={v} size="small" />
@@ -2103,7 +2114,15 @@ export const WorkItemTypeFormPage: React.FC = () => {
                       </Box>
                     )}
                   >
-                    {WORK_STATUS_VALUES.map((status) => (
+                    {Array.from(
+                      new Set(
+                        workItemTypes.flatMap((entry) =>
+                          entry.definition.statuses.map(
+                            (status) => status.name,
+                          ),
+                        ),
+                      ),
+                    ).map((status) => (
                       <MenuItem key={status} value={status}>
                         <Checkbox
                           checked={allowedStatuses.includes(status)}
@@ -2118,10 +2137,10 @@ export const WorkItemTypeFormPage: React.FC = () => {
                     color="text.secondary"
                     sx={{ mt: 0.5 }}
                   >
-                    {WORK_ITEM_TYPE_FIELD_PRESENTATION.allowedStatuses.help}
+                    {WORK_ITEM_TYPE_FIELD_PRESENTATION.statuses.help}
                   </Typography>
                 </FormControl>
-                {renderEnumMultiSelect<WorkStatus>(
+                {renderEnumMultiSelect<TaskResponseDto["status"]>(
                   WORK_ITEM_TYPE_FIELD_PRESENTATION.agentSettableStatuses.label,
                   allowedStatuses,
                   agentSettableStatuses,

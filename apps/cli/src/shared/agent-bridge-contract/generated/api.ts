@@ -23765,11 +23765,11 @@ export interface TaskResponseDto {
      */
     'initiativeId'?: string | null;
     /**
-     *
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows.
+     * @type {string}
      * @memberof TaskResponseDto
      */
-    'status': WorkStatus;
+    'status': string;
     /**
      *
      * @type {TaskSource}
@@ -23958,11 +23958,11 @@ export interface TrackedEntitySnapshot {
      */
     'title': string;
     /**
-     *
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows.
+     * @type {string}
      * @memberof TrackedEntitySnapshot
      */
-    'status'?: WorkStatus;
+    'status'?: string;
     /**
      * Target completion date, when the target type carries one.
      * @type {string}
@@ -24343,38 +24343,6 @@ export interface WorkItemSection {
      */
     'order': number;
 }
-/**
- * Unified work status for initiatives and tasks
- * @export
- * @enum {string}
- */
-
-export const WorkStatus = {
-    Generated: 'GENERATED',
-    Backlog: 'BACKLOG',
-    Ready: 'READY',
-    Refining: 'REFINING',
-    Blocked: 'BLOCKED',
-    RefiningDescription: 'REFINING_DESCRIPTION',
-    RefiningDetails: 'REFINING_DETAILS',
-    RefiningAcceptanceCriteria: 'REFINING_ACCEPTANCE_CRITERIA',
-    GeneratingDescription: 'GENERATING_DESCRIPTION',
-    GeneratingDetails: 'GENERATING_DETAILS',
-    GeneratingDescriptionAndDetails: 'GENERATING_DESCRIPTION_AND_DETAILS',
-    GeneratingAcceptanceCriteria: 'GENERATING_ACCEPTANCE_CRITERIA',
-    GeneratingAll: 'GENERATING_ALL',
-    Active: 'ACTIVE',
-    OnHold: 'ON_HOLD',
-    Verifying: 'VERIFYING',
-    Completed: 'COMPLETED',
-    Cancelled: 'CANCELLED',
-    Archived: 'ARCHIVED',
-    Superseded: 'SUPERSEDED'
-} as const;
-
-export type WorkStatus = typeof WorkStatus[keyof typeof WorkStatus];
-
-
 /**
  * Runtime tool reachability. CLI code owns connection instructions.
  * @export

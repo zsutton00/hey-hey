@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from '../../../generated/model/taskResponseDto';
 import { WorkStatus } from '../../../generated';
 import {
   isPreExecutionStepStatus,
@@ -37,7 +38,9 @@ describe('plan-step-status.util', () => {
 
     it('throws on unsupported task statuses instead of falling back', () => {
       expect(() =>
-        mapTaskStatusToPlanStepStatus('NOT_A_STATUS' as WorkStatus),
+        mapTaskStatusToPlanStepStatus(
+          'NOT_A_STATUS' as TaskResponseDto['status'],
+        ),
       ).toThrow('Unsupported task status for plan step mapping: NOT_A_STATUS');
     });
   });

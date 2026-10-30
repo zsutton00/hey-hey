@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -155,7 +156,7 @@ const definition: WorkItemTypeDefinitionDto = {
     htmlDefinition,
     mockupDefinition,
   ],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
 };
 
 const existing = {
@@ -412,7 +413,7 @@ describe("TaskUpdateRenderer visual section review", () => {
           schemaRef: "#/components/schemas/ProjectModeApplicabilityV1",
         },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     };
     const modeExisting = {
       ...existing,
@@ -508,7 +509,7 @@ describe("TaskUpdateRenderer visual section review", () => {
       key: "MODE",
       name: "Project Mode",
       sections: [{ key: "files", label: "Files", kind: "json" }],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     };
     const modeProposal = {
       ...proposal,

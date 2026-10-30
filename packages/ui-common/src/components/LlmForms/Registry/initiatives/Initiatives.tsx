@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../../../api/api";
 import { useModalState } from "../../../Modals/useModalState";
 import { ModalWorkOwner } from "../../../Modals/ModalWorkOwner";
 import AddIcon from "@mui/icons-material/Add";
@@ -17,7 +18,6 @@ import type {
   InitiativeResponseDto,
   GenerationSystemMessageData,
   Priority,
-  WorkStatus,
 } from "../../../../api";
 import type { MutationCallbacks } from "../../../../data/core/types";
 import { KEYS } from "../../../../i18n/keys";
@@ -99,7 +99,7 @@ export const Initiatives: React.FC<InitiativesMessageProps> = ({
               },
               { includeEmpty: false },
             ),
-            status: "REFINING_DESCRIPTION" as WorkStatus,
+            status: "REFINING_DESCRIPTION" as TaskResponseDto["status"],
             priority: "MEDIUM" as Priority,
             creatorType: "USER" as InitiativeCreatorType,
             tags: formData.tags,

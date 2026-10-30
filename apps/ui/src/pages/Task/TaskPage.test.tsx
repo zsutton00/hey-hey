@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../../../packages/ui-common/src/test/fixtures/workItemStatuses";
 import { HostedModalFixture } from "../../test/HostedModalFixture";
 import { ModalRestoreControls } from "@hey-hey/ui-common/components/Modals";
 import { PreviewModal } from "../../components/PreviewModal";
@@ -243,7 +244,7 @@ const createDefinition = (
     { key: "description", label: "Description" },
     { key: "acceptanceCriteria", label: "Acceptance Criteria" },
   ],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
   allowedParentTypes: [],
   role: WorkItemTypeRole.WorkItem,
   capabilities: {
@@ -1386,7 +1387,7 @@ describe("TaskPage dynamic children tabs", () => {
       key: "MARKETING",
       name: "Campaign",
       allowedParentTypes: ["STANDARD"],
-      allowedStatuses: [WorkStatus.Active],
+      statuses: legacyStatuses([WorkStatus.Active]),
       sections: [
         { key: "audience", label: "Audience" },
         { key: "brief", label: "Brief" },
@@ -1404,7 +1405,7 @@ describe("TaskPage dynamic children tabs", () => {
       onSubmit: (formData: {
         name: string;
         initiativeId: string;
-        status: WorkStatus;
+        status: TaskResponseDto["status"];
         sectionContent: Record<string, string>;
       }) => Promise<void>;
     };
@@ -1439,7 +1440,7 @@ describe("TaskPage dynamic children tabs", () => {
       key: "MARKETING",
       name: "Campaign",
       allowedParentTypes: ["STANDARD"],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     mockWorkItemTypeDefinition = createDefinition();
     mockWorkItemTypes = [

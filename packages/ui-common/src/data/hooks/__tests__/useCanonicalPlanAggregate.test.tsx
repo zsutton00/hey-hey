@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -84,15 +85,15 @@ const registryItem = (key: string): WorkItemTypeSummaryDto => ({
       key === "PLAN"
         ? [{ key: "planConfiguration", label: "Plan configuration" }]
         : key === "PLAN_STAGE"
-        ? [{ key: "description", label: "Description" }]
-        : [{ key: "acceptanceCriteria", label: "Acceptance criteria" }],
-    allowedStatuses: [WorkStatus.Backlog],
+          ? [{ key: "description", label: "Description" }]
+          : [{ key: "acceptanceCriteria", label: "Acceptance criteria" }],
+    statuses: legacyStatuses([WorkStatus.Backlog]),
     allowedParentTypes:
       key === "PLAN"
         ? ["FEATURE"]
         : key === "PLAN_STAGE"
-        ? ["PLAN"]
-        : ["PLAN_STAGE"],
+          ? ["PLAN"]
+          : ["PLAN_STAGE"],
     capabilities: { requiresParent: key !== "PLAN" },
     edgeTargets:
       key === "PLAN_STAGE" || key === "STANDARD"
@@ -108,7 +109,7 @@ const registry = [
 ];
 
 const collectionResult = (
-  workItems: readonly (PlanStageWorkItem | PlanStageStandardTask)[]
+  workItems: readonly (PlanStageWorkItem | PlanStageStandardTask)[],
 ) => ({
   workItems,
   isLoading: false,
@@ -138,7 +139,7 @@ describe("useCanonicalPlanAggregate", () => {
       (_organizationId, _entityType, _projectId, _conversationId, options) =>
         options?.parentTaskIds
           ? collectionResult([task])
-          : collectionResult([stage])
+          : collectionResult([stage]),
     );
   });
 
@@ -150,7 +151,7 @@ describe("useCanonicalPlanAggregate", () => {
       error: null,
     });
     const { result } = renderHook(() =>
-      useCanonicalPlanAggregate("org-1", "project-1", "plan-1")
+      useCanonicalPlanAggregate("org-1", "project-1", "plan-1"),
     );
     expect(result.current.status).toBe("ready");
     expect(result.current.aggregate?.plan.parentTaskId).toBeUndefined();
@@ -159,7 +160,7 @@ describe("useCanonicalPlanAggregate", () => {
 
   it("loads all direct Stage children and Standard grandchildren in batches", () => {
     const { result } = renderHook(() =>
-      useCanonicalPlanAggregate("org-1", "project-1", "plan-1")
+      useCanonicalPlanAggregate("org-1", "project-1", "plan-1"),
     );
 
     expect(result.current.status).toBe("ready");
@@ -175,7 +176,7 @@ describe("useCanonicalPlanAggregate", () => {
         taskType: "PLAN_STAGE",
         includeEdges: true,
         limit: 201,
-      })
+      }),
     );
     expect(mocks.useWorkItems).toHaveBeenNthCalledWith(
       2,
@@ -188,7 +189,7 @@ describe("useCanonicalPlanAggregate", () => {
         taskType: "STANDARD",
         includeServiceRelations: true,
         limit: 500,
-      })
+      }),
     );
   });
 
@@ -203,7 +204,7 @@ describe("useCanonicalPlanAggregate", () => {
     });
 
     const { result } = renderHook(() =>
-      useCanonicalPlanAggregate("org-1", "project-1", "plan-1")
+      useCanonicalPlanAggregate("org-1", "project-1", "plan-1"),
     );
 
     expect(result.current.status).toBe("error");
@@ -214,7 +215,7 @@ describe("useCanonicalPlanAggregate", () => {
       expect.anything(),
       expect.anything(),
       undefined,
-      expect.objectContaining({ enabled: false })
+      expect.objectContaining({ enabled: false }),
     );
   });
 });

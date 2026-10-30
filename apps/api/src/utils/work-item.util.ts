@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from '../generated/model/taskResponseDto';
 import { invert } from 'lodash';
 import { WorkStatus } from 'src/generated';
 
@@ -290,7 +291,7 @@ export function canUpdateMultipleFieldsAtLevel(
   return level !== 'description';
 }
 
-export function getWorkItemSections(status: WorkStatus) {
+export function getWorkItemSections(status: TaskResponseDto['status']) {
   const currentSection = getCurrentSectionFromStatus(status);
   const isGenerating = isGeneratingStatus(status);
   const nextSection = isGenerating
@@ -300,12 +301,11 @@ export function getWorkItemSections(status: WorkStatus) {
   return { currentSection, nextSection };
 }
 
-export const isRefining = (status: WorkStatus) => {
+export const isRefining = (status: TaskResponseDto['status']) => {
   return (
-    [
-      WorkStatus.RefiningAcceptanceCriteria,
-      WorkStatus.RefiningDescription,
-      WorkStatus.RefiningDetails,
-    ].includes(status) || isGeneratingStatus(status)
+    status === WorkStatus.RefiningAcceptanceCriteria ||
+    status === WorkStatus.RefiningDescription ||
+    status === WorkStatus.RefiningDetails ||
+    isGeneratingStatus(status)
   );
 };

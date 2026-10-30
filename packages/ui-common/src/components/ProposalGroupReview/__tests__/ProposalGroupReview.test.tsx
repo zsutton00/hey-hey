@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { proposalsClient } from "../../../clients/serviceClients";
 import React from "react";
 import {
@@ -317,7 +318,7 @@ vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
               schemaRef: "work-item-graph-layout.v1",
             },
           ],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
           capabilities: {
             graph: {
               nodeChildType: "DIAGRAM_ELEMENT",

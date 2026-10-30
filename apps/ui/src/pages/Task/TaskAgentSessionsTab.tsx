@@ -1,7 +1,5 @@
-import type {
-  ContextRelatedEntityDto,
-  WorkStatus,
-} from "@hey-hey/ui-common/api";
+import type { TaskResponseDto } from "../../../../../packages/ui-common/src/api/api";
+import type { ContextRelatedEntityDto } from "@hey-hey/ui-common/api";
 import { unifiedApiClient } from "@hey-hey/ui-common/clients";
 import React, { useCallback } from "react";
 import { PaginatedCodingSessionsFeed } from "../../components/Activity/PaginatedCodingSessionsFeed";
@@ -16,11 +14,11 @@ interface TaskAgentSessionsTabProps {
   taskType: string;
   relatedEntities: readonly ContextRelatedEntityDto[];
   taskName?: string;
-  taskStatus?: WorkStatus;
+  taskStatus?: TaskResponseDto["status"];
   loading?: boolean;
   emptyMessage?: string;
   enableFilters?: boolean;
-  onTaskStatusChange?: (newStatus: WorkStatus) => Promise<void>;
+  onTaskStatusChange?: (newStatus: TaskResponseDto["status"]) => Promise<void>;
 }
 
 export const TaskAgentSessionsTab: React.FC<TaskAgentSessionsTabProps> = ({

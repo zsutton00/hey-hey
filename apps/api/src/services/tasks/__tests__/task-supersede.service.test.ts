@@ -1,9 +1,9 @@
+import { WorkStatus } from '../../../generated/model/workStatus';
 import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
 } from 'src/services/tasks/work-item-type-keys';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { WorkStatus } from '@prisma/client';
 
 import { TaskSupersedeService } from '../task-supersede.service';
 import { TaskService } from '../task.service';
@@ -32,13 +32,16 @@ const REQUESTOR_CONTEXT = {
 } as unknown as RequestorContext;
 
 function makeTask(
-  overrides: Partial<{ type: WorkItemTypeKey; status: WorkStatus }> = {},
+  overrides: Partial<{
+    type: WorkItemTypeKey;
+    status: TaskResponseDto['status'];
+  }> = {},
 ) {
   return {
     id: TASK_ID,
     name: 'Original login flow',
     type: WORK_ITEM_TYPE_KEYS.Standard,
-    status: WorkStatus.ACTIVE,
+    status: WorkStatus.Active,
     ...overrides,
   };
 }
@@ -111,7 +114,7 @@ describe('TaskSupersedeService', () => {
 
   it('rejects a task that is already superseded', async () => {
     (prisma.db.task.findFirst as jest.Mock).mockResolvedValueOnce(
-      makeTask({ status: WorkStatus.SUPERSEDED }),
+      makeTask({ status: WorkStatus.Superseded }),
     );
 
     await expect(supersede()).rejects.toBeInstanceOf(BadRequestException);
@@ -148,7 +151,7 @@ describe('TaskSupersedeService', () => {
       proposalService.create.mockResolvedValue(makeProposal());
       taskService.findOneByOrganization.mockResolvedValue({
         id: TASK_ID,
-        status: WorkStatus.ACTIVE,
+        status: WorkStatus.Active,
       } as unknown as TaskResponseDto);
 
       await supersede();
@@ -161,7 +164,7 @@ describe('TaskSupersedeService', () => {
       expect(dto.action).toBe('UPDATE');
       expect(dto.targetEntityType).toBe('TASK');
       expect(dto.targetEntityId).toBe(TASK_ID);
-      expect(dto.updates).toEqual({ status: WorkStatus.SUPERSEDED });
+      expect(dto.updates).toEqual({ status: WorkStatus.Superseded });
       // The status change and the SUPERSEDES edge travel on one proposal.
       expect(dto.edges).toEqual([
         expect.objectContaining({
@@ -182,13 +185,13 @@ describe('TaskSupersedeService', () => {
     );
     taskService.findOneByOrganization.mockResolvedValue({
       id: TASK_ID,
-      status: WorkStatus.SUPERSEDED,
+      status: WorkStatus.Superseded,
     } as unknown as TaskResponseDto);
 
     const result = await supersede();
 
     expect(result.status).toBe('APPLIED');
-    expect(result.task.status).toBe(WorkStatus.SUPERSEDED);
+    expect(result.task.status).toBe(WorkStatus.Superseded);
     expect(result.proposal).toBeUndefined();
   });
 
@@ -202,13 +205,13 @@ describe('TaskSupersedeService', () => {
     proposalService.create.mockResolvedValue(proposal);
     taskService.findOneByOrganization.mockResolvedValue({
       id: TASK_ID,
-      status: WorkStatus.ACTIVE,
+      status: WorkStatus.Active,
     } as unknown as TaskResponseDto);
 
     const result = await supersede();
 
     expect(result.status).toBe('PENDING');
-    expect(result.task.status).toBe(WorkStatus.ACTIVE);
+    expect(result.task.status).toBe(WorkStatus.Active);
     expect(result.proposal).toBe(proposal);
   });
 });

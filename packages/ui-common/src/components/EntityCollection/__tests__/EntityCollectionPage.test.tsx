@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
@@ -28,12 +29,12 @@ vi.mock("../../InteractionComponent", () => ({
 const goalDefinition = {
   key: "GOAL",
   name: "Goal",
-  allowedStatuses: ["COMPLETED", "ACTIVE", "CANCELLED"],
+  statuses: legacyStatuses(["COMPLETED", "ACTIVE", "CANCELLED"]),
 } as unknown as WorkItemTypeDefinitionDto;
 
 const referencePage = (
   ids: string[],
-  pagination: Partial<PaginatedWorkItemReferenceResponseDto["pagination"]> = {}
+  pagination: Partial<PaginatedWorkItemReferenceResponseDto["pagination"]> = {},
 ): PaginatedWorkItemReferenceResponseDto => ({
   items: ids.map((id) => ({
     id,
@@ -62,7 +63,7 @@ const goal = (id: string): WorkItemResponseDto =>
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
     hasProposalSupport: true,
-  } as unknown as WorkItemResponseDto);
+  }) as unknown as WorkItemResponseDto;
 
 const lastReferenceInput = () =>
   referencePageMock.mock.calls.at(-1)?.[0] as Record<string, unknown>;
@@ -70,7 +71,7 @@ const lastWorkItemsOptions = () =>
   workItemsMock.mock.calls.at(-1)?.[4] as Record<string, unknown>;
 
 const renderPage = (
-  props: Partial<React.ComponentProps<typeof EntityCollectionPage>> = {}
+  props: Partial<React.ComponentProps<typeof EntityCollectionPage>> = {},
 ) =>
   render(
     <BrowserRouter>
@@ -80,7 +81,7 @@ const renderPage = (
         typeDefinition={goalDefinition}
         {...props}
       />
-    </BrowserRouter>
+    </BrowserRouter>,
   );
 
 describe("EntityCollectionPage", () => {
@@ -140,14 +141,21 @@ describe("EntityCollectionPage", () => {
       page: referencePage(["a"]),
       isFetching: false,
     });
-    renderPage({ renderRowAttention: (item) => <GoalProgressChip goal={item} /> });
+    renderPage({
+      renderRowAttention: (item) => <GoalProgressChip goal={item} />,
+    });
 
     const indicators = screen.getByTestId("entity-list-item-indicators");
-    expect(indicators).toContainElement(screen.getByTestId("goal-progress-chip"));
-    expect(indicators).toContainElement(screen.getByTestId("entity-list-item-status"));
+    expect(indicators).toContainElement(
+      screen.getByTestId("goal-progress-chip"),
+    );
+    expect(indicators).toContainElement(
+      screen.getByTestId("entity-list-item-status"),
+    );
     expect(indicators).not.toContainElement(screen.getByText("Goal a"));
     expect(screen.getByTestId("goal-progress-chip")).toHaveAttribute(
-      "data-goal-progress", "at-risk"
+      "data-goal-progress",
+      "at-risk",
     );
     expect(indicators).toHaveStyle({ flexDirection: "row", flexShrink: "0" });
   });
@@ -178,7 +186,9 @@ describe("EntityCollectionPage", () => {
     renderPage();
 
     expect(
-      screen.getByTestId("entity-collection-search").closest(".MuiFormControl-root")
+      screen
+        .getByTestId("entity-collection-search")
+        .closest(".MuiFormControl-root"),
     ).toHaveStyle({ width: "100%" });
   });
 
@@ -191,12 +201,12 @@ describe("EntityCollectionPage", () => {
           projectId="project-1"
           typeDefinition={goalDefinition}
         />
-      </BrowserRouter>
+      </BrowserRouter>,
     );
 
     expect(screen.getAllByRole("tab")[0]).toHaveAttribute(
       "aria-selected",
-      "true"
+      "true",
     );
     expect(lastReferenceInput().statuses).toEqual(["ACTIVE"]);
   });
@@ -245,7 +255,7 @@ describe("EntityCollectionPage", () => {
 
     expect(lastReferenceInput()).toMatchObject({ page: 1, limit: 2 });
     expect(
-      screen.queryByTestId("entity-collection-total")
+      screen.queryByTestId("entity-collection-total"),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("60 total")).not.toBeInTheDocument();
 
@@ -286,7 +296,7 @@ describe("EntityCollectionPage", () => {
 
     expect(lastWorkItemsOptions().enabled).toBe(false);
     expect(screen.getByTestId("entity-collection-empty")).toHaveTextContent(
-      "No goals yet."
+      "No goals yet.",
     );
   });
 });

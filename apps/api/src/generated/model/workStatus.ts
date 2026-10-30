@@ -14,7 +14,7 @@
 
 
 /**
- * Unified work status for initiatives and tasks
+ * Platform-defined status names: the vocabulary canonical work-item types are seeded with, plus the universal ARCHIVED and the protected SUPERSEDED. A type may define its own ordinary statuses, so a work item\'s current status is a WorkItemStatus, not necessarily one of these. 
  */
 export type WorkStatus = 'GENERATED' | 'BACKLOG' | 'READY' | 'REFINING' | 'BLOCKED' | 'REFINING_DESCRIPTION' | 'REFINING_DETAILS' | 'REFINING_ACCEPTANCE_CRITERIA' | 'GENERATING_DESCRIPTION' | 'GENERATING_DETAILS' | 'GENERATING_DESCRIPTION_AND_DETAILS' | 'GENERATING_ACCEPTANCE_CRITERIA' | 'GENERATING_ALL' | 'ACTIVE' | 'ON_HOLD' | 'VERIFYING' | 'COMPLETED' | 'CANCELLED' | 'ARCHIVED' | 'SUPERSEDED';
 

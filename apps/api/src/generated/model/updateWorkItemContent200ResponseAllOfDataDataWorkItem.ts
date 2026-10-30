@@ -22,7 +22,6 @@ import { GoalTrackedWorkSummary } from './goalTrackedWorkSummary';
 import { FeatureTag } from './featureTag';
 import { TaskResponseDtoChildCounts } from './taskResponseDtoChildCounts';
 import { TaskResponseDto } from './taskResponseDto';
-import { WorkStatus } from './workStatus';
 import { AgentEdgeResponseDto } from './agentEdgeResponseDto';
 import { InitiativeCreatorType } from './initiativeCreatorType';
 import { TaskSource } from './taskSource';

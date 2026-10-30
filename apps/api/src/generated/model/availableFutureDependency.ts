@@ -11,7 +11,6 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
-import { WorkStatus } from './workStatus';
 
 
 export interface AvailableFutureDependency { 
@@ -25,7 +24,7 @@ export interface AvailableFutureDependency {
     /**
      * Current status on approved future reads only; absent on pending previews.
      */
-    status?: WorkStatus;
+    status?: string;
 }
 export namespace AvailableFutureDependency {
     export type AvailabilityEnum = 'AVAILABLE';

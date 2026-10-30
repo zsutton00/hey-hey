@@ -19,7 +19,6 @@ import { TERMS } from "@hey-hey/ui-common/i18n";
 import {
   EntityType,
   TaskPriority as Priority,
-  WorkStatus,
   type ContextRelatedEntityDto,
   type EntityContextDtoProposalsInner,
   type PlanContextEntryDto,
@@ -593,7 +592,7 @@ export const TaskPage: React.FC<TaskPageProps> = ({
         return;
       }
 
-      const initialStatus = activeChildTypeDefinition.allowedStatuses[0];
+      const initialStatus = activeChildTypeDefinition.statuses[0]?.name;
       if (!initialStatus) {
         logger.warn(
           "ui",
@@ -633,7 +632,7 @@ export const TaskPage: React.FC<TaskPageProps> = ({
   );
 
   const handleStatusChange = useCallback(
-    async (newStatus: WorkStatus) => {
+    async (newStatus: TaskResponseDto["status"]) => {
       if (!task?.id) return;
 
       try {

@@ -1,20 +1,22 @@
+import type { TaskResponseDto } from '../../generated/model/taskResponseDto';
+import { WorkStatus } from '../../generated/model/workStatus';
 import { PlanDependenciesService } from '../plan/plan-dependencies.service';
 import { Injectable, Logger } from '@nestjs/common';
-import { Prisma, WorkStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { WORK_ITEM_TYPE_KEYS } from './work-item-type-keys';
 
 export interface PlanHierarchyStatusTransition {
   taskId: string;
-  previousStatus: WorkStatus;
-  newStatus: WorkStatus;
+  previousStatus: TaskResponseDto['status'];
+  newStatus: TaskResponseDto['status'];
   organizationId: string;
   projectId: string;
   initiativeId: string | null;
 }
 
-const TERMINAL_STATUSES = new Set<WorkStatus>([
-  WorkStatus.COMPLETED,
-  WorkStatus.CANCELLED,
+const TERMINAL_STATUSES = new Set<TaskResponseDto['status']>([
+  WorkStatus.Completed,
+  WorkStatus.Cancelled,
 ]);
 
 /**
@@ -169,10 +171,10 @@ export class PlanHierarchyRollupService {
         !TERMINAL_STATUSES.has(task.status),
     );
     if (
-      desiredStageStatus === WorkStatus.ACTIVE &&
+      desiredStageStatus === WorkStatus.Active &&
       hasIncompleteStageDependency
     ) {
-      desiredStageStatus = WorkStatus.BACKLOG;
+      desiredStageStatus = WorkStatus.Backlog;
     }
 
     const transitions: PlanHierarchyStatusTransition[] = [];
@@ -258,46 +260,46 @@ export class PlanHierarchyRollupService {
   }
 
   computeStageStatus(
-    currentStatus: WorkStatus,
-    childStatuses: readonly WorkStatus[],
-  ): WorkStatus {
-    if (currentStatus === WorkStatus.REFINING) return currentStatus;
-    if (childStatuses.length === 0) return WorkStatus.BACKLOG;
+    currentStatus: TaskResponseDto['status'],
+    childStatuses: readonly TaskResponseDto['status'][],
+  ): TaskResponseDto['status'] {
+    if (currentStatus === WorkStatus.Refining) return currentStatus;
+    if (childStatuses.length === 0) return WorkStatus.Backlog;
     if (childStatuses.every((status) => TERMINAL_STATUSES.has(status))) {
-      return WorkStatus.COMPLETED;
+      return WorkStatus.Completed;
     }
-    if (childStatuses.includes(WorkStatus.BLOCKED)) return WorkStatus.BLOCKED;
-    if (childStatuses.every((status) => status === WorkStatus.BACKLOG)) {
-      return currentStatus === WorkStatus.COMPLETED
-        ? WorkStatus.ACTIVE
-        : WorkStatus.BACKLOG;
+    if (childStatuses.includes(WorkStatus.Blocked)) return WorkStatus.Blocked;
+    if (childStatuses.every((status) => status === WorkStatus.Backlog)) {
+      return currentStatus === WorkStatus.Completed
+        ? WorkStatus.Active
+        : WorkStatus.Backlog;
     }
-    return WorkStatus.ACTIVE;
+    return WorkStatus.Active;
   }
 
   computePlanStatus(
-    currentStatus: WorkStatus,
-    stageStatuses: readonly WorkStatus[],
-  ): WorkStatus {
+    currentStatus: TaskResponseDto['status'],
+    stageStatuses: readonly TaskResponseDto['status'][],
+  ): TaskResponseDto['status'] {
     if (stageStatuses.length === 0) return currentStatus;
-    if (stageStatuses.every((status) => status === WorkStatus.COMPLETED)) {
+    if (stageStatuses.every((status) => status === WorkStatus.Completed)) {
       // Keep this VERIFYING checkpoint when merging plan lifecycle changes:
       // only the explicit, guarded completion action may move a Plan to COMPLETED.
-      return WorkStatus.VERIFYING;
+      return WorkStatus.Verifying;
     }
-    if (stageStatuses.includes(WorkStatus.BLOCKED)) return WorkStatus.BLOCKED;
+    if (stageStatuses.includes(WorkStatus.Blocked)) return WorkStatus.Blocked;
     if (
       stageStatuses.some(
         (status) =>
-          status === WorkStatus.ACTIVE || status === WorkStatus.REFINING,
+          status === WorkStatus.Active || status === WorkStatus.Refining,
       ) ||
-      stageStatuses.some((status) => status === WorkStatus.COMPLETED)
+      stageStatuses.some((status) => status === WorkStatus.Completed)
     ) {
-      return WorkStatus.ACTIVE;
+      return WorkStatus.Active;
     }
-    return currentStatus === WorkStatus.COMPLETED ||
-      currentStatus === WorkStatus.VERIFYING
-      ? WorkStatus.ACTIVE
+    return currentStatus === WorkStatus.Completed ||
+      currentStatus === WorkStatus.Verifying
+      ? WorkStatus.Active
       : currentStatus;
   }
 }

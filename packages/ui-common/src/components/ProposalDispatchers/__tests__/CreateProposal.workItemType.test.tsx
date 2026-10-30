@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -67,7 +68,7 @@ vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
           name: "Feature",
           role: WorkItemTypeRole.ProjectInfo,
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         },
       },
       {
@@ -80,7 +81,7 @@ vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
           name: "Goal",
           role: WorkItemTypeRole.ProjectInfo,
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         },
       },
     ],
@@ -155,7 +156,7 @@ const fullDefinition: WorkItemTypeDefinitionDto = {
   ],
   requiredScalars: ["dueDate"],
   forbiddenScalars: ["tag"],
-  allowedStatuses: [WorkStatus.Backlog, WorkStatus.Active],
+  statuses: legacyStatuses([WorkStatus.Backlog, WorkStatus.Active]),
   agentSettableStatuses: [WorkStatus.Backlog],
   allowedParentTypes: ["FEATURE"],
   allowedParentEntityTypes: [EntityType.Initiative],

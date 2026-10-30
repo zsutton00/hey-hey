@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../test/setup/legacy-status.fixture';
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import type { WorkItemType } from '@prisma/client';
 import type { WorkItemTypeDefinitionDto } from '../../generated/model/workItemTypeDefinitionDto';
@@ -14,7 +15,7 @@ const definition: WorkItemTypeDefinitionDto = {
   name: 'Marketing',
   role: 'work-item',
   sections: [{ key: 'description', label: 'Description' }],
-  allowedStatuses: ['BACKLOG'],
+  statuses: legacyStatuses(['BACKLOG']),
 };
 
 function row(lifecycleStatus: 'active' | 'archived'): WorkItemType {

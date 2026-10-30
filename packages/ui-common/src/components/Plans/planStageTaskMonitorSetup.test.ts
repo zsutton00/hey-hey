@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../api/api";
 import { describe, expect, it } from "vitest";
 import {
   PlanConfigurationV1SchemaVersionEnum,
@@ -64,7 +65,7 @@ const stage: PlanStageWorkItem = {
 
 const dependency = (
   sourceNodeId: string,
-  targetNodeId: string
+  targetNodeId: string,
 ): AgentEdgeResponseDto => ({
   id: `${sourceNodeId}-depends-on-${targetNodeId}`,
   sourceNodeId,
@@ -79,10 +80,10 @@ const task = (
   id: string,
   name: string,
   options: {
-    status?: WorkStatus;
+    status?: TaskResponseDto["status"];
     createdAt?: string;
     dependencies?: string[];
-  } = {}
+  } = {},
 ): PlanStageStandardTask => ({
   id,
   name,
@@ -99,7 +100,7 @@ const task = (
 const compose = (
   tasks: readonly PlanStageStandardTask[],
   planConfiguration: PlanConfigurationV1 = configuration,
-  sourcePlan: PlanWorkItem = plan
+  sourcePlan: PlanWorkItem = plan,
 ) =>
   composePlanStageTaskMonitorSetup({
     organizationId,
@@ -149,7 +150,7 @@ describe("composePlanStageTaskMonitorSetup", () => {
       "Dependent",
       {
         dependencies: [first.id, parallel.id],
-      }
+      },
     );
 
     const result = compose([dependent, first, parallel]);
@@ -170,12 +171,12 @@ describe("composePlanStageTaskMonitorSetup", () => {
       expect.objectContaining({ taskId: dependent.id }),
     ]);
     expect(taskMonitorExecutionDefinitionSchema(result.draft.definition)).toBe(
-      true
+      true,
     );
     expect(
       parseTaskMonitorExecutionDefinition(
-        JSON.stringify(result.draft.definition)
-      )
+        JSON.stringify(result.draft.definition),
+      ),
     ).toEqual(result.draft.definition);
   });
 

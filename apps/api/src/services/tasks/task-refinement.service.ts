@@ -6,7 +6,7 @@
  */
 
 import { Injectable } from '@nestjs/common';
-import { WorkStatus } from '@prisma/client';
+
 import {
   ConversationResponseDto,
   ConversationStatus,
@@ -156,7 +156,7 @@ export class TaskRefinementService
       sectionUpdateSource?: TaskSectionUpdateSource;
     } = {
       name: updates.name,
-      status: updates.status as WorkStatus,
+      status: updates.status as TaskResponseDto['status'],
       priority: updates.priority
         ? (updates.priority as TaskPriority)
         : undefined,
@@ -375,7 +375,7 @@ export class TaskRefinementService
    * Get the appropriate status for a given refinement level
    * Maps refinement levels back to task statuses
    */
-  getStatusForLevel(level: RefinementLevel): WorkStatus {
+  getStatusForLevel(level: RefinementLevel): TaskResponseDto['status'] {
     switch (level) {
       case 'description':
         return getTaskRefiningStatusForLevel('description');

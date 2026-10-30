@@ -188,7 +188,7 @@ const resolveTaskStatus = (
     return task.status;
   }
 
-  return options.workItemTypeDefinition?.allowedStatuses.length
+  return options.workItemTypeDefinition?.statuses.length
     ? task.status
     : undefined;
 };

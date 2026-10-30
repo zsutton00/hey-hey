@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
 import React from "react";
@@ -81,7 +82,7 @@ describe("ModeFilesSectionRenderer", () => {
           key: typeKey,
           name: typeKey,
           capabilities: { rendersInline: false },
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
           sections: [],
         },
         isLoading: false,

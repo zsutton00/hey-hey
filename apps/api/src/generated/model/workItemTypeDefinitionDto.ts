@@ -14,11 +14,11 @@
 import { WorkItemTypeSessionRoleGuidance } from './workItemTypeSessionRoleGuidance';
 import { WorkItemColorKey } from './workItemColorKey';
 import { WorkItemTypeSectionDefinition } from './workItemTypeSectionDefinition';
+import { WorkItemTypeStatus } from './workItemTypeStatus';
 import { WorkItemTypeTracking } from './workItemTypeTracking';
 import { WorkItemConfigKind } from './workItemConfigKind';
 import { WorkItemTypeWritingStandards } from './workItemTypeWritingStandards';
 import { EntityType } from './entityType';
-import { WorkStatus } from './workStatus';
 import { WorkItemTypeRole } from './workItemTypeRole';
 import { WorkItemTypeCapabilities } from './workItemTypeCapabilities';
 import { WorkItemIconKey } from './workItemIconKey';
@@ -68,9 +68,9 @@ export interface WorkItemTypeDefinitionDto {
      */
     forbiddenScalars?: Array<WorkItemTypeScalarField>;
     /**
-     * The work statuses an item of this type may occupy. Reuses the shared WorkStatus enum rather than declaring a type-local status set. 
+     * The type\'s ordered ordinary statuses — the authority for which statuses items of this type may be created in and moved between. The first entry is the status new items start in. Each entry carries the internal meaning the platform reads for progress and active filters, and the metadata that preserves legacy labels and completion/cancellation behavior. ARCHIVED is universal and SUPERSEDED is protected and platform-owned (see `capabilities.supportsSupersession`); neither appears in this list. 
      */
-    allowedStatuses: Array<WorkStatus>;
+    statuses: Array<WorkItemTypeStatus>;
     /**
      * Type keys an item of this type may be parented under. An empty array means the type is top-level only. 
      */
@@ -85,9 +85,9 @@ export interface WorkItemTypeDefinitionDto {
     allowedParentEntityTypes?: Array<EntityType>;
     tracking?: WorkItemTypeTracking;
     /**
-     * The subset of `allowedStatuses` an agent may set directly on an item of this type. Statuses the engine reserves for system transitions are absent here. Reuses the shared WorkStatus enum. 
+     * The subset of the type\'s status names (`statuses`, plus the universal ARCHIVED) an agent may set directly on an item of this type. Statuses the engine reserves for system transitions are absent here. 
      */
-    agentSettableStatuses?: Array<WorkStatus>;
+    agentSettableStatuses?: Array<string>;
     /**
      * Report types that may be anchored to an item of this type. Reuses the shared ReportType enum. An empty array means no report type anchors to this type. 
      */

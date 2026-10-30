@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import {
   render,
   screen,
@@ -59,7 +60,7 @@ const { bindAgentSessionMachineMock, machineResolutionState } = vi.hoisted(
       setSelectedMachineId: vi.fn(),
       isReady: true,
     },
-  })
+  }),
 );
 let createAgentSessionOnSuccess:
   | ((session: { id: string; conversationId: string; status: string }) => void)
@@ -88,7 +89,7 @@ vi.mock(
   "../../InteractionComponent/bindGraphConversationAgentSessionMachine",
   () => ({
     bindGraphConversationAgentSessionMachine: bindAgentSessionMachineMock,
-  })
+  }),
 );
 
 vi.mock("../SearchResults", () => ({
@@ -109,7 +110,7 @@ vi.mock("../SearchResults", () => ({
     onSelectionChange: (
       id: string,
       event: React.MouseEvent,
-      results: SearchEntity[]
+      results: SearchEntity[],
     ) => void;
     onPreview: (entity: SearchEntity) => void;
     onGoToEntity: (entity: SearchEntity) => void;
@@ -334,14 +335,14 @@ const DEFAULT_PROPS = {
 function makeWorkItemType(
   key: string,
   name: string,
-  status: WorkItemTypeLifecycleStatus = WorkItemTypeLifecycleStatus.Active
+  status: WorkItemTypeLifecycleStatus = WorkItemTypeLifecycleStatus.Active,
 ): WorkItemTypeSummaryDto {
   return {
     definition: {
       key,
       name,
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     },
     status,
     projectId: "proj-1",
@@ -398,7 +399,7 @@ describe("AdvancedSearch", () => {
     renderWithProviders(<AdvancedSearch {...DEFAULT_PROPS} />);
 
     expect(
-      screen.queryByTestId("agent-search-service-selector")
+      screen.queryByTestId("agent-search-service-selector"),
     ).not.toBeInTheDocument();
 
     const lastProps = searchInputsPropsSpy.mock.calls.at(-1)?.[0] as Record<
@@ -427,11 +428,8 @@ describe("AdvancedSearch", () => {
     renderWithProviders(
       <AdvancedSearch
         {...DEFAULT_PROPS}
-        defaultEntityTypes={[
-          "TASK:CUSTOM",
-          EntityType.Initiative,
-        ]}
-      />
+        defaultEntityTypes={["TASK:CUSTOM", EntityType.Initiative]}
+      />,
     );
 
     const lastCall = mockUseSemanticSearch.mock.calls.at(-1);
@@ -439,7 +437,7 @@ describe("AdvancedSearch", () => {
       expect.objectContaining({
         entityTypes: [EntityType.Task, EntityType.Initiative],
         taskTypes: ["CUSTOM"],
-      })
+      }),
     );
   });
 
@@ -453,7 +451,7 @@ describe("AdvancedSearch", () => {
       <AdvancedSearch
         {...DEFAULT_PROPS}
         defaultEntityTypes={["task", EntityType.Initiative]}
-      />
+      />,
     );
 
     const lastCall = mockUseSemanticSearch.mock.calls.at(-1);
@@ -461,13 +459,13 @@ describe("AdvancedSearch", () => {
       expect.objectContaining({
         entityTypes: [EntityType.Task, EntityType.Initiative],
         taskTypes: ["STANDARD", "CUSTOM"],
-      })
+      }),
     );
   });
 
   it("prefills the search input from defaultQuery on mount", () => {
     renderWithProviders(
-      <AdvancedSearch {...DEFAULT_PROPS} defaultQuery="foo" />
+      <AdvancedSearch {...DEFAULT_PROPS} defaultQuery="foo" />,
     );
 
     expect(screen.getByDisplayValue("foo")).toBeInTheDocument();
@@ -519,7 +517,7 @@ describe("AdvancedSearch", () => {
 
     const onSelect = vi.fn();
     renderWithProviders(
-      <AdvancedSearch {...DEFAULT_PROPS} onSelect={onSelect} />
+      <AdvancedSearch {...DEFAULT_PROPS} onSelect={onSelect} />,
     );
 
     fireEvent.click(screen.getByTestId(`result-${mockResults[0].id}`));
@@ -543,7 +541,11 @@ describe("AdvancedSearch", () => {
 
     const onSelect = vi.fn();
     renderWithProviders(
-      <AdvancedSearch {...DEFAULT_PROPS} onSelect={onSelect} allowMultiSelect />
+      <AdvancedSearch
+        {...DEFAULT_PROPS}
+        onSelect={onSelect}
+        allowMultiSelect
+      />,
     );
 
     fireEvent.click(screen.getByTestId(`result-${mockResults[0].id}`));
@@ -560,7 +562,7 @@ describe("AdvancedSearch", () => {
       error: null,
     });
     mockUseSearchSelection.mockReturnValue(
-      makeSelectionHook(new Set([mockResults[0].id]))
+      makeSelectionHook(new Set([mockResults[0].id])),
     );
 
     renderWithProviders(<AdvancedSearch {...DEFAULT_PROPS} allowMultiSelect />);
@@ -576,12 +578,16 @@ describe("AdvancedSearch", () => {
       error: null,
     });
     mockUseSearchSelection.mockReturnValue(
-      makeSelectionHook(new Set([mockResults[0].id, mockResults[1].id]))
+      makeSelectionHook(new Set([mockResults[0].id, mockResults[1].id])),
     );
 
     const onSelect = vi.fn();
     renderWithProviders(
-      <AdvancedSearch {...DEFAULT_PROPS} onSelect={onSelect} allowMultiSelect />
+      <AdvancedSearch
+        {...DEFAULT_PROPS}
+        onSelect={onSelect}
+        allowMultiSelect
+      />,
     );
 
     fireEvent.click(screen.getByText(/Select 2 items/));
@@ -633,7 +639,7 @@ describe("AdvancedSearch", () => {
 
     const onSelect = vi.fn();
     renderWithProviders(
-      <AdvancedSearch {...DEFAULT_PROPS} onSelect={onSelect} />
+      <AdvancedSearch {...DEFAULT_PROPS} onSelect={onSelect} />,
     );
 
     fireEvent.click(screen.getByText(`preview-${mockResults[0].id}`));
@@ -647,8 +653,8 @@ describe("AdvancedSearch", () => {
 
     expect(
       screen.queryByText(
-        "No results found. Try adjusting your search or filters."
-      )
+        "No results found. Try adjusting your search or filters.",
+      ),
     ).not.toBeInTheDocument();
   });
 
@@ -698,7 +704,7 @@ describe("AdvancedSearch", () => {
       mockUsePastSearches.mockReturnValue({ pastSearches, isLoading: false });
       renderWithProviders(<AdvancedSearch {...DEFAULT_PROPS} />);
       expect(
-        screen.queryByTestId("past-searches-list")
+        screen.queryByTestId("past-searches-list"),
       ).not.toBeInTheDocument();
     });
 
@@ -709,7 +715,7 @@ describe("AdvancedSearch", () => {
       fireEvent.focus(screen.getByTestId("search-input"));
       expect(screen.getByTestId("past-searches-list")).toBeInTheDocument();
       expect(screen.getByTestId("past-search-item")).toHaveTextContent(
-        "find recent design docs"
+        "find recent design docs",
       );
     });
 
@@ -731,7 +737,7 @@ describe("AdvancedSearch", () => {
       expect(mockCreateAgentSession).not.toHaveBeenCalled();
       expect(screen.getByTestId("entity-search-chat")).toBeInTheDocument();
       expect(
-        screen.queryByTestId("agent-search-service-selector")
+        screen.queryByTestId("agent-search-service-selector"),
       ).not.toBeInTheDocument();
       expect(entitySearchChatPropsSpy).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -739,7 +745,7 @@ describe("AdvancedSearch", () => {
             serviceIds: ["service-1"],
             launchServiceId: "service-1",
           }),
-        })
+        }),
       );
     });
 
@@ -795,7 +801,7 @@ describe("AdvancedSearch", () => {
               id: "session-bound",
               machineId: "machine-1",
             }),
-          })
+          }),
         );
       });
     });
@@ -811,7 +817,7 @@ describe("AdvancedSearch", () => {
     it("does not render the ModelSelector in title mode", () => {
       renderWithProviders(<AdvancedSearch {...DEFAULT_PROPS} />);
       expect(
-        screen.queryByTestId("agent-search-model-selector-root")
+        screen.queryByTestId("agent-search-model-selector-root"),
       ).not.toBeInTheDocument();
     });
 
@@ -819,7 +825,7 @@ describe("AdvancedSearch", () => {
       renderWithProviders(<AdvancedSearch {...DEFAULT_PROPS} />);
       fireEvent.click(screen.getByTestId("set-agent-mode"));
       expect(
-        screen.getByTestId("agent-search-model-selector-root")
+        screen.getByTestId("agent-search-model-selector-root"),
       ).toBeInTheDocument();
     });
 
@@ -828,21 +834,21 @@ describe("AdvancedSearch", () => {
       fireEvent.click(screen.getByTestId("set-agent-mode"));
 
       fireEvent.click(
-        screen.getByTestId("agent-search-model-selector-set-provider-codex")
+        screen.getByTestId("agent-search-model-selector-set-provider-codex"),
       );
       const afterProvider = JSON.parse(
-        localStorage.getItem(SURFACE_KEY) ?? "{}"
+        localStorage.getItem(SURFACE_KEY) ?? "{}",
       );
       expect(afterProvider.provider).toBe("codex");
 
       fireEvent.click(
-        screen.getByTestId("agent-search-model-selector-set-model")
+        screen.getByTestId("agent-search-model-selector-set-model"),
       );
       const afterModel = JSON.parse(localStorage.getItem(SURFACE_KEY) ?? "{}");
       expect(afterModel.model).toBe("claude-sonnet-5-5");
 
       fireEvent.click(
-        screen.getByTestId("agent-search-model-selector-set-effort-high")
+        screen.getByTestId("agent-search-model-selector-set-effort-high"),
       );
       const afterEffort = JSON.parse(localStorage.getItem(SURFACE_KEY) ?? "{}");
       expect(afterEffort.reasoningEffort).toBe("high");
@@ -852,11 +858,11 @@ describe("AdvancedSearch", () => {
       renderWithProviders(<AdvancedSearch {...DEFAULT_PROPS} />);
       fireEvent.click(screen.getByTestId("set-agent-mode"));
       fireEvent.click(
-        screen.getByTestId("agent-search-model-selector-set-fast-mode")
+        screen.getByTestId("agent-search-model-selector-set-fast-mode"),
       );
 
       expect(
-        JSON.parse(localStorage.getItem(SURFACE_KEY) ?? "{}").fastMode
+        JSON.parse(localStorage.getItem(SURFACE_KEY) ?? "{}").fastMode,
       ).toBe(true);
     });
 
@@ -867,14 +873,14 @@ describe("AdvancedSearch", () => {
           provider: "claude",
           model: "claude-sonnet-5-5",
           reasoningEffort: "high",
-        })
+        }),
       );
 
       renderWithProviders(<AdvancedSearch {...DEFAULT_PROPS} />);
       fireEvent.click(screen.getByTestId("set-agent-mode"));
 
       expect(
-        screen.getByTestId("agent-search-model-selector-state").textContent
+        screen.getByTestId("agent-search-model-selector-state").textContent,
       ).toBe("claude|claude-sonnet-5-5|high|false");
     });
 
@@ -885,7 +891,7 @@ describe("AdvancedSearch", () => {
           provider: "claude",
           model: "claude-sonnet-5-5",
           reasoningEffort: "high",
-        })
+        }),
       );
 
       entitySearchChatPropsSpy.mockClear();
@@ -941,13 +947,13 @@ describe("AdvancedSearch", () => {
       renderWithProviders(<AdvancedSearch {...DEFAULT_PROPS} />);
 
       expect(screen.getByTestId("show-similarity-scores")).toHaveTextContent(
-        "false"
+        "false",
       );
 
       fireEvent.click(screen.getByTestId("set-content-mode"));
 
       expect(screen.getByTestId("show-similarity-scores")).toHaveTextContent(
-        "true"
+        "true",
       );
     });
 
@@ -955,13 +961,13 @@ describe("AdvancedSearch", () => {
       renderWithProviders(<AdvancedSearch {...DEFAULT_PROPS} />);
 
       expect(
-        screen.queryByText(/ranked by meaning rather than/i)
+        screen.queryByText(/ranked by meaning rather than/i),
       ).not.toBeInTheDocument();
 
       fireEvent.click(screen.getByTestId("set-content-mode"));
 
       expect(
-        screen.getByText(/ranked by meaning rather than/i)
+        screen.getByText(/ranked by meaning rather than/i),
       ).toBeInTheDocument();
     });
 
@@ -971,7 +977,7 @@ describe("AdvancedSearch", () => {
       fireEvent.click(screen.getByTestId("set-content-mode"));
 
       expect(
-        screen.queryByTestId("agent-search-model-selector-root")
+        screen.queryByTestId("agent-search-model-selector-root"),
       ).not.toBeInTheDocument();
       expect(screen.queryByText("(show advanced)")).not.toBeInTheDocument();
     });
@@ -985,12 +991,12 @@ describe("AdvancedSearch", () => {
       error: null,
     });
     mockUseSearchSelection.mockReturnValue(
-      makeSelectionHook(new Set([mockResults[0].id]))
+      makeSelectionHook(new Set([mockResults[0].id])),
     );
 
     const onClose = vi.fn();
     renderWithProviders(
-      <AdvancedSearch {...DEFAULT_PROPS} allowMultiSelect onClose={onClose} />
+      <AdvancedSearch {...DEFAULT_PROPS} allowMultiSelect onClose={onClose} />,
     );
 
     fireEvent.click(screen.getByText("Cancel"));

@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../../test/setup/legacy-status.fixture';
 import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
@@ -173,24 +174,26 @@ describe('TaskService create path — archived type gate', () => {
         GraphsClientService,
         WorkItemParentageValidator,
       ],
-      overrides: [[PrismaService, mockPrisma],
-[WorkItemTypeRegistryService, registry],
-[RedisService, redisProvider.useValue],
-[
+      overrides: [
+        [PrismaService, mockPrisma],
+        [WorkItemTypeRegistryService, registry],
+        [RedisService, redisProvider.useValue],
+        [
           TaskArtifactService,
           {
             storeOriginalGeneration: jest.fn().mockResolvedValue([]),
             updateOriginalArtifactFields: jest.fn(),
           },
         ],
-[
+        [
           GraphsClientService,
           {
             searchGraph: jest
               .fn()
               .mockResolvedValue({ seedResults: [], totalElements: 0 }),
           },
-        ]],
+        ],
+      ],
     });
 
     return module.get<TaskService>(TaskService);
@@ -281,24 +284,26 @@ describe('TaskService re-parent path — archived type gate', () => {
         GraphsClientService,
         WorkItemParentageValidator,
       ],
-      overrides: [[PrismaService, mockPrisma],
-[WorkItemTypeRegistryService, registry],
-[RedisService, redisProvider.useValue],
-[
+      overrides: [
+        [PrismaService, mockPrisma],
+        [WorkItemTypeRegistryService, registry],
+        [RedisService, redisProvider.useValue],
+        [
           TaskArtifactService,
           {
             storeOriginalGeneration: jest.fn().mockResolvedValue([]),
             updateOriginalArtifactFields: jest.fn(),
           },
         ],
-[
+        [
           GraphsClientService,
           {
             searchGraph: jest
               .fn()
               .mockResolvedValue({ seedResults: [], totalElements: 0 }),
           },
-        ]],
+        ],
+      ],
     });
 
     const service = module.get<TaskService>(TaskService);
@@ -382,7 +387,7 @@ describe('TaskService update path — allowedStatuses gate', () => {
     typeKey: LIMITED_TYPE,
     projectId: testIds.project,
     initialStatus: WorkStatus.Backlog,
-    allowedStatuses: [WorkStatus.Backlog, WorkStatus.Active],
+    statuses: legacyStatuses([WorkStatus.Backlog, WorkStatus.Active]),
   };
 
   const existingLimitedTask = {
@@ -420,24 +425,26 @@ describe('TaskService update path — allowedStatuses gate', () => {
         GraphsClientService,
         WorkItemParentageValidator,
       ],
-      overrides: [[PrismaService, mockPrisma],
-[WorkItemTypeRegistryService, registry],
-[RedisService, redisProvider.useValue],
-[
+      overrides: [
+        [PrismaService, mockPrisma],
+        [WorkItemTypeRegistryService, registry],
+        [RedisService, redisProvider.useValue],
+        [
           TaskArtifactService,
           {
             storeOriginalGeneration: jest.fn().mockResolvedValue([]),
             updateOriginalArtifactFields: jest.fn(),
           },
         ],
-[
+        [
           GraphsClientService,
           {
             searchGraph: jest
               .fn()
               .mockResolvedValue({ seedResults: [], totalElements: 0 }),
           },
-        ]],
+        ],
+      ],
     });
 
     const service = module.get<TaskService>(TaskService);

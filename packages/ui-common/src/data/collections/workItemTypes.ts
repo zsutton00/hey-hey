@@ -40,14 +40,14 @@ export function getWorkItemTypesApi(): WorkItemTypesApi {
   return new WorkItemTypesApi(
     undefined,
     undefined,
-    getApiRuntime().transport.axios
+    getApiRuntime().transport.axios,
   );
 }
 
 async function fetchWorkItemTypes(
   organizationId: string,
   projectId: string,
-  requestOptions: AxiosRequestConfig
+  requestOptions: AxiosRequestConfig,
 ): Promise<WorkItemTypeSummaryDto[]> {
   logger.info("data_core", "[workItemTypes] Fetch work item types", {
     organizationId,
@@ -60,7 +60,7 @@ async function fetchWorkItemTypes(
         ...requestOptions,
         method: "GET",
         url: `/organizations/${organizationId}/projects/${projectId}/work-item-types`,
-      }
+      },
     );
 
   const data = response.data?.data;
@@ -81,7 +81,7 @@ async function fetchWorkItemTypeByKey(
   organizationId: string,
   projectId: string,
   typeKey: string,
-  signal: AbortSignal
+  signal: AbortSignal,
 ): Promise<WorkItemTypeSummaryDto | null> {
   logger.info("data_core", "[workItemTypes] Fetch work item type", {
     organizationId,
@@ -92,7 +92,7 @@ async function fetchWorkItemTypeByKey(
   const response =
     await getWorkItemTypesApi().organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyGet(
       { organizationId, projectId, typeKey },
-      { ...captureRequestOptions(), signal }
+      { ...captureRequestOptions(), signal },
     );
 
   return response.data.data ?? null;
@@ -100,7 +100,7 @@ async function fetchWorkItemTypeByKey(
 
 export function filterWorkItemTypes(
   workItemTypes: WorkItemTypeSummaryDto[],
-  filters: WorkItemTypesFilters
+  filters: WorkItemTypesFilters,
 ): WorkItemTypeSummaryDto[] {
   const { status } = filters;
   return status
@@ -110,7 +110,7 @@ export function filterWorkItemTypes(
 
 export function workItemTypeCatalogQueryOptions(
   organizationId: string,
-  projectId: string
+  projectId: string,
 ) {
   return queryOptions({
     ...dataLayerQueryPolicy,
@@ -125,7 +125,7 @@ export function workItemTypeCatalogQueryOptions(
 
 function isCompleteDefinition(
   workItemType: WorkItemTypeSummaryDto,
-  typeKey: string
+  typeKey: string,
 ): boolean {
   const { definition } = workItemType;
   return (
@@ -133,7 +133,7 @@ function isCompleteDefinition(
     typeof definition.name === "string" &&
     !!definition.role &&
     Array.isArray(definition.sections) &&
-    Array.isArray(definition.allowedStatuses)
+    Array.isArray(definition.statuses)
   );
 }
 
@@ -147,14 +147,14 @@ function catalogSeed(
   queryClient: QueryClient,
   organizationId: string,
   projectId: string,
-  typeKey: string
+  typeKey: string,
 ): { data: WorkItemTypeSummaryDto; updatedAt: number } | undefined {
   const catalogKey = workItemTypeKeys.catalog(organizationId, projectId);
   const catalogState =
     queryClient.getQueryState<WorkItemTypeSummaryDto[]>(catalogKey);
   if (!catalogState?.data || catalogState.isInvalidated) return undefined;
   const row = catalogState.data.find((workItemType) =>
-    isCompleteDefinition(workItemType, typeKey)
+    isCompleteDefinition(workItemType, typeKey),
   );
   return row ? { data: row, updatedAt: catalogState.dataUpdatedAt } : undefined;
 }
@@ -163,7 +163,7 @@ export function workItemTypeByKeyQueryOptions(
   queryClient: QueryClient,
   organizationId: string,
   projectId: string,
-  typeKey: string
+  typeKey: string,
 ) {
   return queryOptions({
     ...dataLayerQueryPolicy,

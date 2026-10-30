@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../test/setup/legacy-status.fixture';
 import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
@@ -925,12 +926,12 @@ complete.`,
           {
             typeKey: 'LIFECYCLE_ITEM',
             projectId,
-            allowedStatuses: [
+            statuses: legacyStatuses([
               WorkStatus.Backlog,
               WorkStatus.Active,
               WorkStatus.Verifying,
               WorkStatus.Completed,
-            ],
+            ]),
           },
         ]);
       const customProvider = new GetToolGuidanceToolsProvider(customRegistry);
@@ -954,7 +955,7 @@ complete.`,
           {
             typeKey: 'BACKLOG_ONLY',
             projectId,
-            allowedStatuses: [WorkStatus.Backlog, WorkStatus.Active],
+            statuses: legacyStatuses([WorkStatus.Backlog, WorkStatus.Active]),
           },
         ]);
       const customProvider = new GetToolGuidanceToolsProvider(customRegistry);

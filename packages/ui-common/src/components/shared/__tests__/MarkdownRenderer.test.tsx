@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import React from "react";
 import {
   act,
@@ -546,7 +547,7 @@ const setDefaultHookMocks = (): void => {
       key: "workflow",
       name: "Workflow",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       iconKey: "workflow",
     },
     isLoading: false,
@@ -1011,7 +1012,7 @@ describe("diagram graph metadata", () => {
       const definition = {
         key: "DIAGRAM_ELEMENT",
         name: "Diagram element",
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
         sections: [
           {
             key: "diagramElementMetadata",
@@ -1037,7 +1038,7 @@ describe("diagram graph metadata", () => {
         name: "Diagram",
         iconKey: "workflow" as const,
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       };
       hookMocks.useWorkItemTypeByKey.mockImplementation(
         (_org, _project, key) => ({
@@ -1079,7 +1080,7 @@ describe("diagram graph metadata", () => {
           name: "Diagram",
           iconKey: "workflow" as const,
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         },
       };
       const rootIdentity = { refType: "existing", id: diagram.id } as const;
@@ -1326,7 +1327,7 @@ describe("diagram graph metadata", () => {
       const definition = {
         key: "DIAGRAM_ELEMENT",
         name: "Diagram element",
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
         sections: [
           {
             key: "diagramElementMetadata",
@@ -1350,7 +1351,7 @@ describe("diagram graph metadata", () => {
                   name: "Diagram",
                   iconKey: "workflow" as const,
                   sections: [],
-                  allowedStatuses: [],
+                  statuses: legacyStatuses([]),
                 }
               : definition,
           isFetched: true,
@@ -1369,7 +1370,7 @@ describe("diagram graph metadata", () => {
               name: "Diagram",
               iconKey: "workflow" as const,
               sections: [],
-              allowedStatuses: [],
+              statuses: legacyStatuses([]),
             },
           }}
           organizationId="org-1"
@@ -1468,7 +1469,7 @@ describe("diagram graph metadata", () => {
                 },
               },
             ],
-            allowedStatuses: [],
+            statuses: legacyStatuses([]),
           },
         }}
       />,
@@ -1562,7 +1563,7 @@ describe("diagram graph metadata", () => {
                   },
                 },
               ],
-              allowedStatuses: [],
+              statuses: legacyStatuses([]),
             },
           }}
         />,
@@ -1715,7 +1716,7 @@ describe("diagram graph metadata", () => {
           },
         },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     } satisfies import("../../../api").WorkItemTypeDefinitionDto;
     const graphData = {
       workflow: diagram,
@@ -1728,7 +1729,7 @@ describe("diagram graph metadata", () => {
         name: "Diagram",
         iconKey: "workflow" as const,
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       },
     } satisfies WorkflowGraphSurfaceData;
     const proposalLink = {
@@ -1763,7 +1764,7 @@ describe("diagram graph metadata", () => {
         name: "Bug",
         iconKey: "bug",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       } satisfies import("../../../api").WorkItemTypeDefinitionDto,
       isLoading: false,
       isFetching: false,

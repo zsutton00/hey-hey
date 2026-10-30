@@ -1,3 +1,6 @@
+import { workItemTypeStatusesSchema } from './work-item-type-status.schema';
+import { z } from 'zod';
+import type { WorkItemTypeStatus } from '../../generated/model/workItemTypeStatus';
 import type { SessionRole } from '../../generated/model/sessionRole';
 import type { WorkItemTypeRoleGuidanceDto } from '../../generated/model/workItemTypeRoleGuidanceDto';
 import type { WorkItemTypeGuidanceBatchDto } from '../../generated/model/workItemTypeGuidanceBatchDto';
@@ -77,7 +80,7 @@ import {
 export type TaskScalarField = 'dueDate' | 'tag';
 
 export interface InitialStatusPolicy {
-  readonly initialStatus: WorkStatus;
+  readonly initialStatus: string;
   readonly hasSetInitialStatus: boolean;
 }
 
@@ -96,7 +99,8 @@ export interface WorkItemTypeRules {
   readonly role: WorkItemTypeRole;
   /** Explicit launch-config policy; omitted legacy definitions resolve empty. */
   readonly acceptedConfigKinds: readonly WorkItemConfigKind[];
-  readonly allowedStatuses: readonly WorkStatus[];
+  readonly statuses: readonly WorkItemTypeStatus[];
+  readonly allowedStatuses: readonly string[];
   readonly initialStatusPolicy: InitialStatusPolicy;
   readonly sections: readonly string[];
   readonly sectionDefinitions: readonly WorkItemTypeSectionDefinition[];
@@ -117,7 +121,7 @@ export interface WorkItemTypeRules {
     readonly allowedParentEntityTypes: readonly EntityType[];
   };
   readonly allowedEdgeTargetEntityTypes: readonly EntityType[];
-  readonly agentSettableStatuses: readonly WorkStatus[];
+  readonly agentSettableStatuses: readonly string[];
   readonly planEligible: boolean;
   readonly rendersInline: boolean;
   readonly showsInExplorerSidebar: boolean;
@@ -180,10 +184,22 @@ export function deriveRules(
   definition: WorkItemTypeDefinitionDto,
 ): WorkItemTypeRules {
   assertValidMockupSizeProfiles(definition.sections);
+  const firstStatus = definition.statuses[0];
+  if (!firstStatus) {
+    throw new BadRequestException(
+      'A type requires an ordinary initial status.',
+    );
+  }
+
   const caps = definition.capabilities;
   const graph = resolveGraphCapability(readGraphCapability(caps));
-  const allowedStatuses =
-    definition.allowedStatuses as unknown as readonly WorkStatus[];
+  const allowedStatuses = [
+    ...definition.statuses.map((status) => status.name),
+    WorkStatus.Archived,
+    ...(definition.capabilities?.supportsSupersession
+      ? [WorkStatus.Superseded]
+      : []),
+  ];
   const allowedParentTaskTypes = (definition.allowedParentTypes ??
     []) as readonly string[];
 
@@ -191,9 +207,10 @@ export function deriveRules(
     role: definition.role,
     acceptedConfigKinds: (definition.acceptedConfigKinds ??
       []) as readonly WorkItemConfigKind[],
+    statuses: definition.statuses,
     allowedStatuses,
     initialStatusPolicy: {
-      initialStatus: allowedStatuses[0] ?? WorkStatus.Backlog,
+      initialStatus: firstStatus.name,
       hasSetInitialStatus: readCapability(caps, CAP.hasSetInitialStatus),
     },
     sections: definition.sections.map((section) => section.key),
@@ -213,7 +230,7 @@ export function deriveRules(
     },
     allowedEdgeTargetEntityTypes: ALL_ENTITY_TYPES,
     agentSettableStatuses: (definition.agentSettableStatuses ??
-      []) as unknown as readonly WorkStatus[],
+      []) as unknown as readonly string[],
     planEligible: readCapability(caps, CAP.planEligible),
     rendersInline: readCapability(caps, CAP.rendersInline),
     showsInExplorerSidebar: readCapability(caps, CAP.showsInExplorerSidebar),
@@ -232,10 +249,15 @@ export function deriveRules(
 export function writtenAgentSettableStatuses(
   definition: Pick<
     WorkItemTypeDefinitionDto,
-    'agentSettableStatuses' | 'allowedStatuses'
+    'agentSettableStatuses' | 'statuses'
   >,
-): WorkItemTypeDefinitionDto['allowedStatuses'] {
-  return definition.agentSettableStatuses ?? definition.allowedStatuses;
+): string[] {
+  return (
+    definition.agentSettableStatuses ?? [
+      ...definition.statuses.map((status) => status.name),
+      WorkStatus.Archived,
+    ]
+  );
 }
 
 export function assertValidMockupSizeProfiles(
@@ -854,8 +876,7 @@ export class WorkItemTypeRegistryService
           []) as unknown as Prisma.InputJsonValue,
         edgeTargets: (definition.edgeTargets ??
           []) as unknown as Prisma.InputJsonValue,
-        allowedStatuses:
-          definition.allowedStatuses as unknown as Prisma.InputJsonValue,
+        statuses: definition.statuses.map((status) => ({ ...status })),
         requiredScalars: (definition.requiredScalars ??
           []) as unknown as Prisma.InputJsonValue,
         forbiddenScalars: (definition.forbiddenScalars ??
@@ -922,7 +943,10 @@ export class WorkItemTypeRegistryService
       if (!canonical) throw this.customDefinitionUnavailableError(typeKey);
       const created = await this.insertAcceptedDefinitionInTransaction(
         tx,
-        definition,
+        this.preserveSupersessionEligibility(
+          definition,
+          canonical.capabilities,
+        ),
         projectId,
         organizationId,
       );
@@ -933,7 +957,9 @@ export class WorkItemTypeRegistryService
         id: row.id,
         lifecycleStatus: 'active',
       },
-      data: this.definitionPersistenceData(definition),
+      data: this.definitionPersistenceData(
+        this.preserveSupersessionEligibility(definition, row.capabilities),
+      ),
     });
     if (result.count !== 1) {
       throw new BadRequestException(
@@ -1126,6 +1152,25 @@ export class WorkItemTypeRegistryService
     }
   }
 
+  /** Ordinary edits cannot revoke the platform-owned replacement transition. */
+  private preserveSupersessionEligibility(
+    definition: WorkItemTypeDefinitionDto,
+    storedCapabilities: Prisma.JsonValue,
+  ): WorkItemTypeDefinitionDto {
+    const current = materializeWorkItemTypeCapabilities(
+      storedCapabilities,
+      null,
+    );
+    if (!current.supportsSupersession) {
+      return definition;
+    }
+
+    return {
+      ...definition,
+      capabilities: { ...definition.capabilities, supportsSupersession: true },
+    };
+  }
+
   private definitionPersistenceData(
     definition: WorkItemTypeDefinitionDto,
   ): Prisma.WorkItemTypeUpdateManyMutationInput {
@@ -1144,8 +1189,7 @@ export class WorkItemTypeRegistryService
         []) as unknown as Prisma.InputJsonValue,
       edgeTargets: (definition.edgeTargets ??
         []) as unknown as Prisma.InputJsonValue,
-      allowedStatuses:
-        definition.allowedStatuses as unknown as Prisma.InputJsonValue,
+      statuses: definition.statuses.map((status) => ({ ...status })),
       requiredScalars: (definition.requiredScalars ??
         []) as unknown as Prisma.InputJsonValue,
       forbiddenScalars: (definition.forbiddenScalars ??
@@ -1195,13 +1239,14 @@ export class WorkItemTypeRegistryService
         template.requiredScalars as unknown as WorkItemTypeScalarField[],
       forbiddenScalars:
         template.forbiddenScalars as unknown as WorkItemTypeScalarField[],
-      allowedStatuses: template.allowedStatuses as unknown as WorkStatus[],
+      statuses: workItemTypeStatusesSchema.parse(template.statuses),
       allowedParentTypes: template.allowedParentTypes as unknown as string[],
       edgeTargets: template.edgeTargets as unknown as WorkItemTypeEdgeTarget[],
       allowedParentEntityTypes: parentage?.allowedParentEntityTypes ?? [],
       tracking: template.tracking as unknown as WorkItemTypeTracking,
-      agentSettableStatuses:
-        template.agentSettableStatuses as unknown as WorkStatus[],
+      agentSettableStatuses: z
+        .array(z.string())
+        .parse(template.agentSettableStatuses),
       anchorableReportTypes:
         template.anchorableReportTypes as unknown as ReportType[],
       ...(template.sessionRoleGuidance == null
@@ -1263,13 +1308,14 @@ export class WorkItemTypeRegistryService
         row.requiredScalars as unknown as WorkItemTypeScalarField[],
       forbiddenScalars:
         row.forbiddenScalars as unknown as WorkItemTypeScalarField[],
-      allowedStatuses: row.allowedStatuses as unknown as WorkStatus[],
+      statuses: workItemTypeStatusesSchema.parse(row.statuses),
       allowedParentTypes: row.allowedParentTypes as unknown as string[],
       edgeTargets: row.edgeTargets as unknown as WorkItemTypeEdgeTarget[],
       allowedParentEntityTypes: parentage?.allowedParentEntityTypes ?? [],
       tracking: row.tracking as unknown as WorkItemTypeTracking,
-      agentSettableStatuses:
-        row.agentSettableStatuses as unknown as WorkStatus[],
+      agentSettableStatuses: z
+        .array(z.string())
+        .parse(row.agentSettableStatuses),
       anchorableReportTypes:
         row.anchorableReportTypes as unknown as ReportType[],
       ...(row.sessionRoleGuidance == null
@@ -1348,17 +1394,14 @@ export class WorkItemTypeRegistryService
     return this.findRules(typeKey, projectId);
   }
 
-  getAllowedStatuses(
-    taskType: string,
-    projectId: string,
-  ): readonly WorkStatus[] {
+  getAllowedStatuses(taskType: string, projectId: string): readonly string[] {
     return this.requireRules(taskType, projectId).allowedStatuses;
   }
 
   getAgentSettableStatuses(
     taskType: string,
     projectId: string,
-  ): readonly WorkStatus[] {
+  ): readonly string[] {
     return this.requireRules(taskType, projectId).agentSettableStatuses;
   }
 
@@ -1392,7 +1435,7 @@ export class WorkItemTypeRegistryService
 
   isStatusAllowed(
     taskType: string,
-    status: WorkStatus,
+    status: string,
     projectId: string,
   ): boolean {
     return this.requireRules(taskType, projectId).allowedStatuses.includes(
@@ -1679,7 +1722,7 @@ export class WorkItemTypeRegistryService
   /** Allowed-status sets for active definitions in one project's snapshot. */
   getAllowedStatusEntries(projectId: string): {
     taskType: WorkItemTypeKey;
-    allowedStatuses: WorkStatus[];
+    allowedStatuses: string[];
   }[] {
     return this.getActiveTypeKeys(projectId).flatMap((typeKey) => {
       const rules = this.findRules(typeKey, projectId);

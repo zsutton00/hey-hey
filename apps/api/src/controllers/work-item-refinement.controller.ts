@@ -210,7 +210,7 @@ export class WorkItemRefinementController {
         initiativeUpdates.name = updates.name;
       }
       if (updates.status !== undefined) {
-        initiativeUpdates.status = updates.status as WorkStatus;
+        initiativeUpdates.status = updates.status as TaskResponseDto['status'];
       }
       if (updates.priority !== undefined) {
         initiativeUpdates.priority = updates.priority as Priority;
@@ -230,7 +230,7 @@ export class WorkItemRefinementController {
       taskUpdates.name = updates.name;
     }
     if (updates.status !== undefined) {
-      taskUpdates.status = updates.status as WorkStatus;
+      taskUpdates.status = updates.status as TaskResponseDto['status'];
     }
     if (updates.priority !== undefined) {
       taskUpdates.priority = updates.priority as TaskPriority;
@@ -756,7 +756,7 @@ export class WorkItemRefinementController {
         finalizedLevel as FinalizeWorkItemRefinement200ResponseAllOfData.CurrentLevelEnum,
       metadata: {
         finalizedAt: new Date().toISOString(),
-        finalStatus: updatedWorkItem.status as WorkStatus,
+        finalStatus: updatedWorkItem.status as TaskResponseDto['status'],
       },
     };
   }
@@ -894,7 +894,7 @@ export class WorkItemRefinementController {
     entityType: EntityType,
     level: RefinementLevel,
     taskLevels?: readonly TaskRefinementLevel[],
-  ): { status: WorkStatus } {
+  ): { status: TaskResponseDto['status'] } {
     // This is a simplified mapping - in practice, you'd use the configuration system
     const statusMappings = {
       initiative: {
@@ -939,7 +939,9 @@ export class WorkItemRefinementController {
   /**
    * Get finalized status for entity type
    */
-  private getFinalizedStatus(entityType: EntityType): { status: WorkStatus } {
+  private getFinalizedStatus(entityType: EntityType): {
+    status: TaskResponseDto['status'];
+  } {
     switch (entityType) {
       case 'initiative':
         return { status: WorkStatus.Active };

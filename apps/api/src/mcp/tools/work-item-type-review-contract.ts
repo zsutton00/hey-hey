@@ -1,6 +1,7 @@
+import type { TaskResponseDto } from '../../generated/model/taskResponseDto';
 import { WorkStatus } from '../../generated/model/workStatus';
 
-const displayStatus = (status: WorkStatus): string =>
+const displayStatus = (status: TaskResponseDto['status']): string =>
   status
     .toLowerCase()
     .split('_')

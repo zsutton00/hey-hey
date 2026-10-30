@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { describe, expect, it } from "vitest";
 import type {
   ProjectedWorkItem,
@@ -79,7 +80,7 @@ function graphInput(overrides: Partial<GraphInput> = {}): GraphInput {
       key: "GRAPH_ROOT",
       name: "Graph root",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       capabilities: {
         graph: {
           nodeChildType: "GRAPH_NODE",
@@ -464,7 +465,7 @@ describe("work item graph draft", () => {
             key: "GRAPH_ROOT",
             name: "Graph root",
             sections: [],
-            allowedStatuses: [],
+            statuses: legacyStatuses([]),
           },
         }),
       ),
@@ -905,7 +906,7 @@ describe("work item graph draft", () => {
         key: "BOARD",
         name: "Board",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
         capabilities: {
           graph: {
             nodeChildType: "CARD",
@@ -944,7 +945,7 @@ describe("work item graph draft", () => {
         key: "BOARD",
         name: "Board",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
         capabilities: {
           graph: {
             nodeChildType: "CARD",

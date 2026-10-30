@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../api/api";
 import { useModalState } from "../Modals/useModalState";
 import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import React from "react";
@@ -23,14 +24,14 @@ import { SupersedeTaskDialog } from "../WorkItem/SupersedeTaskDialog";
 
 // Features follow a simple REFINING → READY (Active) flow, so Active reads
 // as "Ready" for them.
-const getFeatureStatusLabel = (status: WorkStatus): string => {
+const getFeatureStatusLabel = (status: TaskResponseDto["status"]): string => {
   if (status === WorkStatus.Active) return "Ready";
   return getStatusLabel(status);
 };
 
 export interface WorkItemStatusSelectorProps {
-  value: WorkStatus;
-  onChange: (status: WorkStatus) => void;
+  value: TaskResponseDto["status"];
+  onChange: (status: TaskResponseDto["status"]) => void;
   /** Required to resolve the backend per-type allowed status set. */
   organizationId: string;
   projectId: string;
@@ -74,8 +75,10 @@ export const WorkItemStatusSelector: React.FC<WorkItemStatusSelectorProps> = ({
     projectId,
   });
 
-  const handleChange = (event: SelectChangeEvent<WorkStatus>): void => {
-    const next = event.target.value as WorkStatus;
+  const handleChange = (
+    event: SelectChangeEvent<TaskResponseDto["status"]>,
+  ): void => {
+    const next = event.target.value as TaskResponseDto["status"];
     // SUPERSEDED never travels the plain status-update path — it requires a
     // named successor, collected in the supersede dialog.
     if (next === WorkStatus.Superseded) {
@@ -94,7 +97,7 @@ export const WorkItemStatusSelector: React.FC<WorkItemStatusSelectorProps> = ({
       (status !== WorkStatus.Superseded || Boolean(taskId)),
   );
   const isFeature = taskType === FEATURE_TASK_TYPE;
-  const resolveLabel = (status: WorkStatus) =>
+  const resolveLabel = (status: TaskResponseDto["status"]) =>
     isFeature
       ? getFeatureStatusLabel(status)
       : taskType === "PLAN"
@@ -113,8 +116,10 @@ export const WorkItemStatusSelector: React.FC<WorkItemStatusSelectorProps> = ({
           readOnly={readOnly}
           renderValue={(selected) => (
             <Chip
-              label={resolveLabel(selected as WorkStatus)}
-              color={getStatusColorMapping(selected as WorkStatus)}
+              label={resolveLabel(selected as TaskResponseDto["status"])}
+              color={getStatusColorMapping(
+                selected as TaskResponseDto["status"],
+              )}
               size="small"
               sx={{ fontWeight: "bold" }}
             />

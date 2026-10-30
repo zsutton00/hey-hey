@@ -2,12 +2,7 @@ import { Box, useMediaQuery } from "@mui/material";
 import type { SxProps, Theme } from "@mui/material/styles";
 import { useTheme } from "@mui/material/styles";
 import React from "react";
-import type {
-  Priority,
-  ServiceDto,
-  TaskResponseDto,
-  WorkStatus,
-} from "../../api";
+import type { Priority, ServiceDto, TaskResponseDto } from "../../api";
 import { WorkStatus as WorkStatusEnum } from "../../api";
 import { FEATURE_TASK_TYPE } from "../../constants/taskTypes";
 import { AssigneeSelector } from "../Selectors/AssigneeSelector";
@@ -39,7 +34,7 @@ type DueDateMetadataField = MetadataField<string | null> & {
 };
 
 export interface WorkItemMetadataFields {
-  status?: MetadataField<WorkStatus>;
+  status?: MetadataField<TaskResponseDto["status"]>;
   priority?: MetadataField<Priority>;
   dueDate?: DueDateMetadataField;
   assignee?: MetadataField<string | null>;

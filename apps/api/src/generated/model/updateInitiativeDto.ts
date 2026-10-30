@@ -15,7 +15,6 @@ import { UserId } from '../../types';
 
 import { InitiativeSectionUpdateSource } from './initiativeSectionUpdateSource';
 import { Priority } from './priority';
-import { WorkStatus } from './workStatus';
 import { WorkItemSectionInput } from './workItemSectionInput';
 import { InitiativeCreatorType } from './initiativeCreatorType';
 
@@ -37,7 +36,10 @@ export interface UpdateInitiativeDto {
      * Optional new reasoning for the initiative
      */
     reasoning?: string;
-    status?: WorkStatus;
+    /**
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     */
+    status?: string;
     priority?: Priority;
     creatorType?: InitiativeCreatorType;
     /**

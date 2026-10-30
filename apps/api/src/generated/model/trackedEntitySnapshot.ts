@@ -12,7 +12,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { EntityType } from './entityType';
-import { WorkStatus } from './workStatus';
 
 
 /**
@@ -28,7 +27,10 @@ export interface TrackedEntitySnapshot {
      * Display title for the tracked entity.
      */
     title: string;
-    status?: WorkStatus;
+    /**
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     */
+    status?: string;
     /**
      * Target completion date, when the target type carries one.
      */

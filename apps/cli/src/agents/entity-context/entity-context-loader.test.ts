@@ -249,11 +249,9 @@ describe('EntityContextLoader', () => {
       const getConversation = vi.fn().mockResolvedValue({
         data: { data: sourceConversation() },
       });
-      const getMessages = vi
-        .fn()
-        .mockResolvedValue({
-          data: { data: paged ? { messages: sourceMessages() } : sourceMessages() },
-        });
+      const getMessages = vi.fn().mockResolvedValue({
+        data: { data: paged ? { messages: sourceMessages() } : sourceMessages() },
+      });
       const getEntityContext = vi
         .fn()
         .mockResolvedValue(
@@ -548,7 +546,9 @@ describe('EntityContextLoader', () => {
     const entityId = 'work-item-custom';
     const readWorkItem = vi
       .fn()
-      .mockResolvedValue(successfulResponse(workItemEntity('Release-Review', entityId)));
+      .mockResolvedValue(
+        successfulResponse({ ...workItemEntity('Release-Review', entityId), status: 'Testing' }),
+      );
     const loader = buildLoader({
       organizationsOrganizationIdProjectsProjectIdTasksTaskIdGet: readWorkItem,
       getEntityContext: vi
@@ -565,7 +565,7 @@ describe('EntityContextLoader', () => {
         projectId: PROJECT_ID,
       }),
     ).resolves.toMatchObject({
-      entity: { id: entityId, type: 'Release-Review' },
+      entity: { id: entityId, type: 'Release-Review', status: 'Testing' },
     });
   });
 

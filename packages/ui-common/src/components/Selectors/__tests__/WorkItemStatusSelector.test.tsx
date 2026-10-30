@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../../api/api";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,7 +18,7 @@ import { WorkItemStatusSelector } from "../WorkItemStatusSelector";
 
 const mockedUseTaskAllowedStatuses = vi.mocked(useTaskAllowedStatuses);
 
-const mockAllowedStatuses = (statuses: WorkStatus[]): void => {
+const mockAllowedStatuses = (statuses: TaskResponseDto["status"][]): void => {
   mockedUseTaskAllowedStatuses.mockReturnValue({
     isLoading: false,
     error: null,
@@ -25,7 +26,7 @@ const mockAllowedStatuses = (statuses: WorkStatus[]): void => {
   });
 };
 
-const STANDARD_ALLOWED: WorkStatus[] = [
+const STANDARD_ALLOWED: TaskResponseDto["status"][] = [
   WorkStatus.Backlog,
   WorkStatus.Active,
   WorkStatus.Completed,
@@ -47,7 +48,7 @@ describe("WorkItemStatusSelector", () => {
         organizationId="org-1"
         projectId="project-1"
         taskId="task-1"
-      />
+      />,
     );
 
     await userEvent.click(screen.getByRole("combobox"));
@@ -73,7 +74,7 @@ describe("WorkItemStatusSelector", () => {
         organizationId="org-1"
         projectId="project-1"
         taskId="task-1"
-      />
+      />,
     );
 
     await userEvent.click(screen.getByRole("combobox"));
@@ -81,7 +82,7 @@ describe("WorkItemStatusSelector", () => {
     expect(screen.getByText("In progress")).toBeInTheDocument();
     expect(screen.queryByText("Needs review")).not.toBeInTheDocument();
     expect(
-      screen.queryByText("Generating description")
+      screen.queryByText("Generating description"),
     ).not.toBeInTheDocument();
   });
 
@@ -94,7 +95,7 @@ describe("WorkItemStatusSelector", () => {
         organizationId="org-1"
         projectId="project-1"
         taskId="task-1"
-      />
+      />,
     );
 
     await userEvent.click(screen.getByRole("combobox"));
@@ -112,7 +113,7 @@ describe("WorkItemStatusSelector", () => {
         organizationId="org-1"
         projectId="project-1"
         taskId="task-1"
-      />
+      />,
     );
 
     await userEvent.click(screen.getByRole("combobox"));
@@ -129,7 +130,7 @@ describe("WorkItemStatusSelector", () => {
         onChange={vi.fn()}
         organizationId="org-1"
         projectId="project-1"
-      />
+      />,
     );
 
     await userEvent.click(screen.getByRole("combobox"));
@@ -147,7 +148,7 @@ describe("WorkItemStatusSelector", () => {
         organizationId="org-1"
         projectId="project-1"
         taskType={"FEATURE"}
-      />
+      />,
     );
 
     expect(screen.getByText("Ready")).toBeInTheDocument();
@@ -164,7 +165,7 @@ it("labels Plan BACKLOG as Draft but submits the canonical BACKLOG value", async
       organizationId="org-1"
       projectId="project-1"
       taskType="PLAN"
-    />
+    />,
   );
   await userEvent.click(screen.getByRole("combobox"));
   await userEvent.click(screen.getByRole("option", { name: "Draft" }));
@@ -179,7 +180,7 @@ it("keeps ordinary task BACKLOG labeled Backlog", () => {
       organizationId="org-1"
       projectId="project-1"
       taskType="STANDARD"
-    />
+    />,
   );
   expect(screen.getByText("Backlog")).toBeInTheDocument();
   expect(screen.queryByText("Draft")).not.toBeInTheDocument();

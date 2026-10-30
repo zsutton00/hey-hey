@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../../../packages/ui-common/src/test/fixtures/workItemStatuses';
 import { describe, expect, it } from 'vitest';
 
 import { WorkStatus } from '../../shared/api/generated/api';
@@ -10,9 +11,9 @@ import {
   renderWorkItemTypeOntologyEntry,
 } from './render-type-ontology';
 
-const BASE: Pick<WorkItemTypeDefinitionDto, 'sections' | 'allowedStatuses'> = {
+const BASE: Pick<WorkItemTypeDefinitionDto, 'sections' | 'statuses'> = {
   sections: [],
-  allowedStatuses: [WorkStatus.Active],
+  statuses: legacyStatuses([WorkStatus.Active]),
 };
 
 describe('renderWorkItemTypeOntologyEntry', () => {

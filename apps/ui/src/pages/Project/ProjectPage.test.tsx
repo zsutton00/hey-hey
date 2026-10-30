@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../../../packages/ui-common/src/test/fixtures/workItemStatuses";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
@@ -40,7 +41,7 @@ const workItemType = (
   projectId: "project-1",
   status: WorkItemTypeLifecycleStatus.Active,
   effectiveSource: WorkItemTypeEffectiveSource.Canonical,
-  definition: { key, name, role, sections: [], allowedStatuses: [] },
+  definition: { key, name, role, sections: [], statuses: legacyStatuses([]) },
   ...overrides,
 });
 

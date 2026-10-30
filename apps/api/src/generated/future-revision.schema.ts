@@ -231,29 +231,8 @@ export const futureRevisionMutationSchema = {
                         },
                         "status": {
                           "type": "string",
-                          "enum": [
-                            "GENERATED",
-                            "BACKLOG",
-                            "READY",
-                            "REFINING",
-                            "BLOCKED",
-                            "REFINING_DESCRIPTION",
-                            "REFINING_DETAILS",
-                            "REFINING_ACCEPTANCE_CRITERIA",
-                            "GENERATING_DESCRIPTION",
-                            "GENERATING_DETAILS",
-                            "GENERATING_DESCRIPTION_AND_DETAILS",
-                            "GENERATING_ACCEPTANCE_CRITERIA",
-                            "GENERATING_ALL",
-                            "ACTIVE",
-                            "ON_HOLD",
-                            "VERIFYING",
-                            "COMPLETED",
-                            "CANCELLED",
-                            "ARCHIVED",
-                            "SUPERSEDED"
-                          ],
-                          "description": "Unified work status for initiatives and tasks"
+                          "minLength": 1,
+                          "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
                         },
                         "source": {
                           "type": "string",
@@ -770,29 +749,8 @@ export const futureRevisionMutationSchema = {
                                 "anyOf": [
                                   {
                                     "type": "string",
-                                    "enum": [
-                                      "GENERATED",
-                                      "BACKLOG",
-                                      "READY",
-                                      "REFINING",
-                                      "BLOCKED",
-                                      "REFINING_DESCRIPTION",
-                                      "REFINING_DETAILS",
-                                      "REFINING_ACCEPTANCE_CRITERIA",
-                                      "GENERATING_DESCRIPTION",
-                                      "GENERATING_DETAILS",
-                                      "GENERATING_DESCRIPTION_AND_DETAILS",
-                                      "GENERATING_ACCEPTANCE_CRITERIA",
-                                      "GENERATING_ALL",
-                                      "ACTIVE",
-                                      "ON_HOLD",
-                                      "VERIFYING",
-                                      "COMPLETED",
-                                      "CANCELLED",
-                                      "ARCHIVED",
-                                      "SUPERSEDED"
-                                    ],
-                                    "description": "Unified work status for initiatives and tasks"
+                                    "minLength": 1,
+                                    "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
                                   },
                                   {
                                     "type": "null"
@@ -1018,29 +976,8 @@ export const futureRevisionMutationSchema = {
                                     },
                                     "status": {
                                       "type": "string",
-                                      "enum": [
-                                        "GENERATED",
-                                        "BACKLOG",
-                                        "READY",
-                                        "REFINING",
-                                        "BLOCKED",
-                                        "REFINING_DESCRIPTION",
-                                        "REFINING_DETAILS",
-                                        "REFINING_ACCEPTANCE_CRITERIA",
-                                        "GENERATING_DESCRIPTION",
-                                        "GENERATING_DETAILS",
-                                        "GENERATING_DESCRIPTION_AND_DETAILS",
-                                        "GENERATING_ACCEPTANCE_CRITERIA",
-                                        "GENERATING_ALL",
-                                        "ACTIVE",
-                                        "ON_HOLD",
-                                        "VERIFYING",
-                                        "COMPLETED",
-                                        "CANCELLED",
-                                        "ARCHIVED",
-                                        "SUPERSEDED"
-                                      ],
-                                      "description": "Unified work status for initiatives and tasks"
+                                      "minLength": 1,
+                                      "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
                                     },
                                     "priority": {
                                       "type": "string",
@@ -1278,29 +1215,8 @@ export const futureRevisionMutationSchema = {
                                   },
                                   "status": {
                                     "type": "string",
-                                    "enum": [
-                                      "GENERATED",
-                                      "BACKLOG",
-                                      "READY",
-                                      "REFINING",
-                                      "BLOCKED",
-                                      "REFINING_DESCRIPTION",
-                                      "REFINING_DETAILS",
-                                      "REFINING_ACCEPTANCE_CRITERIA",
-                                      "GENERATING_DESCRIPTION",
-                                      "GENERATING_DETAILS",
-                                      "GENERATING_DESCRIPTION_AND_DETAILS",
-                                      "GENERATING_ACCEPTANCE_CRITERIA",
-                                      "GENERATING_ALL",
-                                      "ACTIVE",
-                                      "ON_HOLD",
-                                      "VERIFYING",
-                                      "COMPLETED",
-                                      "CANCELLED",
-                                      "ARCHIVED",
-                                      "SUPERSEDED"
-                                    ],
-                                    "description": "Unified work status for initiatives and tasks"
+                                    "minLength": 1,
+                                    "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
                                   },
                                   "priority": {
                                     "type": "string",
@@ -2163,29 +2079,8 @@ export const futureRevisionMutationSchema = {
                       },
                       "status": {
                         "type": "string",
-                        "enum": [
-                          "GENERATED",
-                          "BACKLOG",
-                          "READY",
-                          "REFINING",
-                          "BLOCKED",
-                          "REFINING_DESCRIPTION",
-                          "REFINING_DETAILS",
-                          "REFINING_ACCEPTANCE_CRITERIA",
-                          "GENERATING_DESCRIPTION",
-                          "GENERATING_DETAILS",
-                          "GENERATING_DESCRIPTION_AND_DETAILS",
-                          "GENERATING_ACCEPTANCE_CRITERIA",
-                          "GENERATING_ALL",
-                          "ACTIVE",
-                          "ON_HOLD",
-                          "VERIFYING",
-                          "COMPLETED",
-                          "CANCELLED",
-                          "ARCHIVED",
-                          "SUPERSEDED"
-                        ],
-                        "description": "Unified work status for initiatives and tasks"
+                        "minLength": 1,
+                        "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
                       },
                       "priority": {
                         "type": "string",
@@ -2386,29 +2281,8 @@ export const futureRevisionMutationSchema = {
                       },
                       "status": {
                         "type": "string",
-                        "enum": [
-                          "GENERATED",
-                          "BACKLOG",
-                          "READY",
-                          "REFINING",
-                          "BLOCKED",
-                          "REFINING_DESCRIPTION",
-                          "REFINING_DETAILS",
-                          "REFINING_ACCEPTANCE_CRITERIA",
-                          "GENERATING_DESCRIPTION",
-                          "GENERATING_DETAILS",
-                          "GENERATING_DESCRIPTION_AND_DETAILS",
-                          "GENERATING_ACCEPTANCE_CRITERIA",
-                          "GENERATING_ALL",
-                          "ACTIVE",
-                          "ON_HOLD",
-                          "VERIFYING",
-                          "COMPLETED",
-                          "CANCELLED",
-                          "ARCHIVED",
-                          "SUPERSEDED"
-                        ],
-                        "description": "Unified work status for initiatives and tasks"
+                        "minLength": 1,
+                        "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
                       },
                       "priority": {
                         "type": "string",
@@ -4385,29 +4259,8 @@ export const futureRevisionMutationSchema = {
                     },
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "GENERATED",
-                        "BACKLOG",
-                        "READY",
-                        "REFINING",
-                        "BLOCKED",
-                        "REFINING_DESCRIPTION",
-                        "REFINING_DETAILS",
-                        "REFINING_ACCEPTANCE_CRITERIA",
-                        "GENERATING_DESCRIPTION",
-                        "GENERATING_DETAILS",
-                        "GENERATING_DESCRIPTION_AND_DETAILS",
-                        "GENERATING_ACCEPTANCE_CRITERIA",
-                        "GENERATING_ALL",
-                        "ACTIVE",
-                        "ON_HOLD",
-                        "VERIFYING",
-                        "COMPLETED",
-                        "CANCELLED",
-                        "ARCHIVED",
-                        "SUPERSEDED"
-                      ],
-                      "description": "Unified work status for initiatives and tasks"
+                      "minLength": 1,
+                      "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
                     },
                     "source": {
                       "type": "string",
@@ -4924,29 +4777,8 @@ export const futureRevisionMutationSchema = {
                             "anyOf": [
                               {
                                 "type": "string",
-                                "enum": [
-                                  "GENERATED",
-                                  "BACKLOG",
-                                  "READY",
-                                  "REFINING",
-                                  "BLOCKED",
-                                  "REFINING_DESCRIPTION",
-                                  "REFINING_DETAILS",
-                                  "REFINING_ACCEPTANCE_CRITERIA",
-                                  "GENERATING_DESCRIPTION",
-                                  "GENERATING_DETAILS",
-                                  "GENERATING_DESCRIPTION_AND_DETAILS",
-                                  "GENERATING_ACCEPTANCE_CRITERIA",
-                                  "GENERATING_ALL",
-                                  "ACTIVE",
-                                  "ON_HOLD",
-                                  "VERIFYING",
-                                  "COMPLETED",
-                                  "CANCELLED",
-                                  "ARCHIVED",
-                                  "SUPERSEDED"
-                                ],
-                                "description": "Unified work status for initiatives and tasks"
+                                "minLength": 1,
+                                "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
                               },
                               {
                                 "type": "null"
@@ -5172,29 +5004,8 @@ export const futureRevisionMutationSchema = {
                                 },
                                 "status": {
                                   "type": "string",
-                                  "enum": [
-                                    "GENERATED",
-                                    "BACKLOG",
-                                    "READY",
-                                    "REFINING",
-                                    "BLOCKED",
-                                    "REFINING_DESCRIPTION",
-                                    "REFINING_DETAILS",
-                                    "REFINING_ACCEPTANCE_CRITERIA",
-                                    "GENERATING_DESCRIPTION",
-                                    "GENERATING_DETAILS",
-                                    "GENERATING_DESCRIPTION_AND_DETAILS",
-                                    "GENERATING_ACCEPTANCE_CRITERIA",
-                                    "GENERATING_ALL",
-                                    "ACTIVE",
-                                    "ON_HOLD",
-                                    "VERIFYING",
-                                    "COMPLETED",
-                                    "CANCELLED",
-                                    "ARCHIVED",
-                                    "SUPERSEDED"
-                                  ],
-                                  "description": "Unified work status for initiatives and tasks"
+                                  "minLength": 1,
+                                  "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
                                 },
                                 "priority": {
                                   "type": "string",
@@ -5432,29 +5243,8 @@ export const futureRevisionMutationSchema = {
                               },
                               "status": {
                                 "type": "string",
-                                "enum": [
-                                  "GENERATED",
-                                  "BACKLOG",
-                                  "READY",
-                                  "REFINING",
-                                  "BLOCKED",
-                                  "REFINING_DESCRIPTION",
-                                  "REFINING_DETAILS",
-                                  "REFINING_ACCEPTANCE_CRITERIA",
-                                  "GENERATING_DESCRIPTION",
-                                  "GENERATING_DETAILS",
-                                  "GENERATING_DESCRIPTION_AND_DETAILS",
-                                  "GENERATING_ACCEPTANCE_CRITERIA",
-                                  "GENERATING_ALL",
-                                  "ACTIVE",
-                                  "ON_HOLD",
-                                  "VERIFYING",
-                                  "COMPLETED",
-                                  "CANCELLED",
-                                  "ARCHIVED",
-                                  "SUPERSEDED"
-                                ],
-                                "description": "Unified work status for initiatives and tasks"
+                                "minLength": 1,
+                                "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
                               },
                               "priority": {
                                 "type": "string",
@@ -6541,29 +6331,8 @@ export const futureRevisionAuthoringSchema = {
                           },
                           "status": {
                             "type": "string",
-                            "enum": [
-                              "GENERATED",
-                              "BACKLOG",
-                              "READY",
-                              "REFINING",
-                              "BLOCKED",
-                              "REFINING_DESCRIPTION",
-                              "REFINING_DETAILS",
-                              "REFINING_ACCEPTANCE_CRITERIA",
-                              "GENERATING_DESCRIPTION",
-                              "GENERATING_DETAILS",
-                              "GENERATING_DESCRIPTION_AND_DETAILS",
-                              "GENERATING_ACCEPTANCE_CRITERIA",
-                              "GENERATING_ALL",
-                              "ACTIVE",
-                              "ON_HOLD",
-                              "VERIFYING",
-                              "COMPLETED",
-                              "CANCELLED",
-                              "ARCHIVED",
-                              "SUPERSEDED"
-                            ],
-                            "description": "Unified work status for initiatives and tasks"
+                            "minLength": 1,
+                            "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
                           },
                           "priority": {
                             "type": "string",
@@ -6764,29 +6533,8 @@ export const futureRevisionAuthoringSchema = {
                           },
                           "status": {
                             "type": "string",
-                            "enum": [
-                              "GENERATED",
-                              "BACKLOG",
-                              "READY",
-                              "REFINING",
-                              "BLOCKED",
-                              "REFINING_DESCRIPTION",
-                              "REFINING_DETAILS",
-                              "REFINING_ACCEPTANCE_CRITERIA",
-                              "GENERATING_DESCRIPTION",
-                              "GENERATING_DETAILS",
-                              "GENERATING_DESCRIPTION_AND_DETAILS",
-                              "GENERATING_ACCEPTANCE_CRITERIA",
-                              "GENERATING_ALL",
-                              "ACTIVE",
-                              "ON_HOLD",
-                              "VERIFYING",
-                              "COMPLETED",
-                              "CANCELLED",
-                              "ARCHIVED",
-                              "SUPERSEDED"
-                            ],
-                            "description": "Unified work status for initiatives and tasks"
+                            "minLength": 1,
+                            "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
                           },
                           "priority": {
                             "type": "string",
@@ -9829,29 +9577,8 @@ export const futureWorkItemChangesSchema = {
               },
               "status": {
                 "type": "string",
-                "enum": [
-                  "GENERATED",
-                  "BACKLOG",
-                  "READY",
-                  "REFINING",
-                  "BLOCKED",
-                  "REFINING_DESCRIPTION",
-                  "REFINING_DETAILS",
-                  "REFINING_ACCEPTANCE_CRITERIA",
-                  "GENERATING_DESCRIPTION",
-                  "GENERATING_DETAILS",
-                  "GENERATING_DESCRIPTION_AND_DETAILS",
-                  "GENERATING_ACCEPTANCE_CRITERIA",
-                  "GENERATING_ALL",
-                  "ACTIVE",
-                  "ON_HOLD",
-                  "VERIFYING",
-                  "COMPLETED",
-                  "CANCELLED",
-                  "ARCHIVED",
-                  "SUPERSEDED"
-                ],
-                "description": "Unified work status for initiatives and tasks"
+                "minLength": 1,
+                "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
               },
               "priority": {
                 "type": "string",
@@ -10052,29 +9779,8 @@ export const futureWorkItemChangesSchema = {
               },
               "status": {
                 "type": "string",
-                "enum": [
-                  "GENERATED",
-                  "BACKLOG",
-                  "READY",
-                  "REFINING",
-                  "BLOCKED",
-                  "REFINING_DESCRIPTION",
-                  "REFINING_DETAILS",
-                  "REFINING_ACCEPTANCE_CRITERIA",
-                  "GENERATING_DESCRIPTION",
-                  "GENERATING_DETAILS",
-                  "GENERATING_DESCRIPTION_AND_DETAILS",
-                  "GENERATING_ACCEPTANCE_CRITERIA",
-                  "GENERATING_ALL",
-                  "ACTIVE",
-                  "ON_HOLD",
-                  "VERIFYING",
-                  "COMPLETED",
-                  "CANCELLED",
-                  "ARCHIVED",
-                  "SUPERSEDED"
-                ],
-                "description": "Unified work status for initiatives and tasks"
+                "minLength": 1,
+                "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
               },
               "priority": {
                 "type": "string",

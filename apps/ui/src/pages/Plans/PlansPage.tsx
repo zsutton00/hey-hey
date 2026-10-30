@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../../../../packages/ui-common/src/api/api";
 import { WorkStatus } from "@hey-hey/ui-common/api";
 import { PlanArchiveDeleteDialog } from "@hey-hey/ui-common/components";
 import {
@@ -67,7 +68,7 @@ export const PlansPage = ({
                   WorkStatus.Archived,
                   WorkStatus.Verifying,
                   WorkStatus.Superseded,
-                ] as WorkStatus[]
+                ] as TaskResponseDto["status"][]
               ).includes(plan.status);
     return (
       statusMatches &&

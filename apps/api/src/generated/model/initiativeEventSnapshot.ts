@@ -13,7 +13,6 @@ import { InitiativeId, OrganizationId, ProjectId } from '../../types';
 
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
-import { WorkStatus } from './workStatus';
 
 
 export interface InitiativeEventSnapshot { 
@@ -34,12 +33,12 @@ export interface InitiativeEventSnapshot {
      */
     originatingProjectId?: ProjectId;
     linkedProjectIds?: Array<string>;
-    status: WorkStatus;
+    /**
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     */
+    status: string;
     priority?: string;
     dueDate?: string;
     tags: Array<string>;
 }
-export namespace InitiativeEventSnapshot {
-}
-
 

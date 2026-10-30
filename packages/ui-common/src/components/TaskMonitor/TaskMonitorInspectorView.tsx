@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../api/api";
 import {
   Alert,
   FormControl,
@@ -13,7 +14,7 @@ import type {
   TaskMonitorExecutionNodeLaunchConfiguration,
   TaskMonitorLaunchMethod,
 } from "../../api";
-import type { WorkStatus } from "../../api";
+
 import { usePathService } from "../../contexts";
 import { RuntimeModelSelector } from "../AgentSession/RuntimeModelSelector";
 import { supportsFastMode } from "../AgentSession/capabilityCatalog";
@@ -33,7 +34,7 @@ export interface TaskMonitorInspectorViewProps {
   projectId: string;
   /** The machine whose CLI offers the model choices; null until one is picked. */
   machineId: string | null;
-  monitorStatus: WorkStatus;
+  monitorStatus: TaskResponseDto["status"];
   node: TaskMonitorProjectedNode;
   isSavingLaunchConfiguration: boolean;
   onSaveLaunchConfiguration: (

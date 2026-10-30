@@ -1,3 +1,5 @@
+import { legacyStatuses } from '../../../../test/setup/legacy-status.fixture';
+import type { TaskResponseDto } from '../../../generated/model/taskResponseDto';
 import { Test, TestingModule } from '@nestjs/testing';
 import type { CreateProposalDto } from '../../../generated';
 import { WorkStatus } from '../../../generated/model/workStatus';
@@ -20,7 +22,9 @@ const context = () => ({
   requestor: TestUtils.createMockAuthenticatedUser(),
 });
 
-function updateStatusProposal(status: WorkStatus): CreateProposalDto {
+function updateStatusProposal(
+  status: TaskResponseDto['status'],
+): CreateProposalDto {
   return {
     type: 'SINGLE',
     action: 'UPDATE',
@@ -52,7 +56,7 @@ async function buildEngine(registry: WorkItemTypeRegistryService): Promise<{
 function projectAndTaskMocks(
   prisma: ReturnType<typeof TestUtils.createMockPrismaService>,
   type: string,
-  status: WorkStatus = WorkStatus.Active,
+  status: TaskResponseDto['status'] = WorkStatus.Active,
 ) {
   prisma.db.project.findFirst.mockResolvedValue({ id: testIds.project });
   prisma.db.task.findFirst.mockResolvedValue({
@@ -87,7 +91,7 @@ describe('proposal status validation', () => {
         typeKey: 'LIMITED',
         projectId: testIds.project,
         initialStatus: WorkStatus.Backlog,
-        allowedStatuses: [WorkStatus.Backlog, WorkStatus.Active],
+        statuses: legacyStatuses([WorkStatus.Backlog, WorkStatus.Active]),
       },
     ]);
     const { engine, prisma } = await buildEngine(registry);

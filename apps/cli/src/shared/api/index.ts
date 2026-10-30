@@ -128,6 +128,8 @@ export {
   DiagramReferenceTargetRuleEntityTypeEnum,
   EntityType,
   WorkStatus,
+  WorkItemStatusMeaning,
+  WorkItemStatusCompletionBehavior,
 } from './generated/api';
 
 // Re-export the PermissionRequestAgentType type

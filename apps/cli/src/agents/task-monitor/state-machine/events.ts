@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from '../../../shared/api/generated/api';
 import type { TaskMonitorCoordinatorValidationFailure } from '../../../shared/agent-bridge-contract/generated/api';
 import type {
   CoordinateTaskMonitorWorkEffect,
@@ -8,7 +9,7 @@ import type {
   TaskMonitorJudgmentResponse,
   TaskMonitorLaunchConfig,
 } from '../../../shared/agent-bridge-contract/generated/api';
-import type { WorkStatus } from '../../../shared/api/generated/api';
+
 import type {
   TaskMonitorExecutionNode,
   TaskMonitorHumanDecisionEvidence,
@@ -505,12 +506,12 @@ interface TaskMonitorStopUncertainEvent {
 interface TaskMonitorControlStatusProjectedEvent {
   readonly type: 'TASK_MONITOR_CONTROL_STATUS_PROJECTED';
   readonly taskMonitorId: string;
-  readonly status: Extract<WorkStatus, 'ACTIVE' | 'ON_HOLD'>;
+  readonly status: TaskResponseDto['status'] & ('ACTIVE' | 'ON_HOLD');
 }
 
 interface TaskMonitorControlStatusProjectionFailure {
   readonly taskMonitorId: string;
-  readonly status: Extract<WorkStatus, 'ACTIVE' | 'ON_HOLD'>;
+  readonly status: TaskResponseDto['status'] & ('ACTIVE' | 'ON_HOLD');
   readonly reason: string;
 }
 

@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../../test/setup/legacy-status.fixture';
 import {
   BadRequestException,
   ConflictException,
@@ -726,7 +727,7 @@ describe('ProposalGroupAuthoringService', () => {
             name: 'Research',
             role: 'project-info',
             sections: [],
-            allowedStatuses: ['ACTIVE'],
+            statuses: legacyStatuses(['ACTIVE']),
             allowedParentTypes: ['FEATURE'],
           },
         },

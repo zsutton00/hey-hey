@@ -26,7 +26,8 @@ import {
   WorkItemTypeScalarField,
   WorkItemTypeSectionDefinitionKindEnum,
   WorkItemTypesApi,
-  WorkStatus,
+  WorkItemStatusMeaning,
+  WorkItemStatusCompletionBehavior,
   WorkItemConfigKind,
 } from '../../shared/api/index';
 import type {
@@ -358,6 +359,7 @@ const capabilitiesShape = {
   requiresParent: z.boolean().optional(),
   planEligible: z.boolean().optional(),
   hasSetInitialStatus: z.boolean().optional(),
+  supportsSupersession: z.boolean().optional(),
   rendersInline: z.boolean().optional(),
   showsInExplorerSidebar: z.boolean().optional(),
   graph: graphCapabilitySchema.optional(),
@@ -371,6 +373,9 @@ const capabilitiesSchema = z
       ...(value.planEligible !== undefined ? { planEligible: value.planEligible } : {}),
       ...(value.hasSetInitialStatus !== undefined
         ? { hasSetInitialStatus: value.hasSetInitialStatus }
+        : {}),
+      ...(value.supportsSupersession !== undefined
+        ? { supportsSupersession: value.supportsSupersession }
         : {}),
       ...(value.rendersInline !== undefined ? { rendersInline: value.rendersInline } : {}),
       ...(value.showsInExplorerSidebar !== undefined
@@ -417,12 +422,30 @@ const definitionShape = {
   sections: z.array(sectionSchema),
   requiredScalars: z.array(z.nativeEnum(WorkItemTypeScalarField)).optional(),
   forbiddenScalars: z.array(z.nativeEnum(WorkItemTypeScalarField)).optional(),
-  allowedStatuses: z.array(z.nativeEnum(WorkStatus)),
+  statuses: z
+    .array(
+      z
+        .object({
+          name: z.string().min(1),
+          label: z.string().optional(),
+          meaning: z.nativeEnum(WorkItemStatusMeaning),
+          completionBehavior: z.nativeEnum(WorkItemStatusCompletionBehavior).optional(),
+        })
+        .transform((value): WorkItemTypeDefinitionDto['statuses'][number] => ({
+          name: value.name,
+          meaning: value.meaning,
+          ...(value.label === undefined ? {} : { label: value.label }),
+          ...(value.completionBehavior === undefined
+            ? {}
+            : { completionBehavior: value.completionBehavior }),
+        })),
+    )
+    .min(1),
   allowedParentTypes: z.array(z.string()).optional(),
   edgeTargets: z.array(edgeTargetSchema).optional(),
   allowedParentEntityTypes: z.array(z.nativeEnum(EntityType)).optional(),
   tracking: trackingSchema.optional(),
-  agentSettableStatuses: z.array(z.nativeEnum(WorkStatus)).optional(),
+  agentSettableStatuses: z.array(z.string()).optional(),
   anchorableReportTypes: z.array(z.nativeEnum(ReportType)).optional(),
   writingStandards: writingStandardsSchema.nullable().optional(),
   capabilities: capabilitiesSchema.optional(),
@@ -450,7 +473,7 @@ const definitionSchema = z
       sections: value.sections,
       ...(value.requiredScalars !== undefined ? { requiredScalars: value.requiredScalars } : {}),
       ...(value.forbiddenScalars !== undefined ? { forbiddenScalars: value.forbiddenScalars } : {}),
-      allowedStatuses: value.allowedStatuses,
+      statuses: value.statuses,
       ...(value.allowedParentTypes !== undefined
         ? { allowedParentTypes: value.allowedParentTypes }
         : {}),

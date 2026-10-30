@@ -1,9 +1,7 @@
+import type { TaskResponseDto } from "../../../../../packages/ui-common/src/api/api";
 import { CapsuleAction } from "@hey-hey/ui-common/components";
 import ReadyIcon from "@mui/icons-material/CheckCircleOutline";
-import {
-  WorkStatus,
-  type InitiativeResponseDto,
-} from "@hey-hey/ui-common/api";
+import { WorkStatus, type InitiativeResponseDto } from "@hey-hey/ui-common/api";
 import { useCallback, useState } from "react";
 
 const SET_READY_LABELS = {
@@ -24,7 +22,7 @@ export const SetReadyActionCapsule = ({
   disabled = false,
 }: {
   initiative: InitiativeResponseDto;
-  onStatusChange: (status: WorkStatus) => Promise<void>;
+  onStatusChange: (status: TaskResponseDto["status"]) => Promise<void>;
   disabled?: boolean;
 }) => {
   const [isUpdating, setIsUpdating] = useState(false);

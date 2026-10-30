@@ -127,6 +127,7 @@ const booleanCapabilityShape = {
   requiresParent: z.boolean().optional(),
   planEligible: z.boolean().optional(),
   hasSetInitialStatus: z.boolean().optional(),
+  supportsSupersession: z.boolean().optional(),
   rendersInline: z.boolean().optional(),
   showsInExplorerSidebar: z.boolean().optional(),
 } satisfies BooleanCapabilityShape;

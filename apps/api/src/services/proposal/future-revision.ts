@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from '../../generated/model/taskResponseDto';
 import { readDependencyPresentation } from './future-dependency-presentation';
 import {
   BadRequestException,
@@ -18,7 +19,6 @@ import type {
   FutureCompletionEligibility,
   FutureCompletionDependency,
   FutureCompletionBlocker,
-  WorkStatus,
 } from 'src/generated';
 import { futureRevisionMutationSchema } from 'src/generated/future-revision.schema';
 import { ORDINARY_PROPOSAL_VISIBILITY_WHERE } from './proposal-visibility';
@@ -677,7 +677,12 @@ export function futureCompletionEligibility(
   dependencies: readonly FutureCompletionDependency[],
   byId: ReadonlyMap<
     string,
-    { id: string; type: string; status: WorkStatus; archivedAt: Date | null }
+    {
+      id: string;
+      type: string;
+      status: TaskResponseDto['status'];
+      archivedAt: Date | null;
+    }
   >,
 ): FutureCompletionEligibility {
   const blockers: FutureCompletionBlocker[] = [];

@@ -20,7 +20,6 @@ import { TaskResponseDtoChildCounts } from '../models/TaskResponseDtoChildCounts
 import { TaskSource } from '../models/TaskSource';
 import { TrackedEntitySnapshot } from '../models/TrackedEntitySnapshot';
 import { WorkItemConfigV1 } from '../models/WorkItemConfigV1';
-import { WorkStatus } from '../models/WorkStatus';
 import { HttpFile } from '../http/http';
 
 /**
@@ -56,7 +55,10 @@ export class TaskResponseDto {
    * The ID of the initiative this task is part of.
    */
   'initiativeId'?: string | null;
-  'status': WorkStatus;
+  /**
+   * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows.
+   */
+  'status': string;
   'source': TaskSource;
   'priority'?: TaskPriority;
   /**
@@ -180,7 +182,7 @@ export class TaskResponseDto {
     {
       name: 'status',
       baseName: 'status',
-      type: 'WorkStatus',
+      type: 'string',
       format: '',
     },
     {

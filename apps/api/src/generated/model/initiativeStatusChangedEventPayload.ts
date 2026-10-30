@@ -15,13 +15,18 @@ import { ProjectId } from '../../types';
 
 import { ExecutionContext } from './executionContext';
 import { FlowUserMessage } from './flowUserMessage';
-import { WorkStatus } from './workStatus';
 import { PayloadType } from './payloadType';
 
 
 export interface InitiativeStatusChangedEventPayload extends ExecutionContext { 
-    previousStatus: WorkStatus;
-    newStatus: WorkStatus;
+    /**
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     */
+    previousStatus: string;
+    /**
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows. 
+     */
+    newStatus: string;
     /**
      * Unique identifier for a project (branded type)
      */

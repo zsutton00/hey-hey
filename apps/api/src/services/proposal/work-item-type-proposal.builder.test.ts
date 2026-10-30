@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../test/setup/legacy-status.fixture';
 import { BadRequestException } from '@nestjs/common';
 import { EntityType } from '../../generated/model/entityType';
 import type { WorkItemTypeDefinitionDto } from '../../generated/model/workItemTypeDefinitionDto';
@@ -22,7 +23,7 @@ const definition: WorkItemTypeDefinitionDto = {
   name: 'Research',
   role: 'project-info',
   sections: [],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
   allowedParentTypes: ['STANDARD'],
 };
 

@@ -1,3 +1,6 @@
+import { workItemTypeStatusesSchema } from '../work-item-type-status.schema';
+import { legacyStatuses } from '../../../../test/setup/legacy-status.fixture';
+import type { TaskResponseDto } from '../../../generated/model/taskResponseDto';
 import { SessionRole } from '../../../generated/model/sessionRole';
 import {
   WORK_ITEM_TYPE_KEYS,
@@ -30,7 +33,7 @@ import { WorkItemTypeRegistryService } from '../work-item-type-registry.service'
 const ALL_ENTITY_TYPES = Object.values(EntityType);
 const ALL_REPORT_TYPES = Object.values(ReportType);
 
-const BASE_STATUSES: WorkStatus[] = [
+const BASE_STATUSES: TaskResponseDto['status'][] = [
   WorkStatus.Generated,
   WorkStatus.Backlog,
   WorkStatus.RefiningDescription,
@@ -48,7 +51,7 @@ const BASE_STATUSES: WorkStatus[] = [
   WorkStatus.Cancelled,
   WorkStatus.Archived,
 ];
-const SUPERSEDABLE_STATUSES: WorkStatus[] = [
+const SUPERSEDABLE_STATUSES: TaskResponseDto['status'][] = [
   ...BASE_STATUSES,
   WorkStatus.Superseded,
 ];
@@ -67,14 +70,17 @@ const SECTION_LABELS: Record<string, string> = {
 };
 
 /** allowed_statuses with the intended initial status first (deriveRules reads [0]). */
-function ordered(statuses: WorkStatus[], initial: WorkStatus): WorkStatus[] {
+function ordered(
+  statuses: TaskResponseDto['status'][],
+  initial: TaskResponseDto['status'],
+): TaskResponseDto['status'][] {
   return [initial, ...statuses.filter((status) => status !== initial)];
 }
 
 interface TypeFixture {
   name: string;
-  initialStatus: WorkStatus;
-  baseStatuses: WorkStatus[];
+  initialStatus: TaskResponseDto['status'];
+  baseStatuses: TaskResponseDto['status'][];
   sectionKeys: string[];
   sectionDefinitions?: Array<{
     key: string;
@@ -91,7 +97,7 @@ interface TypeFixture {
   };
   edgeTargets?: { edgeType: string; targetTypeKeys: string[] }[];
   parentageAllowedEntityTypes?: EntityType[];
-  agentSettableStatuses?: WorkStatus[];
+  agentSettableStatuses?: TaskResponseDto['status'][];
   anchorableReportTypes?: ReportType[];
   capabilities: Record<string, boolean>;
   graphConfiguration?: ReturnType<typeof workflowGraphCapability>;
@@ -561,7 +567,7 @@ function buildRow(taskType: BuiltInTypeKey): WorkItemType {
       ),
     allowedParentTypes: fx.allowedParentTypes,
     edgeTargets: fx.edgeTargets ?? [],
-    allowedStatuses,
+    statuses: legacyStatuses(allowedStatuses),
     requiredScalars: fx.requiredScalars,
     forbiddenScalars: fx.forbiddenScalars,
     parentage: {
@@ -569,7 +575,9 @@ function buildRow(taskType: BuiltInTypeKey): WorkItemType {
         fx.parentageAllowedEntityTypes ?? ALL_ENTITY_TYPES,
     },
     tracking: fx.tracking,
-    agentSettableStatuses: fx.agentSettableStatuses ?? allowedStatuses,
+    agentSettableStatuses: (fx.agentSettableStatuses ?? allowedStatuses).filter(
+      (status) => status !== WorkStatus.Superseded,
+    ),
     anchorableReportTypes: fx.anchorableReportTypes ?? ALL_REPORT_TYPES,
     writingStandards: {
       create: `${taskType} create guidance`,
@@ -579,7 +587,10 @@ function buildRow(taskType: BuiltInTypeKey): WorkItemType {
       taskType === WORK_ITEM_TYPE_KEYS.Standard
         ? (['INITIAL_WORKTREE'] as WorkItemConfigKind[])
         : [],
-    capabilities: fx.capabilities,
+    capabilities: {
+      ...fx.capabilities,
+      supportsSupersession: allowedStatuses.includes(WorkStatus.Superseded),
+    },
     graphConfiguration: fx.graphConfiguration ?? null,
     createdAt: new Date('2026-06-12T00:00:00.000Z'),
     updatedAt: new Date('2026-06-12T00:00:00.000Z'),
@@ -723,12 +734,12 @@ describe('WorkItemTypeRegistryService', () => {
         ...buildTemplate('STANDARD', 1),
         typeKey: 'mockup',
         name: 'Mockup',
-        allowedStatuses: ['ACTIVE', 'BACKLOG', 'READY', 'ARCHIVED'],
+        statuses: legacyStatuses(['ACTIVE', 'BACKLOG', 'READY', 'ARCHIVED']),
         capabilities: { hasSetInitialStatus: true },
       };
       const override = buildProjectOwnedRow('STANDARD', 'override-project', {
         typeKey: 'mockup',
-        allowedStatuses: ['BACKLOG', 'ACTIVE', 'READY', 'ARCHIVED'],
+        statuses: legacyStatuses(['BACKLOG', 'ACTIVE', 'READY', 'ARCHIVED']),
         capabilities: { hasSetInitialStatus },
       });
       const { registry } = buildRegistry(
@@ -747,13 +758,15 @@ describe('WorkItemTypeRegistryService', () => {
         registry.getInitialStatusPolicy('mockup', 'override-project'),
       ).toEqual({ initialStatus: WorkStatus.Backlog, hasSetInitialStatus });
       expect(
-        registry.getDefinition('canonical-project', 'mockup')?.definition
-          .allowedStatuses,
-      ).toEqual(['ACTIVE', 'BACKLOG', 'READY', 'ARCHIVED']);
+        registry
+          .getDefinition('canonical-project', 'mockup')
+          ?.definition.statuses.map((status) => status.name),
+      ).toEqual(['ACTIVE', 'BACKLOG', 'READY']);
       expect(
-        registry.getDefinition('override-project', 'mockup')?.definition
-          .allowedStatuses,
-      ).toEqual(['BACKLOG', 'ACTIVE', 'READY', 'ARCHIVED']);
+        registry
+          .getDefinition('override-project', 'mockup')
+          ?.definition.statuses.map((status) => status.name),
+      ).toEqual(['BACKLOG', 'ACTIVE', 'READY']);
     },
   );
 
@@ -763,13 +776,13 @@ describe('WorkItemTypeRegistryService', () => {
       typeKey: 'decision',
       name: 'Decision',
       role: 'project-info',
-      allowedStatuses: ['ACTIVE', 'SUPERSEDED', 'ARCHIVED'],
+      statuses: legacyStatuses(['ACTIVE', 'SUPERSEDED', 'ARCHIVED']),
       capabilities: { requiresParent: true, hasSetInitialStatus: false },
     };
     const override = buildProjectOwnedRow('STANDARD', 'override-project', {
       typeKey: 'decision',
       name: 'Project Decision',
-      allowedStatuses: ['ACTIVE', 'ARCHIVED'],
+      statuses: legacyStatuses(['ACTIVE', 'ARCHIVED']),
       capabilities: { requiresParent: true, hasSetInitialStatus: false },
     });
     const { registry } = buildRegistry(
@@ -786,7 +799,7 @@ describe('WorkItemTypeRegistryService', () => {
       definition: {
         key: 'decision',
         name: 'Decision',
-        allowedStatuses: ['ACTIVE', 'SUPERSEDED', 'ARCHIVED'],
+        statuses: legacyStatuses(['ACTIVE', 'SUPERSEDED', 'ARCHIVED']),
       },
     });
     expect(
@@ -796,7 +809,7 @@ describe('WorkItemTypeRegistryService', () => {
       definition: {
         key: 'decision',
         name: 'Project Decision',
-        allowedStatuses: ['ACTIVE', 'ARCHIVED'],
+        statuses: legacyStatuses(['ACTIVE', 'ARCHIVED']),
       },
     });
     expect(registry.getDefinition('other-project', 'decision')).toMatchObject({
@@ -2809,7 +2822,7 @@ describe('WorkItemTypeRegistryService', () => {
       ],
       requiredScalars: ['dueDate'],
       forbiddenScalars: ['tag'],
-      allowedStatuses: [WorkStatus.Active, WorkStatus.Completed],
+      statuses: legacyStatuses([WorkStatus.Active, WorkStatus.Completed]),
       allowedParentTypes: ['FEATURE'],
       edgeTargets: [
         { edgeType: AgentEdgeType.RelatedTo, targetTypeKeys: ['STANDARD'] },
@@ -2824,6 +2837,55 @@ describe('WorkItemTypeRegistryService', () => {
       } as unknown as Prisma.TransactionClient;
       return { tx, create };
     }
+
+    it('round trips ordered Recipe statuses and meanings through persistence and the effective snapshot', async () => {
+      const recipe = {
+        key: 'Recipe',
+        name: 'Recipe',
+        role: 'project-info',
+        sections: [],
+        statuses: [
+          { name: 'Idea', meaning: 'NOT_STARTED' },
+          { name: 'Testing', meaning: 'IN_PROGRESS' },
+          { name: 'Made', meaning: 'FINISHED' },
+          { name: 'Rejected', meaning: 'FINISHED' },
+        ],
+      } satisfies WorkItemTypeDefinitionDto;
+      const { registry } = buildRegistry([]);
+      const { tx, create } = buildTx();
+      await registry.insertAcceptedDefinitionInTransaction(
+        tx,
+        recipe,
+        PROJECT,
+        ORG,
+      );
+      const { data } = create.mock.calls[0][0];
+      const statuses = workItemTypeStatusesSchema.parse(data.statuses);
+      const row = buildProjectOwnedRow(WORK_ITEM_TYPE_KEYS.Standard, PROJECT, {
+        typeKey: recipe.key,
+        name: recipe.name,
+        role: recipe.role,
+        statuses: statuses.map((status) => ({ ...status })),
+        capabilities: {},
+      });
+      const { registry: reader } = buildRegistry([row]);
+      await reader.onModuleInit();
+
+      expect(
+        reader.getDefinition(PROJECT, recipe.key)?.definition.statuses,
+      ).toEqual(recipe.statuses);
+      expect(
+        reader.getRulesForProject(recipe.key, PROJECT)?.initialStatusPolicy
+          .initialStatus,
+      ).toBe('Idea');
+      expect(reader.getAllowedStatuses(recipe.key, PROJECT)).toEqual([
+        'Idea',
+        'Testing',
+        'Made',
+        'Rejected',
+        'ARCHIVED',
+      ]);
+    });
 
     it('persists the DTO faithfully into the rich columns as a non-system, project-scoped, active row', async () => {
       const { registry } = buildRegistry([]);
@@ -2854,10 +2916,9 @@ describe('WorkItemTypeRegistryService', () => {
       expect(data.edgeTargets).toEqual(definition.edgeTargets);
       // Shared lean columns the summary read-back path uses: statuses plus the
       // closed-enum scalar axes, stored directly as TaskScalarField arrays.
-      expect(data.allowedStatuses).toEqual([
-        WorkStatus.Active,
-        WorkStatus.Completed,
-      ]);
+      expect(data.statuses).toEqual(
+        legacyStatuses([WorkStatus.Active, WorkStatus.Completed]),
+      );
       expect(data.requiredScalars).toEqual(definition.requiredScalars);
       expect(data.forbiddenScalars).toEqual(definition.forbiddenScalars);
     });
@@ -3001,6 +3062,7 @@ describe('WorkItemTypeRegistryService', () => {
       expect(data.agentSettableStatuses).toEqual([
         WorkStatus.Active,
         WorkStatus.Completed,
+        WorkStatus.Archived,
       ]);
       expect(data.anchorableReportTypes).toEqual([]);
       expect(data.writingStandards).toEqual({ create: '', edit: '' });
@@ -3119,7 +3181,7 @@ describe('WorkItemTypeRegistryService', () => {
       sections: [{ key: 'brief', label: 'Brief' }],
       requiredScalars: storedRow.requiredScalars,
       forbiddenScalars: storedRow.forbiddenScalars,
-      allowedStatuses: storedRow.allowedStatuses,
+      statuses: storedRow.statuses,
       allowedParentTypes: storedRow.allowedParentTypes,
       edgeTargets: storedRow.edgeTargets,
     } as unknown as WorkItemTypeDefinitionDto;
@@ -3137,6 +3199,54 @@ describe('WorkItemTypeRegistryService', () => {
       } as unknown as Prisma.TransactionClient;
       return { tx, findFirst, updateMany, deleteMany };
     }
+
+    it.each([undefined, {}, { supportsSupersession: false }])(
+      'preserves protected supersession through edits with capabilities %j',
+      async (capabilities) => {
+        const { registry } = buildRegistry([]);
+        const { tx, updateMany } = buildLifecycleTx([
+          { ...storedRow, capabilities: { supportsSupersession: true } },
+        ]);
+
+        await registry.updateAcceptedDefinitionInTransaction(
+          tx,
+          'MARKETING',
+          { ...editedDefinition, capabilities },
+          PROJECT,
+          ORG,
+        );
+
+        expect(updateMany.mock.calls[0][0].data.capabilities).toEqual({
+          supportsSupersession: true,
+        });
+      },
+    );
+
+    it.each([undefined, { supportsSupersession: false }])(
+      'preserves canonical supersession when creating an override with capabilities %j',
+      async (capabilities) => {
+        const { registry } = buildRegistry([]);
+        const { tx } = buildLifecycleTx([null]);
+        const create = jest.fn().mockResolvedValue({});
+        tx.workItemType.create = create;
+        jest.mocked(tx.workItemTypeTemplate.findUnique).mockResolvedValue({
+          ...buildTemplate('STANDARD', 1),
+          capabilities: { supportsSupersession: true },
+        });
+
+        await registry.updateAcceptedDefinitionInTransaction(
+          tx,
+          'STANDARD',
+          { ...editedDefinition, key: 'STANDARD', capabilities },
+          PROJECT,
+          ORG,
+        );
+
+        expect(create.mock.calls[0][0].data.capabilities).toEqual({
+          supportsSupersession: true,
+        });
+      },
+    );
 
     it('updates only the registry definition and preserves dropped item section content', async () => {
       const { registry } = buildRegistry([]);

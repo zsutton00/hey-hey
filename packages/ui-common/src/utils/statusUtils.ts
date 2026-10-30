@@ -1,9 +1,11 @@
-import type { WorkStatus, Priority } from "../api";
+import type { TaskResponseDto } from "../api/api";
+import type { WorkItemTypeDefinitionDto } from "../api/api";
+import type { Priority } from "../api";
 
 /**
  * Get user-friendly label for work status
  */
-export const getStatusLabel = (status: WorkStatus): string => {
+export const getStatusLabel = (status: TaskResponseDto["status"]): string => {
   switch (status) {
     case "GENERATED":
       return "Generated";
@@ -46,7 +48,7 @@ export const getStatusLabel = (status: WorkStatus): string => {
     case "SUPERSEDED":
       return "Superseded";
     default:
-      return formatStatus(status);
+      return status;
   }
 };
 
@@ -173,11 +175,11 @@ export const getRandomPrompt = (): string => {
  * Determines if a work item is still in a refining status
  */
 export function isTaskRefining(
-  task: { status?: WorkStatus } | null | undefined,
+  task: { status?: TaskResponseDto["status"] } | null | undefined,
 ): boolean {
   if (!task?.status) return false;
 
-  const refiningStatuses: WorkStatus[] = [
+  const refiningStatuses: TaskResponseDto["status"][] = [
     "GENERATED",
     "REFINING",
     "REFINING_DESCRIPTION",
@@ -194,5 +196,16 @@ export function isTaskRefining(
 }
 
 /** Plan drafts use BACKLOG; other work-item types keep their own labels. */
-export const getPlanStatusLabel = (status: WorkStatus): string =>
-  status === "BACKLOG" ? "Draft" : getStatusLabel(status);
+export const getPlanStatusLabel = (
+  status: TaskResponseDto["status"],
+): string => (status === "BACKLOG" ? "Draft" : getStatusLabel(status));
+
+export function getWorkItemTypeStatusNames(
+  definition: WorkItemTypeDefinitionDto,
+): string[] {
+  return [
+    ...definition.statuses.map((status) => status.name),
+    "ARCHIVED",
+    ...(definition.capabilities?.supportsSupersession ? ["SUPERSEDED"] : []),
+  ];
+}

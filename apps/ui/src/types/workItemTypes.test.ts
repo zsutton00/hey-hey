@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../../packages/ui-common/src/test/fixtures/workItemStatuses";
 import type {
   WorkItemTypeDefinitionDto,
   WorkItemTypeSummaryDto,
@@ -18,7 +19,7 @@ const definition = (
     key,
     name: key,
     sections: [],
-    allowedStatuses: [],
+    statuses: legacyStatuses([]),
     role: WorkItemTypeRole.WorkItem,
     ...overrides,
   }) as WorkItemTypeDefinitionDto;
@@ -57,9 +58,9 @@ describe("work-item type definition selectors", () => {
       summary("ACTIVE_CUSTOM", "ACTIVE", "project-1"),
     ];
 
-    expect([
-      ...selectActiveWorkItemTypeDefinitions(summaries).keys(),
-    ]).toEqual([]);
+    expect([...selectActiveWorkItemTypeDefinitions(summaries).keys()]).toEqual(
+      [],
+    );
     expect([
       ...selectActiveWorkItemTypeDefinitions(summaries, "").keys(),
     ]).toEqual([]);
@@ -68,9 +69,9 @@ describe("work-item type definition selectors", () => {
   it("keeps archived definitions available in the all-definition index", () => {
     const archived = summary("ARCHIVED_CUSTOM", "ARCHIVED", "project-1");
 
-    expect(indexWorkItemTypeDefinitions([archived]).get("ARCHIVED_CUSTOM")).toBe(
-      archived.definition,
-    );
+    expect(
+      indexWorkItemTypeDefinitions([archived]).get("ARCHIVED_CUSTOM"),
+    ).toBe(archived.definition);
     expect(
       selectActiveWorkItemTypeDefinitions([archived], "project-1").has(
         "ARCHIVED_CUSTOM",

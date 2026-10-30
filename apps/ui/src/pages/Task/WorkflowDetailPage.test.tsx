@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../../../packages/ui-common/src/test/fixtures/workItemStatuses";
 import { WORK_ITEM_TYPE_KEYS } from "../../types/workItemTypes";
 import type { TaskResponseDto } from "@hey-hey/ui-common/api";
 import { TaskPriority, WorkStatus } from "@hey-hey/ui-common/api";
@@ -219,7 +220,7 @@ describe("WorkflowDetailPage", () => {
                   key: WORK_ITEM_TYPE_KEYS.DiagramElement,
                   name: "Diagram Element",
                   sections: [],
-                  allowedStatuses: [],
+                  statuses: legacyStatuses([]),
                   forbiddenScalars: [],
                 }
               : {

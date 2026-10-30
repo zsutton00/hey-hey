@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { renderHook, act } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import {
@@ -24,7 +25,7 @@ function makeNode(
   identity: WorkItemChangeSetIdentity,
   name: string,
   type: string,
-  parent?: WorkItemChangeSetIdentity
+  parent?: WorkItemChangeSetIdentity,
 ): ProjectedWorkItem {
   return {
     identity,
@@ -56,7 +57,7 @@ function makeInput() {
       key: "GRAPH_ROOT",
       name: "Graph root",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       capabilities: {
         graph: {
           nodeChildType: "GRAPH_NODE",
@@ -170,7 +171,7 @@ describe("useWorkItemGraphDraft", () => {
     act(() => result.current.applyPreferredLayout());
 
     const layoutOperation = result.current.operations.find(
-      (operation) => operation.op === "layout.replace"
+      (operation) => operation.op === "layout.replace",
     );
     expect(layoutOperation?.op).toBe("layout.replace");
     if (layoutOperation?.op !== "layout.replace") return;
@@ -189,7 +190,7 @@ describe("useWorkItemGraphDraft", () => {
       result.current.create({
         name: "Temporary",
         type: "GRAPH_NODE",
-      })
+      }),
     );
     act(() => result.current.reflow());
 
@@ -200,8 +201,9 @@ describe("useWorkItemGraphDraft", () => {
     expect(
       result.current.projected.effectiveLayout.nodes.every(
         (entry) =>
-          Number.isFinite(entry.position.x) && Number.isFinite(entry.position.y)
-      )
+          Number.isFinite(entry.position.x) &&
+          Number.isFinite(entry.position.y),
+      ),
     ).toBe(true);
   });
 
@@ -262,7 +264,7 @@ describe("useWorkItemGraphDraft", () => {
       "relationship.create",
     ]);
     expect(result.current.projected.children.at(-1)?.identity).toEqual(
-      created?.child
+      created?.child,
     );
     expect(result.current.projected.incidentRelationships.at(-1)).toMatchObject(
       {
@@ -270,7 +272,7 @@ describe("useWorkItemGraphDraft", () => {
         target: created?.child,
         edgeType: AgentEdgeType.Standard,
         category: AgentEdgeCategory.Flow,
-      }
+      },
     );
   });
 });

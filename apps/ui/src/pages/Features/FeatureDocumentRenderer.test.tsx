@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../../../packages/ui-common/src/test/fixtures/workItemStatuses";
 import React from "react";
 import {
   TargetEntityType,
@@ -205,7 +206,7 @@ const canonicalFeatureDefinition: WorkItemTypeDefinitionDto = {
       schemaRef: "#/components/schemas/FeatureRequirementsSection",
     },
   ],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
 };
 
 const makeNode = (

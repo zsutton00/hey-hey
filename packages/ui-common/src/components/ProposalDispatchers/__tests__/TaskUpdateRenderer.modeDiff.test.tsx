@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -169,7 +170,7 @@ const definition: WorkItemTypeDefinitionDto = {
     htmlDefinition,
     mockupDefinition,
   ],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
 };
 
 const existing = {
@@ -241,7 +242,7 @@ const modeDefinition: WorkItemTypeDefinitionDto = {
     { key: "description", label: "Description", kind: "markdown" },
     { key: "files", label: "Files", kind: "json" },
   ],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
 } as unknown as WorkItemTypeDefinitionDto;
 
 const modeExisting = {

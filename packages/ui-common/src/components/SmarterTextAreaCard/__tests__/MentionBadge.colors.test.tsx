@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { cleanup, render, screen } from "@testing-library/react";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
 import { MemoryRouter } from "react-router-dom";
@@ -12,7 +13,7 @@ const registry = vi.hoisted(() => ({
     name: "Custom",
     role: "work-item",
     sections: [],
-    allowedStatuses: [],
+    statuses: legacyStatuses([]),
     iconKey: "star",
     colorKey: "secondary",
   },
@@ -70,7 +71,7 @@ describe("registry custom color across identity consumers", () => {
                     name: "Custom",
                     role: "work-item",
                     sections: [],
-                    allowedStatuses: [],
+                    statuses: legacyStatuses([]),
                     iconKey: "star",
                     colorKey: "secondary",
                   },
@@ -80,7 +81,7 @@ describe("registry custom color across identity consumers", () => {
               />
             </MentionEditorContext.Provider>
           </MemoryRouter>
-        </ThemeProvider>
+        </ThemeProvider>,
       );
       expect(screen.getByTestId("mention-badge")).toHaveStyle({
         color: theme.palette.secondary.main,
@@ -89,6 +90,6 @@ describe("registry custom color across identity consumers", () => {
         backgroundColor: theme.palette.secondary.main,
         color: theme.palette.secondary.contrastText,
       });
-    }
+    },
   );
 });

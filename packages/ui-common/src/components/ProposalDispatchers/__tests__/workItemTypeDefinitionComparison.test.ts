@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { describe, expect, it } from "vitest";
 import type { WorkItemTypeDefinitionDto } from "../../../api";
 import { compareWorkItemTypeDefinitions } from "../workItemTypeDefinitionComparison";
@@ -6,7 +7,7 @@ const current: WorkItemTypeDefinitionDto = {
   key: "JOB_APPLICATION_RECORD",
   name: "Job application record",
   role: "work-item",
-  allowedStatuses: ["NOT_STARTED"],
+  statuses: legacyStatuses(["NOT_STARTED"]),
   sections: [
     {
       key: "overview",
@@ -172,7 +173,7 @@ describe("complete type definition comparison", () => {
     const result = compareWorkItemTypeDefinitions(current, {
       ...current,
       name: "Applications",
-      allowedStatuses: ["IN_PROGRESS", "NOT_STARTED"],
+      statuses: legacyStatuses(["IN_PROGRESS", "NOT_STARTED"]),
       writingStandards: { create: "Check evidence", edit: "Keep history" },
     });
     expect(result.fields.map((f) => f.label)).toEqual([
