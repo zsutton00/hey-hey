@@ -1,4 +1,4 @@
-import { HINT_READ_MCP_TOOLS, resolveMcpToolNames } from '../mcp-server-config';
+import { resolveMcpToolNames } from '../mcp-server-config';
 import type { AgenticSession } from '../../session/types';
 import { LocalPromptType, SessionRole } from '../../shared/agent-bridge-contract/generated/api';
 import type { RunCreatePayloadResearch } from '../../shared/agent-bridge-contract/generated/api';
@@ -22,7 +22,10 @@ import type { CreateReportProxy } from '../submission-tools/create-report-proxy'
 import { RunSubagentsTool } from '../submission-tools/run-subagents-tool';
 import { resolveFocal } from '../context-trimming/create-trimmer';
 import { gatherProjectContext, type ContextGatheringDeps } from './context-gathering';
-import { loadNearestParentFeatureSection } from './nearest-parent-feature';
+import {
+  findNearestParentFeatureId,
+  loadNearestParentFeatureSection,
+} from './nearest-parent-feature';
 import type { ParentRequirementsFilter } from './parent-requirements';
 import { resolveProjectAssistantAdditionalTools } from './proactive-behavior';
 import { prepareRecentProjectAssistantReportContext } from './recent-report-context';
@@ -69,7 +72,6 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
     'list_reports_by_entity',
     'list_services',
     'plan_search',
-    ...HINT_READ_MCP_TOOLS,
   ];
   // No built-in tools. The agent has no file-reading surface — Read, Bash,
   // Glob, Grep are all absent. The project graph (via MCP) is the only
@@ -162,7 +164,9 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
         ? await loadNearestParentFeatureSection(
             { organizationId, projectId, context: loaded.context },
             deps,
-            parentRequirements ? { settings: parentRequirements, loaded } : undefined,
+            parentRequirements && !contextGathering
+              ? { settings: parentRequirements, loaded }
+              : undefined,
           )
         : null;
 
@@ -191,6 +195,12 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
           throw new Error('project_assistant context gathering requires a Turn being prepared.');
         }
         gatheredContext = await gatherProjectContext({
+          fullEntityIds:
+            loaded && nearestParentFeature
+              ? [findNearestParentFeatureId(loaded.context)].filter(
+                  (id): id is string => id !== null,
+                )
+              : [],
           deps: contextGathering,
           handlerDeps: deps,
           runId: run.agentic_session_id,

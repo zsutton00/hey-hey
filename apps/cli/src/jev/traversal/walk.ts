@@ -190,6 +190,7 @@ export const walk = async (input: WalkInput): Promise<WalkResult> => {
       focal: input.focal,
       ask,
       ids: record.opened,
+      ...(input.hits ? { hits: input.hits } : {}),
       reader,
       ...(signal ? { signal } : {}),
     });
@@ -202,13 +203,10 @@ export const walk = async (input: WalkInput): Promise<WalkResult> => {
     step.failures.push(...checked.failures);
     const readMoreOfLoaded = new Map(loaded.map(({ id, readMore }) => [id, readMore]));
     const kept = check.kept.map(
-      ({ id, kind, title, text }): WalkedEntity => ({
-        id,
-        kind,
-        title,
-        text,
+      (entity): WalkedEntity => ({
+        ...entity,
         level,
-        readMore: readMoreOfLoaded.get(id) ?? 0,
+        readMore: readMoreOfLoaded.get(entity.id) ?? 0,
       }),
     );
     entities.push(...kept);

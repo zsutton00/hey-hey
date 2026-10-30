@@ -16,11 +16,22 @@ export const usageSchema = z.object({
   outputTokens: z.number().int().nonnegative(),
 });
 
-/** Jev's keep or drop for one entity read in full. `applies` is null when Jev's request failed. */
+/** Exact candidate text and outcome. Optional text/decision allow older trace files to load. */
 export const judgedSchema = z.object({
   entity: entityLabelSchema,
   applies: z.number().nullable(),
   kept: z.boolean(),
+  text: z.string().optional(),
+  decision: z.enum(['keep', 'drop', 'kept-on-failure']).optional(),
+  excerpt: z
+    .object({
+      partial: z.boolean(),
+      paragraphs: z.array(z.number()),
+      totalParagraphs: z.number(),
+      source: z.enum(['spans', 'full']),
+      fullReason: z.enum(['no-spans', 'weak-spans', 'text-mismatch']).optional(),
+    })
+    .optional(),
 });
 export type Judged = z.infer<typeof judgedSchema>;
 
