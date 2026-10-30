@@ -70,6 +70,7 @@ CurrentControllerMachineEligibilityState:
   enum:
     - ELIGIBLE
     - NOT_ENROLLED
+    - AMBIGUOUS
     - REVOKED
   description: >-
     Server-derived relationship between the requesting browser controller
@@ -79,6 +80,8 @@ CurrentControllerMachineEligibilityState:
     machine. Expiry of a prior reusable authorization window does not erase the
     browser identity needed for fresh exact-action proof. Missing legacy
     bindings are NOT_ENROLLED; a binding with no active credential is REVOKED.
+    AMBIGUOUS means this browser proves multiple active credentials for the
+    machine and must explicitly select one before authorization.
     This state is independent of machine connectivity and global execution
     readiness and never substitutes for exact-action controller proof.
 
@@ -660,6 +663,8 @@ ResolveControllerAuthorizationRequestDto:
   properties:
     machineId:
       $ref: "./common.yaml#/MachineId"
+    controllerCredentialId:
+      $ref: "#/ControllerCredentialId"
     action:
       $ref: "#/HostActionPreparation"
   description: >-

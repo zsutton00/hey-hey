@@ -26929,7 +26929,7 @@ export type CurrentAgentOperation = typeof CurrentAgentOperation[keyof typeof Cu
 
 
 /**
- * Server-derived relationship between the requesting browser controller installation and one paired machine. ELIGIBLE requires a retained opaque browser identity and an active locally-confirmed controller credential binding for that installation and machine. Expiry of a prior reusable authorization window does not erase the browser identity needed for fresh exact-action proof. Missing legacy bindings are NOT_ENROLLED; a binding with no active credential is REVOKED. This state is independent of machine connectivity and global execution readiness and never substitutes for exact-action controller proof.
+ * Server-derived relationship between the requesting browser controller installation and one paired machine. ELIGIBLE requires a retained opaque browser identity and an active locally-confirmed controller credential binding for that installation and machine. Expiry of a prior reusable authorization window does not erase the browser identity needed for fresh exact-action proof. Missing legacy bindings are NOT_ENROLLED; a binding with no active credential is REVOKED. AMBIGUOUS means this browser proves multiple active credentials for the machine and must explicitly select one before authorization. This state is independent of machine connectivity and global execution readiness and never substitutes for exact-action controller proof.
  * @export
  * @enum {string}
  */
@@ -26937,6 +26937,7 @@ export type CurrentAgentOperation = typeof CurrentAgentOperation[keyof typeof Cu
 export const CurrentControllerMachineEligibilityState = {
     Eligible: 'ELIGIBLE',
     NotEnrolled: 'NOT_ENROLLED',
+    Ambiguous: 'AMBIGUOUS',
     Revoked: 'REVOKED'
 } as const;
 
@@ -55249,7 +55250,7 @@ export interface MachineDto {
      */
     'currentControllerEligibility': CurrentControllerMachineEligibilityState | null;
     /**
-     * Exact active credential selected by the server for this browser and machine. Selection may use a valid browser identity after its prior authorization window expires. When no identity exists, the server returns the sole active credential only when selection is unambiguous; otherwise null.
+     * Exact active credential selected by the server for this browser and machine. Selection may use a valid browser identity after its prior authorization window expires. When no proven browser binding exists, returns null; account-wide credential inventory does not recover browser enrollment. Multiple proven credentials return null and AMBIGUOUS eligibility until explicitly selected.
      * @type {string}
      * @memberof MachineDto
      */
@@ -79799,6 +79800,12 @@ export interface ResolveControllerAuthorizationRequestDto {
      * @memberof ResolveControllerAuthorizationRequestDto
      */
     'machineId': string;
+    /**
+     * Base64url WebAuthn controller credential identifier. This is never the internal MachineControllerCredential relational row ID.
+     * @type {string}
+     * @memberof ResolveControllerAuthorizationRequestDto
+     */
+    'controllerCredentialId'?: string;
     /**
      * 
      * @type {HostActionPreparation}

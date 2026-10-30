@@ -858,14 +858,18 @@ export class ExecutionGrantService {
 
   private async resolveCurrentControllerInstallation(params: {
     controllerBindingSecret: string | undefined;
+    authorization: AdmissionEnvelopeAuthorization;
     userId: UserId;
     organizationId: OrganizationId;
   }): Promise<string> {
+    const authority = await this.loadAuthorizationInput(params.authorization);
     const binding = await this.browserBindingService.resolveForAdmission({
       secret: params.controllerBindingSecret,
       userId: params.userId,
       organizationId: params.organizationId,
       required: true,
+      machineId: authority.machineId,
+      controllerCredentialId: authority.controllerCredential.credentialId,
     });
     if (!binding) this.deny('Controller browser binding is required');
     return binding.controllerInstallationId;

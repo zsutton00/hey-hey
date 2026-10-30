@@ -57,6 +57,8 @@ const machineStatus = (state: AgentBridgeMachineUnavailableState): string => {
       return "Authorize this browser";
     case "browser_authorization_revoked":
       return "Browser authorization revoked";
+    case "controller_selection_required":
+      return "Controller selection required";
     case "controller_context_unavailable":
       return "Controller status unavailable";
     case "machine_revoked":
@@ -77,6 +79,8 @@ export const getAgentBridgeRecoveryActionLabel = (
       return "How to reconnect";
     case "legacy_protocol":
       return "View update steps";
+    case "controller_selection_required":
+      return "View controller details";
     case "controller_context_unavailable":
       return "How to restore";
     case "machine_revoked":
@@ -191,6 +195,14 @@ const MachineGuidance = ({
           </Typography>
           <Command>heyhey pair</Command>
         </Stack>
+      );
+    case "controller_selection_required":
+      return (
+        <Typography>
+          This browser has multiple enrolled controllers for {name}. An exact
+          controller must be selected before authorizing work. No controller has
+          been selected automatically.
+        </Typography>
       );
     case "controller_context_unavailable":
       return (
@@ -451,6 +463,7 @@ export const AgentBridgeRecoveryNotice = ({
       case "browser_authorization_required":
       case "browser_authorization_revoked":
       case "controller_context_unavailable":
+      case "controller_selection_required":
       case "machine_revoked":
       case "legacy_protocol":
         return <RecoveryRow state={state} onOpen={openMachineGuidance} />;

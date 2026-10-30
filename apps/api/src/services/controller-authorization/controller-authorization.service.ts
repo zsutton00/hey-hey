@@ -221,6 +221,8 @@ export class ControllerAuthorizationService {
     });
     const binding = await this.browserBindingService.resolveForAdmission({
       secret: params.controllerBindingSecret,
+      machineId: input.machineId,
+      controllerCredentialId: input.controllerCredentialId,
       userId,
       organizationId,
     });
@@ -357,14 +359,16 @@ export class ControllerAuthorizationService {
     const existingBinding =
       await this.browserBindingService.resolveForSelection({
         secret: params.controllerBindingSecret,
+        machineId: machine.id,
+        controllerCredentialId: input.controllerCredentialId,
         userId,
         organizationId,
       });
     if (
-      existingBinding &&
-      (existingBinding.controllerCredentialId !== controllerCredential.id ||
-        existingBinding.controllerInstallationId !==
-          controllerCredential.controllerInstallationId)
+      !existingBinding ||
+      existingBinding.controllerCredentialId !== controllerCredential.id ||
+      existingBinding.controllerInstallationId !==
+        controllerCredential.controllerInstallationId
     ) {
       this.rejectPreparation(
         ControllerAuthorizationDenialReason.ControllerNotActive,
@@ -507,6 +511,7 @@ export class ControllerAuthorizationService {
   }
 
   async submit(params: {
+    controllerBindingSecret?: string;
     organizationId: OrganizationId;
     projectId: ProjectId;
     userId: UserId;
@@ -671,6 +676,7 @@ export class ControllerAuthorizationService {
       projectId,
       userId,
       verifiedSignCount,
+      controllerBindingSecret: params.controllerBindingSecret,
       assertion: input.assertion,
     });
   }
@@ -685,6 +691,7 @@ export class ControllerAuthorizationService {
   }
 
   private async consumeAtomically(params: {
+    controllerBindingSecret?: string;
     authorizationId: string;
     organizationId: OrganizationId;
     projectId: ProjectId;
@@ -707,6 +714,30 @@ export class ControllerAuthorizationService {
           this.denied(
             stateReason ??
               ControllerAuthorizationDenialReason.AuthorizationNotFound,
+            current,
+            params,
+          ),
+        );
+      }
+
+      const browserBinding =
+        await this.browserBindingService.resolveForSelection({
+          secret: params.controllerBindingSecret,
+          userId: params.userId,
+          organizationId: params.organizationId,
+          machineId: current.machineId,
+          controllerCredentialId: current.controllerCredential.credentialId,
+        });
+      if (
+        !browserBinding ||
+        browserBinding.controllerCredentialId !==
+          current.controllerCredentialId ||
+        browserBinding.controllerInstallationId !==
+          current.controllerInstallationId
+      ) {
+        return this.submission(
+          this.denied(
+            ControllerAuthorizationDenialReason.ControllerNotActive,
             current,
             params,
           ),
@@ -779,6 +810,7 @@ export class ControllerAuthorizationService {
           expiresAt: getControllerDeviceGrantExpiry(current.issuedAt, cadence),
         },
         now,
+        params.controllerBindingSecret,
       );
       return {
         response: {
@@ -1429,8 +1461,23 @@ export class ControllerAuthorizationService {
       return { failedCheck: 'request_shape' };
     }
 
-    if (!this.hasExactKeys(input, ['machineId', 'action'])) {
+    if (
+      !this.hasExactKeys(
+        input,
+        input.controllerCredentialId === undefined
+          ? ['machineId', 'action']
+          : ['machineId', 'controllerCredentialId', 'action'],
+      )
+    ) {
       return { failedCheck: 'request_keys', keys: Object.keys(input) };
+    }
+
+    if (
+      input.controllerCredentialId !== undefined &&
+      (typeof input.controllerCredentialId !== 'string' ||
+        input.controllerCredentialId.length === 0)
+    ) {
+      return { failedCheck: 'controller_credential_id' };
     }
 
     if (!this.isUuid(input.machineId)) {
