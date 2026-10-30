@@ -1,0 +1,22 @@
+# Disposable test fixture only. Normal runs reuse the existing PostgreSQL server.
+services:
+  database:
+    image: pgvector/pgvector:0.8.7-pg17-trixie
+    environment:
+      POSTGRES_DB: project
+      POSTGRES_USER: foundation_test_admin
+      POSTGRES_PASSWORD: local_test_admin
+    ports:
+      - "127.0.0.1:${GRAPH_SEARCH_DB_PORT:-55437}:5432"
+    volumes:
+      - graph-search-test-data:/var/lib/postgresql/data
+      - ./tests/shared-server.sql:/docker-entrypoint-initdb.d/shared-server.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U foundation_test_admin -d project"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    mem_limit: 512m
+    cpus: 1.0
+volumes:
+  graph-search-test-data:

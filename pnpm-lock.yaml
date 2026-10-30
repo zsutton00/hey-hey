@@ -484,6 +484,8 @@ importers:
         specifier: ^3.25.76
         version: 3.25.76
 
+  apps/graph-search: {}
+
   apps/ui:
     dependencies:
       '@dnd-kit/core':

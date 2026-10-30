@@ -12,7 +12,7 @@ const script = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   "affected-builds.mjs",
 );
-const ALL = ["ui-common", "ui", "api", "cli", "openapi"];
+const ALL = ["ui-common", "ui", "api", "cli", "graph-search", "openapi"];
 
 const select = (...files) => selectAffected(files);
 
@@ -40,7 +40,7 @@ test("a UI Common change reaches every package that depends on it", () => {
 test("an OpenAPI change selects every target and the external handoff", () => {
   const result = select("openapi/specs/schemas/proposals.yaml");
   assert.deepEqual(result.targets, ALL);
-  assert.deepEqual(result.images, ["ui", "api"]);
+  assert.deepEqual(result.images, ["ui", "api", "graph-search"]);
   assert.equal(result.externalConsumerHandoff, true);
 });
 
@@ -58,7 +58,7 @@ for (const file of [
   test(`root build input ${file} selects every target`, () => {
     const result = select(file);
     assert.deepEqual(result.targets, ALL);
-    assert.deepEqual(result.images, ["ui", "api"]);
+    assert.deepEqual(result.images, ["ui", "api", "graph-search"]);
   });
 }
 
@@ -87,6 +87,7 @@ test("dependents include workspace packages and declared source consumers", () =
     write("apps/api", { name: "hey-hey-api" });
     // Source consumers remain selected without an npm workspace dependency.
     write("apps/cli", { name: "@hey-hey/cli" });
+    write("apps/graph-search", { name: "@hey-hey/graph-search" });
     write("openapi", { name: "hey-hey-openapi" });
     const result = selectAffected(
       ["packages/ui-common/src/index.ts"],
@@ -126,4 +127,15 @@ test("GitHub outputs carry the selection for workflow jobs", () => {
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test("a Rust service change selects its checks and image only", () => {
+  const result = select("apps/graph-search/src/main.rs");
+  assert.deepEqual(result.targets, ["graph-search"]);
+  assert.deepEqual(result.images, ["graph-search"]);
+  assert.ok(
+    result.checks.some(
+      ({ command }) => command === "pnpm --filter @hey-hey/graph-search check",
+    ),
+  );
 });

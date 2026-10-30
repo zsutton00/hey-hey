@@ -1,0 +1,20 @@
+name: heyhey-graph-search
+services:
+  service:
+    image: ${GRAPH_SEARCH_IMAGE:-heyhey-graph-search:local}
+    build:
+      context: ../..
+      dockerfile: apps/graph-search/Dockerfile
+    environment:
+      GRAPH_SEARCH_DATABASE_URL: ${GRAPH_SEARCH_DATABASE_URL:?Set the graph/search URL on the existing PostgreSQL 17 server}
+      GRAPH_SEARCH_BIND: 0.0.0.0:8090
+      GRAPH_SEARCH_MAX_CONNECTIONS: "5"
+      GRAPH_ENABLED: "true"
+      SEARCH_ENABLED: "true"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:${GRAPH_SEARCH_PORT:-8090}:8090"
+    mem_limit: 256m
+    cpus: 1.0
+    stop_grace_period: 15s

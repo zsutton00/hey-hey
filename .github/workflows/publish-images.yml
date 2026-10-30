@@ -16,6 +16,8 @@ on:
           - UI
           - API
           - Both
+          - Graph Search
+          - All
 
 permissions:
   contents: read
@@ -68,6 +70,9 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      - name: Install Rust toolchain
+        if: matrix.target == 'graph-search'
+        run: rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
       - run: pnpm install --frozen-lockfile
       - name: Build shared package prerequisite
         if: matrix.target == 'ui' || matrix.target == 'ui-common'
@@ -156,6 +161,12 @@ jobs:
               new (require(\"@prisma/client\").PrismaClient)();
             "
           '
+
+      - name: Check graph/search startup and restart
+        if: matrix.image == 'graph-search'
+        env:
+          GRAPH_SEARCH_IMAGE: ${{ steps.meta.outputs.repository }}:candidate-${{ github.sha }}
+        run: bash apps/graph-search/scripts/test-container.sh
 
       - name: Record verified build
         env:

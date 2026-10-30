@@ -20,7 +20,9 @@ export function candidateSelection(
     const files = {
       UI: ["apps/ui/retry"],
       API: ["apps/api/retry"],
-      Both: ["<manual retry>"],
+      Both: ["apps/ui/retry", "apps/api/retry"],
+      "Graph Search": ["apps/graph-search/retry"],
+      All: ["<manual retry>"],
     }[target];
     if (!files) throw new Error("Unknown retry target");
     selection = selectAffected(files);
