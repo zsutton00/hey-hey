@@ -34,8 +34,8 @@ export interface AgentApplicationRuntimeDependencies {
   apiBaseUrl: string;
   logger: ServerLogger;
   taskMonitorManagedTurnRuntime: TaskMonitorManagedTurnRuntime;
-  /** Read on every Project Assistant prepare; backed by the machine options file. */
-  isJevParentFeatureFilterEnabled: () => Promise<boolean>;
+  /** The Jev switch, read on every Project Assistant prepare; backed by the machine options file. */
+  isJevEnabled: () => Promise<boolean>;
   fetchImpl?: typeof fetch;
 }
 
@@ -126,9 +126,9 @@ export class AgentApplicationRuntime {
             parentRequirements: {
               jevClient: this.jevClient,
               entityContextLoader: this.entityContextLoader,
-              isEnabled: dependencies.isJevParentFeatureFilterEnabled,
               attemptLogDir: path.join(resolveBaseDir(), 'jev-logs', 'parent-requirements'),
             },
+            isJevEnabled: dependencies.isJevEnabled,
           }
         : {}),
       planSubmissionAdmissionClient: new PlanSubmissionAdmissionClient({

@@ -108,8 +108,7 @@ export class LocalAgentServerBootstrap {
       oauthClient: infrastructure.oauthClient,
       apiBaseUrl: infrastructure.normalizedApiBaseUrl,
       logger: infrastructure.logger.child({ component: 'agents' }),
-      isJevParentFeatureFilterEnabled: () =>
-        new MachineOptionsStore().isJevParentFeatureFilterEnabled(),
+      isJevEnabled: () => new MachineOptionsStore().isJevEnabled(),
       taskMonitorManagedTurnRuntime,
     });
     infrastructure.logger.debug('local.bootstrap.agent_runtime.constructed');

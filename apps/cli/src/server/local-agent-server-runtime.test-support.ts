@@ -81,7 +81,7 @@ export const createTestLocalAgentServerRuntimeOwners = (
     oauthClient: infrastructure.oauthClient,
     apiBaseUrl: infrastructure.normalizedApiBaseUrl,
     logger: infrastructure.logger.child({ component: 'agents' }),
-    isJevParentFeatureFilterEnabled: () => Promise.resolve(true),
+    isJevEnabled: () => Promise.resolve(true),
     taskMonitorManagedTurnRuntime,
     fetchImpl,
   });

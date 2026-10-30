@@ -200,8 +200,7 @@ export const createProjectModeLaunchResumeProbeDependencies = async (
       oauthClient: infrastructure.oauthClient,
       apiBaseUrl: infrastructure.normalizedApiBaseUrl,
       logger: infrastructure.logger.child({ component: 'mode-probe.agents' }),
-      isJevParentFeatureFilterEnabled: () =>
-        new MachineOptionsStore().isJevParentFeatureFilterEnabled(),
+      isJevEnabled: () => new MachineOptionsStore().isJevEnabled(),
       taskMonitorManagedTurnRuntime: managedTurns,
     });
     const capabilityCatalog = new RuntimeCapabilityCatalogLifecycle(

@@ -645,7 +645,7 @@ describe('PresentationOwner', () => {
       expect(owner.getSnapshot().options).toEqual({
         intentFirst: false,
         remoteToolCallViewing: true,
-        jevParentFeatureFilter: true,
+        jevEnabled: true,
         jevKeyDefined: true,
       });
       owner.dispatch({ kind: 'back' });
@@ -662,7 +662,7 @@ describe('PresentationOwner', () => {
       expect(owner.getSnapshot().options).toEqual({
         intentFirst: true,
         remoteToolCallViewing: true,
-        jevParentFeatureFilter: true,
+        jevEnabled: true,
         jevKeyDefined: true,
       });
 
@@ -672,7 +672,7 @@ describe('PresentationOwner', () => {
       expect(owner.getSnapshot().options).toEqual({
         intentFirst: false,
         remoteToolCallViewing: true,
-        jevParentFeatureFilter: true,
+        jevEnabled: true,
         jevKeyDefined: true,
       });
       owner.dispose();
@@ -687,10 +687,10 @@ describe('PresentationOwner', () => {
       owner.dispatch({ kind: 'move-selection', delta: 1 });
       owner.dispatch({ kind: 'move-selection', delta: 1 });
       flushFrame();
-      expect(owner.getSnapshot().optionsRow).toBe('jev-parent-feature-filter');
+      expect(owner.getSnapshot().optionsRow).toBe('jev');
       owner.dispatch({ kind: 'move-selection', delta: 1 });
       flushFrame();
-      expect(owner.getSnapshot().optionsRow).toBe('jev-parent-feature-filter');
+      expect(owner.getSnapshot().optionsRow).toBe('jev');
       expect(owner.getSnapshot().selection).toEqual({ kind: 'options' });
       expect(topScreen(owner.getSnapshot().navigation).kind).toBe('options');
       owner.dispose();
@@ -706,25 +706,25 @@ describe('PresentationOwner', () => {
       expect(owner.getSnapshot().options).toEqual({
         intentFirst: false,
         remoteToolCallViewing: false,
-        jevParentFeatureFilter: true,
+        jevEnabled: true,
         jevKeyDefined: true,
       });
       owner.dispose();
     });
 
-    it('flips the Jev-filtered parent feature load on its own row', async () => {
+    it('flips the Jev on its own row', async () => {
       const { owner, fake } = openOptions(false);
       owner.dispatch({ kind: 'move-selection', delta: 1 });
       owner.dispatch({ kind: 'move-selection', delta: 1 });
       owner.dispatch({ kind: 'activate-selection' });
       await settle();
-      expect(fake.setJevParentFeatureFilter).toHaveBeenLastCalledWith(false);
+      expect(fake.setJevEnabled).toHaveBeenLastCalledWith(false);
       expect(fake.setIntentFirst).not.toHaveBeenCalled();
       expect(fake.setRemoteToolCallViewing).not.toHaveBeenCalled();
       expect(owner.getSnapshot().options).toEqual({
         intentFirst: false,
         remoteToolCallViewing: true,
-        jevParentFeatureFilter: false,
+        jevEnabled: false,
         jevKeyDefined: true,
       });
       owner.dispose();
@@ -744,7 +744,7 @@ describe('PresentationOwner', () => {
       created.owner.dispatch({ kind: 'move-selection', delta: 1 });
       created.owner.dispatch({ kind: 'activate-selection' });
       await settle();
-      expect(fake.setJevParentFeatureFilter).not.toHaveBeenCalled();
+      expect(fake.setJevEnabled).not.toHaveBeenCalled();
       expect(created.owner.getSnapshot().navigation.notice).toBe(
         'Define a Jev key in your environment to turn this on.',
       );
@@ -772,7 +772,7 @@ describe('PresentationOwner', () => {
       expect(owner.getSnapshot().options).toEqual({
         intentFirst: false,
         remoteToolCallViewing: true,
-        jevParentFeatureFilter: true,
+        jevEnabled: true,
         jevKeyDefined: true,
       });
       owner.dispose();

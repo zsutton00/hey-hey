@@ -21,7 +21,7 @@ describe('MachineOptionsStore', () => {
     await expect(new MachineOptionsStore({ filePath }).read()).resolves.toEqual({
       intentFirst: false,
       remoteToolCallViewing: true,
-      jevParentFeatureFilter: true,
+      jevEnabled: true,
     });
   });
 
@@ -33,7 +33,7 @@ describe('MachineOptionsStore', () => {
     await expect(store.read()).resolves.toEqual({
       intentFirst: true,
       remoteToolCallViewing: true,
-      jevParentFeatureFilter: true,
+      jevEnabled: true,
     });
     await expect(store.isRemoteToolCallViewingEnabled()).resolves.toBe(true);
   });
@@ -46,7 +46,7 @@ describe('MachineOptionsStore', () => {
     await expect(store.read()).resolves.toEqual({
       intentFirst: true,
       remoteToolCallViewing: false,
-      jevParentFeatureFilter: true,
+      jevEnabled: true,
     });
     await expect(store.isRemoteToolCallViewingEnabled()).resolves.toBe(false);
   });
@@ -54,17 +54,15 @@ describe('MachineOptionsStore', () => {
   it('saves the Jev parent feature filter without touching the other options', async () => {
     const store = new MachineOptionsStore({ filePath });
     await store.update({ remoteToolCallViewing: false });
-    await store.update({ jevParentFeatureFilter: false });
+    await store.update({ jevEnabled: false });
 
     await expect(store.read()).resolves.toEqual({
       intentFirst: false,
       remoteToolCallViewing: false,
-      jevParentFeatureFilter: false,
+      jevEnabled: false,
     });
-    await expect(store.isJevParentFeatureFilterEnabled()).resolves.toBe(false);
-    await expect(
-      new MachineOptionsStore({ filePath }).isJevParentFeatureFilterEnabled(),
-    ).resolves.toBe(false);
+    await expect(store.isJevEnabled()).resolves.toBe(false);
+    await expect(new MachineOptionsStore({ filePath }).isJevEnabled()).resolves.toBe(false);
   });
 
   it('concurrent updates to different options both persist', async () => {
@@ -77,7 +75,7 @@ describe('MachineOptionsStore', () => {
     await expect(store.read()).resolves.toEqual({
       intentFirst: true,
       remoteToolCallViewing: false,
-      jevParentFeatureFilter: true,
+      jevEnabled: true,
     });
   });
 
@@ -90,13 +88,31 @@ describe('MachineOptionsStore', () => {
     await expect(new MachineOptionsStore({ filePath }).read()).resolves.toEqual({
       intentFirst: true,
       remoteToolCallViewing: false,
-      jevParentFeatureFilter: true,
+      jevEnabled: true,
     });
     expect(JSON.parse(await fs.readFile(filePath, 'utf8'))).toEqual({
       version: 1,
       intentFirst: true,
       remoteToolCallViewing: false,
-      jevParentFeatureFilter: true,
+      jevEnabled: true,
+    });
+  });
+
+  it('keeps the value saved under the old Jev parent feature filter name', async () => {
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(
+      filePath,
+      JSON.stringify({ version: 1, intentFirst: false, jevParentFeatureFilter: false }),
+    );
+
+    const store = new MachineOptionsStore({ filePath });
+    await expect(store.isJevEnabled()).resolves.toBe(false);
+    await store.update({ intentFirst: true });
+    expect(JSON.parse(await fs.readFile(filePath, 'utf8'))).toEqual({
+      version: 1,
+      intentFirst: true,
+      remoteToolCallViewing: true,
+      jevEnabled: false,
     });
   });
 

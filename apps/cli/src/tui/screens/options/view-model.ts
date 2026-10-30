@@ -35,18 +35,18 @@ export const optionsViewModel = (state: PresentationState): ScreenModel => {
         indent: 3,
       }),
       line([]),
-      line([segment('Jev-filtered parent feature load', 'accent', true)], {
+      line([segment('Jev', 'accent', true)], {
         right: jevKeyMissing
           ? [segment('Unavailable', 'muted')]
-          : stateSegments(state.options?.jevParentFeatureFilter ?? null),
-        selected: state.optionsRow === 'jev-parent-feature-filter',
+          : stateSegments(state.options?.jevEnabled ?? null),
+        selected: state.optionsRow === 'jev',
       }),
       line(
         [
           segment(
             jevKeyMissing
               ? 'Needs a Jev key. Define TYPESAFE_API_KEY in your environment to use this.'
-              : 'Project Assistant starts with only the parent requirements Jev judges relevant. Needs a Jev key.',
+              : 'Turn Jev on or off for this machine. Needs a Jev key.',
             'muted',
           ),
         ],

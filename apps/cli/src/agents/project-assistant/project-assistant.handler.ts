@@ -101,13 +101,14 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
    * `runSubagentsTool: null` switches the research subagents off: no tool and no prompt section.
    * `parentRequirements` and `contextGathering` are defined only with a Jev key: the first
    * turns on the filtered parent load, the second the context gathered into the prompt before
-   * the session starts.
+   * the session starts. `isJevEnabled` is the machine's Jev switch, read once per prepare: off, neither runs.
    */
   public constructor(
     createReportProxy: CreateReportProxy,
     runSubagentsTool: RunSubagentsTool | null = new RunSubagentsTool(),
     private readonly parentRequirements?: ParentRequirementsFilter,
     private readonly contextGathering?: ContextGatheringDeps,
+    private readonly isJevEnabled: () => Promise<boolean> = () => Promise.resolve(true),
   ) {
     const codingResearchTool = new CodingResearchTool(createReportProxy);
     this.submissionTools = [codingResearchTool, ...(runSubagentsTool ? [runSubagentsTool] : [])];
@@ -152,17 +153,16 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
 
     const loaded = ctx?.loadedEntityContext;
     const { organizationId, projectId } = run.contextMetadata ?? {};
-    const filterEnabled = this.parentRequirements
-      ? await this.parentRequirements.isEnabled()
-      : false;
+    const hasJev = this.parentRequirements !== undefined || this.contextGathering !== undefined;
+    const jevEnabled = hasJev ? await this.isJevEnabled() : false;
+    const parentRequirements = jevEnabled ? this.parentRequirements : undefined;
+    const contextGathering = jevEnabled ? this.contextGathering : undefined;
     const nearestParentFeature =
       loaded && organizationId && projectId
         ? await loadNearestParentFeatureSection(
             { organizationId, projectId, context: loaded.context },
             deps,
-            this.parentRequirements && filterEnabled
-              ? { settings: this.parentRequirements, loaded }
-              : undefined,
+            parentRequirements ? { settings: parentRequirements, loaded } : undefined,
           )
         : null;
 
@@ -178,7 +178,7 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
     };
 
     let gatheredContext: string | undefined;
-    if (this.contextGathering) {
+    if (contextGathering) {
       const ask = payload.userMessage.trim();
       const focal = await resolveFocal(loaded ?? null, ask || undefined, deps);
       if (focal) {
@@ -191,7 +191,7 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
           throw new Error('project_assistant context gathering requires a Turn being prepared.');
         }
         gatheredContext = await gatherProjectContext({
-          deps: this.contextGathering,
+          deps: contextGathering,
           handlerDeps: deps,
           runId: run.agentic_session_id,
           turnId,

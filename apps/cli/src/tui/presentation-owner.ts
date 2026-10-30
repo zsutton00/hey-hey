@@ -98,7 +98,7 @@ export interface PresentationSources {
   readonly sharedBrowser: Pick<SharedBrowserSource, 'observe' | 'close' | 'setEnabled'>;
   readonly options: Pick<
     OptionsSource,
-    'observe' | 'setIntentFirst' | 'setRemoteToolCallViewing' | 'setJevParentFeatureFilter'
+    'observe' | 'setIntentFirst' | 'setRemoteToolCallViewing' | 'setJevEnabled'
   >;
 }
 
@@ -421,13 +421,13 @@ export class PresentationOwner {
     const current = {
       'intent-first': this.options?.intentFirst,
       'remote-tool-call-viewing': this.options?.remoteToolCallViewing,
-      'jev-parent-feature-filter': this.options?.jevParentFeatureFilter,
+      jev: this.options?.jevEnabled,
     }[row];
     if (!this.sources || current === null || current === undefined) {
       this.navigateTo({ kind: 'notice', message: 'Options are still loading.' });
       return;
     }
-    if (row === 'jev-parent-feature-filter' && this.options?.jevKeyDefined === false) {
+    if (row === 'jev' && this.options?.jevKeyDefined === false) {
       this.navigateTo({
         kind: 'notice',
         message: 'Define a Jev key in your environment to turn this on.',
@@ -439,7 +439,7 @@ export class PresentationOwner {
     const save = {
       'intent-first': () => options.setIntentFirst(!current),
       'remote-tool-call-viewing': () => options.setRemoteToolCallViewing(!current),
-      'jev-parent-feature-filter': () => options.setJevParentFeatureFilter(!current),
+      jev: () => options.setJevEnabled(!current),
     }[row]();
     void save.then(
       () => this.markDirty(),

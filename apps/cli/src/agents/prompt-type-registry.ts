@@ -86,6 +86,8 @@ export interface PromptTypeRegistryDependencies {
   parentRequirements?: ParentRequirementsFilter;
   /** Defined only with a Jev key; Project Assistant then gathers context into its prompt before its session starts. */
   contextGathering?: ContextGatheringDeps;
+  /** The machine's Jev switch, read on every Project Assistant prepare; off disables both Jev uses above. */
+  isJevEnabled?: () => Promise<boolean>;
 }
 
 interface BuilderSpec {
@@ -105,6 +107,7 @@ const createHandlerBuilders = (
   runSubagentsTool: RunSubagentsTool | null | undefined,
   parentRequirements: ParentRequirementsFilter | undefined,
   contextGathering: ContextGatheringDeps | undefined,
+  isJevEnabled: (() => Promise<boolean>) | undefined,
 ): readonly BuilderSpec[] => [
   staticHandler(LocalPromptType.StartupSession, codingPlanHandler),
   staticHandler(LocalPromptType.PlanExecution, planExecutionHandler),
@@ -197,6 +200,7 @@ const createHandlerBuilders = (
         runSubagentsTool,
         parentRequirements,
         contextGathering,
+        isJevEnabled,
       ),
   },
   // Project-defined routing is deliberately last: built-ins retain first
@@ -228,6 +232,7 @@ export class PromptTypeRegistry {
       dependencies.runSubagentsTool,
       dependencies.parentRequirements,
       dependencies.contextGathering,
+      dependencies.isJevEnabled,
     );
 
     for (const spec of handlerBuilders) {

@@ -159,7 +159,7 @@ const journey = (
   });
   const machineActions = new ControlledMachineActions();
   const optionsStore = {
-    saved: { intentFirst: false, remoteToolCallViewing: true, jevParentFeatureFilter: true },
+    saved: { intentFirst: false, remoteToolCallViewing: true, jevEnabled: true },
     read() {
       return Promise.resolve({ ...this.saved });
     },
@@ -167,7 +167,7 @@ const journey = (
       patch: Partial<{
         intentFirst: boolean;
         remoteToolCallViewing: boolean;
-        jevParentFeatureFilter: boolean;
+        jevEnabled: boolean;
       }>,
     ) {
       this.saved = { ...this.saved, ...patch };
@@ -459,7 +459,7 @@ describe('terminal journeys (real sources, owner and Ink)', () => {
     expect(j.optionsStore.saved).toEqual({
       intentFirst: true,
       remoteToolCallViewing: true,
-      jevParentFeatureFilter: true,
+      jevEnabled: true,
     });
     expect(j.frame()).toMatch(/Intent-first \(experimental\) +On +Enter to turn off/u);
 
@@ -467,7 +467,7 @@ describe('terminal journeys (real sources, owner and Ink)', () => {
     expect(j.optionsStore.saved).toEqual({
       intentFirst: false,
       remoteToolCallViewing: true,
-      jevParentFeatureFilter: true,
+      jevEnabled: true,
     });
     expect(j.frame()).toMatch(/Intent-first \(experimental\) +Off/u);
 
@@ -475,7 +475,7 @@ describe('terminal journeys (real sources, owner and Ink)', () => {
     expect(j.optionsStore.saved).toEqual({
       intentFirst: false,
       remoteToolCallViewing: false,
-      jevParentFeatureFilter: true,
+      jevEnabled: true,
     });
     expect(j.frame()).toMatch(/Remote tool-call viewing +Off +Enter to turn on/u);
 
@@ -483,9 +483,9 @@ describe('terminal journeys (real sources, owner and Ink)', () => {
     expect(j.optionsStore.saved).toEqual({
       intentFirst: false,
       remoteToolCallViewing: false,
-      jevParentFeatureFilter: false,
+      jevEnabled: false,
     });
-    expect(j.frame()).toMatch(/Jev-filtered parent feature load +Off +Enter to turn on/u);
+    expect(j.frame()).toMatch(/Jev +Off +Enter to turn on/u);
 
     await j.press(KEY.escape);
     expect(j.frame()).toContain('SESSIONS ON THIS MACHINE');
