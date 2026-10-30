@@ -27,6 +27,8 @@ export interface EvalJudgeResult {
 export type EvalAttemptPatch = Partial<
   Pick<
     EvalAttemptReportPayload,
+    | 'attemptProviderSessionIds'
+    | 'judgeProviderSessionId'
     | 'status'
     | 'stopReason'
     | 'error'

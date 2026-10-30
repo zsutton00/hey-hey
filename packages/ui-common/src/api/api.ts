@@ -32245,6 +32245,18 @@ export interface EvalAttemptReportPayload {
      */
     'completedAt'?: string | null;
     /**
+     * Real provider session ids from the attempt Run history, in observation order.
+     * @type {Array<string>}
+     * @memberof EvalAttemptReportPayload
+     */
+    'attemptProviderSessionIds'?: Array<string>;
+    /**
+     * Real provider session id of the child that judged this attempt. Never a pending placeholder.
+     * @type {string}
+     * @memberof EvalAttemptReportPayload
+     */
+    'judgeProviderSessionId'?: string;
+    /**
      * At most one each of TARGET_PREPARATION, TARGET_HANDLER and JUDGE.
      * @type {Array<EvalMeasurement>}
      * @memberof EvalAttemptReportPayload
@@ -72350,7 +72362,7 @@ export type ProposalGroupValidationIssueCode = typeof ProposalGroupValidationIss
 
 
 /**
- * API-owned comparison state for the proposal target. UPDATE and DELETE proposals targeting TASK are CURRENT when the captured and current last-applied proposal markers are equal, including when both are null, and OUT_OF_DATE when they differ. CREATE and non-TASK targets are NOT_APPLICABLE. 
+ * API-owned content comparison for pending TASK UPDATE and DELETE proposals and unapplied future revisions. CURRENT means the reviewed basis matches current content; OUT_OF_DATE means it differs. UNKNOWN means the reviewed basis or current content is unavailable. Unsupported proposal kinds and terminal proposals are NOT_APPLICABLE. This flag does not grant approval or application eligibility. 
  * @export
  * @enum {string}
  */
@@ -72358,7 +72370,8 @@ export type ProposalGroupValidationIssueCode = typeof ProposalGroupValidationIss
 export const ProposalOutOfDateStatus = {
     NotApplicable: 'NOT_APPLICABLE',
     Current: 'CURRENT',
-    OutOfDate: 'OUT_OF_DATE'
+    OutOfDate: 'OUT_OF_DATE',
+    Unknown: 'UNKNOWN'
 } as const;
 
 export type ProposalOutOfDateStatus = typeof ProposalOutOfDateStatus[keyof typeof ProposalOutOfDateStatus];

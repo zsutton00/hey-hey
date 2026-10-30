@@ -298,6 +298,7 @@ const applyCodexWorkspaceContainment = (
 });
 
 export interface SubAgentArgs {
+  onProviderSessionId?: (id: string) => Promise<void>;
   reportProxy?: CreateReportProxy;
   session: AgenticSession;
   handler: PromptTypeHandler<unknown>;
@@ -334,6 +335,7 @@ export interface SubAgentContextReading {
 }
 
 export interface SubAgentResult {
+  providerSessionId?: string;
   assistantCompleted: boolean;
   outputText?: string;
   /** Present only for a handler whose session counts for context; null when unreadable. */
@@ -494,6 +496,7 @@ const readContextBeforeDisconnect = async (input: {
 };
 
 export class SubAgent {
+  private providerSessionId?: string;
   private releaseProxy: (() => void) | null = null;
   private readonly usageMeter = new ChildUsageMeter();
 
@@ -503,7 +506,13 @@ export class SubAgent {
     try {
       return await this.executeSession();
     } finally {
-      this.releaseProxy?.();
+      try {
+        if (this.providerSessionId) {
+          await this.args.onProviderSessionId?.(this.providerSessionId);
+        }
+      } finally {
+        this.releaseProxy?.();
+      }
     }
   }
 
@@ -822,6 +831,7 @@ export class SubAgent {
     let lastAssistantText = '';
     let assistantCompleted = false;
     let contextReading: SubAgentContextReading | null | undefined;
+    let providerSessionId: string | undefined;
     let firstProviderEventReceived = false;
     let lastProcessingKind: ProviderPhase | null = null;
 
@@ -1085,6 +1095,11 @@ export class SubAgent {
       }
 
       await readOnlyBoundary?.dispose();
+      const reportedSessionId = client.getSessionId();
+      if (reportedSessionId && !reportedSessionId.startsWith('pending_')) {
+        providerSessionId = reportedSessionId;
+        this.providerSessionId = reportedSessionId;
+      }
       await client.disconnect().catch((error: unknown) => {
         requestContext.log(logger, 'warn', 'local.subagent.disconnect_failed', {
           runId,
@@ -1099,6 +1114,7 @@ export class SubAgent {
       outputText: lastAssistantText,
       ...(contextReading !== undefined ? { contextReading } : {}),
       ...(budgetGuard?.isExhausted ? { budgetExhausted: true } : {}),
+      ...(providerSessionId ? { providerSessionId } : {}),
       usage: this.usageMeter.read(),
     };
   }
@@ -1214,6 +1230,7 @@ export class SubAgent {
     let lastAssistantText = '';
     let assistantCompleted = false;
     let contextReading: SubAgentContextReading | null | undefined;
+    let providerSessionId: string | undefined;
     let firstProviderEventReceived = false;
     let lastProcessingKind: ProviderPhase | null = null;
 
@@ -1598,6 +1615,11 @@ export class SubAgent {
           adapterId: config.adapterId,
         });
       }
+      const reportedSessionId = client.getSessionId();
+      if (reportedSessionId && !reportedSessionId.startsWith('pending_')) {
+        providerSessionId = reportedSessionId;
+        this.providerSessionId = reportedSessionId;
+      }
       await client.disconnect().catch((error: unknown) => {
         requestContext.log(logger, 'warn', 'local.subagent.codex.disconnect_failed', {
           runId,
@@ -1612,6 +1634,7 @@ export class SubAgent {
       outputText: lastAssistantText,
       ...(contextReading !== undefined ? { contextReading } : {}),
       ...(budgetGuard?.isExhausted ? { budgetExhausted: true } : {}),
+      ...(providerSessionId ? { providerSessionId } : {}),
       usage: this.usageMeter.read(),
     };
   }

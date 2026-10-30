@@ -35,6 +35,7 @@ export interface ChildLaunchRequest {
   priorReports?: ReadonlyArray<Readonly<ReportChainEntry>>;
   startupPromptInput?: AgentStartupPromptInputResult;
   onAgentOutput?: AgentOutputHandler;
+  onProviderSessionId?: (id: string) => Promise<void>;
   /** Called only after immutable execution metadata is durable. */
   onExecutionCreated?: (session: AgenticSession) => Promise<void>;
   model?: string;
@@ -282,6 +283,7 @@ export class ChildAgentLauncher {
       sessionStartContext,
       touchedFiles: request.touchedFiles ?? [],
       onAgentOutput: request.onAgentOutput ?? (() => {}),
+      ...(request.onProviderSessionId ? { onProviderSessionId: request.onProviderSessionId } : {}),
       oauthClient: this.deps.oauthClient,
       logger: this.deps.logger,
       signal: request.signal,

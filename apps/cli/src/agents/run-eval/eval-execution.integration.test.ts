@@ -419,6 +419,14 @@ describe('eval startup and execution cancellation', () => {
       runPrompt.mockImplementationOnce(async (...args: unknown[]) => {
         const input = args[0] as import('../providers/session-runner').RunPromptArgs;
         await runStore.updateRunTokenUsage(AGENT_SESSION_ID, { inputTokens: 11, outputTokens: 2 });
+        for (const providerSessionId of ['attempt-first', 'attempt-rotated']) {
+          await runStore.appendRunProviderSessionHistory(AGENT_SESSION_ID, {
+            providerSessionId,
+            providerConversationId: null,
+            providerSessionAgentId: 'agent_search',
+            observedAt: new Date().toISOString(),
+          });
+        }
         started();
         await new Promise<void>((resolve) => {
           if (input.signal?.aborted) {
@@ -432,8 +440,10 @@ describe('eval startup and execution cancellation', () => {
       const execution = new EvalAttemptExecution(NOOP_LOGGER);
       execution.bind(service, runStore);
       const onTokenLimit = vi.fn(() => controller.abort());
+      const onProviderSessionIds = vi.fn(async () => undefined);
       const running = execution.execute(coordinator, attempt('agent_search'), {
         signal: controller.signal,
+        onProviderSessionIds,
         ...(reason === 'TOKEN_LIMIT' ? { tokenBudget: 10, onTokenLimit } : {}),
       });
       await entered;
@@ -446,6 +456,7 @@ describe('eval startup and execution cancellation', () => {
         budgetExhausted: reason === 'TOKEN_LIMIT',
         usage: { inputTokens: 11, outputTokens: 2 },
       });
+      expect(onProviderSessionIds).toHaveBeenCalledWith(['attempt-first', 'attempt-rotated']);
       expect(wiring.runRegistry.get(AGENT_SESSION_ID)?.isProcessing).toBe(false);
     },
   );

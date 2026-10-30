@@ -2,60 +2,55 @@ import { Box, Typography } from "@mui/material";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import type { EvalAttemptReport, EvalRunReport } from "@hey-hey/ui-common/data";
-import { WebPathService } from "@hey-hey/ui-common/services";
-
-import { SpaLink } from "./SpaLink";
-
-const SessionLink: React.FC<{
-  projectId: string;
-  agentSessionId: string;
-  testId: string;
-}> = ({ projectId, agentSessionId, testId }) => (
-  <SpaLink
-    href={WebPathService.agentSession({ projectId, agentSessionId })}
-    testId={testId}
-  >
-    <code>{agentSessionId}</code>
-  </SpaLink>
-);
-
-/**
- * Where to see what an attempt actually did: its own session, the run session
- * the judge ran inside, and the exact text the judge was given.
- */
+import type { EvalAttemptReport } from "@hey-hey/ui-common/data";
 export const AttemptSessions: React.FC<{
-  projectId: string;
-  run: EvalRunReport;
   attempt: EvalAttemptReport;
-}> = ({ projectId, run, attempt }) => {
+}> = ({ attempt }) => {
   const { t } = useTranslation();
-  const { targetSessionId, judgedOutput } = attempt.payload;
-  const { coordinatorAgentSessionId } = run.payload;
+  const { judgedOutput, judgeProviderSessionId } = attempt.payload;
+  const attemptIds = (attempt.payload.attemptProviderSessionIds ?? []).filter(
+    (id) => !id.startsWith("pending_"),
+  );
+  const judgeId =
+    judgeProviderSessionId && !judgeProviderSessionId.startsWith("pending_")
+      ? judgeProviderSessionId
+      : null;
 
   return (
     <Box sx={{ mb: 2 }} data-testid="eval-attempt-sessions">
-      <Typography variant="body2" component="div">
-        <b>{t("eval.results.sessions.target")}:</b>{" "}
-        {targetSessionId ? (
-          <SessionLink
-            projectId={projectId}
-            agentSessionId={targetSessionId}
-            testId="eval-attempt-session-target"
-          />
-        ) : (
-          t("eval.results.sessions.noTarget")
-        )}
+      <Typography variant="subtitle2">
+        {t("eval.results.sessions.info")}
       </Typography>
-      <Typography variant="body2" component="div" sx={{ mt: 0.5 }}>
-        <b>{t("eval.results.sessions.judge")}:</b>{" "}
-        {t("eval.results.sessions.judgeNote")}{" "}
-        {coordinatorAgentSessionId && (
-          <SessionLink
-            projectId={projectId}
-            agentSessionId={coordinatorAgentSessionId}
-            testId="eval-attempt-session-run"
-          />
+      <Typography
+        variant="body2"
+        component="div"
+        data-testid="eval-attempt-provider-ids"
+      >
+        <b>{t("eval.results.sessions.attemptProvider")}:</b>{" "}
+        {attemptIds.length
+          ? attemptIds.map((id) => (
+              <Box
+                component="code"
+                key={id}
+                sx={{ display: "block", userSelect: "all" }}
+              >
+                {id}
+              </Box>
+            ))
+          : t("eval.results.notReported")}
+      </Typography>
+      <Typography
+        variant="body2"
+        component="div"
+        data-testid="eval-judge-provider-id"
+      >
+        <b>{t("eval.results.sessions.judgeProvider")}:</b>{" "}
+        {judgeId ? (
+          <Box component="code" sx={{ userSelect: "all" }}>
+            {judgeId}
+          </Box>
+        ) : (
+          t("eval.results.notReported")
         )}
       </Typography>
       {judgedOutput ? (

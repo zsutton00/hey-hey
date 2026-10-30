@@ -222,6 +222,12 @@ const attempts = [
   attempt("opus-attempt", opusHigh, {
     automatedAssessment: assessed,
     judgedOutput: "THE-SAVED-RESEARCH-TEXT",
+    attemptProviderSessionIds: [
+      "provider-first",
+      "pending_hidden",
+      "provider-rotated",
+    ],
+    judgeProviderSessionId: "provider-judge",
     measurements: [
       {
         scope: "TARGET_PREPARATION",
@@ -453,17 +459,27 @@ describe("EvalResultsPage", () => {
     const detail = screen.getByTestId("eval-attempt-detail-opus-attempt");
 
     expect(
-      within(detail).getByTestId("eval-attempt-session-target"),
-    ).toHaveAttribute("href", expect.stringContaining("session-opus-attempt"));
+      within(detail).getByTestId("eval-attempt-provider-ids"),
+    ).toHaveTextContent("provider-firstprovider-rotated");
     expect(
-      within(detail).getByTestId("eval-attempt-session-run"),
-    ).toHaveAttribute("href", expect.stringContaining("coordinator"));
+      within(detail).getByTestId("eval-judge-provider-id"),
+    ).toHaveTextContent("provider-judge");
+    expect(
+      within(detail).queryByTestId("eval-attempt-session-run"),
+    ).not.toBeInTheDocument();
     expect(
       within(detail).getByTestId("eval-attempt-judged-output"),
     ).toHaveTextContent("THE-SAVED-RESEARCH-TEXT");
 
     expand("sonnet-attempt");
     const unjudged = screen.getByTestId("eval-attempt-detail-sonnet-attempt");
+    expect(
+      within(unjudged).getByTestId("eval-attempt-provider-ids"),
+    ).toHaveTextContent("eval.results.notReported");
+    expect(
+      within(unjudged).getByTestId("eval-judge-provider-id"),
+    ).toHaveTextContent("eval.results.notReported");
+    expect(detail).not.toHaveTextContent("pending_hidden");
     expect(
       within(unjudged).getByTestId("eval-attempt-judged-none"),
     ).toBeInTheDocument();

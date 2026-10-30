@@ -1469,8 +1469,9 @@ export const en = {
   "eval.results.sessions.target": "Attempt session (what the handler did)",
   "eval.results.sessions.noTarget": "No attempt session was recorded.",
   "eval.results.sessions.judge": "Judge",
-  "eval.results.sessions.judgeNote":
-    "runs inside the run session and has no session of its own. Run session:",
+  "eval.results.sessions.info": "Info",
+  "eval.results.sessions.attemptProvider": "Attempt provider id",
+  "eval.results.sessions.judgeProvider": "Judge provider id",
   "eval.results.sessions.judged": "Given to the judge ({{count}} characters)",
   "eval.results.sessions.judgedNone":
     "Nothing was given to the judge: the attempt ended before judging started.",

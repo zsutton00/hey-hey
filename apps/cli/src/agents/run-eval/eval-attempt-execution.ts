@@ -43,7 +43,12 @@ export class EvalAttemptExecution {
   public async execute(
     coordinator: AgenticSession,
     attempt: EvalRecordedAttempt,
-    options: { signal: AbortSignal; tokenBudget?: number; onTokenLimit?: () => void },
+    options: {
+      signal: AbortSignal;
+      tokenBudget?: number;
+      onTokenLimit?: () => void;
+      onProviderSessionIds?: (ids: string[]) => Promise<void>;
+    },
   ): Promise<EvalTargetResult> {
     const service = this.service;
     const store = this.store;
@@ -222,6 +227,11 @@ export class EvalAttemptExecution {
       clearInterval(timer);
       options.signal.removeEventListener('abort', onAbort);
       await monitoring;
+      const metadata = await store.getRunMetadata(attempt.targetSessionId);
+      const ids = (metadata?.provider_session_history ?? [])
+        .map((entry) => entry.providerSessionId)
+        .filter((id) => !id.startsWith('pending_'));
+      await options.onProviderSessionIds?.(ids);
     }
   }
 }

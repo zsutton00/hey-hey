@@ -1584,6 +1584,7 @@ describe('SubAgent — unified runtime contract', () => {
 
       const result = await executeRegistered(LocalPromptType.StartupSession, 'claude');
 
+      expect(result.providerSessionId).toBe('plan-session');
       expect(result.contextReading).toEqual({
         providerSessionId: 'plan-session',
         usage: { totalTokens: 7_000, maxTokens: 200_000 },
@@ -1600,6 +1601,7 @@ describe('SubAgent — unified runtime contract', () => {
 
       const result = await executeRegistered(LocalPromptType.StartupSession, 'codex');
 
+      expect(result.providerSessionId).toBe('plan-thread');
       expect(result.contextReading).toEqual({
         providerSessionId: 'plan-thread',
         usage: { totalTokens: 5_000, maxTokens: 258_000 },

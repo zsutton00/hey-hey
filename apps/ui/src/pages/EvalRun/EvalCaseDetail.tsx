@@ -408,8 +408,8 @@ export const EvalCaseDetail: React.FC<EvalCaseDetailProps> = ({
 }) => (
   <Box sx={{ p: 2 }} data-testid={`eval-attempt-detail-${attempt.id}`}>
     <AttemptExecutionSummary attempt={attempt} />
-    <AttemptSessions projectId={projectId} run={run} attempt={attempt} />
     <ExpectedVersusResult row={row} />
+    <AttemptSessions attempt={attempt} />
     <WorkBreakdown rows={row.breakdown} />
     <Grid container spacing={2}>
       <Grid size={{ xs: 12, md: 6 }}>

@@ -65,13 +65,22 @@ const runRecordedAttempts = async (
       if (!deps.evalAttemptExecution) {
         throw new Error('Eval attempt execution is unavailable.');
       }
-      return deps.evalAttemptExecution.execute(session, attempt, options);
+      return deps.evalAttemptExecution.execute(session, attempt, {
+        ...options,
+        onProviderSessionIds: (ids) =>
+          recorder.updateAttempt(attempt.attemptId, { attemptProviderSessionIds: ids }),
+      });
     },
     async judge(attempt, outputText, judgeSignal) {
       const startedAt = Date.now();
       const result = await launcher
         .launchRegistered(EVAL_JUDGE_HANDLER_ID, {
           parentSession: session,
+          onProviderSessionId: async (id) => {
+            if (!id.startsWith('pending_')) {
+              await recorder.updateAttempt(attempt.attemptId, { judgeProviderSessionId: id });
+            }
+          },
           payload: { caseInput: attempt.caseInput, outputText },
           signal: judgeSignal,
           ...toLaunchSettings(payload.judgeSetup),
