@@ -805,9 +805,19 @@ describe("WorkItemTypeFormPage", () => {
     );
     await user.click(screen.getByTestId("wit-status-add"));
     await user.click(screen.getByTestId("wit-form-submit"));
+    const question = await screen.findByTestId("wit-status-clarification");
     expect(
-      await screen.findByTestId("wit-status-clarification"),
+      within(question).getByText("workItemType.status.finished"),
     ).toBeInTheDocument();
+    expect(mockCreateMutate).not.toHaveBeenCalled();
+
+    // The answer is required: submitting without one is blocked.
+    await user.click(screen.getByTestId("wit-form-submit"));
+    expect(mockCreateMutate).not.toHaveBeenCalled();
+
+    await user.click(
+      within(question).getByLabelText("workItemType.status.noneOfThese"),
+    );
     await user.click(screen.getByTestId("wit-form-submit"));
     await waitFor(() => expect(mockCreateMutate).toHaveBeenCalledTimes(1));
     expect(mockResolveStatuses).toHaveBeenLastCalledWith(
@@ -821,6 +831,86 @@ describe("WorkItemTypeFormPage", () => {
     expect(mockCreateMutate.mock.calls[0][0].definition.statuses).toEqual([
       { name: "Maintained", meaning: "IN_PROGRESS" },
     ]);
+  });
+
+  it("lets people rename, reorder and remove statuses while keeping the first as the start", async () => {
+    const user = userEvent.setup();
+    mockResolveStatuses.mockResolvedValue({
+      state: "RESOLVED",
+      suggestions: ["Idea", "Testing", "Made"],
+    });
+    renderForm();
+    await openTab(user, "Lifecycle");
+    await user.click(screen.getByTestId("wit-status-suggest"));
+    await screen.findByDisplayValue("Idea");
+
+    const rows = () => screen.getAllByLabelText("workItemType.status.name");
+    await user.clear(rows()[1]!);
+    await user.type(rows()[1]!, "Tasting");
+    await user.click(
+      screen.getAllByLabelText("workItemType.status.moveUp")[1]!,
+    );
+
+    expect(rows()[0]).toHaveValue("Tasting");
+    expect(screen.getByTestId("wit-status-start")).toBeInTheDocument();
+
+    await user.click(
+      screen.getAllByLabelText("workItemType.status.remove")[0]!,
+    );
+    expect(rows()[0]).toHaveValue("Idea");
+    expect(screen.queryByDisplayValue("Tasting")).not.toBeInTheDocument();
+    expect(screen.getByTestId("wit-status-reserved")).toBeInTheDocument();
+  });
+
+  it("edits only the targeted row while a rename temporarily duplicates another name", async () => {
+    const user = userEvent.setup();
+    mockResolveStatuses.mockResolvedValue({
+      state: "RESOLVED",
+      suggestions: ["Idea", "Testing"],
+    });
+    renderForm();
+    await openTab(user, "Lifecycle");
+    await user.click(screen.getByTestId("wit-status-suggest"));
+    await screen.findByDisplayValue("Idea");
+
+    const rows = () => screen.getAllByLabelText("workItemType.status.name");
+    await user.clear(rows()[1]!);
+    await user.type(rows()[1]!, "Idea");
+    await user.type(rows()[1]!, "s");
+
+    expect(rows()[0]).toHaveValue("Idea");
+    expect(rows()[1]).toHaveValue("Ideas");
+  });
+
+  it("drops the finished question when new suggestions replace the list", async () => {
+    const user = userEvent.setup();
+    mockResolveStatuses
+      .mockResolvedValueOnce({ state: "CLARIFICATION", suggestions: [] })
+      .mockResolvedValueOnce({ state: "RESOLVED", suggestions: ["Idea"] })
+      .mockResolvedValueOnce({
+        state: "RESOLVED",
+        suggestions: [],
+        statuses: [{ name: "Idea", meaning: "NOT_STARTED" }],
+      });
+    renderForm();
+    fillField("wit-form-key", "resume");
+    fillField("wit-form-name", "Résumé");
+    await openTab(user, "Lifecycle");
+    await user.type(
+      within(screen.getByTestId("wit-status-name")).getByRole("textbox"),
+      "Maintained",
+    );
+    await user.click(screen.getByTestId("wit-status-add"));
+    await user.click(screen.getByTestId("wit-form-submit"));
+    await screen.findByTestId("wit-status-clarification");
+
+    await user.click(screen.getByTestId("wit-status-suggest"));
+    expect(
+      screen.queryByTestId("wit-status-clarification"),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("wit-form-submit"));
+    await waitFor(() => expect(mockCreateMutate).toHaveBeenCalledTimes(1));
   });
 
   it("requests suggestions for the type purpose", async () => {
@@ -839,7 +929,9 @@ describe("WorkItemTypeFormPage", () => {
       }),
     );
     expect(
-      await within(screen.getByTestId("wit-form-statuses")).findByText("Idea"),
+      await within(screen.getByTestId("wit-form-statuses")).findByDisplayValue(
+        "Idea",
+      ),
     ).toBeInTheDocument();
   });
 

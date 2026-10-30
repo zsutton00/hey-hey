@@ -38,6 +38,32 @@ describe("complete type definition comparison", () => {
       { label: "Session-role guidance — review", before: "Check", after: "" },
     ]);
   });
+  it("shows status names, order, starting status and changed meanings", () => {
+    const before = {
+      ...current,
+      statuses: [
+        { name: "Drafting", meaning: "NOT_STARTED" as const },
+        { name: "Published", meaning: "FINISHED" as const },
+      ],
+    };
+    const after = {
+      ...current,
+      statuses: [
+        { name: "Published", meaning: "UNFINISHED" as const },
+        { name: "Drafting", meaning: "NOT_STARTED" as const },
+      ],
+    };
+    const labels = compareWorkItemTypeDefinitions(before, after).fields.map(
+      (field) => field.label,
+    );
+    expect(labels).toEqual(
+      expect.arrayContaining([
+        "Allowed statuses",
+        "Starting status",
+        "Status meanings",
+      ]),
+    );
+  });
   it("shows maintenance advice separately from authoring guidance", () => {
     const addition = compareWorkItemTypeDefinitions(current, {
       ...current,
@@ -179,6 +205,8 @@ describe("complete type definition comparison", () => {
     expect(result.fields.map((f) => f.label)).toEqual([
       "Name",
       "Allowed statuses",
+      "Starting status",
+      "Status meanings",
       "Writing standard — Create",
       "Writing standard — Edit",
     ]);

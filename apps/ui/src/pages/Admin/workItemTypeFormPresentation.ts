@@ -202,3 +202,29 @@ export function formatCapabilityKey(key: string): string {
     ? WORK_ITEM_TYPE_FIELD_PRESENTATION["capabilities.key"].label
     : spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase();
 }
+
+const PLATFORM_RESERVED_STATUS_NAMES = ["archived", "superseded"];
+
+const normalizeStatusName = (name: string): string => name.trim().toLowerCase();
+
+/** Archived and Superseded belong to the platform; duplicates are ambiguous. */
+export function isReservedOrDuplicateStatus(
+  name: string,
+  existing: string[],
+): boolean {
+  return [
+    ...PLATFORM_RESERVED_STATUS_NAMES,
+    ...existing.map(normalizeStatusName),
+  ].includes(normalizeStatusName(name));
+}
+
+export function hasInvalidStatusNames(names: string[]): boolean {
+  return names.some(
+    (name, index) =>
+      !name.trim() ||
+      PLATFORM_RESERVED_STATUS_NAMES.includes(normalizeStatusName(name)) ||
+      names.findIndex(
+        (other) => normalizeStatusName(other) === normalizeStatusName(name),
+      ) !== index,
+  );
+}
