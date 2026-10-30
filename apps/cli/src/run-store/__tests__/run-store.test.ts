@@ -292,7 +292,7 @@ describe('RunStore', () => {
       const before = await fs.readFile(metadataPath, 'utf8');
       expect(await reopened.getRunResult('run-1')).toEqual({
         assistantCompleted: true,
-        usage: { inputTokens: 0, outputTokens: 0 },
+        usage: { inputTokens: 0, outputTokens: 0, cacheAvailability: 'unsupported' },
       });
       expect(await fs.readFile(metadataPath, 'utf8')).toBe(before);
     },
@@ -423,6 +423,27 @@ describe('RunStore', () => {
     await reopened.initialize();
     expect((await reopened.getRunWithEvents(runId))!.events.map((event) => event.seq)).toEqual([
       1, 2, 3, 4,
+    ]);
+  });
+
+  it('recovers a Run whose last event append was interrupted before a restart', async () => {
+    const created = await store.createRun(createTaskInput());
+    const runId = created.agentic_session_id;
+    const input = {
+      run_id: runId,
+      actor: 'app',
+      event_type: 'run_started',
+      state_version: 1,
+    } satisfies AppendAgenticEventInput;
+    await store.appendEvent(runId, input);
+    const eventLog = await runFamilyMemberPath(tempRoot, runId, 'events');
+    await fs.appendFile(eventLog, '{"schema_version":1,"seq":2');
+
+    const restarted = new RunStore({ paths: createTempPaths(tempRoot) });
+    await restarted.initialize();
+    await restarted.appendEvent(runId, input);
+    expect((await restarted.getRunWithEvents(runId))!.events.map((event) => event.seq)).toEqual([
+      1, 2,
     ]);
   });
 
@@ -2117,6 +2138,38 @@ describe('RunStore', () => {
         closed: true,
       });
       expect(rehydrated?.reviewFileScopeReconciliations).toEqual(reconciliations);
+    });
+  });
+
+  it('preserves unavailable final usage and reported cache zeros across reopening', async () => {
+    const run = await store.createRun(createTaskInput());
+    await store.setRunTokenUsage(run.agentic_session_id, {
+      inputTokens: null,
+      outputTokens: 7,
+      cacheReadInputTokens: 0,
+      cacheCreationInputTokens: null,
+      cacheAvailability: 'partial',
+    });
+    const reopened = new RunStore({ paths: createTempPaths(tempRoot) });
+    expect((await reopened.getRunResult(run.agentic_session_id))?.usage).toEqual({
+      outputTokens: 7,
+      cacheReadInputTokens: 0,
+      cacheAvailability: 'partial',
+    });
+    expect((await reopened.getRunMetadata(run.agentic_session_id))?.tokenUsage).toEqual({
+      inputTokens: null,
+      outputTokens: 7,
+      cacheReadInputTokens: 0,
+      cacheCreationInputTokens: null,
+      cacheAvailability: 'partial',
+    });
+    await reopened.updateRunTokenUsage(run.agentic_session_id, {
+      inputTokens: 50,
+      outputTokens: 3,
+    });
+    expect((await reopened.getRunResult(run.agentic_session_id))?.usage).toEqual({
+      outputTokens: 10,
+      cacheAvailability: 'partial',
     });
   });
 

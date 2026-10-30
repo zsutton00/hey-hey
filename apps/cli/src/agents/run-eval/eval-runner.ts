@@ -79,6 +79,12 @@ const toMeasurement = (
   elapsedMs,
   ...(usage.inputTokens !== undefined ? { inputTokens: usage.inputTokens } : {}),
   ...(usage.outputTokens !== undefined ? { outputTokens: usage.outputTokens } : {}),
+  ...(usage.cacheReadInputTokens !== undefined
+    ? { cacheReadInputTokens: usage.cacheReadInputTokens }
+    : {}),
+  ...(usage.cacheCreationInputTokens !== undefined
+    ? { cacheCreationInputTokens: usage.cacheCreationInputTokens }
+    : {}),
   ...(usage.toolCalls !== undefined ? { toolCalls: usage.toolCalls } : {}),
 });
 

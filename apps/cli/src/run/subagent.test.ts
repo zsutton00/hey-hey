@@ -336,6 +336,53 @@ describe('SubAgent — unified runtime contract', () => {
     },
   );
 
+  it.each([
+    ['claude', 'judge-session'],
+    ['codex', 'judge-thread'],
+    ['claude', 'pending_judge'],
+    ['codex', 'pending_judge'],
+  ] as const)('retains only real %s judge identity when the client aborts (%s)', async (provider, id) => {
+    const onProviderSessionId = vi.fn(async () => {});
+    if (provider === 'claude') {
+      startSessionMock.mockImplementationOnce(async (config) => {
+        claudeGetSessionIdMock.mockReturnValue(id);
+        claudeEmitters.get(config)!({ type: 'system', subtype: 'init', session_id: id });
+        // Claude's abort handler disconnects and clears its identity before rejecting.
+        claudeGetSessionIdMock.mockReturnValue(null);
+        throw new Error('Aborted');
+      });
+    } else {
+      codexStartSessionMock.mockImplementationOnce(async (config) => {
+        codexGetSessionIdMock.mockReturnValue(id);
+        codexEmitters.get(config)!({ method: 'thread/started', params: { thread: { id } } });
+        codexGetSessionIdMock.mockReturnValue(null);
+        throw new Error('Aborted');
+      });
+    }
+    const child = makeSubAgent({
+      session: makeSession({ provider }),
+      handler: evalJudgeHandler,
+      config: evalJudgeHandler.childConfig!,
+      payload: {
+        caseInput: {
+          id: 'case', evalCaseId: 'case', title: 'Evidence case',
+          target: { targetHandler: 'entity_conversation', situation: 'Situation', initiatingRequest: 'Request' },
+          grading: { checks: [], rubric: [] },
+        },
+        outputText: 'Recorded answer',
+      },
+      touchedFiles: [], priorReports: [], cwd: '/repo',
+      oauthClient: makeOauth(), logger: makeLogger(), onAgentOutput: () => {},
+      onProviderSessionId,
+    });
+    await expect(child.execute()).rejects.toThrow('Aborted');
+    if (id.startsWith('pending_')) {
+      expect(onProviderSessionId).not.toHaveBeenCalled();
+    } else {
+      expect(onProviderSessionId).toHaveBeenCalledExactlyOnceWith(id);
+    }
+  });
+
   it('refuses inert built-in execution before a handler policy can allow it', async () => {
     const runStore = createPromptTypeHandlerTestRunStore();
     await runStore.initialize();

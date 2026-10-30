@@ -127,6 +127,8 @@ export class EvalAttemptExecution {
         !budgetExhausted &&
         options.tokenBudget !== undefined &&
         usage &&
+        usage.inputTokens !== null &&
+        usage.outputTokens !== null &&
         usage.inputTokens + usage.outputTokens > options.tokenBudget
       ) {
         budgetExhausted = true;
@@ -167,9 +169,24 @@ export class EvalAttemptExecution {
       }
       await monitoring;
       await check();
-      const result = await store.getRunResult(attempt.targetSessionId);
-      const stopped = isStopped();
       const metadata = await store.getRunMetadata(attempt.targetSessionId);
+      this.logger.info('run_eval.attempt.usage_read', {
+        runId: attempt.targetSessionId,
+        provider: setting.provider,
+        model: setting.model,
+        usage: metadata?.tokenUsage ?? null,
+      });
+      const result = await store.getRunResult(attempt.targetSessionId).catch((error: unknown) => {
+        this.logger.warn('run_eval.attempt.usage_read_failed', {
+          runId: attempt.targetSessionId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        throw new Error(
+          'The finished Run result could not be read; token measurements are unavailable for this attempt.',
+          { cause: error },
+        );
+      });
+      const stopped = isStopped();
       if (
         !stopped &&
         metadata?.latestTurn?.state === 'settled' &&

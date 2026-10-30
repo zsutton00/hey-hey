@@ -1026,6 +1026,7 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
       void reader.cancel().catch(() => undefined);
     };
 
+    let pendingUsageWrite = Promise.resolve();
     const handleAssistantMessageUpdated = (info: OpencodeMessageInfo): void => {
       if (info.role !== 'assistant' || !info.tokens) return;
       const snapshot = this.contextSnapshotFromInfo(info);
@@ -1036,25 +1037,20 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
       const cacheReadInputTokens = info.tokens.cache.read;
       const cacheCreationInputTokens = info.tokens.cache.write;
 
-      if (
-        inputTokens === 0 &&
-        outputTokens === 0 &&
-        cacheReadInputTokens === 0 &&
-        cacheCreationInputTokens === 0
-      ) {
-        return;
-      }
-
       // Use setRunTokenUsage so cumulative totals (assistant message carries
       // running totals across the run, not per-turn deltas) overwrite the
       // session record. Mirrors the Claude runner's `result` handling.
-      void this.runStore
-        .setRunTokenUsage(agenticSessionId, {
-          inputTokens,
-          outputTokens,
-          cacheCreationInputTokens,
-          cacheReadInputTokens,
-        })
+      pendingUsageWrite = pendingUsageWrite
+        .then(() =>
+          this.runStore.setRunTokenUsage(agenticSessionId, {
+            inputTokens,
+            outputTokens,
+            cacheCreationInputTokens,
+            cacheReadInputTokens,
+            cacheAvailability: 'reported',
+          }),
+        )
+        .then(() => undefined)
         .catch((err: unknown) => {
           requestContext.log(
             this.logger,
@@ -1489,6 +1485,7 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
           });
           bufferedAssistantText = '';
         }
+        await pendingUsageWrite;
         onTerminal();
       }
     };
@@ -1510,6 +1507,7 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
       if (stallError) throw stallError;
     } finally {
       clearTimeout(stallTimer);
+      await pendingUsageWrite;
       reader.releaseLock();
     }
   };

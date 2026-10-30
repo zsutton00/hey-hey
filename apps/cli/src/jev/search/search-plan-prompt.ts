@@ -1,5 +1,4 @@
-import { z } from 'zod';
-import { EntityType } from '../../shared/api/generated';
+import { z } from 'zod/v4';
 import type { Focal } from '../scenarios';
 import { plannedSearchSchema } from './search-executor';
 
@@ -14,7 +13,11 @@ export const submitContextSearchesSchema = z.object({
 export type SubmitContextSearches = z.infer<typeof submitContextSearchesSchema>;
 
 /** Asks the model, before any session starts, for the searches that would find the context a request needs. */
-export const SEARCH_PLAN_PROMPT = `The prompt above describes the research you will do later. Right now do none of it: list the searches that would find the project context this request needs. Base them on the focal entity and the user's request below. Answer with only a JSON object of the form {"searches": [{"query": "...", "types": ["TASK"]}]}: one entry per search, at most ${String(MAX_CONTEXT_SEARCHES)}, each a query and, optionally, \`types\`: entity types to search, only from ${Object.values(EntityType).join(', ')}. Features, tasks, bugs and other work items are all TASK. Omit \`types\` to search every type. Write no other text.`;
+export const SEARCH_PLAN_PROMPT = `The prompt above describes the research you will do later. Right now do none of it: list the searches that would find the project context this request needs. Base them on the focal entity and the user's request below. Answer with only a JSON object that matches this JSON Schema, and write no other text. \`types\` takes only the values its enum lists; a work-item type such as FEATURE, CONTRACT or decision goes in \`taskTypes\`, never in \`types\`.
+
+\`\`\`json
+${JSON.stringify(z.toJSONSchema(submitContextSearchesSchema), null, 2)}
+\`\`\``;
 
 /** `context` is the Project Assistant's own prompt without the gathered entities, so the planner knows how the work is done. */
 export const buildSearchPlanPrompt = (context: string, focal: Focal, ask: string): string =>

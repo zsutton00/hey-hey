@@ -1,5 +1,6 @@
 import v8 from 'node:v8';
 import type { ServerLogger } from './logger';
+import { PhysicalFootprintReader } from './physical-footprint';
 
 /** Current sizes of in-process owners whose growth would explain heap growth. */
 type MemoryGauges = () => Readonly<Record<string, number>>;
@@ -9,6 +10,7 @@ export interface MemoryMonitorDependencies {
   readonly gauges: MemoryGauges;
   readonly intervalMs?: number;
   readonly readMemory?: () => MemoryReading;
+  readonly footprint?: PhysicalFootprintReader;
 }
 
 export interface MemoryReading {
@@ -91,11 +93,13 @@ export class MemoryMonitor {
   private timer: ReturnType<typeof setInterval> | null = null;
   private readonly startedAt = Date.now();
   private readonly readMemory: () => MemoryReading;
+  private readonly footprint: PhysicalFootprintReader;
   private baselineHeapUsed: number | null = null;
   private pressureLevel = 0;
 
   public constructor(private readonly dependencies: MemoryMonitorDependencies) {
     this.readMemory = dependencies.readMemory ?? readProcessMemory;
+    this.footprint = dependencies.footprint ?? new PhysicalFootprintReader();
   }
 
   public start(): void {
@@ -115,6 +119,8 @@ export class MemoryMonitor {
 
   public sample(): void {
     const memory = this.readMemory();
+    this.refreshFootprint();
+    const footprintBytes = this.footprint.bytes;
     this.baselineHeapUsed ??= memory.heapUsed;
     const heapUsedRatio = memory.heapUsed / memory.heapLimit;
     const fields = {
@@ -125,6 +131,8 @@ export class MemoryMonitor {
       heapUsedRatio: Math.round(heapUsedRatio * 100) / 100,
       heapGrowthMb: toMb(memory.heapUsed - this.baselineHeapUsed),
       rssMb: toMb(memory.rss),
+      // Includes native and compressed memory that rss and the V8 figures miss; lags one sample.
+      ...(footprintBytes === null ? {} : { physicalFootprintMb: toMb(footprintBytes) }),
       externalMb: toMb(memory.external),
       arrayBuffersMb: toMb(memory.arrayBuffers),
       oldSpaceMb: toMb(memory.oldSpaceUsed),
@@ -145,5 +153,13 @@ export class MemoryMonitor {
       this.dependencies.logger.info('process.memory.sample', fields);
     }
     this.pressureLevel = level;
+  }
+
+  private refreshFootprint(): void {
+    this.footprint.refresh().catch((error: unknown) => {
+      this.dependencies.logger.warn('process.memory.footprint_unavailable', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
   }
 }

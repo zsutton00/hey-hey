@@ -36,7 +36,7 @@ import {
   type DurableAdmissionContext,
 } from '../run/durable-event-admission';
 import { hasLegacySessions, migrateSessionsToRuns } from './migrate-sessions';
-import { RunEventStore } from './run-event-store';
+import { committedLines, RunEventStore } from './run-event-store';
 import { RunIndexStore } from './run-index';
 import {
   isRunFamilyManifestFileName,
@@ -397,6 +397,7 @@ const toTransientAgenticSessionEvent = (
 });
 
 export class RunStore {
+  private readonly unavailableUsageRuns = new Set<string>();
   private static readonly MAX_CHANGED_FILES_DIAGNOSTICS = 200;
 
   private static readonly VALID_PROVIDER_PREFERENCES = new Set<string>([
@@ -644,9 +645,9 @@ export class RunStore {
         parseRunMetadata(text);
         return;
       case 'events': {
+        // A torn final line from an interrupted append is trimmed by the next append.
         let expectedSeq = 1;
-        for (const line of text.split('\n')) {
-          if (!line.trim()) continue;
+        for (const line of committedLines(text)) {
           const event = parseDurableRunEvent(JSON.parse(line) as unknown);
           if (event.run_id !== runId) {
             throw new Error(`Durable event belongs to Run ${event.run_id}, not Run ${runId}.`);
@@ -980,6 +981,11 @@ export class RunStore {
       return null;
     }
 
+    if (this.unavailableUsageRuns.has(runId)) {
+      throw new Error(
+        'Final token usage could not be saved; token measurements are unavailable for this attempt.',
+      );
+    }
     const bytes = await this.readCompatibleMember(runId, 'toolUsage');
     const tools = bytes ? z.array(z.json()).parse(JSON.parse(new TextDecoder().decode(bytes))) : [];
     const latest = run.latestTurn;
@@ -992,7 +998,21 @@ export class RunStore {
         : {}),
       usage: {
         ...(run.tokenUsage
-          ? { inputTokens: run.tokenUsage.inputTokens, outputTokens: run.tokenUsage.outputTokens }
+          ? {
+              ...(run.tokenUsage.inputTokens != null
+                ? { inputTokens: run.tokenUsage.inputTokens }
+                : {}),
+              ...(run.tokenUsage.outputTokens != null
+                ? { outputTokens: run.tokenUsage.outputTokens }
+                : {}),
+              ...(run.tokenUsage.cacheReadInputTokens != null
+                ? { cacheReadInputTokens: run.tokenUsage.cacheReadInputTokens }
+                : {}),
+              ...(run.tokenUsage.cacheCreationInputTokens != null
+                ? { cacheCreationInputTokens: run.tokenUsage.cacheCreationInputTokens }
+                : {}),
+              cacheAvailability: run.tokenUsage.cacheAvailability,
+            }
           : {}),
         ...(tools.length > 0 ? { toolCalls: tools.length } : {}),
       },
@@ -1032,8 +1052,9 @@ export class RunStore {
     return this.withMetadataLock(runId, async () => {
       const run = await readRunMetadata(this.runFamilies, runId);
       if (!run) return null;
-      const durableEvents = await this.eventStore.readEvents(runId);
-      const events = durableEvents.map(toAgenticSessionEvent);
+      const durableEvents = includeEvents
+        ? await this.eventStore.readEvents(runId)
+        : await this.eventStore.readProviderIdentityEvents(runId);
       const currentHistory = run.provider_session_history ?? [];
       const history = reconcileDurableProviderSessionHistory(currentHistory, durableEvents);
       if (history.length !== currentHistory.length) {
@@ -1041,7 +1062,7 @@ export class RunStore {
         run.updatedAt = this.now().toISOString();
         await writeRunMetadata(this.runFamilies, run);
       }
-      return { ...run, events: includeEvents ? events : [] };
+      return { ...run, events: includeEvents ? durableEvents.map(toAgenticSessionEvent) : [] };
     });
   }
 
@@ -1734,12 +1755,18 @@ export class RunStore {
         cacheAvailability: 'unsupported',
       };
       run.tokenUsage = {
-        inputTokens: existing.inputTokens + delta.inputTokens,
-        outputTokens: existing.outputTokens + delta.outputTokens,
+        inputTokens:
+          existing.inputTokens === null ? null : existing.inputTokens + delta.inputTokens,
+        outputTokens:
+          existing.outputTokens === null ? null : existing.outputTokens + delta.outputTokens,
         cacheCreationInputTokens:
-          (existing.cacheCreationInputTokens ?? 0) + (delta.cacheCreationInputTokens ?? 0),
+          delta.cacheCreationInputTokens === undefined || existing.cacheCreationInputTokens === null
+            ? null
+            : existing.cacheCreationInputTokens + delta.cacheCreationInputTokens,
         cacheReadInputTokens:
-          (existing.cacheReadInputTokens ?? 0) + (delta.cacheReadInputTokens ?? 0),
+          delta.cacheReadInputTokens === undefined || existing.cacheReadInputTokens === null
+            ? null
+            : existing.cacheReadInputTokens + delta.cacheReadInputTokens,
         cacheAvailability: delta.cacheAvailability ?? existing.cacheAvailability ?? 'unsupported',
       };
       run.updatedAt = this.now().toISOString();
@@ -1751,10 +1778,10 @@ export class RunStore {
   public setRunTokenUsage(
     runId: string,
     total: {
-      inputTokens: number;
-      outputTokens: number;
-      cacheCreationInputTokens?: number;
-      cacheReadInputTokens?: number;
+      inputTokens: number | null;
+      outputTokens: number | null;
+      cacheCreationInputTokens?: number | null;
+      cacheReadInputTokens?: number | null;
       cacheAvailability?: LocalTokenUsage['cacheAvailability'];
     },
   ): Promise<AgenticSession> {
@@ -1766,13 +1793,18 @@ export class RunStore {
       run.tokenUsage = {
         inputTokens: total.inputTokens,
         outputTokens: total.outputTokens,
-        cacheCreationInputTokens: total.cacheCreationInputTokens ?? 0,
-        cacheReadInputTokens: total.cacheReadInputTokens ?? 0,
+        cacheCreationInputTokens: total.cacheCreationInputTokens ?? null,
+        cacheReadInputTokens: total.cacheReadInputTokens ?? null,
         cacheAvailability: total.cacheAvailability ?? 'unsupported',
       };
       run.updatedAt = this.now().toISOString();
       await writeRunMetadata(this.runFamilies, run);
+      this.unavailableUsageRuns.delete(runId);
       return run;
+    }).catch((error: unknown) => {
+      // A previous running snapshot must not masquerade as a final measurement.
+      this.unavailableUsageRuns.add(runId);
+      throw error;
     });
   }
 

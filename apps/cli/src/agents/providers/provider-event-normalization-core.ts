@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
+import type { TokenUsage } from '../../session/types';
 
 import {
   toDurableJsonValue,
@@ -47,6 +48,8 @@ export interface NormalizeProviderEventInput {
 }
 
 export interface NormalizeProviderEventResult {
+  /** Authoritative provider result usage, normalized at the event boundary. */
+  tokenUsage?: TokenUsage;
   payload: Record<string, unknown>;
   diagnostics: ProviderEventNormalizationDiagnostics;
   /** Typed projections consumed by admission and live normalization. */

@@ -116,8 +116,6 @@ describe('buildEntityConversationHandler', () => {
       'create_design_doc',
       'edit_design_doc',
       ...ENTITY_CONVERSATION_HELP_TOOLS,
-      'create_hint',
-      'add_hint_connection',
     ]);
     expect(
       handler.resolveAdditionalAllowedTools?.({

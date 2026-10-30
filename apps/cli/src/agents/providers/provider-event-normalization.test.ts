@@ -1060,3 +1060,65 @@ describe('provider-event-normalization', () => {
     });
   });
 });
+
+describe('authoritative Claude result usage', () => {
+  it.each([
+    {
+      raw: {
+        input_tokens: 100,
+        output_tokens: 8,
+        cache_read_input_tokens: 500000,
+        cache_creation_input_tokens: 0,
+      },
+      expected: {
+        inputTokens: 100,
+        outputTokens: 8,
+        cacheReadInputTokens: 500000,
+        cacheCreationInputTokens: 0,
+        cacheAvailability: 'reported',
+      },
+    },
+    {
+      raw: { output_tokens: 8 },
+      expected: {
+        inputTokens: null,
+        outputTokens: 8,
+        cacheReadInputTokens: null,
+        cacheCreationInputTokens: null,
+        cacheAvailability: 'unsupported',
+      },
+    },
+    {
+      raw: { input_tokens: -1, output_tokens: 8, cache_read_input_tokens: 0 },
+      expected: {
+        inputTokens: null,
+        outputTokens: 8,
+        cacheReadInputTokens: 0,
+        cacheCreationInputTokens: null,
+        cacheAvailability: 'partial',
+      },
+    },
+    {
+      raw: undefined,
+      expected: {
+        inputTokens: null,
+        outputTokens: null,
+        cacheReadInputTokens: null,
+        cacheCreationInputTokens: null,
+        cacheAvailability: 'unsupported',
+      },
+    },
+  ])('preserves reported and unavailable values: $raw', ({ raw, expected }) => {
+    expect(
+      normalizeProviderEventPayload({
+        provider: 'claude',
+        runId: 'usage-run',
+        eventType: 'result',
+        timestamp: '2026-10-30T00:00:00.000Z',
+        sessionId: 'provider-session',
+        agentId: 'claude',
+        rawEvent: { type: 'result', usage: raw },
+      }).tokenUsage,
+    ).toEqual(expected);
+  });
+});

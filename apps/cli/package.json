@@ -44,6 +44,7 @@
     "eval:project-assistant:view": "tsx evals/project-assistant/viewer/server.ts",
     "eval:contract-anchor": "tsx evals/contract-anchor/src/run.ts",
     "eval:work-item-scope": "tsx evals/work-item-scope/src/run.ts",
+    "eval:jev-relevance:snippets": "tsx evals/jev-relevance/src/snippet-run.ts",
     "eval:jev-relevance": "tsx evals/jev-relevance/src/run.ts",
     "eval:jev-relevance:capture": "tsx evals/jev-relevance/src/capture.ts",
     "eval:jev-relevance:edges-capture": "tsx evals/jev-relevance/src/edges-capture.ts",

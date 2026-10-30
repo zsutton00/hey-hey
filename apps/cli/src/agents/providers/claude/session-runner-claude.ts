@@ -1118,6 +1118,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
     }
 
     await this.runStore.updateRunStatus(session.agentic_session_id, 'running');
+    let pendingUsageWrite = Promise.resolve();
     try {
       await this.ensureConnected();
 
@@ -1481,29 +1482,18 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
             // usage + cost for the whole run. Per-turn `assistant.message.usage`
             // is unreliable as a total (under-reports for long/streamed outputs),
             // so we overwrite the accumulated value with the result totals here.
-            const resultUsage = eventRecord['usage'];
-            if (typeof resultUsage === 'object' && resultUsage !== null) {
-              const u = resultUsage as Record<string, unknown>;
-              const inputTokens = typeof u['input_tokens'] === 'number' ? u['input_tokens'] : 0;
-              const outputTokens = typeof u['output_tokens'] === 'number' ? u['output_tokens'] : 0;
-              const cacheCreationInputTokens =
-                typeof u['cache_creation_input_tokens'] === 'number'
-                  ? u['cache_creation_input_tokens']
-                  : 0;
-              const cacheReadInputTokens =
-                typeof u['cache_read_input_tokens'] === 'number' ? u['cache_read_input_tokens'] : 0;
+            const usage = normalizedProviderEvent.tokenUsage;
+            if (usage) {
+              const { inputTokens, outputTokens, cacheCreationInputTokens, cacheReadInputTokens } =
+                usage;
               const totalCostUsd = eventRecord['total_cost_usd'];
               const numTurns = eventRecord['num_turns'];
               const durationMs = eventRecord['duration_ms'];
 
-              // Fire-and-forget — token tracking is non-fatal.
-              void this.runStore
-                .setRunTokenUsage(session.agentic_session_id, {
-                  inputTokens,
-                  outputTokens,
-                  cacheCreationInputTokens,
-                  cacheReadInputTokens,
-                })
+              // Drain the final usage write before settlement.
+              pendingUsageWrite = pendingUsageWrite
+                .then(() => this.runStore.setRunTokenUsage(session.agentic_session_id, usage))
+                .then(() => undefined)
                 .catch((err: unknown) => {
                   requestContext.log(
                     this.logger,
@@ -1634,14 +1624,17 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
                     );
                   }
 
-                  // Fire-and-forget — token tracking is non-fatal.
-                  void this.runStore
-                    .updateRunTokenUsage(session.agentic_session_id, {
-                      inputTokens,
-                      outputTokens,
-                      cacheCreationInputTokens,
-                      cacheReadInputTokens,
-                    })
+                  // Running budget observations are ordered before the authoritative result.
+                  pendingUsageWrite = pendingUsageWrite
+                    .then(() =>
+                      this.runStore.updateRunTokenUsage(session.agentic_session_id, {
+                        inputTokens,
+                        outputTokens,
+                        cacheCreationInputTokens,
+                        cacheReadInputTokens,
+                      }),
+                    )
+                    .then(() => undefined)
                     .catch((err: unknown) => {
                       requestContext.log(
                         this.logger,
@@ -2133,6 +2126,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       const [turnResult] = await Promise.all([sessionPromise, eventsDone]);
       await awaitPendingPersists();
       this.client.onEvent(null);
+      await pendingUsageWrite;
       // End with a newline so the next terminal output starts on a fresh line
       process.stdout.write('\n');
 
@@ -2247,6 +2241,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       };
     } catch (error) {
       this.client.onEvent(null);
+      await pendingUsageWrite;
       const isExpectedServiceScopeTurnAbort =
         signal !== undefined &&
         isClaudeAbortError(error) &&
