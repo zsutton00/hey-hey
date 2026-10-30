@@ -10,6 +10,7 @@
  * Do not edit the class manually.
  */
 
+import { EvalTargetHandlerKey } from '../models/EvalTargetHandlerKey';
 import { ProjectAssistantConfig } from '../models/ProjectAssistantConfig';
 import { HttpFile } from '../http/http';
 
@@ -17,6 +18,10 @@ import { HttpFile } from '../http/http';
  * Handler settings recorded with a run setup, shared by every case in the run.
  */
 export class EvalHandlerConfig {
+  /**
+   * The handler every case in the run executes, in place of the handler each case names. `project_assistant` runs Project Assistant research alone, ignoring `projectAssistant`. Omission keeps each case\'s own handler. Never edits the cases.
+   */
+  'handler'?: EvalTargetHandlerKey;
   /**
    * Project Assistant participation for an entity conversation case. `enabled: false` is an explicit choice to run without Project Assistant; omission keeps the handler\'s real-use behavior, where it runs. Never grants participation a handler does not declare.
    */
@@ -32,6 +37,12 @@ export class EvalHandlerConfig {
     type: string;
     format: string;
   }> = [
+    {
+      name: 'handler',
+      baseName: 'handler',
+      type: 'EvalTargetHandlerKey',
+      format: '',
+    },
     {
       name: 'projectAssistant',
       baseName: 'projectAssistant',

@@ -11,6 +11,7 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
+import { EvalTargetHandlerKey } from './evalTargetHandlerKey';
 import { ProjectAssistantConfig } from './projectAssistantConfig';
 
 
@@ -19,8 +20,15 @@ import { ProjectAssistantConfig } from './projectAssistantConfig';
  */
 export interface EvalHandlerConfig { 
     /**
+     * The handler every case in the run executes, in place of the handler each case names. `project_assistant` runs Project Assistant research alone, ignoring `projectAssistant`. Omission keeps each case\'s own handler. Never edits the cases. 
+     */
+    handler?: EvalTargetHandlerKey;
+    /**
      * Project Assistant participation for an entity conversation case. `enabled: false` is an explicit choice to run without Project Assistant; omission keeps the handler\'s real-use behavior, where it runs. Never grants participation a handler does not declare. 
      */
     projectAssistant?: ProjectAssistantConfig;
 }
+export namespace EvalHandlerConfig {
+}
+
 

@@ -32257,6 +32257,12 @@ export interface EvalAttemptReportPayload {
      * @memberof EvalAttemptReportPayload
      */
     'automatedAssessment'?: object | null;
+    /**
+     * The exact text the judge was given to assess: the saved research for research alone, otherwise the handler\'s reply. Absent when judging never started. The judge runs as an isolated child inside the run\'s coordinator session and has no session of its own, so this is the record of what it looked at.
+     * @type {string}
+     * @memberof EvalAttemptReportPayload
+     */
+    'judgedOutput'?: string | null;
 }
 
 export const EvalAttemptReportPayloadReportTypeEnum = {

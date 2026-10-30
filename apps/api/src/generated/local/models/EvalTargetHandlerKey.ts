@@ -13,10 +13,11 @@
 import { HttpFile } from '../http/http';
 
 /**
- * Registry key of a handler an Eval Case may run. Each key must be a registered handler with a child configuration; the Hey Hey CLI refuses to start when one is not.
+ * Registry key of a handler an Eval Case or an eval run may execute. Each key must be a registered handler the Hey Hey CLI can start directly as the first agent; the CLI refuses to start when one is not registered.
  */
 export enum EvalTargetHandlerKey {
   agent_search = 'agent_search',
   entity_conversation = 'entity_conversation',
   project_assistant = 'project_assistant',
+  feature_sync_analyze = 'feature_sync_analyze',
 }

@@ -15,6 +15,7 @@ import { EvalMeasurement } from './evalMeasurement';
 import { EvalConfiguration } from './evalConfiguration';
 import { EvalAttemptStatus } from './evalAttemptStatus';
 import { EvalAttemptStopReason } from './evalAttemptStopReason';
+import { EvalResolvedExecution } from './evalResolvedExecution';
 
 
 /**
@@ -28,6 +29,10 @@ export interface EvalAttemptReportPayload {
      */
     caseInputId: string;
     configuration: EvalConfiguration;
+    /**
+     * Absent on attempts recorded before run-level handler selection existed.
+     */
+    execution?: EvalResolvedExecution;
     status: EvalAttemptStatus;
     /**
      * Set only when status is STOPPED.
@@ -49,6 +54,10 @@ export interface EvalAttemptReportPayload {
      */
     measurements: Array<EvalMeasurement>;
     automatedAssessment?: object | null;
+    /**
+     * The exact text the judge was given to assess: the saved research for research alone, otherwise the handler\'s reply. Absent when judging never started. The judge runs as an isolated child inside the run\'s coordinator session and has no session of its own, so this is the record of what it looked at. 
+     */
+    judgedOutput?: string | null;
 }
 export namespace EvalAttemptReportPayload {
     export type ReportTypeEnum = 'EVAL_ATTEMPT';

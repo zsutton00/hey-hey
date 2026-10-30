@@ -13,6 +13,7 @@
 
 import { EvalRunCaseInput } from './evalRunCaseInput';
 import { EvalConfiguration } from './evalConfiguration';
+import { EvalResolvedExecution } from './evalResolvedExecution';
 
 
 /**
@@ -20,6 +21,7 @@ import { EvalConfiguration } from './evalConfiguration';
  */
 export interface EvalRecordedAttempt { 
     attemptId: string;
+    execution: EvalResolvedExecution;
     /**
      * Agent Session the attempt\'s target runs and writes under.
      */

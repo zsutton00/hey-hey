@@ -7861,6 +7861,20 @@ export type EntityType = typeof EntityType[keyof typeof EntityType];
 
 
 /**
+ * Which output the judge assesses for an attempt.
+ * @export
+ * @enum {string}
+ */
+
+export const EvalAssessedOutput = {
+    ResearchReport: 'RESEARCH_REPORT',
+    HandlerReply: 'HANDLER_REPLY'
+} as const;
+
+export type EvalAssessedOutput = typeof EvalAssessedOutput[keyof typeof EvalAssessedOutput];
+
+
+/**
  * For the coordinator and judge only. Never passed to the target.
  * @export
  * @interface EvalCaseGrading
@@ -8009,12 +8023,20 @@ export type EvalConsumerHandlerKey = typeof EvalConsumerHandlerKey[keyof typeof 
  */
 export interface EvalHandlerConfig {
     /**
+     * The handler every case in the run executes, in place of the handler each case names. `project_assistant` runs Project Assistant research alone, ignoring `projectAssistant`. Omission keeps each case\'s own handler. Never edits the cases.
+     * @type {EvalTargetHandlerKey}
+     * @memberof EvalHandlerConfig
+     */
+    'handler'?: EvalTargetHandlerKey;
+    /**
      * Project Assistant participation for an entity conversation case. `enabled: false` is an explicit choice to run without Project Assistant; omission keeps the handler\'s real-use behavior, where it runs. Never grants participation a handler does not declare.
      * @type {ProjectAssistantConfig}
      * @memberof EvalHandlerConfig
      */
     'projectAssistant'?: ProjectAssistantConfig;
 }
+
+
 /**
  *
  * @export
@@ -8059,6 +8081,12 @@ export interface EvalRecordedAttempt {
      */
     'attemptId': string;
     /**
+     *
+     * @type {EvalResolvedExecution}
+     * @memberof EvalRecordedAttempt
+     */
+    'execution': EvalResolvedExecution;
+    /**
      * Agent Session the attempt\'s target runs and writes under.
      * @type {string}
      * @memberof EvalRecordedAttempt
@@ -8083,6 +8111,39 @@ export interface EvalRecordedAttempt {
      */
     'configuration': EvalConfiguration;
 }
+/**
+ * What one attempt runs, resolved at launch from the run\'s chosen handler (or the case\'s own) and the Project Assistant setting. Recorded so later changes to defaults never rewrite what ran.
+ * @export
+ * @interface EvalResolvedExecution
+ */
+export interface EvalResolvedExecution {
+    /**
+     *
+     * @type {EvalTargetHandlerKey}
+     * @memberof EvalResolvedExecution
+     */
+    'handler': EvalTargetHandlerKey;
+    /**
+     * Present exactly when `handler` is `project_assistant`: the handler whose real policy Project Assistant runs under.
+     * @type {EvalConsumerHandlerKey}
+     * @memberof EvalResolvedExecution
+     */
+    'consumerHandler'?: EvalConsumerHandlerKey;
+    /**
+     * True when Project Assistant runs first and hands its research to `handler`. False when `handler` runs alone, and for `project_assistant`, which is the research itself.
+     * @type {boolean}
+     * @memberof EvalResolvedExecution
+     */
+    'projectAssistantPrepares': boolean;
+    /**
+     *
+     * @type {EvalAssessedOutput}
+     * @memberof EvalResolvedExecution
+     */
+    'assessedOutput': EvalAssessedOutput;
+}
+
+
 /**
  *
  * @export
@@ -8171,7 +8232,7 @@ export interface EvalRunSettings {
     'attemptTokenLimit'?: number;
 }
 /**
- * Registry key of a handler an Eval Case may run. Each key must be a registered handler with a child configuration; the Hey Hey CLI refuses to start when one is not.
+ * Registry key of a handler an Eval Case or an eval run may execute. Each key must be a registered handler the Hey Hey CLI can start directly as the first agent; the CLI refuses to start when one is not registered.
  * @export
  * @enum {string}
  */
@@ -8179,7 +8240,8 @@ export interface EvalRunSettings {
 export const EvalTargetHandlerKey = {
     AgentSearch: 'agent_search',
     EntityConversation: 'entity_conversation',
-    ProjectAssistant: 'project_assistant'
+    ProjectAssistant: 'project_assistant',
+    FeatureSyncAnalyze: 'feature_sync_analyze'
 } as const;
 
 export type EvalTargetHandlerKey = typeof EvalTargetHandlerKey[keyof typeof EvalTargetHandlerKey];

@@ -726,6 +726,23 @@ export const REPORT_SCHEMAS = {
                       description:
                         'Handler settings recorded with a run setup, shared by every case in the run.',
                       properties: {
+                        handler: {
+                          allOf: [
+                            {
+                              type: 'string',
+                              description:
+                                'Registry key of a handler an Eval Case or an eval run may execute. Each key must be a registered handler the Hey Hey CLI can start directly as the first agent; the CLI refuses to start when one is not registered.\n',
+                              enum: [
+                                'agent_search',
+                                'entity_conversation',
+                                'project_assistant',
+                                'feature_sync_analyze',
+                              ],
+                            },
+                          ],
+                          description:
+                            "The handler every case in the run executes, in place of the handler each case names. `project_assistant` runs Project Assistant research alone, ignoring `projectAssistant`. Omission keeps each case's own handler. Never edits the cases.\n",
+                        },
                         projectAssistant: {
                           allOf: [
                             {
@@ -779,6 +796,23 @@ export const REPORT_SCHEMAS = {
                           description:
                             'Handler settings recorded with a run setup, shared by every case in the run.',
                           properties: {
+                            handler: {
+                              allOf: [
+                                {
+                                  type: 'string',
+                                  description:
+                                    'Registry key of a handler an Eval Case or an eval run may execute. Each key must be a registered handler the Hey Hey CLI can start directly as the first agent; the CLI refuses to start when one is not registered.\n',
+                                  enum: [
+                                    'agent_search',
+                                    'entity_conversation',
+                                    'project_assistant',
+                                    'feature_sync_analyze',
+                                  ],
+                                },
+                              ],
+                              description:
+                                "The handler every case in the run executes, in place of the handler each case names. `project_assistant` runs Project Assistant research alone, ignoring `projectAssistant`. Omission keeps each case's own handler. Never edits the cases.\n",
+                            },
                             projectAssistant: {
                               allOf: [
                                 {
@@ -816,6 +850,70 @@ export const REPORT_SCHEMAS = {
                     'Distinct preparation setting, present only when it differs from the target.',
                 },
               },
+            },
+            execution: {
+              allOf: [
+                {
+                  type: 'object',
+                  additionalProperties: false,
+                  description:
+                    "What one attempt runs, resolved at launch from the run's chosen handler (or the case's own) and the Project Assistant setting. Recorded so later changes to defaults never rewrite what ran.\n",
+                  required: [
+                    'handler',
+                    'projectAssistantPrepares',
+                    'assessedOutput',
+                  ],
+                  properties: {
+                    handler: {
+                      type: 'string',
+                      description:
+                        'Registry key of a handler an Eval Case or an eval run may execute. Each key must be a registered handler the Hey Hey CLI can start directly as the first agent; the CLI refuses to start when one is not registered.\n',
+                      enum: [
+                        'agent_search',
+                        'entity_conversation',
+                        'project_assistant',
+                        'feature_sync_analyze',
+                      ],
+                    },
+                    consumerHandler: {
+                      allOf: [
+                        {
+                          type: 'string',
+                          description:
+                            'Registry key of a handler whose real Project Assistant policy a Project Assistant case runs under. Each key must be a registered handler that declares a Project Assistant policy; the Hey Hey CLI tests the list against its registry.\n',
+                          enum: [
+                            'startup_session',
+                            'design_doc_refiner',
+                            'feature_sync_analyze',
+                            'feature_refiner',
+                            'task_refiner',
+                            'plan_shaping_feature_sync_analyze',
+                            'free_form',
+                            'entity_conversation',
+                            'html_css_mockup_revision',
+                            'validation_walkthrough',
+                          ],
+                        },
+                      ],
+                      description:
+                        'Present exactly when `handler` is `project_assistant`: the handler whose real policy Project Assistant runs under.\n',
+                    },
+                    projectAssistantPrepares: {
+                      type: 'boolean',
+                      description:
+                        'True when Project Assistant runs first and hands its research to `handler`. False when `handler` runs alone, and for `project_assistant`, which is the research itself.\n',
+                    },
+                    assessedOutput: {
+                      type: 'string',
+                      description:
+                        'Which output the judge assesses for an attempt.',
+                      enum: ['RESEARCH_REPORT', 'HANDLER_REPLY'],
+                    },
+                  },
+                },
+              ],
+              description:
+                'Absent on attempts recorded before run-level handler selection existed.',
             },
             status: {
               type: 'string',
@@ -1068,6 +1166,18 @@ export const REPORT_SCHEMAS = {
                 },
               ],
             },
+            judgedOutput: {
+              anyOf: [
+                {
+                  type: 'string',
+                  description:
+                    "The exact text the judge was given to assess: the saved research for research alone, otherwise the handler's reply. Absent when judging never started. The judge runs as an isolated child inside the run's coordinator session and has no session of its own, so this is the record of what it looked at.\n",
+                },
+                {
+                  type: 'null',
+                },
+              ],
+            },
           },
         },
       ],
@@ -1196,6 +1306,23 @@ export const REPORT_SCHEMAS = {
                   description:
                     'Handler settings recorded with a run setup, shared by every case in the run.',
                   properties: {
+                    handler: {
+                      allOf: [
+                        {
+                          type: 'string',
+                          description:
+                            'Registry key of a handler an Eval Case or an eval run may execute. Each key must be a registered handler the Hey Hey CLI can start directly as the first agent; the CLI refuses to start when one is not registered.\n',
+                          enum: [
+                            'agent_search',
+                            'entity_conversation',
+                            'project_assistant',
+                            'feature_sync_analyze',
+                          ],
+                        },
+                      ],
+                      description:
+                        "The handler every case in the run executes, in place of the handler each case names. `project_assistant` runs Project Assistant research alone, ignoring `projectAssistant`. Omission keeps each case's own handler. Never edits the cases.\n",
+                    },
                     projectAssistant: {
                       allOf: [
                         {
@@ -1317,6 +1444,7 @@ export const REPORT_SCHEMAS = {
                           'agent_search',
                           'entity_conversation',
                           'project_assistant',
+                          'feature_sync_analyze',
                         ],
                       },
                       consumerHandler: {
@@ -1425,6 +1553,23 @@ export const REPORT_SCHEMAS = {
                         description:
                           'Handler settings recorded with a run setup, shared by every case in the run.',
                         properties: {
+                          handler: {
+                            allOf: [
+                              {
+                                type: 'string',
+                                description:
+                                  'Registry key of a handler an Eval Case or an eval run may execute. Each key must be a registered handler the Hey Hey CLI can start directly as the first agent; the CLI refuses to start when one is not registered.\n',
+                                enum: [
+                                  'agent_search',
+                                  'entity_conversation',
+                                  'project_assistant',
+                                  'feature_sync_analyze',
+                                ],
+                              },
+                            ],
+                            description:
+                              "The handler every case in the run executes, in place of the handler each case names. `project_assistant` runs Project Assistant research alone, ignoring `projectAssistant`. Omission keeps each case's own handler. Never edits the cases.\n",
+                          },
                           projectAssistant: {
                             allOf: [
                               {
@@ -1478,6 +1623,23 @@ export const REPORT_SCHEMAS = {
                             description:
                               'Handler settings recorded with a run setup, shared by every case in the run.',
                             properties: {
+                              handler: {
+                                allOf: [
+                                  {
+                                    type: 'string',
+                                    description:
+                                      'Registry key of a handler an Eval Case or an eval run may execute. Each key must be a registered handler the Hey Hey CLI can start directly as the first agent; the CLI refuses to start when one is not registered.\n',
+                                    enum: [
+                                      'agent_search',
+                                      'entity_conversation',
+                                      'project_assistant',
+                                      'feature_sync_analyze',
+                                    ],
+                                  },
+                                ],
+                                description:
+                                  "The handler every case in the run executes, in place of the handler each case names. `project_assistant` runs Project Assistant research alone, ignoring `projectAssistant`. Omission keeps each case's own handler. Never edits the cases.\n",
+                              },
                               projectAssistant: {
                                 allOf: [
                                   {

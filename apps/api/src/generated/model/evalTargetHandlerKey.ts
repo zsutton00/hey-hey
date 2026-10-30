@@ -14,13 +14,14 @@
 
 
 /**
- * Registry key of a handler an Eval Case may run. Each key must be a registered handler with a child configuration; the Hey Hey CLI refuses to start when one is not. 
+ * Registry key of a handler an Eval Case or an eval run may execute. Each key must be a registered handler the Hey Hey CLI can start directly as the first agent; the CLI refuses to start when one is not registered. 
  */
-export type EvalTargetHandlerKey = 'agent_search' | 'entity_conversation' | 'project_assistant';
+export type EvalTargetHandlerKey = 'agent_search' | 'entity_conversation' | 'project_assistant' | 'feature_sync_analyze';
 
 export const EvalTargetHandlerKey = {
     AgentSearch: 'agent_search' as EvalTargetHandlerKey,
     EntityConversation: 'entity_conversation' as EvalTargetHandlerKey,
-    ProjectAssistant: 'project_assistant' as EvalTargetHandlerKey
+    ProjectAssistant: 'project_assistant' as EvalTargetHandlerKey,
+    FeatureSyncAnalyze: 'feature_sync_analyze' as EvalTargetHandlerKey
 };
 
