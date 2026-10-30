@@ -526,7 +526,7 @@ describe('session-runner-codex', () => {
     localAgentEndpoint.clear();
   });
 
-  it('persists reported cumulative token snapshots during execution and skips unknown input', async () => {
+  it('persists cumulative snapshots including output when fresh input is unavailable', async () => {
     const runStore = makeRunStore();
     await retainProviderTestUsage(runStore, makeSession());
     const persist = vi.mocked(runStore.setRunTokenUsage);
@@ -542,10 +542,6 @@ describe('session-runner-codex', () => {
       expect(persist).not.toHaveBeenCalled();
       tokenUsageHandler?.({ ...usage, inputTokens: 10 });
       tokenUsageHandler?.({ ...usage, inputTokens: 20, outputTokens: 7 });
-      expect(persist.mock.calls.map(([, total]) => total)).toEqual([
-        { inputTokens: 10, outputTokens: 3, cacheAvailability: 'unsupported' },
-        { inputTokens: 20, outputTokens: 7, cacheAvailability: 'unsupported' },
-      ]);
       await completedTurn()();
     });
     const runner = new CodexAgentSessionRunner({
@@ -559,6 +555,11 @@ describe('session-runner-codex', () => {
       session: makeSession({ provider_session_id: 'pending_abc' }),
       prompt: 'Measure usage.',
     });
+    expect(persist.mock.calls.map(([, total]) => total)).toEqual([
+      { inputTokens: null, outputTokens: 3, cacheAvailability: 'unsupported' },
+      { inputTokens: 10, outputTokens: 3, cacheAvailability: 'unsupported' },
+      { inputTokens: 20, outputTokens: 7, cacheAvailability: 'unsupported' },
+    ]);
     await runner.dispose();
     await vi.waitFor(async () => {
       expect((await runStore.getRunResult(makeSession().agentic_session_id))?.usage).toMatchObject({

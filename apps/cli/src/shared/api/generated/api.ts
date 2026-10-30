@@ -32740,7 +32740,7 @@ export interface EvalMeasurement {
      */
     'elapsedMs'?: number;
     /**
-     *
+     * Fresh uncached input tokens; excludes cache reads.
      * @type {number}
      * @memberof EvalMeasurement
      */
@@ -32751,6 +32751,18 @@ export interface EvalMeasurement {
      * @memberof EvalMeasurement
      */
     'outputTokens'?: number;
+    /**
+     * Input tokens read from cache; absent when unreported.
+     * @type {number}
+     * @memberof EvalMeasurement
+     */
+    'cacheReadInputTokens'?: number;
+    /**
+     * Input tokens written to cache; absent when unreported.
+     * @type {number}
+     * @memberof EvalMeasurement
+     */
+    'cacheCreationInputTokens'?: number;
     /**
      *
      * @type {number}

@@ -358,6 +358,35 @@ describe('Claude turn outcome', () => {
     submissionToolRegistry.clearAll();
   });
 
+  it('waits for final usage persistence before completing the provider run', async () => {
+    const harness = makeHarness();
+    await retainProviderTestUsage(harness.runStore, makeSession());
+    const persist = harness.runStore.setRunTokenUsage.bind(harness.runStore);
+    let release = (): void => undefined;
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    vi.mocked(harness.runStore.setRunTokenUsage).mockImplementationOnce(async (...args) => {
+      await blocked;
+      return persist(...args);
+    });
+    const { run, ready } = startTurn(harness);
+    await ready;
+    emitClaudeEvent(assistantEvent('Measured answer.'));
+    emitClaudeEvent(resultEvent());
+    let completed = false;
+    void run.then(() => {
+      completed = true;
+    });
+    await vi.waitFor(() => expect(harness.runStore.setRunTokenUsage).toHaveBeenCalledOnce());
+    expect(completed).toBe(false);
+    release();
+    await run;
+    expect(
+      (await harness.runStore.getRunResult(makeSession().agentic_session_id))?.usage,
+    ).toMatchObject({ inputTokens: 100, outputTokens: 40 });
+  });
+
   it('completes a turn, delivers superseded assistant messages immediately and finalizes the last', async () => {
     const harness = makeHarness();
     await retainProviderTestUsage(harness.runStore, makeSession());
@@ -423,7 +452,13 @@ describe('Claude turn outcome', () => {
       { inputTokens: 20, outputTokens: 8, cacheCreationInputTokens: 0, cacheReadInputTokens: 0 },
     ]);
     expect(outcome.resultUsageWrites).toEqual([
-      { inputTokens: 100, outputTokens: 40, cacheCreationInputTokens: 0, cacheReadInputTokens: 0 },
+      {
+        inputTokens: 100,
+        outputTokens: 40,
+        cacheCreationInputTokens: null,
+        cacheReadInputTokens: null,
+        cacheAvailability: 'unsupported',
+      },
     ]);
     expect(outcome.logFields('local.runner.claude.run_prompt.succeeded')).toMatchObject({
       providerSessionId: 'provider-session-1',

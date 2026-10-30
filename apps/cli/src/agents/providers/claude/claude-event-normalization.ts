@@ -1,3 +1,5 @@
+import { z } from 'zod';
+import type { TokenUsage } from '../../../session/types';
 import {
   EDIT_TOOL_NAMES,
   SINGLE_EDIT_TOOL_NAMES,
@@ -21,6 +23,33 @@ import {
   type ProviderNarrationFact,
 } from '../provider-event-normalization-core';
 import { normalizeOpencodeEvent } from '../opencode/opencode-event-normalization';
+
+const tokenCount = z.number().int().nonnegative().nullable().catch(null);
+const resultUsageSchema = z.object({
+  input_tokens: tokenCount,
+  output_tokens: tokenCount,
+  cache_read_input_tokens: tokenCount,
+  cache_creation_input_tokens: tokenCount,
+});
+
+function claudeResultUsage(raw: unknown): TokenUsage {
+  const parsed = resultUsageSchema.safeParse(raw);
+  const usage = parsed.success ? parsed.data : resultUsageSchema.parse({});
+  const cacheReadInputTokens = usage.cache_read_input_tokens;
+  const cacheCreationInputTokens = usage.cache_creation_input_tokens;
+  return {
+    inputTokens: usage.input_tokens,
+    outputTokens: usage.output_tokens,
+    cacheReadInputTokens,
+    cacheCreationInputTokens,
+    cacheAvailability:
+      cacheReadInputTokens !== null && cacheCreationInputTokens !== null
+        ? 'reported'
+        : cacheReadInputTokens !== null || cacheCreationInputTokens !== null
+          ? 'partial'
+          : 'unsupported',
+  };
+}
 
 const FILE_MODIFYING_TOOL_NAMES = new Set([
   'Write',
@@ -716,6 +745,9 @@ export const normalizeProviderEventPayload = (
   return {
     payload,
     facts,
+    ...(input.eventType === 'result'
+      ? { tokenUsage: claudeResultUsage(input.rawEvent['usage']) }
+      : {}),
     diagnostics: {
       validationMode: config.validationMode,
       canonicalEventType,

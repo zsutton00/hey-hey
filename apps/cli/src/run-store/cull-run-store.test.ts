@@ -483,7 +483,7 @@ describe('cullRunStore', () => {
     const manifest = await readManifest(paths.runsDir, runId);
     await fs.writeFile(
       path.join(paths.runsDir, manifest.members.events.relativePath),
-      'not valid event JSON',
+      'not valid event JSON\n',
       'utf8',
     );
 

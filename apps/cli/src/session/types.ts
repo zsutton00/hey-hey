@@ -33,13 +33,7 @@ type AgenticEventType =
   | 'run_completed'
   | 'post_processed';
 
-export interface TokenUsage {
-  inputTokens: number;
-  outputTokens: number;
-  cacheCreationInputTokens: number;
-  cacheReadInputTokens: number;
-  cacheAvailability: LocalTokenUsage['cacheAvailability'];
-}
+export type TokenUsage = LocalTokenUsage;
 
 export interface PreviousProviderSession {
   promptType: string;

@@ -14656,11 +14656,11 @@ export interface LocalTokenUsage {
      */
     'inputTokens': number | null;
     /**
-     * Cumulative output tokens produced.
+     * Cumulative output tokens produced, or null when unavailable.
      * @type {number}
      * @memberof LocalTokenUsage
      */
-    'outputTokens': number;
+    'outputTokens': number | null;
     /**
      * Cumulative input tokens written to prompt cache, or null when unavailable.
      * @type {number}

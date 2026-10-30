@@ -33,16 +33,33 @@ const parseEventLine = (line: string, runId: string): DurableRunEvent => {
   }
 };
 
+const parseOwnedEventLine = (line: string, runId: string): DurableRunEvent => {
+  const event = parseEventLine(line, runId);
+  if (event.run_id !== runId) {
+    throw new Error(`Durable event belongs to Run ${event.run_id}, not Run ${runId}.`);
+  }
+  return event;
+};
+
+/** Non-empty newline-terminated lines; an unterminated tail is an append still in progress or torn. */
+export const committedLines = (text: string): string[] =>
+  text
+    .slice(0, text.lastIndexOf('\n') + 1)
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+const PROVIDER_IDENTITY_KINDS = [
+  '"provider_identity_observed"',
+  '"run_started"',
+  '"run_completed"',
+] as const;
+
 const parseAllEvents = (text: string, runId: string): DurableRunEvent[] => {
   const events: DurableRunEvent[] = [];
   let previousSeq = 0;
-  for (const line of text.split('\n')) {
-    const trimmed = line.trim();
-    if (trimmed.length === 0) continue;
-    const event = parseEventLine(trimmed, runId);
-    if (event.run_id !== runId) {
-      throw new Error(`Durable event belongs to Run ${event.run_id}, not Run ${runId}.`);
-    }
+  for (const line of committedLines(text)) {
+    const event = parseOwnedEventLine(line, runId);
     if (event.seq !== previousSeq + 1) {
       throw new Error(`Run ${runId} durable event sequence is not contiguous.`);
     }
@@ -52,7 +69,70 @@ const parseAllEvents = (text: string, runId: string): DurableRunEvent[] => {
   return events;
 };
 
+const TAIL_CHUNK_BYTES = 64 * 1024;
+
+const fileSize = async (filePath: string): Promise<number> => {
+  try {
+    return (await fs.stat(filePath)).size;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return 0;
+    throw error;
+  }
+};
+
+interface EventLogTail {
+  /** Last newline-terminated, non-empty line, or null when none is committed. */
+  readonly lastLine: string | null;
+  /** Byte length up to and including the final newline. */
+  readonly completeSize: number;
+}
+
+/** Reads backwards from the end of the log until the last committed line is found. */
+const readTail = async (filePath: string, size: number): Promise<EventLogTail> => {
+  if (size === 0) return { lastLine: null, completeSize: 0 };
+  const handle = await fs.open(filePath, 'r');
+  try {
+    let buffer = Buffer.alloc(0);
+    let start = size;
+    for (;;) {
+      const chunkStart = Math.max(0, start - TAIL_CHUNK_BYTES);
+      const chunk = Buffer.alloc(start - chunkStart);
+      await handle.read(chunk, 0, chunk.byteLength, chunkStart);
+      buffer = Buffer.concat([chunk, buffer]);
+      start = chunkStart;
+
+      const lastNewline = buffer.lastIndexOf(0x0a);
+      if (lastNewline !== -1) {
+        // lastIndexOf with a negative offset searches from the end, so offset 0 is handled directly.
+        const lineStartBefore = (end: number): number =>
+          end === 0 ? 0 : buffer.lastIndexOf(0x0a, end - 1) + 1;
+        let lineEnd = lastNewline;
+        let lineStart = lineStartBefore(lineEnd);
+        // Skip blank lines between committed events.
+        while (
+          buffer.subarray(lineStart, lineEnd).toString('utf8').trim().length === 0 &&
+          lineStart > 0
+        ) {
+          lineEnd = lineStart - 1;
+          lineStart = lineStartBefore(lineEnd);
+        }
+        const line = buffer.subarray(lineStart, lineEnd).toString('utf8').trim();
+        const lineIsWhole = lineStart > 0 || start === 0;
+        if (lineIsWhole) {
+          return { lastLine: line.length > 0 ? line : null, completeSize: start + lastNewline + 1 };
+        }
+      } else if (start === 0) {
+        return { lastLine: null, completeSize: 0 };
+      }
+    }
+  } finally {
+    await handle.close();
+  }
+};
+
 export class RunEventStore {
+  private readonly lastSeqs = new Map<string, { seq: number; size: number }>();
+
   public constructor(
     private readonly resolveEventFilePath: (runId: string) => string,
     private readonly onRead: (read: RunEventLogRead) => void = () => undefined,
@@ -113,18 +193,38 @@ export class RunEventStore {
         const elapsedMs = performance.now() - startedAt;
         const remainingMs = APPEND_LOCK_DEADLINE_MS - elapsedMs;
         if (remainingMs <= 0) {
-          debug('append lock timeout run=%s attempts=%d waitMs=%d', runId, contentionAttempts, Math.round(elapsedMs));
+          debug(
+            'append lock timeout run=%s attempts=%d waitMs=%d',
+            runId,
+            contentionAttempts,
+            Math.round(elapsedMs),
+          );
           throw new Error(
             `Run ${runId} append lock timed out after ${contentionAttempts} contention attempts and ${Math.round(elapsedMs)} ms waiting.`,
             { cause: error },
           );
         }
-        const backoffMs = Math.min(APPEND_LOCK_MAX_BACKOFF_MS, 5 * 2 ** Math.min(contentionAttempts - 1, 4), remainingMs);
-        debug('append lock contended run=%s attempts=%d waitMs=%d backoffMs=%d', runId, contentionAttempts, Math.round(elapsedMs), Math.round(backoffMs));
+        const backoffMs = Math.min(
+          APPEND_LOCK_MAX_BACKOFF_MS,
+          5 * 2 ** Math.min(contentionAttempts - 1, 4),
+          remainingMs,
+        );
+        debug(
+          'append lock contended run=%s attempts=%d waitMs=%d backoffMs=%d',
+          runId,
+          contentionAttempts,
+          Math.round(elapsedMs),
+          Math.round(backoffMs),
+        );
         await wait(backoffMs);
         const waitedMs = performance.now() - startedAt;
         if (waitedMs >= APPEND_LOCK_DEADLINE_MS) {
-          debug('append lock timeout run=%s attempts=%d waitMs=%d', runId, contentionAttempts, Math.round(waitedMs));
+          debug(
+            'append lock timeout run=%s attempts=%d waitMs=%d',
+            runId,
+            contentionAttempts,
+            Math.round(waitedMs),
+          );
           throw new Error(
             `Run ${runId} append lock timed out after ${contentionAttempts} contention attempts and ${Math.round(waitedMs)} ms waiting.`,
             { cause: error },
@@ -133,8 +233,7 @@ export class RunEventStore {
       }
     }
     try {
-      const text = (await this.readEventText(filePath, runId, 'append')) ?? '';
-      const previousSeq = parseAllEvents(text, runId).at(-1)?.seq ?? 0;
+      const previousSeq = await this.lockedLastSeq(filePath, runId);
       debug('allocating event run=%s previousSeq=%d', runId, previousSeq);
       const validated = parseDurableRunEvent(buildEvent(previousSeq + 1));
       if (validated.run_id !== runId) {
@@ -145,15 +244,13 @@ export class RunEventStore {
           `Durable event sequence ${String(validated.seq)} does not follow Run ${runId} sequence ${String(previousSeq)}.`,
         );
       }
-      const line = JSON.stringify(validated) + '\n';
-      const prefix = text && !text.endsWith('\n') ? `${text}\n` : text;
-      const candidatePath = path.join(lockPath, 'candidate');
-      await fs.writeFile(candidatePath, prefix + line, {
-        encoding: 'utf8',
-        mode: 0o600,
-        flag: 'wx',
-      });
-      await fs.rename(candidatePath, filePath);
+
+      const line = Buffer.from(JSON.stringify(validated) + '\n', 'utf8');
+      const sizeBefore = this.lastSeqs.get(runId)!.size;
+      // A failed append may leave a torn line; drop the cache so the next append trims it.
+      this.lastSeqs.delete(runId);
+      await fs.appendFile(filePath, line, { mode: 0o600 });
+      this.lastSeqs.set(runId, { seq: validated.seq, size: sizeBefore + line.byteLength });
       debug('event committed run=%s seq=%d', runId, validated.seq);
       return validated;
     } finally {
@@ -162,29 +259,61 @@ export class RunEventStore {
     }
   }
 
+  /**
+   * Resolves the last committed seq while holding the append lock. The cache is
+   * trusted only when the file size still matches, so other writers are noticed.
+   * A torn final line left by an interrupted append is trimmed before reuse.
+   */
+  private async lockedLastSeq(filePath: string, runId: string): Promise<number> {
+    const size = await fileSize(filePath);
+    const cached = this.lastSeqs.get(runId);
+    if (cached && cached.size === size) return cached.seq;
+
+    const tail = await readTail(filePath, size);
+    if (tail.completeSize !== size) {
+      debug('trimming torn event line run=%s bytes=%d', runId, size - tail.completeSize);
+      await fs.truncate(filePath, tail.completeSize);
+    }
+    const seq = tail.lastLine === null ? 0 : parseOwnedEventLine(tail.lastLine, runId).seq;
+    this.lastSeqs.set(runId, { seq, size: tail.completeSize });
+    return seq;
+  }
+
   public async readEvents(runId: string): Promise<DurableRunEvent[]> {
     const text = await this.readEventText(this.eventFilePath(runId), runId, 'read_events');
     if (text === null) return [];
-    const events = parseAllEvents(text, runId);
-    return events;
+    return parseAllEvents(text, runId);
+  }
+
+  /** Parses only the events that can carry a provider session identity. */
+  public async readProviderIdentityEvents(runId: string): Promise<DurableRunEvent[]> {
+    const text = await this.readEventText(
+      this.eventFilePath(runId),
+      runId,
+      'read_provider_identity_events',
+    );
+    if (text === null) return [];
+    return committedLines(text)
+      .filter((line) => PROVIDER_IDENTITY_KINDS.some((kind) => line.includes(kind)))
+      .map((line) => parseOwnedEventLine(line, runId));
   }
 
   public async readLastEvent(runId: string): Promise<DurableRunEvent | null> {
-    const text = await this.readEventText(this.eventFilePath(runId), runId, 'read_last_event');
-    if (text === null) return null;
-    const events = parseAllEvents(text, runId);
-    const event = events[events.length - 1] ?? null;
-    return event;
+    const filePath = this.eventFilePath(runId);
+    const tail = await readTail(filePath, await fileSize(filePath));
+    return tail.lastLine === null ? null : parseOwnedEventLine(tail.lastLine, runId);
   }
 
   public async getLastSeq(runId: string): Promise<number> {
-    const text = await this.readEventText(this.eventFilePath(runId), runId, 'read_last_seq');
-    if (text === null) {
-      return 0;
-    }
-    const events = parseAllEvents(text, runId);
-    const lastSeq = events.length > 0 ? events[events.length - 1]!.seq : 0;
-    return lastSeq;
+    const filePath = this.eventFilePath(runId);
+    const size = await fileSize(filePath);
+    const cached = this.lastSeqs.get(runId);
+    if (cached && cached.size === size) return cached.seq;
+
+    const tail = await readTail(filePath, size);
+    const seq = tail.lastLine === null ? 0 : parseOwnedEventLine(tail.lastLine, runId).seq;
+    this.lastSeqs.set(runId, { seq, size: tail.completeSize });
+    return seq;
   }
 
   public async hasEvents(runId: string): Promise<boolean> {

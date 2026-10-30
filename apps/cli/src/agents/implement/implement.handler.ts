@@ -1,5 +1,4 @@
 import { CodingPlanVersionSchema } from '../../generated/coding-plan.schemas';
-import { HINT_WRITE_MCP_TOOLS } from '../mcp-server-config';
 import { reportChangedFilesTool } from '../submission-tools/report-changed-files-tool';
 import {
   completionResponseHooks,
@@ -233,7 +232,6 @@ export const implementHandler: UserLaunchablePromptTypeHandler<LocalImplementPro
     { reportType: ReportType.Implement, audience: ReportAudience.ProjectVisible, required: true },
   ],
   mcpToolUseCase: 'coding',
-  additionalAllowedTools: HINT_WRITE_MCP_TOOLS,
   submissionTools: [reportChangedFilesTool, requestAgentSessionServiceScopeTool],
 
   async prepare(

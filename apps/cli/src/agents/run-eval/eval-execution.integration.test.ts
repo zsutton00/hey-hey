@@ -511,3 +511,126 @@ it.each(['USER', 'TOKEN_LIMIT'] as const)(
     expect(judge).not.toHaveBeenCalled();
   },
 );
+
+describe('settled eval usage evidence', () => {
+  it.each(['claude', 'codex', 'opencode'] as const)(
+    'keeps %s fresh and cached input separate after settlement',
+    async (provider) => {
+      const h = await makeHarness();
+      const recorded = attempt('agent_search');
+      recorded.configuration.target.provider = provider;
+      h.runPrompt.mockImplementationOnce(async () => {
+        await h.runStore.setRunTokenUsage(recorded.targetSessionId, {
+          inputTokens: 120,
+          outputTokens: 8,
+          cacheReadInputTokens: 500000,
+          cacheCreationInputTokens: provider === 'codex' ? null : 0,
+          cacheAvailability: provider === 'codex' ? 'partial' : 'reported',
+        });
+        const turn = (await h.runStore.getRunMetadata(recorded.targetSessionId))?.latestTurn;
+        if (!turn) {
+          throw new Error('The attempt has no active turn.');
+        }
+        await h.runStore.updateRunFinalAssistantMessage(recorded.targetSessionId, {
+          turnId: turn.turnId,
+          messageId: 'answer',
+          text: 'Measured answer.',
+          committedAt: new Date().toISOString(),
+        });
+        return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+      });
+      const patches: EvalAttemptPatch[] = [];
+      await runEvalAttempts(
+        {
+          attempts: [recorded],
+          settings: { maxConcurrentAttempts: 1 },
+          signal: new AbortController().signal,
+        },
+        {
+          now: () => new Date(),
+          recorder: {
+            setRunStatus: async () => undefined,
+            updateAttempt: async (_id, patch) => {
+              patches.push(patch);
+            },
+          },
+          launchTarget: (item, options) => h.execution.execute(coordinator, item, options),
+          judge: async () => ({
+            assessment: {
+              checkResults: [],
+              recognition: { recognized: true, explanation: 'Measured.' },
+              quality: [],
+              createdAt: new Date().toISOString(),
+            },
+            usage: { inputTokens: 17, outputTokens: 3 },
+            elapsedMs: 1,
+          }),
+        },
+      );
+      expect(patches.at(-1)?.error).toBeUndefined();
+      expect(patches.at(-1)?.status).toBe('COMPLETED');
+      const measurements = patches.at(-1)?.measurements;
+      const usage = measurements?.find((entry) => entry.scope === 'TARGET_HANDLER');
+      expect(usage).toMatchObject({
+        inputTokens: 120,
+        outputTokens: 8,
+        cacheReadInputTokens: 500000,
+      });
+      expect(measurements?.find((entry) => entry.scope === 'JUDGE')).toMatchObject({
+        inputTokens: 17,
+        outputTokens: 3,
+      });
+      if (provider === 'codex') {
+        expect(usage).not.toHaveProperty('cacheCreationInputTokens');
+      } else {
+        expect(usage?.cacheCreationInputTokens).toBe(0);
+      }
+    },
+  );
+
+  it('retains output when fresh input is unavailable', async () => {
+    const h = await makeHarness();
+    h.runPrompt.mockImplementationOnce(async () => {
+      await h.runStore.setRunTokenUsage(AGENT_SESSION_ID, {
+        inputTokens: null,
+        outputTokens: 8,
+        cacheReadInputTokens: 500000,
+        cacheAvailability: 'partial',
+      });
+      return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+    });
+    const result = await h.execution.execute(coordinator, attempt('agent_search'), {
+      signal: new AbortController().signal,
+      tokenBudget: 1,
+    });
+    expect(result.usage).not.toHaveProperty('inputTokens');
+    expect(result.usage.outputTokens).toBe(8);
+    expect(result.budgetExhausted).toBe(false);
+  });
+
+  it('isolates an unreadable result from a concurrent sibling attempt', async () => {
+    const h = await makeHarness();
+    const first = attempt('agent_search');
+    const second = {
+      ...attempt('agent_search'),
+      targetSessionId: '44444444-4444-4444-8444-444444444444',
+      targetConversationId: 'sibling-conversation',
+    };
+    const read = h.runStore.getRunResult.bind(h.runStore);
+    vi.spyOn(h.runStore, 'getRunResult').mockImplementation((id) =>
+      id === first.targetSessionId ? Promise.reject(new Error('Unreadable usage')) : read(id),
+    );
+    const results = await Promise.allSettled(
+      [first, second].map((item) =>
+        h.execution.execute(coordinator, item, { signal: new AbortController().signal }),
+      ),
+    );
+    expect(results[0]).toMatchObject({
+      status: 'rejected',
+      reason: expect.objectContaining({
+        message: expect.stringContaining('token measurements are unavailable'),
+      }),
+    });
+    expect(results[1]).toMatchObject({ status: 'fulfilled', value: { assistantCompleted: true } });
+  });
+});

@@ -347,6 +347,9 @@ export interface SubAgentResult {
 }
 
 export interface SubAgentUsage {
+  cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
+  cacheAvailability?: NonNullable<AgenticSession['tokenUsage']>['cacheAvailability'];
   inputTokens?: number;
   outputTokens?: number;
   toolCalls?: number;

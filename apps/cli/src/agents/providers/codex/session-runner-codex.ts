@@ -947,6 +947,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
     let firstPersistError: unknown = null;
     let persistQueue = Promise.resolve();
     let runCompleted = false;
+    let pendingUsageWrite = Promise.resolve();
 
     const enqueueAgentOutputPersist = (input: {
       runId: string;
@@ -1380,20 +1381,18 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
       };
 
       this.client.onTokenUsage((usage) => {
-        if (usage.inputTokens === null) {
-          this.logger.debug('local.runner.codex.token-usage.input-unavailable', { runId });
-          return;
-        }
-
-        void this.runStore
-          .setRunTokenUsage(session.agentic_session_id, {
-            inputTokens: usage.inputTokens,
-            outputTokens: usage.outputTokens,
-            ...(usage.cacheReadInputTokens === null
-              ? {}
-              : { cacheReadInputTokens: usage.cacheReadInputTokens }),
-            cacheAvailability: usage.cacheAvailability,
-          })
+        pendingUsageWrite = pendingUsageWrite
+          .then(() =>
+            this.runStore.setRunTokenUsage(session.agentic_session_id, {
+              inputTokens: usage.inputTokens,
+              outputTokens: usage.outputTokens,
+              ...(usage.cacheReadInputTokens === null
+                ? {}
+                : { cacheReadInputTokens: usage.cacheReadInputTokens }),
+              cacheAvailability: usage.cacheAvailability,
+            }),
+          )
+          .then(() => undefined)
           .catch((error: unknown) => {
             this.logger.warn('local.runner.codex.token-usage.persist-failed', { runId, error });
           });
@@ -2148,6 +2147,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
       }
       this.client.onEvent(null);
       this.client.onTokenUsage(null);
+      await pendingUsageWrite;
       this.client.onServerRequest(null);
       this.emitLocalStatus('');
       process.stdout.write('\n');
@@ -2282,6 +2282,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
     } catch (error) {
       this.client.onEvent(null);
       this.client.onTokenUsage(null);
+      await pendingUsageWrite;
       this.client.onServerRequest(null);
       this.emitLocalStatus('');
       this.clearPendingPermissionRequests(

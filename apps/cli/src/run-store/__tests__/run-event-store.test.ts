@@ -52,7 +52,9 @@ describe('RunEventStore', () => {
     const results = await Promise.all(
       stores.map((store) => store.appendNextEvent('run-1', (seq) => event({ seq }))),
     );
-    expect(results.map((result) => result.seq).sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(results.map((result) => result.seq).sort((a, b) => a - b)).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8,
+    ]);
     const reopened = new RunEventStore(() => path.join(root, 'run-1.jsonl'));
     expect((await reopened.readEvents('run-1')).map((record) => record.seq)).toEqual([
       1, 2, 3, 4, 5, 6, 7, 8,
@@ -112,20 +114,35 @@ describe('RunEventStore', () => {
     mkdir.mockRestore();
   });
 
-  it('preserves journal bytes on failed publication and releases ownership', async () => {
+  it('trims a torn final line left by an interrupted append and keeps seqs contiguous', async () => {
     const filePath = path.join(root, 'run-1.jsonl');
-    const store = new RunEventStore(() => filePath);
-    await store.appendEvent('run-1', event());
-    const before = await fs.readFile(filePath);
-    const rename = vi.spyOn(fs, 'rename').mockRejectedValueOnce(new Error('publication failed'));
-    await expect(store.appendNextEvent('run-1', (seq) => event({ seq }))).rejects.toThrow(
-      'publication failed',
-    );
-    rename.mockRestore();
-    expect(await fs.readFile(filePath)).toEqual(before);
-    await expect(store.appendNextEvent('run-1', (seq) => event({ seq }))).resolves.toMatchObject({
+    await new RunEventStore(() => filePath).appendEvent('run-1', event());
+    const committed = await fs.readFile(filePath, 'utf8');
+    await fs.appendFile(filePath, JSON.stringify(event({ seq: 2 })).slice(0, 40));
+
+    const restarted = new RunEventStore(() => filePath);
+    await expect(restarted.getLastSeq('run-1')).resolves.toBe(1);
+    await expect(restarted.readEvents('run-1')).resolves.toEqual([event()]);
+    await expect(
+      restarted.appendNextEvent('run-1', (seq) => event({ seq })),
+    ).resolves.toMatchObject({
       seq: 2,
     });
+    expect(await fs.readFile(filePath, 'utf8')).toBe(
+      committed + JSON.stringify(event({ seq: 2 })) + '\n',
+    );
+  });
+
+  it('recovers when the committed newline sits exactly on a tail-read chunk boundary', async () => {
+    const filePath = path.join(root, 'run-1.jsonl');
+    await new RunEventStore(() => filePath).appendEvent('run-1', event());
+    await fs.appendFile(filePath, 'x'.repeat(64 * 1024 - 1));
+
+    const restarted = new RunEventStore(() => filePath);
+    await expect(restarted.getLastSeq('run-1')).resolves.toBe(1);
+    await expect(
+      restarted.appendNextEvent('run-1', (seq) => event({ seq })),
+    ).resolves.toMatchObject({ seq: 2 });
   });
 
   it('appends and reads only the validated durable event union', async () => {
@@ -168,7 +185,7 @@ describe('RunEventStore', () => {
     await expect(store.readEvents('run-1')).rejects.toThrow(/malformed durable event JSON/);
   });
 
-  it('reports the size of every whole-file read, including the read inside each append', async () => {
+  it('appends and tracks seqs without whole-file reads, reporting only explicit full reads', async () => {
     const filePath = path.join(root, 'run-1.jsonl');
     const reads: RunEventLogRead[] = [];
     const store = new RunEventStore(
@@ -178,21 +195,16 @@ describe('RunEventStore', () => {
 
     // A missing log is not a read.
     await store.readEvents('run-1');
-    await store.appendEvent('run-1', event());
-    const size = (await fs.stat(filePath)).size;
-    await store.appendEvent('run-1', event({ seq: 2 }));
-    await store.getLastSeq('run-1');
-    await store.readLastEvent('run-1');
+    for (let seq = 1; seq <= 3; seq++) {
+      await store.appendNextEvent('run-1', (next) => event({ seq: next }));
+      await expect(store.getLastSeq('run-1')).resolves.toBe(seq);
+    }
+    await expect(store.readLastEvent('run-1')).resolves.toMatchObject({ seq: 3 });
     await store.readEvents('run-1');
 
-    const grown = (await fs.stat(filePath)).size;
+    const size = (await fs.stat(filePath)).size;
     expect(
       reads.map(({ runId, operation, byteCount }) => ({ runId, operation, byteCount })),
-    ).toEqual([
-      { runId: 'run-1', operation: 'append', byteCount: size },
-      { runId: 'run-1', operation: 'read_last_seq', byteCount: grown },
-      { runId: 'run-1', operation: 'read_last_event', byteCount: grown },
-      { runId: 'run-1', operation: 'read_events', byteCount: grown },
-    ]);
+    ).toEqual([{ runId: 'run-1', operation: 'read_events', byteCount: size }]);
   });
 });

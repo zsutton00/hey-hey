@@ -4,6 +4,8 @@ import {
   buildMcpServerConfig,
   CODING_MCP_TOOLS,
   GENERAL_MCP_TOOLS,
+  HINT_READ_MCP_TOOLS,
+  HINT_WRITE_MCP_TOOLS,
   PLANNING_MCP_TOOLS,
   PLAN_SHAPING_MCP_TOOLS,
   PROPOSAL_GROUP_MCP_TOOLS,
@@ -31,6 +33,8 @@ const createMockOAuthClient = (
 
 // Minimal JWT with organizationId claim for testing.
 // Payload: { "sub": "user-1", "organizationId": "org-123" }
+const HINT_TOOLS = [...HINT_WRITE_MCP_TOOLS, ...HINT_READ_MCP_TOOLS];
+
 const TEST_TOKEN =
   'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.' +
   btoa(JSON.stringify({ sub: 'user-1', organizationId: 'org-123' })) +
@@ -159,7 +163,7 @@ describe('buildMcpServerConfig', () => {
     const result = await buildMcpServerConfig(client, {});
 
     expect(result.allowedTools).toEqual(
-      CODING_MCP_TOOLS.map((tool) => `mcp__heyhey-platform__${tool}`),
+      [...CODING_MCP_TOOLS, ...HINT_TOOLS].map((tool) => `mcp__heyhey-platform__${tool}`),
     );
     expect(result.allowedTools).toContain('mcp__heyhey-platform__get_feature_sync_context');
     // AskUserQuestion is banned across all agents; it must not appear in the allowlist.
@@ -498,7 +502,7 @@ describe('buildMcpServerConfig', () => {
       const result = await buildMcpServerConfig(client, {}, { useCase: 'planning' });
 
       expect(result.allowedTools).toEqual(
-        PLANNING_MCP_TOOLS.map((tool) => `mcp__heyhey-platform__${tool}`),
+        [...PLANNING_MCP_TOOLS, ...HINT_TOOLS].map((tool) => `mcp__heyhey-platform__${tool}`),
       );
       expect(result.allowedTools).toContain('mcp__heyhey-platform__get_report_schema');
       expect(result.allowedTools).not.toContain('mcp__heyhey-platform__create_report');
@@ -558,7 +562,7 @@ describe('buildMcpServerConfig', () => {
   });
 
   describe('research use case', () => {
-    it('resolves to exactly the 10 read-only platform tools, qualified', async () => {
+    it('resolves to exactly the read-only platform tools plus the hint tools, qualified', async () => {
       const client = createMockOAuthClient({ success: true, data: TEST_TOKEN });
 
       const result = await buildMcpServerConfig(client, {}, { useCase: 'research' });
@@ -575,6 +579,7 @@ describe('buildMcpServerConfig', () => {
           'task_search',
           'search_design_docs',
           'search_implementation_hints',
+          ...HINT_TOOLS,
         ].map((tool) => `mcp__heyhey-platform__${tool}`),
       );
       expect(RESEARCH_MCP_TOOLS).toHaveLength(10);

@@ -267,13 +267,23 @@ export const PROJECT_REPORT_SECTION_MCP_TOOLS: readonly string[] = PROJECT_REPOR
 );
 
 /**
- * Hint tools, kept out of `MCP_TOOL_LIST` so no handler inherits them through a
- * shared base. Only entity conversations and coding sessions opt into the write
- * set, and only the Project Assistant into the read set. The API omits them
- * entirely when its deployment-wide hints switch is off.
+ * Hint tools, offered to the sessions in `HINT_USE_CASES`. The API omits them entirely when its
+ * deployment-wide hints switch is off.
  */
 export const HINT_WRITE_MCP_TOOLS: readonly string[] = ['create_hint', 'add_hint_connection'];
 export const HINT_READ_MCP_TOOLS: readonly string[] = ['get_hints_for_items'];
+
+/**
+ * Sessions that do open-ended work get hints. Curated surfaces (reports,
+ * monitors, plan shaping, evidence gathering) stay exactly as designed.
+ */
+const HINT_USE_CASES: ReadonlySet<McpToolUseCase | undefined> = new Set([
+  undefined,
+  'coding',
+  'general',
+  'planning',
+  'research',
+]);
 
 export type HintPromptAccess = 'write' | 'read' | 'none';
 
@@ -323,12 +333,16 @@ export const resolveMcpToolNames = (
                       : options.useCase === 'task_monitor'
                         ? TASK_MONITOR_MCP_TOOLS
                         : CODING_MCP_TOOLS;
+  const hintTools = HINT_USE_CASES.has(options.useCase)
+    ? [...HINT_WRITE_MCP_TOOLS, ...HINT_READ_MCP_TOOLS]
+    : [];
   const needsAuthoringGuidance = additionalTools.some((tool) =>
     AUTHORING_GUIDANCE_GATED_MUTATION_MCP_TOOLS.has(tool),
   );
   return Array.from(
     new Set([
       ...baseTools,
+      ...hintTools,
       ...(needsAuthoringGuidance ? [AUTHORING_GUIDANCE_MCP_TOOL] : []),
       ...additionalTools,
     ]),

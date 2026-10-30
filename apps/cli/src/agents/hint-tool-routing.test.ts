@@ -4,8 +4,8 @@ import {
   HINT_WRITE_MCP_TOOLS,
   resolveHintPromptAccess,
   resolveMcpToolNames,
+  type McpToolUseCase,
 } from './mcp-server-config';
-import { dailySessionHandler } from './daily-session/daily-session.handler';
 import { PromptTypeRegistry } from './prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from './prompt-type-registry.test-support';
 
@@ -23,31 +23,30 @@ describe('hint tool routing', () => {
     ]),
   );
 
-  it('gives write tools to entity conversations and coding sessions only', () => {
-    expect(hintToolsById.get('entity_conversation')).toEqual(HINT_WRITE_MCP_TOOLS);
-    expect(hintToolsById.get('implement')).toEqual(HINT_WRITE_MCP_TOOLS);
+  it('gives coding, general, planning and research sessions every hint tool', () => {
+    for (const useCase of ['coding', 'general', 'planning', 'research'] as McpToolUseCase[]) {
+      expect(resolveMcpToolNames({ useCase }).filter((t) => HINT_TOOLS.includes(t))).toEqual(
+        HINT_TOOLS,
+      );
+    }
   });
 
-  it('gives the Project Assistant read access only', () => {
-    expect(hintToolsById.get('project_assistant')).toEqual(HINT_READ_MCP_TOOLS);
+  it('keeps curated report, monitor and evidence-gathering surfaces free of hint tools', () => {
+    for (const useCase of [
+      'project_report',
+      'plan_shaping',
+      'task_monitor',
+      'session_monitor',
+      'repository_grounding',
+    ] as McpToolUseCase[]) {
+      expect(resolveMcpToolNames({ useCase }).filter((t) => HINT_TOOLS.includes(t))).toEqual([]);
+    }
   });
 
-  it('gives no other handler, including verification, feature sync and daily sessions, any hint tool', () => {
-    const others = [...hintToolsById].filter(
-      ([id]) => !['entity_conversation', 'implement', 'project_assistant'].includes(id),
-    );
-    expect(others.map(([id]) => id)).toEqual(
-      expect.arrayContaining(['verify_feature', 'feature_sync_analyze', 'daily_session_coach']),
-    );
-    for (const [id, tools] of others) expect({ id, tools }).toEqual({ id, tools: [] });
-    expect(
-      resolveMcpToolNames({
-        ...(dailySessionHandler.mcpToolUseCase
-          ? { useCase: dailySessionHandler.mcpToolUseCase }
-          : {}),
-        additionalTools: dailySessionHandler.additionalAllowedTools ?? [],
-      }).filter((tool) => HINT_TOOLS.includes(tool)),
-    ).toEqual([]);
+  it('gives entity conversations, coding sessions and the Project Assistant all hint tools', () => {
+    for (const id of ['entity_conversation', 'implement', 'project_assistant']) {
+      expect(hintToolsById.get(id)).toEqual(HINT_TOOLS);
+    }
   });
 });
 
