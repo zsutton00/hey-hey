@@ -1,3 +1,4 @@
+import { createPromptTypeHandlerTestDeps } from '../../agents/prompt-type-handler.test-support';
 import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -114,7 +115,7 @@ const makeSubagentHandler = (): PromptTypeHandler<unknown> => ({
   providerSessionCountsForContext: false,
   reports: [],
   subagentConfig: makeConfig(),
-  buildPrompt: () => 'unused',
+  buildPrompt: (payload) => JSON.stringify(payload),
 });
 
 const makeCtx = (run: Run, input: InternalRunPromptRequest): RunnerContext => ({
@@ -144,6 +145,7 @@ const makeRunnerDeps = (liveFiles: readonly string[] = []) => {
     oauthClient,
     logger,
     childAgentLauncher: new ChildAgentLauncher({
+      handlerDeps: createPromptTypeHandlerTestDeps(),
       promptTypeRegistry: ownership.promptTypeRegistry,
       repoStore: createTestRepoMappingStore(),
       oauthClient,
@@ -199,7 +201,9 @@ describe('SubagentRunner', () => {
 
     const forwarded = subAgentHarness.constructedWith.mock.calls[0]![0] as Record<string, unknown>;
     expect(forwarded['session']).toBe(session);
-    expect(forwarded['payload']).toEqual({ changedFiles: ['/repo/src/a.ts'] });
+    expect(forwarded['prompt']).toContain(
+      JSON.stringify({ changedFiles: ['/repo/src/a.ts'], _touchedFiles: ['/repo/src/a.ts'] }),
+    );
     expect(forwarded['touchedFiles']).toEqual(['/repo/src/a.ts']);
     expect(forwarded['onAgentOutput']).not.toBe(run.onAgentOutput);
     const ingress = vi.spyOn(run, 'onActiveTurnAgentOutput').mockImplementation(() => undefined);
@@ -249,8 +253,9 @@ describe('SubagentRunner', () => {
     await runner.run(new AbortController().signal);
 
     const forwarded = subAgentHarness.constructedWith.mock.calls[0]![0] as Record<string, unknown>;
-    expect(forwarded['payload']).toBe(preparedPayload);
-    expect(forwarded['payload']).not.toBe(input.payload);
+    expect(forwarded['prompt']).toContain(
+      JSON.stringify({ ...preparedPayload, _touchedFiles: [] }),
+    );
   });
 
   it('forwards ctx.priorReports so the chain reaches subagent prompt assembly', async () => {
@@ -309,7 +314,9 @@ describe('SubagentRunner', () => {
     expect(subAgentHarness.execute).toHaveBeenCalledTimes(1);
     expect(subAgentHarness.constructedWith.mock.calls[0]![0]).toEqual(
       expect.objectContaining({
-        payload,
+        prompt: expect.stringContaining(
+          JSON.stringify({ ...payload, _touchedFiles: ['/repo/src/review.ts'] }),
+        ),
         priorReports,
         touchedFiles: ['/repo/src/review.ts'],
       }),
@@ -385,3 +392,11 @@ describe('SubagentRunner', () => {
     );
   });
 });
+
+vi.mock('../../agents/prompts/session-start-context', () => ({
+  readSessionStartContext: async () => ({
+    workItemTypeDefinitions: [],
+    intentFirst: false,
+    maturity: 'ESTABLISHED',
+  }),
+}));

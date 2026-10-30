@@ -1,7 +1,8 @@
+import { useModalState } from "../Modals/useModalState";
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import {
   Box,
   Button,
-  Dialog,
   DialogContent,
   DialogTitle,
   List,
@@ -44,7 +45,7 @@ export interface EntityEvidenceBrowserProps {
 }
 
 const dedupeForIconStrip = (
-  groups: EntityEvidenceGroup[]
+  groups: EntityEvidenceGroup[],
 ): EntityEvidenceItem[] => {
   const seenByTypeCount = new Map<string, number>();
   const dedupedItems: EntityEvidenceItem[] = [];
@@ -78,7 +79,7 @@ export const EntityEvidenceBrowser = ({
   modalActions,
   renderItemActions,
 }: EntityEvidenceBrowserProps) => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen, isOpenOwnerKey] = useModalState(false);
   const [expandedByItemId, setExpandedByItemId] = useState<
     Record<string, boolean>
   >({});
@@ -114,11 +115,11 @@ export const EntityEvidenceBrowser = ({
             ? {
                 boxShadow: `0 0 0 1px ${alpha(
                   theme.palette.success.main,
-                  0.2
+                  0.2,
                 )}, ${theme.shadows[2]}`,
                 backgroundImage: `linear-gradient(${alpha(
                   theme.palette.success.main,
-                  0.08
+                  0.08,
                 )}, ${alpha(theme.palette.success.main, 0.02)})`,
               }
             : {}),
@@ -179,6 +180,7 @@ export const EntityEvidenceBrowser = ({
       </Paper>
 
       <Dialog
+        ownerKey={isOpenOwnerKey}
         open={isOpen}
         onClose={() => setIsOpen(false)}
         fullWidth
@@ -225,11 +227,11 @@ export const EntityEvidenceBrowser = ({
                                   borderRadius: 1,
                                   backgroundColor: alpha(
                                     theme.palette.success.main,
-                                    0.06
+                                    0.06,
                                   ),
                                   boxShadow: `0 0 0 1px ${alpha(
                                     theme.palette.success.main,
-                                    0.28
+                                    0.28,
                                   )} inset`,
                                 }
                               : {}),

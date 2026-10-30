@@ -1,4 +1,7 @@
-import { ProposalToolsProvider, editWorkItemParameters } from '../tools/proposal-tools.provider';
+import {
+  ProposalToolsProvider,
+  editWorkItemParameters,
+} from '../tools/proposal-tools.provider';
 import type { ProposalService } from '../../services/proposal/proposal.service';
 import type { TaskService } from '../../services/tasks/task.service';
 import { WorkItemTypeRegistryService } from '../../services/tasks/work-item-type-registry.service';
@@ -72,7 +75,6 @@ function createProvider(
   const taskFindOne = opts.taskFindOne ?? jest.fn();
   const proposalService = {
     create: proposalCreate,
-    createBatch: jest.fn(),
     findOne: jest.fn(),
   } as unknown as ProposalService;
   const taskService = {
@@ -281,7 +283,9 @@ describe('editWorkItem on a GOAL target', () => {
 
   it('accepts explicit date clearing at the MCP input boundary', () => {
     const parsed = editWorkItemParameters.parse({
-      eli5: 'Clear the target date.', targetEntityId: GOAL_ID, dueDate: null,
+      eli5: 'Clear the target date.',
+      targetEntityId: GOAL_ID,
+      dueDate: null,
     });
     expect(parsed.dueDate).toBeNull();
   });

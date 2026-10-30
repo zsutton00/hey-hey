@@ -1,3 +1,7 @@
+import { useContext } from "react";
+import { InlineReconciliationBodyContext } from "../ProposalReconciliation/ProposalReconciliationReview";
+import { usePathService } from "../../contexts/PathServiceContext";
+import { Link } from "@mui/material";
 import {
   Box,
   Stack,
@@ -49,6 +53,7 @@ interface ResolvedProposalTitleTarget extends Omit<
 
 export interface ProposalTitleProps {
   proposal: ProposalResponseDto;
+  presentationAction?: ProposalAction;
   typePresentation: ProposalHeaderTypePresentation;
   /** Concrete materialized target data for CREATE titles that are not yet approved. */
   target?: ProposalTitleTarget;
@@ -89,6 +94,7 @@ const renderTitleMarkup = (
 
 export const ProposalTitle: FC<ProposalTitleProps> = ({
   proposal,
+  presentationAction,
   typePresentation,
   target,
   resolvedTargetName,
@@ -99,6 +105,8 @@ export const ProposalTitle: FC<ProposalTitleProps> = ({
   typeTestId,
   endAdornment,
 }) => {
+  const reconciliationBody = useContext(InlineReconciliationBodyContext);
+  const paths = usePathService();
   const deleteSx =
     proposal.action === "DELETE"
       ? { color: "text.secondary", textDecoration: "line-through" }
@@ -181,9 +189,21 @@ export const ProposalTitle: FC<ProposalTitleProps> = ({
         data-testid="proposal-identity-header"
       >
         {interactiveTitle}
+        {reconciliationBody ? (
+          <Link
+            data-testid="proposal-open-detail"
+            href={paths.proposal({
+              projectId: proposal.projectId,
+              proposalId: proposal.id,
+            })}
+          >
+            Open proposal
+          </Link>
+        ) : null}
         {!hideHeaderMetadata && (
           <ProposalHeader
             proposal={proposal}
+            presentationAction={presentationAction}
             typePresentation={typePresentation}
             hideTypeChip={hideTypeChip}
             typeTestId={typeTestId}

@@ -14,30 +14,68 @@ const DISPLAY_ONLY_TYPES = new Set([
   "interstitial",
   "session_monitor",
   "file_diff",
+  "coding_plan_context",
+  "coding_plan_version",
+  "coding_plan_discrepancy",
 ]);
 
 const CONTRIBUTION_FIELD_TYPES = new Set(["implementation_readiness"]);
 
 const EXCLUSIVE_FIELD_TYPES = new Set([
-  "textarea", "agent-reply-textarea", "currency", "priority", "text", "number", "select",
-  "repository_grounding_intent", "datepicker", "integrations",
-  "team_members", "initiative_list", "initiative_intro", "button_group",
-  "complete_onboarding", "task_generation", "feature_list",
-  "repository_placement_strategy", "repository_placement_review",
-  "task_feedback", "task_list", "task_stub", "task_priority",
-  "adr_context_starter", "adr_agent_response",
-  "agent_complete", "agent_request_permission", "agent_question",
+  "textarea",
+  "agent-reply-textarea",
+  "repository_feature_enrichment_reply",
+  "currency",
+  "priority",
+  "text",
+  "number",
+  "select",
+  "repository_grounding_intent",
+  "datepicker",
+  "integrations",
+  "team_members",
+  "initiative_list",
+  "initiative_intro",
+  "button_group",
+  "complete_onboarding",
+  "task_generation",
+  "feature_list",
+  "repository_placement_strategy",
+  "repository_placement_review",
+  "task_feedback",
+  "task_list",
+  "task_stub",
+  "task_priority",
+  "adr_context_starter",
+  "adr_agent_response",
+  "agent_complete",
+  "agent_request_permission",
+  "agent_question",
   "agent_request_service_scope",
-  "agent_request_review_file_scope", "coding_prompt_final_assessment",
-  "coding_prompt_merged_final_assessment", "coding_prompt_startup_plan",
-  "plan_document_view", "question_group", "multiple_choice", "goal_pm_action",
-  "coding_prompt", "service_selector", "repository_grounding",
-  "plan_gaps_services", "plan_gaps_design_docs", "plan_gaps_tasks",
-  "plan_approval", "plan_stage_proposal", "sync_recommendation",
-  "reconciliation_report", "plan_generation_stage_review",
+  "agent_request_review_file_scope",
+  "coding_prompt_final_assessment",
+  "coding_prompt_merged_final_assessment",
+  "coding_prompt_startup_plan",
+  "plan_document_view",
+  "question_group",
+  "multiple_choice",
+  "goal_pm_action",
+  "coding_prompt",
+  "service_selector",
+  "repository_grounding",
+  "plan_gaps_services",
+  "plan_gaps_design_docs",
+  "plan_gaps_tasks",
+  "plan_approval",
+  "plan_stage_proposal",
+  "sync_recommendation",
+  "reconciliation_report",
+  "plan_generation_stage_review",
   "plan_generation_step_review",
-  "plan_generation_journey_review", "plan_generation_visual_preview",
-  "plan_generation_finalize", "plan_shaping_feature_sync_review",
+  "plan_generation_journey_review",
+  "plan_generation_visual_preview",
+  "plan_generation_finalize",
+  "plan_shaping_feature_sync_review",
 ]);
 
 const TYPE_MAPPING: Record<string, string> = {
@@ -92,7 +130,7 @@ export const getRegistryType = (input: RegistryTypeInput): string => {
 };
 
 export const getFieldResponseBehavior = (
-  input: RegistryTypeInput
+  input: RegistryTypeInput,
 ): ResponseBehavior | undefined => {
   const type = getRegistryType(input);
   if (DISPLAY_ONLY_TYPES.has(type)) return { ownership: "display-only" };
@@ -107,26 +145,40 @@ export const getFieldResponseBehavior = (
 
 // Completed narration rows still render their bodies without a user response.
 const ALWAYS_VISIBLE_TYPES = new Set([
-  "open_items_triage", "verify_feature", "agent_search_results", "interstitial",
-  "implementation_readiness", "session_monitor", "agent_request_permission",
-  "agent_request_service_scope", "agent_request_review_file_scope",
-  "file_diff", "goal_pm_action", "plan_generation_visual_preview",
+  "open_items_triage",
+  "verify_feature",
+  "agent_search_results",
+  "interstitial",
+  "implementation_readiness",
+  "session_monitor",
+  "agent_request_permission",
+  "agent_request_service_scope",
+  "agent_request_review_file_scope",
+  "file_diff",
+  "coding_plan_context",
+  "coding_plan_version",
+  "coding_plan_discrepancy",
+  "goal_pm_action",
+  "plan_generation_visual_preview",
 ]);
 
 const getVisibilityForType = (
-  type: string
+  type: string,
 ): ((context: FieldShouldShowFormContext) => boolean) | undefined => {
   if (type === "agent_hidden") return () => false;
   if (ALWAYS_VISIBLE_TYPES.has(type)) return () => true;
   return undefined;
 };
 
-export const getFieldResponseMetadata = (type: string): {
+export const getFieldResponseMetadata = (
+  type: string,
+): {
   responseBehavior: ResponseBehavior;
   shouldShowForm?: (context: FieldShouldShowFormContext) => boolean;
 } => {
   const responseBehavior = getFieldResponseBehavior(type);
-  if (!responseBehavior) throw new Error(`Unknown field response type: ${type}`);
+  if (!responseBehavior)
+    throw new Error(`Unknown field response type: ${type}`);
   return {
     responseBehavior,
     shouldShowForm: getVisibilityForType(type),
@@ -134,14 +186,17 @@ export const getFieldResponseMetadata = (type: string): {
 };
 
 export const getFormVisibilityOverride = (
-  uiElements: unknown
+  uiElements: unknown,
 ): ((context: FieldShouldShowFormContext) => boolean) | undefined => {
   if (!Array.isArray(uiElements)) return undefined;
   for (const element of uiElements) {
     if (
-      typeof element !== "object" || element === null ||
-      typeof element.id !== "string" || typeof element.type !== "string"
-    ) continue;
+      typeof element !== "object" ||
+      element === null ||
+      typeof element.id !== "string" ||
+      typeof element.type !== "string"
+    )
+      continue;
     const type = getRegistryType(element);
     const override = getVisibilityForType(type);
     if (override) return override;

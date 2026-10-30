@@ -27,13 +27,11 @@ describe('platform system prompt', () => {
     expect(prompt).toContain('`get_work_item_type_guidance_batch`');
     expect(prompt).toContain('typeKeys: [key]');
     expect(prompt).toContain('deduplicated array of 1–10 relevant encountered keys');
-    expect(prompt).toContain('same purpose and relevant focal context');
+    expect(prompt).toContain('same purpose and session role');
     expect(prompt).toContain('request order');
     expect(prompt).toContain('Never speculate across or fan out over the catalog');
-    expect(prompt).toContain('purpose: "semantic"');
-    expect(prompt).toContain(
-      'include `focalTypeKey` only for semantic reads where contextual interpretation matters',
-    );
+    expect(prompt).toContain('purpose: "maintenance"');
+    expect(prompt).toContain('purpose: "role"');
     expect(prompt).not.toContain('Use for implementation work.');
     expect(prompt).not.toContain('## Grouped Proposal Authoring');
     expect(prompt).toContain('## Contract Discovery and Enforcement');

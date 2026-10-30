@@ -1,16 +1,40 @@
+import { ProposalReconciliationAdapterService } from '../proposal-reconciliation-adapter.service';
+import { ProposalReconciliationService } from '../proposal-reconciliation.service';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 import type { WorkItemTypeRegistryService } from '../../tasks/work-item-type-registry.service';
 import { createDefaultProjectApprovalPolicy } from '../project-approval-policy.service';
 import {
-  mapProposalResponse,
-  mapProposalResponses,
+  mapProposalResponse as mapSingle,
+  mapProposalResponses as mapMany,
   resolveProjectApprovalPolicies,
-  deriveProposalOutOfDateStatus,
+  resolveProposalOutOfDateStatuses,
 } from '../proposal-response-policy';
 import {
   toProposalResponseDto,
   type ProposalWithApprovals,
 } from '../proposal.types';
+
+const reconciliation = new ProposalReconciliationService(
+  {} as never,
+  {} as never,
+  jest.fn(),
+);
+const mapProposalResponse = (
+  ...[tx, proposal, policy, options]: [
+    Parameters<typeof mapSingle>[0],
+    Parameters<typeof mapSingle>[1],
+    Parameters<typeof mapSingle>[2],
+    Omit<Parameters<typeof mapSingle>[3], 'reconciliation'>?,
+  ]
+) => mapSingle(tx, proposal, policy, { ...options, reconciliation });
+const mapProposalResponses = (
+  ...[tx, proposals, policy, options]: [
+    Parameters<typeof mapMany>[0],
+    Parameters<typeof mapMany>[1],
+    Parameters<typeof mapMany>[2],
+    Omit<Parameters<typeof mapMany>[3], 'reconciliation'>?,
+  ]
+) => mapMany(tx, proposals, policy, { ...options, reconciliation });
 
 function proposal(
   id: string,
@@ -42,11 +66,59 @@ function proposal(
 }
 
 describe('mapProposalResponses', () => {
+  it('carries response-only linked-work identity through single and collection reads', async () => {
+    const stored = {
+      ...proposal('preview', []),
+      action: 'VERSIONED_UPDATE',
+      status: 'REJECTED',
+      updates: {
+        operation: 'REVISE',
+        dependencies: [
+          {
+            edgeType: 'DEPENDS_ON',
+            targetEntityType: 'TASK',
+            targetEntityId: 'bug',
+          },
+        ],
+      },
+      groupMembership: {
+        id: 'member',
+        groupId: 'group',
+        memberOrder: 0,
+        requiredApprovals: 1,
+        group: { status: 'REVIEWABLE', revision: 1, frozenRevision: 1 },
+      },
+      workItemChangeSetMaterialization: null,
+    } as unknown as ProposalWithApprovals;
+    const findMany = jest
+      .fn()
+      .mockResolvedValue([{ id: 'bug', name: 'Repair review', type: 'BUG' }]);
+    const tx = { task: { findMany } } as unknown as AnyTransactionClient;
+    const policy = createDefaultProjectApprovalPolicy();
+    const single = await mapProposalResponse(tx, stored, policy, {
+      requiredApprovals: 1,
+    });
+    const listed = await mapProposalResponses(tx, [stored], policy);
+    expect(listed).toHaveLength(1);
+    for (const response of [single, ...listed]) {
+      expect(response?.dependencyPresentation).toEqual([
+        {
+          targetEntityId: 'bug',
+          availability: 'AVAILABLE',
+          title: 'Repair review',
+          workItemType: 'BUG',
+        },
+      ]);
+      expect(response?.updates).toEqual(stored.updates);
+    }
+  });
+
   it('loads reviewed futures once for a page and leaves an absent first revision null', async () => {
     const reviewedProposal = (id: string, futureId: string) =>
       ({
         ...proposal(id, []),
         action: 'VERSIONED_UPDATE',
+        status: 'REJECTED',
         targetEntityType: 'TASK',
         targetEntityId: `target-${id}`,
         updates: { futureId },
@@ -208,28 +280,6 @@ describe('mapProposalResponses', () => {
     expect(result[2]).not.toHaveProperty('taskType');
     expect(result[3]).not.toHaveProperty('taskType');
   });
-
-  it.each([
-    ['CREATE', 'TASK', null, null, 'NOT_APPLICABLE'],
-    ['UPDATE', 'DESIGN_DOC', null, null, 'NOT_APPLICABLE'],
-    ['UPDATE', 'TASK', null, null, 'CURRENT'],
-    ['DELETE', 'TASK', 'proposal-1', 'proposal-1', 'CURRENT'],
-    ['UPDATE', 'TASK', 'proposal-1', 'proposal-2', 'OUT_OF_DATE'],
-  ] as const)(
-    'derives %s %s with captured %s and current %s as %s',
-    (action, targetEntityType, captured, current, expected) => {
-      expect(
-        deriveProposalOutOfDateStatus(
-          {
-            action,
-            targetEntityType,
-            targetLastAppliedProposalId: captured,
-          } as any,
-          current,
-        ),
-      ).toBe(expected);
-    },
-  );
 
   it('serializes API-owned requirements and approval records with one member lookup per project', async () => {
     const projectMemberFindMany = jest
@@ -437,5 +487,100 @@ describe('mapProposalResponses', () => {
     });
     expect(result[0]?.requiredApprovals).toBe(3);
     expect(result[1]?.groupMembership).toBeUndefined();
+  });
+});
+
+describe('out-of-date comparison batch', () => {
+  it('leaves applied futures outside the comparison without loading their history', async () => {
+    const stored = {
+      ...proposal('applied-future', []),
+      action: 'VERSIONED_UPDATE' as const,
+      status: 'APPROVED' as const,
+      updates: { operation: 'REVISE' },
+    };
+    // Applied futures are excluded before inspecting their authoring payload.
+    const tx = {
+      proposalFuture: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([
+            { latestProposalId: stored.id, outcome: 'APPLIED' },
+          ]),
+      },
+    };
+    const owner = new ProposalReconciliationService(
+      {} as never,
+      {} as never,
+      () => 'test',
+    );
+    const statuses = await resolveProposalOutOfDateStatuses(
+      tx as unknown as AnyTransactionClient,
+      [stored],
+      owner,
+    );
+    expect(statuses.get(stored.id)).toBe('NOT_APPLICABLE');
+  });
+  it('distinguishes drift, missing history and unsupported kinds without reading review history per row', async () => {
+    const items = Array.from({ length: 50 }, (_, index) => ({
+      ...proposal(`item-${index}`, []),
+      targetEntityType: 'TASK' as const,
+      targetEntityId: 'target',
+      targetLastAppliedProposalId: null,
+      action: 'UPDATE' as const,
+    }));
+    const missing = { ...items[0]!, id: 'missing' };
+    const unsupported = {
+      ...items[0]!,
+      id: 'unsupported',
+      targetEntityType: 'DESIGN_DOC' as const,
+    };
+    const current = { ...items[0]!, id: 'current' };
+    const revisions = [...items, current].map((item) => ({
+      proposalId: item.id,
+      bases: [
+        {
+          entityType: 'TASK',
+          entityId: 'target',
+          version: 'authoring',
+          content: {
+            name: item.id === 'current' ? 'Live' : 'Old',
+            sections: {},
+          },
+        },
+      ],
+    }));
+    const tx = {
+      proposalReconciliationRevision: {
+        findMany: jest.fn().mockResolvedValue(revisions),
+      },
+      task: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'target',
+            lastAppliedProposalId: null,
+            name: 'Live',
+            updatedAt: new Date(),
+            sections: [],
+            serviceRelations: [],
+          },
+        ]),
+      },
+    };
+    const owner = new ProposalReconciliationService(
+      new ProposalReconciliationAdapterService({} as never, {} as never),
+      {} as never,
+      () => 'test',
+    );
+    const statuses = await resolveProposalOutOfDateStatuses(
+      tx as unknown as AnyTransactionClient,
+      [...items, missing, unsupported, current],
+      owner,
+    );
+    expect(statuses.get('item-0')).toBe('OUT_OF_DATE');
+    expect(statuses.get('missing')).toBe('UNKNOWN');
+    expect(statuses.get('unsupported')).toBe('NOT_APPLICABLE');
+    expect(statuses.get('current')).toBe('CURRENT');
+    expect(tx.proposalReconciliationRevision.findMany).toHaveBeenCalledTimes(1);
+    expect(tx.task.findMany).toHaveBeenCalledTimes(1);
   });
 });

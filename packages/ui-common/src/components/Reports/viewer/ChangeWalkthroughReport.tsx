@@ -1,23 +1,27 @@
-import { Stack, Typography } from "@mui/material";
+import { Box, Stack, Typography } from "@mui/material";
 import type { ChangeWalkthroughReportPayload } from "../../../api";
 import { SyntaxHighlightedCodeBlock } from "../../CodingPlan/SyntaxHighlightedCodeBlock";
-import {
-  ReportPanel,
-  ReportItemCard,
-  ReportLabeledText,
-} from "./reportPrimitives";
+import { ReportItemCard, ReportLabeledText } from "./reportPrimitives";
 import type { ReportRenderer } from "./rendererContract";
 import { WalkthroughSourceLink } from "./WalkthroughSourceLink";
 
 export const ChangeWalkthroughReport: ReportRenderer<
   ChangeWalkthroughReportPayload
 > = ({ payload }) => (
-  <Stack spacing={2} data-testid="change-walkthrough-report">
+  <Stack
+    spacing={3}
+    data-testid="change-walkthrough-report"
+    sx={{ minWidth: 0 }}
+  >
     <ReportLabeledText label="Summary" value={payload.summary} renderMentions />
     {payload.groups.map((group, groupIndex) => (
-      <ReportPanel
+      <ReportItemCard
         key={groupIndex}
-        title={group.title}
+        title={
+          <Typography component="h2" variant="h5" sx={{ fontWeight: 650 }}>
+            {group.title}
+          </Typography>
+        }
         testId="walkthrough-group"
       >
         <Stack
@@ -27,12 +31,27 @@ export const ChangeWalkthroughReport: ReportRenderer<
         >
           {group.changes.map((change, changeIndex) => (
             <li key={changeIndex}>
-              <ReportItemCard title={change.title} testId="walkthrough-change">
-                <ReportLabeledText
-                  label="Context"
-                  value={change.context}
-                  renderMentions
-                />
+              <Stack
+                spacing={2}
+                data-testid="walkthrough-change"
+                sx={{ minWidth: 0, py: 1.5 }}
+              >
+                <Typography
+                  component="h3"
+                  variant="subtitle1"
+                  sx={{ fontWeight: 650 }}
+                >
+                  {change.title}
+                </Typography>
+                <Box
+                  sx={{ "& .MuiTypography-body2": { color: "text.secondary" } }}
+                >
+                  <ReportLabeledText
+                    label="Context"
+                    value={change.context}
+                    renderMentions
+                  />
+                </Box>
                 {change.walkthrough.map((step, stepIndex) => (
                   <Stack
                     key={stepIndex}
@@ -71,11 +90,11 @@ export const ChangeWalkthroughReport: ReportRenderer<
                   value={change.behavioralConsequence}
                   renderMentions
                 />
-              </ReportItemCard>
+              </Stack>
             </li>
           ))}
         </Stack>
-      </ReportPanel>
+      </ReportItemCard>
     ))}
   </Stack>
 );

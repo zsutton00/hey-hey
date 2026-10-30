@@ -29,12 +29,16 @@ const makeForwarder = (forward: PlatformMcpForwarder['forward']): PlatformMcpFor
   return forwarder;
 };
 
-const makeSession = (forward: PlatformMcpForwarder['forward'], logger?: ServerLogger) =>
+const makeSession = (
+  forward: PlatformMcpForwarder['forward'],
+  logger?: ServerLogger,
+  inert = false,
+) =>
   new PlatformMcpProxySession(
     {
       runId: 'run-1',
       turnId: 'turn-1',
-      context: { projectId: 'project-1' },
+      context: { projectId: 'project-1', ...(inert ? { inert: true } : {}) },
       catalog: new ActivePlatformToolCatalog({
         useCase: 'general',
         additionalTools: ['create_design_doc'],
@@ -62,6 +66,74 @@ const snapshotResult = (members: Array<{ memberId: string; prerequisiteMemberIds
 });
 
 describe('PlatformMcpProxySession', () => {
+  it.each(['create_work_item', 'edit_work_item', 'create_design_doc'])(
+    'overrides supplied output eligibility for inert %s calls',
+    async (name) => {
+      const forward = vi.fn<PlatformMcpForwarder['forward']>().mockResolvedValue({
+        jsonrpc: '2.0',
+        id: 1,
+        result: { content: [] },
+      });
+      const proxy = makeSession(forward, undefined, true);
+      await proxy.handle({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name,
+          arguments: { ragEnabled: true, applicationEligible: true, tasks: [{ taskId: 'target' }] },
+        },
+      });
+      expect(forward).toHaveBeenCalledWith(
+        expect.objectContaining({
+          params: {
+            name,
+            arguments: {
+              ragEnabled: false,
+              applicationEligible: false,
+              tasks: [{ taskId: 'target' }],
+            },
+          },
+        }),
+        expect.anything(),
+      );
+    },
+  );
+
+  it('refuses unknown tools during inert execution before forwarding', async () => {
+    const forward = vi.fn<PlatformMcpForwarder['forward']>();
+    const proxy = makeSession(forward, undefined, true);
+    const result = await proxy.handle({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'unknown_batch_edit', arguments: {} },
+    });
+    expect(result.body).toMatchObject({ result: { isError: true } });
+    expect(forward).not.toHaveBeenCalled();
+  });
+
+  it('refuses an inert direct mutation even when the catalog contains it', async () => {
+    const forward = vi.fn<PlatformMcpForwarder['forward']>();
+    const proxy = makeSession(forward, undefined, true);
+    const result = await proxy.handle({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'create_edge', arguments: {} },
+    });
+    expect(result.body).toHaveProperty('error');
+    expect(forward).not.toHaveBeenCalled();
+  });
+
+  it('refuses changing proposal groups from outside the inert execution', async () => {
+    const forward = vi.fn<PlatformMcpForwarder['forward']>();
+    const proxy = makeSession(forward, undefined, true);
+    const result = await proxy.handle(finalizeRequest(1));
+    expect(result.body).toHaveProperty('error');
+    expect(forward).not.toHaveBeenCalled();
+  });
+
   it('negotiates a supported client protocol version', async () => {
     const proxy = makeSession(vi.fn<PlatformMcpForwarder['forward']>());
 
@@ -227,8 +299,8 @@ describe('PlatformMcpProxySession', () => {
     });
   });
 
-  it('preserves the upstream semantic-guidance description and generated schemas', async () => {
-    const semanticGuidanceTool = {
+  it('preserves the upstream type-guidance description and generated schemas', async () => {
+    const typeGuidanceTool = {
       name: 'get_work_item_type_guidance_batch',
       description: 'Read purpose-specific guidance for 1–10 distinct work-item types.',
       inputSchema: {
@@ -241,10 +313,10 @@ describe('PlatformMcpProxySession', () => {
             maxItems: 10,
             uniqueItems: true,
           },
-          purpose: { enum: ['semantic', 'maintenance'] },
-          focalTypeKey: { type: 'string' },
+          purpose: { enum: ['maintenance', 'role'] },
+          sessionRole: { enum: ['implementation', 'research', 'planning', 'review'] },
         },
-        required: ['typeKeys'],
+        required: ['typeKeys', 'purpose'],
       },
       outputSchema: {
         type: 'object',
@@ -255,7 +327,7 @@ describe('PlatformMcpProxySession', () => {
     const forward = vi.fn<PlatformMcpForwarder['forward']>().mockResolvedValue({
       jsonrpc: '2.0',
       id: 2,
-      result: { tools: [semanticGuidanceTool] },
+      result: { tools: [typeGuidanceTool] },
     });
     const proxy = makeSession(forward);
     await proxy.handle({
@@ -267,7 +339,7 @@ describe('PlatformMcpProxySession', () => {
 
     const result = await proxy.handle({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
 
-    expect(result.body).toMatchObject({ result: { tools: [semanticGuidanceTool] } });
+    expect(result.body).toMatchObject({ result: { tools: [typeGuidanceTool] } });
   });
 
   it('omits malformed active tools from tools/list and logs their count', async () => {
@@ -439,7 +511,7 @@ describe('PlatformMcpProxySession', () => {
   });
 
   it.each([
-    { typeKeys: ['STANDARD'], purpose: 'semantic', focalTypeKey: 'FEATURE' },
+    { typeKeys: ['STANDARD'], purpose: 'role', sessionRole: 'implementation' },
     { typeKeys: ['STANDARD', 'BUG'], purpose: 'maintenance' },
   ])(
     'forwards batch guidance arguments unchanged and preserves ordered results: %j',
@@ -450,11 +522,7 @@ describe('PlatformMcpProxySession', () => {
         result: {
           content: [{ type: 'text', text: 'contextual guidance' }],
           structuredContent: {
-            results: arguments_.typeKeys.map((typeKey) =>
-              arguments_.purpose === 'maintenance'
-                ? { typeKey, name: typeKey }
-                : { typeKey, name: typeKey, overview: 'Implementation work', examples: [] },
-            ),
+            results: arguments_.typeKeys.map((typeKey) => ({ typeKey, name: typeKey })),
           },
         },
       };

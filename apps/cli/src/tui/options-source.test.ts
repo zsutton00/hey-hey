@@ -3,7 +3,7 @@ import type { MachineOptions } from '../options/machine-options-store';
 import { OptionsSource, type OptionsStore } from './options-source';
 
 const fakeStore = (intentFirst = false, remoteToolCallViewing = true) => {
-  let saved: MachineOptions = { intentFirst, remoteToolCallViewing, jevParentFeatureFilter: true };
+  let saved: MachineOptions = { intentFirst, remoteToolCallViewing, jevEnabled: true };
   const store = {
     read: vi.fn<OptionsStore['read']>(() => Promise.resolve(saved)),
     update: vi.fn<OptionsStore['update']>((patch) => {
@@ -22,14 +22,14 @@ describe('OptionsSource', () => {
     expect(source.observe(observer).snapshot).toEqual({
       intentFirst: null,
       remoteToolCallViewing: null,
-      jevParentFeatureFilter: null,
+      jevEnabled: null,
       jevKeyDefined: true,
     });
     await vi.waitFor(() =>
       expect(observer).toHaveBeenLastCalledWith({
         intentFirst: true,
         remoteToolCallViewing: true,
-        jevParentFeatureFilter: true,
+        jevEnabled: true,
         jevKeyDefined: true,
       }),
     );
@@ -44,7 +44,7 @@ describe('OptionsSource', () => {
       expect(observer).toHaveBeenLastCalledWith({
         intentFirst: false,
         remoteToolCallViewing: true,
-        jevParentFeatureFilter: true,
+        jevEnabled: true,
         jevKeyDefined: true,
       }),
     );
@@ -55,7 +55,7 @@ describe('OptionsSource', () => {
     expect(observer).toHaveBeenLastCalledWith({
       intentFirst: true,
       remoteToolCallViewing: true,
-      jevParentFeatureFilter: true,
+      jevEnabled: true,
       jevKeyDefined: true,
     });
   });
@@ -69,14 +69,14 @@ describe('OptionsSource', () => {
     source.observe(observer);
 
     await source.setIntentFirst(true);
-    finishRead({ intentFirst: false, remoteToolCallViewing: true, jevParentFeatureFilter: true });
+    finishRead({ intentFirst: false, remoteToolCallViewing: true, jevEnabled: true });
     await Promise.resolve();
 
     expect(observer).toHaveBeenCalledTimes(1);
     expect(observer).toHaveBeenLastCalledWith({
       intentFirst: true,
       remoteToolCallViewing: true,
-      jevParentFeatureFilter: true,
+      jevEnabled: true,
       jevKeyDefined: true,
     });
   });
@@ -124,7 +124,7 @@ describe('OptionsSource', () => {
     expect(source.observe(vi.fn()).snapshot).toEqual({
       intentFirst: false,
       remoteToolCallViewing: true,
-      jevParentFeatureFilter: true,
+      jevEnabled: true,
       jevKeyDefined: true,
     });
   });
@@ -142,7 +142,7 @@ describe('OptionsSource', () => {
     expect(observer).toHaveBeenLastCalledWith({
       intentFirst: true,
       remoteToolCallViewing: false,
-      jevParentFeatureFilter: true,
+      jevEnabled: true,
       jevKeyDefined: true,
     });
   });
@@ -156,27 +156,27 @@ describe('OptionsSource', () => {
       expect(observer).toHaveBeenLastCalledWith({
         intentFirst: true,
         remoteToolCallViewing: true,
-        jevParentFeatureFilter: true,
+        jevEnabled: true,
         jevKeyDefined: false,
       }),
     );
     expect(store.update).not.toHaveBeenCalled();
   });
 
-  it('saves the Jev-filtered parent feature load without touching the other options', async () => {
+  it('saves the Jev without touching the other options', async () => {
     const store = fakeStore(true, true);
     const source = new OptionsSource(store, true, vi.fn());
     const observer = vi.fn();
     source.observe(observer);
     await vi.waitFor(() => expect(observer).toHaveBeenCalled());
 
-    await source.setJevParentFeatureFilter(false);
+    await source.setJevEnabled(false);
 
-    expect(store.update).toHaveBeenCalledWith({ jevParentFeatureFilter: false });
+    expect(store.update).toHaveBeenCalledWith({ jevEnabled: false });
     expect(observer).toHaveBeenLastCalledWith({
       intentFirst: true,
       remoteToolCallViewing: true,
-      jevParentFeatureFilter: false,
+      jevEnabled: false,
       jevKeyDefined: true,
     });
   });

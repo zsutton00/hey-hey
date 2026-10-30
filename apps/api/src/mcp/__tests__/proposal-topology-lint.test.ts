@@ -13,13 +13,14 @@ const node = (
   id: string,
   type: string,
   parent?: string,
+  sections: ProjectedWorkItem['sections'] = [],
 ): ProjectedWorkItem => ({
   identity: existing(id),
   label: id,
   name: id,
   type,
   ...(parent ? { parent: existing(parent) } : {}),
-  sections: [],
+  sections,
   deleted: false,
 });
 const relationship = (
@@ -162,6 +163,27 @@ describe('projected proposal topology lint', () => {
       relationship('r3', stepId, contractId, 'DEPENDS_ON'),
     ];
     expect(lint(complete)).toEqual([]);
+  });
+
+  it('does not require FULFILLED_BY from a UX flow screen element', () => {
+    const uxFlowDiagramId = '00000000-0000-4000-8000-000000000007';
+    const screenId = '00000000-0000-4000-8000-000000000008';
+    const findings = lintProjectedTopology({
+      nodes: [
+        node(uxFlowDiagramId, 'DIAGRAM', undefined, [
+          {
+            key: 'diagramMetadata',
+            content: { kind: 'UX_FLOW', level: 'OVERVIEW' },
+          },
+        ]),
+        node(screenId, 'workflow_step', uxFlowDiagramId),
+      ],
+      relationships: [],
+      semantics,
+      featureContractCitations: new Map(),
+      participatingFeatureByWorkflowNode: new Map(),
+    });
+    expect(findings).toEqual([]);
   });
 
   it('distinguishes container-only and wrong Contract relationships', () => {

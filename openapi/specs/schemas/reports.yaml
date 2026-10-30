@@ -2108,6 +2108,9 @@ CreateReportDtoBase:
   required:
     - audience
   properties:
+    ragEnabled:
+      type: boolean
+      description: Whether this report may be reused as project knowledge. Omitted means true on creation.
     projectId:
       type: string
       format: uuid
@@ -2172,7 +2175,34 @@ CreateReportDtoOther:
       properties:
         reportType:
           type: string
-          enum: [PROJECT_REPORT, CODING_RESEARCH, EVIDENCE_PIPELINE, SNAPSHOT, ROLLUP_PROPOSAL, DAILY_SESSION, GOAL_PROGRESS, RISK_ALERT, SESSION_SUMMARY, COMMIT, PLAN, IMPLEMENT, REVIEW, CHANGE_WALKTHROUGH, FEATURE_SYNC, FEATURE_SYNC_HANDOFF, DECISION_NEEDED, PHASE_GROUNDING, VALIDATION_WALKTHROUGH, FEATURE_TREE_ANALYSIS, COMPETITIVE_ANALYSIS, SESSION_MONITOR_DEFERRAL, EVAL_RUN, EVAL_ATTEMPT, EVAL_HUMAN_REVIEW]
+          enum:
+            [
+              PROJECT_REPORT,
+              CODING_RESEARCH,
+              EVIDENCE_PIPELINE,
+              SNAPSHOT,
+              ROLLUP_PROPOSAL,
+              DAILY_SESSION,
+              GOAL_PROGRESS,
+              RISK_ALERT,
+              SESSION_SUMMARY,
+              COMMIT,
+              PLAN,
+              IMPLEMENT,
+              REVIEW,
+              CHANGE_WALKTHROUGH,
+              FEATURE_SYNC,
+              FEATURE_SYNC_HANDOFF,
+              DECISION_NEEDED,
+              PHASE_GROUNDING,
+              VALIDATION_WALKTHROUGH,
+              FEATURE_TREE_ANALYSIS,
+              COMPETITIVE_ANALYSIS,
+              SESSION_MONITOR_DEFERRAL,
+              EVAL_RUN,
+              EVAL_ATTEMPT,
+              EVAL_HUMAN_REVIEW,
+            ]
         payload:
           $ref: "#/OtherReportPayload"
         schemaVersion:
@@ -2219,6 +2249,9 @@ UpdateReportDto:
 UpdateReportDtoBase:
   type: object
   properties:
+    ragEnabled:
+      type: boolean
+      description: Whether this report may be reused as project knowledge. Omitted means true on creation.
     audience:
       $ref: "#/ReportAudience"
     expiresAt:
@@ -2352,7 +2385,7 @@ ReportDto:
       type: boolean
       description: >
         Whether this report may be ingested into graph and embeddings. Absent
-        means true. Derived by the API, never set by clients. A reusable
+        means true. Supplied by the writer and persisted by the API. A reusable
         exclusion control, not an approval flag.
     createdAt:
       type: string
@@ -2430,7 +2463,7 @@ ReportDtoBase:
       type: boolean
       description: >
         Whether this report may be ingested into graph and embeddings. Absent
-        means true. Derived by the API, never set by clients. A reusable
+        means true. Supplied by the writer and persisted by the API. A reusable
         exclusion control, not an approval flag.
     createdAt:
       type: string
@@ -2466,7 +2499,34 @@ ReportDtoOther:
       properties:
         reportType:
           type: string
-          enum: [PROJECT_REPORT, CODING_RESEARCH, EVIDENCE_PIPELINE, SNAPSHOT, ROLLUP_PROPOSAL, DAILY_SESSION, GOAL_PROGRESS, RISK_ALERT, SESSION_SUMMARY, COMMIT, PLAN, IMPLEMENT, REVIEW, CHANGE_WALKTHROUGH, FEATURE_SYNC, FEATURE_SYNC_HANDOFF, DECISION_NEEDED, PHASE_GROUNDING, VALIDATION_WALKTHROUGH, FEATURE_TREE_ANALYSIS, COMPETITIVE_ANALYSIS, SESSION_MONITOR_DEFERRAL, EVAL_RUN, EVAL_ATTEMPT, EVAL_HUMAN_REVIEW]
+          enum:
+            [
+              PROJECT_REPORT,
+              CODING_RESEARCH,
+              EVIDENCE_PIPELINE,
+              SNAPSHOT,
+              ROLLUP_PROPOSAL,
+              DAILY_SESSION,
+              GOAL_PROGRESS,
+              RISK_ALERT,
+              SESSION_SUMMARY,
+              COMMIT,
+              PLAN,
+              IMPLEMENT,
+              REVIEW,
+              CHANGE_WALKTHROUGH,
+              FEATURE_SYNC,
+              FEATURE_SYNC_HANDOFF,
+              DECISION_NEEDED,
+              PHASE_GROUNDING,
+              VALIDATION_WALKTHROUGH,
+              FEATURE_TREE_ANALYSIS,
+              COMPETITIVE_ANALYSIS,
+              SESSION_MONITOR_DEFERRAL,
+              EVAL_RUN,
+              EVAL_ATTEMPT,
+              EVAL_HUMAN_REVIEW,
+            ]
         payload:
           $ref: "#/OtherReportPayload"
         schemaVersion:
@@ -2581,7 +2641,7 @@ CreateReportCompletedAttempt:
 
 CreateReportCompletedAttemptError:
   allOf:
-    - $ref: './common.yaml#/ApiErrorResponse'
+    - $ref: "./common.yaml#/ApiErrorResponse"
     - type: object
       required: [code, data]
       properties:
@@ -2589,7 +2649,7 @@ CreateReportCompletedAttemptError:
           type: string
           enum: [PROJECT_REPORT_ATTEMPT_COMPLETED]
         data:
-          $ref: '#/CreateReportCompletedAttempt'
+          $ref: "#/CreateReportCompletedAttempt"
 
 ChangeWalkthroughWorkspaceSource:
   type: object
@@ -2609,12 +2669,12 @@ ChangeWalkthroughGitSource:
       enum: [GIT]
     revision:
       type: string
-      pattern: '^[0-9a-f]{40}([0-9a-f]{24})?$'
+      pattern: "^[0-9a-f]{40}([0-9a-f]{24})?$"
       description: Immutable full Git commit object ID.
 ChangeWalkthroughSourceVersion:
   oneOf:
-    - $ref: '#/ChangeWalkthroughWorkspaceSource'
-    - $ref: '#/ChangeWalkthroughGitSource'
+    - $ref: "#/ChangeWalkthroughWorkspaceSource"
+    - $ref: "#/ChangeWalkthroughGitSource"
 ChangeWalkthroughVerifiedSource:
   type: object
   additionalProperties: false
@@ -2640,11 +2700,21 @@ ChangeWalkthroughUnresolvedSource:
 ChangeWalkthroughSourceVerification:
   description: Host-computed evidence at submission time. Revalidate before opening current source.
   oneOf:
-    - $ref: '#/ChangeWalkthroughVerifiedSource'
-    - $ref: '#/ChangeWalkthroughUnresolvedSource'
+    - $ref: "#/ChangeWalkthroughVerifiedSource"
+    - $ref: "#/ChangeWalkthroughUnresolvedSource"
 ChangeWalkthroughExcerpt:
   type: object
-  required: [serviceId, file, startLine, endLine, language, code, sourceVersion, verification]
+  required:
+    [
+      serviceId,
+      file,
+      startLine,
+      endLine,
+      language,
+      code,
+      sourceVersion,
+      verification,
+    ]
   properties:
     serviceId:
       type: string
@@ -2666,15 +2736,15 @@ ChangeWalkthroughExcerpt:
       type: string
       description: Exact literal lines joined with newline, excluding the final line separator.
     sourceVersion:
-      $ref: '#/ChangeWalkthroughSourceVersion'
+      $ref: "#/ChangeWalkthroughSourceVersion"
     verification:
-      $ref: '#/ChangeWalkthroughSourceVerification'
+      $ref: "#/ChangeWalkthroughSourceVerification"
 ChangeWalkthroughStep:
   type: object
   required: [excerpt, explanation]
   properties:
     excerpt:
-      $ref: '#/ChangeWalkthroughExcerpt'
+      $ref: "#/ChangeWalkthroughExcerpt"
     explanation:
       type: string
 ChangeWalkthroughChange:
@@ -2688,7 +2758,7 @@ ChangeWalkthroughChange:
     walkthrough:
       type: array
       items:
-        $ref: '#/ChangeWalkthroughStep'
+        $ref: "#/ChangeWalkthroughStep"
     behavioralConsequence:
       type: string
 ChangeWalkthroughGroup:
@@ -2700,11 +2770,11 @@ ChangeWalkthroughGroup:
     changes:
       type: array
       items:
-        $ref: '#/ChangeWalkthroughChange'
+        $ref: "#/ChangeWalkthroughChange"
 ChangeWalkthroughReportPayload:
   description: Guided behavioral changes in importance order with inspected literal excerpts and immediate explanations. Required Review output, not a repair-authority gate.
   allOf:
-    - $ref: '#/BaseReportPayload'
+    - $ref: "#/BaseReportPayload"
   type: object
   required: [reportType, summary, targetRunId, groups]
   properties:
@@ -2720,4 +2790,4 @@ ChangeWalkthroughReportPayload:
     groups:
       type: array
       items:
-        $ref: '#/ChangeWalkthroughGroup'
+        $ref: "#/ChangeWalkthroughGroup"

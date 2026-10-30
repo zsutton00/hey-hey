@@ -42,6 +42,7 @@ import { OrganizationHomeEvidence } from "../OrganizationHome";
 import { ProposalStatusPresentation } from "../ProposalStatusPresentation";
 
 import { ProjectReportsOverview } from "./ProjectReportsOverview";
+import { ProjectReadyFutures } from "./ProjectReadyFutures";
 import { ProjectIdentity } from "./ProjectIdentity";
 
 export interface ProjectOverviewProps {
@@ -190,7 +191,7 @@ export const ProjectInfoActivity: React.FC<{
   const navigate = useNavigate();
   const pathService = usePathService();
   const [activeTab, setActiveTab] = React.useState<"created" | "updated">(
-    "created"
+    "created",
   );
   const {
     identity,
@@ -205,7 +206,7 @@ export const ProjectInfoActivity: React.FC<{
     projectId,
     activeTab,
     windowStart,
-    windowEnd
+    windowEnd,
   );
   const openProposal = React.useCallback(
     (proposal: ProposalResponseDto) => {
@@ -220,7 +221,7 @@ export const ProjectInfoActivity: React.FC<{
           });
       navigate(path);
     },
-    [navigate, pathService, projectId]
+    [navigate, pathService, projectId],
   );
 
   return (
@@ -308,8 +309,8 @@ export const ProjectInfoActivityView = ({
               {snapshot && pending
                 ? "Refreshing Project Activity"
                 : snapshot && activityError
-                ? "Couldn't refresh Project Activity. Showing the last successful results. Retry is available."
-                : ""}
+                  ? "Couldn't refresh Project Activity. Showing the last successful results. Retry is available."
+                  : ""}
             </Box>
             {snapshot && pending && (
               <CircularProgress
@@ -457,7 +458,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
   }, [projectQuery]);
   const activateMetric = React.useCallback(
     (path: string) => navigate(path),
-    [navigate]
+    [navigate],
   );
 
   if (projectQuery.isLoading || !projectQuery.isFetched) {
@@ -480,25 +481,66 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
             organizationId={organizationId}
             project={projectQuery.data}
           />
-          <ProjectReportsOverview key={projectQuery.data.id} organizationId={organizationId} projectId={projectQuery.data.id} />
-          <ProjectInfoActivity
+          <ProjectReportsOverview
+            key={projectQuery.data.id}
             organizationId={organizationId}
             projectId={projectQuery.data.id}
-            windowStart={metricsQuery.data?.windowStart}
-            windowEnd={metricsQuery.data?.windowEnd}
           />
-          <OrganizationHomeEvidence
-            {...metricsQuery}
-            organizationId={organizationId}
-            onMetricActivate={activateMetric}
-            viewScope="project"
-            title="Task Activity"
-            scopeLabel={projectQuery.data.name}
-            description="Rolling activity counts for this project only."
-            summaryAriaLabel={`${projectQuery.data.name} task activity summary`}
-            infoDescription="Implementation work and its progress"
-            includeProjectInfo={false}
-          />
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 2fr) minmax(300px, 1fr)",
+              gap: "24px",
+              alignItems: "start",
+              "@media (max-width:899.95px)": {
+                gridTemplateColumns: "minmax(0, 1fr)",
+              },
+            }}
+          >
+            <Box
+              sx={{
+                minWidth: 0,
+                gridColumn: 1,
+                gridRow: 1,
+                "@media (max-width:899.95px)": { gridRow: 2 },
+              }}
+            >
+              <Stack spacing={3}>
+                <ProjectInfoActivity
+                  organizationId={organizationId}
+                  projectId={projectQuery.data.id}
+                  windowStart={metricsQuery.data?.windowStart}
+                  windowEnd={metricsQuery.data?.windowEnd}
+                />
+                <OrganizationHomeEvidence
+                  {...metricsQuery}
+                  organizationId={organizationId}
+                  onMetricActivate={activateMetric}
+                  viewScope="project"
+                  title="Task Activity"
+                  scopeLabel={projectQuery.data.name}
+                  description="Rolling activity counts for this project only."
+                  summaryAriaLabel={`${projectQuery.data.name} task activity summary`}
+                  infoDescription="Implementation work and its progress"
+                  includeProjectInfo={false}
+                />
+              </Stack>
+            </Box>
+            <Box
+              sx={{
+                minWidth: 0,
+                gridColumn: 2,
+                gridRow: 1,
+                "@media (max-width:899.95px)": { gridColumn: 1 },
+              }}
+            >
+              <ProjectReadyFutures
+                key={projectQuery.data.id}
+                organizationId={organizationId}
+                projectId={projectQuery.data.id}
+              />
+            </Box>
+          </Box>
         </Stack>
       </Container>
     </Box>

@@ -1,3 +1,4 @@
+import { createTestMessagePoster } from '../../run/run.test-support';
 /** @vitest-environment node */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -170,6 +171,7 @@ describe('Open Items triage launched without a Service', () => {
       logger,
       () => true,
       runStore,
+      createTestMessagePoster(),
     );
     service.bindInputAdmission(lifecycle);
     await lifecycle.start();

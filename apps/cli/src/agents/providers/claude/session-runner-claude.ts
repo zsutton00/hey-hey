@@ -1,3 +1,5 @@
+import { filterInertBuiltinTools } from '../../../run/inert-execution-policy';
+import { toolResultLogLevel } from './tool-result-log-level';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { buildBrowserToolsMcpConfig, BROWSER_ALLOWED_TOOLS } from '../../browser-tools/mcp-config';
 import { researchHandler } from '../../research/research.handler';
@@ -9,6 +11,7 @@ import {
   type ClaudeUserMcpConfig,
 } from './user-mcp-config';
 import { ClaudeExecutionCaptureHooks } from './execution-capture-hooks';
+import { summarizeClaudeInitToolExposure } from './init-tool-exposure';
 import type { ExecutionRecorder } from '../execution-recorder/execution-recorder';
 import {
   ClaudeCodeSdkClient,
@@ -194,56 +197,6 @@ const readFirstStringValue = (
 const toEventRecord = (value: unknown): Record<string, unknown> =>
   isRecord(value) ? value : { value: String(value) };
 
-/**
- * Diagnostic for the "platform MCP tools appear unavailable to the agent"
- * problem. The platform MCP server connects fine, but Claude Code's auto
- * tool-search can DEFER MCP tools behind ToolSearch once the total tool count
- * is high — deferred tools are NOT in the `system/init` `tools` catalog, so the
- * agent reports them as missing. This compares the tools we requested via
- * `--allowedTools` against the init catalog the SDK actually exposed, so the
- * deferred set is visible per-run in the logs.
- */
-const summarizeClaudeInitToolExposure = (
-  initEvent: Record<string, unknown>,
-  requestedAllowedTools: readonly string[] | undefined,
-  userServerNames: readonly string[],
-): Record<string, unknown> => {
-  const exposedTools = Array.isArray(initEvent['tools'])
-    ? (initEvent['tools'] as unknown[]).filter((t): t is string => typeof t === 'string')
-    : [];
-  const exposedSet = new Set(exposedTools);
-  const mcpServers = Array.isArray(initEvent['mcp_servers'])
-    ? (initEvent['mcp_servers'] as unknown[])
-        .map((s) => (isRecord(s) ? { name: s['name'], status: s['status'] } : null))
-        .filter((s): s is { name: unknown; status: unknown } => s !== null)
-    : [];
-  const requested = requestedAllowedTools ?? [];
-  const serverRules = userServerNames.map((name) => `mcp__${name}`);
-  const requestedMcp = requested.filter((t) => t.startsWith('mcp__') && !serverRules.includes(t));
-  const exposedMcp = exposedTools.filter(
-    (t) => requestedMcp.includes(t) || isMintedUserMcpTool(t, userServerNames),
-  );
-  const deferredMcp = requestedMcp.filter((t) => !exposedSet.has(t));
-  return {
-    enableToolSearchEnv: process.env['ENABLE_TOOL_SEARCH'] ?? '<unset>',
-    exposedToolCount: exposedTools.length,
-    requestedMcpToolCount: requestedMcp.length,
-    requestedMcpServerRuleCount: serverRules.length,
-    uncoveredMcpServerRules: userServerNames
-      .filter((name) => !exposedTools.some((tool) => isMintedUserMcpTool(tool, [name])))
-      .map((name) => `mcp__${name}`),
-    exposedMcpToolCount: exposedMcp.length,
-    deferredMcpToolCount: deferredMcp.length,
-    deferredMcpTools: deferredMcp,
-    delegationRequested: requested.includes('Agent'),
-    delegationExposed: exposedSet.has('Agent'),
-    exposedResearchTools: exposedTools.filter((tool) =>
-      ['Read', 'Glob', 'Grep', 'Agent'].includes(tool),
-    ),
-    mcpServers,
-  };
-};
-
 const extractAssistantText = (event: ClaudeCodeSdkEvent): string | null => {
   const message = event['message'] as Record<string, unknown> | undefined;
   if (!message) return null;
@@ -317,7 +270,6 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
     // proposals
     'create_work_item',
     'edit_work_item',
-    'edit_tasks',
     'create_design_doc',
     'edit_design_doc',
     'update_proposal',
@@ -537,10 +489,15 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
   private readonly resolveActiveProviderSessionId = (): string | null =>
     readTrimmed(this.client.getSessionId()) ?? this.activeProviderSessionId;
 
+  private inertExecution = false;
+
   private readonly ensureConnected = async (): Promise<void> => {
     if (this.connected) return;
     requestContext.log(this.logger, 'debug', 'local.runner.claude.connecting');
     this.client.onPermissionRequest(async (toolName, input) => {
+      if (this.inertExecution && !this.activeAllowedToolNames.has(toolName)) {
+        return { behavior: 'deny', message: 'Tool unavailable to inert execution.' };
+      }
       if (this.reportingRepair && !toolName.endsWith('__report_changed_files')) {
         return {
           behavior: 'deny',
@@ -1161,6 +1118,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
     }
 
     await this.runStore.updateRunStatus(session.agentic_session_id, 'running');
+    let pendingUsageWrite = Promise.resolve();
     try {
       await this.ensureConnected();
 
@@ -1414,32 +1372,32 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
             });
           }
 
-          // Tool-result errors are 5-alarm: Claude only surfaces them as
-          // assistant-level prose in the next turn, which is lossy. Log every
-          // tool_result with is_error=true at error level with full correlation
-          // so operators can diagnose rejection causes (auth failures, MCP
-          // errors, permission denials, runtime crashes) without trawling the
-          // raw event dump.
+          // Keep rejection diagnostics and correlation at the appropriate severity.
           for (const result of normalizedProviderEvent.facts?.toolResults ?? []) {
             if (!result.isError) continue;
             const toolUseId = result.toolUseId;
             const origin = toolUseId ? (toolUseRegistry.get(toolUseId) ?? null) : null;
             const contentText = result.content;
-            requestContext.log(this.logger, 'error', 'local.runner.claude.tool_result.error', {
-              runId,
-              agenticSessionId: session.agentic_session_id,
-              providerSessionId: eventSessionId,
-              conversationId: session.conversationId,
-              eventType,
-              toolUseId,
-              toolName: origin?.toolName ?? null,
-              toolInput: origin?.input ?? null,
-              toolCallTimestamp: origin?.timestamp ?? null,
-              correlated: origin !== null,
-              errorText: contentText,
-              contentRaw: null,
-              rawEvent: redactAgentEventForLog(eventRecord, this.redactionConfig),
-            });
+            requestContext.log(
+              this.logger,
+              toolResultLogLevel(origin?.toolName ?? null, toolUseId, contentText, eventRecord),
+              'local.runner.claude.tool_result.error',
+              {
+                runId,
+                agenticSessionId: session.agentic_session_id,
+                providerSessionId: eventSessionId,
+                conversationId: session.conversationId,
+                eventType,
+                toolUseId,
+                toolName: origin?.toolName ?? null,
+                toolInput: origin?.input ?? null,
+                toolCallTimestamp: origin?.timestamp ?? null,
+                correlated: origin !== null,
+                errorText: contentText,
+                contentRaw: null,
+                rawEvent: redactAgentEventForLog(eventRecord, this.redactionConfig),
+              },
+            );
           }
 
           const backgroundTasks = normalizedProviderEvent.facts?.backgroundTasks ?? null;
@@ -1524,29 +1482,18 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
             // usage + cost for the whole run. Per-turn `assistant.message.usage`
             // is unreliable as a total (under-reports for long/streamed outputs),
             // so we overwrite the accumulated value with the result totals here.
-            const resultUsage = eventRecord['usage'];
-            if (typeof resultUsage === 'object' && resultUsage !== null) {
-              const u = resultUsage as Record<string, unknown>;
-              const inputTokens = typeof u['input_tokens'] === 'number' ? u['input_tokens'] : 0;
-              const outputTokens = typeof u['output_tokens'] === 'number' ? u['output_tokens'] : 0;
-              const cacheCreationInputTokens =
-                typeof u['cache_creation_input_tokens'] === 'number'
-                  ? u['cache_creation_input_tokens']
-                  : 0;
-              const cacheReadInputTokens =
-                typeof u['cache_read_input_tokens'] === 'number' ? u['cache_read_input_tokens'] : 0;
+            const usage = normalizedProviderEvent.tokenUsage;
+            if (usage) {
+              const { inputTokens, outputTokens, cacheCreationInputTokens, cacheReadInputTokens } =
+                usage;
               const totalCostUsd = eventRecord['total_cost_usd'];
               const numTurns = eventRecord['num_turns'];
               const durationMs = eventRecord['duration_ms'];
 
-              // Fire-and-forget — token tracking is non-fatal.
-              void this.runStore
-                .setRunTokenUsage(session.agentic_session_id, {
-                  inputTokens,
-                  outputTokens,
-                  cacheCreationInputTokens,
-                  cacheReadInputTokens,
-                })
+              // Drain the final usage write before settlement.
+              pendingUsageWrite = pendingUsageWrite
+                .then(() => this.runStore.setRunTokenUsage(session.agentic_session_id, usage))
+                .then(() => undefined)
                 .catch((err: unknown) => {
                   requestContext.log(
                     this.logger,
@@ -1677,14 +1624,17 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
                     );
                   }
 
-                  // Fire-and-forget — token tracking is non-fatal.
-                  void this.runStore
-                    .updateRunTokenUsage(session.agentic_session_id, {
-                      inputTokens,
-                      outputTokens,
-                      cacheCreationInputTokens,
-                      cacheReadInputTokens,
-                    })
+                  // Running budget observations are ordered before the authoritative result.
+                  pendingUsageWrite = pendingUsageWrite
+                    .then(() =>
+                      this.runStore.updateRunTokenUsage(session.agentic_session_id, {
+                        inputTokens,
+                        outputTokens,
+                        cacheCreationInputTokens,
+                        cacheReadInputTokens,
+                      }),
+                    )
+                    .then(() => undefined)
                     .catch((err: unknown) => {
                       requestContext.log(
                         this.logger,
@@ -1743,6 +1693,10 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
         signal?.addEventListener('abort', () => reject(new Error('Aborted')), { once: true });
       });
 
+      this.inertExecution = session.inert === true;
+      if (session.inert && (!platformMcpProxyMount || !this.localAgentEndpoint.get())) {
+        throw new Error('Inert execution requires the scoped platform MCP proxy.');
+      }
       let mcpServers: Record<string, unknown> | undefined;
       let allowedTools: string[] | undefined;
       const researchBuiltinTools = repositoryResearch
@@ -1797,6 +1751,9 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
             }
           }
         } catch (err: unknown) {
+          if (session.inert) {
+            throw err;
+          }
           requestContext.log(this.logger, 'warn', 'local.runner.claude.mcp_config.failed', {
             runId,
             error: err,
@@ -1811,10 +1768,14 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       }
 
       if (!hasExistingSession) {
-        if (!canResumeFromPersisted) {
+        if (!session.inert && !canResumeFromPersisted) {
           this.mintedUserMcpConfig = await loadClaudeUserMcpConfig(this.logger);
         }
-        if (this.mintedUserMcpConfig && this.mintedUserMcpConfig.serverNames.length > 0) {
+        if (
+          !session.inert &&
+          this.mintedUserMcpConfig &&
+          this.mintedUserMcpConfig.serverNames.length > 0
+        ) {
           mcpServers = { ...this.mintedUserMcpConfig.mcpServers, ...(mcpServers ?? {}) };
           allowedTools = [...(allowedTools ?? []), ...this.mintedUserMcpConfig.allowedTools];
         }
@@ -1866,7 +1827,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       if (!hasExistingSession) {
         this.lastBrowserMcpToken = browserMcpMount?.token ?? null;
         const browserBaseUrl = this.localAgentEndpoint.get();
-        if (browserMcpMount && browserBaseUrl) {
+        if (!session.inert && browserMcpMount && browserBaseUrl) {
           const browserConfig = buildBrowserToolsMcpConfig(browserMcpMount, browserBaseUrl);
           mcpServers = {
             ...(mcpServers ?? {}),
@@ -1932,6 +1893,16 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
         });
       }
 
+      const inertBuiltins = filterInertBuiltinTools(
+        researchBuiltinTools ?? builtinTools ?? CLAUDE_READ_ONLY_BUILTIN_TOOLS,
+      );
+      if (session.inert) {
+        allowedTools = (allowedTools ?? []).filter(
+          (name) => name.startsWith('mcp__') || inertBuiltins.includes(name),
+        );
+        allowedTools = Array.from(new Set([...allowedTools, ...inertBuiltins]));
+      }
+
       // Capture the turn's fully-resolved allow-list for the permission handler.
       // Only refreshed on a mint (the `!hasExistingSession` blocks above build
       // `allowedTools`); a same-session resume keeps its minted allow-list, so
@@ -1966,6 +1937,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       // resume turns inherit the session's original appended prompt.
       const platformSystemPrompt = sessionStartContext
         ? buildPlatformSystemPrompt(sessionStartContext.workItemTypeDefinitions, undefined, {
+            provider: 'claude',
             intentFirst: sessionStartContext.intentFirst,
             maturity: sessionStartContext.maturity,
             hints: resolveHintPromptAccess(sessionStartContext.hintsEnabled, [
@@ -2028,13 +2000,15 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
               : {}),
             ...(mcpServers ? { mcpServers } : {}),
             ...(allowedTools ? { allowedTools } : {}),
-            ...(researchBuiltinTools !== undefined
-              ? { builtinTools: Array.from(researchBuiltinTools) }
-              : builtinTools !== undefined
-                ? { builtinTools: Array.from(builtinTools) }
-                : readOnlyFilesystem
-                  ? { builtinTools: Array.from(CLAUDE_READ_ONLY_BUILTIN_TOOLS) }
-                  : {}),
+            ...(session.inert
+              ? { builtinTools: inertBuiltins }
+              : researchBuiltinTools !== undefined
+                ? { builtinTools: Array.from(researchBuiltinTools) }
+                : builtinTools !== undefined
+                  ? { builtinTools: Array.from(builtinTools) }
+                  : readOnlyFilesystem
+                    ? { builtinTools: Array.from(CLAUDE_READ_ONLY_BUILTIN_TOOLS) }
+                    : {}),
             ...((model ?? session.model) ? { model: (model ?? session.model) as string } : {}),
             ...((reasoningEffort ?? session.reasoningEffort)
               ? {
@@ -2128,6 +2102,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
             runId,
           }),
         (err: unknown) =>
+          !signal?.aborted &&
           requestContext.log(this.logger, 'warn', 'local.runner.claude.session_promise.rejected', {
             runId,
             error: err,
@@ -2139,6 +2114,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
             runId,
           }),
         (err: unknown) =>
+          !signal?.aborted &&
           requestContext.log(this.logger, 'warn', 'local.runner.claude.events_done.rejected', {
             runId,
             error: err,
@@ -2150,6 +2126,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       const [turnResult] = await Promise.all([sessionPromise, eventsDone]);
       await awaitPendingPersists();
       this.client.onEvent(null);
+      await pendingUsageWrite;
       // End with a newline so the next terminal output starts on a fresh line
       process.stdout.write('\n');
 
@@ -2264,6 +2241,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       };
     } catch (error) {
       this.client.onEvent(null);
+      await pendingUsageWrite;
       const isExpectedServiceScopeTurnAbort =
         signal !== undefined &&
         isClaudeAbortError(error) &&
@@ -2333,12 +2311,14 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
         },
       });
       await this.runStore.updateRunStatus(session.agentic_session_id, 'idle');
-      requestContext.log(this.logger, 'error', 'local.runner.claude.run_prompt.failed', {
-        runId,
-        sessionId: session.agentic_session_id,
-        durationMs: Date.now() - startedAt,
-        error: mapped,
-      });
+      if (!signal?.aborted) {
+        requestContext.log(this.logger, 'error', 'local.runner.claude.run_prompt.failed', {
+          runId,
+          sessionId: session.agentic_session_id,
+          durationMs: Date.now() - startedAt,
+          error: mapped,
+        });
+      }
       throw mapped;
     } finally {
       await this.executionCapture?.session.end();
@@ -2772,6 +2752,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
           sessionStartContext.workItemTypeDefinitions,
           undefined,
           {
+            provider: 'claude',
             intentFirst: sessionStartContext.intentFirst,
             maturity: sessionStartContext.maturity,
             hints: resolveHintPromptAccess(sessionStartContext.hintsEnabled, [

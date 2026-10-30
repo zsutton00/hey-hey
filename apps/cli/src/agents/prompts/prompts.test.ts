@@ -204,6 +204,20 @@ describe('focalContextOrientation', () => {
 });
 
 describe('buildPlatformSystemPrompt', () => {
+  it('tells only Claude sessions that deferred MCP tools load through ToolSearch', () => {
+    const build = (provider: 'claude' | 'codex' | 'opencode') =>
+      buildPlatformSystemPrompt(sampleDefs, undefined, {
+        provider,
+        intentFirst: false,
+        maturity: ProjectMaturity.Established,
+        hints: 'none',
+      });
+
+    expect(build('claude')).toContain('ToolSearch');
+    expect(build('codex')).not.toContain('ToolSearch');
+    expect(build('opencode')).not.toContain('ToolSearch');
+  });
+
   it('adds hint guidance only for sessions with hint tools, after implementation hints', () => {
     const options = (hints: 'write' | 'read' | 'none') =>
       buildPlatformSystemPrompt(sampleDefs, undefined, {
@@ -283,17 +297,31 @@ describe('buildPlatformSystemPrompt', () => {
     });
     const omitted = buildPlatformSystemPrompt(sampleDefs);
 
-    expect(on).toContain(intentFirstGuidance);
-    expect(on.endsWith(intentFirstGuidance)).toBe(true);
-    for (const pair of [
-      'Bad: "Apply the shared knowledge-use obligation through four reusable responsibilities: research discovers and carries evidence; reconciliation resolves inconsistencies through review."\nGood: "When an agent plans, builds or checks work, it follows the reviewed Mockups and requirements that govern it, or stops and says where they conflict."',
-      'Bad: "Should the relaunch path call the existing launcher or reuse the open connection?"\nGood: "When a closed browser is needed again, should it reopen on its own?"',
-      'Bad: "Moved the settings store to atomic temp-file-and-rename writes with a strict schema."\nGood: "Turning Shared Browser off now stays off after you restart the CLI."',
-    ]) {
-      expect(on).toContain(pair);
-    }
-    expect(off).not.toContain('## Intent first');
-    expect(omitted).not.toContain('## Intent first');
+    const expectedGuidance = `**Intent first**
+
+Carry the user’s intent into work and back to them. In replies, questions, reports, work items, and design docs, make clear what they get: the product behavior and any consequential changes to the system’s major parts and responsibilities. Include implementation detail where it helps them understand and approve those choices. Leave routine implementation choices to the implementing agent.
+
+Ground scope in the user’s request, their decisions and corrections, and applicable reviewed requirements. Users miss things: identify implications, consult recorded context, and ask about unresolved outcomes. Infer the work necessary to deliver what they want; present additional outcomes as suggestions before including them. Writing an assumption into a task or design does not make it authorized.
+
+Preserve settled decisions so future agents can continue without the conversation. Keep the writing plain and direct. Cut unnecessary detail, not meaning.
+
+**Creating or editing a work item or design doc**
+Bad: "Apply the shared knowledge-use obligation through four reusable responsibilities: research discovers and carries evidence; reconciliation resolves inconsistencies through review."
+Good: "When an agent plans, builds or checks work, it follows the reviewed Mockups and requirements that govern it, or stops and says where they conflict."
+
+**Asking the user**
+Bad: "Should the relaunch path call the existing launcher or reuse the open connection?"
+Good: "When a closed browser is needed again, should it reopen on its own?"
+
+**Reporting back**
+Bad: "Moved the settings store to atomic temp-file-and-rename writes with a strict schema."
+Good: "Turning Shared Browser off now stays off after you restart the CLI."`;
+
+    expect(intentFirstGuidance).toBe(expectedGuidance);
+    expect(on.split(expectedGuidance)).toHaveLength(2);
+    expect(on.endsWith(expectedGuidance)).toBe(true);
+    expect(off).not.toContain('**Intent first**');
+    expect(omitted).not.toContain('**Intent first**');
     expect(off).toBe(omitted);
     expect(on).toBe(`${omitted}\n\n${intentFirstGuidance}`);
   });
@@ -308,7 +336,7 @@ describe('buildPlatformSystemPrompt', () => {
     } satisfies WorkItemTypeDefinitionDto;
     const prompt = buildPlatformSystemPrompt([...sampleDefs, customType]);
     const paragraph =
-      '**Other work items carry the project too.** Features are the backbone, but every work-item type fills a role in the project topology — a Mockup shows how an interface should look and behave, a Diagram shows how the parts of a system relate, and every other type fills the role its description defines. Its contextual type guidance and maintenance guidance explain how it fits. Applicable items matter at every stage — research, planning, implementation, and verification: read their content, honor what they establish, and surface conflicts instead of routing around them.';
+      '**Other work items carry the project too.** Features are the backbone, but every work-item type fills a role in the project topology — a Mockup shows how an interface should look and behave, a Diagram shows how the parts of a system relate, and every other type fills the role its description defines. Its contextual type guidance and maintenance guidance explain how it fits. Applicable items govern research, planning, implementation and verification. Read their content, follow their requirements, and surface conflicts instead of routing around them. Judge completion against governing Feature requirements and Contracts, using evidence of delivered behavior. Passing checks alone do not establish fulfillment.';
     const definition =
       'The project\'s configurable item types, Features included; "work item" in this prompt means any of them.';
     const blocks = [paragraph, '**Work-item types.**', definition];
@@ -383,14 +411,12 @@ describe('buildPlatformSystemPrompt', () => {
     const prompt = buildPlatformSystemPrompt(sampleDefs);
 
     expect(prompt.match(/\*\*Contextual type guidance is read on demand\.\*\*/gu)).toHaveLength(1);
-    expect(prompt).toContain('when a type is unfamiliar or project-defined');
-    expect(prompt).toContain("when a related item's type may affect the current work");
-    expect(prompt).toContain(
-      'when a consequential interaction between the requested type and the focal type could change your interpretation',
-    );
     expect(prompt).toContain('Use `typeKeys: [key]` for one type');
     expect(prompt).toContain(
-      'include `focalTypeKey` only for semantic reads where contextual interpretation matters',
+      'Use `purpose: "maintenance"` for what to reconsider when work around an item changes.',
+    );
+    expect(prompt).toContain(
+      'Use `purpose: "role"` with an explicit `sessionRole` only for a type whose role advice was not already delivered in this prompt.',
     );
     expect(prompt).toContain('Never speculate across or fan out over the catalog.');
     expect(prompt).toContain('administrative `get_work_item_type` read');
@@ -705,16 +731,70 @@ describe('planVsTasksFork', () => {
     expect(planVsTasksFork).toContain('## Plan vs. tasks');
     expect(planVsTasksFork).toContain('plan via `create_plan`');
     expect(planVsTasksFork).toContain('standalone tasks');
-    expect(planVsTasksFork).toContain('let the user pick before you create anything');
+    expect(planVsTasksFork).toContain('let the user pick before creating anything');
   });
 
-  it('uses a cohesive delivery and durable design doc as the plan-versus-tasks test', () => {
+  it('uses cohesive design and staged review within the plan as the test', () => {
+    expect(planVsTasksFork).toContain('when cohesive design and staged review add value');
+    expect(planVsTasksFork).toContain('offer a plan via `create_plan` or standalone tasks');
+  });
+
+  it('prefers new feature work while preserving existing-system judgment and user choice', () => {
     expect(planVsTasksFork).toContain(
-      'use this test: would those tasks form a cohesive delivery that benefits from a durable design doc?',
+      'Favor this choice for new user-facing capabilities or feature areas built largely from scratch',
     );
     expect(planVsTasksFork).toContain(
-      'If so, do not immediately create the tasks — surface the choice first',
+      'without that lean for existing-system changes, even large ones',
     );
+    expect(planVsTasksFork).toContain('Honor explicit plan requests either way');
+    expect(planVsTasksFork).toContain(
+      'Task count, service count, and cross-service coordination alone do not justify plans',
+    );
+    expect(planVsTasksFork).toContain(
+      'resolved, independently reviewable changes can become tasks',
+    );
+    expect(planVsTasksFork).not.toMatch(
+      /telephone|drift|rewrites|design-doc-first|separate.*design doc/i,
+    );
+  });
+
+  it.each([
+    [
+      'new capability',
+      'Create tasks for a new customer reporting area built from scratch, with shared design decisions and staged delivery.',
+    ],
+    [
+      'existing system',
+      'Create tasks to overhaul the existing notification system while preserving its delivered behavior.',
+    ],
+    [
+      'resolved changes',
+      'Create tasks for an already-decided admin-only UI gate and an independent CLI startup flag.',
+    ],
+    [
+      'cohesive delivery',
+      'Create tasks for live collaboration with unresolved shared design decisions and dependent delivery stages.',
+    ],
+  ])('delivers the choice guidance with a %s request', (_name, userMessage) => {
+    const prompt = buildCodingConversationPrompt(
+      { userMessage },
+      { kind: 'follow_up', awaitingUserReview: false, taskId: null },
+    );
+    // The provider receives the user message separately from the system prompt.
+    expect(prompt).toContain(planVsTasksFork);
+    expect({ systemPrompt: prompt, userMessage }).toMatchSnapshot();
+  });
+
+  it('stays out of representative single-shot prompts', () => {
+    expect(buildCodingPlanPrompt({})).not.toContain(planVsTasksFork);
+    expect(
+      buildFinalAssessmentPrompt({
+        context: makeContext(),
+        startupInput: makeStartupInput(),
+        executionSummary: 'Done.',
+        taskNeighborhood: emptyNeighborhood(),
+      }),
+    ).not.toContain(planVsTasksFork);
   });
 
   it('is not bundled into the platform system prompt', () => {
@@ -757,530 +837,38 @@ describe('consultGraphBeforeAsking', () => {
 });
 
 describe('buildCodingPlanPrompt', () => {
-  it('matches the full evidence-gated primary-implementation contract', () => {
-    const payload: LocalStartupSessionPromptPayload = {
-      startupInput: makeStartupInput(),
-    };
-    const result = buildCodingPlanPrompt(payload);
-
-    expect(result).toMatchSnapshot();
-    expect(result).toContain('primaryImplementations must contain at least one item');
-    expect(result).toContain('complete proposed code, database definition, or prose block');
-    expect(result).toContain('graphEdge.FULFILLED_BY');
-    expect(result).toContain('resolved non-archived Contract');
-    expect(result).toContain('Omit the connections property entirely');
-    expect(result).toContain('Do not emit difficulty');
-    expect(result).toContain('requiredServiceIds');
-    expect(result).toContain('approval-time scope declaration only');
-    expect(result).toContain('it is not a ceiling on what the plan may require');
-    expect(result).toContain(
-      'Do not omit, defer, or split out required work merely because its Service is not currently selected',
-    );
-    expect(result).toContain('call `list_services` to resolve its full project Service ID');
+  it('describes conversational review with explicit approval', () => {
+    expect(buildCodingPlanPrompt({})).toMatchSnapshot();
   });
-
-  it('uses entity-independent conditional orientation for the active task', () => {
-    const payload: LocalStartupSessionPromptPayload = {
-      startupInput: makeStartupInput(),
-    };
-    const result = buildCodingPlanPrompt(payload, [], { focalEntityId: 'task-1' });
-    expect(result).toContain('get_context');
-    expect(result).not.toContain('entityId: "task-1"');
-    expect(result).toContain('Do not reload that same focal entity by default');
-    expect(result).toContain('proposal or topology details are absent or insufficient');
-    expect(result).toContain('active task');
-  });
-
-  it('leaves focal task metadata to the canonical provider projection', () => {
-    const payload: LocalStartupSessionPromptPayload = {
-      startupInput: makeStartupInput(),
-    };
-    const result = buildCodingPlanPrompt(payload);
-    expect(result).not.toContain('"id": "task-1"');
-    expect(result).not.toContain('"title": "Test task"');
-    expect(result).toContain('canonical focal entity projection');
-  });
-
-  it('does not copy task description or acceptance criteria into the workflow prompt', () => {
-    const payload: LocalStartupSessionPromptPayload = {
-      startupInput: makeStartupInput(),
-    };
-    const result = buildCodingPlanPrompt(payload);
-    expect(result).not.toContain('Implement feature X');
-    expect(result).not.toContain('Feature X works');
-  });
-
-  it('instructs the agent to enumerate proposal influences and edges', () => {
-    const payload: LocalStartupSessionPromptPayload = {
-      startupInput: makeStartupInput(),
-    };
-    const result = buildCodingPlanPrompt(payload);
-    expect(result).toContain('Proposal influences and edges');
-    expect(result).toContain('most recent APPROVED proposal');
-    expect(result).toContain('DRAFT');
-    expect(result).toContain('influences[]');
-    expect(result).toContain('DEPENDS_ON');
-    expect(result).toContain('DERIVES_FROM');
-    expect(result).toContain('SUPERSEDES');
-    expect(result).toContain('CONTRADICTS');
-    expect(result).toContain('RELATED_TO');
-    expect(result).toContain('HAS_AGENT_SESSION');
-  });
-
-  describe('future-revision approval rule', () => {
-    const result = buildCodingPlanPrompt({ startupInput: makeStartupInput() });
-
-    it('asks before planning a pending future, including multi-approval requirements', () => {
-      expect(result).toContain('futureProposalDependencies');
-      expect(result).toContain('If its `status` is `unavailable`');
-      expect(result).toContain('approval state could not be read');
-      expect(result).toContain('If its `status` is `loaded`, inspect every `proposals` row');
-      expect(result).toContain('For an `unresolved` row, ask for clarification');
-      expect(result).toContain('leave its dependent change out of the plan');
-      expect(result).toContain('For a `future` row not `APPROVED`, ask whether to proceed');
-      expect(result).toContain('include `approvalsRecorded` against numeric `requiredApprovals`');
-      expect(result).toContain('leave only the affected change out of the execution plan');
-      expect(result).toContain(
-        'never by task status, proposal edges, or a dismissed feature-sync finding',
-      );
-      expect(result).toContain('@[proposal:<proposalId>|<proposalTitle or proposalId>]');
-      expect(result).not.toContain('startup projection lacks them');
-      expect(result).not.toContain('missing or empty field proves nothing');
-      expect(result).not.toContain('not set yet');
-    });
-
-    it('targets the approved future even when unapplied', () => {
-      expect(result).toContain('call `get_future_revision` with its `futureId`');
-      expect(result).toContain('whether or not it is applied');
-    });
-
-    it('carries an explicit user override through the clarification answer without counting it as approval', () => {
-      expect(result).toContain("If the user's answer explicitly says to proceed");
-      expect(result).toContain('builds on an unapproved direction');
-      expect(result).toContain('the override is not an approval');
-    });
-  });
-
-  it('describes the two-tier read strategy', () => {
-    const payload: LocalStartupSessionPromptPayload = {
-      startupInput: makeStartupInput(),
-    };
-    const result = buildCodingPlanPrompt(payload);
-    expect(result).toContain('Two-tier read strategy');
-    expect(result).toContain('get_full_entity');
-    expect(result).toContain("the target's title to decide which targets govern the plan");
-    expect(result).toContain('call this for every target that governs the plan');
-    expect(result).toContain(
-      'A reviewed design doc or work item that conflicts with code reality is a discrepancy',
-    );
-  });
-
-  it('requires a clarification question when influence targets imply uncovered behavior', () => {
-    const payload: LocalStartupSessionPromptPayload = {
-      startupInput: makeStartupInput(),
-    };
-    const result = buildCodingPlanPrompt(payload);
-    expect(result).toContain('clarificationQuestion');
-    expect(result).toContain('different flow');
-    expect(result).toContain('out of scope');
-  });
-
-  it('keeps proposal and research provenance out of structured implementation output', () => {
-    const payload: LocalStartupSessionPromptPayload = {
-      startupInput: makeStartupInput(),
-    };
-    const result = buildCodingPlanPrompt(payload, [], {
-      researchMemo:
-        'Research traced the task to an approved proposal and found no applicable edge.',
-    });
-
-    expect(result).toContain('reason internally');
-    expect(result).toContain('Do not emit that inventory or reasoning as companion prose');
-    expect(result).toContain('Project only the resulting concrete implementation consequence');
-    expect(result).toContain('Proposal influences, proposal lineage, proposal edges');
-    expect(result).toContain('Project Assistant research, and graph state are planning inputs');
-    expect(result).toContain('finding that no applicable connection exists');
-    expect(result).toContain('Execution-plan entries contain only concrete implementation');
-  });
-
-  it('includes the 7caa9b4f worked example', () => {
-    const payload: LocalStartupSessionPromptPayload = {
-      startupInput: makeStartupInput(),
-    };
-    const result = buildCodingPlanPrompt(payload);
-    expect(result).toContain('7caa9b4f');
-    expect(result).toContain('InviteToOrganizationDto');
-  });
-
-  it('keeps workflow actions out of the PLAN payload', () => {
-    const payload: LocalStartupSessionPromptPayload = {
-      startupInput: makeStartupInput(),
-    };
-    const result = buildCodingPlanPrompt(payload, [
-      { messageId: 'u1', text: 'please add a step', createdAt: '2026-04-21T10:00:00Z' },
-    ]);
-    expect(result).not.toContain('nextAction');
-    expect(result).not.toContain('startup_plan_v1');
-    expect(result).toContain('reportType');
-    expect(result).toContain('APPROVED');
-    expect(result).toContain('REVISED');
-  });
-
-  it('names the concrete approval phrases the agent must classify as APPROVED when user replies are present', () => {
-    const payload: LocalStartupSessionPromptPayload = {
-      startupInput: makeStartupInput(),
-    };
-    const result = buildCodingPlanPrompt(payload, [
-      { messageId: 'u1', text: 'looks good', createdAt: '2026-04-21T10:00:00Z' },
-    ]);
-    expect(result).toMatch(/looks good/i);
-    expect(result).toMatch(/lgtm/i);
-    expect(result).toMatch(/go ahead|go for it/i);
-    expect(result).toMatch(/approved/i);
-  });
-
-  it('defaults ambiguous replies to REVISED when user replies are present', () => {
-    const payload: LocalStartupSessionPromptPayload = {
-      startupInput: makeStartupInput(),
-    };
-    const result = buildCodingPlanPrompt(payload, [
-      { messageId: 'u1', text: 'ok', createdAt: '2026-04-21T10:00:00Z' },
-    ]);
-    expect(result).toMatch(/ambiguous/i);
-    expect(result).toMatch(/REVISED/);
-  });
-
-  it('forbids a silent unchanged re-emit on REVISED, requiring a material edit or a written no-op explanation', () => {
-    const payload: LocalStartupSessionPromptPayload = {
-      startupInput: makeStartupInput(),
-    };
-    const result = buildCodingPlanPrompt(payload, [
-      { messageId: 'u1', text: 'ok', createdAt: '2026-04-21T10:00:00Z' },
-    ]);
-    // The old escape hatch ("re-emit the plan unchanged") is gone.
-    expect(result).not.toContain('re-emit the plan unchanged');
-    expect(result).toMatch(/may not silently re-emit/i);
-    // The no-op must be explained on the discrepancies channel.
-    expect(result).toContain('discrepancies');
-    expect(result).toMatch(/material edit to the plan[\s\S]*?or a written explanation/i);
-  });
-
-  it('rejects a zero-step executionPlan via the rules', () => {
-    const payload: LocalStartupSessionPromptPayload = {
-      startupInput: makeStartupInput(),
-    };
-    const result = buildCodingPlanPrompt(payload);
-    expect(result).toMatch(/executionPlan must contain at least one step/i);
-    expect(result).toMatch(/empty executionPlan is invalid/i);
-  });
-
-  it('tells the agent to persist the initial report without a completion action', () => {
-    const payload: LocalStartupSessionPromptPayload = {
-      startupInput: makeStartupInput(),
-    };
-    const result = buildCodingPlanPrompt(payload, []);
-    expect(result).toMatch(/no new user reply/i);
-    expect(result).toMatch(/persist[\s\S]{0,100}PLAN report/i);
-    expect(result).toMatch(/do not call[\s\S]{0,80}submit_approved/i);
-  });
-
-  it('defines low severity as an expected design-consistent dependency worth recording', () => {
-    const payload: LocalStartupSessionPromptPayload = {
-      startupInput: makeStartupInput(),
-    };
-    const result = buildCodingPlanPrompt(payload);
-    expect(result).toContain('low');
-    expect(result).toContain('expected, design-consistent dependency worth recording');
-    expect(result).toContain(
-      'routine implementation work performed by this session is not a discrepancy',
-    );
-  });
-
-  it('defines medium severity as a material non-contradictory scope or ownership concern', () => {
-    const payload: LocalStartupSessionPromptPayload = {
-      startupInput: makeStartupInput(),
-    };
-    const result = buildCodingPlanPrompt(payload);
-    expect(result).toContain('medium');
-    expect(result).toContain('material, non-contradictory scope or ownership concern');
-    expect(result).toContain('requires a decision or an additional owner');
-    expect(result).toContain('scope call');
-  });
-
-  it('defines high severity as an authoritative conflict that invalidates the plan premise', () => {
-    const payload: LocalStartupSessionPromptPayload = {
-      startupInput: makeStartupInput(),
-    };
-    const result = buildCodingPlanPrompt(payload);
-    expect(result).toContain('high');
-    expect(result).toContain('authoritative design or Contract is specifically incompatible');
-    expect(result).toContain('plan invalid until that premise is revisited');
-  });
-
-  it('keeps implementation, OpenAPI synchronization, generation, and tests in executionPlan', () => {
-    const payload: LocalStartupSessionPromptPayload = {
-      startupInput: makeStartupInput(),
-    };
-    const result = buildCodingPlanPrompt(payload);
-    expect(result).toMatch(/regenerating/i);
-    expect(result).toContain('codegen');
-    expect(result).toContain('normal codebase operation');
-    expect(result).toContain('updating an OpenAPI description and regenerating generated DTOs');
-    expect(result).toContain('Classify the observed relationship, not the effort');
-    expect(result).toContain('Capture that work in executionPlan, not discrepancies');
-  });
-
-  it('no longer carries the standalone cross-repo "keep severity low" override', () => {
-    const payload: LocalStartupSessionPromptPayload = {
-      startupInput: makeStartupInput(),
-    };
-    const result = buildCodingPlanPrompt(payload);
-    expect(result).not.toContain('keep severity low unless it directly blocks');
-  });
-
-  it('names the approval tool and no planner-emitted refine tool', () => {
-    const payload: LocalStartupSessionPromptPayload = {
-      startupInput: makeStartupInput(),
-    };
-    const result = buildCodingPlanPrompt(payload);
-    expect(result).toContain('submit_approved');
-    expect(result).not.toContain('submit_revised');
-  });
-
-  describe('planned-task missed-step branch', () => {
-    it('appends the planned-task block when launchPlanId, launchStepId, and launchStageId are all present', () => {
-      const payload: LocalStartupSessionPromptPayload = {
-        startupInput: makeStartupInput(),
-        launchPlanId: 'plan-abc',
-        launchStepId: 'step-xyz',
-        launchStageId: 'stage-uvw',
-      };
-      const result = buildCodingPlanPrompt(payload);
-      expect(result).toContain('Planned-task missed-step pass');
-      // The catch-up read uses canonical TASK hierarchy reads: the active task
-      // is oriented first, then its PLAN parent is read in full.
-      expect(result).toMatch(/get_context[\s\S]{0,100}entity id `step-xyz`/);
-      expect(result).toContain('PLAN TASK id `plan-abc`');
-      expect(result).toContain('TASK of type PLAN_STAGE');
-      expect(result).not.toContain('get_plan_stage');
-      // launchPlanId still appears (used for get_full_entity on the
-      // surrounding plan); launchStepId appears as the active-step marker.
-      expect(result).toContain('plan-abc');
-      expect(result).toContain('step-xyz');
-      expect(result).toContain('missedSteps');
-      expect(result).toContain('insert_step');
-      expect(result).toContain('amend_stage');
-      expect(result).toContain('missingPrecondition');
-      expect(result).toContain('referencedArtifact');
-      expect(result).toContain('byte-identical');
-    });
-
-    it('is surface-only: the missed-step pass no longer authors create_step or update_stage proposals', () => {
-      const payload: LocalStartupSessionPromptPayload = {
-        startupInput: makeStartupInput(),
-        launchPlanId: 'plan-abc',
-        launchStepId: 'step-xyz',
-        launchStageId: 'stage-uvw',
-      };
-      const result = buildCodingPlanPrompt(payload);
-      // The planner surfaces gaps; it does not propose. Authoring tools and
-      // the proposal ID coupling within this pass stay in the analyze step.
-      expect(result).not.toContain('create_step');
-      expect(result).not.toContain('update_stage');
-      expect(result).toContain('surface-only');
-      const missedStepPassStart = result.indexOf('## Planned-task missed-step pass');
-      expect(missedStepPassStart).toBeGreaterThanOrEqual(0);
-      expect(result.slice(missedStepPassStart)).not.toContain('proposalId');
-    });
-
-    it('produces output byte-identical to the free path when launchPlanId is absent', () => {
-      const basePayload: LocalStartupSessionPromptPayload = {
-        startupInput: makeStartupInput(),
-      };
-      const partialPayload: LocalStartupSessionPromptPayload = {
-        startupInput: makeStartupInput(),
-        launchStepId: 'step-xyz',
-        launchStageId: 'stage-uvw',
-      };
-      const result = buildCodingPlanPrompt(partialPayload);
-      const baseline = buildCodingPlanPrompt(basePayload);
-      expect(result).toBe(baseline);
-      expect(result).not.toContain('Planned-task missed-step pass');
-    });
-
-    it('produces output byte-identical to the free path when launchStepId is absent', () => {
-      const basePayload: LocalStartupSessionPromptPayload = {
-        startupInput: makeStartupInput(),
-      };
-      const partialPayload: LocalStartupSessionPromptPayload = {
-        startupInput: makeStartupInput(),
-        launchPlanId: 'plan-abc',
-        launchStageId: 'stage-uvw',
-      };
-      const result = buildCodingPlanPrompt(partialPayload);
-      const baseline = buildCodingPlanPrompt(basePayload);
-      expect(result).toBe(baseline);
-      expect(result).not.toContain('Planned-task missed-step pass');
-    });
-
-    it('produces output byte-identical to the free path when launchStageId is absent', () => {
-      const basePayload: LocalStartupSessionPromptPayload = {
-        startupInput: makeStartupInput(),
-      };
-      const partialPayload: LocalStartupSessionPromptPayload = {
-        startupInput: makeStartupInput(),
-        launchPlanId: 'plan-abc',
-        launchStepId: 'step-xyz',
-      };
-      const result = buildCodingPlanPrompt(partialPayload);
-      const baseline = buildCodingPlanPrompt(basePayload);
-      expect(result).toBe(baseline);
-      expect(result).not.toContain('Planned-task missed-step pass');
-    });
-
-    it('rejects an empty-string launchPlanId via the typed gate', () => {
-      const payload = {
-        startupInput: makeStartupInput(),
-        launchPlanId: '',
-        launchStepId: 'step-xyz',
-        launchStageId: 'stage-uvw',
-      } as unknown as LocalStartupSessionPromptPayload;
-      expect(() => buildCodingPlanPrompt(payload)).toThrow(/launchPlanId/);
-    });
-
-    it('rejects an empty-string launchStageId via the typed gate', () => {
-      const payload = {
-        startupInput: makeStartupInput(),
-        launchPlanId: 'plan-abc',
-        launchStepId: 'step-xyz',
-        launchStageId: '',
-      } as unknown as LocalStartupSessionPromptPayload;
-      expect(() => buildCodingPlanPrompt(payload)).toThrow(/launchStageId/);
-    });
-
-    it('renders the explicitly supplied plan design doc as reference-only material outside Inputs', () => {
-      const payload: LocalStartupSessionPromptPayload = {
-        startupInput: makeStartupInput(),
-        launchPlanId: 'plan-abc',
-        launchStepId: 'step-xyz',
-        launchStageId: 'stage-uvw',
-      };
-      const result = buildCodingPlanPrompt(payload, [], {
-        planDesignDocReference: {
-          id: 'design-doc-1',
-          title: 'Plan Context Design',
-          sections: {
-            intent: 'Use plan language consistently.',
-            scope: 'Do not broaden the selected task.',
-          },
+  it('preserves current feedback, research, scope and the complete durable discussion', () => {
+    expect(
+      buildCodingPlanPrompt(
+        {},
+        [{ messageId: 'reply', text: 'Looks good; retain keyboard access.', createdAt: '' }],
+        {
+          focalEntityId: 'task-1',
+          researchMemo: 'Read the governing accessibility requirements.',
+          planningConversation: 'Agreed intent and earlier issue replies.',
+          services: [{ id: 'service-1', path: '/authorized/worktree' }],
+          launchServiceId: 'service-1',
         },
-      });
-      const inputsBlock = result.slice(
-        result.indexOf('Inputs:'),
-        result.indexOf('## Plan JSON shape'),
-      );
-
-      expect(result).toContain('## Plan design document (reference only)');
-      expect(result).toContain('Title: Plan Context Design');
-      expect(result).toContain('Use it only to guide implementation choices');
-      expect(result).toContain('selected task or plan step remains the strict scope');
-      expect(result).toContain('### intent');
-      expect(result).toContain('Use plan language consistently.');
-      expect(inputsBlock).not.toContain('"designDoc"');
-    });
-
-    it('renders an explicitly enriched plan design doc when startupInput has no designDoc', () => {
-      const payload: LocalStartupSessionPromptPayload = {
-        startupInput: makeStartupInput(),
-        launchPlanId: 'plan-abc',
-        launchStepId: 'step-xyz',
-        launchStageId: 'stage-uvw',
-      };
-      const result = buildCodingPlanPrompt(payload, [], {
-        planDesignDocReference: {
-          id: 'design-doc-1',
-          title: 'Fetched Design',
-          sections: {
-            summary: 'Fetched plan design context.',
-          },
-        },
-      });
-
-      expect(result).toContain('## Plan design document (reference only)');
-      expect(result).toContain('Title: Fetched Design');
-      expect(result).toContain('Fetched plan design context.');
-    });
-
-    it('ignores a design document carried inside deprecated startupInput', () => {
-      const withDesignDoc: LocalStartupSessionPromptPayload = {
-        startupInput: {
-          ...makeStartupInput(),
-          designDoc: {
-            id: 'design-doc-1',
-            title: 'Task Design',
-            sections: {
-              context: 'Task-scoped design context.',
-            },
-          },
-        },
-      };
-      const result = buildCodingPlanPrompt(withDesignDoc);
-
-      expect(result).not.toContain('Plan design document (reference only)');
-      expect(result).not.toContain('## Supplemental design doc');
-      expect(result).not.toContain('Task-scoped design context.');
-    });
+      ),
+    ).toMatchSnapshot();
   });
-
-  describe('project_assistant research memo branch', () => {
-    const RESEARCH_MEMO =
-      '## Research frame\n```json\n{"focus":"task-1"}\n```\n\nThe research surfaced feature F and contradiction C.';
-
-    it('renders the memo and defers graph orientation when a research memo is present', () => {
-      const payload: LocalStartupSessionPromptPayload = {
-        startupInput: makeStartupInput(),
-      };
-      const result = buildCodingPlanPrompt(payload, [], { researchMemo: RESEARCH_MEMO });
-      // The memo content is rendered into the prompt — subagent flows don't get
-      // the resolver's `## Context from prior phases` prepend, so the prompt
-      // must carry it itself.
-      expect(result).toContain('Context from prior phases');
-      expect(result).toContain('feature F and contradiction C');
-      // The from-scratch graph sweep sentence is replaced by the defer
-      // instruction; the original sweep wording is gone.
-      expect(result).toMatch(
-        /Use the Project Assistant findings above to know which work items and design docs govern this plan/,
-      );
-      expect(result).not.toContain(
-        'Discover the work items and design docs that govern this task from the codebase',
-      );
-      // The proposal-influences pass stays live, while a same-focal read is
-      // conditional on missing proposal or topology detail.
-      expect(result).toContain('canonical startup projection first');
-      expect(result).toContain('proposal or topology details are absent or insufficient');
-      expect(result).not.toContain(
-        'call get_context to retrieve the latest information about the active task',
-      );
-      expect(result).toContain('Proposal influences and edges');
-    });
-
-    it('produces output byte-identical to today when no research memo is present', () => {
-      const payload: LocalStartupSessionPromptPayload = {
-        startupInput: makeStartupInput(),
-      };
-      const baseline = buildCodingPlanPrompt(payload);
-      const withEmptyOptions = buildCodingPlanPrompt(payload, [], {});
-      const withUndefinedMemo = buildCodingPlanPrompt(payload, [], { researchMemo: undefined });
-      const withBlankMemo = buildCodingPlanPrompt(payload, [], { researchMemo: '   ' });
-      expect(withEmptyOptions).toBe(baseline);
-      expect(withUndefinedMemo).toBe(baseline);
-      expect(withBlankMemo).toBe(baseline);
-      // The original graph-sweep sentence is intact and the memo block is absent.
-      expect(baseline).toContain(
-        'Discover the work items and design docs that govern this task from the codebase',
-      );
-      expect(baseline).not.toContain('Context from prior phases');
-    });
+  it('retains the surrounding plan design document as governing context', () => {
+    expect(
+      buildCodingPlanPrompt(
+        { launchPlanId: 'plan', launchStageId: 'stage', launchStepId: 'step' },
+        [],
+        {
+          planDesignDocReference: {
+            id: 'design',
+            title: 'Accessible discussion',
+            sections: { content: 'All issues can be replied to.' },
+          } as never,
+        },
+      ),
+    ).toMatchSnapshot();
   });
 });
 
@@ -1498,7 +1086,6 @@ describe('buildFinalAssessmentPrompt', () => {
     const result = buildFinalAssessmentPrompt(payload);
     expect(result).toContain('After assessment: update neighborhood tasks');
     expect(result).toContain('edit_work_item');
-    expect(result).toContain('edit_tasks');
     expect(result).toContain('Task neighborhood context');
   });
 
@@ -1743,28 +1330,22 @@ describe('buildFinalAssessmentPrompt', () => {
 describe('buildReviewPrompt', () => {
   const expectContainedReviewScope = (result: string): void => {
     expect(result).toContain(
-      "the target Run's durable canonical touched-file list: evidence of actual correlated changes, not a write boundary",
+      "the target Run's durable canonical touched-file list: evidence of actual correlated changes",
     );
     expect(result).toContain(
-      'Required repairs may modify other files inside approved Service workspace roots',
+      'neither this list nor approved Service workspace roots authorize edits',
     );
+    expect(result).toContain('Follow relevant dependencies beyond the changed lines');
     expect(result).toContain(
-      "The finding was introduced by the originating session's change or directly blocks the correctness of that change",
+      'Severity determines prominence and urgency; it never authorizes edits',
     );
+    expect(result).toContain('They do not permit edits or expand approved Service workspaces');
     expect(result).toContain(
-      'The repair is required by the originating task and latest applicable user intent and is not excluded by any available Plan or Report evidence',
-    );
-    expect(result).toContain('Severity never expands scope');
-    expect(result).toContain(
-      'They do not expand semantic repair scope or approved Service workspaces. Checks are evidence, not work queues',
+      'Do not repair failures or treat passing checks alone as proof of fulfillment',
     );
     expect(result).not.toContain('request_review_file_scope');
-    expect(result).toContain(
-      'iterate only when the failure is attributable to the reviewed session and its repair remains inside both the semantic scope gate and approved Service workspace boundary',
-    );
-    expect(result).toContain('Report every other failure without changing more code');
-    expect(result).not.toContain('Treat this as a helpful starting point');
-    expect(result).not.toContain('the list may be incomplete');
+    expect(result).not.toContain('fix it directly');
+    expect(result).not.toContain('If you applied no fixes');
   };
 
   it('declares the agent strictly one-shot with no mid-turn user interaction', () => {
@@ -1774,14 +1355,13 @@ describe('buildReviewPrompt', () => {
     expect(result).not.toMatch(/ask the user/i);
   });
 
-  it('allows required noncanonical repairs only inside approved Service roots', () => {
+  it('uses Service roots for inspection without allowing repairs or attribution expansion', () => {
     const result = buildReviewPrompt({ touchedFiles: ['src/current.ts'] });
-    expect(result).toContain('without individual-file approval');
-    expect(result).toContain('including files absent from canonical Run membership');
-    expect(result).toContain('Host checkouts outside resolved worktree roots remain unauthorized');
-    expect(result).toContain('Another Service requires the existing Service authorization process');
-    expect(result).toContain('Authorization never establishes changed-file membership');
-    expect(result).not.toContain('request_review_file_scope');
+    expectContainedReviewScope(result);
+    expect(result).toContain('host checkouts outside resolved worktree roots remain unauthorized');
+    expect(result).toContain(
+      'Saving reports through the existing submission path remains permitted',
+    );
     expect(result).toMatchSnapshot();
   });
 
@@ -1872,7 +1452,7 @@ describe('buildReviewPrompt', () => {
     expect(result).toContain(
       'Do not treat behavior explicitly requested here as a revert candidate',
     );
-    expect(result).toContain('does not authorize unrelated work');
+    expect(result).toContain('does not permit edits');
     expect(result).toContain('approved Service scope');
     expect(result).toContain('Service scope');
   });
@@ -2152,6 +1732,7 @@ describe('buildEntityConversationPrompt', () => {
 
   it('matches the full Contract-aware entity conversation prompt', () => {
     const prompt = buildEntityConversationPrompt(makeEntityPayload());
+    expect(prompt).toContain(planVsTasksFork);
     expect(prompt).toMatch(/Contract Companion Proposals/i);
     expect(prompt).toContain('ambient Contract-recognition boundary');
     expect(prompt).toContain("relevant element's concrete inputs, outputs, and responsibility");
@@ -2328,19 +1909,26 @@ describe('buildEntityConversationPrompt', () => {
 
   it('treats need-style statements as requests to propose work items', () => {
     const result = buildEntityConversationPrompt(makeEntityPayload());
-    expect(result).toContain(
-      'This conversation exists to produce work items: when the user says something needs to change ("we need to do X", "we need to update this to Y"), review the project and propose the right work item (task, bug, or other type).',
-    );
+    expect(result).toContain('Research, update the project and propose work items by default.');
   });
 
-  it('requires an explicit, confirmed edit request despite access or discussion conclusions', () => {
+  it('honors clear edit instructions and retains consent within authorized scope', () => {
     const result = buildEntityConversationPrompt(makeEntityPayload());
+    expect(result).toContain('Edit files only on a direct instruction to change them');
+    expect(result).toContain('within admitted Service scope');
+    expect(result).toContain('agreed follow-ups without repeated confirmation');
+    expect(result).toContain('later observations never authorize further edits');
     expect(result).toContain(
-      'Change files, code, or repository state only after the user explicitly asks for an edit, you confirm that request with them, and they agree in a later message;',
+      'Questions ("why does this happen?"), bug reports ("there\'s a bug here") and statements of need ("we need a test") never authorize repository edits',
     );
-    expect(result).toContain(
-      'repository or Service access and your own conclusion that code should change are not permission to edit.',
+    expect(result).toContain('Access and inferred intent are insufficient');
+    expect(result).toContain('reads need no edit consent');
+    expect(result).toContain('Interpret the whole request despite transcription errors');
+    expect(result).toContain('clarify material ambiguity');
+    expect(result).not.toContain(
+      'you confirm that request with them, and they agree in a later message',
     );
+    expect(result).not.toContain('you have confirmed, and they have agreed to');
   });
 
   it('omits the structural-correction reflection rule', () => {

@@ -77,10 +77,11 @@ export const createTestLocalAgentServerRuntimeOwners = (
     infrastructure.logger.child({ component: 'task-monitor.launch-failure' }),
   );
   const agentRuntime = new AgentApplicationRuntime({
+    runStore: infrastructure.runStore,
     oauthClient: infrastructure.oauthClient,
     apiBaseUrl: infrastructure.normalizedApiBaseUrl,
     logger: infrastructure.logger.child({ component: 'agents' }),
-    isJevParentFeatureFilterEnabled: () => Promise.resolve(true),
+    isJevEnabled: () => Promise.resolve(true),
     taskMonitorManagedTurnRuntime,
     fetchImpl,
   });

@@ -1,3 +1,5 @@
+import { useModalState } from "../Modals/useModalState";
+import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import React, { useCallback, useMemo, useState } from "react";
 import { Alert, Box, Button, Paper, Stack, Typography } from "@mui/material";
 import PeopleIcon from "@mui/icons-material/People";
@@ -52,14 +54,14 @@ export const ProjectMembersPanel: React.FC<ProjectMembersPanelProps> = ({
 }) => {
   const { inviteToProject, removeMember } = useProjectCapabilities(
     organizationId,
-    projectId
+    projectId,
   );
   const { removeMembers: canRemoveFromOrganization } = usePermissions();
   const { data: orgMembers, isLoading: orgMembersLoading } =
     useUsers(organizationId);
   const activeOrgMembers = useMemo(
     () => orgMembers.filter((m) => m.isActive),
-    [orgMembers]
+    [orgMembers],
   );
 
   const {
@@ -75,20 +77,21 @@ export const ProjectMembersPanel: React.FC<ProjectMembersPanelProps> = ({
 
   const projectMemberIds = useMemo(
     () => new Set(projectMembers.map((m) => m.userId)),
-    [projectMembers]
+    [projectMembers],
   );
 
   const addCandidates = useMemo(
     () => activeOrgMembers.filter((m) => !projectMemberIds.has(m.userId)),
-    [activeOrgMembers, projectMemberIds]
+    [activeOrgMembers, projectMemberIds],
   );
 
-  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteOpen, setInviteOpen, inviteOpenOwnerKey] = useModalState(false);
   const [inviteError, setInviteError] = useState<InviteByEmailError | null>(
-    null
+    null,
   );
 
-  const [addExistingOpen, setAddExistingOpen] = useState(false);
+  const [addExistingOpen, setAddExistingOpen, addExistingOpenOwnerKey] =
+    useModalState(false);
   const [addExistingError, setAddExistingError] =
     useState<AddExistingUserError | null>(null);
 
@@ -97,7 +100,7 @@ export const ProjectMembersPanel: React.FC<ProjectMembersPanelProps> = ({
     scope: RemoveMemberScope;
   } | null>(null);
   const [removeError, setRemoveError] = useState<RemoveMemberError | null>(
-    null
+    null,
   );
 
   const inviteMutation = useInviteByEmail({
@@ -196,7 +199,7 @@ export const ProjectMembersPanel: React.FC<ProjectMembersPanelProps> = ({
           // onError handler sets UI error state; swallow here to avoid unhandled rejection
         });
     },
-    [inviteMutation, organizationId, projectId]
+    [inviteMutation, organizationId, projectId],
   );
 
   const handleOpenAddExisting = useCallback(() => {
@@ -227,7 +230,7 @@ export const ProjectMembersPanel: React.FC<ProjectMembersPanelProps> = ({
           // onError handler sets UI error state; swallow here to avoid unhandled rejection
         });
     },
-    [addProjectMemberMutation, organizationId, projectId]
+    [addProjectMemberMutation, organizationId, projectId],
   );
 
   const handleRemoveFromProject = useCallback((member: MemberRow) => {
@@ -328,22 +331,26 @@ export const ProjectMembersPanel: React.FC<ProjectMembersPanelProps> = ({
           </Box>
         )}
       </Stack>
-      <InviteByEmailDialog
-        open={inviteOpen}
-        onClose={handleCloseInvite}
-        onSubmit={handleSubmitInvite}
-        loading={inviteMutation.isPending}
-        error={inviteError}
-      />
-      <AddExistingUserDialog
-        open={addExistingOpen}
-        onClose={handleCloseAddExisting}
-        onSubmit={handleSubmitAddExisting}
-        candidates={addCandidates}
-        candidatesLoading={orgMembersLoading || projectMembersLoading}
-        loading={addProjectMemberMutation.isPending}
-        error={addExistingError}
-      />
+      <ModalWorkOwner.Provider value={inviteOpenOwnerKey}>
+        <InviteByEmailDialog
+          open={inviteOpen}
+          onClose={handleCloseInvite}
+          onSubmit={handleSubmitInvite}
+          loading={inviteMutation.isPending}
+          error={inviteError}
+        />
+      </ModalWorkOwner.Provider>
+      <ModalWorkOwner.Provider value={addExistingOpenOwnerKey}>
+        <AddExistingUserDialog
+          open={addExistingOpen}
+          onClose={handleCloseAddExisting}
+          onSubmit={handleSubmitAddExisting}
+          candidates={addCandidates}
+          candidatesLoading={orgMembersLoading || projectMembersLoading}
+          loading={addProjectMemberMutation.isPending}
+          error={addExistingError}
+        />
+      </ModalWorkOwner.Provider>
       <RemoveMemberDialog
         open={Boolean(removingMember)}
         scope={removingMember?.scope ?? "project"}

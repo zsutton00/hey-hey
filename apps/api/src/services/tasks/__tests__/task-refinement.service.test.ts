@@ -101,6 +101,7 @@ describe('TaskRefinementService', () => {
   };
 
   const mockConversation: ConversationResponseDto = {
+    restricted: true,
     id: 'conv-456' as ConversationId,
     createdBy: null,
     projectId: testProjectId,

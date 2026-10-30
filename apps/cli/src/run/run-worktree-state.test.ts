@@ -85,7 +85,12 @@ vi.mock('./resolve-prompt', () => ({
       }) => Promise<unknown>;
     }) => {
       let preparedPayload: unknown;
-      const inputPayload = args.input.payload as { userMessage?: string } | undefined;
+      const inputPayload = args.input.payload as
+        | {
+            userMessage?: string;
+            approvedVersion?: import('../shared/api/generated/api').CodingPlanVersion;
+          }
+        | undefined;
       if (args.input.promptType === 'implement') {
         preparedPayload =
           inputPayload?.userMessage === 'missing-plan'
@@ -117,6 +122,9 @@ vi.mock('./resolve-prompt', () => ({
                 _services: [{ id: 'svc-1', path: '/repos/service-a' }],
                 _launchServiceId: 'svc-1',
               };
+        if (inputPayload?.approvedVersion) {
+          preparedPayload = { approvedVersion: inputPayload.approvedVersion };
+        }
         if (args.onPreparedPayload) {
           preparedPayload = await args.onPreparedPayload({
             handler: args.handler,
@@ -388,6 +396,38 @@ describe('Run worktree workspace state', () => {
     run.cleanup();
   });
 
+  it('rejects a workspace-required input once and explains the missing Service', async () => {
+    const collaborators = makeCollaborators(makeRunStore(), () => ({ run: async () => {} }));
+    const run = new Run(makeRunArgs({ session: makeSession({ services: [] }) }), collaborators);
+    const admittedInput = {
+      turnId: 'turn-no-service',
+      onStarted: vi.fn(),
+      onRejected: vi.fn(),
+      onSettled: vi.fn(),
+    };
+    try {
+      await expect(run.handleMessage(makeInput(), { admittedInput })).rejects.toMatchObject({
+        code: 'REPO_REQUIRED',
+        statusCode: 400,
+      });
+      expect(admittedInput.onRejected).toHaveBeenCalledOnce();
+      expect(admittedInput.onStarted).not.toHaveBeenCalled();
+      expect(collaborators.runnerPicker.pick).not.toHaveBeenCalled();
+      expect(collaborators.poster.createOutOfBand).toHaveBeenCalledOnce();
+      expect(collaborators.poster.createOutOfBand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          dto: expect.objectContaining({
+            data: expect.objectContaining({
+              response: expect.stringContaining('no Service folder'),
+            }),
+          }),
+        }),
+      );
+    } finally {
+      run.cleanup();
+    }
+  });
+
   const serviceFreePromptTypes = [
     'work_tracker_connect',
     'work_tracker_import',
@@ -597,7 +637,7 @@ describe('Run worktree workspace state', () => {
     expect(publishLaunchFailure).not.toHaveBeenCalled();
   });
 
-  it('preserves repository-required resolution for non-graph runs without services', async () => {
+  it('keeps missing local Service bindings retryable', async () => {
     vi.mocked(resolveRunWorkspace).mockClear();
     vi.mocked(resolveRunWorkspace).mockResolvedValueOnce({
       ok: false,
@@ -606,10 +646,8 @@ describe('Run worktree workspace state', () => {
     });
     const runStore = makeRunStore();
     const session = makeSession({
-      services: [],
       promptType: 'coding_freeform',
     });
-    delete session.launchServiceId;
     const run = new Run(
       makeRunArgs({
         session,
@@ -981,6 +1019,70 @@ describe('Run worktree workspace state', () => {
 
     expect(resolveServiceBindingsForIds).toHaveBeenCalledWith(
       expect.objectContaining({ serviceIds: ['svc-1', 'svc-2'] }),
+    );
+    expect(runStore.updateRunServices).toHaveBeenCalledWith('run-1', {
+      services: resolvedServices,
+      launchServiceId: 'svc-1',
+    });
+    expect(run.session.services).toEqual(resolvedServices);
+    expect(captured).toHaveLength(1);
+    expect(captured[0]?.workspace?.allowedRepositoryRoots).toEqual([
+      '/repos/service-a',
+      '/repos/service-b',
+    ]);
+    expect(captured[0]?.preparedPayload).toMatchObject({
+      _services: resolvedServices,
+      _launchServiceId: 'svc-1',
+    });
+    expect(vi.mocked(runStore.updateRunServices).mock.invocationCallOrder[0]).toBeLessThan(
+      runner.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it('reconciles conversational approval scope before implementation while preserving the launch Service', async () => {
+    const resolvedServices = [
+      { id: 'svc-1', path: '/repos/service-a' },
+      { id: 'a8fb6fbb-5747-4480-89e3-fc4a43ab7745', path: '/repos/service-b' },
+    ];
+    const workspace: ResolvedRunWorkspace = {
+      ok: true,
+      runMode: 'default',
+      repositoryPathForRunStarted: '/repos/service-a',
+      cwd: '/repos/service-a',
+      allowedRepositoryRoots: ['/repos/service-a', '/repos/service-b'],
+      bindingRepositoryPath: '/repos/service-a',
+      workspaceRoot: null,
+    };
+    vi.mocked(resolveServiceBindingsForIds).mockResolvedValueOnce({
+      ok: true,
+      services: resolvedServices,
+    });
+    vi.mocked(resolveRunWorkspace).mockResolvedValue(workspace);
+
+    const runStore = makeRunStore();
+    const captured: RunnerContext[] = [];
+    const runner = vi.fn((ctx: RunnerContext) => {
+      captured.push(ctx);
+      return { run: async () => {} };
+    });
+    const run = new Run(
+      makeRunArgs({ session: makeSession({ promptType: 'startup_session' }) }),
+      makeCollaborators(runStore, runner, implementHandlerStub),
+    );
+
+    const input = makeInput('implement');
+    input.payload = {
+      promptType: 'implement',
+      approvedVersion: {
+        responseType: 'coding_plan_version_v1',
+        markdown: 'Deliver the agreed outcome. Use both required workspaces.',
+        requiredServiceIds: ['a8fb6fbb-5747-4480-89e3-fc4a43ab7745'],
+      },
+    } as NonNullable<typeof input.payload>;
+    await run.handleMessage(input);
+
+    expect(resolveServiceBindingsForIds).toHaveBeenCalledWith(
+      expect.objectContaining({ serviceIds: ['svc-1', 'a8fb6fbb-5747-4480-89e3-fc4a43ab7745'] }),
     );
     expect(runStore.updateRunServices).toHaveBeenCalledWith('run-1', {
       services: resolvedServices,

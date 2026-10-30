@@ -1,11 +1,11 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { EntityConversationPromptDialog } from "./EntityConversationPromptDialog";
 
 const renderDialog = (
   overrides: Partial<
     React.ComponentProps<typeof EntityConversationPromptDialog>
-  > = {}
+  > = {},
 ) => {
   const props: React.ComponentProps<typeof EntityConversationPromptDialog> = {
     open: true,
@@ -41,11 +41,13 @@ describe("EntityConversationPromptDialog", () => {
     });
 
     expect(screen.getByTestId("prompt-dialog-question")).toHaveTextContent(
-      "review the project"
+      "review the project",
     );
     expect(screen.getByTestId("prompt-dialog-user-input")).toBeInTheDocument();
     expect(
-      screen.getAllByRole("button").map((button) => button.textContent)
+      within(screen.getByTestId("entity-conversation-prompt-actions"))
+        .getAllByRole("button")
+        .map((button) => button.textContent),
     ).toEqual(["Cancel", "Save without review", "Start review"]);
 
     fireEvent.change(screen.getByTestId("prompt-dialog-user-input"), {
@@ -55,19 +57,19 @@ describe("EntityConversationPromptDialog", () => {
       <EntityConversationPromptDialog
         {...props}
         userInput="  Check billing first.  "
-      />
+      />,
     );
     fireEvent.click(screen.getByTestId("prompt-dialog-cancel"));
     fireEvent.click(screen.getByTestId("prompt-dialog-secondary"));
     fireEvent.click(screen.getByTestId("prompt-dialog-submit"));
 
     expect(props.onUserInputChange).toHaveBeenCalledWith(
-      "  Check billing first.  "
+      "  Check billing first.  ",
     );
     expect(props.onClose).toHaveBeenCalledOnce();
     expect(props.secondaryAction?.onClick).toHaveBeenCalledOnce();
     expect(props.onSubmit).toHaveBeenCalledWith(
-      "Review the project for updates.\n\nCheck billing first."
+      "Review the project for updates.\n\nCheck billing first.",
     );
   });
 
@@ -95,14 +97,16 @@ describe("EntityConversationPromptDialog", () => {
       },
     });
 
+    expect(screen.queryByTestId("modal-minimize")).not.toBeInTheDocument();
+    expect(screen.getByTestId("modal-close")).toBeDisabled();
     expect(screen.getByTestId("prompt-dialog-cancel")).toBeDisabled();
     expect(screen.getByTestId("prompt-dialog-secondary")).toBeDisabled();
     expect(screen.getByTestId("prompt-dialog-submit")).toBeDisabled();
     expect(screen.getByTestId("prompt-dialog-primary-error")).toHaveTextContent(
-      "The review could not be started."
+      "The review could not be started.",
     );
     expect(
-      screen.getByTestId("prompt-dialog-secondary-error")
+      screen.getByTestId("prompt-dialog-secondary-error"),
     ).toHaveTextContent("The project could not be saved.");
   });
 });

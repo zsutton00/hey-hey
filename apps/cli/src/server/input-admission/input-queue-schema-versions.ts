@@ -1,3 +1,13 @@
+import { inputQueueV13Schemas } from './storage-schema/v13';
+import { migrateSessionFileV12ToV13 } from './storage-schema/v12-to-v13';
+import { inputQueueV12Schemas } from './storage-schema/v12';
+import { migrateSessionFileV11ToV12 } from './storage-schema/v11-to-v12';
+import { inputQueueV11Schemas } from './storage-schema/v11';
+import { migrateSessionFileV10ToV11 } from './storage-schema/v10-to-v11';
+import { inputQueueV9Schemas } from './storage-schema/v9';
+import { migrateSessionFileV8ToV9 } from './storage-schema/v8-to-v9';
+import { inputQueueV10Schemas } from './storage-schema/v10';
+import { migrateSessionFileV9ToV10 } from './storage-schema/v9-to-v10';
 import { createHash } from 'node:crypto';
 import { z } from 'zod/v4';
 import type { JsonValue } from '../../durable-data';
@@ -8,6 +18,8 @@ import { inputQueueV3Schemas } from './storage-schema/v3';
 import { inputQueueV4Schemas } from './storage-schema/v4';
 import { inputQueueV5Schemas } from './storage-schema/v5';
 import { inputQueueV6Schemas } from './storage-schema/v6';
+import { inputQueueV8Schemas } from './storage-schema/v8';
+import { migrateSessionFileV7ToV8 } from './storage-schema/v7-to-v8';
 import { inputQueueV7Schemas } from './storage-schema/v7';
 import { migrateSessionFileV2ToV3 } from './storage-schema/v2-to-v3';
 import { migrateSessionFileV3ToV4 } from './storage-schema/v3-to-v4';
@@ -23,6 +35,12 @@ export const INPUT_QUEUE_MIGRATIONS: ReadonlyMap<number, (body: JsonValue) => Js
   [4, migrateSessionFileV4ToV5],
   [5, migrateSessionFileV5ToV6],
   [6, migrateSessionFileV6ToV7],
+  [7, migrateSessionFileV7ToV8],
+  [8, migrateSessionFileV8ToV9],
+  [9, migrateSessionFileV9ToV10],
+  [10, migrateSessionFileV10ToV11],
+  [11, migrateSessionFileV11ToV12],
+  [12, migrateSessionFileV12ToV13],
 ]);
 
 /** SHA-256 of the canonical JSON Schema of every schema that reads one stored version. */
@@ -97,9 +115,51 @@ export const SHIPPED_INPUT_QUEUE_VERSIONS: readonly ShippedInputQueueVersion[] =
   },
   {
     schemaVersion: 7,
-    fixture: null,
+    fixture: '__fixtures__/input-queue-v7.json',
     expectedQuarantinedKeys: [],
     schemas: inputQueueV7Schemas,
     fingerprint: '44d03469d3827091cb9be6d43e6de3b2ab9eabb4134bb1571a659f8c63bb99d0',
+  },
+  {
+    schemaVersion: 8,
+    fixture: '__fixtures__/input-queue-v8.json',
+    expectedQuarantinedKeys: [],
+    schemas: inputQueueV8Schemas,
+    fingerprint: 'c712944bcb46840fc0d937eabf25ec1e9d7618d466a30b67a887b1f4129222a0',
+  },
+  {
+    schemaVersion: 9,
+    fixture: '__fixtures__/input-queue-v9.json',
+    expectedQuarantinedKeys: [],
+    schemas: inputQueueV9Schemas,
+    fingerprint: 'b011c919e4c486ea8c7ed6b7d69aaec0ac98effe510ea2cf807c80cef3c7bed6',
+  },
+  {
+    schemaVersion: 10,
+    fixture: '__fixtures__/input-queue-v10.json',
+    expectedQuarantinedKeys: ['00000000-0000-4000-8000-000000000020'],
+    schemas: inputQueueV10Schemas,
+    fingerprint: 'b011c919e4c486ea8c7ed6b7d69aaec0ac98effe510ea2cf807c80cef3c7bed6',
+  },
+  {
+    schemaVersion: 11,
+    fixture: '__fixtures__/input-queue-v11.json',
+    expectedQuarantinedKeys: ['00000000-0000-4000-8000-000000000020'],
+    schemas: inputQueueV11Schemas,
+    fingerprint: 'fa36d3c9126218e7827b974c5a849fde811edbc4e970520e98152b2c898c0f4c',
+  },
+  {
+    schemaVersion: 12,
+    fixture: '__fixtures__/input-queue-v12.json',
+    expectedQuarantinedKeys: ['00000000-0000-4000-8000-000000000020'],
+    schemas: inputQueueV12Schemas,
+    fingerprint: '6206c12811b9d6c199769b3c6a402c8752abecebb868bb74d95383e44ff68f65',
+  },
+  {
+    schemaVersion: 13,
+    fixture: null,
+    expectedQuarantinedKeys: [],
+    schemas: inputQueueV13Schemas,
+    fingerprint: 'da6dfa47cb6105a8ea01b6405bc821ba4a203082c4a73092b7203e54259451b4',
   },
 ];

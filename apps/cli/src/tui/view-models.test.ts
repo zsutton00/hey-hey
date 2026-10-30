@@ -38,7 +38,7 @@ describe('optionsViewModel', () => {
         options: {
           intentFirst: false,
           remoteToolCallViewing: true,
-          jevParentFeatureFilter: true,
+          jevEnabled: true,
           jevKeyDefined: true,
         },
       }),
@@ -53,8 +53,8 @@ describe('optionsViewModel', () => {
       'Remote tool-call viewing  On   Enter to turn off',
       "Let your other devices see this machine's agents' tool calls",
       '',
-      'Jev-filtered parent feature load  On   Enter to turn off',
-      'Project Assistant starts with only the parent requirements Jev judges relevant. Needs a Jev key.',
+      'Jev  On   Enter to turn off',
+      'Turn Jev on or off for this machine. Needs a Jev key.',
       '',
       'Applies to every project on this machine. New sessions pick up changes.',
     ]);
@@ -68,17 +68,17 @@ describe('optionsViewModel', () => {
           options: {
             intentFirst: false,
             remoteToolCallViewing: true,
-            jevParentFeatureFilter: true,
+            jevEnabled: true,
             jevKeyDefined: false,
           },
         }),
       ).body,
     );
-    expect(body).toContain('Jev-filtered parent feature load  Unavailable');
+    expect(body).toContain('Jev  Unavailable');
     expect(body).toContain(
       'Needs a Jev key. Define TYPESAFE_API_KEY in your environment to use this.',
     );
-    expect(body.join('\n')).not.toContain('Jev-filtered parent feature load  On');
+    expect(body.join('\n')).not.toContain('Jev  On');
   });
 
   it('lists Intent-first as on with the way to turn it off', () => {
@@ -88,7 +88,7 @@ describe('optionsViewModel', () => {
           options: {
             intentFirst: true,
             remoteToolCallViewing: true,
-            jevParentFeatureFilter: true,
+            jevEnabled: true,
             jevKeyDefined: true,
           },
         }),
@@ -105,7 +105,7 @@ describe('optionsViewModel', () => {
             options: {
               intentFirst: null,
               remoteToolCallViewing: null,
-              jevParentFeatureFilter: null,
+              jevEnabled: null,
               jevKeyDefined: true,
             },
           }),
@@ -126,7 +126,7 @@ describe('optionsViewModel', () => {
           options: {
             intentFirst: false,
             remoteToolCallViewing: true,
-            jevParentFeatureFilter: true,
+            jevEnabled: true,
             jevKeyDefined: true,
           },
         }),

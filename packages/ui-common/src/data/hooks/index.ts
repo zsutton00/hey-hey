@@ -109,6 +109,7 @@ export { useProjectPlans } from "./useProjectPlans";
 // Design doc hooks
 export { useAgentSession } from "./useAgentSession";
 export { useAgentSessions } from "./useAgentSessions";
+export { useAgentSessionRouting } from "./useAgentSessionRouting";
 export { usePaginatedAgentSessions } from "./usePaginatedAgentSessions";
 export { useCreateAgentSession } from "./useCreateAgentSession";
 export { useCreateAgentSessionConversation } from "./useCreateAgentSessionConversation";
@@ -839,7 +840,7 @@ export {
   useDemoSandbox,
   useDemoSandboxAdmission,
   type DemoSandboxProvisionFailure,
-  type DemoSandboxResumeResult,
+  type DemoSandboxStatusResult,
   type UseDemoSandboxAdmissionReturn,
   type UseDemoSandboxOptions,
   type UseDemoSandboxReturn,
@@ -862,6 +863,7 @@ export {
   useDemoSandboxAdmin,
   type UseDemoSandboxAdminReturn,
 } from "./useDemoSandboxAdmin";
+export { useAdminProjectHints } from "./useAdminProjectHints";
 export { useAdminProjectImplementationHints } from "./useAdminProjectImplementationHints";
 export {
   usePlatformAdminAccess,

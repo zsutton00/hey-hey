@@ -14,15 +14,17 @@ import { ConversationId, MessageId, OrganizationId, ProjectId, ProposalId, Valid
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { ProposalApprovalDto } from './proposalApprovalDto';
+import { ProposalUpdates } from './proposalUpdates';
+import { FutureRevisionResponse } from './futureRevisionResponse';
+import { ProposalResponseDtoRetainedOriginalTargetContent } from './proposalResponseDtoRetainedOriginalTargetContent';
+import { WorkItemChangeSetMaterializationProgress } from './workItemChangeSetMaterializationProgress';
 import { TargetEntityType } from './targetEntityType';
 import { ProposalAction } from './proposalAction';
 import { ProposalOutOfDateStatus } from './proposalOutOfDateStatus';
-import { ProposalUpdates } from './proposalUpdates';
-import { FutureRevisionResponse } from './futureRevisionResponse';
+import { FutureDependencyPresentation } from './futureDependencyPresentation';
 import { Influence } from './influence';
 import { ProposalEdgeDeclaration } from './proposalEdgeDeclaration';
 import { ProposalGroupMembership } from './proposalGroupMembership';
-import { WorkItemChangeSetMaterializationProgress } from './workItemChangeSetMaterializationProgress';
 import { ProposalStatus } from './proposalStatus';
 import { ProposalType } from './proposalType';
 
@@ -58,6 +60,10 @@ export interface ProposalResponseDto {
      */
     eli5?: string;
     updates: ProposalUpdates;
+    /**
+     * Response-only linked-work identity for VERSIONED_UPDATE review, including pending and grouped previews. Pending responses omit live status. Not part of updates or frozen changes.
+     */
+    readonly dependencyPresentation?: Array<FutureDependencyPresentation>;
     /**
      * API-owned reviewed future projection for VERSIONED_UPDATE proposals when a persisted future revision exists for updates.futureId; null otherwise.
      */
@@ -105,17 +111,14 @@ export interface ProposalResponseDto {
     outOfDateStatus: ProposalOutOfDateStatus;
     materialization?: WorkItemChangeSetMaterializationProgress;
     /**
-     * Whether this proposal may be ingested into graph and embeddings. Absent means true. Derived by the API, never set by clients. A reusable exclusion control, not an approval flag. 
+     * Whether this proposal may be ingested into graph and embeddings. Absent means true. Supplied by the writer and persisted by the API. A reusable exclusion control, not an approval flag. 
      */
     ragEnabled?: boolean;
     /**
-     * Whether this proposal may be approved and applied. Absent means true. Derived by the API, never set by clients. Independent of ragEnabled. 
+     * Whether this proposal may be approved and applied. Absent means true. Supplied by the writer and persisted by the API. Independent of ragEnabled. 
      */
     applicationEligible?: boolean;
-    /**
-     * Target content as it was when an eval proposal was made, kept on the proposal so its diff still renders after the target changes. Captured by the API, never set by clients. Absent for ordinary proposals. 
-     */
-    retainedOriginalTargetContent?: { [key: string]: any; } | null;
+    retainedOriginalTargetContent?: ProposalResponseDtoRetainedOriginalTargetContent | null;
     createdAt: string;
     updatedAt: string;
 }

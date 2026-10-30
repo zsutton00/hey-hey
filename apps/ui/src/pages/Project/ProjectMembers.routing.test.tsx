@@ -49,9 +49,8 @@ vi.mock("@hey-hey/ui-common/context", async (importOriginal) => ({
 }));
 
 vi.mock("@hey-hey/ui-common/hooks", async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import("@hey-hey/ui-common/hooks")
-  >();
+  const actual =
+    await importOriginal<typeof import("@hey-hey/ui-common/hooks")>();
   return {
     ...actual,
     useUserIdentity: () => ({ currentOrgId: "org-1", userId: "user-1" }),
@@ -74,6 +73,7 @@ vi.mock("@hey-hey/ui-common/data", async (importOriginal) => ({
       updatedAt: "2026-01-02T00:00:00.000Z",
     },
   }),
+  usePlatformAdminAccess: () => ({ isPlatformAdmin: false, isResolved: true }),
   useProjectPlans: () => ({ plans: [], isLoading: false }),
   useWorkItemTypes: () => ({ workItemTypes, isReady: true }),
 }));
@@ -148,7 +148,9 @@ vi.mock("../NewOrgLanding/ProjectHelpPage", () => ({
 const renderPage = () =>
   render(
     <QueryClientProvider
-      client={new QueryClient({ defaultOptions: { queries: { retryDelay: 0 } } })}
+      client={
+        new QueryClient({ defaultOptions: { queries: { retryDelay: 0 } } })
+      }
     >
       <Provider>
         <BrowserRouter>

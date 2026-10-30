@@ -167,7 +167,7 @@ describe('plan-shaping visual-preview handler', () => {
     expect(prompt).toContain('dddddddd-dddd-dddd-dddd-dddddddddddd');
     expect(prompt).toContain('Add the empty state.');
     expect(prompt).toContain('Refinement round: 1');
-    expect(prompt).toContain('Submission tools appear in your catalog');
+    expect(prompt).toContain('mcp__heyhey-submission-tools__<name>');
   });
 
   it('formats the API-provided user message for the active turn', () => {

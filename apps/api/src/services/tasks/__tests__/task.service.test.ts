@@ -4719,6 +4719,37 @@ describe('TaskService', () => {
     });
   });
 
+  describe('findMutationResultByOrganization', () => {
+    it('hydrates archived mutation results within the organization', async () => {
+      const archivedTask = {
+        ...mockTaskData,
+        status: WorkStatus.ARCHIVED,
+        archivedAt: new Date(),
+      };
+      (mockPrismaService.db.task.findFirst as jest.Mock).mockImplementation(
+        async ({ where }) =>
+          where.organizationId === archivedTask.organizationId &&
+          where.id === archivedTask.id &&
+          where.archivedAt === undefined &&
+          where.status === undefined
+            ? archivedTask
+            : null,
+      );
+
+      const result = await service.findMutationResultByOrganization(
+        testIds.organization,
+        testIds.task,
+      );
+      expect(result?.status).toBe('ARCHIVED');
+      expect(
+        materializedSectionsToContentMap(result?.sections).acceptanceCriteria,
+      ).toBe('Success criteria');
+      await expect(
+        service.findOneByOrganization(testIds.organization, testIds.task),
+      ).resolves.toBeNull();
+    });
+  });
+
   describe('findPersistedByOrganization', () => {
     it('returns the visible persisted row without hydrating sections or child counts', async () => {
       (mockPrismaService.db.task.findFirst as jest.Mock).mockResolvedValue(

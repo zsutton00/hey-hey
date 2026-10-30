@@ -17,7 +17,12 @@ const mocks = vi.hoisted(() => {
   return {
     resume: vi.fn(),
     provision: vi.fn(),
+    followSetup: vi.fn(),
     available: vi.fn(),
+    logout: vi.fn(),
+    auth: { isAuthenticated: false },
+    currentSandbox: { isReady: false, sandbox: null as object | null },
+    replaceLocation: vi.fn(),
     siteKey: "site-key" as string | undefined,
     DemoSandboxProvisionError,
   };
@@ -25,10 +30,16 @@ const mocks = vi.hoisted(() => {
 
 vi.mock("@hey-hey/ui-common/data", () => ({
   DemoSandboxProvisionError: mocks.DemoSandboxProvisionError,
+  useDemoSandbox: () => mocks.currentSandbox,
   useDemoSandboxAdmission: () => ({
     resume: mocks.resume,
     provision: mocks.provision,
+    followSetup: mocks.followSetup,
   }),
+}));
+
+vi.mock("@hey-hey/ui-common/context", () => ({
+  useAuth: () => ({ ...mocks.auth, logout: mocks.logout }),
 }));
 
 vi.mock("../../components/Homepage/landingPageCta", () => ({
@@ -106,23 +117,90 @@ const completeConsent = async (
 
 describe("DemoStartPage", () => {
   beforeEach(() => {
+    vi.stubGlobal("location", {
+      ...window.location,
+      replace: mocks.replaceLocation,
+    });
+    mocks.replaceLocation.mockReset();
     mocks.resume.mockReset();
     mocks.provision.mockReset();
+    mocks.followSetup.mockReset().mockReturnValue(new Promise(() => {}));
     mocks.available.mockReset().mockResolvedValue(true);
+    mocks.logout.mockReset().mockResolvedValue(undefined);
+    mocks.auth.isAuthenticated = false;
+    mocks.currentSandbox = { isReady: false, sandbox: null };
     mocks.siteKey = "site-key";
   });
 
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
 
   it("routes a returning browser with an unexpired sandbox to its Project Page without the terms screen", async () => {
-    mocks.resume.mockResolvedValue({ outcome: "resumed", sandbox });
+    mocks.resume.mockResolvedValue({ outcome: "ready", sandbox });
 
     renderPage();
 
-    expect(await screen.findByTestId("project-page")).toHaveTextContent(
-      "/projects/project-1",
+    await waitFor(() =>
+      expect(mocks.replaceLocation).toHaveBeenCalledWith(
+        "/projects/project-1?tab=help&helpSubTab=welcome",
+      ),
     );
     expect(screen.queryByTestId("demo-consent")).not.toBeInTheDocument();
+    expect(mocks.provision).not.toHaveBeenCalled();
+  });
+
+  it("tells a real signed-in user the demo signs them out and signs them out before starting it", async () => {
+    const user = userEvent.setup();
+    mocks.auth.isAuthenticated = true;
+    mocks.currentSandbox = { isReady: true, sandbox: null };
+    mocks.resume.mockResolvedValue({ outcome: "none" });
+    mocks.provision.mockResolvedValue({ outcome: "ready", sandbox });
+
+    renderPage();
+    await screen.findByTestId("demo-consent");
+    expect(screen.getByTestId("demo-signs-out-warning")).toBeInTheDocument();
+    await completeConsent(user);
+    await user.click(screen.getByTestId("demo-start-button"));
+
+    await waitFor(() => expect(mocks.provision).toHaveBeenCalled());
+    expect(mocks.logout).toHaveBeenCalledOnce();
+    expect(mocks.logout.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.provision.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("does not warn or sign out a visitor who has no real login", async () => {
+    const user = userEvent.setup();
+    mocks.resume.mockResolvedValue({ outcome: "none" });
+    mocks.provision.mockResolvedValue({ outcome: "ready", sandbox });
+
+    renderPage();
+    await screen.findByTestId("demo-consent");
+    expect(
+      screen.queryByTestId("demo-signs-out-warning"),
+    ).not.toBeInTheDocument();
+    await completeConsent(user);
+    await user.click(screen.getByTestId("demo-start-button"));
+
+    await waitFor(() => expect(mocks.provision).toHaveBeenCalled());
+    expect(mocks.logout).not.toHaveBeenCalled();
+  });
+
+  it("does not start the demo when signing out the real login fails", async () => {
+    const user = userEvent.setup();
+    mocks.auth.isAuthenticated = true;
+    mocks.currentSandbox = { isReady: true, sandbox: null };
+    mocks.resume.mockResolvedValue({ outcome: "none" });
+    mocks.logout.mockRejectedValue(new Error("logout failed"));
+
+    renderPage();
+    await screen.findByTestId("demo-consent");
+    await completeConsent(user);
+    await user.click(screen.getByTestId("demo-start-button"));
+
+    expect(await screen.findByTestId("demo-start-error")).toBeInTheDocument();
     expect(mocks.provision).not.toHaveBeenCalled();
   });
 
@@ -139,12 +217,16 @@ describe("DemoStartPage", () => {
   });
 
   it("still returns a browser to its unexpired sandbox when the demo is switched off", async () => {
-    mocks.resume.mockResolvedValue({ outcome: "resumed", sandbox });
+    mocks.resume.mockResolvedValue({ outcome: "ready", sandbox });
     mocks.available.mockResolvedValue(false);
 
     renderPage();
 
-    expect(await screen.findByTestId("project-page")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mocks.replaceLocation).toHaveBeenCalledWith(
+        "/projects/project-1?tab=help&helpSubTab=welcome",
+      ),
+    );
   });
 
   it("shows demo unavailable when starting a new demo after expiry while switched off", async () => {
@@ -228,7 +310,7 @@ describe("DemoStartPage", () => {
   it("provisions with one combined consent and lands on the new Project Page", async () => {
     const user = userEvent.setup();
     mocks.resume.mockResolvedValue({ outcome: "none" });
-    mocks.provision.mockResolvedValue(sandbox);
+    mocks.provision.mockResolvedValue({ outcome: "ready", sandbox });
 
     renderPage();
     await screen.findByTestId("demo-consent");
@@ -240,8 +322,10 @@ describe("DemoStartPage", () => {
       demoTermsVersion: "demo-1.0",
       agentBridgeAcknowledgmentVersion: "demo-1.0",
     });
-    expect(await screen.findByTestId("project-page")).toHaveTextContent(
-      "/projects/project-1",
+    await waitFor(() =>
+      expect(mocks.replaceLocation).toHaveBeenCalledWith(
+        "/projects/project-1?tab=help&helpSubTab=welcome",
+      ),
     );
   });
 
@@ -274,7 +358,7 @@ describe("DemoStartPage", () => {
       mocks.resume.mockResolvedValue({ outcome: "none" });
       mocks.provision
         .mockRejectedValueOnce(new mocks.DemoSandboxProvisionError(code))
-        .mockResolvedValueOnce(sandbox);
+        .mockResolvedValueOnce({ outcome: "ready", sandbox });
 
       renderPage();
       await screen.findByTestId("demo-consent");
@@ -300,21 +384,151 @@ describe("DemoStartPage", () => {
           expect.objectContaining({ botCheckToken: "token-1" }),
         ),
       );
-      expect(await screen.findByTestId("project-page")).toBeInTheDocument();
+      await waitFor(() =>
+        expect(mocks.replaceLocation).toHaveBeenCalledWith(
+          "/projects/project-1?tab=help&helpSubTab=welcome",
+        ),
+      );
     },
   );
+
+  it("shows the setup screen with the connected feature count after Start, then takes the visitor into the sandbox", async () => {
+    const user = userEvent.setup();
+    mocks.resume.mockResolvedValue({ outcome: "none" });
+    mocks.provision.mockResolvedValue({
+      outcome: "provisioning",
+      progress: {
+        stage: "COPYING",
+        connectedFeatureCount: 0,
+        totalFeatureCount: 0,
+      },
+    });
+    let finish!: (result: unknown) => void;
+    mocks.followSetup.mockImplementation(
+      (onProgress: (progress: unknown) => void) => {
+        onProgress({
+          stage: "CONNECTING",
+          connectedFeatureCount: 3,
+          totalFeatureCount: 8,
+        });
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      },
+    );
+
+    renderPage();
+    await screen.findByTestId("demo-consent");
+    await completeConsent(user);
+    await user.click(screen.getByTestId("demo-start-button"));
+
+    expect(await screen.findByTestId("demo-setup")).toBeInTheDocument();
+    expect(screen.queryByTestId("demo-consent")).not.toBeInTheDocument();
+    expect(await screen.findByTestId("demo-setup-features")).toHaveTextContent(
+      "3 of 8 features connected",
+    );
+    expect(screen.getByText(/can take a minute/i)).toBeInTheDocument();
+
+    finish({ outcome: "ready", sandbox });
+    await waitFor(() =>
+      expect(mocks.replaceLocation).toHaveBeenCalledWith(
+        "/projects/project-1?tab=help&helpSubTab=welcome",
+      ),
+    );
+  });
+
+  it("returns a reloaded page to the setup screen instead of the terms screen", async () => {
+    mocks.resume.mockResolvedValue({
+      outcome: "provisioning",
+      progress: {
+        stage: "CONNECTING",
+        connectedFeatureCount: 5,
+        totalFeatureCount: 8,
+      },
+    });
+
+    renderPage();
+
+    expect(await screen.findByTestId("demo-setup-features")).toHaveTextContent(
+      "5 of 8 features connected",
+    );
+    expect(screen.queryByTestId("demo-consent")).not.toBeInTheDocument();
+    expect(mocks.provision).not.toHaveBeenCalled();
+    expect(mocks.followSetup).toHaveBeenCalled();
+  });
+
+  it("tells the visitor when progress can't be checked and lets them check again", async () => {
+    const user = userEvent.setup();
+    mocks.resume.mockResolvedValue({
+      outcome: "provisioning",
+      progress: {
+        stage: "CONNECTING",
+        connectedFeatureCount: 1,
+        totalFeatureCount: 4,
+      },
+    });
+    mocks.followSetup
+      .mockImplementationOnce(
+        (_onProgress: unknown, onReachable: (reachable: boolean) => void) => {
+          onReachable(false);
+          return new Promise(() => {});
+        },
+      )
+      .mockResolvedValueOnce({ outcome: "ready", sandbox });
+
+    renderPage();
+
+    expect(
+      await screen.findByTestId("demo-setup-unreachable"),
+    ).toBeInTheDocument();
+    // The visitor keeps their place: same setup screen, same counts.
+    expect(screen.getByTestId("demo-setup-features")).toHaveTextContent(
+      "1 of 4 features connected",
+    );
+    await user.click(screen.getByTestId("demo-setup-check-again"));
+
+    await waitFor(() =>
+      expect(mocks.replaceLocation).toHaveBeenCalledWith(
+        "/projects/project-1?tab=help&helpSubTab=welcome",
+      ),
+    );
+    expect(mocks.followSetup).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows a failed setup with a Try again that opens the terms screen", async () => {
+    const user = userEvent.setup();
+    mocks.resume.mockResolvedValue({
+      outcome: "provisioning",
+      progress: {
+        stage: "COPYING",
+        connectedFeatureCount: 0,
+        totalFeatureCount: 0,
+      },
+    });
+    mocks.followSetup.mockResolvedValue({ outcome: "failed" });
+
+    renderPage();
+
+    expect(await screen.findByTestId("demo-setup-failed")).toBeInTheDocument();
+    await user.click(screen.getByTestId("demo-setup-retry"));
+    expect(await screen.findByTestId("demo-consent")).toBeInTheDocument();
+  });
 
   it("offers a retry when the existing-demo check fails", async () => {
     const user = userEvent.setup();
     mocks.resume
       .mockRejectedValueOnce(new Error("network"))
-      .mockResolvedValueOnce({ outcome: "resumed", sandbox });
+      .mockResolvedValueOnce({ outcome: "ready", sandbox });
 
     renderPage();
 
     await user.click(await screen.findByTestId("demo-retry-check"));
 
-    expect(await screen.findByTestId("project-page")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mocks.replaceLocation).toHaveBeenCalledWith(
+        "/projects/project-1?tab=help&helpSubTab=welcome",
+      ),
+    );
   });
 
   it("does not offer to start when no bot check is configured", async () => {

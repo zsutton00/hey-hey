@@ -1,3 +1,4 @@
+import { WorkItemGraphChangeSummary } from "../ProposalDispatchers/WorkItemGraphChangeSummary";
 import {
   Alert,
   Box,
@@ -13,11 +14,17 @@ import React, { useMemo } from "react";
 import {
   ProposalGroupDecisionOutcome,
   ProposalGroupLifecycle,
+  TargetEntityType,
   type ProposalGroupApproveAllResult,
   type ProposalGroupSnapshot,
 } from "../../api";
 import { useProposalGroup } from "../../data/hooks/useProposalGroup";
 import { useProposalGroupDecisions } from "../../data/hooks/useProposalGroupDecisions";
+import { ProposalGroupJourneyReview } from "./ProposalGroupJourneyReview";
+import {
+  isCreateTaskUpdates,
+  isWorkItemGraphProposal,
+} from "../ProposalDispatchers/types";
 import { ProposalGroupMemberReview } from "./ProposalGroupMemberReview";
 import {
   extractProposalApprovalFailureDiagnostic,
@@ -25,7 +32,11 @@ import {
 } from "../ProposalDispatchers/ProposalFailureDiagnostic";
 import { formatProposalGroupLifecycle } from "./proposalGroupStatusText";
 import { useWorkItemTypes } from "../../data/hooks/useWorkItemTypes";
-import { WorkflowGraphSurface } from "../shared/WorkflowMentionInlineRenderer";
+import {
+  getDiagramElementMetadata,
+  getDiagramMetadata,
+  WorkflowGraphSurface,
+} from "../shared/WorkflowMentionInlineRenderer";
 import {
   projectCanonicalProposalGroupGraph,
   resolveCanonicalProposalGroupRootDefinition,
@@ -152,6 +163,44 @@ export const ProposalGroupReviewView: React.FC<
     registry.isLoading,
     registry.workItemTypes,
   ]);
+  // Detects, independent of Diagram kind, whether a Diagram element's
+  // canonical reference targets a sibling Mockup CREATE member of this same
+  // group by reserved identity. Those members get their decision surface
+  // moved onto the referencing node, so their flat card is suppressed below.
+  const referencedMockupScreenMemberIds = useMemo(() => {
+    if (groupGraph?.kind !== "ready") return new Set<string>();
+    const canonicalReferenceTargetIds = new Set(
+      groupGraph.projection.children.flatMap((child) => {
+        const reference = getDiagramElementMetadata(child)?.canonicalReference;
+        return reference?.entityType === TargetEntityType.Task
+          ? [reference.entityId]
+          : [];
+      }),
+    );
+    return new Set(
+      proposalGroup.members.flatMap(
+        ({ memberId, proposal, reservedEntityId }) =>
+          reservedEntityId &&
+          canonicalReferenceTargetIds.has(reservedEntityId) &&
+          !isWorkItemGraphProposal(proposal) &&
+          isCreateTaskUpdates(proposal) &&
+          proposal.updates.type === "mockup"
+            ? [memberId]
+            : [],
+      ),
+    );
+  }, [groupGraph, proposalGroup.members]);
+  const journeys =
+    groupGraph?.kind === "ready" &&
+    (referencedMockupScreenMemberIds.size > 0 ||
+      getDiagramMetadata(groupGraph.projection.projectedRoot)?.kind ===
+        "UX_FLOW")
+      ? proposalGroup.members.filter(
+          ({ memberId, proposal }) =>
+            memberId === groupGraph.rootMemberId &&
+            isWorkItemGraphProposal(proposal),
+        )
+      : [];
   const allMembersApproved =
     proposalGroup.members.length > 0 &&
     proposalGroup.members.every(
@@ -224,6 +273,19 @@ export const ProposalGroupReviewView: React.FC<
             members={proposalGroup.members}
           />
         ) : null}
+        {journeys.map((journey) =>
+          isWorkItemGraphProposal(journey.proposal) ? (
+            <ProposalGroupJourneyReview
+              key={journey.memberId}
+              group={proposalGroup}
+              journey={journey}
+              onApprove={onApproveMember}
+              onReject={onRejectMember}
+              decidingProposalIds={decidingProposalIds}
+              decisionProposals={decisionProposals}
+            />
+          ) : null,
+        )}
         {structuralGraphShape && registry.isLoading ? (
           <Box
             data-testid="proposal-group-graph-loading"
@@ -248,7 +310,7 @@ export const ProposalGroupReviewView: React.FC<
             {groupGraph.reason}
           </Alert>
         ) : null}
-        {groupGraph?.kind === "ready" ? (
+        {groupGraph?.kind === "ready" && journeys.length === 0 ? (
           <Box data-testid="proposal-group-graph-preview">
             <WorkflowGraphSurface
               mode="view"
@@ -268,24 +330,43 @@ export const ProposalGroupReviewView: React.FC<
             />
           </Box>
         ) : null}
-        {proposalGroup.members.map((member) => (
-          <ProposalGroupMemberReview
-            key={member.memberId}
-            member={member}
-            members={proposalGroup.members}
-            organizationId={organizationId}
-            projectId={projectId}
-            onApprove={onApproveMember}
-            onReject={onRejectMember}
-            isDeciding={decidingProposalIds.has(member.proposal.id)}
-            decisionProposal={decisionProposals.get(member.proposal.id)}
-            decisionOverride={decisionFromApproveAllOutcome(
-              approveAllResult?.results.find(
-                ({ memberId }) => memberId === member.memberId,
-              )?.outcome,
-            )}
-          />
-        ))}
+        {proposalGroup.members
+          .filter(
+            ({ memberId }) => !referencedMockupScreenMemberIds.has(memberId),
+          )
+          .map((member) => (
+            <ProposalGroupMemberReview
+              key={member.memberId}
+              member={member}
+              members={proposalGroup.members}
+              content={
+                journeys.some(({ memberId }) => memberId === member.memberId) &&
+                isWorkItemGraphProposal(member.proposal) ? (
+                  groupGraph?.kind === "ready" ? (
+                    <WorkItemGraphChangeSummary
+                      operations={member.proposal.updates.operations}
+                      projection={groupGraph.projection}
+                    />
+                  ) : (
+                    <Alert severity="info">
+                      The frozen journey preview is unavailable.
+                    </Alert>
+                  )
+                ) : undefined
+              }
+              organizationId={organizationId}
+              projectId={projectId}
+              onApprove={onApproveMember}
+              onReject={onRejectMember}
+              isDeciding={decidingProposalIds.has(member.proposal.id)}
+              decisionProposal={decisionProposals.get(member.proposal.id)}
+              decisionOverride={decisionFromApproveAllOutcome(
+                approveAllResult?.results.find(
+                  ({ memberId }) => memberId === member.memberId,
+                )?.outcome,
+              )}
+            />
+          ))}
       </Stack>
     </Paper>
   );

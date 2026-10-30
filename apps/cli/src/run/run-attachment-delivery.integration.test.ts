@@ -1,3 +1,4 @@
+import { createTestMessagePoster } from './run.test-support';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -197,6 +198,7 @@ it.each(['claude', 'codex', 'opencode'] as const)(
       owner,
       {
         materializeAdmittedRun: vi.fn().mockResolvedValue({ status: 'started' }),
+        adoptStagedBrowserTab: vi.fn().mockResolvedValue(undefined),
         sendSystemMessage: async (
           _id: string,
           request: LocalRunPromptRequest,
@@ -215,6 +217,7 @@ it.each(['claude', 'codex', 'opencode'] as const)(
       NOOP_LOGGER,
       () => true,
       runStore,
+      createTestMessagePoster(),
       undefined,
       store,
     );

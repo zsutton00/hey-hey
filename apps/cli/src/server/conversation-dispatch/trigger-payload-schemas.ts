@@ -1,3 +1,4 @@
+import { ImplementPromptPayloadSchema } from '../../generated/coding-plan.schemas';
 /**
  * Zod schemas mirroring the `triggersAgent.payload` wire shapes the platform
  * sends per `promptType`. Validated at the trigger-dispatch and message-service
@@ -38,8 +39,6 @@ import {
   PlanShapingFeatureSyncItemDecisionChoiceEnum,
   RepositoryGroundingRequestProviderEnum,
   RepositoryGroundingRequestReasoningEffortEnum,
-  RepositoryFeatureEnrichmentRequestProviderEnum,
-  RepositoryFeatureEnrichmentRequestReasoningEffortEnum,
   RepositoryFirstWorkRequestProviderEnum,
   RepositoryFirstWorkRequestReasoningEffortEnum,
   RepositoryPlacementRequestProviderEnum,
@@ -65,6 +64,7 @@ import {
   type AgentSkillSelection,
   type FeatureSyncDiscrepancy,
   type PlanShapingFeatureSyncItemDecision,
+  type PlanShapingFeatureSyncIteratePromptPayload,
   type StartRunWorktree,
 } from '../../shared/agent-bridge-contract/generated/api';
 import {
@@ -131,20 +131,18 @@ const featureSyncIterateUserMessageContextSchema = z
   .strict();
 
 const planShapingFeatureSyncIteratePayloadFields = {
+  planId: z.string().min(1),
+  designDocId: z.string().min(1),
   discrepancies: z.array(featureSyncDiscrepancySchema),
   decisions: z.array(planShapingFeatureSyncItemDecisionSchema),
   userMessage: z.string().optional(),
-};
+} satisfies Record<keyof PlanShapingFeatureSyncIteratePromptPayload, z.ZodTypeAny>;
 
 const planShapingFeatureSyncIteratePayloadSchema = z.object(
   planShapingFeatureSyncIteratePayloadFields,
 );
-const planShapingFeatureSyncIterateUserMessageContextSchema = z
-  .object({
-    discrepancies: z.array(featureSyncDiscrepancySchema),
-    decisions: z.array(planShapingFeatureSyncItemDecisionSchema),
-  })
-  .strict();
+const planShapingFeatureSyncIterateUserMessageContextSchema =
+  planShapingFeatureSyncIteratePayloadSchema.omit({ userMessage: true }).strict();
 
 const featureSyncUserMessageContextSchema = z.union([
   featureSyncIterateUserMessageContextSchema,
@@ -216,13 +214,7 @@ const runtimeSelectionSchema = z
   })
   .strict();
 
-const implementPromptPayloadSchema = z
-  .object({
-    userMessage: z.string().optional(),
-    runtime: runtimeSelectionSchema.optional(),
-  })
-  .strict()
-  .optional();
+const implementPromptPayloadSchema = ImplementPromptPayloadSchema.optional();
 
 const repositoryGroundingBoundsSchema = z
   .object({
@@ -271,55 +263,17 @@ const repositoryGroundingPayloadShape = {
 
 const repositoryGroundingPayloadSchema = z.object(repositoryGroundingPayloadShape).strict();
 
-const repositoryFeatureEnrichmentAnswerBatchSchema = z
-  .object({
-    round: z.number().int().min(1).max(2),
-    answers: z
-      .array(z.object({ question: z.string().min(1), answer: z.string().min(1) }).strict())
-      .min(1)
-      .max(3),
-  })
-  .strict();
-
-const reviewedCandidatesValidator = createAgentBridgeRuntimeValidator<
-  RepositoryFeatureEnrichmentRequest['reviewedCandidates']
->('RepositoryGroundingSuccess/properties/hierarchy');
-
-const repositoryFeatureEnrichmentPayloadShape = {
-  promptType: z.literal(LocalPromptType.RepositoryFeatureEnrichment).optional(),
-  projectId: z.string().uuid(),
-  conversationId: z.string().uuid(),
-  workflowId: z.string().uuid(),
-  workflowNodeId: z.string().min(1),
-  serviceId: z.string().uuid(),
-  machineId: z.string().uuid(),
-  provider: z.nativeEnum(RepositoryFeatureEnrichmentRequestProviderEnum),
-  resolvedFrontierModel: z.string().min(1),
-  reasoningEffort: z.nativeEnum(RepositoryFeatureEnrichmentRequestReasoningEffortEnum),
-  fastMode: z.boolean().optional(),
-  analysis: repositoryGroundingSuccessSchema,
-  reviewedCandidates: z.custom<RepositoryFeatureEnrichmentRequest['reviewedCandidates']>(
-    (value) => reviewedCandidatesValidator(value),
-    { message: 'Reviewed candidates must satisfy the repository hierarchy contract.' },
-  ),
-  completedRounds: z.number().int().min(0).max(2),
-  answerBatches: z.array(repositoryFeatureEnrichmentAnswerBatchSchema).max(2),
-} satisfies Record<keyof RepositoryFeatureEnrichmentRequest, z.ZodTypeAny>;
+const repositoryFeatureEnrichmentRequestValidator =
+  createAgentBridgeRuntimeValidator<RepositoryFeatureEnrichmentRequest>(
+    'RepositoryFeatureEnrichmentRequest',
+  );
 
 const repositoryFeatureEnrichmentPayloadSchema = z
-  .object(repositoryFeatureEnrichmentPayloadShape)
-  .strict()
+  .custom<RepositoryFeatureEnrichmentRequest>(
+    (value) => repositoryFeatureEnrichmentRequestValidator(value),
+    { message: 'Enrichment request must satisfy the generated OpenAPI contract.' },
+  )
   .superRefine((value, ctx) => {
-    if (
-      value.completedRounds !== value.answerBatches.length ||
-      value.answerBatches.some((batch, index) => batch.round !== index + 1)
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['answerBatches'],
-        message: 'answer batches must be ordered and match completedRounds',
-      });
-    }
     if (
       value.analysis.serviceId !== value.serviceId ||
       value.analysis.provider !== value.provider ||

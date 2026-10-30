@@ -6,7 +6,7 @@ import {
   type JevEvaluator,
   type Wording,
 } from '../scenarios';
-import { textForJev } from './entity-text';
+import { excerptEntity, type ExcerptMetadata } from './excerpt';
 import {
   JEV_MAX_CONCURRENT_REQUESTS,
   JEV_REQUEST_MAX_CHARS,
@@ -25,6 +25,7 @@ export interface ReadCheckInput {
   ask: string;
   ids: readonly string[];
   reader: GraphReader;
+  hits?: ReadonlyMap<string, import('./types').TitledRef>;
   /** Overrides {@link JEV_REQUEST_MAX_CHARS}. */
   maxChars?: number;
   /** Cancels the Jev requests; the check then rejects. */
@@ -37,7 +38,13 @@ export interface ReadCheckResult {
   /** `applies` is Jev's probability that the entity applies. */
   dropped: { id: string; applies: number }[];
   /** Every entity checked, in the order given: kept or dropped, with Jev's `applies` (null when its request failed). */
-  judged: { id: string; applies: number | null; kept: boolean }[];
+  judged: {
+    id: string;
+    text: string;
+    applies: number | null;
+    kept: boolean;
+    excerpt?: ExcerptMetadata;
+  }[];
   /** Requests Jev failed; every entity in them is in `kept`. */
   failures: { ids: string[]; failure: JevFailure }[];
   usage: WalkUsage;
@@ -45,19 +52,20 @@ export interface ReadCheckResult {
 
 /**
  * Load each entity and ask Jev whether it applies to the focal work and the user's ask. Jev
- * reads each entity without its Implementation section; the caller gets kept entities in full.
+ * judges whole-paragraph excerpts without Implementation sections; kept excerpts go to the caller.
  * A failed request keeps every entity it carried and is reported, never retried or guessed.
  * An entity the reader cannot load rejects the whole check.
  */
 export const readCheck = async (input: ReadCheckInput): Promise<ReadCheckResult> => {
   const { client, model, wording, reader, maxChars = JEV_REQUEST_MAX_CHARS, signal } = input;
   const focal = withAsk(input.focal, input.ask);
-  const loaded = await Promise.all([...new Set(input.ids)].map((id) => reader.read(id)));
+  const full = await Promise.all([...new Set(input.ids)].map((id) => reader.read(id)));
+  const loaded = full.map((entity) => excerptEntity(entity, input.hits?.get(entity.id)));
   signal?.throwIfAborted();
   const candidates: Candidate[] = loaded.map(({ id, text }) => ({
     id,
     kind: 'entity',
-    text: textForJev(text),
+    text,
   }));
   const requests = packRequests(READ_CHECK, focal, candidates, wording, maxChars);
   const results = await mapConcurrently(requests, JEV_MAX_CONCURRENT_REQUESTS, (batch) =>
@@ -88,7 +96,9 @@ export const readCheck = async (input: ReadCheckInput): Promise<ReadCheckResult>
   return {
     kept: loaded.filter(({ id }) => keep.has(id)),
     dropped,
-    judged: loaded.map(({ id }) => ({
+    judged: loaded.map(({ id, text, excerpt }) => ({
+      text,
+      ...(excerpt ? { excerpt } : {}),
       id,
       applies: applies.get(id) ?? null,
       kept: keep.has(id),

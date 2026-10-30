@@ -1,7 +1,4 @@
-import {
-  WORK_ITEM_TYPE_KEYS,
-  type WorkItemTypeKey,
-} from 'src/services/tasks/work-item-type-keys';
+import { WorkItemTypeRegistryService } from '../../services/tasks/work-item-type-registry.service';
 import { Injectable, Logger } from '@nestjs/common';
 import { Tool, Context } from '@rekog/mcp-nest';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
@@ -41,27 +38,13 @@ const MAX_CONTEXT_SEEDS = 5;
 const MAX_CONTEXT_CONCURRENCY = 2;
 const FUTURE_PROPOSAL_EDGE_PAGE_SIZE = 100;
 
-/**
- * WorkItemTypeKey values (FEATURE, GOAL, BUG, STANDARD) are content profiles of a
- * TASK entity, not entity types in their own right. Agents routinely pass
- * them as `entityType`. They are accepted by the schema so the handler can
- * return a teaching error instead of @rekog/mcp-nest's generic enum dump.
- */
-const TASK_TYPE_ALIASES = Object.values(
-  WORK_ITEM_TYPE_KEYS,
-) as readonly string[];
-
-const contextEntityTypeSchema = z.enum([
-  ...Object.values(EntityTypeEnum),
-  ...TASK_TYPE_ALIASES,
-] as [string, ...string[]]);
+const contextEntityTypeSchema = z.string();
 
 export const contextSeedSchema = z.object({
   entityId: z.string().uuid().describe('ID of the entity to get context for'),
   entityType: contextEntityTypeSchema.describe(
-    'Entity type (e.g. TASK, DESIGN_DOC, PLAN, PLAN_STAGE, INITIATIVE). ' +
-      'FEATURE, GOAL and BUG are task types, not entity types — pass ' +
-      "entityType: 'TASK' for those.",
+    'Entity type (e.g. TASK, DESIGN_DOC, PLAN, PLAN_STAGE, INITIATIVE, SERVICE, IMPLEMENTATION_HINT). ' +
+      'Any registered work-item type key aliases TASK.',
   ),
   projectId: z
     .string()
@@ -361,6 +344,56 @@ const featureRequirementsSectionSchema = z
       'each record preserves its durable ID, statement, group, and typed citation slots.',
   );
 
+const conversationContextSchema = z.object({
+  conversationId: z
+    .string()
+    .describe('The owning conversation. Never a message id.'),
+  conversationTitle: z.string().nullable().optional(),
+  about: z
+    .object({ entityType: z.string(), entityId: z.string() })
+    .optional()
+    .describe('The entity this conversation is about, when recorded.'),
+  agentSessions: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      status: z.string(),
+      type: z.string(),
+    }),
+  ),
+  proposals: z
+    .array(
+      z.object({
+        id: z.string(),
+        title: z.string().nullable().optional(),
+        status: z.string(),
+        action: z.string(),
+        targetEntityType: z.string(),
+        targetEntityId: z.string().nullable().optional(),
+      }),
+    )
+    .describe(
+      'Newest proposals raised from this conversation (or, for a MESSAGE ' +
+        'seed, from that message), capped.',
+    ),
+  reports: z.array(
+    z.object({ id: z.string(), reportType: z.string(), createdAt: z.string() }),
+  ),
+  message: z
+    .object({
+      messageId: z.string(),
+      type: z.string(),
+      createdAt: z.string().nullable().optional(),
+      excerpt: z.string(),
+      truncated: z
+        .boolean()
+        .describe('True when excerpt is shorter than the full message.'),
+      length: z.number().int(),
+    })
+    .optional()
+    .describe('MESSAGE seeds only: a capped excerpt of the message body.'),
+});
+
 const entityContentSchema = z.object({
   sections: z
     .record(z.string())
@@ -490,6 +523,13 @@ export const getContextOutput = z.object({
         'metadata. Present for TASK (including Plan and Stage work items) ' +
         'and DESIGN_DOC seeds. Absent for entity types with no content body.',
     ),
+  conversationContext: conversationContextSchema
+    .optional()
+    .describe(
+      'CONVERSATION and MESSAGE seeds: owning conversation, agent ' +
+        'sessions, subject entity, related proposals and reports, and a ' +
+        'capped message excerpt. Read the full thread with get_agent_session.',
+    ),
 });
 
 type GetContextOutput = z.infer<typeof getContextOutput>;
@@ -581,6 +621,7 @@ export class GetContextToolsProvider {
     private readonly entityContextService: EntityContextService,
     private readonly agentEdgeClient: AgentEdgeClientService,
     private readonly proposalApprovalService: ProposalApprovalService,
+    private readonly workItemTypeRegistry: WorkItemTypeRegistryService,
   ) {}
 
   private async loadFutureProposalDependencies(
@@ -650,6 +691,7 @@ export class GetContextToolsProvider {
       '2 hops (relatedEntities — flat list, with each relationship inline ' +
       'on the entry), the agent sessions attached to it (agentSessions), ' +
       'and its placement in the product feature hierarchy. ' +
+      'Any registered work-item type key aliases TASK. ' +
       'The featureHierarchy shows where the entity sits within the product — ' +
       'e.g. UI → Web UI → Design → Colors — enumerating ancestor features ' +
       '(above it), sibling features (at the same level), and descendant ' +
@@ -769,25 +811,45 @@ export class GetContextToolsProvider {
     const auth = extractAuthContext({}, request);
     if (!isAuthContext(auth)) return auth;
 
-    const { entityId, entityType } = params;
+    const { entityId } = params;
     const { organizationId, token } = auth;
 
-    if (TASK_TYPE_ALIASES.includes(entityType)) {
-      this.logger.warn('get_context rejected task type as entityType', {
-        organizationId,
-        entityId,
-        entityType,
-      });
+    const resolvedProjectId = resolveProjectId(params, request);
+    if (!isProjectId(resolvedProjectId)) {
+      return resolvedProjectId;
+    }
+    const projectId = resolvedProjectId;
+    const canonicalType = Object.values(EntityTypeEnum).find(
+      (type) => type === params.entityType,
+    );
+    const entityType =
+      canonicalType ??
+      (this.workItemTypeRegistry.getRulesForProject(
+        params.entityType,
+        projectId,
+      )
+        ? EntityTypeEnum.Task
+        : undefined);
+
+    if (entityType === undefined) {
+      const acceptedTypes = [
+        ...new Set([
+          ...Object.values(EntityTypeEnum),
+          ...this.workItemTypeRegistry
+            .getDefinitions(projectId)
+            .filter(({ definition }) =>
+              this.workItemTypeRegistry.getRulesForProject(
+                definition.key,
+                projectId,
+              ),
+            )
+            .map(({ definition }) => definition.key),
+        ]),
+      ];
       return mcpError(
-        `'${entityType}' is a task type, not an entity type. FEATURE, ` +
-          'GOAL, BUG and STANDARD are all content profiles of a TASK — ' +
-          "retry with entityType: 'TASK' and the same entityId.",
+        'Invalid entityType. Accepted types: ' + acceptedTypes.join(', '),
       );
     }
-
-    const resolvedProjectId = resolveProjectId(params, request);
-    if (!isProjectId(resolvedProjectId)) return resolvedProjectId;
-    const projectId = resolvedProjectId;
 
     this.logger.log('get_context called', {
       organizationId,
@@ -800,7 +862,7 @@ export class GetContextToolsProvider {
       fullContext = await this.entityContextService.getFullEntityContext(
         organizationId as OrganizationId,
         projectId as ProjectId,
-        entityType as EntityTypeEnum,
+        entityType,
         entityId,
         token ?? null,
         { relatedEntityDepth: 2, proposalDetail: ProposalDetail.Summary },
@@ -854,6 +916,9 @@ export class GetContextToolsProvider {
         ? { futureProposalDependencies }
         : {}),
       ...(fullContext.content ? { content: fullContext.content } : {}),
+      ...(fullContext.conversationContext
+        ? { conversationContext: fullContext.conversationContext }
+        : {}),
     };
 
     return output;

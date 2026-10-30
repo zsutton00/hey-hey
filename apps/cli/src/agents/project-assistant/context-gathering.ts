@@ -2,7 +2,7 @@
  * Context gathering for Project Assistant, run in `prepare` before its session starts.
  *
  * A one-off, tool-free model call plans the searches, the application runs them, Jev keeps
- * results and the walk follows their edges. Every kept entity goes into the Project Assistant's
+ * results and the walk follows their edges. Every kept entity excerpt goes into the Project Assistant's
  * prompt without its Implementation section. Nothing here falls back: a failed plan, gather, trace write or oversize result throws.
  */
 
@@ -74,14 +74,18 @@ export interface GatherProjectContextArgs {
   /** The Project Assistant's prompt as it stands without the gathered entities. */
   promptContext: string;
   signal: AbortSignal;
+  fullEntityIds?: readonly string[];
 }
 
 const formatEntities = (entities: readonly LoadedEntity[]): string =>
   entities.length === 0
     ? '## Gathered context\n\nThe searches gathered no entities.'
     : [
-        `## Gathered context\n\nJev gathered ${String(entities.length)} entities for this request: kept search results, then what their edges led to.`,
-        ...entities.map(({ id, kind, text }) => `---\n${kind} ${id}\n\n${textForJev(text)}`),
+        `## Gathered context\n\nJev gathered ${String(entities.length)} entities for this request: kept search results, then what their edges led to. Entities may be partial excerpts. Open full entities before relying on governing requirements, resolving conflicts or proposing changes. Never infer omitted text is absent; do not open every excerpt by default.`,
+        ...entities.map(
+          ({ id, kind, title, text, excerpt }) =>
+            `---\n${kind} ${id} — ${title}\n${excerpt?.partial ? `Excerpt — paragraphs ${excerpt.paragraphs.join(', ')} of ${String(excerpt.totalParagraphs)}; open the full entity with get_full_entity before relying on omitted text` : 'Complete content'}\n\n${textForJev(text)}`,
+        ),
       ].join('\n\n');
 
 /** The application's record of one run: counts per stage and what Jev or the reader could not do. */
@@ -124,6 +128,11 @@ const summarize = (result: GatherResult): Record<string, unknown> => ({
   returned: result.entities.length,
 });
 
+const PLAN_LOG_CHARS = 4000;
+
+const describeFailure = (error: unknown): string =>
+  error instanceof Error ? (error.stack ?? error.message) : String(error);
+
 /** Plans, runs and records the searches, and returns the section of kept entities for the prompt. */
 export const gatherProjectContext = async (args: GatherProjectContextArgs): Promise<string> => {
   const { deps, handlerDeps, runId, turnId, project, focalRef, focal, ask, promptContext, signal } =
@@ -134,22 +143,68 @@ export const gatherProjectContext = async (args: GatherProjectContextArgs): Prom
     // No endPhase: the state holds through the gather until the session's first event.
     startPhase: 'gathering_context',
   });
-  const submission = submitContextSearchesSchema.parse(JSON.parse(answer));
-
-  const result = await gather({
-    focalId: focalRef.id,
-    focal,
-    ask,
-    submission,
-    executor: deps.executorFor(project),
-    readerFor: (known) => deps.readerFor(project, focalRef, known),
-    jev: deps.jev,
-    limits: deps.limits,
-    maxResultsPerSearch: deps.maxResultsPerSearch,
-    signal,
+  handlerDeps.logger.info('project_assistant.context_gathering.plan_received', {
+    runId,
+    turnId,
+    chars: answer.length,
+    answer: answer.slice(0, PLAN_LOG_CHARS),
+  });
+  let submission: ReturnType<typeof submitContextSearchesSchema.parse>;
+  try {
+    submission = submitContextSearchesSchema.parse(JSON.parse(answer));
+  } catch (error) {
+    handlerDeps.logger.error('project_assistant.context_gathering.plan_invalid', {
+      runId,
+      turnId,
+      error: describeFailure(error),
+      answer: answer.slice(0, PLAN_LOG_CHARS),
+    });
+    throw error;
+  }
+  handlerDeps.logger.info('project_assistant.context_gathering.gather_started', {
+    runId,
+    turnId,
+    searches: submission.searches.length,
   });
 
-  const stored = await handlerDeps.runStore.appendRunGatherTrace(runId, {
+  let result: Awaited<ReturnType<typeof gather>>;
+  try {
+    result = await gather({
+      focalId: focalRef.id,
+      focal,
+      ask,
+      submission,
+      executor: deps.executorFor(project),
+      readerFor: (known) => deps.readerFor(project, focalRef, known),
+      jev: deps.jev,
+      limits: deps.limits,
+      maxResultsPerSearch: deps.maxResultsPerSearch,
+      signal,
+    });
+  } catch (error) {
+    handlerDeps.logger.error('project_assistant.context_gathering.gather_failed', {
+      runId,
+      turnId,
+      error: describeFailure(error),
+    });
+    throw error;
+  }
+
+  for (const step of result.trace.steps) {
+    if (step.kind === 'search') {
+      continue;
+    }
+    for (const judged of step.judged) {
+      if (judged.excerpt?.fullReason) {
+        handlerDeps.logger.info('project_assistant.context_gathering.full_document', {
+          entityId: judged.entity.id,
+          reason: judged.excerpt.fullReason,
+        });
+      }
+    }
+  }
+
+  const stored = await handlerDeps.preparationRecords.appendGatherTrace(runId, {
     runId,
     turnId,
     focal: {
@@ -166,7 +221,8 @@ export const gatherProjectContext = async (args: GatherProjectContextArgs): Prom
     ...result.trace,
   });
   const file = await appendGatherTraceFile(deps.traceLogDir, stored);
-  const text = formatEntities(result.entities);
+  const fullIds = new Set([focalRef.id, ...(args.fullEntityIds ?? [])]);
+  const text = formatEntities(result.entities.filter(({ id }) => !fullIds.has(id)));
   // Written before the size check, so a run that fails on size still leaves what was gathered to read.
   const entitiesFile = path.join(deps.traceLogDir, `${runId}.${turnId}.entities.txt`);
   await writeFile(entitiesFile, text, 'utf8');

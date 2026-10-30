@@ -171,7 +171,7 @@ describe('PlanShapingFeatureSyncIterateNode', () => {
   let node: PlanShapingFeatureSyncIterateNode;
 
   beforeEach(() => {
-    node = new PlanShapingFeatureSyncIterateNode();
+    node = new PlanShapingFeatureSyncIterateNode(buildSeedStub());
   });
 
   it('emits an EXTERNAL_AGENT result carrying a plan_shaping_feature_sync_iterate trigger on entry', async () => {
@@ -214,7 +214,13 @@ describe('PlanShapingFeatureSyncIterateNode', () => {
     const payload = (
       result.triggersAgent as unknown as { payload: Record<string, unknown> }
     ).payload;
-    expect(payload).toEqual({ discrepancies, decisions, userMessage: '2' });
+    expect(payload).toEqual({
+      planId: VALID_PLAN_ID,
+      designDocId: VALID_DESIGN_DOC_ID,
+      discrepancies,
+      decisions,
+      userMessage: '2',
+    });
     expect(tracker.getContext().featureSyncPendingDecisions).toBeUndefined();
     expect(tracker.getContext().featureSyncDiscrepancies).toEqual(
       discrepancies,
@@ -234,7 +240,12 @@ describe('PlanShapingFeatureSyncIterateNode', () => {
     expect(
       (result.triggersAgent as unknown as { payload: Record<string, unknown> })
         .payload,
-    ).toEqual({ discrepancies: [], decisions: [] });
+    ).toEqual({
+      planId: VALID_PLAN_ID,
+      designDocId: VALID_DESIGN_DOC_ID,
+      discrepancies: [],
+      decisions: [],
+    });
 
     await expect(
       node.execute(
@@ -768,7 +779,7 @@ describe('feature-sync revise-and-return loop (cross-node)', () => {
 
   beforeEach(() => {
     reviewNode = new PlanShapingFeatureSyncReviewNode();
-    iterateNode = new PlanShapingFeatureSyncIterateNode();
+    iterateNode = new PlanShapingFeatureSyncIterateNode(buildSeedStub());
   });
 
   it('a revision request typed at the gate is the exact text iterate surfaces as its trigger userMessage — and the stash is cleared so it cannot leak into a later pass', async () => {

@@ -1,3 +1,8 @@
+import {
+  useModalState,
+  ModalWorkOwner,
+} from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import type { ServiceDto } from "@hey-hey/ui-common/api";
 import type { UseServiceLifecycleReturn } from "@hey-hey/ui-common/data";
 import { KEYS } from "@hey-hey/ui-common/i18n";
@@ -6,7 +11,6 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import {
   Alert,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
@@ -125,7 +129,7 @@ export const ServiceLifecycleControl: React.FC<
   ServiceLifecycleControlProps
 > = ({ service, lifecycle, onDeleted }) => {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen, openOwnerKey] = useModalState(false);
   const keys = KEYS.services.lifecycle;
 
   const action: ServiceLifecycleAction | null =
@@ -168,14 +172,16 @@ export const ServiceLifecycleControl: React.FC<
       >
         {t(action === "delete" ? keys.delete : keys.archive)}
       </Button>
-      <ServiceLifecycleConfirmDialog
-        open={open}
-        action={action}
-        serviceName={service.name}
-        isPending={mutation.isPending}
-        onConfirm={handleConfirm}
-        onClose={() => setOpen(false)}
-      />
+      <ModalWorkOwner.Provider value={openOwnerKey}>
+        <ServiceLifecycleConfirmDialog
+          open={open}
+          action={action}
+          serviceName={service.name}
+          isPending={mutation.isPending}
+          onConfirm={handleConfirm}
+          onClose={() => setOpen(false)}
+        />
+      </ModalWorkOwner.Provider>
     </>
   );
 };

@@ -244,6 +244,199 @@ describe('AgentOperationWorkflowAnswerService', () => {
     );
   });
 
+  it.each([
+    'valid',
+    'missing',
+    'malformed',
+    'refine',
+    'unknown',
+    'stale',
+    'unreviewed',
+  ] as const)(
+    'admits only a current explicit conversational approval: %s',
+    async (scenario) => {
+      const tx = {
+        $executeRaw: jest.fn(),
+        agentOperation: {
+          findUnique: jest.fn().mockResolvedValue({
+            operationId: 'operation-1',
+            executionOwner: 'owner-1',
+            state: AgentOperationState.SUBMITTING,
+          }),
+          update: jest.fn(),
+        },
+        conversation: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: 'conversation-1',
+            workflowId: 'workflow-1',
+          }),
+        },
+        message: {
+          findFirst: jest.fn().mockResolvedValue({ id: 'question-message-1' }),
+          findMany: jest.fn().mockResolvedValue(
+            scenario === 'missing'
+              ? []
+              : [
+                  {
+                    id: 'c2d9e41a-4391-4cab-a113-d829722eb02d',
+                    type: 'SYSTEM',
+                    data: {
+                      uiElements: [
+                        {
+                          type: 'coding_plan_version',
+                          payload: {
+                            responseType: 'coding_plan_version_v1',
+                            markdown:
+                              'Preserve explicit approval. Retain the existing Run.',
+                            requiredServiceIds: [
+                              'a8fb6fbb-5747-4480-89e3-fc4a43ab7745',
+                            ],
+                          },
+                        },
+                      ],
+                    },
+                  },
+                  ...(scenario === 'unreviewed'
+                    ? [
+                        {
+                          id: 'new-feedback',
+                          type: 'USER',
+                          data: { comment: 'Change point E.' },
+                        },
+                      ]
+                    : []),
+                ],
+          ),
+        },
+        agentOperationWorkflowInputDelivery: { create: jest.fn() },
+        agentOperationDispatch: { create: jest.fn() },
+      };
+      const prisma = {
+        db: {
+          $transaction: jest.fn(
+            async (callback: (client: typeof tx) => Promise<unknown>) =>
+              callback(tx),
+          ),
+        },
+      } as unknown as PrismaService;
+      const messageService = {
+        addMessageInTransaction: jest
+          .fn()
+          .mockResolvedValue({ id: 'answer-message-1' }),
+      } as unknown as MessageService;
+      const registry = {
+        reservedMessageIds: jest.fn().mockReturnValue({
+          messageId: 'answer-message-1',
+        }),
+        recordAuthorizationInTransaction: jest.fn(),
+        markRoutingPendingInTransaction: jest.fn().mockResolvedValue({
+          operationId: 'operation-1',
+          fingerprint: 'f'.repeat(64),
+          state: AgentOperationState.ROUTING_PENDING,
+        }),
+        toSnapshot: jest.fn((snapshot) => snapshot),
+      } as unknown as AgentOperationRegistryService;
+      const executionGrantService = {
+        deriveInteractiveGrantInTransaction: jest.fn().mockResolvedValue({
+          id: 'authorization-1',
+          kind: AgentOperationAuthorizationKind.BOUNDED_GRANT,
+          grant: { id: 'grant-1' },
+        }),
+      } as unknown as ExecutionGrantService;
+      const service = new AgentOperationWorkflowAnswerService(
+        prisma,
+        registry,
+        messageService,
+        executionGrantService,
+        {} as AgentOperationDispatchService,
+      );
+      const request = {
+        operationId: 'operation-1',
+        operationFingerprint: 'f'.repeat(64),
+        agentSessionId: 'agent-session-1',
+        conversationId: 'conversation-1' as ConversationId,
+        authorization: { kind: 'bounded_grant', grantId: 'grant-1' },
+        input: {
+          kind: 'WORKFLOW_ANSWER',
+          workflowName: WorkflowName.FeatureSync,
+          nodeId: 'feature-sync-coding-plan',
+          parentMessageId: 'question-message-1' as MessageId,
+          action:
+            scenario === 'refine'
+              ? 'REFINE'
+              : scenario === 'unknown'
+                ? 'REVISED'
+                : 'APPROVED',
+          payload:
+            scenario === 'malformed'
+              ? {}
+              : {
+                  responseType: 'coding_plan_version_approval_v1',
+                  versionMessageId:
+                    scenario === 'stale'
+                      ? '7160c056-e0be-4234-afdd-178ec589f612'
+                      : 'c2d9e41a-4391-4cab-a113-d829722eb02d',
+                  feedback: 'Retain keyboard access.',
+                  runtime: {
+                    provider: 'codex',
+                    model: 'implementation-model',
+                    reasoningEffort: 'high',
+                    fastMode: true,
+                  },
+                },
+        },
+      } satisfies SubmitWorkflowAnswerRequestDto;
+
+      const admissionResult = service.admit({
+        request,
+        principal: {
+          organizationId: 'organization-1' as OrganizationId,
+          projectId: 'project-1' as ProjectId,
+          userId: 'user-1' as never,
+        },
+        admission: {
+          authorizationId: 'authorization-1',
+          envelopeAuthorization: {
+            kind: AgentOperationAuthorizationKind.BOUNDED_GRANT,
+          },
+        } as never,
+        executionOwner: 'owner-1',
+      });
+
+      if (scenario !== 'valid') {
+        await expect(admissionResult).rejects.toThrow();
+        expect(messageService.addMessageInTransaction).not.toHaveBeenCalled();
+        expect(
+          tx.agentOperationWorkflowInputDelivery.create,
+        ).not.toHaveBeenCalled();
+        return;
+      }
+      await expect(admissionResult).resolves.toMatchObject({
+        operationState: 'ROUTING_PENDING',
+      });
+
+      expect(tx.message.findFirst).toHaveBeenCalledWith({
+        where: {
+          id: 'question-message-1',
+          conversationId: 'conversation-1',
+          projectId: 'project-1',
+          type: 'SYSTEM',
+        },
+        select: { id: true },
+      });
+      expect(messageService.addMessageInTransaction).toHaveBeenCalledWith(
+        tx,
+        expect.objectContaining({
+          id: 'answer-message-1',
+          parentMessageId: 'question-message-1' as MessageId,
+          type: 'USER',
+        }),
+        'organization-1',
+        'workflowAnswer:evidence',
+      );
+    },
+  );
+
   it('preserves workflow fields without allowing executable message injection', () => {
     const request = {
       operationId: 'operation-1',

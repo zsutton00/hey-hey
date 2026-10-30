@@ -123,6 +123,16 @@ ProjectModeProjectAssistantSetting:
     project-mode handler's participation baseline rather than a
     session-configuration override, which is why it may turn participation on.
 
+SessionRole:
+  type: string
+  description: Kind of work performed by a mode session, independent of mode identity and work-item-type registry role.
+  enum:
+    - implementation
+    - research
+    - planning
+    - review
+  default: implementation
+
 ProjectModeSettings:
   type: object
   additionalProperties: false
@@ -137,6 +147,11 @@ ProjectModeSettings:
       description: Version of the project MODE settings schema.
     projectAssistant:
       $ref: "#/ProjectModeProjectAssistantSetting"
+    sessionRole:
+      allOf:
+        - $ref: "#/SessionRole"
+      description: Session role declared by this Agent Mode. Omission, including omission of the settings section, resolves to implementation.
+      default: implementation
     eligibleWorkItemTypeKeys:
       type: array
       minItems: 1
@@ -219,7 +234,7 @@ WorkItemGraphNodePresentationValue:
       description: Version of the reusable graph node presentation schema.
     color:
       type: string
-      pattern: '^#[0-9A-Fa-f]{6}$'
+      pattern: "^#[0-9A-Fa-f]{6}$"
       description: Optional authored six-digit hexadecimal node color.
 
 WorkItemGraphLayoutNodePosition:
@@ -273,7 +288,7 @@ TemporaryWorkItemGraphLayoutNodeRef:
       type: string
       minLength: 1
       maxLength: 120
-      pattern: '^[A-Za-z][A-Za-z0-9_.:-]*$'
+      pattern: "^[A-Za-z][A-Za-z0-9_.:-]*$"
       description: Change-set-scoped temporary identity for a node not yet materialized.
 
 WorkItemGraphLogicalPosition:
@@ -297,7 +312,8 @@ WorkItemGraphLogicalCoordinate:
 
 WorkItemGraphAggregateResponseDto:
   type: object
-  required: [root, children, relationships, layout, derivedReferences, participation]
+  required:
+    [root, children, relationships, layout, derivedReferences, participation]
   properties:
     root:
       $ref: "./tasks.yaml#/TaskResponseDto"
@@ -353,7 +369,18 @@ CanonicalEntityReference:
 WorkItemGraphParticipationRecord:
   type: object
   additionalProperties: false
-  required: [evidenceId, semanticType, sourceEntityId, sourceEntityType, targetEntityId, targetEntityType, direction, label, reason]
+  required:
+    [
+      evidenceId,
+      semanticType,
+      sourceEntityId,
+      sourceEntityType,
+      targetEntityId,
+      targetEntityType,
+      direction,
+      label,
+      reason,
+    ]
   properties:
     evidenceId:
       type: string
@@ -405,7 +432,16 @@ WorkItemGraphParticipationProvenance:
 WorkItemGraphParticipationEntry:
   type: object
   additionalProperties: false
-  required: [contract, sourceDiagram, displayedAnchor, participant, responsibility, relationship, provenance]
+  required:
+    [
+      contract,
+      sourceDiagram,
+      displayedAnchor,
+      participant,
+      responsibility,
+      relationship,
+      provenance,
+    ]
   properties:
     contract:
       $ref: "#/WorkItemGraphParticipationCanonicalIdentity"
@@ -434,7 +470,14 @@ WorkItemGraphParticipationCompleteness:
 WorkItemGraphParticipationLimit:
   type: object
   additionalProperties: false
-  required: [referenceDepth, candidateCount, diagramCount, graphRequestCount, evidenceCount]
+  required:
+    [
+      referenceDepth,
+      candidateCount,
+      diagramCount,
+      graphRequestCount,
+      evidenceCount,
+    ]
   properties:
     referenceDepth: { type: integer, minimum: 0 }
     candidateCount: { type: integer, minimum: 1 }
@@ -445,7 +488,16 @@ WorkItemGraphParticipationLimit:
 WorkItemGraphParticipationSummary:
   type: object
   additionalProperties: false
-  required: [completeness, uniqueContractCount, participantCount, responsibilityCount, limits, truncationReasons, errors]
+  required:
+    [
+      completeness,
+      uniqueContractCount,
+      participantCount,
+      responsibilityCount,
+      limits,
+      truncationReasons,
+      errors,
+    ]
   properties:
     completeness:
       $ref: "#/WorkItemGraphParticipationCompleteness"
@@ -567,7 +619,15 @@ PaginatedWorkItemReferenceResponseDto:
 WorkItemGraphDerivedReference:
   type: object
   additionalProperties: false
-  required: [expansionKey, projectionKind, entityId, entityType, displayName, viaEntityIds]
+  required:
+    [
+      expansionKey,
+      projectionKind,
+      entityId,
+      entityType,
+      displayName,
+      viaEntityIds,
+    ]
   properties:
     expansionKey:
       type: string
@@ -607,10 +667,11 @@ MaterializedWorkItemSection:
           description: Persisted markdown snapshot for the section.
         materializedProposalId:
           type: string
-          format: uuid
+          pattern: "^(?:[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12})?$"
           description: >
             Proposal whose successfully materialized change produced the
             section's current composition or resolved presentation context.
+            Empty when the section has no recorded proposal provenance.
         crdtSnapshotSeq:
           type: integer
           nullable: true
@@ -1113,7 +1174,7 @@ WorkItemFinalizeResponse:
 
 DiagramKind:
   type: string
-  enum: [GENERAL, ARCHITECTURE, PROCESS, DYNAMIC, DEPLOYMENT]
+  enum: [GENERAL, ARCHITECTURE, PROCESS, DYNAMIC, DEPLOYMENT, UX_FLOW]
   default: GENERAL
 
 DiagramLevel:
@@ -1131,7 +1192,7 @@ DiagramMetadata:
     properties:
       kind:
         type: string
-        enum: [GENERAL, PROCESS, DYNAMIC, DEPLOYMENT]
+        enum: [GENERAL, PROCESS, DYNAMIC, DEPLOYMENT, UX_FLOW]
       level:
         type: string
         enum: [SYSTEM_CONTEXT, CONTAINER, COMPONENT, CODE]
@@ -1148,7 +1209,7 @@ DiagramMetadata:
 DiagramElementRole:
   type: string
   minLength: 1
-  pattern: '^[A-Z][A-Z0-9_]*$'
+  pattern: "^[A-Z][A-Z0-9_]*$"
   default: GENERIC
   description: >
     Project-effective governed role key. Canonical roles are GENERIC, PERSON, AGENT,
@@ -1196,7 +1257,7 @@ DiagramGroupId:
   type: string
   minLength: 1
   maxLength: 120
-  pattern: '^[A-Za-z][A-Za-z0-9_.:-]*$'
+  pattern: "^[A-Za-z][A-Za-z0-9_.:-]*$"
   description: Stable diagram-local group identity. Labels are never identity keys.
 
 DiagramGroup:

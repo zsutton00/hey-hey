@@ -1,3 +1,4 @@
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import type {
   AgentSessionDto,
   ContextRelatedEntityDto,
@@ -16,7 +17,6 @@ import { TERMS } from "@hey-hey/ui-common/i18n";
 import {
   Alert,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,

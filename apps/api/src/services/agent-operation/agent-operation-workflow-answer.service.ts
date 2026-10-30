@@ -1,8 +1,16 @@
+import { CodingPlanWorkflowAnswerSchema } from '../../generated/workflow-review.schemas';
 import {
+  codingPlanMessagesQuery,
+  hasCodingPlanVersion,
+  resolveReviewedCodingPlan,
+} from '../../flows/nodes/feature-sync/coding-plan-context';
+import {
+  BadRequestException,
   ConflictException,
   forwardRef,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -135,11 +143,15 @@ export function buildWorkflowAnswerEvidenceData(
 
 @Injectable()
 export class AgentOperationWorkflowAnswerService {
+  private readonly logger = new Logger(
+    AgentOperationWorkflowAnswerService.name,
+  );
   constructor(
     private readonly prisma: PrismaService,
     private readonly registry: AgentOperationRegistryService,
     @Inject(forwardRef(() => MessageService))
     private readonly messageService: MessageService,
+    @Inject(forwardRef(() => ExecutionGrantService))
     private readonly executionGrantService: ExecutionGrantService,
     @Inject(forwardRef(() => AgentOperationDispatchService))
     private readonly dispatchService: AgentOperationDispatchService,
@@ -223,6 +235,37 @@ export class AgentOperationWorkflowAnswerService {
           message:
             'The workflow answer parent is not a SYSTEM message in the bound conversation.',
         });
+      }
+
+      if (request.input.nodeId === 'feature-sync-coding-plan') {
+        const parsedAnswer = CodingPlanWorkflowAnswerSchema.safeParse({
+          action: request.input.action,
+          payload: request.input.payload,
+        });
+        if (!parsedAnswer.success)
+          throw new BadRequestException(
+            'Invalid Coding Plan action or approval payload.',
+          );
+        const answer = parsedAnswer.data;
+        const rows = await tx.message.findMany(
+          codingPlanMessagesQuery(
+            principal.organizationId,
+            principal.projectId,
+            request.conversationId,
+          ),
+        );
+        if (answer.payload.responseType === 'coding_plan_version_approval_v1') {
+          resolveReviewedCodingPlan(rows, answer.payload.versionMessageId);
+          this.logger.debug('Coding Plan approval context validated', {
+            conversationId: request.conversationId,
+            agentSessionId: request.agentSessionId,
+            versionMessageId: answer.payload.versionMessageId,
+          });
+        } else if (hasCodingPlanVersion(rows)) {
+          throw new ConflictException(
+            'Conversational planning requires explicit approval of the reviewed context.',
+          );
+        }
       }
 
       const reserved = this.registry.reservedMessageIds(operation);

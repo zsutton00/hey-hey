@@ -563,3 +563,74 @@ describe('NewSessionRunner', () => {
     },
   );
 });
+
+describe('role advice at fresh provider handoff', () => {
+  it.each([false, true])(
+    'delivers advice before user input with structured startup=%s',
+    async (structured) => {
+      const run = new Run(makeRunArgs(), makeCollaborators());
+      const acknowledge = vi
+        .spyOn(run.sessionRoleGuidance, 'acknowledge')
+        .mockResolvedValue(undefined);
+      const facade = createTestSessionRunnerFacade();
+      vi.mocked(facade.runPrompt).mockResolvedValue({
+        providerSessionId: 'new-session',
+        providerConversationId: null,
+        errorCount: 0,
+      });
+      const ctx = makeCtx(run, 'AFFECTED INPUT');
+      ctx.roleGuidance = {
+        text: 'REVIEWED MOCKUP ADVICE',
+        deliveryKeys: ['implementation:mockup'],
+        resolutions: [],
+        failedTypeKeys: [],
+      };
+      if (structured) {
+        ctx.startupPromptInput = {
+          renderedInput: 'ENTITY',
+          provenance: {},
+          loadedEntityContext: {},
+        } as never;
+        ctx.providerSessionStartupSegments = {
+          stableInstructions: 'STABLE',
+          dynamicContext: 'DYNAMIC',
+          userInput: 'AFFECTED INPUT',
+        };
+      }
+      await new NewSessionRunner(ctx, { sessionRunnerFacade: facade, logger: makeLogger() }).run(
+        new AbortController().signal,
+      );
+      const request = vi.mocked(facade.runPrompt).mock.calls[0]![1];
+      expect(request.prompt.indexOf('REVIEWED MOCKUP ADVICE')).toBeLessThan(
+        request.prompt.indexOf('AFFECTED INPUT'),
+      );
+      if (structured) {
+        expect(request.startupSegments?.dynamicContext).toContain('REVIEWED MOCKUP ADVICE');
+        expect(request.startupSegments?.stableInstructions).toBe('STABLE');
+        expect(request.startupSegments?.userInput).toBe('AFFECTED INPUT');
+      }
+      expect(acknowledge).toHaveBeenCalledWith(run.session, 'new-session', ctx.roleGuidance);
+    },
+  );
+  it('does not consume advice when provider handoff fails', async () => {
+    const run = new Run(makeRunArgs(), makeCollaborators());
+    const acknowledge = vi.spyOn(run.sessionRoleGuidance, 'acknowledge');
+    const facade = createTestSessionRunnerFacade();
+    vi.mocked(facade.runPrompt).mockRejectedValue(Error('handoff failed'));
+    const ctx = {
+      ...makeCtx(run, 'AFFECTED INPUT'),
+      roleGuidance: {
+        text: 'ADVICE',
+        deliveryKeys: ['implementation:mockup'],
+        resolutions: [],
+        failedTypeKeys: [],
+      },
+    };
+    await expect(
+      new NewSessionRunner(ctx, { sessionRunnerFacade: facade, logger: makeLogger() }).run(
+        new AbortController().signal,
+      ),
+    ).rejects.toThrow('handoff failed');
+    expect(acknowledge).not.toHaveBeenCalled();
+  });
+});

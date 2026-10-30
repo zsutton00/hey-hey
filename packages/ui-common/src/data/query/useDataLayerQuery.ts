@@ -17,12 +17,6 @@ export type DataLayerQueryHookOptions = Pick<
   "refetchOnMount" | "refetchOnWindowFocus" | "staleTimeMs" | "maxCacheAgeMs"
 > & {
   enabled: boolean;
-  /**
-   * Each mount of this hook reads even when cached data is fresh, keeping
-   * that data visible meanwhile. Consumers mounting while a read is in
-   * flight join it, and a query enabled after mounting reads only when stale.
-   */
-  authoritativeMount?: boolean;
 };
 
 export interface DataLayerQuery<TData> {
@@ -33,7 +27,7 @@ export interface DataLayerQuery<TData> {
 /**
  * Runs one migrated Data Layer read with the shared policy and maps the
  * legacy hook options onto TanStack: `refetchOnMount` / `refetchOnWindowFocus`
- * force a read even when fresh (as does `authoritativeMount` on mount),
+ * force a read even when fresh, keeping cached data visible meanwhile,
  * `staleTimeMs` overrides the policy stale time,
  * and `maxCacheAgeMs` is enforced by `useCollectionQueryState`.
  */
@@ -53,7 +47,6 @@ export function useDataLayerQuery<
     refetchOnWindowFocus,
     staleTimeMs,
     maxCacheAgeMs,
-    authoritativeMount,
   } = hookOptions;
   const queryClient = useQueryClient();
   const staleTime = staleTimeMs ?? options.staleTime ?? dataLayerQueryPolicy.staleTime;
@@ -68,9 +61,7 @@ export function useDataLayerQuery<
     ),
     // TanStack consults refetchOnMount only when an observer subscribes, and
     // a Strict Mode replay joins the read that subscription started.
-    ...(refetchOnMount || authoritativeMount
-      ? { refetchOnMount: "always" as const }
-      : {}),
+    ...(refetchOnMount ? { refetchOnMount: "always" as const } : {}),
     ...(refetchOnWindowFocus ? { refetchOnWindowFocus: "always" as const } : {}),
   });
   const state = useCollectionQueryState(result, options.queryKey, enabled, {

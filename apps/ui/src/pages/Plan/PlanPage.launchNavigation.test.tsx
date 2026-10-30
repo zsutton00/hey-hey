@@ -1,3 +1,4 @@
+import { http, HttpResponse } from "msw";
 import {
   createLaunchHarness,
   launchConfiguration,
@@ -15,7 +16,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PlanPage } from "./PlanPage";
 
 vi.mock("@hey-hey/ui-common", () => ({
@@ -47,6 +48,7 @@ vi.mock("@hey-hey/ui-common/components", () => ({
     props: React.ComponentProps<typeof PlanGenerationChat>,
   ) => <PlanGenerationChat {...props} />,
   DiscussCapsuleAction: () => null,
+  DependentFutures: () => null,
   PlanViewer: () => null,
   PlanWorktreeEditor: () => null,
   PlanAutomationTab: () => null,
@@ -78,6 +80,30 @@ vi.mock("../../hooks/useRemainingViewportHeight", () => ({
 }));
 
 describe("PlanPage launch navigation", () => {
+  beforeEach(() => {
+    globalThis.mswServer.use(
+      http.get("http://localhost:3847/api/local/repos", () =>
+        HttpResponse.json({ machineId: "machine-launch", bindings: [] }),
+      ),
+      http.get(
+        "*/api/v1/organizations/org-launch/projects/project-launch/work-items/references",
+        () =>
+          HttpResponse.json({
+            data: {
+              items: [],
+              pagination: {
+                page: 1,
+                limit: 500,
+                total: 0,
+                totalPages: 0,
+                hasNext: false,
+                hasPrevious: false,
+              },
+            },
+          }),
+      ),
+    );
+  });
   it.each(["succeeded", "failed"] as const)(
     "re-enters the same pending launch and renders %s without redispatch",
     async (outcome) => {

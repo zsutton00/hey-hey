@@ -1,3 +1,5 @@
+import { ANNOTATION_COLORS } from '../../../../packages/ui-common/src/utils/annotationColors';
+
 export const ANNOTATION_BINDING = '__heyheyAnnotate';
 export const ANNOTATION_SYNC_EVENT = '__heyhey-annotations-sync';
 
@@ -11,7 +13,12 @@ export const ANNOTATION_SYNC_EVENT = '__heyhey-annotations-sync';
  */
 export const annotationOverlaySource = (nonce: string): string =>
   OVERLAY_SCRIPT.replace('__CONFIG__', () =>
-    JSON.stringify({ binding: ANNOTATION_BINDING, syncEvent: ANNOTATION_SYNC_EVENT, nonce }),
+    JSON.stringify({
+      binding: ANNOTATION_BINDING,
+      syncEvent: ANNOTATION_SYNC_EVENT,
+      nonce,
+      colors: ANNOTATION_COLORS,
+    }),
   );
 
 const OVERLAY_SCRIPT = String.raw`(function (config) {
@@ -39,19 +46,15 @@ const OVERLAY_SCRIPT = String.raw`(function (config) {
     '.box { position: fixed; pointer-events: none; border: 2px solid #2563eb; border-radius: 3px; background: rgba(37, 99, 235, 0.08); }' +
     '.hover { border-style: dashed; }' +
     '.badge { position: fixed; pointer-events: auto; cursor: pointer; min-width: 20px; height: 20px; padding: 0 5px; border: none; border-radius: 10px; background: #2563eb; color: #fff; font-weight: 600; text-align: center; transform: translate(-50%, -50%); }' +
-    '.toolbar { position: fixed; right: 16px; bottom: 16px; pointer-events: auto; display: flex; gap: 6px; align-items: center; padding: 6px; border-radius: 8px; background: rgb(8, 126, 139); color: #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }' +
+    '.toolbar { position: fixed; right: 16px; top: 16px; pointer-events: auto; display: flex; gap: 6px; align-items: center; padding: 6px; border-radius: 8px; background: ' + config.colors.main + '; color: ' + config.colors.contrastText + '; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }' +
     '.toolbar button { cursor: pointer; position: relative; padding: 4px 8px; border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 5px; background: rgba(255, 255, 255, 0.12); color: inherit; }' +
-    '.toolbar button[aria-pressed="true"] { background: #fff; border-color: #fff; color: rgb(8, 126, 139); }' +
+    '.toolbar button[aria-pressed="true"] { background: #fff; border-color: #fff; color: ' + config.colors.main + '; }' +
     '.toolbar button:disabled { opacity: 0.5; cursor: default; }' +
-    '.toolbar button[data-tip]:hover::after { content: attr(data-tip); position: absolute; right: 0; bottom: calc(100% + 8px); width: max-content; max-width: 260px; white-space: normal; padding: 6px 8px; border-radius: 4px; background: #111827; color: #f9fafb; pointer-events: none; }' +
-    '.count { position: absolute; top: -8px; right: -8px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #dc2626; color: #fff; font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; }' +
+    '.toolbar button[data-tip]:hover::after { content: attr(data-tip); position: absolute; right: 0; top: calc(100% + 8px); width: max-content; max-width: 260px; white-space: normal; padding: 6px 8px; border-radius: 4px; background: #111827; color: #f9fafb; pointer-events: none; }' +
+    '.count { position: absolute; top: -8px; right: -8px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #111827; color: #fff; font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; }' +
     '.count:empty { display: none; }' +
     '.popover button { cursor: pointer; padding: 4px 8px; border: 1px solid #4b5563; border-radius: 5px; background: #1f2937; color: inherit; }' +
-    '.list { position: fixed; right: 16px; bottom: 56px; pointer-events: auto; width: 300px; max-height: 50vh; overflow-y: auto; padding: 6px; border-radius: 8px; background: #111827; color: #f9fafb; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }' +
-    '.list button { display: flex; gap: 8px; width: 100%; padding: 6px; border: none; border-radius: 5px; background: none; color: inherit; text-align: left; cursor: pointer; }' +
-    '.list button:hover { background: #1f2937; }' +
-    '.list .number { flex: none; min-width: 20px; height: 20px; border-radius: 10px; background: #2563eb; font-weight: 600; line-height: 20px; text-align: center; }' +
-    '.list .empty { padding: 6px; opacity: 0.7; }' +
+    '.comment { position: fixed; pointer-events: auto; cursor: pointer; max-width: 240px; max-height: 120px; overflow: hidden; padding: 4px 8px; border: none; border-radius: 6px; background: #111827; color: #f9fafb; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }' +
     '.popover { position: fixed; pointer-events: auto; width: 260px; padding: 8px; border-radius: 8px; background: #111827; color: #f9fafb; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }' +
     '.popover textarea { width: 100%; height: 64px; margin-bottom: 6px; padding: 4px; border-radius: 4px; border: 1px solid #4b5563; background: #1f2937; color: inherit; resize: vertical; }' +
     '.actions { display: flex; gap: 6px; justify-content: flex-end; }' +
@@ -59,7 +62,7 @@ const OVERLAY_SCRIPT = String.raw`(function (config) {
     '<div class="layer"></div>' +
     '<div class="toolbar">' +
     '<button class="pick" aria-pressed="false">Annotate</button>' +
-    '<button class="all" aria-pressed="false" data-tip="View the comments on this page">View comments<span class="count"></span></button>' +
+    '<button class="all" aria-pressed="false" data-tip="Hide the comments shown beside annotated elements">Comments<span class="count"></span></button>' +
     '<button class="clear" data-tip="Remove all annotations">Clear</button>' +
     '</div>';
   var layer = root.querySelector('.layer');
@@ -67,7 +70,7 @@ const OVERLAY_SCRIPT = String.raw`(function (config) {
   var count = root.querySelector('.count');
   var clearButton = root.querySelector('.clear');
   var allButton = root.querySelector('.all');
-  var listing = false;
+  var showing = true;
 
   // A refused list means the page belongs to no Run; a refused change re-reads the list.
   function send(message) {
@@ -279,10 +282,12 @@ const OVERLAY_SCRIPT = String.raw`(function (config) {
       ? 'Stop selecting elements (Esc)'
       : 'Select any element to add a comment. Your comments are sent with your next message to the agent session that opened this tab.');
     count.textContent = total > 0 ? String(total) : '';
-    if (total === 0) listing = false;
     allButton.disabled = total === 0;
     clearButton.disabled = total === 0;
-    allButton.setAttribute('aria-pressed', String(listing));
+    allButton.setAttribute('aria-pressed', String(showing));
+    allButton.setAttribute('data-tip', showing
+      ? 'Hide the comments shown beside annotated elements'
+      : 'Show comments beside annotated elements');
     var draft = openNote();
     layer.replaceChildren();
     if (picking && hovered && hovered.isConnected) {
@@ -291,64 +296,57 @@ const OVERLAY_SCRIPT = String.raw`(function (config) {
       place(hover, hovered.getBoundingClientRect());
       layer.append(hover);
     }
+    // One unreadable target must not stop the others from drawing.
     markers.forEach(function (marker) {
-      var element = locate(marker.selector);
-      if (!element) return;
-      var rect = element.getBoundingClientRect();
-      var box = document.createElement('div');
-      box.className = 'box';
-      place(box, rect);
-      var badge = document.createElement('button');
-      badge.className = 'badge';
-      badge.textContent = String(marker.number);
-      badge.title = marker.note || 'Add a note';
-      badge.style.left = rect.left + 'px';
-      badge.style.top = rect.top + 'px';
-      badge.addEventListener('click', function () {
-        if (editing === marker.id) {
-          void commitOpenNote();
-          return;
-        }
-        void commitOpenNote().then(function () {
-          editing = marker.id;
-          render();
-        });
-      });
-      layer.append(box, badge);
-      if (editing === marker.id) appendEditor(marker, rect, draft);
+      try {
+        drawMarker(marker, draft);
+      } catch (error) {
+        // The annotation stays in the store and redraws once its target resolves.
+      }
     });
-    if (listing) appendList();
   }
-  // Lists this page's annotations; choosing one scrolls to it and opens its note.
-  function appendList() {
-    var list = document.createElement('div');
-    list.className = 'list';
-    if (markers.length === 0) {
-      var empty = document.createElement('div');
-      empty.className = 'empty';
-      empty.textContent = 'No comments on this page';
-      list.append(empty);
-    }
-    markers.forEach(function (marker) {
-      var item = document.createElement('button');
-      var number = document.createElement('span');
-      number.className = 'number';
-      number.textContent = String(marker.number);
-      var label = document.createElement('span');
-      label.textContent = marker.note || '(no note)';
-      item.append(number, label);
-      item.addEventListener('click', function () {
-        listing = false;
-        var element = locate(marker.selector);
-        if (element) element.scrollIntoView({ block: 'center' });
-        void commitOpenNote().then(function () {
-          editing = marker.id;
-          render();
-        });
+  function drawMarker(marker, draft) {
+    var element = locate(marker.selector);
+    if (!element) return;
+    var rect = element.getBoundingClientRect();
+    var box = document.createElement('div');
+    box.className = 'box';
+    place(box, rect);
+    var badge = document.createElement('button');
+    badge.className = 'badge';
+    badge.textContent = String(marker.number);
+    badge.title = marker.note || 'Add a note';
+    badge.style.left = rect.left + 'px';
+    badge.style.top = rect.top + 'px';
+    badge.addEventListener('click', function () {
+      if (editing === marker.id) {
+        void commitOpenNote();
+        return;
+      }
+      void commitOpenNote().then(function () {
+        editing = marker.id;
+        render();
       });
-      list.append(item);
     });
-    layer.append(list);
+    layer.append(box, badge);
+    if (editing === marker.id) appendEditor(marker, rect, draft);
+    else if (showing && marker.note) appendComment(marker, rect);
+  }
+  // Shows a note beside its target, just right of the badge; choosing it opens the editor.
+  function appendComment(marker, rect) {
+    var comment = document.createElement('button');
+    comment.className = 'comment';
+    comment.setAttribute('data-annotation', marker.id);
+    comment.textContent = marker.note;
+    comment.style.left = Math.max(8, Math.min(rect.left + 14, window.innerWidth - 248)) + 'px';
+    comment.style.top = rect.top - 10 + 'px';
+    comment.addEventListener('click', function () {
+      void commitOpenNote().then(function () {
+        editing = marker.id;
+        render();
+      });
+    });
+    layer.append(comment);
   }
   var frameRequested = false;
   function scheduleRender() {
@@ -424,7 +422,7 @@ const OVERLAY_SCRIPT = String.raw`(function (config) {
     render();
   });
   allButton.addEventListener('click', function () {
-    listing = !listing;
+    showing = !showing;
     render();
   });
   clearButton.addEventListener('click', function () {

@@ -73,6 +73,7 @@ export interface MaterializableEdge {
   category?: AgentEdgeCategory;
   direction?: AgentEdgeDirection;
   predicate?: string;
+  actionLabel?: string;
   description?: string;
 }
 
@@ -1102,6 +1103,9 @@ export class PendingEdgeService {
       ...(edge.category ? { category: edge.category } : {}),
       ...(edge.direction ? { direction: edge.direction } : {}),
       ...(edge.predicate !== undefined ? { predicate: edge.predicate } : {}),
+      ...(edge.actionLabel !== undefined
+        ? { actionLabel: edge.actionLabel }
+        : {}),
       reasoning:
         edge.description ?? `Declared via proposal edge (${edge.edgeType})`,
       createdBySessionId: sessionId,

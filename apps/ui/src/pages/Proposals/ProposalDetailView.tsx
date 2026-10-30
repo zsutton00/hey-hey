@@ -1,3 +1,5 @@
+import { useModalState } from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import {
   ProposalDetail,
   type OnAppliedProposal,
@@ -13,7 +15,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
@@ -31,9 +32,9 @@ import {
   DetailPageContainer,
   PageBreadcrumbs,
 } from "../../components/Layout";
-import { AdminTab } from "../../components/Tabs";
+import { AdminTab, ProposalConversationsTab } from "../../components/Tabs";
 
-const PROPOSAL_PAGE_TABS = ["review", "admin"] as const;
+const PROPOSAL_PAGE_TABS = ["review", "conversations", "admin"] as const;
 type ProposalPageTab = (typeof PROPOSAL_PAGE_TABS)[number];
 
 const proposalRelatedQueryKey = (queryKey: readonly unknown[]): boolean => {
@@ -67,7 +68,11 @@ export const ProposalDetailView: React.FC<ProposalDetailViewProps> = ({
     "tab",
     parseAsStringLiteral(PROPOSAL_PAGE_TABS).withDefault("review"),
   );
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [
+    isDeleteDialogOpen,
+    setIsDeleteDialogOpen,
+    isDeleteDialogOpenOwnerKey,
+  ] = useModalState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [presentationLabel, setPresentationLabel] = useState<string>();
@@ -169,6 +174,7 @@ export const ProposalDetailView: React.FC<ProposalDetailViewProps> = ({
               onChange={setActiveTab}
               tabs={[
                 { value: "review", label: "Review" },
+                { value: "conversations", label: "Conversations" },
                 { value: "admin", label: "Admin" },
               ]}
             />
@@ -186,6 +192,12 @@ export const ProposalDetailView: React.FC<ProposalDetailViewProps> = ({
                   onPresentationLoaded={setPresentationLabel}
                 />
               }
+            />
+          ) : activeTab === "conversations" ? (
+            <ProposalConversationsTab
+              organizationId={organizationId}
+              projectId={projectId}
+              proposalId={proposalId}
             />
           ) : (
             <AdminTab
@@ -206,6 +218,7 @@ export const ProposalDetailView: React.FC<ProposalDetailViewProps> = ({
           )}
           {!preview && (
             <Dialog
+              ownerKey={isDeleteDialogOpenOwnerKey}
               open={isDeleteDialogOpen}
               onClose={handleCloseDeleteDialog}
               maxWidth="sm"

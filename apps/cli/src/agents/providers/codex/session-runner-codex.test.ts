@@ -1,3 +1,4 @@
+import { retainProviderTestUsage } from '../provider-owner.test-support';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import fs from 'node:fs/promises';
 import { ProviderUsageStore } from '../../../provider-usage/provider-usage-store';
@@ -83,6 +84,9 @@ const buildMcpServerConfigMock = vi.fn<BuildMcpServerConfigMock>(async () => ({
   },
   allowedTools: ['mcp__heyhey-platform__get_context'],
 }));
+let tokenUsageHandler:
+  | import('../../../agent-runtime/node/CodexSdkClient').CodexSdkTokenUsageHandler
+  | null = null;
 vi.mock('../../mcp-server-config', async () => {
   const actual =
     await vi.importActual<typeof import('../../mcp-server-config')>('../../mcp-server-config');
@@ -197,6 +201,13 @@ vi.mock('../../../agent-runtime/index', async () => {
       }
       resumeSession(...args: Parameters<typeof sdkResumeSessionMock>) {
         return sdkResumeSessionMock(...args);
+      }
+      onTokenUsage(
+        handler:
+          | import('../../../agent-runtime/node/CodexSdkClient').CodexSdkTokenUsageHandler
+          | null,
+      ) {
+        tokenUsageHandler = handler;
       }
       onEvent(
         handler: ((event: { method: string; params?: Record<string, unknown> }) => void) | null,
@@ -466,6 +477,17 @@ const getPersistedProviderPayload = (
   return null;
 };
 
+const buildCodexPlatformPrompt = (
+  definitions: Parameters<typeof buildPlatformSystemPrompt>[0],
+  context?: Parameters<typeof buildPlatformSystemPrompt>[1],
+): string =>
+  buildPlatformSystemPrompt(definitions, context, {
+    provider: 'codex',
+    intentFirst: false,
+    maturity: 'ESTABLISHED',
+    hints: 'none',
+  });
+
 describe('session-runner-codex', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -502,6 +524,50 @@ describe('session-runner-codex', () => {
     });
     submissionToolRegistry.clearAll();
     localAgentEndpoint.clear();
+  });
+
+  it('persists cumulative snapshots including output when fresh input is unavailable', async () => {
+    const runStore = makeRunStore();
+    await retainProviderTestUsage(runStore, makeSession());
+    const persist = vi.mocked(runStore.setRunTokenUsage);
+    sdkStartSessionMock.mockImplementation(async () => {
+      const usage = {
+        inputTokens: null,
+        outputTokens: 3,
+        cacheCreationInputTokens: null,
+        cacheReadInputTokens: null,
+        cacheAvailability: 'unsupported',
+      } satisfies import('../../../agent-runtime/node/CodexSdkClient').CodexSdkTokenUsage;
+      tokenUsageHandler?.(usage);
+      expect(persist).not.toHaveBeenCalled();
+      tokenUsageHandler?.({ ...usage, inputTokens: 10 });
+      tokenUsageHandler?.({ ...usage, inputTokens: 20, outputTokens: 7 });
+      await completedTurn()();
+    });
+    const runner = new CodexAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry,
+      runStore,
+      repoStore: makeRepoStore(),
+      oauthClient: createProviderTestOAuthClient({ success: true, data: 'test-token' }),
+    });
+    await runner.runPrompt({
+      session: makeSession({ provider_session_id: 'pending_abc' }),
+      prompt: 'Measure usage.',
+    });
+    expect(persist.mock.calls.map(([, total]) => total)).toEqual([
+      { inputTokens: null, outputTokens: 3, cacheAvailability: 'unsupported' },
+      { inputTokens: 10, outputTokens: 3, cacheAvailability: 'unsupported' },
+      { inputTokens: 20, outputTokens: 7, cacheAvailability: 'unsupported' },
+    ]);
+    await runner.dispose();
+    await vi.waitFor(async () => {
+      expect((await runStore.getRunResult(makeSession().agentic_session_id))?.usage).toMatchObject({
+        inputTokens: 20,
+        outputTokens: 7,
+      });
+    });
+    expect(tokenUsageHandler).toBeNull();
   });
 
   // ----- native lifecycle: fresh start / resume -----------------------------
@@ -1866,7 +1932,7 @@ describe('session-runner-codex', () => {
         oauthClient: createProviderTestOAuthClient({ success: true, data: 'test-token' }),
       });
       const firstTurnInput = 'Fresh pilot prompt.';
-      const expectedPlatformPrompt = buildPlatformSystemPrompt([]);
+      const expectedPlatformPrompt = buildCodexPlatformPrompt([]);
 
       await runner.runPrompt({
         session: makeSession({
@@ -1916,7 +1982,7 @@ describe('session-runner-codex', () => {
       oauthClient: createProviderTestOAuthClient({ success: true, data: 'test-token' }),
     });
     const firstTurnInput = '  Fresh codex prompt.\nwith formatting.  ';
-    const expectedPlatformPrompt = buildPlatformSystemPrompt([]);
+    const expectedPlatformPrompt = buildCodexPlatformPrompt([]);
 
     await runner.runPrompt({
       session: makeSession(),
@@ -2045,7 +2111,7 @@ describe('session-runner-codex', () => {
     });
     const firstTurnInput = 'First turn.';
     const followUpInput = 'Second turn.';
-    const expectedPlatformPrompt = buildPlatformSystemPrompt(BASELINE_DEFINITIONS, {
+    const expectedPlatformPrompt = buildCodexPlatformPrompt(BASELINE_DEFINITIONS, {
       provider: 'codex',
       model: 'gpt-5.6-sol',
       epistemicCalibration: true,
@@ -2110,7 +2176,7 @@ describe('session-runner-codex', () => {
       'prompt'
     ] as string;
     expect(turn1Prompt).toBe(
-      `${buildPlatformSystemPrompt(BASELINE_DEFINITIONS, undefined, { intentFirst: true, maturity: 'ESTABLISHED', hints: 'none' })}\n\nFirst turn.`,
+      `${buildPlatformSystemPrompt(BASELINE_DEFINITIONS, undefined, { provider: 'codex', intentFirst: true, maturity: 'ESTABLISHED', hints: 'none' })}\n\nFirst turn.`,
     );
     expect(turn1Prompt).toContain(intentFirstGuidance);
 
@@ -2776,9 +2842,9 @@ describe('session-runner-codex', () => {
       }),
     ).rejects.toMatchObject({ code: 'RUN_FAILED' });
 
-    expect(error).toHaveBeenCalledWith(
+    expect(error).not.toHaveBeenCalledWith(
       'local.runner.codex.run_prompt.failed',
-      expect.objectContaining({ error: expect.objectContaining({ code: 'RUN_FAILED' }) }),
+      expect.anything(),
     );
     expect(runStore.updateRunStatus).toHaveBeenLastCalledWith('agentic-1', 'idle');
   });
@@ -2813,9 +2879,9 @@ describe('session-runner-codex', () => {
       }),
     ).rejects.toMatchObject({ code: 'RUN_FAILED', message: 'Provider transport failed.' });
 
-    expect(error).toHaveBeenCalledWith(
+    expect(error).not.toHaveBeenCalledWith(
       'local.runner.codex.run_prompt.failed',
-      expect.objectContaining({ error: expect.objectContaining({ code: 'RUN_FAILED' }) }),
+      expect.anything(),
     );
     expect(
       vi
@@ -2855,9 +2921,9 @@ describe('session-runner-codex', () => {
       }),
     ).rejects.toMatchObject({ code: 'RUN_FAILED' });
 
-    expect(error).toHaveBeenCalledWith(
+    expect(error).not.toHaveBeenCalledWith(
       'local.runner.codex.run_prompt.failed',
-      expect.objectContaining({ error: expect.objectContaining({ code: 'RUN_FAILED' }) }),
+      expect.anything(),
     );
     expect(runStore.updateRunStatus).toHaveBeenLastCalledWith('agentic-1', 'idle');
   });

@@ -11,7 +11,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
-import { EvalRunStatus } from "@hey-hey/ui-common/api";
+import { EvalRunStatus, EvalTargetHandlerKey } from "@hey-hey/ui-common/api";
 import {
   useEvalRun,
   useEvalRunSession,
@@ -33,6 +33,8 @@ import {
   formatTimeLimit,
   formatTokenCount,
   isAttemptEnded,
+  isProjectAssistantEnabled,
+  runHandlerOf,
 } from "./evalRunView";
 
 const TICK_MS = 1000;
@@ -57,6 +59,7 @@ const SettingsSummary: React.FC<{ run: EvalRunReport }> = ({ run }) => {
   const { maxConcurrentAttempts, attemptTimeLimitSeconds, attemptTokenLimit } =
     run.payload.settings;
   const none = t("eval.run.page.limitNone");
+  const handler = runHandlerOf(run.payload.configurations);
   return (
     <Typography
       variant="body2"
@@ -84,6 +87,16 @@ const SettingsSummary: React.FC<{ run: EvalRunReport }> = ({ run }) => {
             : t("eval.run.page.tokenLimitValue", {
                 value: formatTokenCount(attemptTokenLimit),
               }),
+        handler: handler
+          ? t(`eval.run.handler.${handler}`)
+          : t("eval.run.settings.handlerCaseOwn"),
+        projectAssistant: t(
+          handler === EvalTargetHandlerKey.ProjectAssistant
+            ? "eval.run.page.projectAssistantAlone"
+            : isProjectAssistantEnabled(run.payload.configurations)
+              ? "eval.run.page.projectAssistantOn"
+              : "eval.run.page.projectAssistantOff",
+        ),
       })}
     </Typography>
   );

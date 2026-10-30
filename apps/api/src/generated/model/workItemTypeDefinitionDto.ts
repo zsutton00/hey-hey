@@ -11,9 +11,9 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
+import { WorkItemTypeSessionRoleGuidance } from './workItemTypeSessionRoleGuidance';
 import { WorkItemColorKey } from './workItemColorKey';
 import { WorkItemTypeSectionDefinition } from './workItemTypeSectionDefinition';
-import { WorkItemTypeAgentGuidance } from './workItemTypeAgentGuidance';
 import { WorkItemTypeTracking } from './workItemTypeTracking';
 import { WorkItemConfigKind } from './workItemConfigKind';
 import { WorkItemTypeWritingStandards } from './workItemTypeWritingStandards';
@@ -39,7 +39,7 @@ export interface WorkItemTypeDefinitionDto {
      * Human-readable display name shown in create flows and review surfaces.
      */
     name: string;
-    agentGuidance?: WorkItemTypeAgentGuidance;
+    sessionRoleGuidance?: WorkItemTypeSessionRoleGuidance;
     /**
      * Optional type-owned advice for maintaining items of this type.
      */

@@ -17,20 +17,20 @@ import { RunEntityReference } from './runEntityReference';
 
 
 export interface RunCreatePayloadHtmlCssMockupRevision { 
+    promptType: RunCreatePayloadHtmlCssMockupRevision.PromptTypeEnum;
+    entity: RunEntityReference;
     payloadVersion: RunCreatePayloadHtmlCssMockupRevision.PayloadVersionEnum;
     section: LocalHtmlCssMockupRevisionSection;
     annotations: Array<LocalHtmlCssMockupRevisionAnnotation>;
-    promptType: RunCreatePayloadHtmlCssMockupRevision.PromptTypeEnum;
-    entity: RunEntityReference;
 }
 export namespace RunCreatePayloadHtmlCssMockupRevision {
-    export type PayloadVersionEnum = 1;
-    export const PayloadVersionEnum = {
-        NUMBER_1: 1 as PayloadVersionEnum
-    };
     export type PromptTypeEnum = 'html_css_mockup_revision';
     export const PromptTypeEnum = {
         HtmlCssMockupRevision: 'html_css_mockup_revision' as PromptTypeEnum
+    };
+    export type PayloadVersionEnum = 1;
+    export const PayloadVersionEnum = {
+        NUMBER_1: 1 as PayloadVersionEnum
     };
 }
 

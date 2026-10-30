@@ -1,4 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { PrismaService } from 'src/prisma/prisma.service';
+import {
+  codingPlanMessagesQuery,
+  resolveReviewedCodingPlan,
+} from './coding-plan-context';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import {
@@ -20,7 +25,10 @@ import {
 import { MutableContextHandle } from 'src/utils/mutable-context';
 import { FEATURE_SYNC_NODES } from '../../constants/node-ids';
 import { featureSyncCodingPlanActions } from './schemas';
-import { CodingPlanReviewAnswerPayloadSchema } from 'src/generated/workflow-review.schemas';
+import {
+  CodingPlanApprovalPayloadSchema,
+  CodingPlanReviewAnswerPayloadSchema,
+} from 'src/generated/workflow-review.schemas';
 
 /**
  * Coding-plan gate of the feature-sync flow.
@@ -56,6 +64,9 @@ export class FeatureSyncCodingPlanNode extends ExternalAgentNodeBase<FeatureSync
   readonly actions: ExternalAgentActionSchemas = featureSyncCodingPlanActions;
 
   private readonly logger = new Logger(FeatureSyncCodingPlanNode.name);
+
+  @Inject(PrismaService)
+  private readonly prisma!: PrismaService;
 
   constructor(private readonly taskService: TaskService) {
     super();
@@ -157,24 +168,49 @@ export class FeatureSyncCodingPlanNode extends ExternalAgentNodeBase<FeatureSync
     }
 
     if (data.action === WorkflowReviewAction.Approved) {
-      const payload = CodingPlanReviewAnswerPayloadSchema.parse(data.payload);
+      const payload = CodingPlanApprovalPayloadSchema.parse(data.payload);
+      if (payload.responseType === 'coding_plan_version_approval_v1') {
+        const core = tracker.getContext().core;
+        const reviewed = resolveReviewedCodingPlan(
+          await this.prisma.db.message.findMany(
+            codingPlanMessagesQuery(
+              core.organizationId,
+              core.projectId,
+              core.conversationId,
+            ),
+          ),
+          payload.versionMessageId,
+          userMessage.id,
+        );
+        tracker.mutate((draft) => {
+          draft.codingPlanApprovedContext = {
+            ...reviewed,
+            ...(payload.feedback ? { approvalFeedback: payload.feedback } : {}),
+          };
+        });
+      }
       tracker.mutate((draft) => {
         delete draft.implementRuntime;
         delete draft.implementApprovalOperationId;
       });
-      if (payload.provider !== undefined && payload.model !== undefined) {
-        const runtime = {
-          provider: payload.provider,
-          model: payload.model,
-          ...(payload.reasoningEffort !== undefined
-            ? { reasoningEffort: payload.reasoningEffort }
-            : {}),
-          ...(payload.fastMode !== undefined
-            ? { fastMode: payload.fastMode }
-            : {}),
-        } satisfies import('src/generated').ImplementRuntimeSelection;
+      const selectedRuntime =
+        payload.responseType === 'coding_plan_version_approval_v1'
+          ? payload.runtime
+          : payload.provider !== undefined && payload.model !== undefined
+            ? {
+                provider: payload.provider,
+                model: payload.model,
+                ...(payload.reasoningEffort !== undefined
+                  ? { reasoningEffort: payload.reasoningEffort }
+                  : {}),
+                ...(payload.fastMode !== undefined
+                  ? { fastMode: payload.fastMode }
+                  : {}),
+              }
+            : undefined;
+      if (selectedRuntime) {
         tracker.mutate((draft) => {
-          draft.implementRuntime = runtime;
+          draft.implementRuntime = selectedRuntime;
           draft.implementApprovalOperationId =
             userMessage.workflowAnswerOperationId;
         });

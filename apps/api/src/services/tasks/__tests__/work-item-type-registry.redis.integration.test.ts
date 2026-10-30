@@ -4,6 +4,7 @@ import { EVENT_TYPES } from '../../../core/events/types/event.types';
 import type { EventEnvelope } from '../../../core/events/types/event-envelope';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import { buildBuiltInWorkItemTypeRows } from '../../../../test/setup/work-item-type-registry.fixture';
+import { WorkItemTypeGuidancePurpose } from '../../../generated/model/workItemTypeGuidancePurpose';
 import { WorkItemTypeRegistryService } from '../work-item-type-registry.service';
 
 // Redis is real; database reads use an explicitly committed in-memory view.
@@ -20,7 +21,9 @@ describe('Registry Redis broadcast and recovery', () => {
   });
 
   it('broadcasts repeated changes and recovers a peer that misses a notification', async () => {
-    server = new RedisMemoryServer();
+    server = new RedisMemoryServer({
+      spawn: { env: { ...process.env, LC_ALL: 'C' } },
+    });
     const url = `redis://${await server.getHost()}:${await server.getPort()}`;
     let committedRows = buildBuiltInWorkItemTypeRows(projectId);
     const findMany = jest.fn(async () =>
@@ -72,13 +75,19 @@ describe('Registry Redis broadcast and recovery', () => {
         expect(() =>
           registry.assertTypeActive('STANDARD', projectId),
         ).not.toThrow();
-        expect(registry.getGuidance(projectId, 'STANDARD').overview).toBe(name);
+        expect(
+          registry.getGuidance(
+            projectId,
+            'STANDARD',
+            WorkItemTypeGuidancePurpose.Maintenance,
+          ).maintenanceGuidance,
+        ).toBe(name);
       }
     };
     const commit = (name: string) => {
       committedRows = committedRows.map((row) =>
         row.typeKey === 'STANDARD'
-          ? { ...row, name, agentGuidance: { overview: name } }
+          ? { ...row, name, maintenanceGuidance: name }
           : row,
       );
     };

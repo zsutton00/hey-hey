@@ -22,7 +22,11 @@ describe('commit agent policy', () => {
     expect(commitHandler.submissionTools?.map((tool) => tool.name)).toEqual([
       'submit_commit_message',
     ]);
-    expect(commitHandler.subagentConfig?.builtinAllowedTools).toEqual(['Read', 'Bash']);
+    expect(commitHandler.subagentConfig?.builtinAllowedTools).toEqual([
+      'Read',
+      'Bash',
+      'ToolSearch',
+    ]);
   });
 
   it('allows bounded reads and read-only git commands', async () => {

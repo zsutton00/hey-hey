@@ -170,6 +170,7 @@ export const ProjectPage: React.FC = () => {
                 }
                 onChange={handleProjectTypeChange}
                 mobileDropdown
+                scrollable
               />
             </Box>
             {selectedNavigationItem?.kind === "registry-work-item" ? (
@@ -338,7 +339,10 @@ export const ProjectPage: React.FC = () => {
               animate="visible"
               exit="exit"
             >
-              <ProjectAdminDestination projectId={projectId!} />
+              <ProjectAdminDestination
+                projectId={projectId!}
+                organizationId={currentOrgId!}
+              />
             </motion.div>
           )}
 

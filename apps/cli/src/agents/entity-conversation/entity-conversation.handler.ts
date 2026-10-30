@@ -10,7 +10,7 @@ import {
   type LocalEntityConversationEntity,
 } from '../../shared/agent-bridge-contract/generated/api';
 import type { AgenticSession } from '../../session/types';
-import { HINT_WRITE_MCP_TOOLS, resolveMcpToolNames } from '../mcp-server-config';
+import { resolveMcpToolNames } from '../mcp-server-config';
 import type { ServerLogger } from '../../server/logger';
 import {
   defaultAddUserMessage,
@@ -255,10 +255,7 @@ export class EntityConversationHandler implements UserLaunchablePromptTypeHandle
   public readonly providerSessionCountsForContext = true;
   public readonly reports = [];
   public readonly mcpToolUseCase = 'general' as const;
-  public readonly additionalAllowedTools = [
-    ...ENTITY_CONVERSATION_ALLOWED_TOOLS,
-    ...HINT_WRITE_MCP_TOOLS,
-  ];
+  public readonly additionalAllowedTools = ENTITY_CONVERSATION_ALLOWED_TOOLS;
   /** Eval-launchable child: the production platform surface, read-only files. */
   public readonly childConfig = {
     adapterId: 'eval-entity-conversation',

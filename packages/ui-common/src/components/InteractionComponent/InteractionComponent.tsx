@@ -1,3 +1,6 @@
+import { useModalState } from "../Modals/useModalState";
+import { useModal } from "../../contexts/ModalContext";
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import { draggedEntities } from "../../types/dragAndDrop";
 import ClearIcon from "@mui/icons-material/Clear";
 import DeleteSweepOutlinedIcon from "@mui/icons-material/DeleteSweepOutlined";
@@ -18,7 +21,6 @@ import { keyframes } from "@emotion/react";
 import {
   Box,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -69,10 +71,8 @@ import type {
 } from "./types";
 import { useInteractionState } from "./useInteractionState";
 import { ContextMenu } from "./ContextMenu";
-import { DiscussModal, type DiscussModalSubmitInput } from "./DiscussModal";
 import { GoalPickerModal } from "./GoalPickerModal";
 import { ViewHistoryModal } from "./ViewHistoryModal";
-import { useEntityConversationLauncher } from "./useEntityConversationLauncher";
 import {
   resolveEntityTypeConfig,
   buildDefaultMenuContributions,
@@ -87,7 +87,6 @@ import {
   CORNER_PRIORITY,
   type IndicatorCorner,
 } from "./useIndicatorCorner";
-import { resolveFileReferenceScope } from "../SmarterTextAreaCard/fileReferences/types";
 import {
   toGuidableEntityFromExplorer,
   type GuidableTargetAddress,
@@ -718,83 +717,6 @@ function buildLineageContext(
   };
 }
 
-const DiscussContributionController: React.FC<{
-  context: MenuContributionContext;
-  canonicalEntityType: string;
-  displayLabel?: string;
-  initialValue?: string;
-  onClose: () => void;
-}> = ({
-  context,
-  canonicalEntityType,
-  displayLabel,
-  initialValue,
-  onClose,
-}) => {
-  const launcher = useEntityConversationLauncher({
-    organizationId: context.organizationId ?? "",
-    projectId: context.projectId ?? "",
-  });
-  const normalizedType = normalizeEntityType(canonicalEntityType);
-  const focalEntity = normalizedType
-    ? {
-        kind: "entity" as const,
-        entityType: normalizedType,
-        entityId: context.entityId,
-      }
-    : { kind: "none" as const };
-  const { workItem } = useWorkItem(
-    context.organizationId ?? "",
-    "task",
-    context.entityId,
-    {
-      projectId: context.projectId,
-      enabled:
-        Boolean(context.organizationId && context.projectId) &&
-        canonicalEntityType === TargetEntityType.Task,
-    },
-  );
-  const fileReferenceScope = resolveFileReferenceScope(
-    workItem?.type,
-    context.entityId,
-  );
-  const handleSubmit = useCallback(
-    async (submission: DiscussModalSubmitInput) => {
-      const {
-        organizationId: _organizationId,
-        projectId: _projectId,
-        ...lineage
-      } = context;
-      const launched = await launcher.launch({
-        ...submission,
-        context: lineage,
-      });
-      if (launched) onClose();
-      return launched;
-    },
-    [context, launcher, onClose],
-  );
-  return (
-    <DiscussModal
-      open
-      onClose={() => {
-        if (!launcher.isLoading) onClose();
-      }}
-      onSubmit={handleSubmit}
-      submitError={launcher.error}
-      onClearSubmitError={launcher.clearError}
-      isLoading={launcher.isLoading}
-      entityTitle={context.entityTitle ?? displayLabel}
-      organizationId={context.organizationId}
-      projectId={context.projectId}
-      focalEntity={focalEntity}
-      walkthroughEntity={toGuidableEntityFromExplorer(context)}
-      fileReferenceScope={fileReferenceScope}
-      initialValue={initialValue}
-    />
-  );
-};
-
 function buildOpenItemPrimaryMenuItems(
   openItemActions: OpenItemActions,
   groupItems: readonly EntityMenuItem[],
@@ -1023,8 +945,7 @@ const InteractionComponentCore: React.FC<InteractionComponentProps> = ({
         : null;
   const canHostDesignDoc = designDocHostType !== null && !!organizationId;
 
-  const [discussOpen, setDiscussOpen] = useState(false);
-  const [discussInitialValue, setDiscussInitialValue] = useState<string>();
+  const modal = useModal();
   const [viewHistoryOpen, setViewHistoryOpen] = useState(false);
   const [goalPickerOpen, setGoalPickerOpen] = useState(false);
 
@@ -1245,10 +1166,26 @@ const InteractionComponentCore: React.FC<InteractionComponentProps> = ({
   const launchSeededConversation = useCallback(
     (toolName: string) => {
       if (!organizationId || !projectId) return;
-      setDiscussInitialValue(toolName);
-      setDiscussOpen(true);
+      const type = normalizeEntityType(entityType);
+      if (type)
+        modal?.openModal({
+          type: "discuss",
+          organizationId,
+          projectId,
+          entityId,
+          entityType: type,
+          entityTitle,
+          initialValue: toolName,
+        });
     },
-    [organizationId, projectId],
+    [
+      organizationId,
+      projectId,
+      entityType,
+      entityId,
+      entityTitle,
+      modal?.openModal,
+    ],
   );
 
   const actionHandlers = useMemo<Record<string, () => void>>(() => {
@@ -1284,8 +1221,16 @@ const InteractionComponentCore: React.FC<InteractionComponentProps> = ({
           );
           return;
         }
-        setDiscussInitialValue(undefined);
-        setDiscussOpen(true);
+        const type = normalizeEntityType(entityType);
+        if (type)
+          modal?.openModal({
+            type: "discuss",
+            organizationId,
+            projectId,
+            entityId,
+            entityType: type,
+            entityTitle,
+          });
       };
       handlers.attach_to_goal = () => setGoalPickerOpen(true);
       handlers.create_task = () => launchSeededConversation("create_task");
@@ -1302,6 +1247,7 @@ const InteractionComponentCore: React.FC<InteractionComponentProps> = ({
     organizationId,
     projectId,
     launchSeededConversation,
+    modal?.openModal,
     entityType,
     entityId,
     navigate,
@@ -1422,11 +1368,6 @@ const InteractionComponentCore: React.FC<InteractionComponentProps> = ({
     [closeMenu, actionHandlers],
   );
 
-  const handleDiscussClose = useCallback(() => {
-    setDiscussOpen(false);
-    setDiscussInitialValue(undefined);
-  }, []);
-
   const { activeCorner: detectedCorner, probeRefs } = useIndicatorCorner(
     hasProposalSupport && showIndicator && !indicatorPlacement,
   );
@@ -1526,6 +1467,8 @@ const InteractionComponentCore: React.FC<InteractionComponentProps> = ({
       }}
       {...dragAttributes}
       {...dragListeners}
+      // Dragging can be disabled while review controls inside remain usable.
+      aria-disabled={undefined}
       role="group"
       aria-roledescription="interactive entity"
       tabIndex={0}
@@ -1660,15 +1603,7 @@ const InteractionComponentCore: React.FC<InteractionComponentProps> = ({
           }
         />
       )}
-      {discussOpen && (
-        <DiscussContributionController
-          context={contributionContext}
-          canonicalEntityType={canonicalEntityType}
-          displayLabel={resolvedConfig?.displayLabel}
-          initialValue={discussInitialValue}
-          onClose={handleDiscussClose}
-        />
-      )}
+
       {goalPickerOpen && organizationId && projectId && (
         <GoalPickerModal
           open
@@ -1897,6 +1832,8 @@ const InteractionSurfaceCore: React.FC<InteractionSurfaceCoreProps> = ({
       }}
       {...dragSource?.attributes}
       {...dragSource?.listeners}
+      // Drag availability does not disable the entity’s nested controls.
+      aria-disabled={undefined}
       role="group"
       aria-roledescription="interactive entity"
       tabIndex={0}
@@ -1969,8 +1906,9 @@ export const OpenItemInteractionComponent: React.FC<
   const previewHost = usePreviewHost();
   const navigate = useNavigate();
   const pathService = usePathService();
-  const [discussOpen, setDiscussOpen] = useState(false);
-  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const modal = useModal();
+  const [groupDialogOpen, setGroupDialogOpen, groupDialogOpenOwnerKey] =
+    useModalState(false);
   const [selectedGroupId, setSelectedGroupId] = useState(
     NEW_OPEN_ITEM_GROUP_OPTION,
   );
@@ -2121,10 +2059,21 @@ export const OpenItemInteractionComponent: React.FC<
         );
         return;
       }
-      setDiscussOpen(true);
+      const type = normalizeEntityType(surfaceProps.entityType);
+      if (type)
+        modal?.openModal({
+          type: "discuss",
+          organizationId: surfaceProps.organizationId,
+          projectId,
+          entityId: surfaceProps.entityId,
+          entityType: type,
+          entityTitle: surfaceProps.entityTitle,
+        });
     },
     [
       handleOpenItemAction,
+      modal?.openModal,
+      surfaceProps.entityTitle,
       onSelectItems,
       selection,
       navigate,
@@ -2212,15 +2161,9 @@ export const OpenItemInteractionComponent: React.FC<
   return (
     <>
       <Surface {...surfaceProps} renderMenu={renderMenu} />
-      {discussOpen && (
-        <DiscussContributionController
-          context={contributionContext}
-          canonicalEntityType={canonicalEntityType}
-          displayLabel={resolvedConfig?.displayLabel}
-          onClose={() => setDiscussOpen(false)}
-        />
-      )}
+
       <Dialog
+        ownerKey={groupDialogOpenOwnerKey}
         open={groupDialogOpen}
         onClose={() => setGroupDialogOpen(false)}
         aria-labelledby="open-item-group-dialog-title"

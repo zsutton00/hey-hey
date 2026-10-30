@@ -89,7 +89,7 @@ export class LocalAgentInfrastructure {
       sink: fanOutLogSinks(this.logRingBuffer, this.diagnosticFeed),
       ...(options.writeLogLine ? { writeLine: options.writeLogLine } : {}),
     }).child({ component: 'local-server' });
-    this.processFailureReporter = new ProcessFailureReporter(this.logger);
+    this.processFailureReporter = new ProcessFailureReporter(this.logger, this.diagnosticFeed);
     this.httpServer = createServer();
     this.runStore = new RunStore({
       onCompatibilityDiagnostic: (diagnostic) => {
@@ -228,6 +228,11 @@ export class LocalAgentInfrastructure {
       this.logger.info('local.infrastructure.authentication.login_required', {
         error: tokenResult.error,
       });
+      if (!process.stdin.isTTY) {
+        throw new Error(
+          'Authentication required. Run heyhey login in a terminal or provide a token with heyhey login --token.',
+        );
+      }
       const loginResult = await this.oauthClient.login();
       if (!loginResult.success) {
         throw new Error(`Authentication required but login failed: ${loginResult.error}`);

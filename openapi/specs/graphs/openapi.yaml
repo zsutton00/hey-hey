@@ -350,12 +350,13 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /organizations/{organizationId}/projects/{projectId}/query:
+  /organizations/{organizationId}/projects/{projectId}/feature-project-connection:
     post:
       tags:
         - Queries
-      summary: Execute a graph query
-      operationId: executeQuery
+      summary: Count listed features with a stored project connection
+      operationId: checkFeatureProjectConnection
+      description: Counts the distinct listed FEATURE tasks that have the exact SCOPED_TO_PROJECT edge to this project. Does not establish readiness of other projections.
       parameters:
         - $ref: "#/components/parameters/OrganizationIdPath"
         - $ref: "#/components/parameters/ProjectIdPath"
@@ -364,20 +365,18 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/GraphQueryRequest"
+              $ref: "#/components/schemas/FeatureProjectConnectionRequest"
       responses:
         "200":
-          description: Query results
+          description: How many of the listed features have the exact stored connection
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GraphQueryResponse"
+                $ref: "#/components/schemas/FeatureProjectConnectionResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "408":
-          $ref: "#/components/responses/RequestTimeout"
 
   /organizations/{organizationId}/projects/{projectId}/traversal:
     post:
@@ -821,6 +820,23 @@ paths:
           $ref: "#/components/responses/Unauthorized"
 
   /organizations/{organizationId}/projects/{projectId}/hints:
+    get:
+      tags: [Hints]
+      operationId: listProjectHints
+      summary: List live hints in a project for administrative review
+      description: Returns live hints with all connections and strengths, independently of connected-item retrieval. Callers enforce administrative access.
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+      responses:
+        "200":
+          description: Live project hints
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/hints.yaml#/ListProjectHintsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
     post:
       tags:
         - Hints
@@ -1075,7 +1091,7 @@ components:
           type: string
         label:
           type: string
-          pattern: '^[A-Za-z][A-Za-z0-9_]*$'
+          pattern: "^[A-Za-z][A-Za-z0-9_]*$"
     TemplateGraphSnapshot:
       type: object
       required: [nodes, edges]
@@ -1083,11 +1099,11 @@ components:
         nodes:
           type: array
           items:
-            $ref: '#/components/schemas/TemplateGraphNode'
+            $ref: "#/components/schemas/TemplateGraphNode"
         edges:
           type: array
           items:
-            $ref: '#/components/schemas/GraphRelationship'
+            $ref: "#/components/schemas/GraphRelationship"
     TemplateGraphCopyCommand:
       type: object
       required: [id, snapshot]
@@ -1096,7 +1112,7 @@ components:
           type: string
           format: uuid
         snapshot:
-          $ref: '#/components/schemas/TemplateGraphSnapshot'
+          $ref: "#/components/schemas/TemplateGraphSnapshot"
     ProjectionDeletionIdentity:
       $ref: "../schemas/projection-deletion.yaml#/ProjectionDeletionIdentity"
     ProjectionDeletionCommand:
@@ -1968,40 +1984,28 @@ components:
         label:
           type: string
 
-    # Query schemas
-    GraphQueryRequest:
+    FeatureProjectConnectionRequest:
       type: object
       required:
-        - query
+        - featureIds
       properties:
-        query:
-          type: string
-          description: Cypher query to execute
-          example: "MATCH (n:Artifact) WHERE n.type = 'CODE_ARTIFACT' RETURN n LIMIT 10"
-        parameters:
-          type: object
-          additionalProperties: true
-          description: Query parameters
-        timeout:
-          type: integer
-          description: Query timeout in milliseconds
-          default: 30000
-          maximum: 300000
+        featureIds:
+          type: array
+          minItems: 1
+          maxItems: 5000
+          items:
+            type: string
+            format: uuid
 
-    GraphQueryResponse:
+    FeatureProjectConnectionResponse:
       type: object
+      required:
+        - connectedCount
       properties:
-        nodes:
-          type: array
-          items:
-            $ref: "#/components/schemas/GraphNode"
-        relationships:
-          type: array
-          items:
-            $ref: "#/components/schemas/GraphRelationship"
-        executionTime:
+        connectedCount:
           type: integer
-          description: Query execution time in milliseconds
+          minimum: 0
+          description: Distinct listed features connected to the project
 
     # Search schemas
     SearchRequest:
@@ -3023,6 +3027,11 @@ components:
           description: >
             Required for CONDITIONAL workflow flow edges, optional for LOOP
             flow edges, and omitted for STANDARD and meta edges.
+        actionLabel:
+          allOf:
+            - $ref: "../schemas/agent-edges.yaml#/WorkflowEdgeActionLabel"
+          nullable: true
+          description: Optional plain-language action that triggers this flow transition.
         reasoning:
           type: string
           minLength: 1
@@ -3108,6 +3117,9 @@ components:
           description: >
             Required for CONDITIONAL workflow flow edges, optional for LOOP
             flow edges, and omitted for STANDARD and meta edges.
+        actionLabel:
+          $ref: "../schemas/agent-edges.yaml#/WorkflowEdgeActionLabel"
+          description: Optional plain-language action that triggers this flow transition.
         metadata:
           type: object
           additionalProperties: true
@@ -3214,6 +3226,11 @@ components:
           description: >
             Required when the resulting edge type is CONDITIONAL, optional for
             LOOP, and omitted for STANDARD and meta edges.
+        actionLabel:
+          allOf:
+            - $ref: "../schemas/agent-edges.yaml#/WorkflowEdgeActionLabel"
+          nullable: true
+          description: Optional plain-language action that triggers this flow transition; set null to clear it.
         metadata:
           type: object
           additionalProperties: true

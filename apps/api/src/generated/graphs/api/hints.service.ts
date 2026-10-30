@@ -21,6 +21,7 @@ import { FindHintsByConnectedItemsRequest } from '../model/findHintsByConnectedI
 import { FindHintsByConnectedItemsResponse } from '../model/findHintsByConnectedItemsResponse';
 import { Hint } from '../model/hint';
 import { HintConnectionInput } from '../model/hintConnectionInput';
+import { ListProjectHintsResponse } from '../model/listProjectHintsResponse';
 import { RemoveHintConnectionResponse } from '../model/removeHintConnectionResponse';
 import { SetHintConnectionStrengthDto } from '../model/setHintConnectionStrengthDto';
 import { UpdateHintTextDto } from '../model/updateHintTextDto';
@@ -404,6 +405,78 @@ export class HintsService {
             withCredentials: this.configuration.withCredentials,
             ...getHintOpts?.config,
             headers: { ...headers, ...getHintOpts?.config?.headers },
+          },
+        );
+      }),
+    );
+  }
+  /**
+   * List live hints in a project for administrative review
+   * Returns live hints with all connections and strengths, independently of connected-item retrieval. Callers enforce administrative access.
+   * @param organizationId Organization identifier
+   * @param projectId Project identifier
+   * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
+   * @param reportProgress flag to report request and response progress.
+   * @param {*} [listProjectHintsOpts.config] Override http request option.
+   */
+  public listProjectHints(
+    organizationId: string,
+    projectId: string,
+    listProjectHintsOpts?: { config?: AxiosRequestConfig },
+  ): Observable<AxiosResponse<ListProjectHintsResponse>>;
+  public listProjectHints(
+    organizationId: string,
+    projectId: string,
+    listProjectHintsOpts?: { config?: AxiosRequestConfig },
+  ): Observable<any> {
+    if (organizationId === null || organizationId === undefined) {
+      throw new Error(
+        'Required parameter organizationId was null or undefined when calling listProjectHints.',
+      );
+    }
+
+    if (projectId === null || projectId === undefined) {
+      throw new Error(
+        'Required parameter projectId was null or undefined when calling listProjectHints.',
+      );
+    }
+
+    let headers = { ...this.defaultHeaders };
+
+    let accessTokenObservable: Observable<any> = of(null);
+
+    // authentication (BearerAuth) required
+    if (typeof this.configuration.accessToken === 'function') {
+      accessTokenObservable = from(
+        Promise.resolve(this.configuration.accessToken()),
+      );
+    } else if (this.configuration.accessToken) {
+      accessTokenObservable = from(
+        Promise.resolve(this.configuration.accessToken),
+      );
+    }
+    // to determine the Accept header
+    let httpHeaderAccepts: string[] = ['application/json'];
+    const httpHeaderAcceptSelected: string | undefined =
+      this.configuration.selectHeaderAccept(httpHeaderAccepts);
+    if (httpHeaderAcceptSelected != undefined) {
+      headers['Accept'] = httpHeaderAcceptSelected;
+    }
+
+    // to determine the Content-Type header
+    const consumes: string[] = [];
+    return accessTokenObservable.pipe(
+      switchMap((accessToken) => {
+        if (accessToken) {
+          headers['Authorization'] = `Bearer ${accessToken}`;
+        }
+
+        return this.httpClient.get<ListProjectHintsResponse>(
+          `${this.basePath}/organizations/${encodeURIComponent(String(organizationId))}/projects/${encodeURIComponent(String(projectId))}/hints`,
+          {
+            withCredentials: this.configuration.withCredentials,
+            ...listProjectHintsOpts?.config,
+            headers: { ...headers, ...listProjectHintsOpts?.config?.headers },
           },
         );
       }),

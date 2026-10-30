@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { JevAnswer, JevInput, JevResult } from '../client';
+import { textForJev } from './entity-text';
 import { DEFAULT_WORDING, type Focal } from '../scenarios';
 import { createSnapshotReader, readCheck, type EntitySource, type GraphSnapshot } from '.';
 
@@ -35,7 +36,10 @@ const focal: Focal = {
   description: 'Do the thing',
   acceptanceCriteria: 'It is done',
   parent: {
-    kind: 'feature', name: 'Parent', description: 'The parent' },
+    kind: 'feature',
+    name: 'Parent',
+    description: 'The parent',
+  },
 };
 
 const reader = () =>
@@ -92,14 +96,51 @@ const check = (jev: ReturnType<typeof fakeJev>, ids: string[], maxChars?: number
   });
 
 describe('readCheck', () => {
-  it('keeps the entities that apply, in full, and drops the rest with their probability', async () => {
+  it('keeps the visible content of entities that apply, and drops the rest with their probability', async () => {
     const jev = fakeJev([A, C]);
     const result = await check(jev, [A, B, C]);
     expect(result.kept.map(({ id }) => id)).toEqual([A, C]);
-    expect(result.kept[0]?.text).toBe(withImplementation('Alpha'));
+    expect(result.kept[0]?.text).toBe(textForJev(withImplementation('Alpha')));
     expect(result.dropped).toEqual([{ id: B, applies: 0.2 }]);
     expect(result.failures).toEqual([]);
     expect(result.usage).toEqual({ requests: 1, inputTokens: 10, outputTokens: 2 });
+  });
+
+  it('judges only selected paragraphs while canonical reads keep omitted text', async () => {
+    const text = 'Opening context.\n\nSelected governing requirement.\n\nLater details.';
+    const snapshotReader = createSnapshotReader(
+      { id: F, kind: 'task' },
+      { entities: { [F]: source(F, 'Focal'), [A]: source(A, text) } },
+      [{ id: A, kind: 'task' }],
+    );
+    const jev = fakeJev([A]);
+    const result = await readCheck({
+      client: jev.client,
+      model: 'm',
+      wording: DEFAULT_WORDING,
+      focal,
+      ask: '',
+      ids: [A],
+      reader: snapshotReader,
+      hits: new Map([
+        [
+          A,
+          {
+            id: A,
+            kind: 'task',
+            title: 'A',
+            indexedText: text,
+            matchSpans: [
+              { start: text.indexOf('Selected'), end: text.indexOf('Selected') + 8, strength: 1 },
+            ],
+          },
+        ],
+      ]),
+    });
+    expect(JSON.stringify(jev.requests)).toContain('Selected governing requirement.');
+    expect(JSON.stringify(jev.requests)).not.toContain('Later details.');
+    expect(result.kept[0]?.text).toBe('Selected governing requirement.');
+    expect((await snapshotReader.read(A)).text).toBe(text);
   });
 
   it('sends Jev no Implementation section and the focal and ask once in state', async () => {

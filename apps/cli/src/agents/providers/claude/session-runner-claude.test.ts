@@ -1113,9 +1113,41 @@ describe('session-runner-claude', () => {
     }
   });
 
-  it('logs tool_result errors at error level with full tool_use correlation', async () => {
+  it.each([
+    ['Edit', 'Authentication required', {}, 'error'],
+    ['mcp__heyhey-platform__get_context', 'MCP server error', {}, 'error'],
+    ['mcp__heyhey-platform__get_context', 'Invalid parameters: [entities]: Required', {}, 'warn'],
+    [
+      'mcp__heyhey-platform__get_tool_guidance',
+      'get_tool_guidance requires authoringRootProof...',
+      {},
+      'warn',
+    ],
+    [
+      'mcp__heyhey-submission-tools__report_changed_files',
+      'report_changed_files input did not match its declared schema.',
+      {},
+      'warn',
+    ],
+    ['Edit', 'Rejected', { non_execution_kind: 'user_denied' }, 'warn'],
+    ['Bash', 'Rejected', { permission_decision: 'reject' }, 'warn'],
+    [
+      'mcp__heyhey-submission-tools__submit',
+      'Correct input',
+      { structuredContent: { status: 'correctable_rejection' } },
+      'warn',
+    ],
+    ['Bash', 'Exit code 1\nzsh: no matches found', {}, 'warn'],
+    [
+      'mcp__heyhey-submission-tools__submit',
+      JSON.stringify({ status: 'correctable_rejection' }),
+      {},
+      'warn',
+    ],
+    ['Bash', 'Runtime crashed', {}, 'error'],
+  ])('logs %s result %s at %s with full correlation', async (tool, text, metadata, level) => {
     const runStore = makeRunStore();
-    const { logger, error } = makeLogger();
+    const { logger, error, warn } = makeLogger();
     const runner = new ClaudeAgentSessionRunner({
       localAgentEndpoint,
       submissionToolRegistry,
@@ -1139,7 +1171,7 @@ describe('session-runner-claude', () => {
           {
             type: 'tool_use',
             id: 'toolu_edit_1',
-            name: 'Edit',
+            name: tool,
             input: {
               file_path: 'src/thing.ts',
               old_string: 'foo',
@@ -1160,7 +1192,8 @@ describe('session-runner-claude', () => {
             type: 'tool_result',
             tool_use_id: 'toolu_edit_1',
             is_error: true,
-            content: [{ type: 'text', text: 'Authentication required' }],
+            content: [{ type: 'text', text }],
+            ...metadata,
           },
         ],
       },
@@ -1170,23 +1203,28 @@ describe('session-runner-claude', () => {
     emitClaudeEvent({ type: 'result' });
     await runPromise;
 
-    expect(error).toHaveBeenCalledWith(
+    expect(level === 'error' ? error : warn).toHaveBeenCalledWith(
       'local.runner.claude.tool_result.error',
       expect.objectContaining({
         toolUseId: 'toolu_edit_1',
-        toolName: 'Edit',
+        toolName: tool,
         toolInput: expect.objectContaining({
           file_path: 'src/thing.ts',
           old_string: 'foo',
           new_string: 'bar',
         }),
         correlated: true,
-        errorText: 'Authentication required',
+        errorText: text,
         agenticSessionId: 'agentic-1',
         providerSessionId: 'provider-session-1',
         conversationId: 'conv-1',
       }),
     );
+    expect(
+      (level === 'error' ? warn : error).mock.calls.some(
+        ([event]) => event === 'local.runner.claude.tool_result.error',
+      ),
+    ).toBe(false);
   });
 
   it('logs uncorrelated tool_result errors when the tool_use was not seen', async () => {

@@ -1,3 +1,4 @@
+import { createPromptTypeHandlerTestDeps } from '../agents/prompt-type-handler.test-support';
 import axios, { type AxiosAdapter } from 'axios';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -438,6 +439,7 @@ describe('subagent dispatch generated-client integration', () => {
         runStore: {
           getRun: vi.fn(async () => ({
             agentic_session_id: 'session',
+            entity: null,
             provider: 'codex',
             services: [],
             contextMetadata: {
@@ -449,6 +451,7 @@ describe('subagent dispatch generated-client integration', () => {
         },
         runRegistry: { holdForSubagent, releaseSubagentHold: vi.fn() },
         childAgentLauncher: new ChildAgentLauncher({
+          handlerDeps: createPromptTypeHandlerTestDeps(),
           promptTypeRegistry: {
             getChildHandler: (id: string) =>
               id === researchHandler.id ? researchHandler : undefined,
@@ -480,7 +483,7 @@ describe('subagent dispatch generated-client integration', () => {
       );
       expect(child.inputs[0]).toMatchObject({
         handler: researchHandler,
-        payload: { userMessage: dispatch.objective },
+        prompt: expect.stringContaining(dispatch.objective),
         config: {
           submissionTools: 'none',
           codexSandboxMode: 'read-only',
@@ -694,3 +697,11 @@ describe('subagent controller admission before child launch', () => {
     expect(holdForSubagent).toHaveBeenCalledWith('run', 'interaction');
   });
 });
+
+vi.mock('../agents/prompts/session-start-context', () => ({
+  readSessionStartContext: async () => ({
+    workItemTypeDefinitions: [],
+    intentFirst: false,
+    maturity: 'ESTABLISHED',
+  }),
+}));

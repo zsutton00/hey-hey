@@ -1,9 +1,19 @@
+import { ProposalReconciliationService } from './proposal-reconciliation.service';
+import { Inject } from '@nestjs/common';
+import { sectionContent } from './future-application';
+import { rootChildrenView } from './work-item-change-set-projector.service';
+import { isEqual } from 'lodash';
+import {
+  assertFutureGraphBoundary,
+  futureGraph,
+  graphChangeSet,
+} from './future-graph';
 import type { ProjectModeSettings } from '../../generated';
 import {
   findIneligibleProjectModeTypeKeys,
   PROJECT_MODE_SETTINGS_SCHEMA_REF,
 } from '../tasks/project-mode-settings.validator';
-import { workItemTypeAgentGuidanceSchema } from '../tasks/work-item-type-agent-guidance.schema';
+import { workItemTypeSessionRoleGuidanceSchema } from '../tasks/work-item-type-agent-guidance.schema';
 import {
   parseFutureRevisionMutation,
   lockFutureForMutation,
@@ -322,7 +332,7 @@ const updateTaskUpdatesSchema = z
     status: z.nativeEnum(WorkStatus).optional(),
     priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
     dueDate: z.string().datetime().optional(),
-    assigneeId: z.string().uuid().optional(),
+    assigneeId: z.string().uuid().nullable().optional(),
     parentTaskId: z.string().uuid().nullable().optional(),
     type: workItemTypeFieldSchema.optional(),
     tag: featureTagSchema.optional(),
@@ -464,6 +474,7 @@ const workItemTypeSectionSchema = z
   .object({
     key: z.string().min(1),
     label: z.string().min(1),
+    required: z.boolean().optional(),
     writingStandard: z.string().nullable().optional(),
     kind: z.nativeEnum(WorkItemTypeSectionDefinition.KindEnum).optional(),
     schemaRef: z.string().nullable().optional(),
@@ -614,8 +625,8 @@ const createWorkItemTypeUpdatesSchema = z
     tracking: workItemTypeTrackingSchema.optional(),
     agentSettableStatuses: z.array(z.nativeEnum(WorkStatus)).optional(),
     anchorableReportTypes: z.array(z.nativeEnum(ReportType)).optional(),
-    agentGuidance: workItemTypeAgentGuidanceSchema.optional(),
     maintenanceGuidance: z.string().optional(),
+    sessionRoleGuidance: workItemTypeSessionRoleGuidanceSchema.optional(),
     writingStandards: workItemTypeWritingStandardsSchema.nullable().optional(),
     capabilities: workItemTypeCapabilitiesSchema.optional(),
   })
@@ -1363,6 +1374,8 @@ export function assertWorkflowProposalLinksStructurallyValid(
 
 @Injectable()
 export class ProposalValidationEngine {
+  @Inject(ProposalReconciliationService)
+  private readonly reconciliation!: ProposalReconciliationService;
   private readonly logger = new Logger(ProposalValidationEngine.name);
   private readonly taskSectionSchemaValidators: TaskSectionSchemaValidatorRegistry;
 
@@ -1927,6 +1940,7 @@ export class ProposalValidationEngine {
           projectId,
         );
       }
+      await this.validateFutureGraph(dto, organizationId, projectId);
       return;
     }
     if (
@@ -2185,6 +2199,7 @@ export class ProposalValidationEngine {
           ctx.projectId,
           ctx.group?.reservedEntities,
         );
+        await this.validateFutureGraph(dto, ctx.organizationId, ctx.projectId);
       } catch (error) {
         issues.push({
           field: `${prefix}.updates`,
@@ -2517,38 +2532,6 @@ export class ProposalValidationEngine {
               ', ',
             )}.`,
           });
-        }
-      }
-
-      if (proposedKey === WORK_ITEM_TYPE_KEYS.Mode) {
-        const modeGuidance = def.agentGuidance;
-        const applicableTypeKeys = new Set(effectiveTypeKeys);
-        const definitionFieldPrefix =
-          dto.action === 'UPDATE'
-            ? `${prefix}.updates.definition.agentGuidance`
-            : `${prefix}.updates.agentGuidance`;
-
-        for (const [contextIndex, context] of (
-          modeGuidance?.contexts ?? []
-        ).entries()) {
-          for (const [
-            typeKeyIndex,
-            typeKey,
-          ] of context.focalTypeKeys.entries()) {
-            if (applicableTypeKeys.has(typeKey)) continue;
-            issues.push({
-              field:
-                `${definitionFieldPrefix}.contexts[${contextIndex}].` +
-                `focalTypeKeys[${typeKeyIndex}]`,
-              code: 'unrecognized_type',
-              reason:
-                `'${typeKey}' is not a usable applicable work-item type for this project. ` +
-                `Valid effective types: ${validTypes.join(', ')}`,
-              layer: 'referential',
-              suggestion:
-                'Declare applicability with active, stable effective work-item type keys; do not use archived or unknown keys.',
-            });
-          }
         }
       }
 
@@ -3530,5 +3513,94 @@ export class ProposalValidationEngine {
     }
 
     return issues;
+  }
+  private async validateFutureGraph(
+    dto: CreateProposalDto,
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+  ): Promise<void> {
+    const mutation =
+      dto.updates as import('src/generated').FutureRevisionMutation;
+    if (mutation.operation !== 'REVISE') return;
+    const before = futureGraph(mutation.baseline.content);
+    const after = futureGraph(mutation.result);
+    if (!before && !after && !mutation.graphChangeSet) return;
+    if (!before || !after || !this.workItemChangeSetProjector)
+      throw new BadRequestException(
+        'A graph future requires complete baseline and result graphs.',
+      );
+    for (const projection of [before, after]) {
+      if (
+        projection.projectedRoot.identity.refType !== 'existing' ||
+        projection.projectedRoot.identity.id !== dto.targetEntityId
+      )
+        throw new BadRequestException(
+          'Future graph roots must match the proposal target.',
+        );
+    }
+    if (!('type' in mutation.result))
+      throw new BadRequestException(
+        'Graph content requires a work-item target.',
+      );
+    for (const field of [
+      'name',
+      'status',
+      'priority',
+      'tag',
+      'dueDate',
+      'assigneeId',
+    ] as const) {
+      if (
+        !isEqual(
+          mutation.result[field] ?? null,
+          after.projectedRoot[field] ?? null,
+        )
+      )
+        throw new BadRequestException(
+          `Future root field ${field} must match its graph projection.`,
+        );
+    }
+    for (const section of mutation.result.sections) {
+      const graphValue =
+        after.projectedRoot.sections.find(
+          (candidate) => candidate.key === section.key,
+        )?.content ?? '';
+      const value = sectionContent(
+        section.materializedMarkdown,
+        section.key,
+        { result: mutation.result, projectId },
+        this.workItemTypeRegistry,
+      );
+      if (!isEqual(value, graphValue === null ? '' : graphValue))
+        throw new BadRequestException(
+          `Future root section ${section.key} must match its graph projection.`,
+        );
+    }
+    const request = graphChangeSet(before, after);
+    assertFutureGraphBoundary(before, request);
+    if (!isEqual(request, mutation.graphChangeSet))
+      throw new BadRequestException(
+        'Future graph operations must match the complete reviewed graph.',
+      );
+    const projected = await this.workItemChangeSetProjector.project({
+      organizationId,
+      projectId,
+      request,
+      basis: before,
+      view: rootChildrenView,
+    });
+    if (
+      !projected.valid ||
+      this.reconciliation.decision({
+        kind: 'graph',
+        reviewed: after,
+        current: projected,
+      }).kind !== 'NOT_REQUIRED'
+    )
+      throw new BadRequestException({
+        message:
+          'Future graph does not match its validated complete projection.',
+        issues: projected.issues,
+      });
   }
 }

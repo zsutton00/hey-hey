@@ -1,3 +1,5 @@
+import { SessionRole } from '../generated/model/sessionRole';
+import type { WorkItemTypeRoleGuidanceDto } from '../generated/model/workItemTypeRoleGuidanceDto';
 import { ProjectAccessGuard } from '../auth/guards/project-access.guard';
 import {
   BadRequestException,
@@ -43,6 +45,7 @@ import {
   IsOptional,
   IsString,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import type { Request } from 'express';
 import { WorkItemTypeLifecycleStatus } from '../generated/model/workItemTypeLifecycleStatus';
@@ -77,22 +80,27 @@ import { assertWorkItemTypeEditSupported } from '../services/proposal/work-item-
 import { WorkItemTypeImpactService } from '../services/tasks/work-item-type-impact.service';
 import { WorkItemTypeRegistryService } from '../services/tasks/work-item-type-registry.service';
 import { ProjectService } from '../services/project.service';
-import type { WorkItemTypeGuidanceDto } from '../generated/model/workItemTypeGuidanceDto';
 import type { WorkItemTypeMaintenanceGuidanceDto } from '../generated/model/workItemTypeMaintenanceGuidanceDto';
 import type { WorkItemTypeGuidanceBatchDto } from '../generated/model/workItemTypeGuidanceBatchDto';
 import type { WorkItemTypeGuidanceBatchRequestDto as WorkItemTypeGuidanceBatchRequest } from '../generated/model/workItemTypeGuidanceBatchRequestDto';
 import { WorkItemTypeGuidancePurpose } from '../generated/model/workItemTypeGuidancePurpose';
 
 export class WorkItemTypeGuidanceQueryDto {
-  @ApiPropertyOptional({ enum: WorkItemTypeGuidancePurpose })
-  @IsOptional()
+  @ApiProperty({ enum: WorkItemTypeGuidancePurpose })
   @IsEnum(WorkItemTypeGuidancePurpose)
-  purpose?: WorkItemTypeGuidancePurpose;
+  purpose!: WorkItemTypeGuidancePurpose;
 
-  @IsOptional()
-  @IsString()
-  @IsNotEmpty()
-  focalTypeKey?: string;
+  @ApiPropertyOptional({
+    enum: SessionRole,
+    description: 'Required for purpose role; no default.',
+  })
+  @ValidateIf(
+    (request: WorkItemTypeGuidanceQueryDto) =>
+      request.purpose === WorkItemTypeGuidancePurpose.Role ||
+      request.sessionRole !== undefined,
+  )
+  @IsEnum(SessionRole)
+  sessionRole?: SessionRole;
 }
 
 export class WorkItemTypeGuidanceBatchRequestDto
@@ -112,15 +120,21 @@ export class WorkItemTypeGuidanceBatchRequestDto
   @IsString({ each: true })
   typeKeys!: string[];
 
-  @ApiPropertyOptional({ enum: WorkItemTypeGuidancePurpose })
-  @IsOptional()
+  @ApiProperty({ enum: WorkItemTypeGuidancePurpose })
   @IsEnum(WorkItemTypeGuidancePurpose)
-  purpose?: WorkItemTypeGuidancePurpose;
+  purpose!: WorkItemTypeGuidancePurpose;
 
-  @ApiPropertyOptional({ type: String })
-  @IsOptional()
-  @IsString()
-  focalTypeKey?: string;
+  @ApiPropertyOptional({
+    enum: SessionRole,
+    description: 'Required for purpose role; no default.',
+  })
+  @ValidateIf(
+    (request: WorkItemTypeGuidanceQueryDto) =>
+      request.purpose === WorkItemTypeGuidancePurpose.Role ||
+      request.sessionRole !== undefined,
+  )
+  @IsEnum(SessionRole)
+  sessionRole?: SessionRole;
 }
 
 /** Optional lifecycle-status filter for the list endpoint. */
@@ -280,11 +294,16 @@ export class WorkItemTypeController {
   }
 
   @Get(':typeKey/guidance')
-  @ApiOperation({ summary: 'Read contextual work-item type guidance' })
-  @ApiQuery({ name: 'focalTypeKey', required: false, type: String })
+  @ApiOperation({ summary: 'Read work-item type guidance by purpose' })
+  @ApiQuery({
+    name: 'sessionRole',
+    required: false,
+    enum: SessionRole,
+    description: 'Required when purpose is role; no default.',
+  })
   @ApiQuery({
     name: 'purpose',
-    required: false,
+    required: true,
     enum: WorkItemTypeGuidancePurpose,
   })
   @ApiResponse({
@@ -303,15 +322,15 @@ export class WorkItemTypeController {
       }),
     )
     query: WorkItemTypeGuidanceQueryDto,
-  ): Promise<WorkItemTypeGuidanceDto | WorkItemTypeMaintenanceGuidanceDto> {
+  ): Promise<WorkItemTypeMaintenanceGuidanceDto | WorkItemTypeRoleGuidanceDto> {
     if (!(await this.projectService.findOne(projectId, organizationId))) {
       throw new NotFoundException('Project not found or not accessible.');
     }
     return this.registry.getGuidance(
       projectId,
       typeKey,
-      query.focalTypeKey,
       query.purpose,
+      query.sessionRole,
     );
   }
 
@@ -323,8 +342,7 @@ export class WorkItemTypeController {
   })
   @ApiResponse({
     status: 404,
-    description:
-      'Project, requested or focal type, or semantic guidance unavailable.',
+    description: 'Project or requested type unavailable.',
   })
   async getGuidanceBatch(
     @CurrentOrganization() organizationId: OrganizationId,

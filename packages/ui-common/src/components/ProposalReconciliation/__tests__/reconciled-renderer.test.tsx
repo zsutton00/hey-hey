@@ -1,5 +1,12 @@
+import { invalidateProposalReconciliation } from "../reconciliationInvalidation";
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type {
   DesignDocResponseDto,
@@ -17,7 +24,9 @@ vi.mock("../../ProposalDispatchers/proposalHeaderType", () => ({
   useProposalHeaderTypeResolution: () => ({ presentation: {} }),
 }));
 vi.mock("../../ProposalDispatchers/ProposalTitle", () => ({
-  ProposalTitle: () => null,
+  ProposalTitle: () => (
+    <header data-testid="retained-identity">Proposal identity</header>
+  ),
 }));
 vi.mock("../../SuggestedContent", () => ({
   DiffRenderer: ({
@@ -91,13 +100,33 @@ const ready: ProposalReconciliationState = {
   overlaps: [],
   conflictingPaths: [],
 };
-function mount(state: ProposalReconciliationState) {
+function mount(
+  state: ProposalReconciliationState,
+  inlineBody = false,
+  future = false,
+) {
   vi.mocked(proposalsClient.getProposalReconciliation).mockResolvedValue({
     data: { data: state },
   } as never);
   const apply = vi.fn();
   render(
-    <ProposalReconciliationReview proposal={proposal} onApply={apply}>
+    <ProposalReconciliationReview
+      proposal={
+        future
+          ? {
+              ...proposal,
+              action: "VERSIONED_UPDATE",
+              updates: {
+                operation: "REVISE",
+                futureId: "future",
+                expectedRevision: 1,
+              },
+            }
+          : proposal
+      }
+      onApply={apply}
+      inlineBody={inlineBody}
+    >
       <DesignDocUpdateRenderer
         proposal={proposal}
         existing={existing}
@@ -109,6 +138,47 @@ function mount(state: ProposalReconciliationState) {
   return apply;
 }
 describe("ordinary renderer reconciliation seam", () => {
+  it.each([false, true])(
+    "retains one inline identity through conflict and resolution (future=%s)",
+    async (future) => {
+      mount(
+        {
+          ...ready,
+          status: "RECONCILIATION_REQUIRED",
+          overlaps: [
+            {
+              path: "name",
+              proposedValue: "Stale title",
+              currentValue: "Current title",
+              interveningProposalId: null,
+            },
+          ],
+        },
+        true,
+        future,
+      );
+      await screen.findByTestId("proposal-three-way-review");
+      expect(screen.getAllByTestId("retained-identity")).toHaveLength(1);
+      expect(
+        screen.getByTestId("retained-identity").parentElement,
+      ).toContainElement(screen.getByTestId("proposal-reconciliation-review"));
+      vi.mocked(proposalsClient.getProposalReconciliation).mockResolvedValue({
+        data: { data: ready },
+      } as never);
+      await act(async () => {
+        invalidateProposalReconciliation("proposal");
+      });
+      await waitFor(() =>
+        expect(
+          screen.queryByTestId("proposal-three-way-review"),
+        ).not.toBeInTheDocument(),
+      );
+      expect(screen.getAllByTestId("retained-identity")).toHaveLength(1);
+      expect(screen.getByTestId("actual-diff")).toHaveTextContent(
+        "Merged body with intervening work",
+      );
+    },
+  );
   it("renders the immutable merged result against its recorded basis and approves that revision", async () => {
     const apply = mount(ready);
     await waitFor(() =>
@@ -161,7 +231,7 @@ describe("ordinary renderer reconciliation seam", () => {
         },
       ],
     });
-    await screen.findByTestId("proposal-reconciliation-overlap");
+    await screen.findByTestId("proposal-three-way-review");
     expect(screen.getByTestId("actual-diff")).not.toBeVisible();
     expect(screen.getByTestId("proposal-approve")).toBeDisabled();
   });

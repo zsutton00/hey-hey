@@ -1,3 +1,4 @@
+import { EvalAttemptExecution } from '../agents/run-eval/eval-attempt-execution';
 import type { ProjectBrowser } from '../browser/project-browser-manager';
 import { RunTabs } from '../browser/run-tabs';
 import { BrowserTools } from '../browser/browser-tools';
@@ -78,6 +79,7 @@ import { ProjectModeBundleMaterializer, ProjectModeBundleRestorer } from '../age
 import type { HostActionAdmission } from './controller-authorization/host-action-admission';
 import type { ControllerRegistryReader } from './controller-authorization/types';
 import type { CatalogAvailability } from './runtime-capability-catalog';
+import { createRunStorePreparationRecords } from '../agents/preparation-records';
 
 const isSystemMessage = (
   dto: CreateSystemMessage | CreateUserMessage | SubmitExecutableUserMessageRequestDto,
@@ -386,7 +388,22 @@ export class RunApplicationRuntime {
       capabilityCatalog: dependencies.capabilityCatalog,
     });
     const deterministicE2EScenarioRegistry = DeterministicE2EScenarioRegistry.fromEnvironment();
+    const evalAttemptExecution = new EvalAttemptExecution(runLogger);
+    const baseHandlerDeps = {
+      evalAttemptExecution,
+      preparationRecords: createRunStorePreparationRecords(dependencies.runStore),
+      fetchImpl,
+      auth: dependencies.agentRuntime.auth,
+      apiBaseUrl: dependencies.apiBaseUrl,
+      logger: runLogger,
+      taskMonitorDecisionStore: dependencies.agentRuntime.taskMonitorDecisionStore,
+      sessionMonitorEvaluationStore: dependencies.agentRuntime.sessionMonitorEvaluationStore,
+      startupPromptInput: dependencies.agentRuntime.startupPromptInput,
+    };
     this.childAgentLauncher = new ChildAgentLauncher({
+      runStore: dependencies.runStore,
+      reportProxy: dependencies.agentRuntime.createReportProxy,
+      handlerDeps: baseHandlerDeps,
       promptTypeRegistry: dependencies.agentRuntime.promptTypeRegistry,
       repoStore: dependencies.repoStore,
       oauthClient: dependencies.oauthClient,
@@ -439,17 +456,7 @@ export class RunApplicationRuntime {
       runStore: dependencies.runStore,
       logger: dependencies.logger.child({ component: 'report-sync' }),
     });
-    const handlerDeps = {
-      runStore: dependencies.runStore,
-      fetchImpl,
-      auth: dependencies.agentRuntime.auth,
-      apiBaseUrl: dependencies.apiBaseUrl,
-      logger: runLogger,
-      taskMonitorDecisionStore: dependencies.agentRuntime.taskMonitorDecisionStore,
-      sessionMonitorEvaluationStore: dependencies.agentRuntime.sessionMonitorEvaluationStore,
-      startupPromptInput: dependencies.agentRuntime.startupPromptInput,
-      childAgentLauncher: this.childAgentLauncher,
-    };
+    const handlerDeps = { ...baseHandlerDeps, childAgentLauncher: this.childAgentLauncher };
     const onCompleteDeps = {
       fetchImpl,
       auth: dependencies.agentRuntime.auth,
@@ -564,6 +571,7 @@ export class RunApplicationRuntime {
       ...(dependencies.fetchImpl ? { fetchImpl: dependencies.fetchImpl } : {}),
       ...(this.runTabs ? { stagedBrowserTabs: this.runTabs } : {}),
     });
+    evalAttemptExecution.bind(this.agentService, dependencies.runStore);
     const inputAdmissionOwner = new InputAdmissionOwner(
       {
         directory: resolveInputAdmissionRoot() + '/runs/input-admission',
@@ -580,6 +588,7 @@ export class RunApplicationRuntime {
       dependencies.logger,
       () => this.subagentInteractionRuntime.readyForInputPickup,
       dependencies.runStore,
+      this.messagePoster,
       dependencies.operationTimeline,
     );
     this.agentService.bindInputAdmission(this.inputAdmissionLifecycle);

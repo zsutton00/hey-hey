@@ -69,6 +69,7 @@ export const createTestRunStore = (): RunStore => {
     },
   });
   vi.spyOn(store, 'updateRunServiceScopeContinuation').mockResolvedValue(undefined as never);
+  vi.spyOn(store, 'updateRunLatestTurn').mockResolvedValue({} as AgenticSession);
   vi.spyOn(store, 'recordRunStartedPromptType').mockResolvedValue({} as AgenticSession);
   return store;
 };
@@ -145,6 +146,7 @@ export const createTestMessagePoster = (overrides: MessagePosterOverrides = {}):
     logger: NOOP_LOGGER,
     dataDir: testPath('message-poster'),
   });
+  vi.spyOn(poster, 'postFailureMessage');
   vi.spyOn(poster, 'createOutOfBand').mockImplementation(
     overrides.createOutOfBand ?? (async () => 'test-message-id'),
   );

@@ -1,3 +1,5 @@
+import { useModalState } from "../Modals/useModalState";
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import {
   ProposalReconciliationReview,
   ProposalReconciliationContext,
@@ -7,7 +9,6 @@ import {
   Button,
   Chip,
   Collapse,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -65,6 +66,7 @@ export interface ProposalGroupMemberReviewProps {
   onApprove: (proposalId: string) => Promise<unknown>;
   onReject: (proposalId: string, reason: string) => Promise<unknown>;
   isDeciding: boolean;
+  content?: React.ReactNode;
 }
 
 const formatTimestamp = (value: string): string =>
@@ -72,7 +74,7 @@ const formatTimestamp = (value: string): string =>
 
 type MemberDecision = "approved" | "rejected" | null;
 
-const getMemberDecision = (
+export const getMemberDecision = (
   proposal: ProposalResponseDto,
   currentUserId: string | undefined,
 ): MemberDecision => {
@@ -282,7 +284,7 @@ const getMemberStatusPresentation = (
   }
 };
 
-const MemberState: React.FC<{
+export const MemberState: React.FC<{
   member: ProposalGroupMemberSnapshot;
   members: ProposalGroupMemberSnapshot[];
 }> = ({ member, members }) => {
@@ -385,7 +387,7 @@ const MemberState: React.FC<{
   );
 };
 
-const MemberDecisionControls: React.FC<{
+export const MemberDecisionControls: React.FC<{
   member: ProposalGroupMemberSnapshot;
   decision: MemberDecision;
   proposalStatus: ProposalStatus;
@@ -401,7 +403,8 @@ const MemberDecisionControls: React.FC<{
   isDeciding,
 }) => {
   const reconciliation = React.useContext(ProposalReconciliationContext);
-  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejectDialogOpen, setRejectDialogOpen, rejectDialogOpenOwnerKey] =
+    useModalState(false);
   const [rejectReason, setRejectReason] = useState("");
   const actionability = getMemberActionability(member);
   const submitRejection = useCallback(async () => {
@@ -464,6 +467,7 @@ const MemberDecisionControls: React.FC<{
         </Button>
       </Stack>
       <Dialog
+        ownerKey={rejectDialogOpenOwnerKey}
         open={rejectDialogOpen}
         onClose={() => setRejectDialogOpen(false)}
         maxWidth="sm"
@@ -511,6 +515,7 @@ const ProposalGroupMemberReviewContent: React.FC<
   members,
   decisionProposal,
   decisionOverride,
+  content,
   organizationId,
   projectId,
   onApprove,
@@ -559,12 +564,14 @@ const ProposalGroupMemberReviewContent: React.FC<
         <MemberState member={member} members={members} />
         <Divider />
         <Collapse in={contentExpanded} unmountOnExit>
-          <ReadOnlyProposalContent
-            proposal={member.proposal}
-            allProposals={allProposals}
-            organizationId={organizationId}
-            projectId={projectId}
-          />
+          {content ?? (
+            <ReadOnlyProposalContent
+              proposal={member.proposal}
+              allProposals={allProposals}
+              organizationId={organizationId}
+              projectId={projectId}
+            />
+          )}
         </Collapse>
         {member.proposal.action !==
         ProposalAction.VersionedUpdate ? null : effectiveProposal.status ===

@@ -10,12 +10,12 @@ vi.mock("../../EditorPreference/editorPreference", () => ({
   readExternalEditorPreference: () => ({ kind: "vscode" }),
   buildExternalEditorUrl: (
     _preference: object,
-    source: { path: string; line: number }
+    source: { path: string; line: number },
   ) => "vscode://file" + source.path + ":" + source.line,
 }));
 const excerpt: ChangeWalkthroughExcerpt = {
   serviceId: "11111111-1111-4111-8111-111111111111",
-  file: "src/policy.ts",
+  file: "packages/ui-common/src/components/Very-Long-Path/Policy-Check.ts",
   startLine: 7,
   endLine: 7,
   language: "typescript",
@@ -57,16 +57,19 @@ describe("walkthrough source navigation", () => {
     render(<WalkthroughSourceLink excerpt={excerpt} runId={runId} />);
     const button = screen.getByTestId("walkthrough-source");
     await waitFor(() => expect(button.hasAttribute("disabled")).toBe(false));
+    expect(button.textContent).toBe(`${excerpt.file}:7–7`);
+    const icon = screen.getByTestId("walkthrough-source-open-icon");
+    expect(button.firstElementChild).toBe(icon);
     fireEvent.click(button);
     await waitFor(() =>
       expect(open).toHaveBeenCalledWith(
         "vscode://file/worktrees/review/src/policy.ts:7",
         "_self",
-        "noopener,noreferrer"
-      )
+        "noopener,noreferrer",
+      ),
     );
     const sourceCalls = fetchMock.mock.calls.filter(([url]) =>
-      String(url).endsWith("/walkthrough/source")
+      String(url).endsWith("/walkthrough/source"),
     );
     expect(sourceCalls).toHaveLength(2);
     expect(JSON.parse(sourceCalls[1][1].body).excerpt).toEqual(excerpt);
@@ -84,8 +87,9 @@ describe("walkthrough source navigation", () => {
     render(<WalkthroughSourceLink excerpt={excerpt} runId={runId} />);
     await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
     expect(
-      screen.getByTestId("walkthrough-source").hasAttribute("disabled")
+      screen.getByTestId("walkthrough-source").hasAttribute("disabled"),
     ).toBe(true);
+    expect(screen.queryByTestId("walkthrough-source-open-icon")).toBeNull();
     expect(fetchMock.mock.calls[0][0]).toContain("/repos");
   });
 
@@ -93,7 +97,7 @@ describe("walkthrough source navigation", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Offline")));
     render(<WalkthroughSourceLink excerpt={excerpt} runId={runId} />);
     expect(
-      screen.getByTestId("walkthrough-source").hasAttribute("disabled")
+      screen.getByTestId("walkthrough-source").hasAttribute("disabled"),
     ).toBe(true);
     await screen.findByText("Current source opening unavailable");
   });

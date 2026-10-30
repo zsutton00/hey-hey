@@ -1,7 +1,5 @@
-import type {
-  RepositoryGroundingSuccess,
-  RepositoryFeatureEnrichmentSuccess,
-} from '../../../generated';
+import type { RepositoryImportFlowContext } from '../../../types/flow-internal.types';
+import type { RepositoryGroundingSuccess } from '../../../generated';
 import { type FeatureGenerationResponse } from '../../utils/shared-schemas';
 
 /**
@@ -79,7 +77,7 @@ export function mapRepositoryGroundingSuccessToFeatureGeneration(
 }
 
 export function mapRepositoryEnrichmentToGroundingPresentation(
-  completion: RepositoryGroundingSuccess | RepositoryFeatureEnrichmentSuccess,
+  completion: RepositoryGroundingSuccess,
 ): RepositoryGroundingSuccess {
   return {
     outcome: 'success',
@@ -91,4 +89,14 @@ export function mapRepositoryEnrichmentToGroundingPresentation(
     evidence: completion.evidence,
     briefDiscrepancies: completion.briefDiscrepancies,
   } satisfies RepositoryGroundingSuccess;
+}
+
+/** Restore analyses saved by the previous pre-creation enrichment workflow. */
+export function repositoryImportAnalysis(
+  context: Readonly<RepositoryImportFlowContext>,
+): RepositoryGroundingSuccess | undefined {
+  return (
+    context.repositoryGroundingBaseline ??
+    context.repositoryFeatureEnrichmentAcceptedAnalysis
+  );
 }

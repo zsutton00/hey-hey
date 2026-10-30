@@ -82,3 +82,4 @@ export type {
   CompositionSlotProps,
   PreviewCapability,
 } from "./entityTypeRegistry";
+export { HostedDiscussOwner } from "./HostedDiscussOwner";

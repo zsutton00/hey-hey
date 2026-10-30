@@ -69,15 +69,6 @@ beforeAll(async () => {
       allowedParentEntityTypes: [EntityType.Task],
       capabilities: { requiresParent: true },
       forbiddenScalars: ['dueDate', 'tag'],
-      agentGuidance: {
-        overview: 'A selectable project-owned coding-agent behavior bundle.',
-        contexts: [
-          {
-            focalTypeKeys: ['STANDARD'],
-            guidance: 'Applies to STANDARD work items.',
-          },
-        ],
-      },
     },
   ]);
 });
@@ -133,7 +124,6 @@ function createProvider(
     opts.proposalCreate ?? jest.fn().mockResolvedValue(makeCreatedProposal());
   const proposalService = {
     create: proposalCreate,
-    createBatch: jest.fn(),
     findOne: jest.fn(),
   } as unknown as ProposalService;
   const taskService = {
@@ -203,7 +193,7 @@ describe('ProposalToolsProvider.createWorkItem custom type', () => {
     ]);
   });
 
-  it('carries a complete MODE description, files bundle, and selected applicability into the review proposal', async () => {
+  it('carries a complete MODE description, and files bundle into the review proposal', async () => {
     const { provider, proposalCreate } = createProvider();
     const description =
       'A compact review mode for STANDARD work items. The mode applies the captured checklist.';
@@ -234,12 +224,6 @@ describe('ProposalToolsProvider.createWorkItem custom type', () => {
         { key: 'files', content: MODE_FILES },
       ],
       type: MODE,
-    });
-    expect(
-      workItemTypeRegistry.getGuidance(PROJECT_ID, MODE, 'STANDARD'),
-    ).toMatchObject({
-      typeKey: MODE,
-      contextualGuidance: [{ guidance: 'Applies to STANDARD work items.' }],
     });
   });
 

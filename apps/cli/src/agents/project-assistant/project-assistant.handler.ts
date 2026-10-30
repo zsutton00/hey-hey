@@ -1,6 +1,6 @@
-import { HINT_READ_MCP_TOOLS } from '../mcp-server-config';
+import { resolveMcpToolNames } from '../mcp-server-config';
 import type { AgenticSession } from '../../session/types';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType, SessionRole } from '../../shared/agent-bridge-contract/generated/api';
 import type { RunCreatePayloadResearch } from '../../shared/agent-bridge-contract/generated/api';
 import { ReportAudience, ReportType } from '../../shared/api/index';
 import type {
@@ -22,7 +22,10 @@ import type { CreateReportProxy } from '../submission-tools/create-report-proxy'
 import { RunSubagentsTool } from '../submission-tools/run-subagents-tool';
 import { resolveFocal } from '../context-trimming/create-trimmer';
 import { gatherProjectContext, type ContextGatheringDeps } from './context-gathering';
-import { loadNearestParentFeatureSection } from './nearest-parent-feature';
+import {
+  findNearestParentFeatureId,
+  loadNearestParentFeatureSection,
+} from './nearest-parent-feature';
 import type { ParentRequirementsFilter } from './parent-requirements';
 import { resolveProjectAssistantAdditionalTools } from './proactive-behavior';
 import { prepareRecentProjectAssistantReportContext } from './recent-report-context';
@@ -48,8 +51,10 @@ type EnrichedPayload = ProjectAssistantPromptPayload & {
 
 export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssistantPromptPayload> {
   public readonly id = 'project_assistant';
+  public readonly handsOffOrdinaryReplies = true as const;
+  public readonly sessionRole = SessionRole.Research;
   public readonly promptType = LocalPromptType.ProjectAssistant;
-  public readonly service = 'required';
+  public readonly service = 'optional';
   public readonly launchEntity = 'none';
   public readonly implementationReadiness = 'none';
   public readonly runnerKind = 'provider_session' as const;
@@ -67,13 +72,23 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
     'list_reports_by_entity',
     'list_services',
     'plan_search',
-    ...HINT_READ_MCP_TOOLS,
   ];
   // No built-in tools. The agent has no file-reading surface — Read, Bash,
   // Glob, Grep are all absent. The project graph (via MCP) is the only
   // investigation surface. The prompt does not need a code-gate conditional
   // because there is nothing to gate.
   public readonly builtinTools = [];
+  public readonly childConfig = {
+    adapterId: 'eval-project-assistant',
+    mcpAllowedTools: resolveMcpToolNames({
+      useCase: 'research',
+      additionalTools: this.additionalAllowedTools,
+    }),
+    builtinAllowedTools: [],
+    submissionTools: 'none' as const,
+    codexSandboxMode: 'read-only' as const,
+    includePriorReports: false,
+  };
   public readonly reports: readonly ReportSpec[] = [
     {
       reportType: ReportType.CodingResearch,
@@ -88,13 +103,14 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
    * `runSubagentsTool: null` switches the research subagents off: no tool and no prompt section.
    * `parentRequirements` and `contextGathering` are defined only with a Jev key: the first
    * turns on the filtered parent load, the second the context gathered into the prompt before
-   * the session starts.
+   * the session starts. `isJevEnabled` is the machine's Jev switch, read once per prepare: off, neither runs.
    */
   public constructor(
     createReportProxy: CreateReportProxy,
     runSubagentsTool: RunSubagentsTool | null = new RunSubagentsTool(),
     private readonly parentRequirements?: ParentRequirementsFilter,
     private readonly contextGathering?: ContextGatheringDeps,
+    private readonly isJevEnabled: () => Promise<boolean> = () => Promise.resolve(true),
   ) {
     const codingResearchTool = new CodingResearchTool(createReportProxy);
     this.submissionTools = [codingResearchTool, ...(runSubagentsTool ? [runSubagentsTool] : [])];
@@ -139,16 +155,17 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
 
     const loaded = ctx?.loadedEntityContext;
     const { organizationId, projectId } = run.contextMetadata ?? {};
-    const filterEnabled = this.parentRequirements
-      ? await this.parentRequirements.isEnabled()
-      : false;
+    const hasJev = this.parentRequirements !== undefined || this.contextGathering !== undefined;
+    const jevEnabled = hasJev ? await this.isJevEnabled() : false;
+    const parentRequirements = jevEnabled ? this.parentRequirements : undefined;
+    const contextGathering = jevEnabled ? this.contextGathering : undefined;
     const nearestParentFeature =
       loaded && organizationId && projectId
         ? await loadNearestParentFeatureSection(
             { organizationId, projectId, context: loaded.context },
             deps,
-            this.parentRequirements && filterEnabled
-              ? { settings: this.parentRequirements, loaded }
+            parentRequirements && !contextGathering
+              ? { settings: parentRequirements, loaded }
               : undefined,
           )
         : null;
@@ -165,7 +182,7 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
     };
 
     let gatheredContext: string | undefined;
-    if (this.contextGathering) {
+    if (contextGathering) {
       const ask = payload.userMessage.trim();
       const focal = await resolveFocal(loaded ?? null, ask || undefined, deps);
       if (focal) {
@@ -178,7 +195,13 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
           throw new Error('project_assistant context gathering requires a Turn being prepared.');
         }
         gatheredContext = await gatherProjectContext({
-          deps: this.contextGathering,
+          fullEntityIds:
+            loaded && nearestParentFeature
+              ? [findNearestParentFeatureId(loaded.context)].filter(
+                  (id): id is string => id !== null,
+                )
+              : [],
+          deps: contextGathering,
           handlerDeps: deps,
           runId: run.agentic_session_id,
           turnId,
@@ -224,6 +247,7 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
         focalTaskType: resolveProjectAssistantTaskType(loadedWorkItemType),
         parallelResearchSubagents: this.parallelResearchSubagents,
         hasNearestParentFeature: enriched._nearestParentFeature !== undefined,
+        provider: ctx?.provider,
       },
     );
     const sections: string[] = [base];

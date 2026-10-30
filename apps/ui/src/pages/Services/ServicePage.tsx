@@ -1,3 +1,7 @@
+import {
+  useModalState,
+  ModalWorkOwner,
+} from "@hey-hey/ui-common/components/Modals";
 import { WebPathService } from "@hey-hey/ui-common/services";
 import {
   CapsuleAction,
@@ -52,7 +56,7 @@ import {
 import { ConversationListTab } from "../../components/Tabs/ConversationListTab";
 import { AgentSessionsTab } from "../../components/Tabs/AgentSessionsTab";
 import { DesignDocsTab } from "../../components/Tabs/DesignDocsTab";
-import { ImplementationHintsTab } from "../../components/Tabs/ImplementationHintsTab";
+import { ServiceImplementationHintsTab } from "./ServiceImplementationHintsTab";
 import { TaskTab } from "../../components/Tabs/TaskTab";
 import { NewTaskModal, type NewTaskFormData } from "../../components/Tasks";
 import { tabTransitionVariants } from "../../utils/routeTransitions";
@@ -96,7 +100,11 @@ export const ServicePage: React.FC = () => {
   }, [setActiveTab]);
 
   // Modal state
-  const [isNewTaskModalOpen, setIsNewTaskModalOpen] = useState(false);
+  const [
+    isNewTaskModalOpen,
+    setIsNewTaskModalOpen,
+    isNewTaskModalOpenOwnerKey,
+  ] = useModalState(false);
   const [isContextualRailVisible, setIsContextualRailVisible] = useState(true);
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState("");
@@ -372,13 +380,6 @@ export const ServicePage: React.FC = () => {
           metadata={`Updated ${new Date(
             serviceData.updatedAt,
           ).toLocaleDateString()}`}
-          actions={
-            <ServiceLifecycleControl
-              service={serviceData}
-              lifecycle={lifecycle}
-              onDeleted={handleBack}
-            />
-          }
         />
 
         <DetailPageTabs value={activeTab} onChange={setActiveTab} tabs={tabs} />
@@ -542,7 +543,16 @@ export const ServicePage: React.FC = () => {
               animate="visible"
               exit="exit"
             >
-              <AdminTab metadataItems={adminMetadataItems} />
+              <AdminTab
+                metadataItems={adminMetadataItems}
+                actions={
+                  <ServiceLifecycleControl
+                    service={serviceData}
+                    lifecycle={lifecycle}
+                    onDeleted={handleBack}
+                  />
+                }
+              />
             </motion.div>
           )}
 
@@ -555,12 +565,10 @@ export const ServicePage: React.FC = () => {
               animate="visible"
               exit="exit"
             >
-              <ImplementationHintsTab
+              <ServiceImplementationHintsTab
+                key={serviceData.id}
                 organizationId={currentOrgId!}
-                projectId={projectId!}
                 serviceId={serviceData.id}
-                enableFilters={true}
-                enabled={activeTab === "hints"}
               />
             </motion.div>
           )}
@@ -635,12 +643,14 @@ export const ServicePage: React.FC = () => {
           )}
         </AnimatePresence>
       </DetailPageContainer>
-      <NewTaskModal
-        open={isNewTaskModalOpen}
-        onClose={handleCloseNewTaskModal}
-        onSubmit={handleSubmitNewTask}
-        initiativeId=""
-      />
+      <ModalWorkOwner.Provider value={isNewTaskModalOpenOwnerKey}>
+        <NewTaskModal
+          open={isNewTaskModalOpen}
+          onClose={handleCloseNewTaskModal}
+          onSubmit={handleSubmitNewTask}
+          initiativeId=""
+        />
+      </ModalWorkOwner.Provider>
     </TrackingProvider>
   );
 };

@@ -82,7 +82,7 @@ const CHECKOUT_TEXT = [
   '    No payment data is read here.',
   `  ${STEP_TWO_ID} GENERIC "Validate payment" ref=TASK:${IMPLEMENTATION_ID} group=payments`,
   'flow:',
-  `  edge-standard ${STEP_ONE_ID} -> ${STEP_TWO_ID} STANDARD direction=forward`,
+  `  edge-standard ${STEP_ONE_ID} -> ${STEP_TWO_ID} STANDARD direction=forward action="tap Continue"`,
   `  edge-conditional ${STEP_TWO_ID} -> ${STEP_ONE_ID} CONDITIONAL direction=backward predicate="payment \\"declined\\""`,
   `  edge-loop ${STEP_TWO_ID} -> ${STEP_TWO_ID} LOOP`,
   'fulfillment:',
@@ -137,7 +137,10 @@ function workItem(
   };
 }
 
-function diagramSections(layout?: string): Array<{
+function diagramSections(
+  layout?: string,
+  kind = 'PROCESS',
+): Array<{
   key: string;
   materializedMarkdown: string;
 }> {
@@ -145,7 +148,7 @@ function diagramSections(layout?: string): Array<{
     {
       key: 'diagramMetadata',
       materializedMarkdown: JSON.stringify({
-        kind: 'PROCESS',
+        kind,
         level: 'OVERVIEW',
       }),
     },
@@ -208,6 +211,7 @@ function checkoutEdges(): Record<string, unknown>[] {
     edge('edge-standard', AgentEdgeType.Standard, STEP_ONE_ID, STEP_TWO_ID, {
       category: 'flow',
       direction: 'forward',
+      actionLabel: 'tap Continue',
     }),
     edge(
       'edge-conditional',
@@ -348,6 +352,28 @@ describe('GetDiagramToolsProvider', () => {
 
     expect(result).not.toHaveProperty('isError');
     expect(textOf(result)).toBe(CHECKOUT_TEXT);
+  });
+
+  it('identifies UX_FLOW and shows its triggering actions in the compact read', async () => {
+    taskService.findOneByOrganization.mockResolvedValueOnce(
+      workItem(DIAGRAM_ID, 'DIAGRAM', 'Checkout', PROJECT_ID, undefined, [
+        ...diagramSections(undefined, 'UX_FLOW'),
+      ]),
+    );
+
+    const result = await provider.getDiagram(
+      { workflowId: DIAGRAM_ID },
+      {} as any,
+      request(),
+    );
+    const text = textOf(result);
+
+    expect(text).toContain(
+      `DIAGRAM ${DIAGRAM_ID} "Checkout" kind=UX_FLOW level=OVERVIEW`,
+    );
+    expect(text).toContain(
+      `  edge-standard ${STEP_ONE_ID} -> ${STEP_TWO_ID} STANDARD direction=forward action="tap Continue"`,
+    );
   });
 
   it('reads the same view whether the layout is positioned, cleared or missing', async () => {

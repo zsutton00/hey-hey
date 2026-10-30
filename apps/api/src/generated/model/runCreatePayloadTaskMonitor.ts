@@ -20,6 +20,8 @@ import { TaskMonitorCoordinatorCorrection } from './taskMonitorCoordinatorCorrec
 
 
 export interface RunCreatePayloadTaskMonitor { 
+    promptType: RunCreatePayloadTaskMonitor.PromptTypeEnum;
+    entity: RunEntityReference;
     monitorId: string;
     cause: TaskMonitorLifecycleCause;
     correlationId: string;
@@ -32,8 +34,6 @@ export interface RunCreatePayloadTaskMonitor {
     launchConfig?: TaskMonitorLaunchConfig;
     judgment?: TaskMonitorJudgmentResponse;
     settledTurn?: SessionMonitorSettledTurnEvidence;
-    promptType: RunCreatePayloadTaskMonitor.PromptTypeEnum;
-    entity: RunEntityReference;
 }
 export namespace RunCreatePayloadTaskMonitor {
     export type PromptTypeEnum = 'task_monitor';

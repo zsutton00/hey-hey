@@ -1,3 +1,6 @@
+import { useContext as useInlineBodyContext } from "react";
+import { InlineReconciliationBodyContext } from "../ProposalReconciliation/ProposalReconciliationReview";
+import { useUpdateProposalExpansion } from "./useUpdateProposalExpansion";
 import { useReconciledUpdate } from "../ProposalReconciliation/useReconciledUpdate";
 import { useFeatureLookup } from "../../data/hooks/useFeatureHierarchy";
 import { useWorkItemTypeByKey } from "../../data/hooks/useWorkItemTypes";
@@ -13,7 +16,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { ProposalAction } from "../../api";
 import type {
@@ -59,6 +62,7 @@ import {
 import {
   isModeFilesSection,
   isModeSettingsSection,
+  readModeProjectAssistantSetting,
 } from "../shared/modeFilesSection";
 import { ModeSettingsSectionRenderer } from "../shared/ModeSettingsSectionRenderer";
 import { ImageSectionRenderer } from "../shared/ImageSectionRenderer";
@@ -74,6 +78,7 @@ import { useModeAvailability } from "./modeAvailability";
  * content instead of the diff view.
  */
 export const TaskUpdateRenderer: React.FC<{
+  presentationAction?: ProposalAction;
   proposal: ProposalResponseDto & { updates: UpdateTaskProposalUpdates };
   existing: TaskResponseDto;
   status: ProposalItemStatus;
@@ -91,6 +96,7 @@ export const TaskUpdateRenderer: React.FC<{
   workItemTypeDefinition: WorkItemTypeDefinitionDto;
 }> = ({
   proposal: inputProposal,
+  presentationAction,
   existing: inputExisting,
   status,
   onApply,
@@ -104,20 +110,25 @@ export const TaskUpdateRenderer: React.FC<{
   footer,
   workItemTypeDefinition,
 }) => {
-  const { proposal, existing, hideDiff, reviewedServiceIds } =
+  const { proposal, existing, hideDiff, staged, reviewedServiceIds } =
     useReconciledUpdate(inputProposal, inputExisting);
   const presentationRegistry = useWorkItemTypeByKey(
     proposal.organizationId,
     proposal.projectId,
     existing.type,
   );
-  const isApplied = status.state === "applied";
+  const { isApplied, collapsible, expanded, toggleExpanded } =
+    useUpdateProposalExpansion(
+      inputProposal,
+      status,
+      presentationAction,
+      hideDiff,
+    );
   const resolvedDiffMode = resolveDiffDefaultViewMode(
     existing.type,
     diffDefaultViewMode,
   );
   const navigate = useNavigate();
-  const [expanded, setExpanded] = useState(!isApplied);
   const modeMentionConfig = useMemo(
     () => ({
       organizationId: proposal.organizationId,
@@ -392,53 +403,31 @@ export const TaskUpdateRenderer: React.FC<{
       }).filter(({ definition }) => isImageSectionDefinition(definition)),
     [existing.sections, proposal.updates.sections, workItemTypeDefinition],
   );
-  const renderModeFileDiffs = (
-    existingValue: unknown,
-    proposedValue: unknown,
-  ) => {
-    const proposed = readModeFilesContent(proposedValue);
-    if (proposed.status !== "valid") return null;
-    const hasExisting =
-      existingValue !== undefined &&
-      existingValue !== null &&
-      !(typeof existingValue === "string" && !existingValue.trim());
-    const existingFiles = hasExisting
-      ? readModeFilesContent(existingValue)
-      : {
-          status: "valid" as const,
-          bundle: { files: new Map<string, string>() },
-        };
-    if (existingFiles.status !== "valid") return null;
-    const before = existingFiles.bundle.files;
-    const after = proposed.bundle.files;
-    const paths = Array.from(new Set([...before.keys(), ...after.keys()]))
-      .filter((path) => before.get(path) !== after.get(path))
-      .sort((left, right) =>
-        left === "MODE.md"
-          ? -1
-          : right === "MODE.md"
-            ? 1
-            : left.localeCompare(right),
-      );
-    return paths.map((path) => (
-      <Stack key={path} spacing={0.5} data-testid="mode-file-diff">
-        <Typography variant="caption" color="text.secondary">
-          {path}
-          {!before.has(path)
-            ? " (added)"
-            : !after.has(path)
-              ? " (removed)"
-              : ""}
-        </Typography>
-        <DiffRenderer
-          oldContent={before.get(path) ?? ""}
-          newContent={after.get(path) ?? ""}
-          defaultViewMode={resolvedDiffMode}
-          showViewModeToggle
-        />
-      </Stack>
-    ));
-  };
+  const modeFilesComparisonUnavailable =
+    !isApplied &&
+    modeFilesSections.some(
+      (section) =>
+        readModeFilesContent(section.existingValue).status !== "valid" ||
+        readModeFilesContent(section.proposedValue).status !== "valid",
+    );
+  const modeSettingsComparisonUnavailable =
+    !isApplied &&
+    modeSettingsSections.some(
+      (section) =>
+        readModeProjectAssistantSetting(section.existingValue).status ===
+          "invalid" ||
+        readModeProjectAssistantSetting(section.proposedValue).status ===
+          "invalid",
+    );
+  const modeComparisonUnavailable =
+    modeFilesComparisonUnavailable || modeSettingsComparisonUnavailable;
+  const availability = (
+    <ModeAvailabilitySummary
+      availability={modeAvailability}
+      organizationId={proposal.organizationId}
+      projectId={proposal.projectId}
+    />
+  );
   const renderImageSection = (
     section: (typeof imageSections)[number],
     showPrevious: boolean,
@@ -475,10 +464,15 @@ export const TaskUpdateRenderer: React.FC<{
     </Stack>
   );
 
+  const reconciliationBody = useInlineBodyContext(
+    InlineReconciliationBodyContext,
+  );
+
   const content = (
     <Stack spacing={1.5}>
-      {!overrides?.hideHeader && (
+      {!overrides?.hideHeader && (!staged || !!reconciliationBody) && (
         <ProposalTitle
+          presentationAction={presentationAction}
           proposal={proposal}
           resolvedTargetName={existing.name}
           typePresentation={resolveWorkItemTypePresentation(
@@ -498,10 +492,13 @@ export const TaskUpdateRenderer: React.FC<{
               : undefined
           }
           endAdornment={
-            isApplied ? (
+            collapsible ? (
               <IconButton
                 size="small"
-                onClick={() => setExpanded((prev) => !prev)}
+                onClick={toggleExpanded}
+                aria-label={expanded ? "Collapse update" : "Expand update"}
+                aria-expanded={expanded}
+                data-testid="update-proposal-expand"
                 sx={{
                   transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
                   transition: "transform 0.2s",
@@ -513,218 +510,258 @@ export const TaskUpdateRenderer: React.FC<{
           }
         />
       )}
-      <ModeAvailabilitySummary
-        availability={modeAvailability}
-        organizationId={proposal.organizationId}
-        projectId={proposal.projectId}
-      />
-      {notice}
-      <Collapse in={expanded && !hideDiff}>
-        <Stack spacing={1.5}>
-          {proposedServiceIds !== undefined && servicesQuery.isLoading ? (
-            <Box
-              sx={{ display: "flex", alignItems: "center", gap: 1, px: 1 }}
-              data-testid="task-proposal-services-loading"
+      {reconciliationBody ?? (
+        <>
+          {existing.type !== "MODE" || isApplied ? availability : null}
+          {overrides?.hideHeader && collapsible && (
+            <IconButton
+              onClick={toggleExpanded}
+              aria-label={expanded ? "Collapse update" : "Expand update"}
+              aria-expanded={expanded}
+              data-testid="update-proposal-expand"
             >
-              <CircularProgress size={16} />
-              Loading service names…
-            </Box>
-          ) : proposedServiceIds !== undefined && servicesQuery.error ? (
-            <Alert severity="error">Could not load service names.</Alert>
-          ) : serviceNamesUnavailable ? (
-            <Alert severity="warning">
-              One or more current or proposed services are unavailable.
-            </Alert>
-          ) : isApplied ? (
-            <Stack spacing={1.5} sx={{ px: 1 }}>
-              {hasGeneralChanges ? (
-                <MarkdownRenderer allowMentionEscapes>
-                  {newContent}
-                </MarkdownRenderer>
-              ) : null}
-              {structuredRequirementsChange?.status === "invalid" ? (
-                <Alert
-                  severity="error"
-                  data-testid="feature-requirements-invalid"
-                >
-                  {structuredRequirementsChange.reason}
-                </Alert>
-              ) : structuredRequirementsChange ? (
-                <StructuredRequirementsView
-                  requirements={structuredRequirementsChange.after}
-                />
-              ) : null}
-              {htmlCssSections.map((section) => (
-                <Stack key={section.key} spacing={0.5}>
-                  <Typography variant="caption" color="text.secondary">
-                    {section.label}
-                  </Typography>
-                  <HtmlCssSectionRenderer
-                    content={section.proposedValue}
-                    definition={section.definition}
-                    context="inline"
-                    title={`${section.label} approved proposal preview`}
-                    organizationId={proposal.organizationId}
-                    materializedProposalId={proposal.id}
-                    projectId={proposal.projectId}
-                    mockupSource={{
-                      kind: "proposal",
-                      proposalId: proposal.id,
-                      sectionKey: section.key,
-                    }}
-                  />
-                </Stack>
-              ))}
-              {structuredMockupSections.map((section) => (
-                <Stack key={section.key} spacing={0.5}>
-                  <Typography variant="caption" color="text.secondary">
-                    {section.label}
-                  </Typography>
-                  <StructuredMockupSectionRenderer
-                    content={section.proposedValue}
-                    definition={section.definition}
-                    context="inline"
-                  />
-                </Stack>
-              ))}
-              {modeFilesSections.map((section) => (
-                <Stack key={section.key} spacing={0.5}>
-                  <Typography variant="caption" color="text.secondary">
-                    {section.label}
-                  </Typography>
-                  <ModeFilesSectionRenderer
-                    content={section.proposedValue}
-                    mentionConfig={modeMentionConfig}
-                  />
-                </Stack>
-              ))}
-              {modeSettingsSections.map((section) => (
-                <Stack key={section.key} spacing={0.5}>
-                  <Typography variant="caption" color="text.secondary">
-                    {section.label}
-                  </Typography>
-                  <ModeSettingsSectionRenderer
-                    content={section.proposedValue}
-                    previousContent={section.existingValue}
-                  />
-                </Stack>
-              ))}
-              {imageSections.map((section) =>
-                renderImageSection(section, false),
-              )}
-            </Stack>
-          ) : (
+              <ExpandMoreIcon fontSize="small" />
+            </IconButton>
+          )}
+          <Collapse in={expanded && !hideDiff}>
             <Stack spacing={1.5}>
-              {hasGeneralChanges ? (
-                <DiffRenderer
-                  oldContent={oldContent}
-                  newContent={newContent}
-                  defaultViewMode={resolvedDiffMode}
-                  showViewModeToggle
-                />
-              ) : null}
-              {structuredRequirementsChange?.status === "invalid" ? (
-                <Alert
-                  severity="error"
-                  data-testid="feature-requirements-invalid"
+              {notice}
+              {proposedServiceIds !== undefined && servicesQuery.isLoading ? (
+                <Box
+                  sx={{ display: "flex", alignItems: "center", gap: 1, px: 1 }}
+                  data-testid="task-proposal-services-loading"
                 >
-                  {structuredRequirementsChange.reason}
+                  <CircularProgress size={16} />
+                  Loading service names…
+                </Box>
+              ) : proposedServiceIds !== undefined && servicesQuery.error ? (
+                <Alert severity="error">Could not load service names.</Alert>
+              ) : serviceNamesUnavailable ? (
+                <Alert severity="warning">
+                  One or more current or proposed services are unavailable.
                 </Alert>
-              ) : structuredRequirementsChange ? (
-                <StructuredRequirementsDiffView
-                  before={structuredRequirementsChange.before}
-                  after={structuredRequirementsChange.after}
-                  defaultViewMode={resolvedDiffMode}
-                />
-              ) : null}
-              {htmlCssSections.map((section) => (
-                <VisualProposalSectionComparison
-                  key={section.key}
-                  kind="html/css"
-                  label={section.label}
-                  definition={section.definition}
-                  before={section.existingValue}
-                  after={section.proposedValue}
-                  organizationId={proposal.organizationId}
-                  materializedProposalId={section.materializedProposalId}
-                  projectId={proposal.projectId}
-                  proposedMockupSource={{
-                    kind: "proposal",
-                    proposalId: proposal.id,
-                    sectionKey: section.key,
-                  }}
-                />
-              ))}
-              {structuredMockupSections.map((section) => (
-                <VisualProposalSectionComparison
-                  key={section.key}
-                  kind="structured-mockup"
-                  label={section.label}
-                  definition={section.definition}
-                  before={section.existingValue}
-                  after={section.proposedValue}
-                />
-              ))}
-              {modeFilesSections.map((section) => (
-                <Stack key={section.key} spacing={0.5}>
-                  <Typography variant="caption" color="text.secondary">
-                    {section.label}
-                  </Typography>
-                  <ModeFilesSectionRenderer
-                    content={section.proposedValue}
-                    mentionConfig={modeMentionConfig}
-                  />
-                  {renderModeFileDiffs(
-                    section.existingValue,
-                    section.proposedValue,
+              ) : isApplied ? (
+                <Stack spacing={1.5} sx={{ px: 1 }}>
+                  {hasGeneralChanges ? (
+                    <MarkdownRenderer allowMentionEscapes>
+                      {newContent}
+                    </MarkdownRenderer>
+                  ) : null}
+                  {structuredRequirementsChange?.status === "invalid" ? (
+                    <Alert
+                      severity="error"
+                      data-testid="feature-requirements-invalid"
+                    >
+                      {structuredRequirementsChange.reason}
+                    </Alert>
+                  ) : structuredRequirementsChange ? (
+                    <StructuredRequirementsView
+                      requirements={structuredRequirementsChange.after}
+                    />
+                  ) : null}
+                  {htmlCssSections.map((section) => (
+                    <Stack key={section.key} spacing={0.5}>
+                      <Typography variant="caption" color="text.secondary">
+                        {section.label}
+                      </Typography>
+                      <HtmlCssSectionRenderer
+                        content={section.proposedValue}
+                        definition={section.definition}
+                        context="inline"
+                        title={`${section.label} approved proposal preview`}
+                        organizationId={proposal.organizationId}
+                        materializedProposalId={proposal.id}
+                        projectId={proposal.projectId}
+                        mockupSource={{
+                          kind: "proposal",
+                          proposalId: proposal.id,
+                          sectionKey: section.key,
+                        }}
+                      />
+                    </Stack>
+                  ))}
+                  {structuredMockupSections.map((section) => (
+                    <Stack key={section.key} spacing={0.5}>
+                      <Typography variant="caption" color="text.secondary">
+                        {section.label}
+                      </Typography>
+                      <StructuredMockupSectionRenderer
+                        content={section.proposedValue}
+                        definition={section.definition}
+                        context="inline"
+                      />
+                    </Stack>
+                  ))}
+                  {modeFilesSections.map((section) => (
+                    <Stack key={section.key} spacing={0.5}>
+                      <Typography variant="caption" color="text.secondary">
+                        {section.label}
+                      </Typography>
+                      <ModeFilesSectionRenderer
+                        content={section.proposedValue}
+                        mentionConfig={modeMentionConfig}
+                      />
+                    </Stack>
+                  ))}
+                  {modeSettingsSections.map((section) => (
+                    <Stack key={section.key} spacing={0.5}>
+                      <Typography variant="caption" color="text.secondary">
+                        {section.label}
+                      </Typography>
+                      <ModeSettingsSectionRenderer
+                        content={section.proposedValue}
+                        previousContent={section.existingValue}
+                      />
+                    </Stack>
+                  ))}
+                  {imageSections.map((section) =>
+                    renderImageSection(section, false),
                   )}
                 </Stack>
-              ))}
-              {modeSettingsSections.map((section) => (
-                <Stack key={section.key} spacing={0.5}>
-                  <Typography variant="caption" color="text.secondary">
-                    {section.label}
-                  </Typography>
-                  <ModeSettingsSectionRenderer
-                    content={section.proposedValue}
-                    previousContent={section.existingValue}
-                  />
+              ) : (
+                <Stack spacing={1.5}>
+                  {modeFilesSections.map((section) => (
+                    <Stack key={section.key} spacing={0.5}>
+                      <Typography variant="caption" color="text.secondary">
+                        {section.label}
+                      </Typography>
+                      <ModeFilesSectionRenderer
+                        content={section.proposedValue}
+                        mentionConfig={modeMentionConfig}
+                        comparison={{
+                          currentContent: section.existingValue,
+                          defaultViewMode: resolvedDiffMode,
+                        }}
+                      />
+                    </Stack>
+                  ))}
+                  {existing.type === "MODE" ? (
+                    <Box component="details">
+                      <Box component="summary">Where this mode can be used</Box>
+                      {availability}
+                    </Box>
+                  ) : null}
+                  {hasGeneralChanges ? (
+                    <Box
+                      component={existing.type === "MODE" ? "details" : "div"}
+                    >
+                      {existing.type === "MODE" ? (
+                        <Box component="summary">Summary and other changes</Box>
+                      ) : null}
+                      <DiffRenderer
+                        oldContent={oldContent}
+                        newContent={newContent}
+                        defaultViewMode={resolvedDiffMode}
+                        showViewModeToggle
+                      />
+                    </Box>
+                  ) : null}
+                  {structuredRequirementsChange?.status === "invalid" ? (
+                    <Alert
+                      severity="error"
+                      data-testid="feature-requirements-invalid"
+                    >
+                      {structuredRequirementsChange.reason}
+                    </Alert>
+                  ) : structuredRequirementsChange ? (
+                    <StructuredRequirementsDiffView
+                      before={structuredRequirementsChange.before}
+                      after={structuredRequirementsChange.after}
+                      defaultViewMode={resolvedDiffMode}
+                    />
+                  ) : null}
+                  {htmlCssSections.map((section) => (
+                    <VisualProposalSectionComparison
+                      key={section.key}
+                      kind="html/css"
+                      label={section.label}
+                      definition={section.definition}
+                      before={section.existingValue}
+                      after={section.proposedValue}
+                      organizationId={proposal.organizationId}
+                      materializedProposalId={section.materializedProposalId}
+                      projectId={proposal.projectId}
+                      proposedMockupSource={{
+                        kind: "proposal",
+                        proposalId: proposal.id,
+                        sectionKey: section.key,
+                      }}
+                    />
+                  ))}
+                  {structuredMockupSections.map((section) => (
+                    <VisualProposalSectionComparison
+                      key={section.key}
+                      kind="structured-mockup"
+                      label={section.label}
+                      definition={section.definition}
+                      before={section.existingValue}
+                      after={section.proposedValue}
+                    />
+                  ))}
+                  {modeSettingsSections.map((section) => (
+                    <Stack
+                      component="details"
+                      open={modeSettingsComparisonUnavailable}
+                      key={section.key}
+                      spacing={0.5}
+                    >
+                      <Box component="summary">
+                        Eligible work-item types and Project Assistant
+                      </Box>
+                      <Typography variant="caption" color="text.secondary">
+                        {section.label}
+                      </Typography>
+                      <ModeSettingsSectionRenderer
+                        content={section.proposedValue}
+                        previousContent={section.existingValue}
+                      />
+                    </Stack>
+                  ))}
+                  {imageSections.map((section) =>
+                    renderImageSection(section, true),
+                  )}
                 </Stack>
-              ))}
-              {imageSections.map((section) =>
-                renderImageSection(section, true),
+              )}
+              {siblingProposals && (
+                <ProposalEdges
+                  edges={proposal.edges}
+                  siblingProposals={siblingProposals}
+                  organizationId={proposal.organizationId}
+                  projectId={proposal.projectId}
+                  ownerApplied={isApplied}
+                />
               )}
             </Stack>
+          </Collapse>
+          {footer && !overrides?.hideStateIndicator ? (
+            modeComparisonUnavailable ? (
+              <Alert severity="error">
+                Approval is unavailable until the complete comparison can be
+                shown.
+              </Alert>
+            ) : (
+              footer
+            )
+          ) : (
+            !overrides?.hideStateIndicator && (
+              <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
+                <ProposalStateIndicator
+                  status={status}
+                  action={ProposalAction.Update}
+                  onApply={onApply}
+                  onReject={onReject}
+                  disabled={disabled || modeComparisonUnavailable}
+                  approvalProgress={approvalProgress}
+                />
+              </Box>
+            )
           )}
-          {siblingProposals && (
-            <ProposalEdges
-              edges={proposal.edges}
-              siblingProposals={siblingProposals}
-              organizationId={proposal.organizationId}
-              projectId={proposal.projectId}
-              ownerApplied={isApplied}
-            />
-          )}
-        </Stack>
-      </Collapse>
-      {footer && !overrides?.hideStateIndicator
-        ? footer
-        : !overrides?.hideStateIndicator && (
-            <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
-              <ProposalStateIndicator
-                status={status}
-                action={ProposalAction.Update}
-                onApply={onApply}
-                onReject={onReject}
-                disabled={disabled}
-                approvalProgress={approvalProgress}
-              />
-            </Box>
-          )}
+        </>
+      )}
     </Stack>
   );
 
-  return overrides?.hideCard ? (
+  return overrides?.hideCard || (staged && !reconciliationBody) ? (
     content
   ) : (
     <Paper variant="outlined" sx={{ p: 2 }}>

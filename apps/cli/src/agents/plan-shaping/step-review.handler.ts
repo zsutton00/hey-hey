@@ -136,6 +136,7 @@ const renderStepReviewPrompt = (
   const enriched = payload as StepReviewPreparedPayload;
   return buildStepReviewPrompt({
     taskId: taskIdFromHandlerContext(context),
+    provider: context?.provider,
     userMessage: payload.userMessage ?? null,
     steps: payload.steps,
     stageIdx: payload.stageIdx,

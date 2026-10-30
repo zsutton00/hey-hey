@@ -11,6 +11,7 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
+import { ControllerActionInputs } from './controllerActionInputs';
 import { HostActionCategory } from './hostActionCategory';
 import { HostAffectingActionType } from './hostAffectingActionType';
 
@@ -30,6 +31,7 @@ export interface ConversationHostActionPreparation {
      * Selection hint only. The server resolves and authorizes the canonical target instead of copying browser scope into the intent.
      */
     targetId: string;
+    inputs?: ControllerActionInputs;
 }
 export namespace ConversationHostActionPreparation {
     export type TargetKindEnum = 'CONVERSATION';

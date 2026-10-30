@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { ProjectTemplateCloneService } from '../project-template-clone.service';
@@ -32,7 +33,6 @@ function fixture() {
   const input = {
     targetOrganizationId: targetOrg,
     targetProjectId: targetProject,
-    actorUserId: actor,
   };
   const state: Record<string, Row[]> = {};
   for (const model of Prisma.dmmf.datamodel.models) {
@@ -348,6 +348,7 @@ function fixture() {
     db,
     state,
     input,
+    actor,
     transaction,
     sourceProject,
     sourceOrg,
@@ -359,6 +360,126 @@ function fixture() {
 }
 
 describe('ProjectTemplateCloneService', () => {
+  it('skips orphan session conversations, dependent history and graph edges while retaining work', async () => {
+    const f = fixture();
+    const orphan = f.state.conversation![0]!;
+    const missingSessionId = randomUUID();
+    orphan.workflowAboutType = 'agent-session';
+    orphan.workflowAboutId = missingSessionId;
+    const orphanMessages = f.state.message!.map((row) => row.id);
+    const validConversation = {
+      ...orphan,
+      id: randomUUID(),
+      workflowAboutType: 'TASK',
+      workflowAboutId: f.feature,
+    };
+    f.state.conversation!.push(validConversation);
+    f.snapshot.nodes.push({ id: orphan.id as string, label: 'Conversation' });
+    f.snapshot.edges.push({
+      ...f.snapshot.edges[0]!,
+      id: randomUUID(),
+      sourceNodeId: orphan.id as string,
+    });
+    const warning = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const result = await f.transaction();
+      expect(result.idMap.has(orphan.id as string)).toBe(false);
+      expect(result.idMap.has(validConversation.id)).toBe(true);
+      for (const id of orphanMessages)
+        expect(result.idMap.has(id as string)).toBe(false);
+      expect(f.state.message).toHaveLength(2);
+      expect(f.state.messageMention).toHaveLength(1);
+      expect(f.state.messageProposalReference).toHaveLength(1);
+      const child = f.state.task!.find(
+        (row) => row.id === result.idMap.get(f.child),
+      )!;
+      expect(child.sourceConversationId).toBeNull();
+      expect(f.state.task).toHaveLength(4);
+      const command = f.state.demoGraphCopyIntent![0]!.command as {
+        snapshot: TemplateGraphSnapshot;
+      };
+      expect(command.snapshot.nodes).toHaveLength(3);
+      expect(command.snapshot.edges).toHaveLength(1);
+      expect(warning).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          sourceConversationId: orphan.id,
+          missingAgentSessionId: missingSessionId,
+        }),
+      );
+      expect(orphan.workflowAboutId).toBe(missingSessionId);
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
+  it('copies a conversation and its history when its agent session still exists', async () => {
+    const f = fixture();
+    const conversation = f.state.conversation![0]!;
+    const sessionId = randomUUID();
+    conversation.workflowAboutType = 'agent-session';
+    conversation.workflowAboutId = sessionId;
+    f.state.agentSession!.push({
+      id: sessionId,
+      projectId: f.sourceProject,
+      organizationId: f.sourceOrg,
+      userId: f.actor,
+      conversationId: conversation.id,
+      title: 'Existing session',
+      type: 'CODING',
+      status: 'COMPLETED',
+      sessionDate: now,
+      createdAt: now,
+      updatedAt: now,
+      hasUnsyncedChanges: false,
+    });
+    const result = await f.transaction();
+    const copied = f.state.conversation!.find(
+      (row) => row.id === result.idMap.get(conversation.id as string),
+    )!;
+    expect(copied.workflowAboutId).toBe(result.idMap.get(sessionId));
+    expect(f.state.message).toHaveLength(4);
+  });
+
+  it('does not treat an existing session outside the copy as deleted', async () => {
+    const f = fixture();
+    const sessionId = randomUUID();
+    const conversation = f.state.conversation![0]!;
+    conversation.workflowAboutType = 'agent-session';
+    conversation.workflowAboutId = sessionId;
+    f.state.agentSession!.push({ id: sessionId, projectId: randomUUID() });
+    const result = await f.transaction();
+    const copied = f.state.conversation!.find(
+      (row) => row.id === result.idMap.get(conversation.id as string),
+    )!;
+    expect(copied.workflowAboutId).toBe(sessionId);
+  });
+
+  it('drops references to template records left out of the copy', async () => {
+    const f = fixture();
+    const orphan = f.state.conversation![0]!;
+    orphan.workflowAboutType = 'agent-session';
+    orphan.workflowAboutId = randomUUID();
+    f.state.taskSection![2]!.materializedMarkdown = `See @[conversation:${orphan.id}|Old chat]`;
+    f.state.workItemType![0]!.writingStandards = {
+      conversationId: orphan.id,
+    };
+    const warning = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const result = await f.transaction();
+      const section = f.state.taskSection!.find(
+        (row) =>
+          row.taskId === result.idMap.get(f.child) && row.key === 'description',
+      )!;
+      expect(section.materializedMarkdown).toBe('See Old chat');
+      expect(f.state.workItemType![1]!.writingStandards).toEqual({
+        conversationId: null,
+      });
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
   it('remaps unmaterialized CREATE reservations across proposals, group members and mentions', async () => {
     const f = fixture();
     const reservedTarget = randomUUID();
@@ -454,6 +575,8 @@ describe('ProjectTemplateCloneService', () => {
     for (const row of f.state.outboxEvent!) {
       expect(row.organizationId).toBe(f.input.targetOrganizationId);
       expect(row.projectId).toBe(f.input.targetProjectId);
+      // The sandbox has no human actor; Graph rejects non-UUID event user IDs.
+      expect(row.payload).not.toHaveProperty('userId');
     }
     const copiedMessageEvent = f.state.outboxEvent!.find(
       (row) => row.eventType === 'message.created',
@@ -479,6 +602,41 @@ describe('ProjectTemplateCloneService', () => {
     expect(JSON.stringify(intent.command)).not.toContain(
       f.snapshot.edges[0]!.id,
     );
+  });
+
+  it('reports exactly the FEATURE tasks it copied, including one added to the template just before the clone', async () => {
+    const f = fixture();
+    const source = f.state.task!.find((row) => row.id === f.feature)!;
+    // Added after admission started, e.g. by a template editor; it is copied,
+    // so readiness must wait for it too.
+    const late = { ...source, id: randomUUID() };
+    f.state.task!.push(late);
+    for (const section of f.state.taskSection!.filter(
+      (row) => row.taskId === f.feature,
+    )) {
+      f.state.taskSection!.push({
+        ...section,
+        id: randomUUID(),
+        taskId: late.id,
+      });
+    }
+
+    const result = await f.transaction();
+
+    const sourceFeatures = f.state
+      .task!.filter(
+        (row) => row.projectId === f.sourceProject && row.type === 'FEATURE',
+      )
+      .map((row) => row.id as string);
+    expect(sourceFeatures).toContain(late.id);
+    expect([...result.copiedFeatureIds].sort()).toEqual(
+      sourceFeatures.map((id) => result.idMap.get(id)!).sort(),
+    );
+    for (const id of result.copiedFeatureIds) {
+      expect(f.state.task!.find((row) => row.id === id)?.projectId).toBe(
+        f.input.targetProjectId,
+      );
+    }
   });
 
   it('fetches the graph snapshot before the clone and never during it', async () => {
@@ -507,13 +665,53 @@ describe('ProjectTemplateCloneService', () => {
     expect(f.state.task).toHaveLength(2);
   });
 
-  it('rejects an unmapped mention and rolls back all writes in the caller transaction', async () => {
+  it('completes the copy when records reference IDs that are not template records', async () => {
     const f = fixture();
-    f.state.taskSection![2]!.materializedMarkdown = `@[task:${randomUUID()}|Outside template]`;
-    await expect(f.transaction()).rejects.toThrow('unmapped reference');
-    expect(f.state.task).toHaveLength(2);
-    expect(f.state.outboxEvent).toHaveLength(0);
-    expect(f.state.demoGraphCopyIntent).toHaveLength(0);
+    const outsideTask = randomUUID();
+    const outsideConversation = randomUUID();
+    const operationId = randomUUID();
+    const sessionId = randomUUID();
+    const serviceId = randomUUID();
+    const trigger = f.state.message![0]!;
+    f.state.taskSection![2]!.materializedMarkdown = `@[task:${outsideTask}|Outside template]`;
+    f.state.task![1]!.sourceConversationId = outsideConversation;
+    trigger.data = {
+      triggersAgent: {
+        kind: 'start_run',
+        operationId,
+        triggerMessageId: trigger.id,
+        agentSessionId: sessionId,
+        serviceIds: [serviceId],
+        contextMetadata: {
+          projectId: f.sourceProject,
+          organizationId: f.sourceOrg,
+        },
+      },
+    };
+    const result = await f.transaction();
+    const copiedChild = f.state.task!.find(
+      (row) => row.id === result.idMap.get(f.child),
+    )!;
+    expect(copiedChild.sourceConversationId).toBeNull();
+    expect(
+      f.state.taskSection!.find(
+        (row) =>
+          row.taskId === result.idMap.get(f.child) && row.key === 'description',
+      )!.materializedMarkdown,
+    ).toBe(`@[task:${outsideTask}|Outside template]`);
+    expect(f.state.message![2]!.data).toEqual({
+      triggersAgent: {
+        kind: 'start_run',
+        operationId,
+        triggerMessageId: result.idMap.get(trigger.id as string),
+        agentSessionId: sessionId,
+        serviceIds: [serviceId],
+        contextMetadata: {
+          projectId: f.input.targetProjectId,
+          organizationId: f.input.targetOrganizationId,
+        },
+      },
+    });
   });
 
   it('preserves logical workflow node names and transport correlation without treating them as entity references', async () => {
@@ -555,7 +753,7 @@ describe('ProjectTemplateCloneService', () => {
         source: 'agent',
         action: 'UPDATE',
         authorId: randomUUID(),
-        eligibleProjectMemberIds: [f.input.actorUserId],
+        eligibleProjectMemberIds: [f.actor],
         toolName: null,
         changedFields: ['sections.description'],
       },

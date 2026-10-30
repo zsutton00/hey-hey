@@ -77,7 +77,6 @@ describe('researchHandler — registration & toolset', () => {
     const forbidden = [
       'create_work_item',
       'edit_work_item',
-      'edit_tasks',
       'create_step',
       'update_step',
       'create_plan',

@@ -1,5 +1,7 @@
+import { ReportRelatedEntityType, ReportType } from "../../api";
+import { useReports } from "../../data/hooks/useReports";
 import type { RunAttachmentReference } from "../../api";
-import { Box, Stack } from "@mui/material";
+import { Alert, Box, Stack } from "@mui/material";
 import React, {
   useCallback,
   useEffect,
@@ -26,7 +28,7 @@ import {
   buildAgentInput,
   buildDirectTriggerInput,
 } from "./runtime/hooks/directTriggerInput";
-import { useAgentRunLifecycle, type RunLauncher } from "./useAgentRunLifecycle";
+import { useAgentRunLifecycle } from "./useAgentRunLifecycle";
 import { useLaunchRunOrchestration } from "./useLaunchRunOrchestration";
 import { useSurfaceCatalogNotice } from "./useSurfaceCatalogNotice";
 import { useSurfaceSelection } from "./useSurfaceSelection";
@@ -51,7 +53,6 @@ interface FeatureTreeConversationActiveProps {
   organizationId: string;
   projectId: string;
   agentSession: AgentSessionDto;
-  launch: RunLauncher;
   onCreateNewConversation?: (draftText: string) => Promise<void>;
   scrollable: boolean;
 }
@@ -62,10 +63,18 @@ const FeatureTreeConversationActive: React.FC<
   organizationId,
   projectId,
   agentSession,
-  launch,
   onCreateNewConversation,
   scrollable,
 }) => {
+  const launch = useLaunchRunOrchestration({
+    organizationId,
+    apiClient,
+    projectId,
+    agentSessionId: agentSession.id,
+    ...(agentSession.conversationId
+      ? { conversationId: agentSession.conversationId }
+      : {}),
+  });
   const [localConversationId, setLocalConversationId] = useState<string | null>(
     null,
   );
@@ -328,15 +337,53 @@ export const FeatureTreeConversationChat: React.FC<
   onCreateNewConversation,
   scrollable = false,
 }) => {
-  const launch = useLaunchRunOrchestration({
-    organizationId,
-    apiClient,
+  const attempts = useReports(organizationId, {
     projectId,
-    agentSessionId: agentSession.id,
-    ...(agentSession.conversationId
-      ? { conversationId: agentSession.conversationId }
-      : {}),
+    reportType: ReportType.EvalAttempt,
+    entityType: ReportRelatedEntityType.AgentSession,
+    entityId: agentSession.id,
   });
+
+  if (attempts.error) {
+    return (
+      <Alert severity="error">
+        Unable to determine whether this session is retained evaluation
+        evidence.
+      </Alert>
+    );
+  }
+  if (!attempts.isFetched) return <LoadingPanel />;
+  // An eval attempt's target session is executed only by the eval runner, so
+  // it opens as its saved conversation, read-only, and never binds a run.
+  const isEvalAttempt = attempts.reports.some(
+    (report) =>
+      report.payload.reportType === ReportType.EvalAttempt &&
+      report.payload.targetSessionId === agentSession.id,
+  );
+  if (
+    agentSession.conversationId &&
+    (isEvalAttempt || !agentSession.machineId)
+  ) {
+    return (
+      <AgentConversationView
+        organizationId={organizationId}
+        projectId={projectId}
+        agentSessionId={agentSession.id}
+        conversationId={agentSession.conversationId}
+        readOnly
+        hideComposer={isEvalAttempt}
+        sessionResumability="legacy_non_resumable"
+        scrollable={scrollable}
+      />
+    );
+  }
+  if (isEvalAttempt) {
+    return (
+      <Alert severity="info">
+        This evaluation attempt has no saved conversation.
+      </Alert>
+    );
+  }
 
   return (
     <Box
@@ -357,7 +404,6 @@ export const FeatureTreeConversationChat: React.FC<
         organizationId={organizationId}
         projectId={projectId}
         agentSession={agentSession}
-        launch={launch}
         onCreateNewConversation={onCreateNewConversation}
         scrollable={scrollable}
       />

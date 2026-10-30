@@ -7,9 +7,7 @@ import type {
   LocalWorktreeStateByService,
   ResolvedServiceBinding,
 } from '../../shared/agent-bridge-contract/contract';
-import { ReportAudience, ReportType } from '../../shared/api/index';
 import {
-  defaultAddUserMessage,
   type PromptTypeHandlerContext,
   type RecentUserReply,
   type UserLaunchablePromptTypeHandler,
@@ -18,12 +16,20 @@ import { buildCodingPlanPrompt } from '../prompts/coding-plan';
 import { buildStartingMessage as buildStartingMessageForPromptType } from '../prompts/starting-message';
 import { fetchPlanDesignDocReference } from './plan-design-doc-reference';
 import { codingPlanSubmissionTools } from './submission-tools';
+import {
+  fetchCodingPlanConversation,
+  latestCodingPlanVersion,
+  renderCodingPlanConversation,
+} from './conversation-context';
+
+export const CODING_PLAN_NOT_SAVED_MESSAGE =
+  "The plan wasn't saved, so it can't be approved yet. Reply to try saving it again.";
 
 /**
  * Restricted MCP tool allowlist for the coding-plan subagent. The planner may
  * ground its plan in project state (search + context tools), read prior
  * report bodies, maintain its implementation-hint memory, and persist its
- * PLAN report — but must never mutate the graph.
+ * conversation context — but must never mutate the graph.
  */
 export const CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
   // Context / read
@@ -54,12 +60,14 @@ export const CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
 /**
  * Built-in Claude Code tools the planner uses to read the codebase.
  * `Write`/`Edit`/`Bash` are deliberately omitted — planning must not mutate
- * the working tree or run shell commands.
+ * the working tree or run shell commands. `ToolSearch` loads deferred tool
+ * schemas; it grants no permission to call them.
  */
 export const CODING_PLAN_SUBAGENT_BUILTIN_ALLOWED_TOOLS: readonly string[] = [
   'Read',
   'Glob',
   'Grep',
+  'ToolSearch',
 ];
 
 /**
@@ -83,6 +91,9 @@ export interface EnrichedCodingPlanPromptPayload extends LocalStartupSessionProm
    * `buildCodingPlanPrompt`.
    */
   _researchMemo?: string;
+  _planningConversation?: string;
+  /** True once the planning conversation holds a saved plan version. */
+  _hasSavedPlanVersion?: boolean;
 }
 
 type CodingPlanHandler = UserLaunchablePromptTypeHandler<LocalStartupSessionPromptPayload>;
@@ -99,15 +110,15 @@ export const codingPlanHandler: CodingPlanHandler = {
     workItemProposalMode: 'all',
   },
   runnerKind: 'subagent',
+  readOnlyFilesystem: true,
   providerSessionCountsForContext: true,
   // A Coding Plan follow-up is a fresh planning round, even though the
   // provider helper session remains isolated. Re-run prepare so selected
   // Services, the launch anchor, worktree paths, and current feedback reach
   // the new subagent prompt instead of forwarding only the raw user message.
   rebuildPromptOnUserMessage: true,
-  reports: [
-    { reportType: ReportType.Plan, audience: ReportAudience.ProjectVisible, required: true },
-  ],
+  reports: [],
+  excludedBaseSubmissionTools: ['create_report'],
   submissionTools: [...codingPlanSubmissionTools],
   subagentConfig: {
     mcpAllowedTools: CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS,
@@ -117,8 +128,8 @@ export const codingPlanHandler: CodingPlanHandler = {
 
   async prepare(run, payload, deps, ctx?: PromptTypeHandlerContext) {
     // The turn's user message — a composer reply, or the comments carried by
-    // Continue Refining — is the reply the planner classifies. Without it the
-    // prompt takes the initial-planning path and the feedback is ignored.
+    // a specific planning issue — is the feedback the planner discusses. Without it the
+    // prompt can lose the current feedback.
     const turnUserMessage = payload.userMessage?.trim();
     const recentUserReplies: ReadonlyArray<RecentUserReply> =
       ctx?.recentUserReplies && ctx.recentUserReplies.length > 0
@@ -192,10 +203,28 @@ export const codingPlanHandler: CodingPlanHandler = {
       });
       throw new Error('coding_plan handler requires a persisted Run entity.');
     }
+    const conversation = await fetchCodingPlanConversation(run, deps);
+    const persistedReplies = conversation.filter((message) => message.type === 'USER');
+    const lastPersistedReply = persistedReplies.at(-1);
+    const persistedCurrentText =
+      lastPersistedReply?.data.agentInput?.userMessage ??
+      lastPersistedReply?.data.comment ??
+      lastPersistedReply?.data.response;
+    const supplementalReplies = recentUserReplies.filter(
+      (reply) =>
+        !persistedReplies.some((message) => message.id === reply.messageId) &&
+        !(
+          turnUserMessage &&
+          persistedCurrentText?.trim() === turnUserMessage &&
+          reply.text.trim() === turnUserMessage
+        ),
+    );
     const enrich = (): EnrichedCodingPlanPromptPayload => ({
+      _planningConversation: renderCodingPlanConversation(conversation),
+      _hasSavedPlanVersion: latestCodingPlanVersion(conversation) !== null,
       ...payload,
       ...(hasLaunchPlan ? { launchPlanId, launchStepId, launchStageId } : {}),
-      _recentUserReplies: recentUserReplies,
+      _recentUserReplies: supplementalReplies,
       ...(run.services && run.services.length > 0 ? { _services: run.services } : {}),
       ...(run.launchServiceId ? { _launchServiceId: run.launchServiceId } : {}),
       ...(run.worktreeState ? { _worktreeState: run.worktreeState } : {}),
@@ -223,6 +252,8 @@ export const codingPlanHandler: CodingPlanHandler = {
     const enriched = payload as EnrichedCodingPlanPromptPayload;
     const replies = enriched._recentUserReplies ?? ctx?.recentUserReplies ?? [];
     return buildCodingPlanPrompt(payload, replies, {
+      provider: ctx?.provider,
+      planningConversation: enriched._planningConversation,
       ...(enriched._services ? { services: enriched._services } : {}),
       ...(enriched._launchServiceId ? { launchServiceId: enriched._launchServiceId } : {}),
       ...(enriched._worktreeState ? { worktreeState: enriched._worktreeState } : {}),
@@ -234,7 +265,17 @@ export const codingPlanHandler: CodingPlanHandler = {
     });
   },
 
-  addUserMessage: defaultAddUserMessage,
+  // Before any plan exists, a turn must save a plan, a discrepancy or a
+  // question through its tools. Otherwise the plan likely went to chat text
+  // because the tools were unavailable; the reply says so and the user can retry.
+  getUnsavedOutputNotice(_event, payload, saved) {
+    if (saved.codingPlanElementTypes.length > 0) return null;
+    if ((payload as EnrichedCodingPlanPromptPayload | undefined)?._hasSavedPlanVersion) return null;
+    return CODING_PLAN_NOT_SAVED_MESSAGE;
+  },
+
+  // The rebuilt prompt already carries persisted replies and any unsaved current feedback.
+  addUserMessage: () => null,
 
   buildStartingMessage(
     payload: LocalStartupSessionPromptPayload,

@@ -36,6 +36,7 @@ import {
   WorkflowId,
 } from '../../types';
 import {
+  AgentHandoffNodeBase,
   FlowContext,
   FlowTemplate,
   FlowUserMessage,
@@ -231,7 +232,10 @@ export class NodeExecutionService implements OnModuleInit {
     // SAME `messageAdded` event the websocket bridge gates on. See
     // ExternalAgentNodeBase.buildTriggerMessage for the contract that
     // makes this safe by construction.
-    if (isExternalAgentNode(params.node)) {
+    if (
+      isExternalAgentNode(params.node) ||
+      params.node instanceof AgentHandoffNodeBase
+    ) {
       return this.startExternalAgentNode(params, orchestrationStartTime);
     }
 
@@ -449,7 +453,10 @@ export class NodeExecutionService implements OnModuleInit {
     message: MessageRecordDto;
     immediateResponse: LLMResponsePayload;
   }> {
-    if (!isExternalAgentNode(params.node)) {
+    if (
+      !isExternalAgentNode(params.node) &&
+      !(params.node instanceof AgentHandoffNodeBase)
+    ) {
       throw new Error(
         `startExternalAgentNode called on non-EXTERNAL_AGENT node ${params.node.id}`,
       );

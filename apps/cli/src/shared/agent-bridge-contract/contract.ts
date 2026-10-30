@@ -246,7 +246,7 @@ export interface SendMessageOptions {
   admittedInput?: {
     turnId: string;
     onStarted: () => Promise<void>;
-    onRejected: () => Promise<void>;
+    onRejected: (outcome?: 'FAILED' | 'ABORTED') => Promise<void>;
     onSettled: (outcome: {
       turnId: string;
       terminalOutcome: 'COMPLETED' | 'FAILED' | 'ABORTED';

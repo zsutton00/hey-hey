@@ -1994,6 +1994,12 @@ export interface AgentEdgeContractRules {
      */
     'predicateAllowedEdgeTypes': Array<AgentEdgeType>;
     /**
+     * Flow edge types that may carry an action label.
+     * @type {Array<AgentEdgeType>}
+     * @memberof AgentEdgeContractRules
+     */
+    'actionLabelAllowedEdgeTypes': Array<AgentEdgeType>;
+    /**
      * Cross-workflow edges always originate from a workflow step.
      * @type {string}
      * @memberof AgentEdgeContractRules
@@ -2142,6 +2148,12 @@ export interface AgentEdgeResponseDto {
      */
     'predicate'?: string | null;
     /**
+     * Optional plain-language user action that triggers this flow transition. UX_FLOW Diagrams require it to be non-blank on each flow link.
+     * @type {string}
+     * @memberof AgentEdgeResponseDto
+     */
+    'actionLabel'?: string | null;
+    /**
      *
      * @type {string}
      * @memberof AgentEdgeResponseDto
@@ -2187,7 +2199,7 @@ export interface AgentEdgeResponseDto {
 
 
 /**
- * Relationship type for agent-authored topology edges between two entities. Each value carries a distinct semantic: - RELATED_TO: source and target share context but have no directional   dependency, derivation, or replacement relationship. - DEPENDS_ON: source entity requires the target entity to be in place   (functionally or temporally) before it is meaningful or completable. - DERIVES_FROM: target entity is the origin or basis from which the   source entity was produced; the target remains canonical and the   source is a downstream artifact. - SUPERSEDES: source entity replaces the target entity; the target is   displaced and should no longer be treated as canonical. - CONTRADICTS: source entity disagrees with the target entity; both   remain visible so the conflict can be resolved by an authoring agent. - EVOLVES: source entity refines, extends, or iterates on the target   entity, which remains canonical. Distinct from SUPERSEDES (target is   displaced) and DERIVES_FROM (target is origin only and the source   stands apart). - TRACKS: source references the target as a tracked deliverable. The   meaning is composed with source and target type — the canonical   use is a GOAL-typed task referencing a FEATURE / STANDARD / BUG task   or a PLAN it expects to ship. DESIGN_DOC and other GOAL targets are   rejected at the attach boundary (track the parent feature or plan   instead). Validation lives in the boundary handler, not the edge   service. - PROPOSED_TOGETHER: source and target were created or modified by the   same proposal, making them co-authored siblings. Symmetric (the edge   carries no direction beyond the storage tuple) and system-emitted   (derived by the Graph service from a proposal-approved event rather   than authored by a user or agent). Carries no semantic claim about   dependency, derivation, or replacement — only that the two entities   share a proposal origin. Always paired with source `system`. - FULFILLED_BY: meta edge from a WORKFLOW_STEP work item to the work item   where that step\'s implementation lives. It remains visible in generic   meta-edge surfaces and is never categorized as flow. - STANDARD: flow edge from one WORKFLOW_STEP to the next ordinary step in   the same workflow graph. Carries category `flow` and requires direction. - CONDITIONAL: flow edge from a WORKFLOW_STEP to the next branch selected   by a predicate. Carries category `flow` and requires both direction and   predicate. - LOOP: flow edge representing a self-loop or return loop in a workflow   graph. Carries category `flow`, does not carry direction, and may carry   a predicate when the return is conditional.
+ * Relationship type for agent-authored topology edges between two entities. Each value carries a distinct semantic: - RELATED_TO: source and target share context but have no directional   dependency, derivation, or replacement relationship. - DEPENDS_ON: source entity requires the target entity to be in place   (functionally or temporally) before it is meaningful or completable. - DERIVES_FROM: target entity is the origin or basis from which the   source entity was produced; the target remains canonical and the   source is a downstream artifact. - SUPERSEDES: source entity replaces the target entity; the target is   displaced and should no longer be treated as canonical. - CONTRADICTS: source entity disagrees with the target entity; both   remain visible so the conflict can be resolved by an authoring agent. - EVOLVES: source entity refines, extends, or iterates on the target   entity, which remains canonical. Distinct from SUPERSEDES (target is   displaced) and DERIVES_FROM (target is origin only and the source   stands apart). - TRACKS: source references the target as a tracked deliverable. The   meaning is composed with source and target type — the canonical   use is a GOAL-typed task referencing a FEATURE / STANDARD / BUG task   or a PLAN it expects to ship. DESIGN_DOC and other GOAL targets are   rejected at the attach boundary (track the parent feature or plan   instead). Validation lives in the boundary handler, not the edge   service. - PROPOSED_TOGETHER: source and target were created or modified by the   same proposal, making them co-authored siblings. Symmetric (the edge   carries no direction beyond the storage tuple) and system-emitted   (derived by the Graph service from a proposal-approved event rather   than authored by a user or agent). Carries no semantic claim about   dependency, derivation, or replacement — only that the two entities   share a proposal origin. Always paired with source `system`. - FULFILLED_BY: meta edge from a WORKFLOW_STEP work item to the work item   where that step\'s implementation lives. It remains visible in generic   meta-edge surfaces and is never categorized as flow. - STANDARD: flow edge from one WORKFLOW_STEP to the next ordinary step in   the same workflow graph. Carries category `flow`, requires direction,   and may carry an action label. - CONDITIONAL: flow edge from a WORKFLOW_STEP to the next branch selected   by a predicate. Carries category `flow` and requires both direction and   predicate. It may also carry an action label. - LOOP: flow edge representing a self-loop or return loop in a workflow   graph. Carries category `flow`, does not carry direction, and may carry   a predicate when the return is conditional. It may also carry an action   label.
  * @export
  * @enum {string}
  */
@@ -4634,7 +4646,7 @@ export interface AgentSessionExistingWorkflowBinding {
     'workflowId': string;
 }
 /**
- * Closed selector for a non-revisioned Agent Session action. Agent Session authorization is bound to target identity and the immutable operation fingerprint instead of a mutable conversation counter.
+ * Preparation for a non-revisioned Agent Session action. Direct actions bind target identity and complete semantic inputs, independently of delivery framing and mutable conversation counters.
  * @export
  * @interface AgentSessionHostActionPreparation
  */
@@ -4669,6 +4681,12 @@ export interface AgentSessionHostActionPreparation {
      * @memberof AgentSessionHostActionPreparation
      */
     'targetId': string;
+    /**
+     *
+     * @type {ControllerActionInputs}
+     * @memberof AgentSessionHostActionPreparation
+     */
+    'inputs'?: ControllerActionInputs;
 }
 
 export const AgentSessionHostActionPreparationTargetKindEnum = {
@@ -4936,6 +4954,19 @@ export interface AgentSessionReviewFileScopeRequestFile {
      * @memberof AgentSessionReviewFileScopeRequestFile
      */
     'reason': string;
+}
+/**
+ *
+ * @export
+ * @interface AgentSessionRoutingDto
+ */
+export interface AgentSessionRoutingDto {
+    /**
+     * The most recently active session bound to one of the requested machines, or null when none is.
+     * @type {string}
+     * @memberof AgentSessionRoutingDto
+     */
+    'agentSessionId': string | null;
 }
 /**
  * Reviewable request for expanding a repository-bound coding session\'s Service scope
@@ -8590,6 +8621,50 @@ export const AuthorizationProtocolVersion = {
 
 export type AuthorizationProtocolVersion = typeof AuthorizationProtocolVersion[keyof typeof AuthorizationProtocolVersion];
 
+
+/**
+ *
+ * @export
+ * @interface AvailableFutureDependency
+ */
+export interface AvailableFutureDependency {
+    /**
+     *
+     * @type {string}
+     * @memberof AvailableFutureDependency
+     */
+    'targetEntityId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof AvailableFutureDependency
+     */
+    'availability': AvailableFutureDependencyAvailabilityEnum;
+    /**
+     *
+     * @type {string}
+     * @memberof AvailableFutureDependency
+     */
+    'title': string;
+    /**
+     * Actual registered work-item type key.
+     * @type {string}
+     * @memberof AvailableFutureDependency
+     */
+    'workItemType': string;
+    /**
+     * Current status on approved future reads only; absent on pending previews.
+     * @type {WorkStatus}
+     * @memberof AvailableFutureDependency
+     */
+    'status'?: WorkStatus;
+}
+
+export const AvailableFutureDependencyAvailabilityEnum = {
+    Available: 'AVAILABLE'
+} as const;
+
+export type AvailableFutureDependencyAvailabilityEnum = typeof AvailableFutureDependencyAvailabilityEnum[keyof typeof AvailableFutureDependencyAvailabilityEnum];
 
 /**
  * An MCP tool available in the context menu for a given viewing context. The tool\'s targetEntityType indicates what entity type the tool operates on, which may differ from the entity being viewed.
@@ -14375,6 +14450,13 @@ export const CodingPlanActionSchemasREFINEActionEnum = {
 export type CodingPlanActionSchemasREFINEActionEnum = typeof CodingPlanActionSchemasREFINEActionEnum[keyof typeof CodingPlanActionSchemasREFINEActionEnum];
 
 /**
+ * @type CodingPlanApprovalPayload
+ * Conversational approval, with explicit compatibility for historical structured sessions.
+ * @export
+ */
+export type CodingPlanApprovalPayload = CodingPlanReviewAnswerPayload | CodingPlanVersionApproval;
+
+/**
  *
  * @export
  * @interface CodingPlanApprovedWorkflowAnswer
@@ -14388,10 +14470,10 @@ export interface CodingPlanApprovedWorkflowAnswer {
     'action': CodingPlanApprovedWorkflowAnswerActionEnum;
     /**
      *
-     * @type {CodingPlanReviewAnswerPayload}
+     * @type {CodingPlanApprovalPayload}
      * @memberof CodingPlanApprovedWorkflowAnswer
      */
-    'payload': CodingPlanReviewAnswerPayload;
+    'payload': CodingPlanApprovalPayload;
 }
 
 export const CodingPlanApprovedWorkflowAnswerActionEnum = {
@@ -14400,6 +14482,182 @@ export const CodingPlanApprovedWorkflowAnswerActionEnum = {
 
 export type CodingPlanApprovedWorkflowAnswerActionEnum = typeof CodingPlanApprovedWorkflowAnswerActionEnum[keyof typeof CodingPlanApprovedWorkflowAnswerActionEnum];
 
+/**
+ *
+ * @export
+ * @interface CodingPlanContext
+ */
+export interface CodingPlanContext {
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanContext
+     */
+    'responseType': CodingPlanContextResponseTypeEnum;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanContext
+     */
+    'sessionTitle': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanContext
+     */
+    'intent': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanContext
+     */
+    'technicalContext': string;
+    /**
+     *
+     * @type {Array<CodingPlanIssueResolution>}
+     * @memberof CodingPlanContext
+     */
+    'issues': Array<CodingPlanIssueResolution>;
+    /**
+     *
+     * @type {Array<string>}
+     * @memberof CodingPlanContext
+     */
+    'requiredServiceIds': Array<string>;
+}
+
+export const CodingPlanContextResponseTypeEnum = {
+    CodingPlanContextV1: 'coding_plan_context_v1'
+} as const;
+
+export type CodingPlanContextResponseTypeEnum = typeof CodingPlanContextResponseTypeEnum[keyof typeof CodingPlanContextResponseTypeEnum];
+
+/**
+ *
+ * @export
+ * @interface CodingPlanContextElement
+ */
+export interface CodingPlanContextElement extends UIElement {
+    /**
+     *
+     * @type {CodingPlanContext}
+     * @memberof CodingPlanContextElement
+     */
+    'payload'?: CodingPlanContext;
+}
+
+
+/**
+ * One evidence-bearing, individually replyable planning issue.
+ * @export
+ * @interface CodingPlanDiscrepancy
+ */
+export interface CodingPlanDiscrepancy {
+    /**
+     *
+     * @type {CodingPromptStartupSourceRef}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'sourceRef': CodingPromptStartupSourceRef;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'sourceField': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'sourceExcerpt': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'reasoning': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'discrepancyText': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'severity': CodingPlanDiscrepancySeverityEnum;
+}
+
+export const CodingPlanDiscrepancySeverityEnum = {
+    Low: 'low',
+    Medium: 'medium',
+    High: 'high'
+} as const;
+
+export type CodingPlanDiscrepancySeverityEnum = typeof CodingPlanDiscrepancySeverityEnum[keyof typeof CodingPlanDiscrepancySeverityEnum];
+
+/**
+ *
+ * @export
+ * @interface CodingPlanDiscrepancyElement
+ */
+export interface CodingPlanDiscrepancyElement extends UIElement {
+    /**
+     *
+     * @type {CodingPlanDiscrepancy}
+     * @memberof CodingPlanDiscrepancyElement
+     */
+    'payload'?: CodingPlanDiscrepancy;
+}
+
+
+/**
+ *
+ * @export
+ * @interface CodingPlanEmissionInput
+ */
+export interface CodingPlanEmissionInput {
+    /**
+     * Complete visible plan. Preserve this exact text through approval and implementation.
+     * @type {string}
+     * @memberof CodingPlanEmissionInput
+     */
+    'markdown': string;
+    /**
+     *
+     * @type {Array<string>}
+     * @memberof CodingPlanEmissionInput
+     */
+    'requiredServiceIds': Array<string>;
+    /**
+     * Complete discrepancy list for this plan version. A replacement plan re-lists the discrepancies that still hold.
+     * @type {Array<CodingPlanDiscrepancy>}
+     * @memberof CodingPlanEmissionInput
+     */
+    'discrepancies'?: Array<CodingPlanDiscrepancy>;
+}
+/**
+ *
+ * @export
+ * @interface CodingPlanIssueResolution
+ */
+export interface CodingPlanIssueResolution {
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanIssueResolution
+     */
+    'messageId': string;
+    /**
+     * Current resolution, or the remaining question when unresolved.
+     * @type {string}
+     * @memberof CodingPlanIssueResolution
+     */
+    'resolution': string;
+}
 /**
  *
  * @export
@@ -14607,6 +14865,97 @@ export interface CodingPlanReviewStepFeedbackEntry {
      */
     'note': string;
 }
+/**
+ *
+ * @export
+ * @interface CodingPlanVersion
+ */
+export interface CodingPlanVersion {
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanVersion
+     */
+    'responseType': CodingPlanVersionResponseTypeEnum;
+    /**
+     * Complete visible plan. Preserve this exact text through approval and implementation.
+     * @type {string}
+     * @memberof CodingPlanVersion
+     */
+    'markdown': string;
+    /**
+     *
+     * @type {Array<string>}
+     * @memberof CodingPlanVersion
+     */
+    'requiredServiceIds': Array<string>;
+    /**
+     * Complete discrepancy list for this plan version. A replacement plan re-lists the discrepancies that still hold.
+     * @type {Array<CodingPlanDiscrepancy>}
+     * @memberof CodingPlanVersion
+     */
+    'discrepancies'?: Array<CodingPlanDiscrepancy>;
+}
+
+export const CodingPlanVersionResponseTypeEnum = {
+    CodingPlanVersionV1: 'coding_plan_version_v1'
+} as const;
+
+export type CodingPlanVersionResponseTypeEnum = typeof CodingPlanVersionResponseTypeEnum[keyof typeof CodingPlanVersionResponseTypeEnum];
+
+/**
+ *
+ * @export
+ * @interface CodingPlanVersionApproval
+ */
+export interface CodingPlanVersionApproval {
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanVersionApproval
+     */
+    'responseType': CodingPlanVersionApprovalResponseTypeEnum;
+    /**
+     * Message containing the current complete emitted plan in the bound conversation.
+     * @type {string}
+     * @memberof CodingPlanVersionApproval
+     */
+    'versionMessageId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanVersionApproval
+     */
+    'feedback'?: string;
+    /**
+     *
+     * @type {ImplementRuntimeSelection}
+     * @memberof CodingPlanVersionApproval
+     */
+    'runtime'?: ImplementRuntimeSelection;
+}
+
+export const CodingPlanVersionApprovalResponseTypeEnum = {
+    CodingPlanVersionApprovalV1: 'coding_plan_version_approval_v1'
+} as const;
+
+export type CodingPlanVersionApprovalResponseTypeEnum = typeof CodingPlanVersionApprovalResponseTypeEnum[keyof typeof CodingPlanVersionApprovalResponseTypeEnum];
+
+/**
+ *
+ * @export
+ * @interface CodingPlanVersionElement
+ */
+export interface CodingPlanVersionElement extends UIElement {
+    /**
+     *
+     * @type {CodingPlanVersion}
+     * @memberof CodingPlanVersionElement
+     */
+    'payload': CodingPlanVersion;
+}
+
+
 /**
  * @type CodingPlanWorkflowAnswer
  * Action-specific coding-plan workflow answer. The payload is the startup plan itself, never a field-keyed form envelope or a generic UI decision.
@@ -17889,6 +18238,13 @@ export interface ContextVersionDtoMetadata {
     'parentVersion'?: string;
 }
 /**
+ * @type ControllerActionInputs
+ * Complete typed semantic inputs for a direct action. Approval and local admission use the same definition. Authorization and platform signatures are never inputs. Correlation-only fields are removed by the shared canonicalizer; operation parameters and ordered arrays remain bound.
+ * @export
+ */
+export type ControllerActionInputs = { kind: 'CLI_READ' } & ControllerReadInputs | { kind: 'CONTROL' } & ControllerControlInputs | { kind: 'START_RUN' } & ControllerStartInputs | { kind: 'TASK_MONITOR' } & ControllerMonitorInputs | { kind: 'USER_MESSAGE' } & ControllerMessageInputs;
+
+/**
  * Fresh browser-submitted controller proof. It carries no server grant identifier. The API verifies and consumes this evidence before deriving or resolving any reusable grant and constructing executable activation evidence.
  * @export
  * @interface ControllerAssertionEvidence
@@ -18553,6 +18909,32 @@ export type ControllerAuthorizedSignedMonitorCommandEnvelopeProtocolVersionEnum 
 /**
  *
  * @export
+ * @interface ControllerControlInputs
+ */
+export interface ControllerControlInputs {
+    /**
+     *
+     * @type {string}
+     * @memberof ControllerControlInputs
+     */
+    'kind': ControllerControlInputsKindEnum;
+    /**
+     *
+     * @type {ConversationAuthorityIncreasingControlBody}
+     * @memberof ControllerControlInputs
+     */
+    'body': ConversationAuthorityIncreasingControlBody;
+}
+
+export const ControllerControlInputsKindEnum = {
+    Control: 'CONTROL'
+} as const;
+
+export type ControllerControlInputsKindEnum = typeof ControllerControlInputsKindEnum[keyof typeof ControllerControlInputsKindEnum];
+
+/**
+ *
+ * @export
  * @interface ControllerCredentialPublicKey
  */
 export interface ControllerCredentialPublicKey {
@@ -18921,6 +19303,90 @@ export type ControllerManagementProtocolVersion = typeof ControllerManagementPro
 /**
  *
  * @export
+ * @interface ControllerMessageInputs
+ */
+export interface ControllerMessageInputs {
+    /**
+     *
+     * @type {string}
+     * @memberof ControllerMessageInputs
+     */
+    'kind': ControllerMessageInputsKindEnum;
+    /**
+     *
+     * @type {UserMessagePromptPayload}
+     * @memberof ControllerMessageInputs
+     */
+    'payload': UserMessagePromptPayload;
+    /**
+     *
+     * @type {UserMessageAdmittedServiceScope}
+     * @memberof ControllerMessageInputs
+     */
+    'admittedServiceScope'?: UserMessageAdmittedServiceScope;
+}
+
+export const ControllerMessageInputsKindEnum = {
+    UserMessage: 'USER_MESSAGE'
+} as const;
+
+export type ControllerMessageInputsKindEnum = typeof ControllerMessageInputsKindEnum[keyof typeof ControllerMessageInputsKindEnum];
+
+/**
+ *
+ * @export
+ * @interface ControllerMonitorInputs
+ */
+export interface ControllerMonitorInputs {
+    /**
+     *
+     * @type {string}
+     * @memberof ControllerMonitorInputs
+     */
+    'kind': ControllerMonitorInputsKindEnum;
+    /**
+     *
+     * @type {TaskMonitorExternalCommand}
+     * @memberof ControllerMonitorInputs
+     */
+    'command': TaskMonitorExternalCommand;
+}
+
+export const ControllerMonitorInputsKindEnum = {
+    TaskMonitor: 'TASK_MONITOR'
+} as const;
+
+export type ControllerMonitorInputsKindEnum = typeof ControllerMonitorInputsKindEnum[keyof typeof ControllerMonitorInputsKindEnum];
+
+/**
+ *
+ * @export
+ * @interface ControllerReadInputs
+ */
+export interface ControllerReadInputs {
+    /**
+     *
+     * @type {string}
+     * @memberof ControllerReadInputs
+     */
+    'kind': ControllerReadInputsKindEnum;
+    /**
+     *
+     * @type {CliReadEnvelopeBody}
+     * @memberof ControllerReadInputs
+     */
+    'body': CliReadEnvelopeBody;
+}
+
+export const ControllerReadInputsKindEnum = {
+    CliRead: 'CLI_READ'
+} as const;
+
+export type ControllerReadInputsKindEnum = typeof ControllerReadInputsKindEnum[keyof typeof ControllerReadInputsKindEnum];
+
+/**
+ *
+ * @export
  * @interface ControllerReconciliationResponseDto
  */
 export interface ControllerReconciliationResponseDto {
@@ -19102,6 +19568,57 @@ export const ControllerRevocationResponseDtoOutcomeEnum = {
 export type ControllerRevocationResponseDtoOutcomeEnum = typeof ControllerRevocationResponseDtoOutcomeEnum[keyof typeof ControllerRevocationResponseDtoOutcomeEnum];
 
 /**
+ *
+ * @export
+ * @interface ControllerStartInputs
+ */
+export interface ControllerStartInputs {
+    /**
+     *
+     * @type {string}
+     * @memberof ControllerStartInputs
+     */
+    'kind': ControllerStartInputsKindEnum;
+    /**
+     *
+     * @type {StartRunPromptPayload}
+     * @memberof ControllerStartInputs
+     */
+    'payload': StartRunPromptPayload;
+    /**
+     *
+     * @type {UserMessageAdmittedServiceScope}
+     * @memberof ControllerStartInputs
+     */
+    'admittedServiceScope'?: UserMessageAdmittedServiceScope;
+}
+
+export const ControllerStartInputsKindEnum = {
+    StartRun: 'START_RUN'
+} as const;
+
+export type ControllerStartInputsKindEnum = typeof ControllerStartInputsKindEnum[keyof typeof ControllerStartInputsKindEnum];
+
+/**
+ *
+ * @export
+ * @interface ConversationAboutDto
+ */
+export interface ConversationAboutDto {
+    /**
+     *
+     * @type {string}
+     * @memberof ConversationAboutDto
+     */
+    'entityType': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ConversationAboutDto
+     */
+    'entityId': string;
+}
+/**
  * @type ConversationAuthorityIncreasingControlBody
  * @export
  */
@@ -19146,6 +19663,197 @@ export interface ConversationCliStatusResponseDto {
 }
 
 
+/**
+ * Bounded orientation around a conversation. Lists are capped; a message excerpt reports when it was cut.
+ * @export
+ * @interface ConversationContextDto
+ */
+export interface ConversationContextDto {
+    /**
+     * The owning conversation. Never a message id.
+     * @type {string}
+     * @memberof ConversationContextDto
+     */
+    'conversationId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ConversationContextDto
+     */
+    'conversationTitle'?: string | null;
+    /**
+     *
+     * @type {ConversationAboutDto}
+     * @memberof ConversationContextDto
+     */
+    'about'?: ConversationAboutDto;
+    /**
+     *
+     * @type {Array<ConversationContextSessionDto>}
+     * @memberof ConversationContextDto
+     */
+    'agentSessions': Array<ConversationContextSessionDto>;
+    /**
+     * Newest proposals raised from this conversation (or, for a MESSAGE seed, from that message), capped.
+     * @type {Array<ConversationContextProposalDto>}
+     * @memberof ConversationContextDto
+     */
+    'proposals': Array<ConversationContextProposalDto>;
+    /**
+     * Newest reports linked to the conversation or its sessions, capped.
+     * @type {Array<ConversationContextReportDto>}
+     * @memberof ConversationContextDto
+     */
+    'reports': Array<ConversationContextReportDto>;
+    /**
+     *
+     * @type {ConversationContextMessageDto}
+     * @memberof ConversationContextDto
+     */
+    'message'?: ConversationContextMessageDto;
+}
+/**
+ *
+ * @export
+ * @interface ConversationContextMessageDto
+ */
+export interface ConversationContextMessageDto {
+    /**
+     *
+     * @type {string}
+     * @memberof ConversationContextMessageDto
+     */
+    'messageId': string;
+    /**
+     * USER or SYSTEM.
+     * @type {string}
+     * @memberof ConversationContextMessageDto
+     */
+    'type': string;
+    /**
+     * Null while the message is a queued input not yet started.
+     * @type {string}
+     * @memberof ConversationContextMessageDto
+     */
+    'createdAt'?: string | null;
+    /**
+     * The start of the message text, capped.
+     * @type {string}
+     * @memberof ConversationContextMessageDto
+     */
+    'excerpt': string;
+    /**
+     * True when excerpt is shorter than the full message text.
+     * @type {boolean}
+     * @memberof ConversationContextMessageDto
+     */
+    'truncated': boolean;
+    /**
+     * Character length of the full message text.
+     * @type {number}
+     * @memberof ConversationContextMessageDto
+     */
+    'length': number;
+}
+/**
+ *
+ * @export
+ * @interface ConversationContextProposalDto
+ */
+export interface ConversationContextProposalDto {
+    /**
+     *
+     * @type {string}
+     * @memberof ConversationContextProposalDto
+     */
+    'id': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ConversationContextProposalDto
+     */
+    'title'?: string | null;
+    /**
+     *
+     * @type {string}
+     * @memberof ConversationContextProposalDto
+     */
+    'status': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ConversationContextProposalDto
+     */
+    'action': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ConversationContextProposalDto
+     */
+    'targetEntityType': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ConversationContextProposalDto
+     */
+    'targetEntityId'?: string | null;
+}
+/**
+ *
+ * @export
+ * @interface ConversationContextReportDto
+ */
+export interface ConversationContextReportDto {
+    /**
+     *
+     * @type {string}
+     * @memberof ConversationContextReportDto
+     */
+    'id': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ConversationContextReportDto
+     */
+    'reportType': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ConversationContextReportDto
+     */
+    'createdAt': string;
+}
+/**
+ *
+ * @export
+ * @interface ConversationContextSessionDto
+ */
+export interface ConversationContextSessionDto {
+    /**
+     *
+     * @type {string}
+     * @memberof ConversationContextSessionDto
+     */
+    'id': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ConversationContextSessionDto
+     */
+    'title': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ConversationContextSessionDto
+     */
+    'status': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ConversationContextSessionDto
+     */
+    'type': string;
+}
 /**
  * @type ConversationControlBody
  * The closed, `kind`-discriminated control body that a SignedConversationControlEnvelope wraps. Every variant has shape `{ kind, ...fields }`. `stop_run`, `compact_run`, `permission_decision`, and `question_answer` are the control kinds defined today; further control kinds extend the union via a new variant plus a new discriminator-mapping entry. The kind allowlist enforced by the CLI verifier is intentionally distinct from the `trigger.conversation` promptType allowlist — control kinds and prompt types do not share namespace.
@@ -19653,6 +20361,12 @@ export interface ConversationHostActionPreparation {
      * @memberof ConversationHostActionPreparation
      */
     'targetId': string;
+    /**
+     *
+     * @type {ControllerActionInputs}
+     * @memberof ConversationHostActionPreparation
+     */
+    'inputs'?: ControllerActionInputs;
 }
 
 export const ConversationHostActionPreparationTargetKindEnum = {
@@ -19738,6 +20452,12 @@ export interface ConversationResponseDto {
      * @memberof ConversationResponseDto
      */
     'id': string;
+    /**
+     * Whether only the creator may read this conversation.
+     * @type {boolean}
+     * @memberof ConversationResponseDto
+     */
+    'restricted': boolean;
     /**
      * User who initiated the conversation, when human initiated
      * @type {string}
@@ -20641,6 +21361,12 @@ export interface CreateAgentEdgeRequest {
      * @memberof CreateAgentEdgeRequest
      */
     'predicate'?: string | null;
+    /**
+     * Optional plain-language action that triggers this flow transition.
+     * @type {string}
+     * @memberof CreateAgentEdgeRequest
+     */
+    'actionLabel'?: string | null;
     /**
      * Label-specific relationship metadata declared by the edge contract.
      * @type {{ [key: string]: any; }}
@@ -23528,6 +24254,18 @@ export interface CreateProposalAgentFixRequest200Response {
  */
 export interface CreateProposalDto {
     /**
+     * Whether this proposal may be ingested into project knowledge. Omitted means true.
+     * @type {boolean}
+     * @memberof CreateProposalDto
+     */
+    'ragEnabled'?: boolean;
+    /**
+     * Whether this proposal may be approved or applied, independently of retrieval. Omitted means true.
+     * @type {boolean}
+     * @memberof CreateProposalDto
+     */
+    'applicationEligible'?: boolean;
+    /**
      *
      * @type {ProposalType}
      * @memberof CreateProposalDto
@@ -23618,7 +24356,7 @@ export interface CreateProposalDto {
  * @type CreateProposalReconciliationCandidate
  * @export
  */
-export type CreateProposalReconciliationCandidate = ProposalReconciliationAgentFixRequest | ProposalReconciliationMergeRequest;
+export type CreateProposalReconciliationCandidate = ProposalReconciliationAgentFixRequest | ProposalReconciliationManualRequest | ProposalReconciliationMergeRequest | ProposalReconciliationSuggestionDecision;
 
 /**
  *
@@ -23626,6 +24364,18 @@ export type CreateProposalReconciliationCandidate = ProposalReconciliationAgentF
  * @interface CreateProposalRequestDto
  */
 export interface CreateProposalRequestDto {
+    /**
+     * Whether this proposal may be ingested into project knowledge. Omitted means true.
+     * @type {boolean}
+     * @memberof CreateProposalRequestDto
+     */
+    'ragEnabled'?: boolean;
+    /**
+     * Whether this proposal may be approved or applied, independently of retrieval. Omitted means true.
+     * @type {boolean}
+     * @memberof CreateProposalRequestDto
+     */
+    'applicationEligible'?: boolean;
     /**
      *
      * @type {ProposalType}
@@ -23919,6 +24669,12 @@ export type CreateReportDto = CreateReportDtoFeatureSyncDecisionV1 | CreateRepor
  */
 export interface CreateReportDtoBase {
     /**
+     * Whether this report may be reused as project knowledge. Omitted means true on creation.
+     * @type {boolean}
+     * @memberof CreateReportDtoBase
+     */
+    'ragEnabled'?: boolean;
+    /**
      * Optional project scope for the report
      * @type {string}
      * @memberof CreateReportDtoBase
@@ -23981,6 +24737,12 @@ export interface CreateReportDtoBase {
  * @interface CreateReportDtoFeatureSyncDecisionV1
  */
 export interface CreateReportDtoFeatureSyncDecisionV1 {
+    /**
+     * Whether this report may be reused as project knowledge. Omitted means true on creation.
+     * @type {boolean}
+     * @memberof CreateReportDtoFeatureSyncDecisionV1
+     */
+    'ragEnabled'?: boolean;
     /**
      * Optional project scope for the report
      * @type {string}
@@ -24073,6 +24835,12 @@ export type CreateReportDtoFeatureSyncDecisionV1SchemaVersionEnum = typeof Creat
  */
 export interface CreateReportDtoFeatureSyncDecisionV2 {
     /**
+     * Whether this report may be reused as project knowledge. Omitted means true on creation.
+     * @type {boolean}
+     * @memberof CreateReportDtoFeatureSyncDecisionV2
+     */
+    'ragEnabled'?: boolean;
+    /**
      * Optional project scope for the report
      * @type {string}
      * @memberof CreateReportDtoFeatureSyncDecisionV2
@@ -24163,6 +24931,12 @@ export type CreateReportDtoFeatureSyncDecisionV2SchemaVersionEnum = typeof Creat
  * @interface CreateReportDtoOther
  */
 export interface CreateReportDtoOther {
+    /**
+     * Whether this report may be reused as project knowledge. Omitted means true on creation.
+     * @type {boolean}
+     * @memberof CreateReportDtoOther
+     */
+    'ragEnabled'?: boolean;
     /**
      * Optional project scope for the report
      * @type {string}
@@ -24361,7 +25135,7 @@ export interface CreateReportResponseDtoFeatureSyncDecisionV1 {
      */
     'parentReportId'?: string | null;
     /**
-     * Whether this report may be ingested into graph and embeddings. Absent means true. Derived by the API, never set by clients. A reusable exclusion control, not an approval flag.
+     * Whether this report may be ingested into graph and embeddings. Absent means true. Supplied by the writer and persisted by the API. A reusable exclusion control, not an approval flag.
      * @type {boolean}
      * @memberof CreateReportResponseDtoFeatureSyncDecisionV1
      */
@@ -24494,7 +25268,7 @@ export interface CreateReportResponseDtoFeatureSyncDecisionV2 {
      */
     'parentReportId'?: string | null;
     /**
-     * Whether this report may be ingested into graph and embeddings. Absent means true. Derived by the API, never set by clients. A reusable exclusion control, not an approval flag.
+     * Whether this report may be ingested into graph and embeddings. Absent means true. Supplied by the writer and persisted by the API. A reusable exclusion control, not an approval flag.
      * @type {boolean}
      * @memberof CreateReportResponseDtoFeatureSyncDecisionV2
      */
@@ -24627,7 +25401,7 @@ export interface CreateReportResponseDtoOther {
      */
     'parentReportId'?: string | null;
     /**
-     * Whether this report may be ingested into graph and embeddings. Absent means true. Derived by the API, never set by clients. A reusable exclusion control, not an approval flag.
+     * Whether this report may be ingested into graph and embeddings. Absent means true. Supplied by the writer and persisted by the API. A reusable exclusion control, not an approval flag.
      * @type {boolean}
      * @memberof CreateReportResponseDtoOther
      */
@@ -26156,7 +26930,7 @@ export type CurrentAgentOperation = typeof CurrentAgentOperation[keyof typeof Cu
 
 
 /**
- * Server-derived relationship between the requesting browser controller installation and one paired machine. ELIGIBLE requires a retained opaque browser identity and an active locally-confirmed controller credential binding for that installation and machine. Expiry of a prior reusable authorization window does not erase the browser identity needed for fresh exact-action proof. Missing legacy bindings are NOT_ENROLLED; a binding with no active credential is REVOKED. This state is independent of machine connectivity and global execution readiness and never substitutes for exact-action controller proof.
+ * Server-derived relationship between the requesting browser controller installation and one paired machine. ELIGIBLE requires a retained opaque browser identity and an active locally-confirmed controller credential binding for that installation and machine. Expiry of a prior reusable authorization window does not erase the browser identity needed for fresh exact-action proof. Missing legacy bindings are NOT_ENROLLED; a binding with no active credential is REVOKED. AMBIGUOUS means this browser proves multiple active credentials for the machine and must explicitly select one before authorization. This state is independent of machine connectivity and global execution readiness and never substitutes for exact-action controller proof.
  * @export
  * @enum {string}
  */
@@ -26164,6 +26938,7 @@ export type CurrentAgentOperation = typeof CurrentAgentOperation[keyof typeof Cu
 export const CurrentControllerMachineEligibilityState = {
     Eligible: 'ELIGIBLE',
     NotEnrolled: 'NOT_ENROLLED',
+    Ambiguous: 'AMBIGUOUS',
     Revoked: 'REVOKED'
 } as const;
 
@@ -27157,6 +27932,48 @@ export interface DemoSandboxAdminOverviewDto {
     'activeCount': number;
 }
 /**
+ * sandbox is present only when state is ACTIVE; progress only when state is PROVISIONING. A FAILED state carries neither.
+ * @export
+ * @interface DemoSandboxAdmissionDto
+ */
+export interface DemoSandboxAdmissionDto {
+    /**
+     *
+     * @type {DemoSandboxAdmissionState}
+     * @memberof DemoSandboxAdmissionDto
+     */
+    'state': DemoSandboxAdmissionState;
+    /**
+     *
+     * @type {DemoSandboxResponseDto}
+     * @memberof DemoSandboxAdmissionDto
+     */
+    'sandbox'?: DemoSandboxResponseDto;
+    /**
+     *
+     * @type {DemoSandboxSetupProgressDto}
+     * @memberof DemoSandboxAdmissionDto
+     */
+    'progress'?: DemoSandboxSetupProgressDto;
+}
+
+
+/**
+ * ACTIVE when the sandbox is ready and the caller is signed in to it; PROVISIONING while setup is still running; FAILED when setup failed or passed its deadline and the attempt was discarded.
+ * @export
+ * @enum {string}
+ */
+
+export const DemoSandboxAdmissionState = {
+    Active: 'ACTIVE',
+    Provisioning: 'PROVISIONING',
+    Failed: 'FAILED'
+} as const;
+
+export type DemoSandboxAdmissionState = typeof DemoSandboxAdmissionState[keyof typeof DemoSandboxAdmissionState];
+
+
+/**
  *
  * @export
  * @interface DemoSandboxAvailabilityDto
@@ -27307,6 +28124,48 @@ export const DemoSandboxResumeState = {
 } as const;
 
 export type DemoSandboxResumeState = typeof DemoSandboxResumeState[keyof typeof DemoSandboxResumeState];
+
+
+/**
+ *
+ * @export
+ * @interface DemoSandboxSetupProgressDto
+ */
+export interface DemoSandboxSetupProgressDto {
+    /**
+     *
+     * @type {DemoSandboxSetupStage}
+     * @memberof DemoSandboxSetupProgressDto
+     */
+    'stage': DemoSandboxSetupStage;
+    /**
+     * Copied features already connected to the new project in the graph.
+     * @type {number}
+     * @memberof DemoSandboxSetupProgressDto
+     */
+    'connectedFeatureCount': number;
+    /**
+     * Copied features that must be connected; 0 until copying finishes.
+     * @type {number}
+     * @memberof DemoSandboxSetupProgressDto
+     */
+    'totalFeatureCount': number;
+}
+
+
+/**
+ * COPYING while the template is copied into the new project, CONNECTING while the copied features reach the graph, READY once every copied feature is connected.
+ * @export
+ * @enum {string}
+ */
+
+export const DemoSandboxSetupStage = {
+    Copying: 'COPYING',
+    Connecting: 'CONNECTING',
+    Ready: 'READY'
+} as const;
+
+export type DemoSandboxSetupStage = typeof DemoSandboxSetupStage[keyof typeof DemoSandboxSetupStage];
 
 
 /**
@@ -28548,7 +29407,8 @@ export const DiagramKind = {
     Architecture: 'ARCHITECTURE',
     Process: 'PROCESS',
     Dynamic: 'DYNAMIC',
-    Deployment: 'DEPLOYMENT'
+    Deployment: 'DEPLOYMENT',
+    UxFlow: 'UX_FLOW'
 } as const;
 
 export type DiagramKind = typeof DiagramKind[keyof typeof DiagramKind];
@@ -28616,7 +29476,8 @@ export const DiagramMetadataNotKindEnum = {
     General: 'GENERAL',
     Process: 'PROCESS',
     Dynamic: 'DYNAMIC',
-    Deployment: 'DEPLOYMENT'
+    Deployment: 'DEPLOYMENT',
+    UxFlow: 'UX_FLOW'
 } as const;
 
 export type DiagramMetadataNotKindEnum = typeof DiagramMetadataNotKindEnum[keyof typeof DiagramMetadataNotKindEnum];
@@ -31281,6 +32142,20 @@ export interface ErrorSystemMessageData extends SystemMessageData {
 
 
 /**
+ * Which output the judge assesses for an attempt.
+ * @export
+ * @enum {string}
+ */
+
+export const EvalAssessedOutput = {
+    ResearchReport: 'RESEARCH_REPORT',
+    HandlerReply: 'HANDLER_REPLY'
+} as const;
+
+export type EvalAssessedOutput = typeof EvalAssessedOutput[keyof typeof EvalAssessedOutput];
+
+
+/**
  *
  * @export
  * @interface EvalAttemptError
@@ -31330,6 +32205,12 @@ export interface EvalAttemptReportPayload {
      */
     'configuration': EvalConfiguration;
     /**
+     * Absent on attempts recorded before run-level handler selection existed.
+     * @type {EvalResolvedExecution}
+     * @memberof EvalAttemptReportPayload
+     */
+    'execution'?: EvalResolvedExecution;
+    /**
      *
      * @type {EvalAttemptStatus}
      * @memberof EvalAttemptReportPayload
@@ -31372,6 +32253,18 @@ export interface EvalAttemptReportPayload {
      */
     'completedAt'?: string | null;
     /**
+     * Real provider session ids from the attempt Run history, in observation order.
+     * @type {Array<string>}
+     * @memberof EvalAttemptReportPayload
+     */
+    'attemptProviderSessionIds'?: Array<string>;
+    /**
+     * Real provider session id of the child that judged this attempt. Never a pending placeholder.
+     * @type {string}
+     * @memberof EvalAttemptReportPayload
+     */
+    'judgeProviderSessionId'?: string;
+    /**
      * At most one each of TARGET_PREPARATION, TARGET_HANDLER and JUDGE.
      * @type {Array<EvalMeasurement>}
      * @memberof EvalAttemptReportPayload
@@ -31383,6 +32276,12 @@ export interface EvalAttemptReportPayload {
      * @memberof EvalAttemptReportPayload
      */
     'automatedAssessment'?: object | null;
+    /**
+     * The exact text the judge was given to assess: the saved research for research alone, otherwise the handler\'s reply. Absent when judging never started. The judge runs as an isolated child inside the run\'s coordinator session and has no session of its own, so this is the record of what it looked at.
+     * @type {string}
+     * @memberof EvalAttemptReportPayload
+     */
+    'judgedOutput'?: string | null;
 }
 
 export const EvalAttemptReportPayloadReportTypeEnum = {
@@ -31553,7 +32452,7 @@ export interface EvalCaseGrading {
     'rubric': Array<EvalRubricDimension>;
 }
 /**
- * Everything the target handler may see. Never contains checks or rubric.
+ * Recorded case context. Only the initiating request and focal entity reach the target; situation and supporting items are reviewer and judge context.
  * @export
  * @interface EvalCaseTarget
  */
@@ -31571,6 +32470,12 @@ export interface EvalCaseTarget {
      */
     'focalItemId'?: string | null;
     /**
+     * Canonical entity family of the focal item. Required whenever focalItemId is present; work-item subtypes use TASK.
+     * @type {EntityType}
+     * @memberof EvalCaseTarget
+     */
+    'focalItemType'?: EntityType;
+    /**
      *
      * @type {Array<string>}
      * @memberof EvalCaseTarget
@@ -31583,12 +32488,20 @@ export interface EvalCaseTarget {
      */
     'initiatingRequest': string;
     /**
-     * Handler the case runs through.
-     * @type {string}
+     *
+     * @type {EvalTargetHandlerKey}
      * @memberof EvalCaseTarget
      */
-    'targetHandler': string;
+    'targetHandler': EvalTargetHandlerKey;
+    /**
+     * Present exactly when `targetHandler` is `project_assistant`: the real handler whose policy, tools and prompt Project Assistant runs under. Always explicit; there is no default.
+     * @type {EvalConsumerHandlerKey}
+     * @memberof EvalCaseTarget
+     */
+    'consumerHandler'?: EvalConsumerHandlerKey;
 }
+
+
 /**
  *
  * @export
@@ -31659,6 +32572,28 @@ export interface EvalConfiguration {
     'preparation'?: EvalModelSetting;
 }
 /**
+ * Registry key of a handler whose real Project Assistant policy a Project Assistant case runs under. Each key must be a registered handler that declares a Project Assistant policy; the Hey Hey CLI tests the list against its registry.
+ * @export
+ * @enum {string}
+ */
+
+export const EvalConsumerHandlerKey = {
+    StartupSession: 'startup_session',
+    DesignDocRefiner: 'design_doc_refiner',
+    FeatureSyncAnalyze: 'feature_sync_analyze',
+    FeatureRefiner: 'feature_refiner',
+    TaskRefiner: 'task_refiner',
+    PlanShapingFeatureSyncAnalyze: 'plan_shaping_feature_sync_analyze',
+    FreeForm: 'free_form',
+    EntityConversation: 'entity_conversation',
+    HtmlCssMockupRevision: 'html_css_mockup_revision',
+    ValidationWalkthrough: 'validation_walkthrough'
+} as const;
+
+export type EvalConsumerHandlerKey = typeof EvalConsumerHandlerKey[keyof typeof EvalConsumerHandlerKey];
+
+
+/**
  *
  * @export
  * @interface EvalCostMeasurement
@@ -31720,6 +32655,27 @@ export interface EvalEventEnvelope {
  * @export
  */
 export type EvalEvents = EvalAttemptUpdatedEvent | EvalRunUpdatedEvent;
+
+/**
+ * Handler settings recorded with a run setup, shared by every case in the run.
+ * @export
+ * @interface EvalHandlerConfig
+ */
+export interface EvalHandlerConfig {
+    /**
+     * The handler every case in the run executes, in place of the handler each case names. `project_assistant` runs Project Assistant research alone, ignoring `projectAssistant`. Omission keeps each case\'s own handler. Never edits the cases.
+     * @type {EvalTargetHandlerKey}
+     * @memberof EvalHandlerConfig
+     */
+    'handler'?: EvalTargetHandlerKey;
+    /**
+     * Project Assistant participation for an entity conversation case. `enabled: false` is an explicit choice to run without Project Assistant; omission keeps the handler\'s real-use behavior, where it runs. Never grants participation a handler does not declare.
+     * @type {ProjectAssistantConfig}
+     * @memberof EvalHandlerConfig
+     */
+    'projectAssistant'?: ProjectAssistantConfig;
+}
+
 
 /**
  * Payload for EVAL_HUMAN_REVIEW reports. parentReportId is the attempt report. Kept apart from the attempt\'s automated assessment and never alters it.
@@ -31784,7 +32740,7 @@ export interface EvalMeasurement {
      */
     'elapsedMs'?: number;
     /**
-     *
+     * Fresh uncached input tokens; excludes cache reads.
      * @type {number}
      * @memberof EvalMeasurement
      */
@@ -31795,6 +32751,18 @@ export interface EvalMeasurement {
      * @memberof EvalMeasurement
      */
     'outputTokens'?: number;
+    /**
+     * Input tokens read from cache; absent when unreported.
+     * @type {number}
+     * @memberof EvalMeasurement
+     */
+    'cacheReadInputTokens'?: number;
+    /**
+     * Input tokens written to cache; absent when unreported.
+     * @type {number}
+     * @memberof EvalMeasurement
+     */
+    'cacheCreationInputTokens'?: number;
     /**
      *
      * @type {number}
@@ -31851,11 +32819,11 @@ export interface EvalModelSetting {
      */
     'reasoningEffort'?: string;
     /**
-     * Handler settings recorded from Agent Config.
-     * @type {{ [key: string]: any; }}
+     *
+     * @type {EvalHandlerConfig}
      * @memberof EvalModelSetting
      */
-    'handlerConfig'?: { [key: string]: any; };
+    'handlerConfig'?: EvalHandlerConfig;
 }
 /**
  *
@@ -31920,6 +32888,12 @@ export interface EvalRecordedAttempt {
      */
     'attemptId': string;
     /**
+     *
+     * @type {EvalResolvedExecution}
+     * @memberof EvalRecordedAttempt
+     */
+    'execution': EvalResolvedExecution;
+    /**
      * Agent Session the attempt\'s target runs and writes under.
      * @type {string}
      * @memberof EvalRecordedAttempt
@@ -31944,6 +32918,39 @@ export interface EvalRecordedAttempt {
      */
     'configuration': EvalConfiguration;
 }
+/**
+ * What one attempt runs, resolved at launch from the run\'s chosen handler (or the case\'s own) and the Project Assistant setting. Recorded so later changes to defaults never rewrite what ran.
+ * @export
+ * @interface EvalResolvedExecution
+ */
+export interface EvalResolvedExecution {
+    /**
+     *
+     * @type {EvalTargetHandlerKey}
+     * @memberof EvalResolvedExecution
+     */
+    'handler': EvalTargetHandlerKey;
+    /**
+     * Present exactly when `handler` is `project_assistant`: the handler whose real policy Project Assistant runs under.
+     * @type {EvalConsumerHandlerKey}
+     * @memberof EvalResolvedExecution
+     */
+    'consumerHandler'?: EvalConsumerHandlerKey;
+    /**
+     * True when Project Assistant runs first and hands its research to `handler`. False when `handler` runs alone, and for `project_assistant`, which is the research itself.
+     * @type {boolean}
+     * @memberof EvalResolvedExecution
+     */
+    'projectAssistantPrepares': boolean;
+    /**
+     *
+     * @type {EvalAssessedOutput}
+     * @memberof EvalResolvedExecution
+     */
+    'assessedOutput': EvalAssessedOutput;
+}
+
+
 /**
  *
  * @export
@@ -32190,6 +33197,22 @@ export interface EvalRunUpdatedEventPayload extends ExecutionContext {
      */
     'run': ReportDto;
 }
+
+
+/**
+ * Registry key of a handler an Eval Case or an eval run may execute. Each key must be a registered handler the Hey Hey CLI can start directly as the first agent; the CLI refuses to start when one is not registered.
+ * @export
+ * @enum {string}
+ */
+
+export const EvalTargetHandlerKey = {
+    AgentSearch: 'agent_search',
+    EntityConversation: 'entity_conversation',
+    ProjectAssistant: 'project_assistant',
+    FeatureSyncAnalyze: 'feature_sync_analyze'
+} as const;
+
+export type EvalTargetHandlerKey = typeof EvalTargetHandlerKey[keyof typeof EvalTargetHandlerKey];
 
 
 /**
@@ -33071,6 +34094,7 @@ export const ExtendedUIFieldType = {
     AgentRequestReviewFileScope: 'agent-request-review-file-scope',
     AgentQuestion: 'agent_question',
     AgentReplyTextarea: 'agent-reply-textarea',
+    RepositoryFeatureEnrichmentReply: 'repository_feature_enrichment_reply',
     TaskStub: 'task_stub',
     TaskPriority: 'task_priority',
     CodingPrompt: 'coding_prompt',
@@ -33080,6 +34104,9 @@ export const ExtendedUIFieldType = {
     PlanGapsDesignDocs: 'plan_gaps_design_docs',
     PlanGapsTasks: 'plan_gaps_tasks',
     PlanDocumentView: 'plan_document_view',
+    CodingPlanContext: 'coding_plan_context',
+    CodingPlanVersion: 'coding_plan_version',
+    CodingPlanDiscrepancy: 'coding_plan_discrepancy',
     CodingPromptStartupPlan: 'coding_prompt_startup_plan',
     CodingPromptFinalAssessment: 'coding_prompt_final_assessment',
     VerifyFeature: 'verify_feature',
@@ -37175,6 +38202,12 @@ export interface FullEntityContextDto {
      * @memberof FullEntityContextDto
      */
     'content'?: EntityContentDto;
+    /**
+     *
+     * @type {ConversationContextDto}
+     * @memberof FullEntityContextDto
+     */
+    'conversationContext'?: ConversationContextDto;
 }
 
 
@@ -37472,6 +38505,13 @@ export interface FutureCompletionEligibility {
      */
     'blockers': Array<FutureCompletionBlocker>;
 }
+/**
+ * @type FutureDependencyPresentation
+ * Response-only display identity resolved in the authorized project. Never authored or frozen as reviewed mutation content.
+ * @export
+ */
+export type FutureDependencyPresentation = { availability: 'AVAILABLE' } & AvailableFutureDependency | { availability: 'UNAVAILABLE' } & UnavailableFutureDependency;
+
 /**
  * Same change shape as a live design-doc edit; status stays with the baseline.
  * @export
@@ -37790,6 +38830,12 @@ export interface FutureRevisionChangeChanges {
      */
     'sections'?: Array<FutureDesignDocSectionChange>;
     /**
+     * Generic graph edits within the target root, its children and incident relationships. The root cannot be deleted or change type or status. Applied to the selected non-live graph, including during refinement.
+     * @type {Array<WorkItemChangeSetOperation>}
+     * @memberof FutureRevisionChangeChanges
+     */
+    'operations'?: Array<WorkItemChangeSetOperation>;
+    /**
      *
      * @type {Array<FeatureRequirementOperation>}
      * @memberof FutureRevisionChangeChanges
@@ -37830,7 +38876,7 @@ export interface FutureRevisionChangeChanges {
 
 /**
  * @type FutureRevisionContent
- * Complete selected entity projection including all unchanged sections; never a patch or an overlay of independent futures.
+ * Complete selected entity projection including all unchanged sections and, for graph-capable work items, the complete generic graph projection. Never a patch or an overlay of independent futures.
  * @export
  */
 export type FutureRevisionContent = FutureRevisionContentOneOf | FutureRevisionContentOneOf1;
@@ -37888,7 +38934,7 @@ export interface FutureRevisionContentOneOf {
      * @type {string}
      * @memberof FutureRevisionContentOneOf
      */
-    'initiativeId'?: string;
+    'initiativeId'?: string | null;
     /**
      *
      * @type {WorkStatus}
@@ -37936,7 +38982,7 @@ export interface FutureRevisionContentOneOf {
      * @type {string}
      * @memberof FutureRevisionContentOneOf
      */
-    'parentTaskId'?: string;
+    'parentTaskId'?: string | null;
     /**
      *
      * @type {TaskResponseDtoChildCounts}
@@ -37948,19 +38994,19 @@ export interface FutureRevisionContentOneOf {
      * @type {number}
      * @memberof FutureRevisionContentOneOf
      */
-    'designDocCount'?: number;
+    'designDocCount'?: number | null;
     /**
      * Number of coding sessions (type=CODING) linked to this task. Present when includeAgentSessionCounts=true; otherwise null.
      * @type {number}
      * @memberof FutureRevisionContentOneOf
      */
-    'codingSessionCount'?: number;
+    'codingSessionCount'?: number | null;
     /**
      * Number of non-coding agent sessions (e.g. DAILY_SESSION, TASK_REFINING) linked to this task. Present when includeAgentSessionCounts=true; otherwise null.
      * @type {number}
      * @memberof FutureRevisionContentOneOf
      */
-    'agentSessionCount'?: number;
+    'agentSessionCount'?: number | null;
     /**
      * Service-to-task relation records linked to this task. Present when includeServiceRelations=true.
      * @type {Array<ServiceTaskRelation>}
@@ -37996,7 +39042,7 @@ export interface FutureRevisionContentOneOf {
      * @type {string}
      * @memberof FutureRevisionContentOneOf
      */
-    'archivedAt'?: string;
+    'archivedAt'?: string | null;
     /**
      * Outgoing `TRACKS` edges from this task, inlined as snapshots so list views render tracked items without a second hop. Populated only for GOAL-typed tasks (other task types omit the field or return an empty array). Order is unspecified; callers should not rely on it.
      * @type {Array<TrackedEntitySnapshot>}
@@ -38009,6 +39055,12 @@ export interface FutureRevisionContentOneOf {
      * @memberof FutureRevisionContentOneOf
      */
     'trackedWorkSummary'?: GoalTrackedWorkSummary;
+    /**
+     *
+     * @type {ProjectedWorkItemChangeSetResponse}
+     * @memberof FutureRevisionContentOneOf
+     */
+    'graph'?: ProjectedWorkItemChangeSetResponse;
 }
 
 
@@ -38232,6 +39284,12 @@ export interface FutureRevisionResponse {
     'result': FutureRevisionContent;
     /**
      *
+     * @type {Array<FutureDependencyPresentation>}
+     * @memberof FutureRevisionResponse
+     */
+    'dependencyPresentation': Array<FutureDependencyPresentation>;
+    /**
+     *
      * @type {Array<FutureCompletionDependency>}
      * @memberof FutureRevisionResponse
      */
@@ -38307,6 +39365,12 @@ export interface FutureRevisionUpdate {
     'baseline': FutureRevisionBaseline;
     /**
      *
+     * @type {WorkItemChangeSetValidationRequest}
+     * @memberof FutureRevisionUpdate
+     */
+    'graphChangeSet'?: WorkItemChangeSetValidationRequest;
+    /**
+     *
      * @type {FutureRevisionContent}
      * @memberof FutureRevisionUpdate
      */
@@ -38379,6 +39443,12 @@ export interface FutureWorkItemChanges {
      * @memberof FutureWorkItemChanges
      */
     'sections'?: Array<TaskSectionInput>;
+    /**
+     * Generic graph edits within the target root, its children and incident relationships. The root cannot be deleted or change type or status. Applied to the selected non-live graph, including during refinement.
+     * @type {Array<WorkItemChangeSetOperation>}
+     * @memberof FutureWorkItemChanges
+     */
+    'operations'?: Array<WorkItemChangeSetOperation>;
     /**
      *
      * @type {Array<FeatureRequirementOperation>}
@@ -38719,6 +39789,49 @@ export interface GetAdminOrganizationDetail200Response {
 /**
  *
  * @export
+ * @interface GetAdminProjectHints200Response
+ */
+export interface GetAdminProjectHints200Response {
+    /**
+     * Indicates if the request was successful
+     * @type {boolean}
+     * @memberof GetAdminProjectHints200Response
+     */
+    'success': boolean;
+    /**
+     * Human-readable message about the operation
+     * @type {string}
+     * @memberof GetAdminProjectHints200Response
+     */
+    'message': string;
+    /**
+     *
+     * @type {ListProjectHintsResponse}
+     * @memberof GetAdminProjectHints200Response
+     */
+    'data': ListProjectHintsResponse;
+    /**
+     * ISO timestamp of when the response was generated
+     * @type {string}
+     * @memberof GetAdminProjectHints200Response
+     */
+    'timestamp': string;
+    /**
+     * HTTP status code
+     * @type {number}
+     * @memberof GetAdminProjectHints200Response
+     */
+    'statusCode': number;
+    /**
+     * Request path
+     * @type {string}
+     * @memberof GetAdminProjectHints200Response
+     */
+    'path'?: string;
+}
+/**
+ *
+ * @export
  * @interface GetAdminProjectImplementationHints200Response
  */
 export interface GetAdminProjectImplementationHints200Response {
@@ -38889,6 +40002,49 @@ export interface GetAgentSessionResponse {
      * @memberof GetAgentSessionResponse
      */
     'nextCursor'?: string;
+}
+/**
+ *
+ * @export
+ * @interface GetAgentSessionRouting200Response
+ */
+export interface GetAgentSessionRouting200Response {
+    /**
+     * Indicates if the request was successful
+     * @type {boolean}
+     * @memberof GetAgentSessionRouting200Response
+     */
+    'success': boolean;
+    /**
+     * Human-readable message about the operation
+     * @type {string}
+     * @memberof GetAgentSessionRouting200Response
+     */
+    'message': string;
+    /**
+     *
+     * @type {AgentSessionRoutingDto}
+     * @memberof GetAgentSessionRouting200Response
+     */
+    'data'?: AgentSessionRoutingDto;
+    /**
+     * ISO timestamp of when the response was generated
+     * @type {string}
+     * @memberof GetAgentSessionRouting200Response
+     */
+    'timestamp': string;
+    /**
+     * HTTP status code
+     * @type {number}
+     * @memberof GetAgentSessionRouting200Response
+     */
+    'statusCode': number;
+    /**
+     * Request path
+     * @type {string}
+     * @memberof GetAgentSessionRouting200Response
+     */
+    'path'?: string;
 }
 /**
  *
@@ -39318,6 +40474,49 @@ export interface GetCorrelatedActivity200Response {
      * Request path
      * @type {string}
      * @memberof GetCorrelatedActivity200Response
+     */
+    'path'?: string;
+}
+/**
+ *
+ * @export
+ * @interface GetCurrentDemoSandbox200Response
+ */
+export interface GetCurrentDemoSandbox200Response {
+    /**
+     * Indicates if the request was successful
+     * @type {boolean}
+     * @memberof GetCurrentDemoSandbox200Response
+     */
+    'success': boolean;
+    /**
+     * Human-readable message about the operation
+     * @type {string}
+     * @memberof GetCurrentDemoSandbox200Response
+     */
+    'message': string;
+    /**
+     *
+     * @type {DemoSandboxResponseDto}
+     * @memberof GetCurrentDemoSandbox200Response
+     */
+    'data': DemoSandboxResponseDto;
+    /**
+     * ISO timestamp of when the response was generated
+     * @type {string}
+     * @memberof GetCurrentDemoSandbox200Response
+     */
+    'timestamp': string;
+    /**
+     * HTTP status code
+     * @type {number}
+     * @memberof GetCurrentDemoSandbox200Response
+     */
+    'statusCode': number;
+    /**
+     * Request path
+     * @type {string}
+     * @memberof GetCurrentDemoSandbox200Response
      */
     'path'?: string;
 }
@@ -42377,7 +43576,7 @@ export interface GetWorkItemTypeGuidance200Response {
  * @type GetWorkItemTypeGuidance200ResponseAllOfData
  * @export
  */
-export type GetWorkItemTypeGuidance200ResponseAllOfData = WorkItemTypeGuidanceDto | WorkItemTypeMaintenanceGuidanceDto;
+export type GetWorkItemTypeGuidance200ResponseAllOfData = WorkItemTypeMaintenanceGuidanceDto | WorkItemTypeRoleGuidanceDto;
 
 /**
  *
@@ -44490,6 +45689,167 @@ export interface HelpTreeResponse {
 /**
  *
  * @export
+ * @interface Hint
+ */
+export interface Hint {
+    /**
+     *
+     * @type {string}
+     * @memberof Hint
+     */
+    'id': string;
+    /**
+     *
+     * @type {string}
+     * @memberof Hint
+     */
+    'projectId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof Hint
+     */
+    'text': string;
+    /**
+     *
+     * @type {HintOrigin}
+     * @memberof Hint
+     */
+    'origin': HintOrigin;
+    /**
+     * Retrieval connections only. Origin is never listed here. Empty once a hint is retired.
+     * @type {Array<HintConnection>}
+     * @memberof Hint
+     */
+    'connections': Array<HintConnection>;
+    /**
+     *
+     * @type {string}
+     * @memberof Hint
+     */
+    'createdAt': string;
+    /**
+     *
+     * @type {string}
+     * @memberof Hint
+     */
+    'updatedAt': string;
+    /**
+     * Set once the hint is retired. Retired hints are never returned by connection reads.
+     * @type {string}
+     * @memberof Hint
+     */
+    'retiredAt'?: string | null;
+}
+/**
+ * One connected-to link from a hint to an item. The endpoint identity and type are always present so callers can filter by item visibility.
+ * @export
+ * @interface HintConnection
+ */
+export interface HintConnection {
+    /**
+     * Connection identifier, stable for the life of the connection
+     * @type {string}
+     * @memberof HintConnection
+     */
+    'id': string;
+    /**
+     * Identifier of the connected item
+     * @type {string}
+     * @memberof HintConnection
+     */
+    'targetNodeId': string;
+    /**
+     *
+     * @type {HintConnectionEndpointEntityType}
+     * @memberof HintConnection
+     */
+    'targetEntityType': HintConnectionEndpointEntityType;
+    /**
+     * Non-negative strength of one connection. The graph service stores and returns it as given; step sizes, ceilings and removal thresholds belong to the firing logic. Time never changes it.
+     * @type {number}
+     * @memberof HintConnection
+     */
+    'strength': number;
+    /**
+     *
+     * @type {string}
+     * @memberof HintConnection
+     */
+    'createdAt': string;
+    /**
+     *
+     * @type {string}
+     * @memberof HintConnection
+     */
+    'updatedAt': string;
+}
+
+
+/**
+ * Canonical entity type of a connected item. The graph service maps each value to a closed set of Neo4j node labels when resolving the endpoint, so a connection never lands on a generic stub. Features, tasks, diagrams, Decisions and every other work item are TASK. HINT lets a hint connect to another hint. `USER` is excluded because users are not stored as graph nodes.
+ * @export
+ * @enum {string}
+ */
+
+export const HintConnectionEndpointEntityType = {
+    Artifact: 'ARTIFACT',
+    Initiative: 'INITIATIVE',
+    Project: 'PROJECT',
+    Task: 'TASK',
+    Message: 'MESSAGE',
+    Conversation: 'CONVERSATION',
+    DesignDoc: 'DESIGN_DOC',
+    AgentSession: 'AGENT_SESSION',
+    ValidationSession: 'VALIDATION_SESSION',
+    Service: 'SERVICE',
+    Report: 'REPORT',
+    Proposal: 'PROPOSAL',
+    ImplementationHint: 'IMPLEMENTATION_HINT',
+    Hint: 'HINT'
+} as const;
+
+export type HintConnectionEndpointEntityType = typeof HintConnectionEndpointEntityType[keyof typeof HintConnectionEndpointEntityType];
+
+
+/**
+ * The message or session a hint came from. Evidence only: it is never a connection and is never used to find hints.
+ * @export
+ * @interface HintOrigin
+ */
+export interface HintOrigin {
+    /**
+     *
+     * @type {HintOriginEntityType}
+     * @memberof HintOrigin
+     */
+    'entityType': HintOriginEntityType;
+    /**
+     * Identifier of the originating message or agent session
+     * @type {string}
+     * @memberof HintOrigin
+     */
+    'entityId': string;
+}
+
+
+/**
+ * Kind of record a hint came from.
+ * @export
+ * @enum {string}
+ */
+
+export const HintOriginEntityType = {
+    Message: 'MESSAGE',
+    AgentSession: 'AGENT_SESSION'
+} as const;
+
+export type HintOriginEntityType = typeof HintOriginEntityType[keyof typeof HintOriginEntityType];
+
+
+/**
+ *
+ * @export
  * @enum {string}
  */
 
@@ -44508,7 +45868,7 @@ export type HostActionCategory = typeof HostActionCategory[keyof typeof HostActi
 
 /**
  * @type HostActionPreparation
- * Closed selector for a persisted domain action. It contains no account, organization, project, payload, hash, authorization ID, nonce, or lifetime.
+ * Preparation for a server-resolved action. Direct actions carry complete typed execution or disclosure inputs. Account, organization, project, payload hash, authorization ID, nonce, and lifetime remain server-owned.
  * @export
  */
 export type HostActionPreparation = { targetKind: 'AGENT_SESSION' } & AgentSessionHostActionPreparation | { targetKind: 'CLI_READ' } & CliReadHostActionPreparation | { targetKind: 'CONVERSATION' } & ConversationHostActionPreparation | { targetKind: 'TASK_MONITOR' } & TaskMonitorHostActionPreparation;
@@ -44662,6 +46022,30 @@ export type ImplementActionSchemasDONEActionEnum = typeof ImplementActionSchemas
  * @interface ImplementPromptPayload
  */
 export interface ImplementPromptPayload {
+    /**
+     *
+     * @type {CodingPlanVersion}
+     * @memberof ImplementPromptPayload
+     */
+    'approvedVersion'?: CodingPlanVersion;
+    /**
+     *
+     * @type {string}
+     * @memberof ImplementPromptPayload
+     */
+    'versionMessageId'?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof ImplementPromptPayload
+     */
+    'approvalFeedback'?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof ImplementPromptPayload
+     */
+    'planningDiscussion'?: string;
     /**
      *
      * @type {ImplementRuntimeSelection}
@@ -49646,6 +51030,19 @@ export interface ListProjectFeatures200Response {
 /**
  *
  * @export
+ * @interface ListProjectHintsResponse
+ */
+export interface ListProjectHintsResponse {
+    /**
+     *
+     * @type {Array<Hint>}
+     * @memberof ListProjectHintsResponse
+     */
+    'hints': Array<Hint>;
+}
+/**
+ *
+ * @export
  * @interface ListProjectMembers200Response
  */
 export interface ListProjectMembers200Response {
@@ -49683,6 +51080,49 @@ export interface ListProjectMembers200Response {
      * Request path
      * @type {string}
      * @memberof ListProjectMembers200Response
+     */
+    'path'?: string;
+}
+/**
+ *
+ * @export
+ * @interface ListProjectReadyFutures200Response
+ */
+export interface ListProjectReadyFutures200Response {
+    /**
+     * Indicates if the request was successful
+     * @type {boolean}
+     * @memberof ListProjectReadyFutures200Response
+     */
+    'success': boolean;
+    /**
+     * Human-readable message about the operation
+     * @type {string}
+     * @memberof ListProjectReadyFutures200Response
+     */
+    'message': string;
+    /**
+     *
+     * @type {ProjectReadyFuturesPage}
+     * @memberof ListProjectReadyFutures200Response
+     */
+    'data': ProjectReadyFuturesPage;
+    /**
+     * ISO timestamp of when the response was generated
+     * @type {string}
+     * @memberof ListProjectReadyFutures200Response
+     */
+    'timestamp': string;
+    /**
+     * HTTP status code
+     * @type {number}
+     * @memberof ListProjectReadyFutures200Response
+     */
+    'statusCode': number;
+    /**
+     * Request path
+     * @type {string}
+     * @memberof ListProjectReadyFutures200Response
      */
     'path'?: string;
 }
@@ -52079,38 +53519,6 @@ export const LocalHtmlCssMockupRevisionPositionTargetTypeEnum = {
 export type LocalHtmlCssMockupRevisionPositionTargetTypeEnum = typeof LocalHtmlCssMockupRevisionPositionTargetTypeEnum[keyof typeof LocalHtmlCssMockupRevisionPositionTargetTypeEnum];
 
 /**
- * Immutable authoritative HTML/CSS snapshot and selected open, current review annotations used to request one source-plus-resolution proposal. The run entity is the focal task identity.
- * @export
- * @interface LocalHtmlCssMockupRevisionPromptPayload
- */
-export interface LocalHtmlCssMockupRevisionPromptPayload {
-    /**
-     *
-     * @type {number}
-     * @memberof LocalHtmlCssMockupRevisionPromptPayload
-     */
-    'payloadVersion': LocalHtmlCssMockupRevisionPromptPayloadPayloadVersionEnum;
-    /**
-     *
-     * @type {LocalHtmlCssMockupRevisionSection}
-     * @memberof LocalHtmlCssMockupRevisionPromptPayload
-     */
-    'section': LocalHtmlCssMockupRevisionSection;
-    /**
-     *
-     * @type {Array<LocalHtmlCssMockupRevisionAnnotation>}
-     * @memberof LocalHtmlCssMockupRevisionPromptPayload
-     */
-    'annotations': Array<LocalHtmlCssMockupRevisionAnnotation>;
-}
-
-export const LocalHtmlCssMockupRevisionPromptPayloadPayloadVersionEnum = {
-    NUMBER_1: 1
-} as const;
-
-export type LocalHtmlCssMockupRevisionPromptPayloadPayloadVersionEnum = typeof LocalHtmlCssMockupRevisionPromptPayloadPayloadVersionEnum[keyof typeof LocalHtmlCssMockupRevisionPromptPayloadPayloadVersionEnum];
-
-/**
  *
  * @export
  * @interface LocalHtmlCssMockupRevisionRenderedContext
@@ -53855,7 +55263,7 @@ export interface MachineDto {
      */
     'currentControllerEligibility': CurrentControllerMachineEligibilityState | null;
     /**
-     * Exact active credential selected by the server for this browser and machine. Selection may use a valid browser identity after its prior authorization window expires. When no identity exists, the server returns the sole active credential only when selection is unambiguous; otherwise null.
+     * Exact active credential selected by the server for this browser and machine. Selection may use a valid browser identity after its prior authorization window expires. When no proven browser binding exists, returns null; account-wide credential inventory does not recover browser enrollment. Multiple proven credentials return null and AMBIGUOUS eligibility until explicitly selected.
      * @type {string}
      * @memberof MachineDto
      */
@@ -55211,6 +56619,31 @@ export interface ManualTaskStub {
     'shortDescription': string;
 }
 /**
+ * A matched stretch of the hit text, using end-exclusive UTF-16 code units.
+ * @export
+ * @interface MatchSpan
+ */
+export interface MatchSpan {
+    /**
+     * Start offset in UTF-16 code units into the hit text.
+     * @type {number}
+     * @memberof MatchSpan
+     */
+    'start': number;
+    /**
+     * Exclusive end offset in UTF-16 code units into the hit text.
+     * @type {number}
+     * @memberof MatchSpan
+     */
+    'end': number;
+    /**
+     * Best query-token cosine similarity within the span.
+     * @type {number}
+     * @memberof MatchSpan
+     */
+    'strength': number;
+}
+/**
  *
  * @export
  * @interface MaterializedDesignDocSection
@@ -55278,7 +56711,7 @@ export interface MaterializedWorkItemSection {
      */
     'materializedMarkdown': string;
     /**
-     * Proposal whose successfully materialized change produced the section\'s current composition or resolved presentation context.
+     * Proposal whose successfully materialized change produced the section\'s current composition or resolved presentation context. Empty when the section has no recorded proposal provenance.
      * @type {string}
      * @memberof MaterializedWorkItemSection
      */
@@ -64270,6 +65703,18 @@ export type PlanShapingFeatureSyncIterateActionSchemasDISMISSEDActionEnum = type
  */
 export interface PlanShapingFeatureSyncIteratePromptPayload {
     /**
+     * Canonical delivering Plan identity from the persisted plan seed.
+     * @type {string}
+     * @memberof PlanShapingFeatureSyncIteratePromptPayload
+     */
+    'planId': string;
+    /**
+     * Authoritative design document from the persisted plan seed.
+     * @type {string}
+     * @memberof PlanShapingFeatureSyncIteratePromptPayload
+     */
+    'designDocId': string;
+    /**
      * The outstanding flagged items, each with its stable `id`, in the order the user saw them.
      * @type {Array<FeatureSyncDiscrepancy>}
      * @memberof PlanShapingFeatureSyncIteratePromptPayload
@@ -67411,6 +68856,12 @@ export interface ProjectModeSettings {
      */
     'projectAssistant': ProjectModeProjectAssistantSetting;
     /**
+     * Session role declared by this Agent Mode. Omission, including omission of the settings section, resolves to implementation.
+     * @type {SessionRole}
+     * @memberof ProjectModeSettings
+     */
+    'sessionRole'?: SessionRole;
+    /**
      * Stable effective work-item type keys this MODE may launch against, chosen per MODE. Keys must be unique (enforced by the platform validator rather than `uniqueItems`, which generators map to sets). Each key must resolve to an active type in the project\'s effective registry snapshot. Launch eligibility is this list intersected with the MODE\'s Feature `DEPENDS_ON` scope. When absent, the MODE keeps its legacy eligibility derived from the shared MODE type\'s agent-guidance contexts; consumers must not widen access for an absent list.
      * @type {Array<string>}
      * @memberof ProjectModeSettings
@@ -67425,13 +68876,13 @@ export const ProjectModeSettingsSchemaVersionEnum = {
 export type ProjectModeSettingsSchemaVersionEnum = typeof ProjectModeSettingsSchemaVersionEnum[keyof typeof ProjectModeSettingsSchemaVersionEnum];
 
 /**
- * Platform-captured immutable MODE configuration persisted with a coding session. The repeated mode identity lets admission verify that the snapshot matches `ProjectModeSelection` before constructing a Run or Turn.
+ * Platform-captured immutable MODE configuration persisted with a coding session. The repeated mode identity lets admission verify that the snapshot matches `ProjectModeSelection` before constructing a Run or Turn. v3 requires sessionRole and projectAssistant; v2 requires projectAssistant and excludes sessionRole; v1 excludes both fields.
  * @export
  * @interface ProjectModeSnapshot
  */
 export interface ProjectModeSnapshot {
     /**
-     * v2 adds `projectAssistant`. v1 is kept so snapshots captured before the setting existed still verify against their original hash.
+     * v3 adds the resolved `sessionRole`. v2 adds `projectAssistant`. v1/v2 retain their original hash inputs for resume compatibility.
      * @type {string}
      * @memberof ProjectModeSnapshot
      */
@@ -67467,6 +68918,12 @@ export interface ProjectModeSnapshot {
      */
     'projectAssistant'?: ProjectModeProjectAssistantSetting;
     /**
+     *
+     * @type {SessionRole}
+     * @memberof ProjectModeSnapshot
+     */
+    'sessionRole'?: SessionRole;
+    /**
      * Lowercase hexadecimal SHA-256 digest of the platform-canonicalized snapshot content. Consumers preserve and compare this value; they do not refresh the snapshot from the live MODE.
      * @type {string}
      * @memberof ProjectModeSnapshot
@@ -67476,11 +68933,118 @@ export interface ProjectModeSnapshot {
 
 export const ProjectModeSnapshotSchemaVersionEnum = {
     ProjectModeSnapshotV1: 'project-mode-snapshot.v1',
-    ProjectModeSnapshotV2: 'project-mode-snapshot.v2'
+    ProjectModeSnapshotV2: 'project-mode-snapshot.v2',
+    ProjectModeSnapshotV3: 'project-mode-snapshot.v3'
 } as const;
 
 export type ProjectModeSnapshotSchemaVersionEnum = typeof ProjectModeSnapshotSchemaVersionEnum[keyof typeof ProjectModeSnapshotSchemaVersionEnum];
 
+/**
+ *
+ * @export
+ * @interface ProjectReadyFuture
+ */
+export interface ProjectReadyFuture {
+    /**
+     *
+     * @type {string}
+     * @memberof ProjectReadyFuture
+     */
+    'futureId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProjectReadyFuture
+     */
+    'proposalId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProjectReadyFuture
+     */
+    'proposalTitle': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProjectReadyFuture
+     */
+    'targetEntityId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProjectReadyFuture
+     */
+    'targetEntityType': ProjectReadyFutureTargetEntityTypeEnum;
+    /**
+     *
+     * @type {string}
+     * @memberof ProjectReadyFuture
+     */
+    'targetName': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProjectReadyFuture
+     */
+    'targetType': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProjectReadyFuture
+     */
+    'reviewGroupId'?: string;
+    /**
+     *
+     * @type {FutureApplicability}
+     * @memberof ProjectReadyFuture
+     */
+    'applicability': FutureApplicability;
+}
+
+export const ProjectReadyFutureTargetEntityTypeEnum = {
+    Task: 'TASK',
+    DesignDoc: 'DESIGN_DOC'
+} as const;
+
+export type ProjectReadyFutureTargetEntityTypeEnum = typeof ProjectReadyFutureTargetEntityTypeEnum[keyof typeof ProjectReadyFutureTargetEntityTypeEnum];
+
+/**
+ *
+ * @export
+ * @interface ProjectReadyFuturesPage
+ */
+export interface ProjectReadyFuturesPage {
+    /**
+     *
+     * @type {Array<ProjectReadyFuture>}
+     * @memberof ProjectReadyFuturesPage
+     */
+    'items': Array<ProjectReadyFuture>;
+    /**
+     * Futures that could not be read individually. Other entries remain usable; retry to resolve these records.
+     * @type {number}
+     * @memberof ProjectReadyFuturesPage
+     */
+    'unavailableCount': number;
+    /**
+     *
+     * @type {number}
+     * @memberof ProjectReadyFuturesPage
+     */
+    'total': number;
+    /**
+     *
+     * @type {number}
+     * @memberof ProjectReadyFuturesPage
+     */
+    'limit': number;
+    /**
+     *
+     * @type {number}
+     * @memberof ProjectReadyFuturesPage
+     */
+    'offset': number;
+}
 /**
  * Canonical activity after persisted scope and primary-subject exclusions. Stable canonical ordering and limit/offset semantics. Authorization is checked per page; absence of nextOffset ends the live read.
  * @export
@@ -69066,6 +70630,12 @@ export interface ProjectedWorkItemRelationship {
      * @memberof ProjectedWorkItemRelationship
      */
     'predicate'?: string | null;
+    /**
+     * Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.
+     * @type {string}
+     * @memberof ProjectedWorkItemRelationship
+     */
+    'actionLabel'?: string | null;
     /**
      *
      * @type {string}
@@ -70812,7 +72382,7 @@ export type ProposalGroupValidationIssueCode = typeof ProposalGroupValidationIss
 
 
 /**
- * API-owned comparison state for the proposal target. UPDATE and DELETE proposals targeting TASK are CURRENT when the captured and current last-applied proposal markers are equal, including when both are null, and OUT_OF_DATE when they differ. CREATE and non-TASK targets are NOT_APPLICABLE.
+ * API-owned content comparison for pending TASK UPDATE and DELETE proposals and unapplied future revisions. CURRENT means the reviewed basis matches current content; OUT_OF_DATE means it differs. UNKNOWN means the reviewed basis or current content is unavailable. Unsupported proposal kinds and terminal proposals are NOT_APPLICABLE. This flag does not grant approval or application eligibility.
  * @export
  * @enum {string}
  */
@@ -70820,7 +72390,8 @@ export type ProposalGroupValidationIssueCode = typeof ProposalGroupValidationIss
 export const ProposalOutOfDateStatus = {
     NotApplicable: 'NOT_APPLICABLE',
     Current: 'CURRENT',
-    OutOfDate: 'OUT_OF_DATE'
+    OutOfDate: 'OUT_OF_DATE',
+    Unknown: 'UNKNOWN'
 } as const;
 
 export type ProposalOutOfDateStatus = typeof ProposalOutOfDateStatus[keyof typeof ProposalOutOfDateStatus];
@@ -70838,6 +72409,18 @@ export interface ProposalReconciliationAgentFixRequest {
      * @memberof ProposalReconciliationAgentFixRequest
      */
     'method': ProposalReconciliationAgentFixRequestMethodEnum;
+    /**
+     * Required for future reconciliation; the exact persisted proposal content revision reviewed by the editor.
+     * @type {string}
+     * @memberof ProposalReconciliationAgentFixRequest
+     */
+    'expectedCandidateRevisionId'?: string;
+    /**
+     * Required for a future candidate; prevents a stale result replacing a newer reviewed future.
+     * @type {number}
+     * @memberof ProposalReconciliationAgentFixRequest
+     */
+    'expectedFutureRevision'?: number;
     /**
      * Required for Agent fix; admitted through ordinary proposal validation before persistence. Submission never authorizes application.
      * @type {{ [key: string]: any; }}
@@ -70987,6 +72570,50 @@ export interface ProposalReconciliationIntervening {
 /**
  *
  * @export
+ * @interface ProposalReconciliationManualRequest
+ */
+export interface ProposalReconciliationManualRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationManualRequest
+     */
+    'method': ProposalReconciliationManualRequestMethodEnum;
+    /**
+     * Required for future reconciliation; the exact persisted proposal content revision reviewed by the editor.
+     * @type {string}
+     * @memberof ProposalReconciliationManualRequest
+     */
+    'expectedCandidateRevisionId'?: string;
+    /**
+     * Required for a future candidate; prevents a stale result replacing a newer reviewed future.
+     * @type {number}
+     * @memberof ProposalReconciliationManualRequest
+     */
+    'expectedFutureRevision'?: number;
+    /**
+     * Required for manual resolution; admitted through ordinary proposal validation before persistence. Submission never authorizes application.
+     * @type {{ [key: string]: any; }}
+     * @memberof ProposalReconciliationManualRequest
+     */
+    'proposedResult': { [key: string]: any; };
+    /**
+     * The server-issued current bases used to prepare a manual resolution; further drift rejects submission.
+     * @type {Array<ProposalReconciliationBasis>}
+     * @memberof ProposalReconciliationManualRequest
+     */
+    'expectedCurrentBases': Array<ProposalReconciliationBasis>;
+}
+
+export const ProposalReconciliationManualRequestMethodEnum = {
+    Manual: 'MANUAL'
+} as const;
+
+export type ProposalReconciliationManualRequestMethodEnum = typeof ProposalReconciliationManualRequestMethodEnum[keyof typeof ProposalReconciliationManualRequestMethodEnum];
+
+/**
+ *
+ * @export
  * @interface ProposalReconciliationMergeRequest
  */
 export interface ProposalReconciliationMergeRequest {
@@ -71094,7 +72721,8 @@ export interface ProposalReconciliationRevision {
 export const ProposalReconciliationRevisionSourceEnum = {
     Authoring: 'AUTHORING',
     Merge: 'MERGE',
-    AgentFix: 'AGENT_FIX'
+    AgentFix: 'AGENT_FIX',
+    Manual: 'MANUAL'
 } as const;
 
 export type ProposalReconciliationRevisionSourceEnum = typeof ProposalReconciliationRevisionSourceEnum[keyof typeof ProposalReconciliationRevisionSourceEnum];
@@ -71112,13 +72740,25 @@ export interface ProposalReconciliationState {
      */
     'status': ProposalReconciliationStateStatusEnum;
     /**
+     *
+     * @type {Array<ProposalReconciliationSuggestion>}
+     * @memberof ProposalReconciliationState
+     */
+    'suggestions'?: Array<ProposalReconciliationSuggestion>;
+    /**
+     * Stored future revision used to prepare this context; include as expectedFutureRevision when submitting future reconciliation.
+     * @type {number}
+     * @memberof ProposalReconciliationState
+     */
+    'futureRevision'?: number;
+    /**
      * When the change under review was originally written; for a merged replacement, when the proposal it reconciles was written.
      * @type {string}
      * @memberof ProposalReconciliationState
      */
     'writtenAt'?: string;
     /**
-     * Proposals approved on the same target after this change was written, oldest first. Empty when the proposal is approved or rejected.
+     * Proposals approved on the same target after this change was written, oldest first. Empty for terminal proposals; approved unapplied futures remain reviewable.
      * @type {Array<ProposalReconciliationIntervening>}
      * @memberof ProposalReconciliationState
      */
@@ -71176,6 +72816,112 @@ export const ProposalReconciliationStateStatusEnum = {
 } as const;
 
 export type ProposalReconciliationStateStatusEnum = typeof ProposalReconciliationStateStatusEnum[keyof typeof ProposalReconciliationStateStatusEnum];
+
+/**
+ *
+ * @export
+ * @interface ProposalReconciliationSuggestion
+ */
+export interface ProposalReconciliationSuggestion {
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'id': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'organizationId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'projectId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'proposalId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'status': ProposalReconciliationSuggestionStatusEnum;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'candidateRevisionId': string;
+    /**
+     *
+     * @type {{ [key: string]: any; }}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'proposedResult': { [key: string]: any; };
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'messageId'?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'legacyProposalId'?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'createdAt': string;
+}
+
+export const ProposalReconciliationSuggestionStatusEnum = {
+    Pending: 'PENDING',
+    Accepted: 'ACCEPTED',
+    Rejected: 'REJECTED',
+    Superseded: 'SUPERSEDED',
+    OutOfDate: 'OUT_OF_DATE',
+    Retired: 'RETIRED'
+} as const;
+
+export type ProposalReconciliationSuggestionStatusEnum = typeof ProposalReconciliationSuggestionStatusEnum[keyof typeof ProposalReconciliationSuggestionStatusEnum];
+
+/**
+ *
+ * @export
+ * @interface ProposalReconciliationSuggestionDecision
+ */
+export interface ProposalReconciliationSuggestionDecision {
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestionDecision
+     */
+    'method': ProposalReconciliationSuggestionDecisionMethodEnum;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestionDecision
+     */
+    'suggestionId': string;
+}
+
+export const ProposalReconciliationSuggestionDecisionMethodEnum = {
+    AcceptSuggestion: 'ACCEPT_SUGGESTION',
+    RejectSuggestion: 'REJECT_SUGGESTION'
+} as const;
+
+export type ProposalReconciliationSuggestionDecisionMethodEnum = typeof ProposalReconciliationSuggestionDecisionMethodEnum[keyof typeof ProposalReconciliationSuggestionDecisionMethodEnum];
 
 /**
  *
@@ -71256,6 +73002,12 @@ export interface ProposalResponseDto {
      */
     'updates': ProposalUpdates;
     /**
+     * Response-only linked-work identity for VERSIONED_UPDATE review, including pending and grouped previews. Pending responses omit live status. Not part of updates or frozen changes.
+     * @type {Array<FutureDependencyPresentation>}
+     * @memberof ProposalResponseDto
+     */
+    'dependencyPresentation'?: Array<FutureDependencyPresentation>;
+    /**
      * API-owned reviewed future projection for VERSIONED_UPDATE proposals when a persisted future revision exists for updates.futureId; null otherwise.
      * @type {FutureRevisionResponse}
      * @memberof ProposalResponseDto
@@ -71334,23 +73086,23 @@ export interface ProposalResponseDto {
      */
     'materialization'?: WorkItemChangeSetMaterializationProgress;
     /**
-     * Whether this proposal may be ingested into graph and embeddings. Absent means true. Derived by the API, never set by clients. A reusable exclusion control, not an approval flag.
+     * Whether this proposal may be ingested into graph and embeddings. Absent means true. Supplied by the writer and persisted by the API. A reusable exclusion control, not an approval flag.
      * @type {boolean}
      * @memberof ProposalResponseDto
      */
     'ragEnabled'?: boolean;
     /**
-     * Whether this proposal may be approved and applied. Absent means true. Derived by the API, never set by clients. Independent of ragEnabled.
+     * Whether this proposal may be approved and applied. Absent means true. Supplied by the writer and persisted by the API. Independent of ragEnabled.
      * @type {boolean}
      * @memberof ProposalResponseDto
      */
     'applicationEligible'?: boolean;
     /**
-     * Target content as it was when an eval proposal was made, kept on the proposal so its diff still renders after the target changes. Captured by the API, never set by clients. Absent for ordinary proposals.
-     * @type {{ [key: string]: any; }}
+     *
+     * @type {ProposalResponseDtoRetainedOriginalTargetContent}
      * @memberof ProposalResponseDto
      */
-    'retainedOriginalTargetContent'?: { [key: string]: any; } | null;
+    'retainedOriginalTargetContent'?: ProposalResponseDtoRetainedOriginalTargetContent | null;
     /**
      *
      * @type {string}
@@ -71366,6 +73118,102 @@ export interface ProposalResponseDto {
 }
 
 
+/**
+ * Target content as it was when an eval proposal was made, kept on the proposal so its diff still renders after the target changes. Captured by the API, never set by clients. Absent for ordinary proposals.
+ * @export
+ * @interface ProposalResponseDtoRetainedOriginalTargetContent
+ */
+export interface ProposalResponseDtoRetainedOriginalTargetContent {
+    [key: string]: any;
+
+    /**
+     *
+     * @type {WorkItemTypeDefinitionDto}
+     * @memberof ProposalResponseDtoRetainedOriginalTargetContent
+     */
+    'definition'?: WorkItemTypeDefinitionDto;
+}
+/**
+ *
+ * @export
+ * @interface ProposalReviewNoteDto
+ */
+export interface ProposalReviewNoteDto {
+    /**
+     * Caller-owned stable identity for idempotent note saving.
+     * @type {string}
+     * @memberof ProposalReviewNoteDto
+     */
+    'noteId': string;
+    /**
+     *
+     * @type {number}
+     * @memberof ProposalReviewNoteDto
+     */
+    'frozenRevision': number;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReviewNoteDto
+     */
+    'sectionKey': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReviewNoteDto
+     */
+    'sizeKey': string;
+    /**
+     *
+     * @type {ProposalReviewNoteDtoTarget}
+     * @memberof ProposalReviewNoteDto
+     */
+    'target': ProposalReviewNoteDtoTarget;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReviewNoteDto
+     */
+    'note': string;
+}
+/**
+ * @type ProposalReviewNoteDtoTarget
+ * @export
+ */
+export type ProposalReviewNoteDtoTarget = WorkItemHtmlCssAnnotationElementTarget | WorkItemHtmlCssAnnotationPositionTarget | WorkItemStructuredMockupAnnotationComponentTarget | WorkItemStructuredMockupAnnotationPositionTarget;
+
+/**
+ *
+ * @export
+ * @interface ProposalReviewNoteRecord
+ */
+export interface ProposalReviewNoteRecord {
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReviewNoteRecord
+     */
+    'proposalId': string;
+    /**
+     *
+     * @type {ProposalReviewNoteDto}
+     * @memberof ProposalReviewNoteRecord
+     */
+    'review': ProposalReviewNoteDto;
+}
+/**
+ *
+ * @export
+ * @interface ProposalReviewNoteResult
+ */
+export interface ProposalReviewNoteResult {
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReviewNoteResult
+     */
+    'messageId': string;
+}
 /**
  * Current lifecycle status of the proposal
  * @export
@@ -71573,10 +73421,10 @@ export interface ProvisionDemoSandbox200Response {
     'message': string;
     /**
      *
-     * @type {DemoSandboxResponseDto}
+     * @type {DemoSandboxAdmissionDto}
      * @memberof ProvisionDemoSandbox200Response
      */
-    'data': DemoSandboxResponseDto;
+    'data': DemoSandboxAdmissionDto;
     /**
      * ISO timestamp of when the response was generated
      * @type {string}
@@ -74086,7 +75934,7 @@ export interface ReportDto {
      */
     'parentReportId'?: string | null;
     /**
-     * Whether this report may be ingested into graph and embeddings. Absent means true. Derived by the API, never set by clients. A reusable exclusion control, not an approval flag.
+     * Whether this report may be ingested into graph and embeddings. Absent means true. Supplied by the writer and persisted by the API. A reusable exclusion control, not an approval flag.
      * @type {boolean}
      * @memberof ReportDto
      */
@@ -74179,7 +76027,7 @@ export interface ReportDtoBase {
      */
     'parentReportId'?: string | null;
     /**
-     * Whether this report may be ingested into graph and embeddings. Absent means true. Derived by the API, never set by clients. A reusable exclusion control, not an approval flag.
+     * Whether this report may be ingested into graph and embeddings. Absent means true. Supplied by the writer and persisted by the API. A reusable exclusion control, not an approval flag.
      * @type {boolean}
      * @memberof ReportDtoBase
      */
@@ -74272,7 +76120,7 @@ export interface ReportDtoFeatureSyncDecisionV1 {
      */
     'parentReportId'?: string | null;
     /**
-     * Whether this report may be ingested into graph and embeddings. Absent means true. Derived by the API, never set by clients. A reusable exclusion control, not an approval flag.
+     * Whether this report may be ingested into graph and embeddings. Absent means true. Supplied by the writer and persisted by the API. A reusable exclusion control, not an approval flag.
      * @type {boolean}
      * @memberof ReportDtoFeatureSyncDecisionV1
      */
@@ -74393,7 +76241,7 @@ export interface ReportDtoFeatureSyncDecisionV2 {
      */
     'parentReportId'?: string | null;
     /**
-     * Whether this report may be ingested into graph and embeddings. Absent means true. Derived by the API, never set by clients. A reusable exclusion control, not an approval flag.
+     * Whether this report may be ingested into graph and embeddings. Absent means true. Supplied by the writer and persisted by the API. A reusable exclusion control, not an approval flag.
      * @type {boolean}
      * @memberof ReportDtoFeatureSyncDecisionV2
      */
@@ -74514,7 +76362,7 @@ export interface ReportDtoOther {
      */
     'parentReportId'?: string | null;
     /**
-     * Whether this report may be ingested into graph and embeddings. Absent means true. Derived by the API, never set by clients. A reusable exclusion control, not an approval flag.
+     * Whether this report may be ingested into graph and embeddings. Absent means true. Supplied by the writer and persisted by the API. A reusable exclusion control, not an approval flag.
      * @type {boolean}
      * @memberof ReportDtoOther
      */
@@ -75178,7 +77026,7 @@ export interface RepositoryFeatureEnrichmentAnswerBatch {
     'answers': Array<RepositoryFeatureEnrichmentAnswer>;
 }
 /**
- * Explicit choice after outline review. SKIP proceeds to placement and final approval without enrichment.
+ * Choice after Feature creation. ENRICH starts a continuing CLI conversation; SKIP completes the import.
  * @export
  * @enum {string}
  */
@@ -75237,7 +77085,22 @@ export const RepositoryFeatureEnrichmentQuestionsOutcomeEnum = {
 export type RepositoryFeatureEnrichmentQuestionsOutcomeEnum = typeof RepositoryFeatureEnrichmentQuestionsOutcomeEnum[keyof typeof RepositoryFeatureEnrichmentQuestionsOutcomeEnum];
 
 /**
- * Stateless enrichment request. Each turn consumes the latest accepted repository analysis snapshot, while the API owns runtime identity, the ordered round count, and answer history. Enrichment is user-selected and may succeed without questions when repository evidence is sufficient.
+ * A free-text reply field on a Repository Import enrichment message. The import workflow has already completed, so the reply is submitted as an ordinary conversation message to the retained enrichment handler and never through the Repository Import reply API.
+ * @export
+ * @interface RepositoryFeatureEnrichmentReplyElement
+ */
+export interface RepositoryFeatureEnrichmentReplyElement extends UIElement {
+    /**
+     * The text shown on the Send button.
+     * @type {string}
+     * @memberof RepositoryFeatureEnrichmentReplyElement
+     */
+    'submitText': string;
+}
+
+
+/**
+ *
  * @export
  * @interface RepositoryFeatureEnrichmentRequest
  */
@@ -75319,19 +77182,19 @@ export interface RepositoryFeatureEnrichmentRequest {
      * @type {RepositoryGroundingHierarchy}
      * @memberof RepositoryFeatureEnrichmentRequest
      */
-    'reviewedCandidates': RepositoryGroundingHierarchy;
+    'reviewedCandidates'?: RepositoryGroundingHierarchy;
     /**
-     *
-     * @type {number}
+     * Approved Features created by this import. Enrichment proposes edits only to these Features.
+     * @type {Array<string>}
      * @memberof RepositoryFeatureEnrichmentRequest
      */
-    'completedRounds': number;
+    'materializedFeatureIds': Array<string>;
     /**
-     *
-     * @type {Array<RepositoryFeatureEnrichmentAnswerBatch>}
+     * Optional user reply within the continuing enrichment conversation.
+     * @type {string}
      * @memberof RepositoryFeatureEnrichmentRequest
      */
-    'answerBatches': Array<RepositoryFeatureEnrichmentAnswerBatch>;
+    'userMessage'?: string;
 }
 
 export const RepositoryFeatureEnrichmentRequestPromptTypeEnum = {
@@ -77951,6 +79814,12 @@ export interface ResolveControllerAuthorizationRequestDto {
      */
     'machineId': string;
     /**
+     * Base64url WebAuthn controller credential identifier. This is never the internal MachineControllerCredential relational row ID.
+     * @type {string}
+     * @memberof ResolveControllerAuthorizationRequestDto
+     */
+    'controllerCredentialId'?: string;
+    /**
      *
      * @type {HostActionPreparation}
      * @memberof ResolveControllerAuthorizationRequestDto
@@ -79123,6 +80992,18 @@ export type RunCreatePayloadGoalPmPromptTypeEnum = typeof RunCreatePayloadGoalPm
 export interface RunCreatePayloadHtmlCssMockupRevision {
     /**
      *
+     * @type {string}
+     * @memberof RunCreatePayloadHtmlCssMockupRevision
+     */
+    'promptType': RunCreatePayloadHtmlCssMockupRevisionPromptTypeEnum;
+    /**
+     *
+     * @type {RunEntityReference}
+     * @memberof RunCreatePayloadHtmlCssMockupRevision
+     */
+    'entity': RunEntityReference;
+    /**
+     *
      * @type {number}
      * @memberof RunCreatePayloadHtmlCssMockupRevision
      */
@@ -79139,30 +81020,18 @@ export interface RunCreatePayloadHtmlCssMockupRevision {
      * @memberof RunCreatePayloadHtmlCssMockupRevision
      */
     'annotations': Array<LocalHtmlCssMockupRevisionAnnotation>;
-    /**
-     *
-     * @type {string}
-     * @memberof RunCreatePayloadHtmlCssMockupRevision
-     */
-    'promptType': RunCreatePayloadHtmlCssMockupRevisionPromptTypeEnum;
-    /**
-     *
-     * @type {RunEntityReference}
-     * @memberof RunCreatePayloadHtmlCssMockupRevision
-     */
-    'entity': RunEntityReference;
 }
 
-export const RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum = {
-    NUMBER_1: 1
-} as const;
-
-export type RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum = typeof RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum[keyof typeof RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum];
 export const RunCreatePayloadHtmlCssMockupRevisionPromptTypeEnum = {
     HtmlCssMockupRevision: 'html_css_mockup_revision'
 } as const;
 
 export type RunCreatePayloadHtmlCssMockupRevisionPromptTypeEnum = typeof RunCreatePayloadHtmlCssMockupRevisionPromptTypeEnum[keyof typeof RunCreatePayloadHtmlCssMockupRevisionPromptTypeEnum];
+export const RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum = {
+    NUMBER_1: 1
+} as const;
+
+export type RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum = typeof RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum[keyof typeof RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum];
 
 /**
  *
@@ -79320,6 +81189,18 @@ export type RunCreatePayloadPlanShapingFeatureSyncAnalyzePromptTypeEnum = typeof
  * @interface RunCreatePayloadPlanShapingFeatureSyncIterate
  */
 export interface RunCreatePayloadPlanShapingFeatureSyncIterate {
+    /**
+     * Canonical delivering Plan identity from the persisted plan seed.
+     * @type {string}
+     * @memberof RunCreatePayloadPlanShapingFeatureSyncIterate
+     */
+    'planId': string;
+    /**
+     * Authoritative design document from the persisted plan seed.
+     * @type {string}
+     * @memberof RunCreatePayloadPlanShapingFeatureSyncIterate
+     */
+    'designDocId': string;
     /**
      * The outstanding flagged items, each with its stable `id`, in the order the user saw them.
      * @type {Array<FeatureSyncDiscrepancy>}
@@ -79649,6 +81530,18 @@ export interface RunCreatePayloadPlanShapingVisualPreview {
      * @type {string}
      * @memberof RunCreatePayloadPlanShapingVisualPreview
      */
+    'promptType': RunCreatePayloadPlanShapingVisualPreviewPromptTypeEnum;
+    /**
+     *
+     * @type {RunEntityReference}
+     * @memberof RunCreatePayloadPlanShapingVisualPreview
+     */
+    'entity': RunEntityReference;
+    /**
+     *
+     * @type {string}
+     * @memberof RunCreatePayloadPlanShapingVisualPreview
+     */
     'designDocId': string;
     /**
      *
@@ -79692,18 +81585,6 @@ export interface RunCreatePayloadPlanShapingVisualPreview {
      * @memberof RunCreatePayloadPlanShapingVisualPreview
      */
     'userMessage'?: string;
-    /**
-     *
-     * @type {string}
-     * @memberof RunCreatePayloadPlanShapingVisualPreview
-     */
-    'promptType': RunCreatePayloadPlanShapingVisualPreviewPromptTypeEnum;
-    /**
-     *
-     * @type {RunEntityReference}
-     * @memberof RunCreatePayloadPlanShapingVisualPreview
-     */
-    'entity': RunEntityReference;
 }
 
 export const RunCreatePayloadPlanShapingVisualPreviewPromptTypeEnum = {
@@ -80037,19 +81918,19 @@ export interface RunCreatePayloadRepositoryFeatureEnrichment {
      * @type {RepositoryGroundingHierarchy}
      * @memberof RunCreatePayloadRepositoryFeatureEnrichment
      */
-    'reviewedCandidates': RepositoryGroundingHierarchy;
+    'reviewedCandidates'?: RepositoryGroundingHierarchy;
     /**
-     *
-     * @type {number}
+     * Approved Features created by this import. Enrichment proposes edits only to these Features.
+     * @type {Array<string>}
      * @memberof RunCreatePayloadRepositoryFeatureEnrichment
      */
-    'completedRounds': number;
+    'materializedFeatureIds': Array<string>;
     /**
-     *
-     * @type {Array<RepositoryFeatureEnrichmentAnswerBatch>}
+     * Optional user reply within the continuing enrichment conversation.
+     * @type {string}
      * @memberof RunCreatePayloadRepositoryFeatureEnrichment
      */
-    'answerBatches': Array<RepositoryFeatureEnrichmentAnswerBatch>;
+    'userMessage'?: string;
 }
 
 export const RunCreatePayloadRepositoryFeatureEnrichmentPromptTypeEnum = {
@@ -80609,6 +82490,18 @@ export interface RunCreatePayloadTaskMonitor {
      * @type {string}
      * @memberof RunCreatePayloadTaskMonitor
      */
+    'promptType': RunCreatePayloadTaskMonitorPromptTypeEnum;
+    /**
+     *
+     * @type {RunEntityReference}
+     * @memberof RunCreatePayloadTaskMonitor
+     */
+    'entity': RunEntityReference;
+    /**
+     *
+     * @type {string}
+     * @memberof RunCreatePayloadTaskMonitor
+     */
     'monitorId': string;
     /**
      *
@@ -80658,18 +82551,6 @@ export interface RunCreatePayloadTaskMonitor {
      * @memberof RunCreatePayloadTaskMonitor
      */
     'settledTurn'?: SessionMonitorSettledTurnEvidence;
-    /**
-     *
-     * @type {string}
-     * @memberof RunCreatePayloadTaskMonitor
-     */
-    'promptType': RunCreatePayloadTaskMonitorPromptTypeEnum;
-    /**
-     *
-     * @type {RunEntityReference}
-     * @memberof RunCreatePayloadTaskMonitor
-     */
-    'entity': RunEntityReference;
 }
 
 export const RunCreatePayloadTaskMonitorPromptTypeEnum = {
@@ -80774,6 +82655,18 @@ export type RunCreatePayloadValidationWalkthroughPromptTypeEnum = typeof RunCrea
  */
 export interface RunCreatePayloadVerifyFeature {
     /**
+     *
+     * @type {string}
+     * @memberof RunCreatePayloadVerifyFeature
+     */
+    'promptType': RunCreatePayloadVerifyFeaturePromptTypeEnum;
+    /**
+     *
+     * @type {RunEntityReference}
+     * @memberof RunCreatePayloadVerifyFeature
+     */
+    'entity': RunEntityReference;
+    /**
      * The flagged discrepancy this session investigates, and nothing else.
      * @type {string}
      * @memberof RunCreatePayloadVerifyFeature
@@ -80797,18 +82690,6 @@ export interface RunCreatePayloadVerifyFeature {
      * @memberof RunCreatePayloadVerifyFeature
      */
     'userMessage': string;
-    /**
-     *
-     * @type {string}
-     * @memberof RunCreatePayloadVerifyFeature
-     */
-    'promptType': RunCreatePayloadVerifyFeaturePromptTypeEnum;
-    /**
-     *
-     * @type {RunEntityReference}
-     * @memberof RunCreatePayloadVerifyFeature
-     */
-    'entity': RunEntityReference;
 }
 
 export const RunCreatePayloadVerifyFeaturePromptTypeEnum = {
@@ -81058,7 +82939,7 @@ export interface RunCreatePayloadWorkflowKickoff {
      */
     'entity'?: RunEntityReference;
     /**
-     * The user\'s launch kickoff text. The API authors a real USER message row from this value before the start-run trigger, ordered ahead of the workflow\'s first turn, so the user\'s opening text renders before the response.
+     * The user\'s launch kickoff text, which may be empty for a supported blank startup. The API authors a real USER message row from this value before the start-run trigger, ordered ahead of the workflow\'s first turn, so the user\'s opening text renders before the response.
      * @type {string}
      * @memberof RunCreatePayloadWorkflowKickoff
      */
@@ -81188,6 +83069,49 @@ export type RuntimeModelCatalogHostActionPreparationTargetKindEnum = typeof Runt
  */
 export type RuntimeModelCatalogReadResponseDto = CliReadRuntimeModelCatalogGetErrorResponseDto | CliReadRuntimeModelCatalogGetSuccessResponseDto;
 
+/**
+ *
+ * @export
+ * @interface SaveProposalReviewNote200Response
+ */
+export interface SaveProposalReviewNote200Response {
+    /**
+     * Indicates if the request was successful
+     * @type {boolean}
+     * @memberof SaveProposalReviewNote200Response
+     */
+    'success': boolean;
+    /**
+     * Human-readable message about the operation
+     * @type {string}
+     * @memberof SaveProposalReviewNote200Response
+     */
+    'message': string;
+    /**
+     *
+     * @type {ProposalReviewNoteResult}
+     * @memberof SaveProposalReviewNote200Response
+     */
+    'data'?: ProposalReviewNoteResult;
+    /**
+     * ISO timestamp of when the response was generated
+     * @type {string}
+     * @memberof SaveProposalReviewNote200Response
+     */
+    'timestamp': string;
+    /**
+     * HTTP status code
+     * @type {number}
+     * @memberof SaveProposalReviewNote200Response
+     */
+    'statusCode': number;
+    /**
+     * Request path
+     * @type {string}
+     * @memberof SaveProposalReviewNote200Response
+     */
+    'path'?: string;
+}
 /**
  *
  * @export
@@ -83591,6 +85515,22 @@ export interface SessionReviewNeededPayload {
      */
     'reportId': string;
 }
+/**
+ * Kind of work performed by a mode session, independent of mode identity and work-item-type registry role.
+ * @export
+ * @enum {string}
+ */
+
+export const SessionRole = {
+    Implementation: 'implementation',
+    Research: 'research',
+    Planning: 'planning',
+    Review: 'review'
+} as const;
+
+export type SessionRole = typeof SessionRole[keyof typeof SessionRole];
+
+
 /**
  * Payload for SESSION_SUMMARY reports.
  * @export
@@ -88990,6 +90930,12 @@ export interface SystemMessageData {
      */
     'type': SystemMessageDataTypeEnum;
     /**
+     *
+     * @type {ProposalReconciliationSuggestion}
+     * @memberof SystemMessageData
+     */
+    'proposalSuggestion'?: ProposalReconciliationSuggestion;
+    /**
      * ID of the conversational flow this message belongs to
      * @type {string}
      * @memberof SystemMessageData
@@ -90905,7 +92851,7 @@ export const TaskMonitorHaltedSystemMessageDataOutcomeEnum = {
 export type TaskMonitorHaltedSystemMessageDataOutcomeEnum = typeof TaskMonitorHaltedSystemMessageDataOutcomeEnum[keyof typeof TaskMonitorHaltedSystemMessageDataOutcomeEnum];
 
 /**
- * Closed selector for a Task Monitor machine action. Authorization binds the exact action and Task Monitor identity; the CLI machine evaluates the command against its own durable snapshot and internal revision.
+ * Preparation for a Task Monitor machine action. Authorization binds the complete typed command and Task Monitor identity; the CLI evaluates the command against its own durable snapshot and internal revision.
  * @export
  * @interface TaskMonitorHostActionPreparation
  */
@@ -90940,6 +92886,12 @@ export interface TaskMonitorHostActionPreparation {
      * @memberof TaskMonitorHostActionPreparation
      */
     'targetId': string;
+    /**
+     *
+     * @type {ControllerActionInputs}
+     * @memberof TaskMonitorHostActionPreparation
+     */
+    'inputs'?: ControllerActionInputs;
 }
 
 export const TaskMonitorHostActionPreparationTargetKindEnum = {
@@ -92792,7 +94744,7 @@ export interface TaskResponseDto {
      * @type {string}
      * @memberof TaskResponseDto
      */
-    'initiativeId'?: string;
+    'initiativeId'?: string | null;
     /**
      *
      * @type {WorkStatus}
@@ -92840,7 +94792,7 @@ export interface TaskResponseDto {
      * @type {string}
      * @memberof TaskResponseDto
      */
-    'parentTaskId'?: string;
+    'parentTaskId'?: string | null;
     /**
      *
      * @type {TaskResponseDtoChildCounts}
@@ -92852,19 +94804,19 @@ export interface TaskResponseDto {
      * @type {number}
      * @memberof TaskResponseDto
      */
-    'designDocCount'?: number;
+    'designDocCount'?: number | null;
     /**
      * Number of coding sessions (type=CODING) linked to this task. Present when includeAgentSessionCounts=true; otherwise null.
      * @type {number}
      * @memberof TaskResponseDto
      */
-    'codingSessionCount'?: number;
+    'codingSessionCount'?: number | null;
     /**
      * Number of non-coding agent sessions (e.g. DAILY_SESSION, TASK_REFINING) linked to this task. Present when includeAgentSessionCounts=true; otherwise null.
      * @type {number}
      * @memberof TaskResponseDto
      */
-    'agentSessionCount'?: number;
+    'agentSessionCount'?: number | null;
     /**
      * Service-to-task relation records linked to this task. Present when includeServiceRelations=true.
      * @type {Array<ServiceTaskRelation>}
@@ -92900,7 +94852,7 @@ export interface TaskResponseDto {
      * @type {string}
      * @memberof TaskResponseDto
      */
-    'archivedAt'?: string;
+    'archivedAt'?: string | null;
     /**
      * Outgoing `TRACKS` edges from this task, inlined as snapshots so list views render tracked items without a second hop. Populated only for GOAL-typed tasks (other task types omit the field or return an empty array). Order is unspecified; callers should not rely on it.
      * @type {Array<TrackedEntitySnapshot>}
@@ -96279,7 +98231,7 @@ export interface UIElement {
  * Optional payload for custom UI elements
  * @export
  */
-export type UIElementPayload = AgentQuestionPayload | AgentRequestPermissionPayload | AgentRequestReviewFileScopePayload | AgentRequestServiceScopePayload | CodingPromptFinalAssessmentPayload | CodingPromptMergedFinalAssessmentPayload | CodingPromptStartupPlanPayload | FileDiffPayload | GoalPmRoutingPayload | ImplementationReadinessPayload | MultipleChoicePayload | OnboardingPlanCandidateReviewPayload | OpenItemsTriagePayload | PlanApprovalPayload | PlanDocumentViewPayload | PlanGapDiscoveryPayload | PlanGenerationFinalizePayload | PlanGenerationJourneyReviewPayload | PlanGenerationStageReviewPayload | PlanGenerationVisualPreviewPayload | QuestionsGroupPayload | RepositoryGroundingFieldPayload | RepositoryPlacementReviewPayload | RepositoryPlacementStrategyPayload | VerifyFeaturePayload;
+export type UIElementPayload = AgentQuestionPayload | AgentRequestPermissionPayload | AgentRequestReviewFileScopePayload | AgentRequestServiceScopePayload | CodingPlanContext | CodingPlanDiscrepancy | CodingPlanVersion | CodingPromptFinalAssessmentPayload | CodingPromptMergedFinalAssessmentPayload | CodingPromptStartupPlanPayload | FileDiffPayload | GoalPmRoutingPayload | ImplementationReadinessPayload | MultipleChoicePayload | OnboardingPlanCandidateReviewPayload | OpenItemsTriagePayload | PlanApprovalPayload | PlanDocumentViewPayload | PlanGapDiscoveryPayload | PlanGenerationFinalizePayload | PlanGenerationJourneyReviewPayload | PlanGenerationStageReviewPayload | PlanGenerationVisualPreviewPayload | QuestionsGroupPayload | RepositoryGroundingFieldPayload | RepositoryPlacementReviewPayload | RepositoryPlacementStrategyPayload | VerifyFeaturePayload;
 
 /**
  * Hint about expected UI elements for loading skeleton
@@ -96609,6 +98561,32 @@ export interface UIInteractionEventAllOfDataChangesInner {
      */
     'to'?: any;
 }
+/**
+ * Missing, inaccessible or archived linked work exposes no title, type or status.
+ * @export
+ * @interface UnavailableFutureDependency
+ */
+export interface UnavailableFutureDependency {
+    /**
+     *
+     * @type {string}
+     * @memberof UnavailableFutureDependency
+     */
+    'targetEntityId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof UnavailableFutureDependency
+     */
+    'availability': UnavailableFutureDependencyAvailabilityEnum;
+}
+
+export const UnavailableFutureDependencyAvailabilityEnum = {
+    Unavailable: 'UNAVAILABLE'
+} as const;
+
+export type UnavailableFutureDependencyAvailabilityEnum = typeof UnavailableFutureDependencyAvailabilityEnum[keyof typeof UnavailableFutureDependencyAvailabilityEnum];
+
 /**
  *
  * @export
@@ -97117,6 +99095,18 @@ export interface UnifiedEmbeddingsSearchResponse {
  * @interface UnifiedEmbeddingsSearchResult
  */
 export interface UnifiedEmbeddingsSearchResult {
+    /**
+     * Matched spans with end-exclusive UTF-16 code-unit offsets into text. Present together with text, or both omitted.
+     * @type {Array<MatchSpan>}
+     * @memberof UnifiedEmbeddingsSearchResult
+     */
+    'matchSpans'?: Array<MatchSpan>;
+    /**
+     * Exact source text indexed by matchSpans. UTF-16 code-unit offsets are valid only against this string, not the result content. Present together with matchSpans, or both omitted.
+     * @type {string}
+     * @memberof UnifiedEmbeddingsSearchResult
+     */
+    'text'?: string;
     /**
      *
      * @type {string}
@@ -98190,6 +100180,12 @@ export interface UpdateAgentEdgeRequest {
      * @memberof UpdateAgentEdgeRequest
      */
     'predicate'?: string | null;
+    /**
+     * Optional plain-language action that triggers this flow transition; set null to clear it.
+     * @type {string}
+     * @memberof UpdateAgentEdgeRequest
+     */
+    'actionLabel'?: string | null;
     /**
      * Label-specific relationship metadata declared by the edge contract.
      * @type {{ [key: string]: any; }}
@@ -99316,6 +101312,12 @@ export type UpdateReportDto = UpdateReportDtoFeatureSyncDecisionV1 | UpdateRepor
  */
 export interface UpdateReportDtoBase {
     /**
+     * Whether this report may be reused as project knowledge. Omitted means true on creation.
+     * @type {boolean}
+     * @memberof UpdateReportDtoBase
+     */
+    'ragEnabled'?: boolean;
+    /**
      *
      * @type {ReportAudience}
      * @memberof UpdateReportDtoBase
@@ -99366,6 +101368,12 @@ export interface UpdateReportDtoBase {
  * @interface UpdateReportDtoFeatureSyncDecisionV1
  */
 export interface UpdateReportDtoFeatureSyncDecisionV1 {
+    /**
+     * Whether this report may be reused as project knowledge. Omitted means true on creation.
+     * @type {boolean}
+     * @memberof UpdateReportDtoFeatureSyncDecisionV1
+     */
+    'ragEnabled'?: boolean;
     /**
      *
      * @type {ReportAudience}
@@ -99435,6 +101443,12 @@ export type UpdateReportDtoFeatureSyncDecisionV1SchemaVersionEnum = typeof Updat
  */
 export interface UpdateReportDtoFeatureSyncDecisionV2 {
     /**
+     * Whether this report may be reused as project knowledge. Omitted means true on creation.
+     * @type {boolean}
+     * @memberof UpdateReportDtoFeatureSyncDecisionV2
+     */
+    'ragEnabled'?: boolean;
+    /**
      *
      * @type {ReportAudience}
      * @memberof UpdateReportDtoFeatureSyncDecisionV2
@@ -99502,6 +101516,12 @@ export type UpdateReportDtoFeatureSyncDecisionV2SchemaVersionEnum = typeof Updat
  * @interface UpdateReportDtoOther
  */
 export interface UpdateReportDtoOther {
+    /**
+     * Whether this report may be reused as project knowledge. Omitted means true on creation.
+     * @type {boolean}
+     * @memberof UpdateReportDtoOther
+     */
+    'ragEnabled'?: boolean;
     /**
      *
      * @type {ReportAudience}
@@ -100232,6 +102252,12 @@ export type UserMessageAgentInputProvenance = typeof UserMessageAgentInputProven
 export interface UserMessageData {
     [key: string]: any;
 
+    /**
+     *
+     * @type {ProposalReviewNoteRecord}
+     * @memberof UserMessageData
+     */
+    'proposalReviewNote'?: ProposalReviewNoteRecord;
     /**
      *
      * @type {UserMessageDataType}
@@ -101276,6 +103302,18 @@ export interface UserMessageDataPlanShapingFeatureSyncIterate {
      * @memberof UserMessageDataPlanShapingFeatureSyncIterate
      */
     'provenance'?: UserMessageAgentInputProvenance;
+    /**
+     * Canonical delivering Plan identity from the persisted plan seed.
+     * @type {string}
+     * @memberof UserMessageDataPlanShapingFeatureSyncIterate
+     */
+    'planId': string;
+    /**
+     * Authoritative design document from the persisted plan seed.
+     * @type {string}
+     * @memberof UserMessageDataPlanShapingFeatureSyncIterate
+     */
+    'designDocId': string;
     /**
      * The outstanding flagged items, each with its stable `id`, in the order the user saw them.
      * @type {Array<FeatureSyncDiscrepancy>}
@@ -102361,6 +104399,18 @@ export interface UserMessageFeatureSyncIterateContext {
  * @interface UserMessagePlanShapingFeatureSyncIterateContext
  */
 export interface UserMessagePlanShapingFeatureSyncIterateContext {
+    /**
+     * Canonical delivering Plan identity from the persisted plan seed.
+     * @type {string}
+     * @memberof UserMessagePlanShapingFeatureSyncIterateContext
+     */
+    'planId': string;
+    /**
+     * Authoritative design document from the persisted plan seed.
+     * @type {string}
+     * @memberof UserMessagePlanShapingFeatureSyncIterateContext
+     */
+    'designDocId': string;
     /**
      *
      * @type {Array<FeatureSyncDiscrepancy>}
@@ -107462,6 +109512,12 @@ export interface WorkItemConditionalRelationshipCreateOperation {
      */
     'predicate': string;
     /**
+     * Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.
+     * @type {string}
+     * @memberof WorkItemConditionalRelationshipCreateOperation
+     */
+    'actionLabel'?: string;
+    /**
      *
      * @type {string}
      * @memberof WorkItemConditionalRelationshipCreateOperation
@@ -108749,6 +110805,12 @@ export interface WorkItemLoopRelationshipCreateOperation {
      */
     'predicate'?: string;
     /**
+     * Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.
+     * @type {string}
+     * @memberof WorkItemLoopRelationshipCreateOperation
+     */
+    'actionLabel'?: string;
+    /**
      *
      * @type {string}
      * @memberof WorkItemLoopRelationshipCreateOperation
@@ -109030,6 +111092,12 @@ export interface WorkItemRelationshipUpdateOperation {
      */
     'predicate'?: string | null;
     /**
+     * Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.
+     * @type {string}
+     * @memberof WorkItemRelationshipUpdateOperation
+     */
+    'actionLabel'?: string | null;
+    /**
      *
      * @type {string}
      * @memberof WorkItemRelationshipUpdateOperation
@@ -109261,6 +111329,12 @@ export interface WorkItemStandardRelationshipCreateOperation {
      * @memberof WorkItemStandardRelationshipCreateOperation
      */
     'direction': AgentEdgeDirection;
+    /**
+     * Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.
+     * @type {string}
+     * @memberof WorkItemStandardRelationshipCreateOperation
+     */
+    'actionLabel'?: string;
     /**
      *
      * @type {string}
@@ -112077,31 +114151,6 @@ export type WorkItemType = typeof WorkItemType[keyof typeof WorkItemType];
 
 
 /**
- * Semantic understanding, separate from catalog descriptions and authoring standards. Omission means no guide; content is never synthesized.
- * @export
- * @interface WorkItemTypeAgentGuidance
- */
-export interface WorkItemTypeAgentGuidance {
-    /**
-     *
-     * @type {string}
-     * @memberof WorkItemTypeAgentGuidance
-     */
-    'overview': string;
-    /**
-     * General examples in author-declared order.
-     * @type {Array<WorkItemTypeGuidanceExample>}
-     * @memberof WorkItemTypeAgentGuidance
-     */
-    'examples'?: Array<WorkItemTypeGuidanceExample>;
-    /**
-     * Sparse directional contexts in author-declared order.
-     * @type {Array<WorkItemTypeGuidanceContext>}
-     * @memberof WorkItemTypeAgentGuidance
-     */
-    'contexts'?: Array<WorkItemTypeGuidanceContext>;
-}
-/**
  * Request to start review for archiving an existing project-owned canonical-seeded or custom work-item type. Archive is a lifecycle status transition that prevents new items from being created for the type while keeping existing items renderable and queryable. It does not perform hard-delete, does not cascade to existing items, and does not return destructive-impact counts.
  * @export
  * @interface WorkItemTypeArchiveRequestDto
@@ -112283,25 +114332,6 @@ export interface WorkItemTypeCascadeImpactDto {
     'edgeCount': number;
 }
 /**
- *
- * @export
- * @interface WorkItemTypeContextualGuidanceDto
- */
-export interface WorkItemTypeContextualGuidanceDto {
-    /**
-     *
-     * @type {string}
-     * @memberof WorkItemTypeContextualGuidanceDto
-     */
-    'guidance': string;
-    /**
-     *
-     * @type {Array<WorkItemTypeGuidanceExample>}
-     * @memberof WorkItemTypeContextualGuidanceDto
-     */
-    'examples': Array<WorkItemTypeGuidanceExample>;
-}
-/**
  * A complete work-item-type definition — the serialized registry config for one type, composed by the agentic drafter or the admin form and submitted as a WORK_ITEM_TYPE proposal. Canonical-seeded and project-authored custom definitions use this same shape and declare the same axes.
  * @export
  * @interface WorkItemTypeDefinitionDto
@@ -112321,10 +114351,10 @@ export interface WorkItemTypeDefinitionDto {
     'name': string;
     /**
      *
-     * @type {WorkItemTypeAgentGuidance}
+     * @type {WorkItemTypeSessionRoleGuidance}
      * @memberof WorkItemTypeDefinitionDto
      */
-    'agentGuidance'?: WorkItemTypeAgentGuidance;
+    'sessionRoleGuidance'?: WorkItemTypeSessionRoleGuidance;
     /**
      * Optional type-owned advice for maintaining items of this type.
      * @type {string}
@@ -112924,7 +114954,7 @@ export interface WorkItemTypeGuidanceBatchDto {
     'results': Array<WorkItemTypeGuidanceBatchResultDto>;
 }
 /**
- * A bounded batch of project-scoped guidance reads sharing one purpose and optional focal type.
+ * A bounded batch sharing one purpose. Purpose role requires sessionRole explicitly; the mode-settings default does not apply.
  * @export
  * @interface WorkItemTypeGuidanceBatchRequestDto
  */
@@ -112940,113 +114970,72 @@ export interface WorkItemTypeGuidanceBatchRequestDto {
      * @type {WorkItemTypeGuidancePurpose}
      * @memberof WorkItemTypeGuidanceBatchRequestDto
      */
-    'purpose'?: WorkItemTypeGuidancePurpose;
+    'purpose': WorkItemTypeGuidancePurpose;
+    /**
+     *
+     * @type {SessionRole}
+     * @memberof WorkItemTypeGuidanceBatchRequestDto
+     */
+    'sessionRole'?: SessionRole;
+}
+
+
+/**
+ *
+ * @export
+ * @interface WorkItemTypeGuidanceBatchRequestDtoAnyOf
+ */
+export interface WorkItemTypeGuidanceBatchRequestDtoAnyOf {
     /**
      *
      * @type {string}
-     * @memberof WorkItemTypeGuidanceBatchRequestDto
+     * @memberof WorkItemTypeGuidanceBatchRequestDtoAnyOf
      */
-    'focalTypeKey'?: string;
+    'purpose'?: WorkItemTypeGuidanceBatchRequestDtoAnyOfPurposeEnum;
 }
 
+export const WorkItemTypeGuidanceBatchRequestDtoAnyOfPurposeEnum = {
+    Maintenance: 'maintenance'
+} as const;
+
+export type WorkItemTypeGuidanceBatchRequestDtoAnyOfPurposeEnum = typeof WorkItemTypeGuidanceBatchRequestDtoAnyOfPurposeEnum[keyof typeof WorkItemTypeGuidanceBatchRequestDtoAnyOfPurposeEnum];
+
+/**
+ *
+ * @export
+ * @interface WorkItemTypeGuidanceBatchRequestDtoAnyOf1
+ */
+export interface WorkItemTypeGuidanceBatchRequestDtoAnyOf1 {
+    /**
+     *
+     * @type {string}
+     * @memberof WorkItemTypeGuidanceBatchRequestDtoAnyOf1
+     */
+    'purpose'?: WorkItemTypeGuidanceBatchRequestDtoAnyOf1PurposeEnum;
+}
+
+export const WorkItemTypeGuidanceBatchRequestDtoAnyOf1PurposeEnum = {
+    Role: 'role'
+} as const;
+
+export type WorkItemTypeGuidanceBatchRequestDtoAnyOf1PurposeEnum = typeof WorkItemTypeGuidanceBatchRequestDtoAnyOf1PurposeEnum[keyof typeof WorkItemTypeGuidanceBatchRequestDtoAnyOf1PurposeEnum];
 
 /**
  * @type WorkItemTypeGuidanceBatchResultDto
- * One requested type\'s semantic or maintenance projection; typeKey identifies the request represented by this result.
+ * One requested type\'s maintenance or role projection; typeKey identifies the request represented by this result.
  * @export
  */
-export type WorkItemTypeGuidanceBatchResultDto = WorkItemTypeGuidanceDto | WorkItemTypeMaintenanceGuidanceDto;
+export type WorkItemTypeGuidanceBatchResultDto = WorkItemTypeMaintenanceGuidanceDto | WorkItemTypeRoleGuidanceDto;
 
 /**
- *
- * @export
- * @interface WorkItemTypeGuidanceContext
- */
-export interface WorkItemTypeGuidanceContext {
-    /**
-     *
-     * @type {Array<string>}
-     * @memberof WorkItemTypeGuidanceContext
-     */
-    'focalTypeKeys': Array<string>;
-    /**
-     *
-     * @type {string}
-     * @memberof WorkItemTypeGuidanceContext
-     */
-    'guidance': string;
-    /**
-     * Examples in author-declared order.
-     * @type {Array<WorkItemTypeGuidanceExample>}
-     * @memberof WorkItemTypeGuidanceContext
-     */
-    'examples'?: Array<WorkItemTypeGuidanceExample>;
-}
-/**
- *
- * @export
- * @interface WorkItemTypeGuidanceDto
- */
-export interface WorkItemTypeGuidanceDto {
-    /**
-     *
-     * @type {string}
-     * @memberof WorkItemTypeGuidanceDto
-     */
-    'typeKey': string;
-    /**
-     *
-     * @type {string}
-     * @memberof WorkItemTypeGuidanceDto
-     */
-    'name': string;
-    /**
-     *
-     * @type {string}
-     * @memberof WorkItemTypeGuidanceDto
-     */
-    'overview': string;
-    /**
-     * Ordered general examples; empty when omitted from the definition.
-     * @type {Array<WorkItemTypeGuidanceExample>}
-     * @memberof WorkItemTypeGuidanceDto
-     */
-    'examples': Array<WorkItemTypeGuidanceExample>;
-    /**
-     * Only matching contexts, in declared order. Omitted without a focal key or matching entries. Omitted examples become empty arrays.
-     * @type {Array<WorkItemTypeContextualGuidanceDto>}
-     * @memberof WorkItemTypeGuidanceDto
-     */
-    'contextualGuidance'?: Array<WorkItemTypeContextualGuidanceDto>;
-}
-/**
- *
- * @export
- * @interface WorkItemTypeGuidanceExample
- */
-export interface WorkItemTypeGuidanceExample {
-    /**
-     *
-     * @type {string}
-     * @memberof WorkItemTypeGuidanceExample
-     */
-    'title': string;
-    /**
-     *
-     * @type {string}
-     * @memberof WorkItemTypeGuidanceExample
-     */
-    'guidance': string;
-}
-/**
- * Selects the compact semantic or type-owned maintenance projection.
+ * Selects maintenance or explicitly selected session-role guidance.
  * @export
  * @enum {string}
  */
 
 export const WorkItemTypeGuidancePurpose = {
-    Semantic: 'semantic',
-    Maintenance: 'maintenance'
+    Maintenance: 'maintenance',
+    Role: 'role'
 } as const;
 
 export type WorkItemTypeGuidancePurpose = typeof WorkItemTypeGuidancePurpose[keyof typeof WorkItemTypeGuidancePurpose];
@@ -113154,6 +115143,39 @@ export const WorkItemTypeRole = {
 } as const;
 
 export type WorkItemTypeRole = typeof WorkItemTypeRole[keyof typeof WorkItemTypeRole];
+
+
+/**
+ *
+ * @export
+ * @interface WorkItemTypeRoleGuidanceDto
+ */
+export interface WorkItemTypeRoleGuidanceDto {
+    /**
+     *
+     * @type {string}
+     * @memberof WorkItemTypeRoleGuidanceDto
+     */
+    'typeKey': string;
+    /**
+     *
+     * @type {string}
+     * @memberof WorkItemTypeRoleGuidanceDto
+     */
+    'name': string;
+    /**
+     *
+     * @type {SessionRole}
+     * @memberof WorkItemTypeRoleGuidanceDto
+     */
+    'sessionRole': SessionRole;
+    /**
+     *
+     * @type {string}
+     * @memberof WorkItemTypeRoleGuidanceDto
+     */
+    'guidance'?: string;
+}
 
 
 /**
@@ -113279,6 +115301,37 @@ export const WorkItemTypeSectionDefinitionKindEnum = {
 
 export type WorkItemTypeSectionDefinitionKindEnum = typeof WorkItemTypeSectionDefinitionKindEnum[keyof typeof WorkItemTypeSectionDefinitionKindEnum];
 
+/**
+ * Optional type-owned prose keyed by the shared SessionRole catalog. Each entry is independent; omitted entries provide no advice.
+ * @export
+ * @interface WorkItemTypeSessionRoleGuidance
+ */
+export interface WorkItemTypeSessionRoleGuidance {
+    /**
+     *
+     * @type {string}
+     * @memberof WorkItemTypeSessionRoleGuidance
+     */
+    'implementation'?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof WorkItemTypeSessionRoleGuidance
+     */
+    'research'?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof WorkItemTypeSessionRoleGuidance
+     */
+    'planning'?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof WorkItemTypeSessionRoleGuidance
+     */
+    'review'?: string;
+}
 /**
  * A centrally resolved project-effective definition. Canonical definitions are overlaid by complete project overrides; custom definitions are supplied only by project rows. Consumers do not merge sources locally.
  * @export
@@ -115539,6 +117592,12 @@ export interface WorkflowProposalConditionalLinkInput {
      */
     'predicate': string;
     /**
+     * Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.
+     * @type {string}
+     * @memberof WorkflowProposalConditionalLinkInput
+     */
+    'actionLabel'?: string;
+    /**
      * Optional human-readable explanation for the link.
      * @type {string}
      * @memberof WorkflowProposalConditionalLinkInput
@@ -115628,6 +117687,12 @@ export interface WorkflowProposalLoopLinkInput {
      */
     'predicate'?: string;
     /**
+     * Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.
+     * @type {string}
+     * @memberof WorkflowProposalLoopLinkInput
+     */
+    'actionLabel'?: string;
+    /**
      * Optional human-readable explanation for the link.
      * @type {string}
      * @memberof WorkflowProposalLoopLinkInput
@@ -115671,6 +117736,12 @@ export interface WorkflowProposalStandardLinkInput {
      * @memberof WorkflowProposalStandardLinkInput
      */
     'direction': AgentEdgeDirection;
+    /**
+     * Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.
+     * @type {string}
+     * @memberof WorkflowProposalStandardLinkInput
+     */
+    'actionLabel'?: string;
     /**
      * Optional human-readable explanation for the link.
      * @type {string}
@@ -119060,6 +121131,62 @@ export const AgentSessionsApiAxiosParamCreator = function (configuration?: Confi
             };
         },
         /**
+         * Returns the single most recently active session owned by the user that is bound to one of the given machines, without loading the session list.
+         * @summary Find the session that routes machine-hosted reads
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {string} userId
+         * @param {Array<string>} machineIds Ready machine IDs a routing session may be bound to (repeat query param or comma-separated values).
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getAgentSessionRouting: async (organizationId: string, projectId: string, userId: string, machineIds: Array<string>, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('getAgentSessionRouting', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('getAgentSessionRouting', 'projectId', projectId)
+            // verify required parameter 'userId' is not null or undefined
+            assertParamExists('getAgentSessionRouting', 'userId', userId)
+            // verify required parameter 'machineIds' is not null or undefined
+            assertParamExists('getAgentSessionRouting', 'machineIds', machineIds)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/agent-sessions/routing`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+            if (userId !== undefined) {
+                localVarQueryParameter['userId'] = userId;
+            }
+
+            if (machineIds) {
+                localVarQueryParameter['machineIds'] = machineIds;
+            }
+
+
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Read the providers, models and reasoning efforts the CLI on the selected machine can launch, without creating a conversation, Run or agent session.
          * @summary Read the model catalog of the CLI on a machine
          * @param {string} organizationId Organization ID
@@ -120672,6 +122799,22 @@ export const AgentSessionsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Returns the single most recently active session owned by the user that is bound to one of the given machines, without loading the session list.
+         * @summary Find the session that routes machine-hosted reads
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {string} userId
+         * @param {Array<string>} machineIds Ready machine IDs a routing session may be bound to (repeat query param or comma-separated values).
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async getAgentSessionRouting(organizationId: string, projectId: string, userId: string, machineIds: Array<string>, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetAgentSessionRouting200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getAgentSessionRouting(organizationId, projectId, userId, machineIds, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AgentSessionsApi.getAgentSessionRouting']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Read the providers, models and reasoning efforts the CLI on the selected machine can launch, without creating a conversation, Run or agent session.
          * @summary Read the model catalog of the CLI on a machine
          * @param {string} organizationId Organization ID
@@ -121239,6 +123382,16 @@ export const AgentSessionsApiFactory = function (configuration?: Configuration, 
             return localVarFp.getAgentSession(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.includeService, requestParameters.includeUser, options).then((request) => request(axios, basePath));
         },
         /**
+         * Returns the single most recently active session owned by the user that is bound to one of the given machines, without loading the session list.
+         * @summary Find the session that routes machine-hosted reads
+         * @param {AgentSessionsApiGetAgentSessionRoutingRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getAgentSessionRouting(requestParameters: AgentSessionsApiGetAgentSessionRoutingRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetAgentSessionRouting200Response> {
+            return localVarFp.getAgentSessionRouting(requestParameters.organizationId, requestParameters.projectId, requestParameters.userId, requestParameters.machineIds, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Read the providers, models and reasoning efforts the CLI on the selected machine can launch, without creating a conversation, Run or agent session.
          * @summary Read the model catalog of the CLI on a machine
          * @param {AgentSessionsApiGetRuntimeModelCatalogRequest} requestParameters Request parameters.
@@ -121634,6 +123787,16 @@ export interface AgentSessionsApiInterface {
      * @memberof AgentSessionsApiInterface
      */
     getAgentSession(requestParameters: AgentSessionsApiGetAgentSessionRequest, options?: RawAxiosRequestConfig): AxiosPromise<CreateAgentSession201Response>;
+
+    /**
+     * Returns the single most recently active session owned by the user that is bound to one of the given machines, without loading the session list.
+     * @summary Find the session that routes machine-hosted reads
+     * @param {AgentSessionsApiGetAgentSessionRoutingRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AgentSessionsApiInterface
+     */
+    getAgentSessionRouting(requestParameters: AgentSessionsApiGetAgentSessionRoutingRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetAgentSessionRouting200Response>;
 
     /**
      * Read the providers, models and reasoning efforts the CLI on the selected machine can launch, without creating a conversation, Run or agent session.
@@ -122292,6 +124455,41 @@ export interface AgentSessionsApiGetAgentSessionRequest {
      * @memberof AgentSessionsApiGetAgentSession
      */
     readonly includeUser?: boolean
+}
+
+/**
+ * Request parameters for getAgentSessionRouting operation in AgentSessionsApi.
+ * @export
+ * @interface AgentSessionsApiGetAgentSessionRoutingRequest
+ */
+export interface AgentSessionsApiGetAgentSessionRoutingRequest {
+    /**
+     * Organization ID
+     * @type {string}
+     * @memberof AgentSessionsApiGetAgentSessionRouting
+     */
+    readonly organizationId: string
+
+    /**
+     * Project ID
+     * @type {string}
+     * @memberof AgentSessionsApiGetAgentSessionRouting
+     */
+    readonly projectId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof AgentSessionsApiGetAgentSessionRouting
+     */
+    readonly userId: string
+
+    /**
+     * Ready machine IDs a routing session may be bound to (repeat query param or comma-separated values).
+     * @type {Array<string>}
+     * @memberof AgentSessionsApiGetAgentSessionRouting
+     */
+    readonly machineIds: Array<string>
 }
 
 /**
@@ -123428,6 +125626,18 @@ export class AgentSessionsApi extends BaseAPI implements AgentSessionsApiInterfa
      */
     public getAgentSession(requestParameters: AgentSessionsApiGetAgentSessionRequest, options?: RawAxiosRequestConfig) {
         return AgentSessionsApiFp(this.configuration).getAgentSession(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.includeService, requestParameters.includeUser, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Returns the single most recently active session owned by the user that is bound to one of the given machines, without loading the session list.
+     * @summary Find the session that routes machine-hosted reads
+     * @param {AgentSessionsApiGetAgentSessionRoutingRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AgentSessionsApi
+     */
+    public getAgentSessionRouting(requestParameters: AgentSessionsApiGetAgentSessionRoutingRequest, options?: RawAxiosRequestConfig) {
+        return AgentSessionsApiFp(this.configuration).getAgentSessionRouting(requestParameters.organizationId, requestParameters.projectId, requestParameters.userId, requestParameters.machineIds, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -132104,6 +134314,48 @@ export const DebugAdminApiAxiosParamCreator = function (configuration?: Configur
             };
         },
         /**
+         * Read-only project listing. Returns no hints when the deployment Hints switch is off. Separate from agent connected-item retrieval and legacy implementation hints.
+         * @summary List live graph Hints for platform admins
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getAdminProjectHints: async (organizationId: string, projectId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('getAdminProjectHints', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('getAdminProjectHints', 'projectId', projectId)
+            const localVarPath = `/admin/organizations/{organizationId}/projects/{projectId}/hints`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Platform admins only. Returns every implementation hint of every Service in the project, archived Services included, which agent search can no longer reach.
          * @summary List a project\'s implementation hints grouped by Service
          * @param {string} projectId
@@ -133351,6 +135603,20 @@ export const DebugAdminApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Read-only project listing. Returns no hints when the deployment Hints switch is off. Separate from agent connected-item retrieval and legacy implementation hints.
+         * @summary List live graph Hints for platform admins
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async getAdminProjectHints(organizationId: string, projectId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetAdminProjectHints200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getAdminProjectHints(organizationId, projectId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DebugAdminApi.getAdminProjectHints']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Platform admins only. Returns every implementation hint of every Service in the project, archived Services included, which agent search can no longer reach.
          * @summary List a project\'s implementation hints grouped by Service
          * @param {string} projectId
@@ -133756,6 +136022,16 @@ export const DebugAdminApiFactory = function (configuration?: Configuration, bas
             return localVarFp.deleteOrganization(requestParameters.organizationId, requestParameters.hard, options).then((request) => request(axios, basePath));
         },
         /**
+         * Read-only project listing. Returns no hints when the deployment Hints switch is off. Separate from agent connected-item retrieval and legacy implementation hints.
+         * @summary List live graph Hints for platform admins
+         * @param {DebugAdminApiGetAdminProjectHintsRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getAdminProjectHints(requestParameters: DebugAdminApiGetAdminProjectHintsRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetAdminProjectHints200Response> {
+            return localVarFp.getAdminProjectHints(requestParameters.organizationId, requestParameters.projectId, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Platform admins only. Returns every implementation hint of every Service in the project, archived Services included, which agent search can no longer reach.
          * @summary List a project\'s implementation hints grouped by Service
          * @param {DebugAdminApiGetAdminProjectImplementationHintsRequest} requestParameters Request parameters.
@@ -134048,6 +136324,16 @@ export interface DebugAdminApiInterface {
      * @memberof DebugAdminApiInterface
      */
     deleteOrganization(requestParameters: DebugAdminApiDeleteOrganizationRequest, options?: RawAxiosRequestConfig): AxiosPromise<void>;
+
+    /**
+     * Read-only project listing. Returns no hints when the deployment Hints switch is off. Separate from agent connected-item retrieval and legacy implementation hints.
+     * @summary List live graph Hints for platform admins
+     * @param {DebugAdminApiGetAdminProjectHintsRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DebugAdminApiInterface
+     */
+    getAdminProjectHints(requestParameters: DebugAdminApiGetAdminProjectHintsRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetAdminProjectHints200Response>;
 
     /**
      * Platform admins only. Returns every implementation hint of every Service in the project, archived Services included, which agent search can no longer reach.
@@ -134345,6 +136631,27 @@ export interface DebugAdminApiDeleteOrganizationRequest {
      * @memberof DebugAdminApiDeleteOrganization
      */
     readonly hard?: boolean
+}
+
+/**
+ * Request parameters for getAdminProjectHints operation in DebugAdminApi.
+ * @export
+ * @interface DebugAdminApiGetAdminProjectHintsRequest
+ */
+export interface DebugAdminApiGetAdminProjectHintsRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof DebugAdminApiGetAdminProjectHints
+     */
+    readonly organizationId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof DebugAdminApiGetAdminProjectHints
+     */
+    readonly projectId: string
 }
 
 /**
@@ -134871,6 +137178,18 @@ export class DebugAdminApi extends BaseAPI implements DebugAdminApiInterface {
     }
 
     /**
+     * Read-only project listing. Returns no hints when the deployment Hints switch is off. Separate from agent connected-item retrieval and legacy implementation hints.
+     * @summary List live graph Hints for platform admins
+     * @param {DebugAdminApiGetAdminProjectHintsRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DebugAdminApi
+     */
+    public getAdminProjectHints(requestParameters: DebugAdminApiGetAdminProjectHintsRequest, options?: RawAxiosRequestConfig) {
+        return DebugAdminApiFp(this.configuration).getAdminProjectHints(requestParameters.organizationId, requestParameters.projectId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
      * Platform admins only. Returns every implementation hint of every Service in the project, archived Services included, which agent search can no longer reach.
      * @summary List a project\'s implementation hints grouped by Service
      * @param {DebugAdminApiGetAdminProjectImplementationHintsRequest} requestParameters Request parameters.
@@ -135275,8 +137594,8 @@ export const DemoSandboxesApiAxiosParamCreator = function (configuration?: Confi
             };
         },
         /**
-         * Public. A browser whose binding cookie maps to an unexpired ACTIVE sandbox is signed back in to it with resumed=true, even when the demo is switched off or the program is at capacity. Otherwise admission is checked in order: switch, capacity, per-address limit, bot check. The response is returned, and session and binding cookies are set, only after the cloned project is connected in the graph. A failed or timed-out attempt is discarded through irreversible final deletion and reported as PROVISIONING_FAILED.
-         * @summary Provision a demo sandbox, or return this browser\'s existing one
+         * Public. A browser whose binding cookie maps to an unexpired ACTIVE sandbox is signed back in to it (state ACTIVE, resumed=true), even when the demo is switched off or the program is at capacity. A browser whose binding maps to a sandbox still being set up gets that setup\'s progress back (state PROVISIONING) and no second sandbox is reserved. Otherwise admission is checked in order: switch, capacity, per-address limit, bot check. On admission a PROVISIONING sandbox is reserved, the binding cookie is set, and the response returns at once with 202 while setup continues in the background. No session is issued here: the browser is signed in by POST /demo-sandboxes/resume once every copied feature is connected in the graph and the sandbox is activated. A failed or timed-out setup is discarded through irreversible final deletion and reported by resume as FAILED.
+         * @summary Start provisioning a demo sandbox, or return this browser\'s existing one
          * @param {ProvisionDemoSandboxDto} provisionDemoSandboxDto
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
@@ -135311,8 +137630,8 @@ export const DemoSandboxesApiAxiosParamCreator = function (configuration?: Confi
             };
         },
         /**
-         * Public, no body. If the binding cookie maps to an unexpired ACTIVE sandbox, signs the browser in as its demo user and returns it with resumed=true, creating nothing. Otherwise responds 404 with the state EXPIRED or NONE, so a returning browser can skip the terms screen without holding a bot-check proof.
-         * @summary Return a browser to its unexpired demo sandbox
+         * Public, no body; read only through the binding cookie. If the binding maps to an unexpired ACTIVE sandbox, signs the browser in as its demo user and returns state ACTIVE with resumed=true, creating nothing. If its sandbox is still being set up, returns state PROVISIONING with the stage and the connected and total copied feature counts, without a session. If its setup failed, returns state FAILED. Otherwise responds 404 with the state EXPIRED or NONE, so a returning browser can skip the terms screen without holding a bot-check proof.
+         * @summary Return a browser to its demo sandbox or report its setup
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
@@ -135356,7 +137675,7 @@ export const DemoSandboxesApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async getCurrentDemoSandbox(options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ProvisionDemoSandbox200Response>> {
+        async getCurrentDemoSandbox(options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetCurrentDemoSandbox200Response>> {
             const localVarAxiosArgs = await localVarAxiosParamCreator.getCurrentDemoSandbox(options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['DemoSandboxesApi.getCurrentDemoSandbox']?.[localVarOperationServerIndex]?.url;
@@ -135375,8 +137694,8 @@ export const DemoSandboxesApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Public. A browser whose binding cookie maps to an unexpired ACTIVE sandbox is signed back in to it with resumed=true, even when the demo is switched off or the program is at capacity. Otherwise admission is checked in order: switch, capacity, per-address limit, bot check. The response is returned, and session and binding cookies are set, only after the cloned project is connected in the graph. A failed or timed-out attempt is discarded through irreversible final deletion and reported as PROVISIONING_FAILED.
-         * @summary Provision a demo sandbox, or return this browser\'s existing one
+         * Public. A browser whose binding cookie maps to an unexpired ACTIVE sandbox is signed back in to it (state ACTIVE, resumed=true), even when the demo is switched off or the program is at capacity. A browser whose binding maps to a sandbox still being set up gets that setup\'s progress back (state PROVISIONING) and no second sandbox is reserved. Otherwise admission is checked in order: switch, capacity, per-address limit, bot check. On admission a PROVISIONING sandbox is reserved, the binding cookie is set, and the response returns at once with 202 while setup continues in the background. No session is issued here: the browser is signed in by POST /demo-sandboxes/resume once every copied feature is connected in the graph and the sandbox is activated. A failed or timed-out setup is discarded through irreversible final deletion and reported by resume as FAILED.
+         * @summary Start provisioning a demo sandbox, or return this browser\'s existing one
          * @param {ProvisionDemoSandboxDto} provisionDemoSandboxDto
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
@@ -135388,8 +137707,8 @@ export const DemoSandboxesApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Public, no body. If the binding cookie maps to an unexpired ACTIVE sandbox, signs the browser in as its demo user and returns it with resumed=true, creating nothing. Otherwise responds 404 with the state EXPIRED or NONE, so a returning browser can skip the terms screen without holding a bot-check proof.
-         * @summary Return a browser to its unexpired demo sandbox
+         * Public, no body; read only through the binding cookie. If the binding maps to an unexpired ACTIVE sandbox, signs the browser in as its demo user and returns state ACTIVE with resumed=true, creating nothing. If its sandbox is still being set up, returns state PROVISIONING with the stage and the connected and total copied feature counts, without a session. If its setup failed, returns state FAILED. Otherwise responds 404 with the state EXPIRED or NONE, so a returning browser can skip the terms screen without holding a bot-check proof.
+         * @summary Return a browser to its demo sandbox or report its setup
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
@@ -135415,7 +137734,7 @@ export const DemoSandboxesApiFactory = function (configuration?: Configuration, 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        getCurrentDemoSandbox(options?: RawAxiosRequestConfig): AxiosPromise<ProvisionDemoSandbox200Response> {
+        getCurrentDemoSandbox(options?: RawAxiosRequestConfig): AxiosPromise<GetCurrentDemoSandbox200Response> {
             return localVarFp.getCurrentDemoSandbox(options).then((request) => request(axios, basePath));
         },
         /**
@@ -135428,8 +137747,8 @@ export const DemoSandboxesApiFactory = function (configuration?: Configuration, 
             return localVarFp.getDemoSandboxAvailability(options).then((request) => request(axios, basePath));
         },
         /**
-         * Public. A browser whose binding cookie maps to an unexpired ACTIVE sandbox is signed back in to it with resumed=true, even when the demo is switched off or the program is at capacity. Otherwise admission is checked in order: switch, capacity, per-address limit, bot check. The response is returned, and session and binding cookies are set, only after the cloned project is connected in the graph. A failed or timed-out attempt is discarded through irreversible final deletion and reported as PROVISIONING_FAILED.
-         * @summary Provision a demo sandbox, or return this browser\'s existing one
+         * Public. A browser whose binding cookie maps to an unexpired ACTIVE sandbox is signed back in to it (state ACTIVE, resumed=true), even when the demo is switched off or the program is at capacity. A browser whose binding maps to a sandbox still being set up gets that setup\'s progress back (state PROVISIONING) and no second sandbox is reserved. Otherwise admission is checked in order: switch, capacity, per-address limit, bot check. On admission a PROVISIONING sandbox is reserved, the binding cookie is set, and the response returns at once with 202 while setup continues in the background. No session is issued here: the browser is signed in by POST /demo-sandboxes/resume once every copied feature is connected in the graph and the sandbox is activated. A failed or timed-out setup is discarded through irreversible final deletion and reported by resume as FAILED.
+         * @summary Start provisioning a demo sandbox, or return this browser\'s existing one
          * @param {DemoSandboxesApiProvisionDemoSandboxRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
@@ -135438,8 +137757,8 @@ export const DemoSandboxesApiFactory = function (configuration?: Configuration, 
             return localVarFp.provisionDemoSandbox(requestParameters.provisionDemoSandboxDto, options).then((request) => request(axios, basePath));
         },
         /**
-         * Public, no body. If the binding cookie maps to an unexpired ACTIVE sandbox, signs the browser in as its demo user and returns it with resumed=true, creating nothing. Otherwise responds 404 with the state EXPIRED or NONE, so a returning browser can skip the terms screen without holding a bot-check proof.
-         * @summary Return a browser to its unexpired demo sandbox
+         * Public, no body; read only through the binding cookie. If the binding maps to an unexpired ACTIVE sandbox, signs the browser in as its demo user and returns state ACTIVE with resumed=true, creating nothing. If its sandbox is still being set up, returns state PROVISIONING with the stage and the connected and total copied feature counts, without a session. If its setup failed, returns state FAILED. Otherwise responds 404 with the state EXPIRED or NONE, so a returning browser can skip the terms screen without holding a bot-check proof.
+         * @summary Return a browser to its demo sandbox or report its setup
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
@@ -135462,7 +137781,7 @@ export interface DemoSandboxesApiInterface {
      * @throws {RequiredError}
      * @memberof DemoSandboxesApiInterface
      */
-    getCurrentDemoSandbox(options?: RawAxiosRequestConfig): AxiosPromise<ProvisionDemoSandbox200Response>;
+    getCurrentDemoSandbox(options?: RawAxiosRequestConfig): AxiosPromise<GetCurrentDemoSandbox200Response>;
 
     /**
      * Public. Read by the landing page to decide whether to show View demo.
@@ -135474,8 +137793,8 @@ export interface DemoSandboxesApiInterface {
     getDemoSandboxAvailability(options?: RawAxiosRequestConfig): AxiosPromise<GetDemoSandboxAvailability200Response>;
 
     /**
-     * Public. A browser whose binding cookie maps to an unexpired ACTIVE sandbox is signed back in to it with resumed=true, even when the demo is switched off or the program is at capacity. Otherwise admission is checked in order: switch, capacity, per-address limit, bot check. The response is returned, and session and binding cookies are set, only after the cloned project is connected in the graph. A failed or timed-out attempt is discarded through irreversible final deletion and reported as PROVISIONING_FAILED.
-     * @summary Provision a demo sandbox, or return this browser\'s existing one
+     * Public. A browser whose binding cookie maps to an unexpired ACTIVE sandbox is signed back in to it (state ACTIVE, resumed=true), even when the demo is switched off or the program is at capacity. A browser whose binding maps to a sandbox still being set up gets that setup\'s progress back (state PROVISIONING) and no second sandbox is reserved. Otherwise admission is checked in order: switch, capacity, per-address limit, bot check. On admission a PROVISIONING sandbox is reserved, the binding cookie is set, and the response returns at once with 202 while setup continues in the background. No session is issued here: the browser is signed in by POST /demo-sandboxes/resume once every copied feature is connected in the graph and the sandbox is activated. A failed or timed-out setup is discarded through irreversible final deletion and reported by resume as FAILED.
+     * @summary Start provisioning a demo sandbox, or return this browser\'s existing one
      * @param {DemoSandboxesApiProvisionDemoSandboxRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
@@ -135484,8 +137803,8 @@ export interface DemoSandboxesApiInterface {
     provisionDemoSandbox(requestParameters: DemoSandboxesApiProvisionDemoSandboxRequest, options?: RawAxiosRequestConfig): AxiosPromise<ProvisionDemoSandbox200Response>;
 
     /**
-     * Public, no body. If the binding cookie maps to an unexpired ACTIVE sandbox, signs the browser in as its demo user and returns it with resumed=true, creating nothing. Otherwise responds 404 with the state EXPIRED or NONE, so a returning browser can skip the terms screen without holding a bot-check proof.
-     * @summary Return a browser to its unexpired demo sandbox
+     * Public, no body; read only through the binding cookie. If the binding maps to an unexpired ACTIVE sandbox, signs the browser in as its demo user and returns state ACTIVE with resumed=true, creating nothing. If its sandbox is still being set up, returns state PROVISIONING with the stage and the connected and total copied feature counts, without a session. If its setup failed, returns state FAILED. Otherwise responds 404 with the state EXPIRED or NONE, so a returning browser can skip the terms screen without holding a bot-check proof.
+     * @summary Return a browser to its demo sandbox or report its setup
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof DemoSandboxesApiInterface
@@ -135538,8 +137857,8 @@ export class DemoSandboxesApi extends BaseAPI implements DemoSandboxesApiInterfa
     }
 
     /**
-     * Public. A browser whose binding cookie maps to an unexpired ACTIVE sandbox is signed back in to it with resumed=true, even when the demo is switched off or the program is at capacity. Otherwise admission is checked in order: switch, capacity, per-address limit, bot check. The response is returned, and session and binding cookies are set, only after the cloned project is connected in the graph. A failed or timed-out attempt is discarded through irreversible final deletion and reported as PROVISIONING_FAILED.
-     * @summary Provision a demo sandbox, or return this browser\'s existing one
+     * Public. A browser whose binding cookie maps to an unexpired ACTIVE sandbox is signed back in to it (state ACTIVE, resumed=true), even when the demo is switched off or the program is at capacity. A browser whose binding maps to a sandbox still being set up gets that setup\'s progress back (state PROVISIONING) and no second sandbox is reserved. Otherwise admission is checked in order: switch, capacity, per-address limit, bot check. On admission a PROVISIONING sandbox is reserved, the binding cookie is set, and the response returns at once with 202 while setup continues in the background. No session is issued here: the browser is signed in by POST /demo-sandboxes/resume once every copied feature is connected in the graph and the sandbox is activated. A failed or timed-out setup is discarded through irreversible final deletion and reported by resume as FAILED.
+     * @summary Start provisioning a demo sandbox, or return this browser\'s existing one
      * @param {DemoSandboxesApiProvisionDemoSandboxRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
@@ -135550,8 +137869,8 @@ export class DemoSandboxesApi extends BaseAPI implements DemoSandboxesApiInterfa
     }
 
     /**
-     * Public, no body. If the binding cookie maps to an unexpired ACTIVE sandbox, signs the browser in as its demo user and returns it with resumed=true, creating nothing. Otherwise responds 404 with the state EXPIRED or NONE, so a returning browser can skip the terms screen without holding a bot-check proof.
-     * @summary Return a browser to its unexpired demo sandbox
+     * Public, no body; read only through the binding cookie. If the binding maps to an unexpired ACTIVE sandbox, signs the browser in as its demo user and returns state ACTIVE with resumed=true, creating nothing. If its sandbox is still being set up, returns state PROVISIONING with the stage and the connected and total copied feature counts, without a session. If its setup failed, returns state FAILED. Otherwise responds 404 with the state EXPIRED or NONE, so a returning browser can skip the terms screen without holding a bot-check proof.
+     * @summary Return a browser to its demo sandbox or report its setup
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof DemoSandboxesApi
@@ -159183,6 +161502,58 @@ export const ProposalsApiAxiosParamCreator = function (configuration?: Configura
         },
         /**
          *
+         * @summary List approved staged project futures with ready implementation work, including baseline drift
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {number} [limit]
+         * @param {number} [offset]
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        listProjectReadyFutures: async (organizationId: string, projectId: string, limit?: number, offset?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('listProjectReadyFutures', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('listProjectReadyFutures', 'projectId', projectId)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/proposals/futures/ready`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+            if (limit !== undefined) {
+                localVarQueryParameter['limit'] = limit;
+            }
+
+            if (offset !== undefined) {
+                localVarQueryParameter['offset'] = offset;
+            }
+
+
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         *
          * @summary List unapplied futures that depend on a work item, with current-user readiness
          * @param {string} organizationId
          * @param {string} projectId
@@ -159494,6 +161865,58 @@ export const ProposalsApiAxiosParamCreator = function (configuration?: Configura
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
             localVarRequestOptions.data = serializeDataIfNeeded(replaceProposalGroupPrerequisitesRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Saves a human annotation in the authoring conversation, bound to the exact frozen proposal revision and section. Repeated saves with the same note identity and content are idempotent. Neither proposal content nor review decisions change and no executable input is emitted.
+         * @summary Save a frozen screen review annotation without starting a revision
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {string} proposalId
+         * @param {ProposalReviewNoteDto} proposalReviewNoteDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        saveProposalReviewNote: async (organizationId: string, projectId: string, proposalId: string, proposalReviewNoteDto: ProposalReviewNoteDto, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('saveProposalReviewNote', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('saveProposalReviewNote', 'projectId', projectId)
+            // verify required parameter 'proposalId' is not null or undefined
+            assertParamExists('saveProposalReviewNote', 'proposalId', proposalId)
+            // verify required parameter 'proposalReviewNoteDto' is not null or undefined
+            assertParamExists('saveProposalReviewNote', 'proposalReviewNoteDto', proposalReviewNoteDto)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/review-notes`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)))
+                .replace(`{${"proposalId"}}`, encodeURIComponent(String(proposalId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(proposalReviewNoteDto, localVarRequestOptions, configuration)
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -159915,6 +162338,22 @@ export const ProposalsApiFp = function(configuration?: Configuration) {
         },
         /**
          *
+         * @summary List approved staged project futures with ready implementation work, including baseline drift
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {number} [limit]
+         * @param {number} [offset]
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async listProjectReadyFutures(organizationId: string, projectId: string, limit?: number, offset?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ListProjectReadyFutures200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.listProjectReadyFutures(organizationId, projectId, limit, offset, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['ProposalsApi.listProjectReadyFutures']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         *
          * @summary List unapplied futures that depend on a work item, with current-user readiness
          * @param {string} organizationId
          * @param {string} projectId
@@ -160002,6 +162441,22 @@ export const ProposalsApiFp = function(configuration?: Configuration) {
             const localVarAxiosArgs = await localVarAxiosParamCreator.replaceProposalGroupMemberPrerequisites(organizationId, projectId, groupId, memberId, replaceProposalGroupPrerequisitesRequest, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['ProposalsApi.replaceProposalGroupMemberPrerequisites']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Saves a human annotation in the authoring conversation, bound to the exact frozen proposal revision and section. Repeated saves with the same note identity and content are idempotent. Neither proposal content nor review decisions change and no executable input is emitted.
+         * @summary Save a frozen screen review annotation without starting a revision
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {string} proposalId
+         * @param {ProposalReviewNoteDto} proposalReviewNoteDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async saveProposalReviewNote(organizationId: string, projectId: string, proposalId: string, proposalReviewNoteDto: ProposalReviewNoteDto, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SaveProposalReviewNote200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.saveProposalReviewNote(organizationId, projectId, proposalId, proposalReviewNoteDto, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['ProposalsApi.saveProposalReviewNote']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
@@ -160210,6 +162665,16 @@ export const ProposalsApiFactory = function (configuration?: Configuration, base
         },
         /**
          *
+         * @summary List approved staged project futures with ready implementation work, including baseline drift
+         * @param {ProposalsApiListProjectReadyFuturesRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        listProjectReadyFutures(requestParameters: ProposalsApiListProjectReadyFuturesRequest, options?: RawAxiosRequestConfig): AxiosPromise<ListProjectReadyFutures200Response> {
+            return localVarFp.listProjectReadyFutures(requestParameters.organizationId, requestParameters.projectId, requestParameters.limit, requestParameters.offset, options).then((request) => request(axios, basePath));
+        },
+        /**
+         *
          * @summary List unapplied futures that depend on a work item, with current-user readiness
          * @param {ProposalsApiListProposalFutureOffersRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
@@ -160257,6 +162722,16 @@ export const ProposalsApiFactory = function (configuration?: Configuration, base
          */
         replaceProposalGroupMemberPrerequisites(requestParameters: ProposalsApiReplaceProposalGroupMemberPrerequisitesRequest, options?: RawAxiosRequestConfig): AxiosPromise<StartProposalGroup201Response> {
             return localVarFp.replaceProposalGroupMemberPrerequisites(requestParameters.organizationId, requestParameters.projectId, requestParameters.groupId, requestParameters.memberId, requestParameters.replaceProposalGroupPrerequisitesRequest, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Saves a human annotation in the authoring conversation, bound to the exact frozen proposal revision and section. Repeated saves with the same note identity and content are idempotent. Neither proposal content nor review decisions change and no executable input is emitted.
+         * @summary Save a frozen screen review annotation without starting a revision
+         * @param {ProposalsApiSaveProposalReviewNoteRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        saveProposalReviewNote(requestParameters: ProposalsApiSaveProposalReviewNoteRequest, options?: RawAxiosRequestConfig): AxiosPromise<SaveProposalReviewNote200Response> {
+            return localVarFp.saveProposalReviewNote(requestParameters.organizationId, requestParameters.projectId, requestParameters.proposalId, requestParameters.proposalReviewNoteDto, options).then((request) => request(axios, basePath));
         },
         /**
          * Creates one explicit hidden BUILDING group with stable identity and revision zero.
@@ -160439,6 +162914,16 @@ export interface ProposalsApiInterface {
 
     /**
      *
+     * @summary List approved staged project futures with ready implementation work, including baseline drift
+     * @param {ProposalsApiListProjectReadyFuturesRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ProposalsApiInterface
+     */
+    listProjectReadyFutures(requestParameters: ProposalsApiListProjectReadyFuturesRequest, options?: RawAxiosRequestConfig): AxiosPromise<ListProjectReadyFutures200Response>;
+
+    /**
+     *
      * @summary List unapplied futures that depend on a work item, with current-user readiness
      * @param {ProposalsApiListProposalFutureOffersRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -160486,6 +162971,16 @@ export interface ProposalsApiInterface {
      * @memberof ProposalsApiInterface
      */
     replaceProposalGroupMemberPrerequisites(requestParameters: ProposalsApiReplaceProposalGroupMemberPrerequisitesRequest, options?: RawAxiosRequestConfig): AxiosPromise<StartProposalGroup201Response>;
+
+    /**
+     * Saves a human annotation in the authoring conversation, bound to the exact frozen proposal revision and section. Repeated saves with the same note identity and content are idempotent. Neither proposal content nor review decisions change and no executable input is emitted.
+     * @summary Save a frozen screen review annotation without starting a revision
+     * @param {ProposalsApiSaveProposalReviewNoteRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ProposalsApiInterface
+     */
+    saveProposalReviewNote(requestParameters: ProposalsApiSaveProposalReviewNoteRequest, options?: RawAxiosRequestConfig): AxiosPromise<SaveProposalReviewNote200Response>;
 
     /**
      * Creates one explicit hidden BUILDING group with stable identity and revision zero.
@@ -160922,6 +163417,41 @@ export interface ProposalsApiGetProposalReconciliationRequest {
 }
 
 /**
+ * Request parameters for listProjectReadyFutures operation in ProposalsApi.
+ * @export
+ * @interface ProposalsApiListProjectReadyFuturesRequest
+ */
+export interface ProposalsApiListProjectReadyFuturesRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalsApiListProjectReadyFutures
+     */
+    readonly organizationId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalsApiListProjectReadyFutures
+     */
+    readonly projectId: string
+
+    /**
+     *
+     * @type {number}
+     * @memberof ProposalsApiListProjectReadyFutures
+     */
+    readonly limit?: number
+
+    /**
+     *
+     * @type {number}
+     * @memberof ProposalsApiListProjectReadyFutures
+     */
+    readonly offset?: number
+}
+
+/**
  * Request parameters for listProposalFutureOffers operation in ProposalsApi.
  * @export
  * @interface ProposalsApiListProposalFutureOffersRequest
@@ -161171,6 +163701,41 @@ export interface ProposalsApiReplaceProposalGroupMemberPrerequisitesRequest {
      * @memberof ProposalsApiReplaceProposalGroupMemberPrerequisites
      */
     readonly replaceProposalGroupPrerequisitesRequest: ReplaceProposalGroupPrerequisitesRequest
+}
+
+/**
+ * Request parameters for saveProposalReviewNote operation in ProposalsApi.
+ * @export
+ * @interface ProposalsApiSaveProposalReviewNoteRequest
+ */
+export interface ProposalsApiSaveProposalReviewNoteRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalsApiSaveProposalReviewNote
+     */
+    readonly organizationId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalsApiSaveProposalReviewNote
+     */
+    readonly projectId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalsApiSaveProposalReviewNote
+     */
+    readonly proposalId: string
+
+    /**
+     *
+     * @type {ProposalReviewNoteDto}
+     * @memberof ProposalsApiSaveProposalReviewNote
+     */
+    readonly proposalReviewNoteDto: ProposalReviewNoteDto
 }
 
 /**
@@ -161478,6 +164043,18 @@ export class ProposalsApi extends BaseAPI implements ProposalsApiInterface {
 
     /**
      *
+     * @summary List approved staged project futures with ready implementation work, including baseline drift
+     * @param {ProposalsApiListProjectReadyFuturesRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ProposalsApi
+     */
+    public listProjectReadyFutures(requestParameters: ProposalsApiListProjectReadyFuturesRequest, options?: RawAxiosRequestConfig) {
+        return ProposalsApiFp(this.configuration).listProjectReadyFutures(requestParameters.organizationId, requestParameters.projectId, requestParameters.limit, requestParameters.offset, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     *
      * @summary List unapplied futures that depend on a work item, with current-user readiness
      * @param {ProposalsApiListProposalFutureOffersRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -161534,6 +164111,18 @@ export class ProposalsApi extends BaseAPI implements ProposalsApiInterface {
      */
     public replaceProposalGroupMemberPrerequisites(requestParameters: ProposalsApiReplaceProposalGroupMemberPrerequisitesRequest, options?: RawAxiosRequestConfig) {
         return ProposalsApiFp(this.configuration).replaceProposalGroupMemberPrerequisites(requestParameters.organizationId, requestParameters.projectId, requestParameters.groupId, requestParameters.memberId, requestParameters.replaceProposalGroupPrerequisitesRequest, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Saves a human annotation in the authoring conversation, bound to the exact frozen proposal revision and section. Repeated saves with the same note identity and content are idempotent. Neither proposal content nor review decisions change and no executable input is emitted.
+     * @summary Save a frozen screen review annotation without starting a revision
+     * @param {ProposalsApiSaveProposalReviewNoteRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ProposalsApi
+     */
+    public saveProposalReviewNote(requestParameters: ProposalsApiSaveProposalReviewNoteRequest, options?: RawAxiosRequestConfig) {
+        return ProposalsApiFp(this.configuration).saveProposalReviewNote(requestParameters.organizationId, requestParameters.projectId, requestParameters.proposalId, requestParameters.proposalReviewNoteDto, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -174346,23 +176935,25 @@ export type UpdateWorkItemContentEntityTypeEnum = typeof UpdateWorkItemContentEn
 export const WorkItemTypesApiAxiosParamCreator = function (configuration?: Configuration) {
     return {
         /**
-         * Project-authorized purpose-scoped read from one effective project snapshot. Omitted purpose defaults to semantic: return the existing compact semantic guide with only matching focal contexts in declared order. Explicit maintenance returns type identity and available type-owned maintenance advice only; focalTypeKey does not select maintenance contexts. A complete project override wins even when it omits advice. Never synthesize advice from other fields.
+         * Project-authorized purpose-scoped read from one effective project snapshot. Purpose is required. Maintenance returns type identity and available type-owned maintenance advice only. Role requires an explicit sessionRole query parameter (no mode-settings default) and returns identity, selected role and optional advice. A complete project override wins even when it omits advice. Never synthesize advice from other fields.
          * @summary Read work-item type guidance by purpose
          * @param {string} organizationId The ID of the organization that owns the project.
          * @param {string} projectId The ID of the project the work-item type belongs to.
          * @param {string} typeKey The stable uppercase key of the work-item type (e.g. \&quot;MARKETING\&quot;).
-         * @param {string} [focalTypeKey]
-         * @param {WorkItemTypeGuidancePurpose} [purpose]
+         * @param {WorkItemTypeGuidancePurpose} purpose
+         * @param {SessionRole} [sessionRole] Required when purpose is role. No default is applied.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        getWorkItemTypeGuidance: async (organizationId: string, projectId: string, typeKey: string, focalTypeKey?: string, purpose?: WorkItemTypeGuidancePurpose, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        getWorkItemTypeGuidance: async (organizationId: string, projectId: string, typeKey: string, purpose: WorkItemTypeGuidancePurpose, sessionRole?: SessionRole, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'organizationId' is not null or undefined
             assertParamExists('getWorkItemTypeGuidance', 'organizationId', organizationId)
             // verify required parameter 'projectId' is not null or undefined
             assertParamExists('getWorkItemTypeGuidance', 'projectId', projectId)
             // verify required parameter 'typeKey' is not null or undefined
             assertParamExists('getWorkItemTypeGuidance', 'typeKey', typeKey)
+            // verify required parameter 'purpose' is not null or undefined
+            assertParamExists('getWorkItemTypeGuidance', 'purpose', purpose)
             const localVarPath = `/organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/guidance`
                 .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
                 .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)))
@@ -174382,8 +176973,8 @@ export const WorkItemTypesApiAxiosParamCreator = function (configuration?: Confi
             // http bearer authentication required
             await setBearerAuthToObject(localVarHeaderParameter, configuration)
 
-            if (focalTypeKey !== undefined) {
-                localVarQueryParameter['focalTypeKey'] = focalTypeKey;
+            if (sessionRole !== undefined) {
+                localVarQueryParameter['sessionRole'] = sessionRole;
             }
 
             if (purpose !== undefined) {
@@ -174402,7 +176993,7 @@ export const WorkItemTypesApiAxiosParamCreator = function (configuration?: Confi
             };
         },
         /**
-         * Project-authorized batch read of 1–10 distinct type keys from one effective project snapshot. Every result uses the same optional purpose and focal type key as the single-type read and appears in request order. Omitted purpose defaults to semantic. An unknown requested or focal key fails clearly. Complete project overrides remain authoritative, including when they omit guidance. The existing single-type operation is unchanged.
+         * Project-authorized batch read of 1–10 distinct type keys from one effective project snapshot. Every result uses the same required purpose as the single-type read and appears in request order. An unknown requested key fails clearly. Complete project overrides remain authoritative, including when they omit guidance.
          * @summary Read work-item type guidance for a batch
          * @param {string} organizationId The ID of the organization that owns the project.
          * @param {string} projectId The ID of the project the work-item types belong to.
@@ -174916,24 +177507,24 @@ export const WorkItemTypesApiFp = function(configuration?: Configuration) {
     const localVarAxiosParamCreator = WorkItemTypesApiAxiosParamCreator(configuration)
     return {
         /**
-         * Project-authorized purpose-scoped read from one effective project snapshot. Omitted purpose defaults to semantic: return the existing compact semantic guide with only matching focal contexts in declared order. Explicit maintenance returns type identity and available type-owned maintenance advice only; focalTypeKey does not select maintenance contexts. A complete project override wins even when it omits advice. Never synthesize advice from other fields.
+         * Project-authorized purpose-scoped read from one effective project snapshot. Purpose is required. Maintenance returns type identity and available type-owned maintenance advice only. Role requires an explicit sessionRole query parameter (no mode-settings default) and returns identity, selected role and optional advice. A complete project override wins even when it omits advice. Never synthesize advice from other fields.
          * @summary Read work-item type guidance by purpose
          * @param {string} organizationId The ID of the organization that owns the project.
          * @param {string} projectId The ID of the project the work-item type belongs to.
          * @param {string} typeKey The stable uppercase key of the work-item type (e.g. \&quot;MARKETING\&quot;).
-         * @param {string} [focalTypeKey]
-         * @param {WorkItemTypeGuidancePurpose} [purpose]
+         * @param {WorkItemTypeGuidancePurpose} purpose
+         * @param {SessionRole} [sessionRole] Required when purpose is role. No default is applied.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async getWorkItemTypeGuidance(organizationId: string, projectId: string, typeKey: string, focalTypeKey?: string, purpose?: WorkItemTypeGuidancePurpose, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetWorkItemTypeGuidance200Response>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.getWorkItemTypeGuidance(organizationId, projectId, typeKey, focalTypeKey, purpose, options);
+        async getWorkItemTypeGuidance(organizationId: string, projectId: string, typeKey: string, purpose: WorkItemTypeGuidancePurpose, sessionRole?: SessionRole, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetWorkItemTypeGuidance200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getWorkItemTypeGuidance(organizationId, projectId, typeKey, purpose, sessionRole, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['WorkItemTypesApi.getWorkItemTypeGuidance']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Project-authorized batch read of 1–10 distinct type keys from one effective project snapshot. Every result uses the same optional purpose and focal type key as the single-type read and appears in request order. Omitted purpose defaults to semantic. An unknown requested or focal key fails clearly. Complete project overrides remain authoritative, including when they omit guidance. The existing single-type operation is unchanged.
+         * Project-authorized batch read of 1–10 distinct type keys from one effective project snapshot. Every result uses the same required purpose as the single-type read and appears in request order. An unknown requested key fails clearly. Complete project overrides remain authoritative, including when they omit guidance.
          * @summary Read work-item type guidance for a batch
          * @param {string} organizationId The ID of the organization that owns the project.
          * @param {string} projectId The ID of the project the work-item types belong to.
@@ -175100,17 +177691,17 @@ export const WorkItemTypesApiFactory = function (configuration?: Configuration, 
     const localVarFp = WorkItemTypesApiFp(configuration)
     return {
         /**
-         * Project-authorized purpose-scoped read from one effective project snapshot. Omitted purpose defaults to semantic: return the existing compact semantic guide with only matching focal contexts in declared order. Explicit maintenance returns type identity and available type-owned maintenance advice only; focalTypeKey does not select maintenance contexts. A complete project override wins even when it omits advice. Never synthesize advice from other fields.
+         * Project-authorized purpose-scoped read from one effective project snapshot. Purpose is required. Maintenance returns type identity and available type-owned maintenance advice only. Role requires an explicit sessionRole query parameter (no mode-settings default) and returns identity, selected role and optional advice. A complete project override wins even when it omits advice. Never synthesize advice from other fields.
          * @summary Read work-item type guidance by purpose
          * @param {WorkItemTypesApiGetWorkItemTypeGuidanceRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
         getWorkItemTypeGuidance(requestParameters: WorkItemTypesApiGetWorkItemTypeGuidanceRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetWorkItemTypeGuidance200Response> {
-            return localVarFp.getWorkItemTypeGuidance(requestParameters.organizationId, requestParameters.projectId, requestParameters.typeKey, requestParameters.focalTypeKey, requestParameters.purpose, options).then((request) => request(axios, basePath));
+            return localVarFp.getWorkItemTypeGuidance(requestParameters.organizationId, requestParameters.projectId, requestParameters.typeKey, requestParameters.purpose, requestParameters.sessionRole, options).then((request) => request(axios, basePath));
         },
         /**
-         * Project-authorized batch read of 1–10 distinct type keys from one effective project snapshot. Every result uses the same optional purpose and focal type key as the single-type read and appears in request order. Omitted purpose defaults to semantic. An unknown requested or focal key fails clearly. Complete project overrides remain authoritative, including when they omit guidance. The existing single-type operation is unchanged.
+         * Project-authorized batch read of 1–10 distinct type keys from one effective project snapshot. Every result uses the same required purpose as the single-type read and appears in request order. An unknown requested key fails clearly. Complete project overrides remain authoritative, including when they omit guidance.
          * @summary Read work-item type guidance for a batch
          * @param {WorkItemTypesApiGetWorkItemTypeGuidanceBatchRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
@@ -175219,7 +177810,7 @@ export const WorkItemTypesApiFactory = function (configuration?: Configuration, 
  */
 export interface WorkItemTypesApiInterface {
     /**
-     * Project-authorized purpose-scoped read from one effective project snapshot. Omitted purpose defaults to semantic: return the existing compact semantic guide with only matching focal contexts in declared order. Explicit maintenance returns type identity and available type-owned maintenance advice only; focalTypeKey does not select maintenance contexts. A complete project override wins even when it omits advice. Never synthesize advice from other fields.
+     * Project-authorized purpose-scoped read from one effective project snapshot. Purpose is required. Maintenance returns type identity and available type-owned maintenance advice only. Role requires an explicit sessionRole query parameter (no mode-settings default) and returns identity, selected role and optional advice. A complete project override wins even when it omits advice. Never synthesize advice from other fields.
      * @summary Read work-item type guidance by purpose
      * @param {WorkItemTypesApiGetWorkItemTypeGuidanceRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -175229,7 +177820,7 @@ export interface WorkItemTypesApiInterface {
     getWorkItemTypeGuidance(requestParameters: WorkItemTypesApiGetWorkItemTypeGuidanceRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetWorkItemTypeGuidance200Response>;
 
     /**
-     * Project-authorized batch read of 1–10 distinct type keys from one effective project snapshot. Every result uses the same optional purpose and focal type key as the single-type read and appears in request order. Omitted purpose defaults to semantic. An unknown requested or focal key fails clearly. Complete project overrides remain authoritative, including when they omit guidance. The existing single-type operation is unchanged.
+     * Project-authorized batch read of 1–10 distinct type keys from one effective project snapshot. Every result uses the same required purpose as the single-type read and appears in request order. An unknown requested key fails clearly. Complete project overrides remain authoritative, including when they omit guidance.
      * @summary Read work-item type guidance for a batch
      * @param {WorkItemTypesApiGetWorkItemTypeGuidanceBatchRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -175359,17 +177950,17 @@ export interface WorkItemTypesApiGetWorkItemTypeGuidanceRequest {
 
     /**
      *
-     * @type {string}
-     * @memberof WorkItemTypesApiGetWorkItemTypeGuidance
-     */
-    readonly focalTypeKey?: string
-
-    /**
-     *
      * @type {WorkItemTypeGuidancePurpose}
      * @memberof WorkItemTypesApiGetWorkItemTypeGuidance
      */
-    readonly purpose?: WorkItemTypeGuidancePurpose
+    readonly purpose: WorkItemTypeGuidancePurpose
+
+    /**
+     * Required when purpose is role. No default is applied.
+     * @type {SessionRole}
+     * @memberof WorkItemTypesApiGetWorkItemTypeGuidance
+     */
+    readonly sessionRole?: SessionRole
 }
 
 /**
@@ -175709,7 +178300,7 @@ export interface WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWor
  */
 export class WorkItemTypesApi extends BaseAPI implements WorkItemTypesApiInterface {
     /**
-     * Project-authorized purpose-scoped read from one effective project snapshot. Omitted purpose defaults to semantic: return the existing compact semantic guide with only matching focal contexts in declared order. Explicit maintenance returns type identity and available type-owned maintenance advice only; focalTypeKey does not select maintenance contexts. A complete project override wins even when it omits advice. Never synthesize advice from other fields.
+     * Project-authorized purpose-scoped read from one effective project snapshot. Purpose is required. Maintenance returns type identity and available type-owned maintenance advice only. Role requires an explicit sessionRole query parameter (no mode-settings default) and returns identity, selected role and optional advice. A complete project override wins even when it omits advice. Never synthesize advice from other fields.
      * @summary Read work-item type guidance by purpose
      * @param {WorkItemTypesApiGetWorkItemTypeGuidanceRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -175717,11 +178308,11 @@ export class WorkItemTypesApi extends BaseAPI implements WorkItemTypesApiInterfa
      * @memberof WorkItemTypesApi
      */
     public getWorkItemTypeGuidance(requestParameters: WorkItemTypesApiGetWorkItemTypeGuidanceRequest, options?: RawAxiosRequestConfig) {
-        return WorkItemTypesApiFp(this.configuration).getWorkItemTypeGuidance(requestParameters.organizationId, requestParameters.projectId, requestParameters.typeKey, requestParameters.focalTypeKey, requestParameters.purpose, options).then((request) => request(this.axios, this.basePath));
+        return WorkItemTypesApiFp(this.configuration).getWorkItemTypeGuidance(requestParameters.organizationId, requestParameters.projectId, requestParameters.typeKey, requestParameters.purpose, requestParameters.sessionRole, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
-     * Project-authorized batch read of 1–10 distinct type keys from one effective project snapshot. Every result uses the same optional purpose and focal type key as the single-type read and appears in request order. Omitted purpose defaults to semantic. An unknown requested or focal key fails clearly. Complete project overrides remain authoritative, including when they omit guidance. The existing single-type operation is unchanged.
+     * Project-authorized batch read of 1–10 distinct type keys from one effective project snapshot. Every result uses the same required purpose as the single-type read and appears in request order. An unknown requested key fails clearly. Complete project overrides remain authoritative, including when they omit guidance.
      * @summary Read work-item type guidance for a batch
      * @param {WorkItemTypesApiGetWorkItemTypeGuidanceBatchRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.

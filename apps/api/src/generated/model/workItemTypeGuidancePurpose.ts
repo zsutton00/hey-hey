@@ -14,12 +14,12 @@
 
 
 /**
- * Selects the compact semantic or type-owned maintenance projection.
+ * Selects maintenance or explicitly selected session-role guidance.
  */
-export type WorkItemTypeGuidancePurpose = 'semantic' | 'maintenance';
+export type WorkItemTypeGuidancePurpose = 'maintenance' | 'role';
 
 export const WorkItemTypeGuidancePurpose = {
-    Semantic: 'semantic' as WorkItemTypeGuidancePurpose,
-    Maintenance: 'maintenance' as WorkItemTypeGuidancePurpose
+    Maintenance: 'maintenance' as WorkItemTypeGuidancePurpose,
+    Role: 'role' as WorkItemTypeGuidancePurpose
 };
 

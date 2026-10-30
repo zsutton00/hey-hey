@@ -19,6 +19,14 @@ import { HttpFile } from '../http/http';
  */
 export class PlanShapingFeatureSyncIteratePromptPayload {
   /**
+   * Canonical delivering Plan identity from the persisted plan seed.
+   */
+  'planId': string;
+  /**
+   * Authoritative design document from the persisted plan seed.
+   */
+  'designDocId': string;
+  /**
    * The outstanding flagged items, each with its stable `id`, in the order the user saw them.
    */
   'discrepancies': Array<FeatureSyncDiscrepancy>;
@@ -38,6 +46,18 @@ export class PlanShapingFeatureSyncIteratePromptPayload {
     type: string;
     format: string;
   }> = [
+    {
+      name: 'planId',
+      baseName: 'planId',
+      type: 'string',
+      format: '',
+    },
+    {
+      name: 'designDocId',
+      baseName: 'designDocId',
+      type: 'string',
+      format: '',
+    },
     {
       name: 'discrepancies',
       baseName: 'discrepancies',

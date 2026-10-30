@@ -3,7 +3,7 @@ import type {
   StartRunPromptPayloadReasoningEffortEnum,
   LocalAgentSearchEntityType,
   FeatureSyncDiscrepancy,
-  PlanShapingFeatureSyncItemDecision,
+  PlanShapingFeatureSyncIteratePromptPayload,
   LocalPromptStartupInput,
   LocalPromptTaskNeighborhoodInput,
   LocalPromptTaskNeighborhoodTaskInput,
@@ -48,6 +48,11 @@ export interface LocalCreateRunRequest {
   model?: string;
   reasoningEffort?: StartRunPromptPayloadReasoningEffortEnum;
   fastMode?: boolean;
+  inert?: boolean;
+  /** Internal standalone Project Assistant admission using the consumer's normal policy. */
+  projectAssistantConsumerHandlerId?: string;
+  /** Internal cancellation, including materialization before a Run is active. */
+  signal?: AbortSignal;
   /** Pathless provider Skill identity; the provider resolves it inside the Run workspace. */
   skillSelection?: AgentSkillSelection;
   config?: AgentSessionConfig | null;
@@ -241,11 +246,8 @@ export interface LocalPlanShapingFeatureSyncAnalyzePromptPayload {
   userMessage?: string;
 }
 
-export interface LocalPlanShapingFeatureSyncIteratePromptPayload {
-  discrepancies: FeatureSyncDiscrepancy[];
-  decisions: PlanShapingFeatureSyncItemDecision[];
-  userMessage?: string;
-}
+export type LocalPlanShapingFeatureSyncIteratePromptPayload =
+  PlanShapingFeatureSyncIteratePromptPayload;
 
 export interface LocalPlanShapingFeatureSyncDiscussPromptPayload {
   planId: string;

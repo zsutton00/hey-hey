@@ -16,6 +16,8 @@ import { RunEntityReference } from './runEntityReference';
 
 
 export interface RunCreatePayloadPlanShapingVisualPreview { 
+    promptType: RunCreatePayloadPlanShapingVisualPreview.PromptTypeEnum;
+    entity: RunEntityReference;
     designDocId: string;
     planId: string;
     featureId: string;
@@ -27,8 +29,6 @@ export interface RunCreatePayloadPlanShapingVisualPreview {
      * Optional user-authored refinement note for the current turn.
      */
     userMessage?: string;
-    promptType: RunCreatePayloadPlanShapingVisualPreview.PromptTypeEnum;
-    entity: RunEntityReference;
 }
 export namespace RunCreatePayloadPlanShapingVisualPreview {
     export type PromptTypeEnum = 'plan_shaping_visual_preview';

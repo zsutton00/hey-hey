@@ -10,10 +10,15 @@
  * Do not edit the class manually.
  */
 
+import { CodingPlanVersion } from '../models/CodingPlanVersion';
 import { ImplementRuntimeSelection } from '../models/ImplementRuntimeSelection';
 import { HttpFile } from '../http/http';
 
 export class ImplementPromptPayload {
+  'approvedVersion'?: CodingPlanVersion;
+  'versionMessageId'?: string;
+  'approvalFeedback'?: string;
+  'planningDiscussion'?: string;
   'runtime'?: ImplementRuntimeSelection;
   'userMessage'?: string;
 
@@ -27,6 +32,30 @@ export class ImplementPromptPayload {
     type: string;
     format: string;
   }> = [
+    {
+      name: 'approvedVersion',
+      baseName: 'approvedVersion',
+      type: 'CodingPlanVersion',
+      format: '',
+    },
+    {
+      name: 'versionMessageId',
+      baseName: 'versionMessageId',
+      type: 'string',
+      format: 'uuid',
+    },
+    {
+      name: 'approvalFeedback',
+      baseName: 'approvalFeedback',
+      type: 'string',
+      format: '',
+    },
+    {
+      name: 'planningDiscussion',
+      baseName: 'planningDiscussion',
+      type: 'string',
+      format: '',
+    },
     {
       name: 'runtime',
       baseName: 'runtime',

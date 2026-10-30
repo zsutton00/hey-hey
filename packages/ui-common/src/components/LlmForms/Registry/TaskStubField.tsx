@@ -1,10 +1,11 @@
+import { useModalState } from "../../Modals/useModalState";
+import { FunctionalDialog as Dialog } from "../../Modals/FunctionalDialog";
 import React, { useState, useEffect } from "react";
 import {
   alpha,
   Box,
   Button,
   Chip,
-  Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
@@ -40,18 +41,17 @@ export interface TaskStubPayload {
   manualStubs: Array<ManualTaskStub>;
 }
 
-export interface TaskStubFieldProps
-  extends Omit<
-    FieldComponentProps<TaskStubSystemMessageData | TaskStubUserMessage>,
-    "onChange"
-  > {
+export interface TaskStubFieldProps extends Omit<
+  FieldComponentProps<TaskStubSystemMessageData | TaskStubUserMessage>,
+  "onChange"
+> {
   value?: TaskStubSystemMessageData | TaskStubUserMessage;
   onChange?: (value: TaskStubUserMessage) => void;
 }
 
 // Type guard to check if value is TaskStubSystemMessageData
 const isTaskStubSystemMessageData = (
-  value: TaskStubSystemMessageData | TaskStubUserMessage | undefined
+  value: TaskStubSystemMessageData | TaskStubUserMessage | undefined,
 ): value is TaskStubSystemMessageData => {
   if (value && isObject(value)) {
     return "stubs" in value && "response" in value && "type" in value;
@@ -62,7 +62,7 @@ const isTaskStubSystemMessageData = (
 
 // Helper function to check if there are approved stubs
 export const hasApprovedStubs = (
-  value: TaskStubUserMessage | undefined
+  value: TaskStubUserMessage | undefined,
 ): boolean => {
   if (!value) return false;
   return (
@@ -74,13 +74,13 @@ export const hasApprovedStubs = (
 // Helper function to prepare payload for backend
 export const prepareTaskStubPayload = (
   value: TaskStubUserMessage,
-  action: "finalize" | "refine"
+  action: "finalize" | "refine",
 ): TaskStubPayload => {
   return {
     action,
     feedback: value.userMessage ?? "",
     stubReviews: Object.fromEntries(
-      value.stubReviews.map((r) => [r.stubId, r.action])
+      value.stubReviews.map((r) => [r.stubId, r.action]),
     ),
     manualStubs: value.manuallyAdded,
   };
@@ -88,7 +88,7 @@ export const prepareTaskStubPayload = (
 
 const validateManualTask = (
   title: string,
-  description: string
+  description: string,
 ): string | null => {
   if (!title.trim()) return "Title is required";
   if (title.length > 200) return "Title too long (max 200 characters)";
@@ -111,7 +111,8 @@ export const TaskStubField: React.FC<TaskStubFieldProps> = ({
   const taskStubData = isTaskStubSystemMessageData(value) ? value : undefined;
 
   // Dialog state
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [addDialogOpen, setAddDialogOpen, addDialogOpenOwnerKey] =
+    useModalState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDescription, setNewTaskDescription] = useState("");
   const [dialogError, setDialogError] = useState<string | null>(null);
@@ -121,7 +122,7 @@ export const TaskStubField: React.FC<TaskStubFieldProps> = ({
 
   // Local state to track the field value
   const [fieldValue, setFieldValue] = useState<TaskStubUserMessage | undefined>(
-    !isTaskStubSystemMessageData(value) ? value : undefined
+    !isTaskStubSystemMessageData(value) ? value : undefined,
   );
 
   // Initialize form value from incoming system message data
@@ -136,8 +137,8 @@ export const TaskStubField: React.FC<TaskStubFieldProps> = ({
             stub.status === ("approved" as TaskStubStatusEnum)
               ? ("accept" as const)
               : stub.status === ("rejected" as TaskStubStatusEnum)
-              ? ("reject" as const)
-              : ("pending" as const),
+                ? ("reject" as const)
+                : ("pending" as const),
         })),
         manuallyAdded: [],
         // Default to generating stubs - will be updated when user clicks Generate Tasks
@@ -164,7 +165,7 @@ export const TaskStubField: React.FC<TaskStubFieldProps> = ({
     const updatedReviews = fieldValue.stubReviews.map((review) =>
       review.stubId === stubId
         ? { ...review, action: "accept" as const }
-        : review
+        : review,
     );
 
     const newValue = {
@@ -181,7 +182,7 @@ export const TaskStubField: React.FC<TaskStubFieldProps> = ({
     const updatedReviews = fieldValue.stubReviews.map((review) =>
       review.stubId === stubId
         ? { ...review, action: "reject" as const }
-        : review
+        : review,
     );
 
     const newValue = {
@@ -213,7 +214,7 @@ export const TaskStubField: React.FC<TaskStubFieldProps> = ({
   const handleAddTask = () => {
     const validationError = validateManualTask(
       newTaskTitle,
-      newTaskDescription
+      newTaskDescription,
     );
     if (validationError) {
       setDialogError(validationError);
@@ -245,7 +246,7 @@ export const TaskStubField: React.FC<TaskStubFieldProps> = ({
   };
 
   const getStubBackgroundColor = (
-    status: "accept" | "reject" | "pending" | "user_added"
+    status: "accept" | "reject" | "pending" | "user_added",
   ): string => {
     switch (status) {
       case "accept":
@@ -322,7 +323,7 @@ export const TaskStubField: React.FC<TaskStubFieldProps> = ({
                   .filter(
                     (stub) =>
                       fieldValue?.stubReviews.find((r) => r.stubId === stub.id)
-                        ?.action === "accept"
+                        ?.action === "accept",
                   )
                   .map((stub) => (
                     <Box key={stub.id} sx={{ mb: 1, pl: 2 }}>
@@ -374,7 +375,7 @@ export const TaskStubField: React.FC<TaskStubFieldProps> = ({
                   .filter(
                     (stub) =>
                       fieldValue?.stubReviews.find((r) => r.stubId === stub.id)
-                        ?.action === "reject"
+                        ?.action === "reject",
                   )
                   .map((stub) => (
                     <Box key={stub.id} sx={{ mb: 1, pl: 2 }}>
@@ -472,8 +473,8 @@ export const TaskStubField: React.FC<TaskStubFieldProps> = ({
                         status === "accept"
                           ? "success.main"
                           : theme.palette.mode === "dark"
-                          ? alpha(theme.palette.success.main, 0.2)
-                          : "success.50",
+                            ? alpha(theme.palette.success.main, 0.2)
+                            : "success.50",
                       color: status === "accept" ? "white" : "success.main",
                       border: 1,
                       borderColor: "success.main",
@@ -497,8 +498,8 @@ export const TaskStubField: React.FC<TaskStubFieldProps> = ({
                         status === "reject"
                           ? "error.main"
                           : theme.palette.mode === "dark"
-                          ? alpha(theme.palette.error.main, 0.2)
-                          : "error.50",
+                            ? alpha(theme.palette.error.main, 0.2)
+                            : "error.50",
                       color: status === "reject" ? "white" : "error.main",
                       border: 1,
                       borderColor: "error.main",
@@ -600,6 +601,7 @@ export const TaskStubField: React.FC<TaskStubFieldProps> = ({
 
       {/* Add Task Dialog */}
       <Dialog
+        ownerKey={addDialogOpenOwnerKey}
         open={addDialogOpen}
         onClose={handleCloseDialog}
         maxWidth="sm"

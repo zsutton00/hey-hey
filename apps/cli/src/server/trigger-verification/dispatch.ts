@@ -1,3 +1,4 @@
+import { isAxiosError } from 'axios';
 import { ControlReductionTelemetry } from '../control-reduction-telemetry';
 import type { DiagnosticFeed } from '../diagnostic-feed';
 import { DeterministicE2EEvidence } from '../../run/runners/deterministic-e2e-evidence';
@@ -9,6 +10,12 @@ import {
   storedSignedTriggerSchema,
   toStoredTriggerFrame,
 } from '../input-admission/input-admission-payload';
+import {
+  conversationActionHash,
+  controlActionHash,
+  monitorActionHash,
+  controlAction,
+} from './delivered-controller-action';
 import { createHash } from 'node:crypto';
 import { canonicalizeJson } from './jcs';
 /**
@@ -70,11 +77,7 @@ import type { TriggerVerifier, VerificationDropReason, VerifiedTriggerFrame } fr
 import type { HostActionAdmission } from '../controller-authorization/host-action-admission';
 import type { HostActionAdmissionRequest } from '../controller-authorization/types';
 import type { AdmittedHostAction } from '../controller-authorization/types';
-import type {
-  ApplicationEffectLaunchBodyV2,
-  ExactActionDeliveryBodyV2,
-  V2ConversationControlBody,
-} from './protocol-v2';
+import type { ApplicationEffectLaunchBodyV2, ExactActionDeliveryBodyV2 } from './protocol-v2';
 import type { AdmissionEnvelopeAuthorization } from '../../shared/api/generated/api';
 import type { ExecutableEnvelopeAuthorization } from '../controller-authorization/types';
 import { ConversationRunResolver } from '../conversation-dispatch/conversation-run-resolver';
@@ -93,29 +96,6 @@ const FRAME_EVENT_TYPES = new Set([
   'trigger.exact_action',
   'trigger.monitor_reduction',
 ]);
-
-type AuthorityIncreasingControlKind = V2ConversationControlBody['kind'];
-
-/** Maps each authorized control kind to its controller-authorized action. */
-const controlAction = (
-  kind: AuthorityIncreasingControlKind,
-): Pick<HostActionAdmissionRequest, 'actionCategory' | 'actionType'> => {
-  switch (kind) {
-    case 'compact_run':
-      return {
-        actionCategory: 'AUTHORITY_INCREASING_CONTROL',
-        actionType: 'CONVERSATION_CONTROL_COMPACT_RUN',
-      };
-    case 'permission_decision':
-      return {
-        actionCategory: 'AUTHORITY_INCREASING_CONTROL',
-        actionType: 'CONVERSATION_CONTROL_PERMISSION_DECISION',
-      };
-    // An answer is the user replying in the conversation.
-    case 'question_answer':
-      return { actionCategory: 'CONVERSATION', actionType: 'CONVERSATION_TRIGGER' };
-  }
-};
 
 const toAdmissionAuthorization = (
   authorization: ExecutableEnvelopeAuthorization,
@@ -151,6 +131,7 @@ export interface ConversationRunBinding {
 export interface TriggerFrameRouterDependencies {
   verifier: TriggerVerifier;
   machinesApi: ApiRuntime['clients']['machines'];
+  servicesApi: Pick<ApiRuntime['clients']['services'], 'getService'>;
   keyPairStore: KeyPairStore;
   /**
    * Resolve the active run that owns the given conversation. Returns null
@@ -390,6 +371,8 @@ export const toRunPromptRequest = (event: ConversationPromptEvent): LocalRunProm
       const payload: LocalAnyPromptPayload = {
         discrepancies: message.featureSyncContext.discrepancies,
         decisions: message.featureSyncContext.decisions,
+        planId: message.featureSyncContext.planId,
+        designDocId: message.featureSyncContext.designDocId,
         userMessage: message.userMessage,
       };
       return {
@@ -559,8 +542,6 @@ export class TriggerFrameRouter {
     if (!authorization) return null;
     const projectId = verified.frame.projectId;
     if (!projectId) return null;
-    const assertedPayloadHash =
-      authorization.kind === 'controller_assertion' ? authorization.intent.actionPayloadHash : '';
     const admissionIdentity =
       authorization.kind === 'controller_assertion'
         ? { controllerInstallationId: authorization.intent.controllerInstallationId }
@@ -604,7 +585,12 @@ export class TriggerFrameRouter {
         projectId,
         actionCategory: 'CONVERSATION',
         actionType: 'CONVERSATION_TRIGGER',
-        actionPayloadHash: assertedPayloadHash,
+        actionPayloadHash: conversationActionHash(
+          body,
+          agentSessionId,
+          envelope.nonce,
+          authorization,
+        ),
         target: {
           kind: 'AGENT_SESSION',
           id: agentSessionId,
@@ -631,7 +617,7 @@ export class TriggerFrameRouter {
         projectId,
         actionCategory: 'APPLICATION_EFFECT',
         actionType: 'APPLICATION_EFFECT_LAUNCH',
-        actionPayloadHash: assertedPayloadHash,
+        actionPayloadHash: createHash('sha256').update(canonicalizeJson(body)).digest('hex'),
         target: { kind: 'APPLICATION_EFFECT', id: body.effectId, revision: null },
         agentSessionId: body.agentSessionId,
         taskMonitorId: null,
@@ -650,7 +636,7 @@ export class TriggerFrameRouter {
         projectId,
         actionCategory: 'EXACT_ACTION',
         actionType: 'EXACT_ACTION_DELIVERY',
-        actionPayloadHash: assertedPayloadHash,
+        actionPayloadHash: createHash('sha256').update(canonicalizeJson(body)).digest('hex'),
         target: { kind: 'EXACT_ACTION', id: body.exactActionId, revision: body.requestRevision },
         envelopeNonce: envelope.nonce,
         authorization,
@@ -668,7 +654,7 @@ export class TriggerFrameRouter {
         organizationId: verified.frame.organizationId,
         projectId,
         ...controlAction(body.kind),
-        actionPayloadHash: assertedPayloadHash,
+        actionPayloadHash: controlActionHash(body, envelope.nonce),
         target: { kind: 'AGENT_SESSION', id: body.agentSessionId, revision: null },
         agentSessionId: body.agentSessionId,
         envelopeNonce: envelope.nonce,
@@ -694,7 +680,7 @@ export class TriggerFrameRouter {
               : body.command.cause === 'CONTINUE'
                 ? 'TASK_MONITOR_CONTINUE'
                 : 'TASK_MONITOR_COMPLETE',
-      actionPayloadHash: assertedPayloadHash,
+      actionPayloadHash: monitorActionHash(body, envelope.nonce),
       target: {
         kind: 'TASK_MONITOR',
         id: body.target.workItemId,
@@ -876,6 +862,14 @@ export class TriggerFrameRouter {
           userId: verified.envelope.userId,
           messageId: body.messageId,
         });
+        if (cancelled.state === 'cancelled' && verified.frame.conversationId) {
+          await this.dependencies.dropSurfacing.poster.postFailureMessage({
+            organizationId: verified.frame.organizationId,
+            projectId,
+            conversationId: verified.frame.conversationId,
+            reason: 'STOPPED',
+          });
+        }
         this.controlTelemetry.cancellation(cancelled, context?.transportAckAvailable ?? null);
         void agentService.inputAdmission.advance(body.agentSessionId);
         return;
@@ -1502,78 +1496,124 @@ export class TriggerFrameRouter {
       ...(timelineIdentity ? { key: timelineIdentity.key, keyKind: timelineIdentity.keyKind } : {}),
       admissionAttempt,
     });
-    return this.admitVerified(result.verified, admissionLogger).then((admission) => {
-      if (admission.admitted) {
-        if (timelineIdentity)
-          this.dependencies.operationTimeline?.mark(timelineIdentity.key, 'admitted');
-        return this.dispatchVerified(result.verified, admission.capability, context)
-          .then((dispatchResult) => {
-            if (dispatchResult?.status === 'REJECTED' && timelineIdentity) {
-              this.dependencies.operationTimeline?.emit(timelineIdentity.key, 'rejected', {
-                promptType: timelineIdentity.promptType,
-              });
-            }
-            return dispatchResult;
-          })
-          .catch((error) => {
-            if (
-              result.verified.kind === 'trigger.control' &&
-              result.verified.body.kind === 'cancel_input'
-            ) {
-              const body = result.verified.body;
-              this.controlTelemetry.cancellationFailed(
-                body.operationId,
-                body.messageId,
-                body.agentSessionId,
-              );
-            }
-            if (error instanceof InputAdmissionIdentityError) {
-              if (timelineIdentity)
+    return this.admitVerified(result.verified, admissionLogger)
+      .then((admission) => {
+        if (admission.admitted) {
+          if (timelineIdentity)
+            this.dependencies.operationTimeline?.mark(timelineIdentity.key, 'admitted');
+          return this.dispatchVerified(result.verified, admission.capability, context)
+            .then((dispatchResult) => {
+              if (dispatchResult?.status === 'REJECTED' && timelineIdentity) {
                 this.dependencies.operationTimeline?.emit(timelineIdentity.key, 'rejected', {
                   promptType: timelineIdentity.promptType,
                 });
-              return {
-                status: 'REJECTED',
-                stage: 'ADMISSION',
-                reason: 'OPERATION_FINGERPRINT_MISMATCH',
-              } satisfies AgentOperationDispatchAcknowledgement;
-            }
-            throw error;
-          });
-      }
-      // A fresh signature can reconcile a previously committed input after its
-      // short-lived ingress authority expires. This returns evidence only; it cannot execute.
-      return this.reconcileCommittedInput(result.verified).then((replayed) => {
-        if (replayed) {
-          if (timelineIdentity) {
-            this.dependencies.operationTimeline?.markPartial(timelineIdentity.key);
-            this.dependencies.operationTimeline?.emit(
-              timelineIdentity.key,
-              replayed.status === 'REJECTED' ? 'rejected' : 'no_provider_output',
-              { promptType: timelineIdentity.promptType },
-            );
-          }
-          return replayed;
+              }
+              return dispatchResult;
+            })
+            .catch((error) => {
+              if (
+                result.verified.kind === 'trigger.control' &&
+                result.verified.body.kind === 'cancel_input'
+              ) {
+                const body = result.verified.body;
+                this.controlTelemetry.cancellationFailed(
+                  body.operationId,
+                  body.messageId,
+                  body.agentSessionId,
+                );
+              }
+              if (error instanceof InputAdmissionIdentityError) {
+                if (timelineIdentity)
+                  this.dependencies.operationTimeline?.emit(timelineIdentity.key, 'rejected', {
+                    promptType: timelineIdentity.promptType,
+                  });
+                return {
+                  status: 'REJECTED',
+                  stage: 'ADMISSION',
+                  reason: 'OPERATION_FINGERPRINT_MISMATCH',
+                } satisfies AgentOperationDispatchAcknowledgement;
+              }
+              throw error;
+            });
         }
-        if (admission.retryable) return;
-        if (timelineIdentity)
-          this.dependencies.operationTimeline?.emit(timelineIdentity.key, 'rejected', {
-            promptType: timelineIdentity.promptType,
-          });
-        if (admission.unboundServiceIds)
+        // A fresh signature can reconcile a previously committed input after its
+        // short-lived ingress authority expires. This returns evidence only; it cannot execute.
+        return this.reconcileCommittedInput(result.verified).then((replayed) => {
+          if (replayed) {
+            if (timelineIdentity) {
+              this.dependencies.operationTimeline?.markPartial(timelineIdentity.key);
+              this.dependencies.operationTimeline?.emit(
+                timelineIdentity.key,
+                replayed.status === 'REJECTED' ? 'rejected' : 'no_provider_output',
+                { promptType: timelineIdentity.promptType },
+              );
+            }
+            return replayed;
+          }
+          if (admission.retryable) return;
+          if (timelineIdentity)
+            this.dependencies.operationTimeline?.emit(timelineIdentity.key, 'rejected', {
+              promptType: timelineIdentity.promptType,
+            });
+          if (admission.unboundServiceIds)
+            return {
+              status: 'REJECTED',
+              stage: 'ADMISSION',
+              reason: 'SERVICE_FOLDER_NOT_BOUND',
+              unboundServiceIds: admission.unboundServiceIds,
+            } satisfies AgentOperationDispatchAcknowledgement;
           return {
             status: 'REJECTED',
             stage: 'ADMISSION',
-            reason: 'SERVICE_FOLDER_NOT_BOUND',
-            unboundServiceIds: admission.unboundServiceIds,
+            reason: 'AUTHORIZATION_REJECTED',
           } satisfies AgentOperationDispatchAcknowledgement;
+        });
+      })
+      .catch((error) => {
+        if (isAxiosError(error) && (!error.response || error.response.status >= 500)) {
+          throw error;
+        }
+        logger.error('trigger-verification.request_failed', { error });
         return {
           status: 'REJECTED',
-          stage: 'ADMISSION',
-          reason: 'AUTHORIZATION_REJECTED',
+          stage: 'EXECUTION',
+          reason: 'INTERNAL_ERROR',
         } satisfies AgentOperationDispatchAcknowledgement;
+      })
+      .then(async (outcome) => {
+        if (outcome?.status === 'REJECTED' && result.verified.kind === 'trigger.conversation') {
+          const { organizationId, projectId, conversationId } = result.verified.frame;
+          if (projectId && conversationId) {
+            const serviceNames: string[] = [];
+            if (outcome.reason === 'SERVICE_FOLDER_NOT_BOUND') {
+              for (const serviceId of outcome.unboundServiceIds ?? []) {
+                try {
+                  const service = await this.dependencies.servicesApi.getService({
+                    organizationId,
+                    serviceId,
+                  });
+                  if (service.data.data) {
+                    serviceNames.push(service.data.data.name);
+                  }
+                } catch (error) {
+                  logger.warn('trigger-verification.service_name_unavailable', {
+                    serviceId,
+                    error,
+                  });
+                }
+              }
+            }
+            await this.dependencies.dropSurfacing.poster.postFailureMessage({
+              organizationId,
+              projectId,
+              conversationId,
+              reason: outcome.reason,
+              serviceNames,
+            });
+          }
+        }
+        return outcome;
       });
-    });
   }
 
   private async reconcileCommittedInput(

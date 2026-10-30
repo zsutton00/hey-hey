@@ -26,6 +26,7 @@ import { buildStartingMessage as buildStartingMessageForPromptType } from '../pr
 
 export const quickHandler: UserLaunchablePromptTypeHandler<LocalQuickPromptPayload> = {
   id: 'quick',
+  handsOffOrdinaryReplies: true,
   promptType: LocalPromptType.Quick,
   service: 'required',
   launchEntity: 'required',

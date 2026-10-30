@@ -1,3 +1,4 @@
+import { readCreatedProposalIds } from '../../agents/platform-mcp-proxy/proposal-result';
 import { describe, expect, it, vi } from 'vitest';
 import { normalizeEvent } from '../normalize';
 import { handleAssistantComplete } from './assistant-complete';
@@ -5,7 +6,10 @@ import { makePoster, makeDeps, makeTestRun, makeTestTurn } from './__test-utils'
 import { createTestReportSyncService } from '../run.test-support';
 import type { LocalAgentOutputEvent, AssistantCompleteEvent } from '../types';
 import type { PromptTypeHandler } from '../../agents/prompt-type-handler';
-import { createOnCompleteTestDeps } from '../../agents/prompt-type-handler.test-support';
+import {
+  createOnCompleteTestDeps,
+  createPromptTypeHandlerTestRunStore,
+} from '../../agents/prompt-type-handler.test-support';
 import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
 import { FEATURE_SYNC_ACTIONS } from '../../agents/feature-sync/submission-tools';
 import { codingPlanHandler } from '../../agents/coding-plan/coding-plan.handler';
@@ -684,6 +688,38 @@ describe('assistant_complete end-to-end', () => {
     expect(poster.createOutOfBand).toHaveBeenCalledOnce();
   });
 
+  it('preserves completion and carryover when the local final-answer save fails', async () => {
+    const event = normalizeEvent(makeRawAssistantComplete('Final answer'), 'claude');
+    if (event.kind !== 'assistant_complete') {
+      throw new Error('Expected assistant completion');
+    }
+    const runStore = createPromptTypeHandlerTestRunStore();
+    const saveFailure = new Error('Disk unavailable');
+    vi.spyOn(runStore, 'updateRunFinalAssistantMessage').mockRejectedValue(saveFailure);
+    const ctx = makeTestRun({
+      persistenceStore: runStore,
+      lastProviderStreamMessage: 'Final answer',
+    });
+    const observeCommitted = vi.spyOn(ctx, 'observeFinalAssistantMessageCommitted');
+    const onComplete = vi.fn().mockResolvedValue(undefined);
+    const handler = { ...makeTestTurn().handler, onComplete };
+    const eventTurn = makeTestTurn(handler);
+    const deps = makeDeps();
+    deps.onCompleteDeps = createOnCompleteTestDeps({ logger: deps.logger, poster: deps.poster });
+
+    await expect(handleAssistantComplete(event, ctx, deps, eventTurn)).resolves.toBeUndefined();
+
+    expect(observeCommitted).toHaveBeenCalledWith(eventTurn.turnId, 'oob-msg-1');
+    expect(ctx.recordPreviousProviderSession).toHaveBeenCalledWith(
+      expect.objectContaining({ lastMessage: 'Final answer' }),
+    );
+    expect(onComplete).toHaveBeenCalledOnce();
+    expect(deps.logger.error).toHaveBeenCalledWith(
+      'local.handler.assistant_complete.persist_final_assistant_message_failed',
+      { runId: ctx.runId, error: saveFailure },
+    );
+  });
+
   it('persists a handler-owned typed terminal completion before releasing lifecycle effects', async () => {
     const event = normalizeEvent(
       makeRawAssistantComplete('validated coordinator output'),
@@ -1059,6 +1095,9 @@ describe('assistant_complete end-to-end', () => {
       },
       recordPendingCompletion,
     });
+    vi.spyOn(ctx, 'readCodingPlanElementTypes').mockReturnValue([
+      ExtendedUIFieldType.CodingPlanVersion,
+    ]);
 
     await handleAssistantComplete(
       normalizeEvent(makeRawAssistantComplete(summary), 'claude') as AssistantCompleteEvent,
@@ -1078,6 +1117,84 @@ describe('assistant_complete end-to-end', () => {
     expect(outOfBandDto(poster).data?.['responseType']).toBeUndefined();
     expect(outOfBandDto(poster).data?.['uiElements']).toBeUndefined();
     expect(recordPendingCompletion).not.toHaveBeenCalled();
+  });
+
+  describe('Coding Plan turn that ends without saving a plan', () => {
+    const complete = async (
+      summary: string,
+      saved: string[] = [],
+      payload: unknown = { _hasSavedPlanVersion: false },
+    ) => {
+      const poster = makePoster();
+      const turn = makeTestTurn(
+        codingPlanHandler as unknown as PromptTypeHandler<unknown>,
+        'turn-1',
+        null,
+        payload,
+      );
+      // Save through the Run's real planning-element path so it records the Turn.
+      const ctx = makeTestRun({ activeTurn: turn });
+      for (const type of saved) {
+        if (type === 'coding_plan_question') await ctx.persistCodingPlanQuestion('Which Services?');
+        else await ctx.persistCodingPlanElement(type as ExtendedUIFieldType, {} as never);
+      }
+      await handleAssistantComplete(
+        normalizeEvent(makeRawAssistantComplete(summary), 'claude') as AssistantCompleteEvent,
+        ctx,
+        makeDeps(poster),
+        turn,
+      );
+      return { poster, turn };
+    };
+
+    const NOTICE =
+      "**The plan wasn't saved, so it can't be approved yet. Reply to try saving it again.**";
+
+    it('leads the reply with a notice and keeps the session usable when the plan went to chat instead', async () => {
+      const summary =
+        "I couldn't record this plan in the app. The emit_coding_plan tools aren't loaded.\n\n# Plan\n1. Do it.";
+      const { poster, turn } = await complete(summary);
+
+      expect(poster.createOutOfBand).toHaveBeenCalledOnce();
+      expect(outOfBandDto(poster)).toMatchObject({
+        status: MessageStatus.Completed,
+        data: { type: SystemMessageDataTypeEnum.Agent, response: `${NOTICE}\n\n${summary}` },
+      });
+      // The Turn completes, so the user's next reply starts a fresh planning attempt.
+      expect(turn.completedAssistantMessageId).not.toBeNull();
+      expect(turn.completionPublicationFailed).toBe(false);
+      expect(turn.terminalOutcome).not.toBe('FAILED');
+    });
+
+    it('flags a plan printed in chat even when it contains question marks', async () => {
+      const { poster } = await complete(
+        '# Plan\n\n## Open questions?\n\nShould retries back off? See https://example.test/docs?page=2.\n\n1. Add the endpoint.\n2. Add tests.',
+      );
+
+      expect(String(outOfBandDto(poster).data?.['response'])).toMatch(/^\*\*The plan wasn't saved/);
+    });
+
+    it.each([
+      ['a plan already exists', 'Agreed, that stays the same.', [], { _hasSavedPlanVersion: true }],
+      [
+        'the planner asked a question',
+        'I asked one question above.',
+        ['coding_plan_question'],
+        undefined,
+      ],
+    ])('ends normally when %s', async (_case, summary, saved, payload) => {
+      const { poster, turn } = await complete(
+        summary,
+        saved,
+        payload ?? { _hasSavedPlanVersion: false },
+      );
+
+      expect(outOfBandDto(poster)).toMatchObject({
+        status: MessageStatus.Completed,
+        data: { response: summary },
+      });
+      expect(turn.completedAssistantMessageId).not.toBeNull();
+    });
   });
 
   it('posts only the plan message when a startup_plan_v1 body has no nextAction (first-turn shape)', async () => {
@@ -1544,6 +1661,11 @@ describe('assistant_complete end-to-end', () => {
     };
     expect(recorded.promptType).toBe('coding_freeform');
     expect(recorded.lastMessage).toBe('Done. Touched src/foo.ts.');
+    expect(ctx.session.finalAssistantMessage).toMatchObject({
+      turnId: eventTurn.turnId,
+      messageId: 'oob-msg-1',
+      text: 'Done. Touched src/foo.ts.',
+    });
   });
 
   it('records the captured stream text (not the rendered markdown) for a startup_plan_v1 dispatch', async () => {
@@ -1796,4 +1918,57 @@ describe('assistant_complete end-to-end', () => {
     // lookup for prompt-B would have missed.
     expect(onCompleteA).toHaveBeenCalledOnce();
   });
+});
+
+it('attaches the actual future proposal card to the final plan-shaping review message', async () => {
+  const proposalId = '11111111-1111-4111-8111-111111111111';
+  const futureId = '22222222-2222-4222-8222-222222222222';
+  const poster = makePoster();
+  const ctx = makeTestRun({
+    lastSubmissionAction: { action: FEATURE_SYNC_ACTIONS.REVISED, payload: { discrepancies: [] } },
+  });
+  const turn = makeTestTurn({
+    promptType: LocalPromptType.PlanShapingFeatureSyncIterate,
+  } as PromptTypeHandler<unknown>);
+  const ids = readCreatedProposalIds('propose_future_revision', {
+    statusCode: 200,
+    body: {
+      jsonrpc: '2.0',
+      id: 1,
+      result: {
+        structuredContent: {
+          status: 'proposed',
+          proposalId,
+          futureId,
+          operation: 'REVISE',
+          targetEntityType: 'TASK',
+          targetEntityId: '33333333-3333-4333-8333-333333333333',
+        },
+      },
+    },
+  });
+  for (const id of ids) turn.recordCreatedProposal(id);
+  await handleAssistantComplete(
+    normalizeEvent(
+      makeRawAssistantComplete('Review the planned knowledge.'),
+      'claude',
+    ) as AssistantCompleteEvent,
+    ctx,
+    makeDeps(poster),
+    turn,
+  );
+  expect(poster.createOutOfBand).toHaveBeenCalledWith(
+    expect.objectContaining({
+      dto: expect.objectContaining({
+        proposalIds: [proposalId],
+        data: expect.objectContaining({
+          type: SystemMessageDataTypeEnum.Questions,
+          actionHint: 'task_complete',
+          uiElements: expect.arrayContaining([
+            expect.objectContaining({ type: ExtendedUIFieldType.PlanShapingFeatureSyncReview }),
+          ]),
+        }),
+      }),
+    }),
+  );
 });

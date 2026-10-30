@@ -51,6 +51,7 @@ export interface SearchStageRecord {
 export interface SearchStageResult {
   /** Read-and-kept entities: where the walk starts from. */
   seeds: LoadedEntity[];
+  hits: ReadonlyMap<string, TitledRef>;
   /** Every distinct entity the searches returned, the focal excluded. */
   surfacedIds: string[];
   /** The surfaced entities that were read and sent to Jev. */
@@ -101,7 +102,18 @@ export const runSearchStage = async (input: SearchStageInput): Promise<SearchSta
       ms: Date.now() - searchStartedAt,
     });
     for (const hit of hits) {
-      if (hit.id !== input.focalId && !surfaced.has(hit.id)) surfaced.set(hit.id, hit);
+      if (hit.id === input.focalId) {
+        continue;
+      }
+      const previous = surfaced.get(hit.id);
+      if (!previous || (!previous.matchSpans?.length && hit.matchSpans?.length)) {
+        surfaced.set(hit.id, hit);
+      } else if (previous.indexedText === hit.indexedText && hit.matchSpans) {
+        surfaced.set(hit.id, {
+          ...previous,
+          matchSpans: [...(previous.matchSpans ?? []), ...hit.matchSpans],
+        });
+      }
     }
   }
   const keepStartedAt = Date.now();
@@ -136,6 +148,7 @@ export const runSearchStage = async (input: SearchStageInput): Promise<SearchSta
     focal: input.focal,
     ask: input.ask,
     ids: openedIds,
+    hits: surfaced,
     reader,
     ...(input.signal ? { signal: input.signal } : {}),
   });
@@ -150,6 +163,7 @@ export const runSearchStage = async (input: SearchStageInput): Promise<SearchSta
   });
   return {
     seeds: check.kept,
+    hits: surfaced,
     trace,
     surfacedIds: ids,
     openedIds,

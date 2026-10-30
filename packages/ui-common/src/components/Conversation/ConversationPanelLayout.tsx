@@ -59,6 +59,7 @@ export const ConversationPanelLayout: React.FC<
   const theme = useTheme();
   const isStacked = useMediaQuery(theme.breakpoints.down("md"));
 
+  const hasRightContent = rightContent != null;
   const conversationWidth = isExpanded ? expandedWidth : collapsedWidth;
   const stickyMaxHeight = `calc(100vh - ${stickyTop + bottomPadding}px)`;
 
@@ -72,7 +73,7 @@ export const ConversationPanelLayout: React.FC<
         gap: 2,
         height: isStacked ? "auto" : "100%",
         minHeight: 0,
-        maxWidth: "1600px",
+        maxWidth: hasRightContent ? "1600px" : "100%",
         width: "100%",
       }}
     >
@@ -80,7 +81,13 @@ export const ConversationPanelLayout: React.FC<
       <Box
         data-testid="conversation-layout-left-panel"
         sx={{
-          flex: isStacked ? "0 0 auto" : isExpanded ? "0 0 30%" : "0 0 60%",
+          flex: !hasRightContent
+            ? "1 1 100%"
+            : isStacked
+              ? "0 0 auto"
+              : isExpanded
+                ? "0 0 30%"
+                : "0 0 60%",
           display: "flex",
           flexDirection: "column",
           minWidth: 0,
@@ -92,29 +99,31 @@ export const ConversationPanelLayout: React.FC<
       </Box>
 
       {/* Right Panel - Conversation */}
-      <Box
-        data-testid="conversation-layout-right-panel"
-        data-conversation-scroll-container="true"
-        sx={{
-          flex: isStacked ? "0 0 auto" : `0 0 ${conversationWidth}`,
-          display: "flex",
-          flexDirection: "column",
-          minWidth: 0,
-          width: "100%",
-          maxWidth: isStacked ? "100%" : conversationWidth,
-          transition: "flex 0.3s ease-in-out, max-width 0.3s ease-in-out",
-          ...(enableSticky &&
-            !isStacked && {
-              position: "sticky",
-              top: stickyTop,
-              alignSelf: "flex-start",
-              maxHeight: stickyMaxHeight,
-              overflowY: "auto",
-            }),
-        }}
-      >
-        {rightContent}
-      </Box>
+      {hasRightContent && (
+        <Box
+          data-testid="conversation-layout-right-panel"
+          data-conversation-scroll-container="true"
+          sx={{
+            flex: isStacked ? "0 0 auto" : `0 0 ${conversationWidth}`,
+            display: "flex",
+            flexDirection: "column",
+            minWidth: 0,
+            width: "100%",
+            maxWidth: isStacked ? "100%" : conversationWidth,
+            transition: "flex 0.3s ease-in-out, max-width 0.3s ease-in-out",
+            ...(enableSticky &&
+              !isStacked && {
+                position: "sticky",
+                top: stickyTop,
+                alignSelf: "flex-start",
+                maxHeight: stickyMaxHeight,
+                overflowY: "auto",
+              }),
+          }}
+        >
+          {rightContent}
+        </Box>
+      )}
     </Box>
   );
 };

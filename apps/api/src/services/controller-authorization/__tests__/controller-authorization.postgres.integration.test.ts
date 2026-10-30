@@ -1,3 +1,4 @@
+import { hashControllerAction } from '../../../generated/controller-action-contract';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
 import * as crypto from 'node:crypto';
@@ -128,13 +129,20 @@ describeDatabase(
           expiresAt: new Date(Date.now() + 60_000),
         }),
       } as any;
-      grantService = new ExecutionGrantService(prisma, browserBindingService);
       authorizationService = new ControllerAuthorizationService(
         prisma,
         { isPresent: jest.fn().mockResolvedValue(true) } as any,
         verifier,
         webauthnConfig,
         browserBindingService,
+        {
+          resolveStartRunConfiguration: jest.fn().mockResolvedValue(undefined),
+        } as any,
+      );
+      grantService = new ExecutionGrantService(
+        prisma,
+        browserBindingService,
+        authorizationService,
       );
       logSpy = jest
         .spyOn(Logger.prototype, 'log')
@@ -507,7 +515,7 @@ describeDatabase(
       expect(fixture.controller.id).not.toBe(fixture.controller.credentialId);
       const cadence = ControllerAuthorizationCadence.FiveMinutes;
       const policyRevision = CONTROLLER_DEVICE_POLICY_REVISION;
-      const actionPayloadHash = sha256Hex(canonicalizeJcs(action));
+      const actionPayloadHash = hashControllerAction(action);
       const allowedActions =
         action.actionCategory === HostActionCategory.Conversation
           ? [

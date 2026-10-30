@@ -72,17 +72,14 @@ function createProvider(
   opts: {
     proposalCreate?: jest.Mock;
     taskFindOne?: jest.Mock;
-    proposalCreateBatch?: jest.Mock;
     markNeedsRevision?: jest.Mock;
     consumeRecovery?: jest.Mock;
   } = {},
 ) {
   const proposalCreate = opts.proposalCreate ?? jest.fn();
   const taskFindOne = opts.taskFindOne ?? jest.fn();
-  const proposalCreateBatch = opts.proposalCreateBatch ?? jest.fn();
   const proposalService = {
     create: proposalCreate,
-    createBatch: proposalCreateBatch,
     findOne: jest.fn(),
   } as unknown as ProposalService;
   const taskService = {
@@ -124,7 +121,6 @@ function createProvider(
     provider,
     proposalCreate,
     taskFindOne,
-    proposalCreateBatch,
     markNeedsRevision,
     consumeRecovery,
   };
@@ -763,88 +759,5 @@ describe('proposal-tool lint v1 — telemetry', () => {
       );
     expect(cleanEntry).toBeDefined();
     expect(cleanEntry).toContain('recovery=true');
-  });
-});
-
-describe('proposal-tool lint v1 — batch handlers preserve their legacy shape', () => {
-  beforeEach(() => jest.clearAllMocks());
-
-  it('edit_tasks returns the legacy envelope unchanged', async () => {
-    const taskFindOne = jest
-      .fn()
-      .mockResolvedValue({ id: TASK_ID, type: 'STANDARD' });
-    const proposalCreateBatch = jest
-      .fn()
-      .mockResolvedValue([
-        makeProposal({ action: 'UPDATE', updates: { name: 'New' } }),
-      ]);
-    const { provider } = createProvider({
-      taskFindOne,
-      proposalCreateBatch,
-    });
-
-    const result = (await provider.editTasks(
-      {
-        edits: [
-          {
-            eli5: 'Explains the proposed change.',
-            taskId: TASK_ID,
-            sections: [{ key: 'description', content: FOUR_PARAGRAPHS }],
-            guidanceToken: guidanceTokenForType('STANDARD', PROJECT_ID),
-          },
-        ],
-      },
-      {} as any,
-      makeRequest(),
-    )) as any;
-
-    expect(result.proposals).toHaveLength(1);
-    expect(result.proposals[0].id).toBe(PROPOSAL_ID);
-    expect(proposalCreateBatch).toHaveBeenCalledTimes(1);
-  });
-
-  it('edit_tasks forwards serviceIds for BUG entries', async () => {
-    const serviceId = '00000000-0000-4000-8000-000000000060';
-    const taskFindOne = jest
-      .fn()
-      .mockResolvedValue({ id: BUG_ID, type: 'BUG' });
-    const proposalCreateBatch = jest.fn().mockResolvedValue([
-      makeProposal({
-        action: 'UPDATE',
-        targetEntityId: BUG_ID,
-        updates: { serviceIds: [serviceId] },
-      }),
-    ]);
-    const { provider } = createProvider({
-      taskFindOne,
-      proposalCreateBatch,
-    });
-
-    await provider.editTasks(
-      {
-        edits: [
-          {
-            eli5: 'Explains the proposed change.',
-            taskId: BUG_ID,
-            serviceIds: [serviceId],
-            guidanceToken: guidanceTokenForType('BUG', PROJECT_ID),
-          },
-        ],
-      },
-      {} as any,
-      makeRequest(),
-    );
-
-    expect(proposalCreateBatch).toHaveBeenCalledWith(
-      ORG_ID,
-      PROJECT_ID,
-      'u1',
-      expect.arrayContaining([
-        expect.objectContaining({
-          targetEntityId: BUG_ID,
-          updates: { serviceIds: [serviceId] },
-        }),
-      ]),
-    );
   });
 });

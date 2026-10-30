@@ -100,7 +100,7 @@ function appendGuidanceToken(
     '',
     '## Proof-of-read token',
     '',
-    `\`create_work_item\`, \`edit_work_item\`, and \`edit_tasks\` require this`,
+    `\`create_work_item\` and \`edit_work_item\` require this`,
     'token whenever the proposal carries prose-quality content: a non-empty',
     '`sections` array, a non-empty `implementation` string, or FEATURE',
     'requirement authoring (`initialRequirements` / `requirementOps`). Pass it',

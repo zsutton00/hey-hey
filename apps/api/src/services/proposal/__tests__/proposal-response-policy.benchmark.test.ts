@@ -1,8 +1,16 @@
+import { ProposalReconciliationService } from '../proposal-reconciliation.service';
+import { ProposalReconciliationAdapterService } from '../proposal-reconciliation-adapter.service';
 import { performance } from 'node:perf_hooks';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 import { createDefaultProjectApprovalPolicy } from '../project-approval-policy.service';
 import { mapProposalResponse } from '../proposal-response-policy';
 import type { ProposalWithApprovals } from '../proposal.types';
+
+const reconciliation = new ProposalReconciliationService(
+  new ProposalReconciliationAdapterService({} as never, {} as never),
+  {} as never,
+  () => 'test',
+);
 
 const enabled = process.env.PROPOSAL_RESPONSE_BENCHMARK === '1';
 const run = enabled ? describe : describe.skip;
@@ -83,6 +91,9 @@ run('proposal authoring response mapping benchmark', () => {
       ] as const) {
         let relationReloads = 0;
         const tx = {
+          task: { findFirst: async () => null },
+          proposalGroupMember: { findUnique: async () => null },
+          proposalReconciliationRevision: { findMany: async () => [] },
           proposal: {
             findUnique: async () => {
               relationReloads++;
@@ -96,7 +107,7 @@ run('proposal authoring response mapping benchmark', () => {
             tx,
             input,
             createDefaultProjectApprovalPolicy(1),
-            { requiredApprovals: 1 },
+            { requiredApprovals: 1, reconciliation },
           );
         }
         measurements.push({

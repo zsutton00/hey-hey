@@ -14,6 +14,7 @@
 import { FeatureTag } from './featureTag';
 import { TaskPriority } from './taskPriority';
 import { TaskSectionInput } from './taskSectionInput';
+import { WorkItemChangeSetOperation } from './workItemChangeSetOperation';
 import { FeatureRequirementOperation } from './featureRequirementOperation';
 
 
@@ -29,6 +30,10 @@ export interface FutureWorkItemChanges {
     assigneeId?: string | null;
     parentTaskId?: string | null;
     sections?: Array<TaskSectionInput>;
+    /**
+     * Generic graph edits within the target root, its children and incident relationships. The root cannot be deleted or change type or status. Applied to the selected non-live graph, including during refinement.
+     */
+    operations?: Array<WorkItemChangeSetOperation>;
     requirementOps?: Array<FeatureRequirementOperation>;
 }
 export namespace FutureWorkItemChanges {

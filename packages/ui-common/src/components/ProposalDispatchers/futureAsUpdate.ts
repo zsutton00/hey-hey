@@ -80,7 +80,14 @@ export function futureBaselineContent(
     approved &&
     proposal.status !== ProposalStatus.Approved &&
     approved.latestProposalId !== proposal.id;
-  return refining ? approved.result : live;
+  if (refining) return approved.result;
+  if (
+    proposal.updates.operation === "REVISE" &&
+    "type" in proposal.updates.baseline.content &&
+    proposal.updates.baseline.content.graph
+  )
+    return proposal.updates.baseline.content;
+  return live;
 }
 
 /**

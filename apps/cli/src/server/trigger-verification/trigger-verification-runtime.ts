@@ -35,6 +35,7 @@ export interface TriggerVerificationRuntimeDependencies {
   keyPairStore: KeyPairStore;
   initialAccessToken: string;
   machinesApi: ApiRuntime['clients']['machines'];
+  servicesApi: Pick<ApiRuntime['clients']['services'], 'getService'>;
   runStore: RunStore;
   agentService: LocalAgentService;
   promptTypeRegistry: PromptTypeRegistry;
@@ -163,6 +164,7 @@ export class TriggerVerificationRuntime {
       logger,
     });
     this.router = new TriggerFrameRouter({
+      servicesApi: this.dependencies.servicesApi,
       ...(this.dependencies.diagnosticFeed
         ? { diagnosticFeed: this.dependencies.diagnosticFeed }
         : {}),

@@ -166,7 +166,7 @@ describe('reviewHandler', () => {
 
   it('uses the same prompt path for an optional empty focus message', () => {
     const prompt = reviewHandler.buildPrompt({ userMessage: '' });
-    expect(prompt).toContain('# Review & Fix');
+    expect(prompt).toContain('# Review');
     expect(prompt).not.toContain('Terminal Policy Context');
     expect(prompt).not.toContain('## User Focus');
   });
@@ -193,6 +193,6 @@ describe('reviewHandler', () => {
     });
 
     expect(prompt).not.toContain('The user approved this one request');
-    expect(prompt).toContain('without individual-file approval');
+    expect(prompt).toContain('neither this list nor approved Service workspace roots authorize edits');
   });
 });

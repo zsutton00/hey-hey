@@ -1,24 +1,25 @@
 import type { ProjectModeSettings } from '../../generated';
+import { WORK_ITEM_TYPE_KEYS } from './work-item-type-keys';
 
-export type ProjectModeEligibleTypeSource =
-  | 'mode-settings'
-  | 'legacy-type-guidance';
+export type ProjectModeEligibleTypeSource = 'mode-settings' | 'default';
+
+/**
+ * MODEs whose settings omit eligibleWorkItemTypeKeys apply to STANDARD work
+ * items only, the canonical applicability before per-MODE lists existed, so a
+ * missing list never silently widens access.
+ */
+export const DEFAULT_PROJECT_MODE_ELIGIBLE_TYPE_KEYS: readonly string[] = [
+  WORK_ITEM_TYPE_KEYS.Standard,
+];
 
 /**
  * Single source of a MODE's eligible work-item type keys, shared by the
- * eligibility policy and session capture. The per-MODE settings list wins;
- * MODEs without it keep the legacy shared agent-guidance derivation so
- * rollout never silently widens access.
+ * eligibility policy and session capture.
  */
-export function resolveProjectModeEligibleWorkItemTypeKeys(params: {
-  modeTypeDefinition: {
-    agentGuidance?: {
-      contexts?: Array<{ focalTypeKeys: string[] }> | null;
-    } | null;
-  };
-  settings: Pick<ProjectModeSettings, 'eligibleWorkItemTypeKeys'> | null;
-}): { keys: string[]; source: ProjectModeEligibleTypeSource } {
-  const perMode = params.settings?.eligibleWorkItemTypeKeys;
+export function resolveProjectModeEligibleWorkItemTypeKeys(
+  settings: Pick<ProjectModeSettings, 'eligibleWorkItemTypeKeys'> | null,
+): { keys: string[]; source: ProjectModeEligibleTypeSource } {
+  const perMode = settings?.eligibleWorkItemTypeKeys;
   if (perMode !== undefined && perMode !== null) {
     return {
       keys: Array.from(new Set(perMode)).sort(),
@@ -26,13 +27,7 @@ export function resolveProjectModeEligibleWorkItemTypeKeys(params: {
     };
   }
   return {
-    keys: Array.from(
-      new Set(
-        (params.modeTypeDefinition.agentGuidance?.contexts ?? []).flatMap(
-          (context) => context.focalTypeKeys,
-        ),
-      ),
-    ).sort(),
-    source: 'legacy-type-guidance',
+    keys: [...DEFAULT_PROJECT_MODE_ELIGIBLE_TYPE_KEYS],
+    source: 'default',
   };
 }

@@ -1,8 +1,10 @@
+import { ModalProvider } from "../../../contexts/ModalContext";
+import { TestDiscussHost } from "../../../test/DiscussTestHost";
 import React from "react";
 import {
   act,
   fireEvent,
-  render,
+  render as renderView,
   screen,
   waitFor,
 } from "@testing-library/react";
@@ -224,6 +226,7 @@ function renderSurface(runtime: GuidedWalkthroughRuntime) {
           />
           <CapsuleButtons />
         </ActionsCapsuleProvider>
+        <TestDiscussHost />
       </GuidedWalkthroughProvider>
     </ThemeProvider>,
   );
@@ -297,6 +300,7 @@ describe("Explorer row target", () => {
         >
           <span>Inert row</span>
         </InteractionComponent>
+        <TestDiscussHost />
       </GuidedWalkthroughProvider>,
     );
     expect(
@@ -473,3 +477,6 @@ describe("Use our suggestion", () => {
     );
   });
 });
+
+const render: typeof renderView = (ui, options) =>
+  renderView(ui, { ...options, wrapper: ModalProvider });

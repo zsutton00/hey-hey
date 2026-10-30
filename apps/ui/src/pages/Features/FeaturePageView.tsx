@@ -1,10 +1,10 @@
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import type { PlanWorkItem } from "@hey-hey/ui-common/data";
 import { CreateFeaturePlanButton } from "../../components/Plans/CreateFeaturePlanButton";
 import {
   Box,
   Button,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
@@ -848,7 +848,7 @@ export const FeaturePageView: React.FC<FeaturePageViewProps> = ({
                             child,
                             {
                               projectId,
-                              initiativeId: child.initiativeId,
+                              initiativeId: child.initiativeId ?? undefined,
                             },
                           );
                           return (
@@ -1127,6 +1127,15 @@ export const FeaturePageView: React.FC<FeaturePageViewProps> = ({
                 sx: { height: "90vh", maxWidth: "95vw" },
               },
             }}
+            closeControl={
+              <IconButton
+                onClick={onCloseTreeModal}
+                size="small"
+                aria-label={t("common.close", "Close")}
+              >
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            }
           >
             <DialogTitle
               sx={{
@@ -1136,13 +1145,6 @@ export const FeaturePageView: React.FC<FeaturePageViewProps> = ({
               }}
             >
               {t("features.featureTree", "Feature Tree")}
-              <IconButton
-                onClick={onCloseTreeModal}
-                size="small"
-                aria-label={t("common.close", "Close")}
-              >
-                <CloseIcon fontSize="small" />
-              </IconButton>
             </DialogTitle>
             <DialogContent sx={{ p: 0, overflow: "hidden" }}>
               <Box sx={{ height: "100%", width: "100%" }}>

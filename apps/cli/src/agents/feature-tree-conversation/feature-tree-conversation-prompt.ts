@@ -1,6 +1,11 @@
 import type { AgentEdgeResponseDto, FeatureSkeletonNode } from '../../shared/api/generated/api';
 import { AgentEdgeType } from '../../shared/api/generated/api';
-import { customTypeDrafting, futureRevisionAuthoring, planVsTasksFork } from '../prompts/common';
+import {
+  customTypeDrafting,
+  futureRevisionAuthoring,
+  futureRevisionTimingQuestion,
+  planVsTasksFork,
+} from '../prompts/common';
 
 export interface BuildFeatureTreeConversationPromptInput {
   skeleton: ReadonlyArray<FeatureSkeletonNode>;
@@ -119,6 +124,8 @@ When the mode is engaged:
 ${planVsTasksFork}
 
 ${futureRevisionAuthoring}
+
+${futureRevisionTimingQuestion}
 
 ${customTypeDrafting}
 `;

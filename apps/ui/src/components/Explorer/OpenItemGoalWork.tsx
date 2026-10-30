@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { createOpenItemEntity } from "@hey-hey/ui-common";
 import {
   Alert,
   Box,
@@ -28,8 +29,7 @@ const toOpenItem = (work: TrackedEntitySnapshot): OpenItem | null => {
   const entityType = trackedEntityTypes[work.targetEntityType];
   return entityType
     ? {
-        entityId: work.targetEntityId,
-        entityType,
+        ...createOpenItemEntity(entityType, work.targetEntityId),
         title: work.title,
         lineage: undefined,
       }

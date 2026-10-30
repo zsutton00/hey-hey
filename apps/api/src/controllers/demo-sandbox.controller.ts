@@ -13,7 +13,6 @@ import { ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import {
   browserSessionRequestMetadata,
-  cookieAttributes,
   setBrowserSessionCookies,
 } from '../auth/browser-session-cookies';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -21,6 +20,7 @@ import { Public } from '../auth/decorators/public.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import type {
+  DemoSandboxAdmissionDto,
   DemoSandboxAvailabilityDto,
   DemoSandboxResponseDto,
   ProvisionDemoSandboxDto,
@@ -31,10 +31,8 @@ import {
   DemoSandboxRequestContext,
 } from '../services/demo-sandbox/demo-sandbox-admission.service';
 import { isDemoSandboxEnabled } from '../services/demo-sandbox/demo-sandbox-program.service';
-import {
-  DEMO_BINDING_COOKIE_MAX_AGE_MILLISECONDS,
-  DEMO_BINDING_COOKIE_NAME,
-} from '../services/demo-sandbox/demo-sandbox.constants';
+import { setDemoBindingCookie } from '../services/demo-sandbox/demo-binding-cookie';
+import { DEMO_BINDING_COOKIE_NAME } from '../services/demo-sandbox/demo-sandbox.constants';
 import { ProvisionDemoSandboxPipe } from './demo-sandbox.validation';
 
 @ApiTags('DemoSandboxes')
@@ -48,6 +46,7 @@ export class DemoSandboxController {
     return { available: isDemoSandboxEnabled() };
   }
 
+  /** 202 when a new sandbox was reserved; 200 for this browser's existing one. */
   @Public()
   @Post()
   @HttpCode(HttpStatus.OK)
@@ -55,11 +54,13 @@ export class DemoSandboxController {
     @Body(new ProvisionDemoSandboxPipe()) body: ProvisionDemoSandboxDto,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
-  ): Promise<DemoSandboxResponseDto> {
-    return this.publish(
-      response,
-      await this.admission.provision(body, this.context(request)),
+  ): Promise<DemoSandboxAdmissionDto> {
+    const admission = await this.admission.provision(
+      body,
+      this.context(request),
     );
+    if (admission.bindingSecret) response.status(HttpStatus.ACCEPTED);
+    return this.publish(response, admission);
   }
 
   @Public()
@@ -68,7 +69,7 @@ export class DemoSandboxController {
   async resume(
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
-  ): Promise<DemoSandboxResponseDto> {
+  ): Promise<DemoSandboxAdmissionDto> {
     return this.publish(
       response,
       await this.admission.resume(this.context(request)),
@@ -92,18 +93,21 @@ export class DemoSandboxController {
     };
   }
 
-  /** Called only after the admission transaction has committed. */
+  /**
+   * Called only after the admission transaction has committed. The binding
+   * cookie is published with the reservation; a session only for an ACTIVE
+   * sandbox.
+   */
   private publish(
     response: Response,
     admission: DemoSandboxAdmission,
-  ): DemoSandboxResponseDto {
-    setBrowserSessionCookies(response, admission.session);
-    if (admission.bindingSecret) {
-      response.cookie(DEMO_BINDING_COOKIE_NAME, admission.bindingSecret, {
-        ...cookieAttributes('/'),
-        maxAge: DEMO_BINDING_COOKIE_MAX_AGE_MILLISECONDS,
-      });
+  ): DemoSandboxAdmissionDto {
+    if (admission.session) {
+      setBrowserSessionCookies(response, admission.session);
     }
-    return admission.sandbox;
+    if (admission.bindingSecret) {
+      setDemoBindingCookie(response, admission.bindingSecret);
+    }
+    return admission.admission;
   }
 }

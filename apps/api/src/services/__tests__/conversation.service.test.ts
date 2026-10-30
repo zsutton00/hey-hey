@@ -173,6 +173,31 @@ describe('ConversationService', () => {
   });
 
   describe('createConversation', () => {
+    it('defaults new conversations to restricted and returns the stored flag on reads', async () => {
+      const create = jest
+        .spyOn(prismaService.db.conversation, 'create')
+        .mockResolvedValue(mockDbConversation);
+
+      const created = await service.createConversation(
+        mockCreateConversationDto,
+        mockOrganizationId,
+      );
+      expect(created?.restricted).toBe(true);
+
+      expect(create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ restricted: true }),
+      });
+      jest
+        .spyOn(prismaService.db.conversation, 'findFirst')
+        .mockResolvedValue(mockDbConversation);
+      const read = await service.getConversation(
+        mockConversationId,
+        mockOrganizationId,
+      );
+      expect(read?.restricted).toBe(true);
+      expect(read).not.toHaveProperty('messages');
+    });
+
     it('should create a conversation', async () => {
       jest
         .spyOn(prismaService.db.conversation, 'create')

@@ -65,16 +65,13 @@ function makeProposal(overrides: Record<string, any> = {}) {
 function createProvider(
   opts: {
     proposalCreate?: jest.Mock;
-    proposalCreateBatch?: jest.Mock;
     taskFindOne?: jest.Mock;
   } = {},
 ) {
   const proposalCreate = opts.proposalCreate ?? jest.fn();
-  const proposalCreateBatch = opts.proposalCreateBatch ?? jest.fn();
   const taskFindOne = opts.taskFindOne ?? jest.fn();
   const proposalService = {
     create: proposalCreate,
-    createBatch: proposalCreateBatch,
     findOne: jest.fn(),
   } as unknown as ProposalService;
   const taskService = {
@@ -100,7 +97,7 @@ function createProvider(
     workItemTypeRegistry,
     prisma,
   );
-  return { provider, proposalCreate, proposalCreateBatch, taskFindOne };
+  return { provider, proposalCreate, taskFindOne };
 }
 
 // edit_work_item replaced the per-type edit tools: instead of redirecting a
@@ -330,231 +327,4 @@ describe('ProposalToolsProvider.editWorkItem per-type rules', () => {
       expect((result as any).workItemType).toBe(type);
     },
   );
-});
-
-describe('ProposalToolsProvider.editTasks cross-type guard', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('rejects the whole batch when one entry targets a FEATURE', async () => {
-    const taskFindOne = jest
-      .fn()
-      .mockImplementation((_org: string, id: string) => {
-        if (id === TASK_ID) return Promise.resolve({ id, type: 'STANDARD' });
-        if (id === FEATURE_ID) return Promise.resolve({ id, type: 'FEATURE' });
-        return Promise.resolve(null);
-      });
-    const proposalCreateBatch = jest.fn();
-    const { provider } = createProvider({
-      proposalCreateBatch,
-      taskFindOne,
-    });
-
-    const result = await provider.editTasks(
-      {
-        edits: [
-          { taskId: TASK_ID, name: 'Fine update' },
-          { taskId: FEATURE_ID, name: 'Wrong type' },
-        ],
-      } as any,
-      {} as any,
-      makeRequest(),
-    );
-
-    expect((result as any).isError).toBe(true);
-    const text = (result as any).content[0].text as string;
-    expect(text).toContain('Validation failed');
-    expect(text).toContain('is a FEATURE');
-    expect(text).toContain('edit_work_item');
-    expect(proposalCreateBatch).not.toHaveBeenCalled();
-  });
-
-  it('rejects the whole batch when one entry targets a GOAL', async () => {
-    const taskFindOne = jest
-      .fn()
-      .mockImplementation((_org: string, id: string) => {
-        if (id === TASK_ID) return Promise.resolve({ id, type: 'STANDARD' });
-        if (id === GOAL_ID) return Promise.resolve({ id, type: 'GOAL' });
-        return Promise.resolve(null);
-      });
-    const proposalCreateBatch = jest.fn();
-    const { provider } = createProvider({
-      proposalCreateBatch,
-      taskFindOne,
-    });
-
-    const result = await provider.editTasks(
-      {
-        edits: [
-          { taskId: TASK_ID, name: 'Fine update' },
-          { taskId: GOAL_ID, name: 'Wrong type' },
-        ],
-      } as any,
-      {} as any,
-      makeRequest(),
-    );
-
-    expect((result as any).isError).toBe(true);
-    const text = (result as any).content[0].text as string;
-    expect(text).toContain('is a GOAL');
-    expect(text).toContain('edit_work_item');
-    expect(proposalCreateBatch).not.toHaveBeenCalled();
-  });
-
-  it('rejects the batch when a BUG entry carries a section its type does not allow', async () => {
-    // Parity with edit_work_item: the batch tool runs the same
-    // config-driven per-type validation on its plain-task entries.
-    const BUG_ID = '00000000-0000-4000-8000-000000000013';
-    const taskFindOne = jest
-      .fn()
-      .mockImplementation((_org: string, id: string) => {
-        if (id === TASK_ID) return Promise.resolve({ id, type: 'STANDARD' });
-        if (id === BUG_ID) return Promise.resolve({ id, type: 'BUG' });
-        return Promise.resolve(null);
-      });
-    const proposalCreateBatch = jest.fn();
-    const { provider } = createProvider({
-      proposalCreateBatch,
-      taskFindOne,
-    });
-
-    const result = await provider.editTasks(
-      {
-        edits: [
-          { taskId: TASK_ID, name: 'Fine update' },
-          {
-            taskId: BUG_ID,
-            sections: [{ key: 'acceptanceCriteria', content: 'AC text' }],
-            guidanceToken: guidanceTokenForType('BUG', PROJECT_ID),
-          },
-        ],
-      } as any,
-      {} as any,
-      makeRequest(),
-    );
-
-    expect((result as any).isError).toBe(true);
-    const text = (result as any).content[0].text as string;
-    expect(text).toContain(`Work item ${BUG_ID} is a BUG.`);
-    // The batch error JSON-encodes per-entry messages, so match on
-    // quote-free fragments of the per-type section error.
-    expect(text).toContain('acceptanceCriteria');
-    expect(text).toContain('is not valid for BUG work items');
-    expect(proposalCreateBatch).not.toHaveBeenCalled();
-  });
-
-  it('accepts a BUG entry whose sections fit its type', async () => {
-    const BUG_ID = '00000000-0000-4000-8000-000000000013';
-    const taskFindOne = jest
-      .fn()
-      .mockResolvedValue({ id: BUG_ID, type: 'BUG' });
-    const proposalCreateBatch = jest
-      .fn()
-      .mockResolvedValue([
-        makeProposal({ targetEntityId: BUG_ID, updates: { sections: [] } }),
-      ]);
-    const { provider } = createProvider({
-      proposalCreateBatch,
-      taskFindOne,
-    });
-
-    const result = await provider.editTasks(
-      {
-        edits: [
-          {
-            taskId: BUG_ID,
-            sections: [{ key: 'description', content: 'Updated repro.' }],
-            guidanceToken: guidanceTokenForType('BUG', PROJECT_ID),
-          },
-        ],
-      } as any,
-      {} as any,
-      makeRequest(),
-    );
-
-    expect((result as any).isError).toBeUndefined();
-    expect(proposalCreateBatch).toHaveBeenCalledTimes(1);
-  });
-
-  it('rejects a sections-bearing entry with no token, naming the get_tool_guidance call', async () => {
-    // edit_tasks must not be an open lane for authoring prose without
-    // reading the per-type conventions — same proof-of-read gate as
-    // edit_work_item, validated against each entry's resolved type.
-    const taskFindOne = jest
-      .fn()
-      .mockResolvedValue({ id: TASK_ID, type: 'STANDARD' });
-    const proposalCreateBatch = jest.fn();
-    const { provider } = createProvider({ proposalCreateBatch, taskFindOne });
-
-    const result = await provider.editTasks(
-      {
-        edits: [
-          {
-            taskId: TASK_ID,
-            sections: [{ key: 'description', content: 'New body.' }],
-            // no guidanceToken
-          },
-        ],
-      } as any,
-      {} as any,
-      makeRequest(),
-    );
-
-    expect((result as any).isError).toBe(true);
-    const text = (result as any).content[0].text as string;
-    expect(text).toContain('guidanceToken');
-    expect(text).toContain(
-      'get_tool_guidance({ toolName: \\"edit_work_item\\", workItemType: \\"STANDARD\\" })',
-    );
-    expect(proposalCreateBatch).not.toHaveBeenCalled();
-  });
-
-  it('lets a scalar-only batch entry through with no token', async () => {
-    const taskFindOne = jest
-      .fn()
-      .mockResolvedValue({ id: TASK_ID, type: 'STANDARD' });
-    const proposalCreateBatch = jest
-      .fn()
-      .mockResolvedValue([makeProposal({ targetEntityId: TASK_ID })]);
-    const { provider } = createProvider({ proposalCreateBatch, taskFindOne });
-
-    const result = await provider.editTasks(
-      { edits: [{ taskId: TASK_ID, status: 'ACTIVE' }] } as any,
-      {} as any,
-      makeRequest(),
-    );
-
-    expect((result as any).isError).toBeUndefined();
-    expect(proposalCreateBatch).toHaveBeenCalledTimes(1);
-  });
-
-  it('rejects the batch when one entry targets a missing id', async () => {
-    const taskFindOne = jest
-      .fn()
-      .mockImplementation((_org: string, id: string) => {
-        if (id === TASK_ID) return Promise.resolve({ id, type: 'STANDARD' });
-        return Promise.resolve(null);
-      });
-    const proposalCreateBatch = jest.fn();
-    const { provider } = createProvider({
-      proposalCreateBatch,
-      taskFindOne,
-    });
-
-    const result = await provider.editTasks(
-      {
-        edits: [
-          { taskId: TASK_ID, name: 'Fine update' },
-          { taskId: MISSING_ID, name: 'Missing entity' },
-        ],
-      } as any,
-      {} as any,
-      makeRequest(),
-    );
-
-    expect((result as any).isError).toBe(true);
-    expect((result as any).content[0].text).toContain('not found');
-    expect(proposalCreateBatch).not.toHaveBeenCalled();
-  });
 });

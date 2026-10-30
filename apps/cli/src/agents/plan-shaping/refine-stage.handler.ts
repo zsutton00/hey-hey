@@ -61,6 +61,7 @@ export const planShapingRefineStageHandler: UserLaunchablePromptTypeHandler<Plan
     buildPrompt(payload: PlanShapingRefineStagePromptPayload, context): string {
       return buildRefineStagePrompt({
         taskId: taskIdFromHandlerContext(context),
+        provider: context?.provider,
         userMessage: payload.userMessage ?? null,
         planId: payload.planId,
         stageId: payload.stageId,

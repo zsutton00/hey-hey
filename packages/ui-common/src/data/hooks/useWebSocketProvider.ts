@@ -1,5 +1,5 @@
-import { QueryClientContext } from "@tanstack/react-query";
-import { useContext, useMemo, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useMemo, useEffect } from "react";
 import { useStore } from "jotai";
 import { WebSocketHandler } from "../websockets/handler";
 import { WebSocketService } from "../../services/webSocketService";
@@ -8,9 +8,8 @@ import { ToastService } from "../../services/toastService";
 
 export function useWebSocketProvider(): WebSocketService {
   const store = useStore(); // Get current Jotai store from React context
-  // Optional so a provider mounted outside QueryClientProvider still connects;
-  // the handler logs when it cannot invalidate TanStack-backed collections.
-  const queryClient = useContext(QueryClientContext);
+  // Realtime events reach the data layer only through this client.
+  const queryClient = useQueryClient();
 
   // Create handler with React store (no userId needed - handler manages its own auth)
   const webSocketHandler = useMemo(() => {

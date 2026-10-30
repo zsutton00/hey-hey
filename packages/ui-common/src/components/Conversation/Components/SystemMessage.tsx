@@ -1,3 +1,6 @@
+import { ProposalSuggestionReview } from "../../ProposalReconciliation/ProposalSuggestionReview";
+import { useModalState } from "../../Modals/useModalState";
+import { ModalWorkOwner } from "../../Modals/ModalWorkOwner";
 import type { AnimationConfig } from "../../../animations/config";
 import {
   Box,
@@ -7,7 +10,7 @@ import {
   type SxProps,
   type Theme,
 } from "@mui/material";
-import React, { Suspense, useMemo, useState } from "react";
+import React, { Suspense, useMemo } from "react";
 import type { Components } from "react-markdown";
 import { FadeIn } from "../../../animations";
 import type { SystemMessageData } from "../../../api";
@@ -152,7 +155,8 @@ const SystemMessageAnchor = ({
 }: SystemMessageAnchorProps) => {
   const theme = useTheme();
   const sourceReference = parseSystemMessageSourceReference(href);
-  const [isSetupOpen, setIsSetupOpen] = useState(false);
+  const [isSetupOpen, setIsSetupOpen, isSetupOpenOwnerKey] =
+    useModalState(false);
 
   if (!sourceReference) {
     return (
@@ -206,11 +210,13 @@ const SystemMessageAnchor = ({
           ...style,
         }}
       />
-      <ExternalEditorPreferenceDialog
-        open={isSetupOpen}
-        onCancel={() => setIsSetupOpen(false)}
-        onSaved={handleSaved}
-      />
+      <ModalWorkOwner.Provider value={isSetupOpenOwnerKey}>
+        <ExternalEditorPreferenceDialog
+          open={isSetupOpen}
+          onCancel={() => setIsSetupOpen(false)}
+          onSaved={handleSaved}
+        />
+      </ModalWorkOwner.Provider>
     </>
   );
 };
@@ -338,6 +344,9 @@ export const SystemMessage: React.FC<SystemMessageProps> = (props) => {
 
   return (
     <FadeIn duration="medium" layout={false}>
+      {messageData?.proposalSuggestion && (
+        <ProposalSuggestionReview suggestion={messageData.proposalSuggestion} />
+      )}
       {/* Show message content if available and not just an error */}
       {(displayText || hasInlineReports) && (
         <Box sx={composeSx(base, sx)} data-testid={`system-message-${type}`}>

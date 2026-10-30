@@ -6,6 +6,7 @@ import { dailySessionHandler } from './daily-session/daily-session.handler';
 import type { RepositoryGroundingRequest } from '../shared/agent-bridge-contract/generated';
 import { resolveSelectedProviderId } from '../server/runtime/providers/select';
 import { freeFormHandler } from './coding-conversation';
+import { EVAL_CONSUMER_HANDLER_IDS } from './run-eval/eval-targets';
 
 describe('prompt-type-registry', () => {
   const registry = new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES);
@@ -280,6 +281,15 @@ describe('prompt-type-registry', () => {
       workItemProposalMode: 'none',
     });
     expect(registry.get(LocalPromptType.CodingFreeform)?.projectAssistant).toBeUndefined();
+  });
+
+  it('offers evals exactly the registered handlers whose Project Assistant policy is fixed', () => {
+    const declaringHandlerIds = registry
+      .list()
+      .filter((handler) => handler.projectAssistant && !handler.resolveProjectAssistant)
+      .map((handler) => handler.id);
+
+    expect([...EVAL_CONSUMER_HANDLER_IDS].sort()).toEqual(declaringHandlerIds.sort());
   });
 
   it('registers Verify Feature as its own Feature-only mode with its own provider-session identity', () => {

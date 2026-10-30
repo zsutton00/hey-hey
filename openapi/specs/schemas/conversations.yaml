@@ -6,6 +6,7 @@ ConversationResponseDto:
   required:
     - id
     - createdBy
+    - restricted
     - projectId
     - organizationId
     - initiatedBy
@@ -17,6 +18,9 @@ ConversationResponseDto:
   properties:
     id:
       $ref: "./common.yaml#/ConversationId"
+    restricted:
+      type: boolean
+      description: Whether only the creator may read this conversation.
     createdBy:
       type: string
       nullable: true
@@ -2992,6 +2996,15 @@ ImplementRuntimeSelection:
 ImplementPromptPayload:
   type: object
   properties:
+    approvedVersion:
+      $ref: "#/CodingPlanVersion"
+    versionMessageId:
+      type: string
+      format: uuid
+    approvalFeedback:
+      type: string
+    planningDiscussion:
+      type: string
     runtime:
       $ref: "#/ImplementRuntimeSelection"
     userMessage:
@@ -4286,6 +4299,8 @@ SystemMessageData:
         - TASK_MONITOR_SUPERVISION
         - CARRIER
       description: Type identifier for system message data
+    proposalSuggestion:
+      $ref: "./proposals.yaml#/ProposalReconciliationSuggestion"
     flowId:
       type: string
       description: ID of the conversational flow this message belongs to
@@ -4464,6 +4479,7 @@ UIElement:
       text_input: "#/TextInputElement"
       textarea: "#/TextareaElement"
       agent-reply-textarea: "#/AgentReplyTextareaElement"
+      repository_feature_enrichment_reply: "#/RepositoryFeatureEnrichmentReplyElement"
       select: "#/SelectElement"
       multiple-choice: "#/MultipleChoiceElement"
       checkbox: "#/CheckboxElement"
@@ -4496,6 +4512,9 @@ UIElement:
       plan_gaps_tasks: "#/PlanGapsTasksElement"
       plan_document_view: "#/PlanDocumentViewElement"
       coding_prompt_startup_plan: "#/CodingPromptStartupPlanElement"
+      coding_plan_context: "#/CodingPlanContextElement"
+      coding_plan_version: "#/CodingPlanVersionElement"
+      coding_plan_discrepancy: "#/CodingPlanDiscrepancyElement"
       coding_prompt_final_assessment: "#/CodingPromptFinalAssessmentElement"
       coding_prompt_merged_final_assessment: "#/CodingPromptMergedFinalAssessmentElement"
       question_group: "#/QuestionGroupElement"
@@ -4565,9 +4584,11 @@ UIElement:
         - $ref: "#/PlanApprovalPayload"
         - $ref: "#/OnboardingPlanCandidateReviewPayload"
 
-
         - $ref: "#/PlanDocumentViewPayload"
         - $ref: "#/CodingPromptStartupPlanPayload"
+        - $ref: "#/CodingPlanContext"
+        - $ref: "#/CodingPlanVersion"
+        - $ref: "#/CodingPlanDiscrepancy"
         - $ref: "#/CodingPromptFinalAssessmentPayload"
         - $ref: "#/CodingPromptMergedFinalAssessmentPayload"
         - $ref: "#/AgentRequestPermissionPayload"
@@ -4645,6 +4666,23 @@ AgentReplyTextareaElement:
           type: boolean
           default: true
   x-discriminator-value: agent-reply-textarea
+
+RepositoryFeatureEnrichmentReplyElement:
+  description: |
+    A free-text reply field on a Repository Import enrichment message. The
+    import workflow has already completed, so the reply is submitted as an
+    ordinary conversation message to the retained enrichment handler and never
+    through the Repository Import reply API.
+  allOf:
+    - $ref: "#/UIElement"
+    - type: object
+      required:
+        - submitText
+      properties:
+        submitText:
+          type: string
+          description: The text shown on the Send button.
+  x-discriminator-value: repository_feature_enrichment_reply
 
 SelectElement:
   allOf:
@@ -5448,7 +5486,15 @@ GoalPmRoutingSelectionPayload:
 GoalPmRoutingDecisionResponseDto:
   type: object
   additionalProperties: false
-  required: [sourceConversationId, sourceMessageId, uiElementId, selectedOption, decidedBy, createdAt]
+  required:
+    [
+      sourceConversationId,
+      sourceMessageId,
+      uiElementId,
+      selectedOption,
+      decidedBy,
+      createdAt,
+    ]
   properties:
     sourceConversationId:
       $ref: "./common.yaml#/ConversationId"
@@ -5502,7 +5548,8 @@ GoalPmRoutingOutcome:
 GoalPmRoutingAnswer:
   type: object
   additionalProperties: false
-  required: [type, selectedOption, operationId, state, requestedAt, pendingRequest]
+  required:
+    [type, selectedOption, operationId, state, requestedAt, pendingRequest]
   description: Durable linked USER form answer. Destination creation and this answer commit together. Local execution is separately authorized using the stable operationId; PENDING retains a recoverable handoff and never authorizes creating another destination.
   properties:
     type:
@@ -5542,7 +5589,14 @@ GoalPmRoutingEnactmentRequest:
 GoalPmRoutingEnactmentResponse:
   type: object
   additionalProperties: false
-  required: [sourceConversationId, sourceMessageId, uiElementId, answer, answerMessageId]
+  required:
+    [
+      sourceConversationId,
+      sourceMessageId,
+      uiElementId,
+      answer,
+      answerMessageId,
+    ]
   properties:
     sourceConversationId:
       $ref: "./common.yaml#/ConversationId"
@@ -5696,7 +5750,19 @@ GoalPmTrackExistingWorkOption:
 GoalPmCreateMissingWorkOption:
   type: object
   additionalProperties: false
-  required: [optionId, kind, parentFeatureId, workItemType, title, description, acceptanceCriteria, authoringMode, rationale, requiresSelection]
+  required:
+    [
+      optionId,
+      kind,
+      parentFeatureId,
+      workItemType,
+      title,
+      description,
+      acceptanceCriteria,
+      authoringMode,
+      rationale,
+      requiresSelection,
+    ]
   properties:
     optionId:
       type: string
@@ -6752,6 +6818,181 @@ CodingPromptStartupPlanPayload:
         $ref: "#/CodingPromptStartupClarificationQuestion"
   description: Structured startup-plan payload for coding-prompt UI rendering
 
+CodingPlanEmissionInput:
+  type: object
+  additionalProperties: false
+  required: [markdown, requiredServiceIds]
+  properties:
+    markdown:
+      type: string
+      minLength: 1
+      description: Complete visible plan. Preserve this exact text through approval and implementation.
+    requiredServiceIds:
+      type: array
+      minItems: 1
+      uniqueItems: true
+      items:
+        type: string
+        format: uuid
+    discrepancies:
+      type: array
+      description: Complete discrepancy list for this plan version. A replacement plan re-lists the discrepancies that still hold.
+      items:
+        $ref: "#/CodingPlanDiscrepancy"
+
+CodingPlanQuestion:
+  type: object
+  additionalProperties: false
+  required: [question]
+  properties:
+    question:
+      type: string
+      minLength: 1
+      description: One question the user must answer before planning can continue, shown verbatim in the conversation.
+
+CodingPlanVersion:
+  type: object
+  additionalProperties: false
+  required: [responseType, markdown, requiredServiceIds]
+  properties:
+    responseType:
+      type: string
+      enum: [coding_plan_version_v1]
+    markdown:
+      $ref: "#/CodingPlanEmissionInput/properties/markdown"
+    requiredServiceIds:
+      $ref: "#/CodingPlanEmissionInput/properties/requiredServiceIds"
+    discrepancies:
+      $ref: "#/CodingPlanEmissionInput/properties/discrepancies"
+
+CodingPlanVersionApproval:
+  type: object
+  additionalProperties: false
+  required: [responseType, versionMessageId]
+  properties:
+    responseType:
+      type: string
+      enum: [coding_plan_version_approval_v1]
+    versionMessageId:
+      type: string
+      format: uuid
+      description: Message containing the current complete emitted plan in the bound conversation.
+    feedback:
+      type: string
+    runtime:
+      $ref: "#/ImplementRuntimeSelection"
+
+CodingPlanVersionElement:
+  allOf:
+    - $ref: "#/UIElement"
+    - type: object
+      required: [payload]
+      properties:
+        payload:
+          $ref: "#/CodingPlanVersion"
+  x-discriminator-value: coding_plan_version
+
+CodingPlanContext:
+  type: object
+  additionalProperties: false
+  required:
+    [
+      responseType,
+      sessionTitle,
+      intent,
+      technicalContext,
+      issues,
+      requiredServiceIds,
+    ]
+  properties:
+    responseType:
+      type: string
+      enum: [coding_plan_context_v1]
+    sessionTitle:
+      type: string
+      minLength: 1
+    intent:
+      type: string
+      minLength: 1
+    technicalContext:
+      type: string
+      minLength: 1
+    issues:
+      type: array
+      items:
+        $ref: "#/CodingPlanIssueResolution"
+    requiredServiceIds:
+      type: array
+      minItems: 1
+      uniqueItems: true
+      items:
+        type: string
+        format: uuid
+
+CodingPlanIssueResolution:
+  type: object
+  additionalProperties: false
+  required: [messageId, resolution]
+  properties:
+    messageId:
+      type: string
+      format: uuid
+    resolution:
+      type: string
+      description: Current resolution, or the remaining question when unresolved.
+
+CodingPlanDiscrepancy:
+  allOf:
+    - $ref: "#/CodingPromptStartupDiscrepancy"
+    - type: object
+      required: [sourceField]
+      properties:
+        sourceField:
+          type: string
+          minLength: 1
+  description: One evidence-bearing, individually replyable planning issue.
+
+CodingPlanConversationalApproval:
+  type: object
+  additionalProperties: false
+  required: [responseType, contextMessageId]
+  properties:
+    responseType:
+      type: string
+      enum: [coding_plan_approval_v1]
+    contextMessageId:
+      type: string
+      format: uuid
+      description: Exact persisted context reviewed by the user; the server loads its content.
+    feedback:
+      type: string
+    runtime:
+      $ref: "#/ImplementRuntimeSelection"
+
+CodingPlanApprovalPayload:
+  oneOf:
+    - $ref: "#/CodingPlanVersionApproval"
+    - $ref: "#/CodingPlanReviewAnswerPayload"
+  description: Conversational approval, with explicit compatibility for historical structured sessions.
+
+CodingPlanContextElement:
+  allOf:
+    - $ref: "#/UIElement"
+    - type: object
+      properties:
+        payload:
+          $ref: "#/CodingPlanContext"
+  x-discriminator-value: coding_plan_context
+
+CodingPlanDiscrepancyElement:
+  allOf:
+    - $ref: "#/UIElement"
+    - type: object
+      properties:
+        payload:
+          $ref: "#/CodingPlanDiscrepancy"
+  x-discriminator-value: coding_plan_discrepancy
+
 CodingPlanReviewDiscrepancyFeedbackEntry:
   type: object
   additionalProperties: false
@@ -6870,7 +7111,7 @@ CodingPlanApprovedWorkflowAnswer:
       type: string
       enum: [APPROVED]
     payload:
-      $ref: "#/CodingPlanReviewAnswerPayload"
+      $ref: "#/CodingPlanApprovalPayload"
 
 CodingPlanWorkflowAnswer:
   oneOf:
@@ -8034,6 +8275,9 @@ UserMessageData:
     freeform bag means the dispatch payload is a closed, typed shape rather than
     inheriting the bag's `additionalProperties: true`.
   properties:
+    proposalReviewNote:
+      $ref: "./proposals.yaml#/ProposalReviewNoteRecord"
+      description: Passive human review annotation saved by the proposal review endpoint; never an executable input.
     type:
       $ref: "#/UserMessageDataType"
       description: Optional type to categorize the user message data
@@ -8636,7 +8880,10 @@ RepositoryFeatureEnrichmentActionSchemas:
           properties:
             action: { type: string, enum: [questions] }
             waitForUser: { type: boolean, enum: [false] }
-            payload: { $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentQuestions" }
+            payload:
+              {
+                $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentQuestions",
+              }
     success:
       allOf:
         - $ref: "#/ExternalAgentActionSchema"
@@ -8645,7 +8892,10 @@ RepositoryFeatureEnrichmentActionSchemas:
           properties:
             action: { type: string, enum: [success] }
             waitForUser: { type: boolean, enum: [false] }
-            payload: { $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentSuccess" }
+            payload:
+              {
+                $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentSuccess",
+              }
     retryable_failure:
       allOf:
         - $ref: "#/ExternalAgentActionSchema"
@@ -8654,7 +8904,10 @@ RepositoryFeatureEnrichmentActionSchemas:
           properties:
             action: { type: string, enum: [retryable_failure] }
             waitForUser: { type: boolean, enum: [false] }
-            payload: { $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentRetryableFailure" }
+            payload:
+              {
+                $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentRetryableFailure",
+              }
     terminal_failure:
       allOf:
         - $ref: "#/ExternalAgentActionSchema"
@@ -8663,7 +8916,10 @@ RepositoryFeatureEnrichmentActionSchemas:
           properties:
             action: { type: string, enum: [terminal_failure] }
             waitForUser: { type: boolean, enum: [false] }
-            payload: { $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentTerminalFailure" }
+            payload:
+              {
+                $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentTerminalFailure",
+              }
 
 RepositoryFirstWorkActionSchemas:
   type: object
@@ -8678,7 +8934,10 @@ RepositoryFirstWorkActionSchemas:
           properties:
             action: { type: string, enum: [questions] }
             waitForUser: { type: boolean, enum: [false] }
-            payload: { $ref: "./repository-grounding.yaml#/RepositoryFirstWorkQuestions" }
+            payload:
+              {
+                $ref: "./repository-grounding.yaml#/RepositoryFirstWorkQuestions",
+              }
     success:
       allOf:
         - $ref: "#/ExternalAgentActionSchema"
@@ -8687,7 +8946,10 @@ RepositoryFirstWorkActionSchemas:
           properties:
             action: { type: string, enum: [success] }
             waitForUser: { type: boolean, enum: [false] }
-            payload: { $ref: "./repository-grounding.yaml#/RepositoryFirstWorkSuccess" }
+            payload:
+              {
+                $ref: "./repository-grounding.yaml#/RepositoryFirstWorkSuccess",
+              }
     retryable_failure:
       allOf:
         - $ref: "#/ExternalAgentActionSchema"
@@ -8696,7 +8958,10 @@ RepositoryFirstWorkActionSchemas:
           properties:
             action: { type: string, enum: [retryable_failure] }
             waitForUser: { type: boolean, enum: [false] }
-            payload: { $ref: "./repository-grounding.yaml#/RepositoryFirstWorkRetryableFailure" }
+            payload:
+              {
+                $ref: "./repository-grounding.yaml#/RepositoryFirstWorkRetryableFailure",
+              }
     terminal_failure:
       allOf:
         - $ref: "#/ExternalAgentActionSchema"
@@ -8705,7 +8970,10 @@ RepositoryFirstWorkActionSchemas:
           properties:
             action: { type: string, enum: [terminal_failure] }
             waitForUser: { type: boolean, enum: [false] }
-            payload: { $ref: "./repository-grounding.yaml#/RepositoryFirstWorkTerminalFailure" }
+            payload:
+              {
+                $ref: "./repository-grounding.yaml#/RepositoryFirstWorkTerminalFailure",
+              }
 
 ExternalAgentActionSchemas:
   type: object
@@ -9132,7 +9400,6 @@ MessageRecordUserMessage:
       items:
         $ref: "./reports.yaml#/ReportDto"
       description: Reports linked to this message via ReportEntity (included when includeReports=true)
-
 
 # =============================================
 # Message Retry Schemas
@@ -10176,7 +10443,6 @@ OnboardingPlanCandidateReviewPayload:
       description: Proposed execution stages
   description: Plan stage proposal payload for UI rendering
 
-
 OnboardingPlanCandidateReviewPayloadStage:
   type: object
   required:
@@ -10205,7 +10471,6 @@ OnboardingPlanCandidateReviewPayloadStage:
     itemCounts:
       $ref: "#/OnboardingPlanCandidateReviewPayloadStageItemCounts"
   description: Proposed plan stage details
-
 
 OnboardingPlanCandidateReviewPayloadStageItemCounts:
   type: object

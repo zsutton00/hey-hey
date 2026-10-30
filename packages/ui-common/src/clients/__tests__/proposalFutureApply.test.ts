@@ -46,3 +46,36 @@ it("sends initial and confirmed Apply through the generated runtime client", asy
     expect(config?.data).toBe(JSON.stringify(futureApplyRequest));
   }
 });
+
+it("reads project-ready futures through the generated proposal client with independent pagination", async () => {
+  const adapter = vi.fn<AxiosAdapter>(async (config) => ({
+    data: {
+      success: true,
+      data: { items: [], total: 0, limit: 10, offset: 20, unavailableCount: 0 },
+    },
+    status: 200,
+    statusText: "OK",
+    headers: {},
+    config,
+  }));
+  const runtime = createApiRuntime({
+    baseUrl: "/api/v1",
+    transport: {
+      axios: axios.create({ adapter }),
+      request: vi.fn(),
+      setAuthToken: vi.fn(),
+      onUnauthorized: vi.fn(() => () => undefined),
+    },
+  });
+  await runtime.clients.proposals.listProjectReadyFutures({
+    organizationId: "org",
+    projectId: "project",
+    limit: 10,
+    offset: 20,
+  });
+  const config = adapter.mock.lastCall?.[0];
+  expect(config?.method).toBe("get");
+  expect(config?.url).toBe(
+    "/api/v1/organizations/org/projects/project/proposals/futures/ready?limit=10&offset=20",
+  );
+});

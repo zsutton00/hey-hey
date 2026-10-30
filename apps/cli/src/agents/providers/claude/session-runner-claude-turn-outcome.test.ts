@@ -1,3 +1,4 @@
+import { retainProviderTestUsage } from '../provider-owner.test-support';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -357,8 +358,38 @@ describe('Claude turn outcome', () => {
     submissionToolRegistry.clearAll();
   });
 
+  it('waits for final usage persistence before completing the provider run', async () => {
+    const harness = makeHarness();
+    await retainProviderTestUsage(harness.runStore, makeSession());
+    const persist = harness.runStore.setRunTokenUsage.bind(harness.runStore);
+    let release = (): void => undefined;
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    vi.mocked(harness.runStore.setRunTokenUsage).mockImplementationOnce(async (...args) => {
+      await blocked;
+      return persist(...args);
+    });
+    const { run, ready } = startTurn(harness);
+    await ready;
+    emitClaudeEvent(assistantEvent('Measured answer.'));
+    emitClaudeEvent(resultEvent());
+    let completed = false;
+    void run.then(() => {
+      completed = true;
+    });
+    await vi.waitFor(() => expect(harness.runStore.setRunTokenUsage).toHaveBeenCalledOnce());
+    expect(completed).toBe(false);
+    release();
+    await run;
+    expect(
+      (await harness.runStore.getRunResult(makeSession().agentic_session_id))?.usage,
+    ).toMatchObject({ inputTokens: 100, outputTokens: 40 });
+  });
+
   it('completes a turn, delivers superseded assistant messages immediately and finalizes the last', async () => {
     const harness = makeHarness();
+    await retainProviderTestUsage(harness.runStore, makeSession());
     const { run, ready } = startTurn(harness);
     await ready;
     emitClaudeEvent(assistantEvent('First answer.'));
@@ -367,6 +398,11 @@ describe('Claude turn outcome', () => {
     emitClaudeEvent(resultEvent());
     const outcome = await readOutcome(harness, run);
 
+    await vi.waitFor(async () => {
+      expect(
+        (await harness.runStore.getRunResult(makeSession().agentic_session_id))?.usage,
+      ).toMatchObject({ inputTokens: 100, outputTokens: 40 });
+    });
     expect(outcome.failure).toBeNull();
     expect(outcome.result).toEqual({
       providerSessionId: 'provider-session-1',
@@ -416,7 +452,13 @@ describe('Claude turn outcome', () => {
       { inputTokens: 20, outputTokens: 8, cacheCreationInputTokens: 0, cacheReadInputTokens: 0 },
     ]);
     expect(outcome.resultUsageWrites).toEqual([
-      { inputTokens: 100, outputTokens: 40, cacheCreationInputTokens: 0, cacheReadInputTokens: 0 },
+      {
+        inputTokens: 100,
+        outputTokens: 40,
+        cacheCreationInputTokens: null,
+        cacheReadInputTokens: null,
+        cacheAvailability: 'unsupported',
+      },
     ]);
     expect(outcome.logFields('local.runner.claude.run_prompt.succeeded')).toMatchObject({
       providerSessionId: 'provider-session-1',
@@ -594,9 +636,9 @@ describe('Claude turn outcome', () => {
     expect(outcome.failure).toEqual({ code: 'RUN_FAILED', message: 'Aborted' });
     expect(outcome.runCompleted).toEqual({ mode: 'prompt', error: 'Aborted', code: 'RUN_FAILED' });
     expect(outcome.statuses).toEqual(['running', 'idle']);
-    expect(outcome.logFields('local.runner.claude.run_prompt.failed')).toMatchObject({
-      error: expect.objectContaining({ code: 'RUN_FAILED', message: 'Aborted' }),
-    });
+    for (const event of ['run_prompt.failed', 'session_promise.rejected', 'events_done.rejected']) {
+      expect(outcome.logFields(`local.runner.claude.${event}`)).toBeNull();
+    }
   });
 
   it('settles a canceled turn as a failed run even when the provider never sends a result', async () => {
@@ -612,9 +654,9 @@ describe('Claude turn outcome', () => {
     expect(outcome.liveAssistant).toEqual([]);
     expect(outcome.runCompleted).toEqual({ mode: 'prompt', error: 'Aborted', code: 'RUN_FAILED' });
     expect(outcome.statuses).toEqual(['running', 'idle']);
-    expect(outcome.logFields('local.runner.claude.events_done.rejected')).toMatchObject({
-      error: expect.objectContaining({ message: 'Aborted' }),
-    });
+    for (const event of ['run_prompt.failed', 'session_promise.rejected', 'events_done.rejected']) {
+      expect(outcome.logFields(`local.runner.claude.${event}`)).toBeNull();
+    }
   });
 
   it('resolves a Service-scope cancellation quietly without a completion record', async () => {

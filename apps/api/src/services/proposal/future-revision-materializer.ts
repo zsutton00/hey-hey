@@ -20,6 +20,8 @@ import type {
   FutureRevisionContent,
   FutureRevisionMutation,
   FutureWorkItemChanges,
+  ProjectedWorkItemChangeSetResponse,
+  WorkItemChangeSetValidationRequest,
   UpdateTaskDto,
 } from 'src/generated';
 import {
@@ -29,10 +31,18 @@ import {
 } from 'src/generated/future-revision.schema';
 import { WORK_ITEM_TYPE_KEYS } from '../tasks/work-item-type-keys';
 
+import {
+  assertFutureGraphBoundary,
+  futureGraph,
+  graphChangeSet,
+  serializableGraphProjection,
+} from './future-graph';
+
 const logger = new Logger('FutureRevisionMaterializer');
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 addFormats(ajv);
+ajv.addFormat('branded-ServiceId', true);
 const validateAuthoring = ajv.compile<FutureRevisionAuthoring>(
   futureRevisionAuthoringSchema,
 );
@@ -53,6 +63,11 @@ export type FutureTarget = {
 };
 
 export interface FutureRevisionMaterializerPorts {
+  projectGraph(
+    target: FutureTarget,
+    basis: ProjectedWorkItemChangeSetResponse,
+    request: WorkItemChangeSetValidationRequest,
+  ): Promise<ProjectedWorkItemChangeSetResponse>;
   readLiveContent(target: FutureTarget): Promise<FutureRevisionContent>;
   readLiveRevision(
     tx: AnyTransactionClient,
@@ -163,6 +178,14 @@ export async function materializeFutureRevision(
     expectedRevision: authoring.expectedRevision,
     baseline,
     result,
+    ...(futureGraph(baseline.content) && futureGraph(result)
+      ? {
+          graphChangeSet: graphChangeSet(
+            futureGraph(baseline.content)!,
+            futureGraph(result)!,
+          ),
+        }
+      : {}),
     dependencies,
   };
 }
@@ -358,6 +381,7 @@ const TASK_CONTENT_FIELDS = [
   'projectId',
   'name',
   'type',
+  'graph',
   'status',
   'source',
   'config',
@@ -409,7 +433,12 @@ function projectLiveContent(
     const value = jsonValue(source[field]);
     if (value === undefined) continue;
     if (value === null && !NULLABLE_CONTENT_FIELDS.has(field)) continue;
-    projected[field] = value;
+    projected[field] =
+      field === 'graph' && value
+        ? serializableGraphProjection(
+            value as ProjectedWorkItemChangeSetResponse,
+          )
+        : value;
   }
   projected.sections = raw.sections.map((section) => {
     const record = section as unknown as Record<string, unknown>;
@@ -575,6 +604,90 @@ async function applyWorkItemChanges(
       rethrowAddressed(error, 'mutation/changes/requirementOps');
     }
     replaceTaskSection(result, 'requirements', markdown, undefined);
+  }
+  if (changes.operations?.length || result.graph) {
+    if (!start.graph)
+      throw rejectAt(
+        'mutation.changes.operations',
+        'target has no captured graph; reconcile this future against a complete current graph before editing its graph.',
+      );
+    // Root field/section edits and graph edits share the same projected result.
+    const root = structuredClone(start.graph.projectedRoot);
+    for (const field of [
+      'name',
+      'priority',
+      'tag',
+      'dueDate',
+      'assigneeId',
+    ] as const) {
+      if (result[field] !== undefined)
+        Object.assign(root, { [field]: result[field] });
+    }
+    root.label = root.name;
+    if (changes.parentTaskId !== undefined) {
+      if (changes.parentTaskId === null) delete root.parent;
+      else root.parent = { refType: 'existing', id: changes.parentTaskId };
+    }
+    for (const section of changes.sections ?? []) {
+      const existing = root.sections.find((s) => s.key === section.key);
+      if (existing) existing.content = section.content;
+      else root.sections.push({ key: section.key, content: section.content });
+    }
+    const basis = {
+      ...start.graph,
+      projectedRoot: root,
+      sections: root.sections,
+    };
+    const request = {
+      root: root.identity,
+      operations: changes.operations ?? [],
+    };
+    assertFutureGraphBoundary(start.graph, request);
+    result.graph = serializableGraphProjection(
+      await ports.projectGraph(target, basis, request),
+    );
+    if (!result.graph.valid)
+      throw new BadRequestException({
+        message: 'Future graph is invalid',
+        issues: result.graph.issues,
+      });
+    // Keep the root response projection consistent with graph-authored sections.
+    if (
+      !isEqual(
+        start.graph.projectedRoot.parent ?? null,
+        result.graph.projectedRoot.parent ?? null,
+      )
+    ) {
+      const parent = result.graph.projectedRoot.parent;
+      if (parent?.refType === 'existing') result.parentTaskId = parent.id;
+      else delete result.parentTaskId;
+    }
+    for (const field of [
+      'name',
+      'priority',
+      'tag',
+      'dueDate',
+      'assigneeId',
+    ] as const) {
+      const value = result.graph.projectedRoot[field];
+      if (value !== undefined) Object.assign(result, { [field]: value });
+    }
+    for (const section of result.graph.projectedRoot.sections) {
+      const previous = start.graph.projectedRoot.sections.find(
+        (s) => s.key === section.key,
+      );
+      if (isEqual(previous?.content, section.content)) continue;
+      replaceTaskSection(
+        result,
+        section.key,
+        section.content === null
+          ? ''
+          : typeof section.content === 'string'
+            ? section.content
+            : JSON.stringify(section.content),
+        undefined,
+      );
+    }
   }
   return result;
 }

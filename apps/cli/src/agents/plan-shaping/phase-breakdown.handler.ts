@@ -128,6 +128,7 @@ const renderPhaseBreakdownPrompt = (
   const enriched = payload as PhaseBreakdownPreparedPayload;
   return buildPhaseBreakdownPrompt({
     taskId: taskIdFromHandlerContext(context),
+    provider: context?.provider,
     userMessage: payload.userMessage ?? null,
     journeyStep: payload.journeyStep,
     stageIdx: payload.stageIdx,

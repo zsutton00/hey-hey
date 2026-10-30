@@ -1,3 +1,4 @@
+import type { SubAgentResult } from '../run/subagent';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -35,7 +36,7 @@ import {
   type DurableAdmissionContext,
 } from '../run/durable-event-admission';
 import { hasLegacySessions, migrateSessionsToRuns } from './migrate-sessions';
-import { RunEventStore } from './run-event-store';
+import { committedLines, RunEventStore } from './run-event-store';
 import { RunIndexStore } from './run-index';
 import {
   isRunFamilyManifestFileName,
@@ -214,11 +215,24 @@ const legacyPlanRunEntitySchema = z.object({ entityType: z.literal('PLAN') }).pa
 
 const parseRunMetadata = (text: string): AgenticSession => {
   const parsed = JSON.parse(text) as Record<string, unknown>;
+  if (parsed['inert'] !== undefined && typeof parsed['inert'] !== 'boolean') {
+    throw new SessionValidationError('Persisted Run inertness must be boolean.');
+  }
   if (!Object.hasOwn(parsed, 'entity')) {
     throw new SessionValidationError('Persisted Run metadata is missing entity.');
   }
   if (legacyPlanRunEntitySchema.safeParse(parsed['entity']).success) {
     throw new RunMetadataMigrationRequiredError();
+  }
+  if (parsed['latestTurn'] !== undefined) {
+    z.discriminatedUnion('state', [
+      z.object({ turnId: z.string(), state: z.literal('running') }),
+      z.object({
+        turnId: z.string(),
+        state: z.literal('settled'),
+        outcome: z.enum(['COMPLETED', 'FAILED', 'ABORTED']),
+      }),
+    ]).parse(parsed['latestTurn']);
   }
   const parsedEntity = persistedRunEntitySchema.safeParse(parsed['entity']);
   if (!parsedEntity.success) {
@@ -383,6 +397,7 @@ const toTransientAgenticSessionEvent = (
 });
 
 export class RunStore {
+  private readonly unavailableUsageRuns = new Set<string>();
   private static readonly MAX_CHANGED_FILES_DIAGNOSTICS = 200;
 
   private static readonly VALID_PROVIDER_PREFERENCES = new Set<string>([
@@ -630,9 +645,9 @@ export class RunStore {
         parseRunMetadata(text);
         return;
       case 'events': {
+        // A torn final line from an interrupted append is trimmed by the next append.
         let expectedSeq = 1;
-        for (const line of text.split('\n')) {
-          if (!line.trim()) continue;
+        for (const line of committedLines(text)) {
           const event = parseDurableRunEvent(JSON.parse(line) as unknown);
           if (event.run_id !== runId) {
             throw new Error(`Durable event belongs to Run ${event.run_id}, not Run ${runId}.`);
@@ -957,6 +972,69 @@ export class RunStore {
     return bytes ? parseRunMetadata(new TextDecoder().decode(bytes)) : null;
   }
 
+  /** Reads retained evidence without preparing, promoting, or rewriting the Run. */
+  public async getRunResult(
+    runId: string,
+  ): Promise<Pick<SubAgentResult, 'assistantCompleted' | 'outputText' | 'usage'> | null> {
+    const run = await this.getRunMetadata(runId);
+    if (!run) {
+      return null;
+    }
+
+    if (this.unavailableUsageRuns.has(runId)) {
+      throw new Error(
+        'Final token usage could not be saved; token measurements are unavailable for this attempt.',
+      );
+    }
+    const bytes = await this.readCompatibleMember(runId, 'toolUsage');
+    const tools = bytes ? z.array(z.json()).parse(JSON.parse(new TextDecoder().decode(bytes))) : [];
+    const latest = run.latestTurn;
+    const assistantCompleted = latest?.state === 'settled' && latest.outcome === 'COMPLETED';
+    const answer = run.finalAssistantMessage;
+    return {
+      assistantCompleted,
+      ...(assistantCompleted && answer?.turnId === latest.turnId
+        ? { outputText: answer.text }
+        : {}),
+      usage: {
+        ...(run.tokenUsage
+          ? {
+              ...(run.tokenUsage.inputTokens != null
+                ? { inputTokens: run.tokenUsage.inputTokens }
+                : {}),
+              ...(run.tokenUsage.outputTokens != null
+                ? { outputTokens: run.tokenUsage.outputTokens }
+                : {}),
+              ...(run.tokenUsage.cacheReadInputTokens != null
+                ? { cacheReadInputTokens: run.tokenUsage.cacheReadInputTokens }
+                : {}),
+              ...(run.tokenUsage.cacheCreationInputTokens != null
+                ? { cacheCreationInputTokens: run.tokenUsage.cacheCreationInputTokens }
+                : {}),
+              cacheAvailability: run.tokenUsage.cacheAvailability,
+            }
+          : {}),
+        ...(tools.length > 0 ? { toolCalls: tools.length } : {}),
+      },
+    };
+  }
+
+  public updateRunLatestTurn(
+    runId: string,
+    latestTurn: NonNullable<AgenticSession['latestTurn']>,
+  ): Promise<AgenticSession> {
+    return this.withMetadataLock(runId, async () => {
+      const run = await readRunMetadata(this.runFamilies, runId);
+      if (!run) {
+        throw new SessionValidationError(`Unknown agentic session: ${runId}`);
+      }
+      run.latestTurn = latestTurn;
+      run.updatedAt = this.now().toISOString();
+      await writeRunMetadata(this.runFamilies, run);
+      return run;
+    });
+  }
+
   public async getRun(runId: string): Promise<AgenticSession | null> {
     return this.readAndReconcileRun(runId, false);
   }
@@ -974,8 +1052,9 @@ export class RunStore {
     return this.withMetadataLock(runId, async () => {
       const run = await readRunMetadata(this.runFamilies, runId);
       if (!run) return null;
-      const durableEvents = await this.eventStore.readEvents(runId);
-      const events = durableEvents.map(toAgenticSessionEvent);
+      const durableEvents = includeEvents
+        ? await this.eventStore.readEvents(runId)
+        : await this.eventStore.readProviderIdentityEvents(runId);
       const currentHistory = run.provider_session_history ?? [];
       const history = reconcileDurableProviderSessionHistory(currentHistory, durableEvents);
       if (history.length !== currentHistory.length) {
@@ -983,7 +1062,7 @@ export class RunStore {
         run.updatedAt = this.now().toISOString();
         await writeRunMetadata(this.runFamilies, run);
       }
-      return { ...run, events: includeEvents ? events : [] };
+      return { ...run, events: includeEvents ? durableEvents.map(toAgenticSessionEvent) : [] };
     });
   }
 
@@ -1028,6 +1107,9 @@ export class RunStore {
     return this.withMetadataLock(agenticSessionId, async () => {
       const existing = await readRunMetadata(this.runFamilies, agenticSessionId);
       if (existing) {
+        if (input.inert !== undefined && input.inert !== (existing.inert ?? false)) {
+          throw new SessionValidationError('Run inertness cannot change after creation.');
+        }
         if (!sameRunEntity(existing.entity, parsedEntity.data)) {
           throw new SessionValidationError(
             'A Run with this agent session id already exists with a different entity.',
@@ -1050,6 +1132,7 @@ export class RunStore {
 
       const baseEntry = {
         agentic_session_id: agenticSessionId,
+        inert: input.inert ?? false,
         entity: parsedEntity.data,
         services: input.services,
         ...(input.launchServiceId ? { launchServiceId: input.launchServiceId } : {}),
@@ -1385,6 +1468,23 @@ export class RunStore {
     return run ? parseImplementationReadinessFromSessionContext(run.sessionContext) : null;
   }
 
+  public updateRunFinalAssistantMessage(
+    runId: string,
+    message: NonNullable<AgenticSession['finalAssistantMessage']>,
+  ): Promise<AgenticSession> {
+    return this.withMetadataLock(runId, async () => {
+      const run = await readRunMetadata(this.runFamilies, runId);
+      if (!run) {
+        throw new SessionValidationError(`Unknown agentic session: ${runId}`);
+      }
+
+      run.finalAssistantMessage = message;
+      run.updatedAt = this.now().toISOString();
+      await writeRunMetadata(this.runFamilies, run);
+      return run;
+    });
+  }
+
   public updateRunPreviousProviderSession(
     runId: string,
     previous: PreviousProviderSession | null,
@@ -1655,12 +1755,18 @@ export class RunStore {
         cacheAvailability: 'unsupported',
       };
       run.tokenUsage = {
-        inputTokens: existing.inputTokens + delta.inputTokens,
-        outputTokens: existing.outputTokens + delta.outputTokens,
+        inputTokens:
+          existing.inputTokens === null ? null : existing.inputTokens + delta.inputTokens,
+        outputTokens:
+          existing.outputTokens === null ? null : existing.outputTokens + delta.outputTokens,
         cacheCreationInputTokens:
-          (existing.cacheCreationInputTokens ?? 0) + (delta.cacheCreationInputTokens ?? 0),
+          delta.cacheCreationInputTokens === undefined || existing.cacheCreationInputTokens === null
+            ? null
+            : existing.cacheCreationInputTokens + delta.cacheCreationInputTokens,
         cacheReadInputTokens:
-          (existing.cacheReadInputTokens ?? 0) + (delta.cacheReadInputTokens ?? 0),
+          delta.cacheReadInputTokens === undefined || existing.cacheReadInputTokens === null
+            ? null
+            : existing.cacheReadInputTokens + delta.cacheReadInputTokens,
         cacheAvailability: delta.cacheAvailability ?? existing.cacheAvailability ?? 'unsupported',
       };
       run.updatedAt = this.now().toISOString();
@@ -1672,10 +1778,10 @@ export class RunStore {
   public setRunTokenUsage(
     runId: string,
     total: {
-      inputTokens: number;
-      outputTokens: number;
-      cacheCreationInputTokens?: number;
-      cacheReadInputTokens?: number;
+      inputTokens: number | null;
+      outputTokens: number | null;
+      cacheCreationInputTokens?: number | null;
+      cacheReadInputTokens?: number | null;
       cacheAvailability?: LocalTokenUsage['cacheAvailability'];
     },
   ): Promise<AgenticSession> {
@@ -1687,13 +1793,18 @@ export class RunStore {
       run.tokenUsage = {
         inputTokens: total.inputTokens,
         outputTokens: total.outputTokens,
-        cacheCreationInputTokens: total.cacheCreationInputTokens ?? 0,
-        cacheReadInputTokens: total.cacheReadInputTokens ?? 0,
+        cacheCreationInputTokens: total.cacheCreationInputTokens ?? null,
+        cacheReadInputTokens: total.cacheReadInputTokens ?? null,
         cacheAvailability: total.cacheAvailability ?? 'unsupported',
       };
       run.updatedAt = this.now().toISOString();
       await writeRunMetadata(this.runFamilies, run);
+      this.unavailableUsageRuns.delete(runId);
       return run;
+    }).catch((error: unknown) => {
+      // A previous running snapshot must not masquerade as a final measurement.
+      this.unavailableUsageRuns.add(runId);
+      throw error;
     });
   }
 

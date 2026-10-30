@@ -2,20 +2,15 @@ import {
   AuthorizationProtocolVersion,
   CurrentControllerMachineEligibilityState,
   MachineExecutionReadinessState,
-  type AgentSessionDto,
   type MachineDto,
 } from "@hey-hey/ui-common/api";
 import {
-  useAgentSessions,
+  useAgentSessionRouting,
   useUserPairedMachines,
 } from "@hey-hey/ui-common/data";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  CostsView,
-  getCostsRoutingUnavailableMessage,
-  selectCostsRoutingSession,
-} from "./CostsView";
+import { CostsView, getCostsRoutingUnavailableMessage } from "./CostsView";
 
 const mockCostsActivityView = vi.fn();
 
@@ -28,24 +23,12 @@ vi.mock("@hey-hey/ui-common/components", async (importOriginal) => ({
 }));
 
 vi.mock("@hey-hey/ui-common/data", () => ({
-  useAgentSessions: vi.fn(),
+  useAgentSessionRouting: vi.fn(),
   useUserPairedMachines: vi.fn(),
 }));
 
-const useAgentSessionsMock = vi.mocked(useAgentSessions);
+const useAgentSessionRoutingMock = vi.mocked(useAgentSessionRouting);
 const useUserPairedMachinesMock = vi.mocked(useUserPairedMachines);
-
-const session = (
-  id: string,
-  machineId: string | null,
-  updatedAt: string,
-): AgentSessionDto =>
-  ({
-    id,
-    machineId,
-    updatedAt,
-    sessionDate: updatedAt,
-  }) as AgentSessionDto;
 
 const machine = (
   machineId: string,
@@ -57,25 +40,26 @@ const machine = (
   active: executionReadiness === MachineExecutionReadinessState.Ready,
   authorizationProtocolVersion: AuthorizationProtocolVersion.NUMBER_2,
   executionReadiness,
-  currentControllerEligibility: CurrentControllerMachineEligibilityState.Eligible,
+  currentControllerEligibility:
+    CurrentControllerMachineEligibilityState.Eligible,
   bindings: [],
 });
 
 const setHookResults = ({
-  sessions = [],
+  routingAgentSessionId = null,
   machines = [],
-  sessionsLoading = false,
+  routingLoading = false,
   machinesLoading = false,
 }: {
-  sessions?: AgentSessionDto[];
+  routingAgentSessionId?: string | null;
   machines?: MachineDto[];
-  sessionsLoading?: boolean;
+  routingLoading?: boolean;
   machinesLoading?: boolean;
 } = {}) => {
-  useAgentSessionsMock.mockReturnValue({
-    agentSessions: sessions,
-    isLoading: sessionsLoading,
-  } as ReturnType<typeof useAgentSessions>);
+  useAgentSessionRoutingMock.mockReturnValue({
+    routingAgentSessionId,
+    isLoading: routingLoading,
+  });
   useUserPairedMachinesMock.mockReturnValue({
     machines,
     isLoading: machinesLoading,
@@ -88,90 +72,79 @@ describe("CostsView", () => {
     setHookResults();
   });
 
-  it("shows routing progress while sessions or paired machines are loading", () => {
-    setHookResults({ sessionsLoading: true });
+  it("shows routing progress while the routing session or paired machines are loading", () => {
+    setHookResults({ routingLoading: true });
 
     render(
-      <CostsView organizationId="org-1" projectId="project-1" userId="user-1" />,
+      <CostsView
+        organizationId="org-1"
+        projectId="project-1"
+        userId="user-1"
+      />,
     );
 
-    expect(screen.getByTestId("project-costs-routing-loading")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("project-costs-routing-loading"),
+    ).toBeInTheDocument();
     expect(mockCostsActivityView).not.toHaveBeenCalled();
   });
 
-  it("shows connected-host unavailability when no machine-bound session exists", () => {
+  it("shows connected-host unavailability when no session is bound to a ready machine", () => {
     setHookResults({
-      sessions: [session("unbound", null, "2026-07-28T12:00:00.000Z")],
       machines: [machine("machine-1", MachineExecutionReadinessState.Ready)],
     });
 
     render(
-      <CostsView organizationId="org-1" projectId="project-1" userId="user-1" />,
+      <CostsView
+        organizationId="org-1"
+        projectId="project-1"
+        userId="user-1"
+      />,
     );
 
-    expect(screen.getByTestId("project-costs-host-unavailable")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("project-costs-host-unavailable"),
+    ).toBeInTheDocument();
     expect(mockCostsActivityView).not.toHaveBeenCalled();
-  });
-
-  it("prefers the most recent session bound to an execution-ready machine", () => {
-    const selected = selectCostsRoutingSession(
-      [
-        session("inactive-newer", "machine-2", "2026-07-28T14:00:00.000Z"),
-        session("active-older", "machine-1", "2026-07-28T13:00:00.000Z"),
-        session("active-newer", "machine-1", "2026-07-28T13:30:00.000Z"),
-      ],
-      [
-        machine("machine-1", MachineExecutionReadinessState.Ready),
-        machine("machine-2", MachineExecutionReadinessState.Disconnected),
-      ],
-    );
-
-    expect(selected?.id).toBe("active-newer");
-  });
-
-  it("makes no CLI route when bound machines are ineligible", () => {
-    const selected = selectCostsRoutingSession(
-      [
-        session("session-a", "machine-1", "2026-07-28T13:00:00.000Z"),
-        session("session-b", "machine-2", "2026-07-28T13:00:00.000Z"),
-        session("session-old", "machine-3", "2026-07-28T12:00:00.000Z"),
-      ],
-      [
-        machine("machine-1", MachineExecutionReadinessState.Disconnected),
-        machine(
-          "machine-2",
-          MachineExecutionReadinessState.ControllerEnrollmentRequired,
-        ),
-      ],
-    );
-
-    expect(selected).toBeNull();
   });
 
   it("shows local enrollment guidance when no ready route exists", () => {
     expect(
-      getCostsRoutingUnavailableMessage([], [
-        machine(
-          "machine-1",
-          MachineExecutionReadinessState.ControllerEnrollmentRequired,
-        ),
-      ], "Cost data"),
+      getCostsRoutingUnavailableMessage(
+        [
+          machine(
+            "machine-1",
+            MachineExecutionReadinessState.ControllerEnrollmentRequired,
+          ),
+        ],
+        "Cost data",
+      ),
     ).toContain("Begin controller enrollment locally");
   });
 
-  it("forwards project identity and the routing session to the shared Costs view", () => {
+  it("asks for the routing session of ready machines only, without loading the session list", () => {
     setHookResults({
-      sessions: [session("session-1", "machine-1", "2026-07-28T13:00:00.000Z")],
-      machines: [machine("machine-1", MachineExecutionReadinessState.Ready)],
+      routingAgentSessionId: "session-1",
+      machines: [
+        machine("machine-1", MachineExecutionReadinessState.Ready),
+        machine("machine-2", MachineExecutionReadinessState.Disconnected),
+      ],
     });
 
     render(
-      <CostsView organizationId="org-1" projectId="project-1" userId="user-1" />,
+      <CostsView
+        organizationId="org-1"
+        projectId="project-1"
+        userId="user-1"
+      />,
     );
 
-    expect(useAgentSessionsMock).toHaveBeenCalledWith("org-1", "project-1", {
-      userId: "user-1",
-    });
+    expect(useAgentSessionRoutingMock).toHaveBeenCalledWith(
+      "org-1",
+      "project-1",
+      "user-1",
+      ["machine-1"],
+    );
     expect(mockCostsActivityView).toHaveBeenCalledWith({
       organizationId: "org-1",
       projectId: "project-1",

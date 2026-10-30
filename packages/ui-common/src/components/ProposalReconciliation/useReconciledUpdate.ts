@@ -19,8 +19,9 @@ export function useReconciledUpdate<
   U extends UpdateTaskDto | UpdateDesignDocDto,
 >(proposal: ProposalResponseDto & { updates: U }, existing: T) {
   const review = useContext(ProposalReconciliationContext);
+  const futureReview = review?.future ? review : null;
   const activeReview = review?.standaloneUpdate ? review : null;
-  const state = activeReview?.state;
+  const state = (activeReview ?? futureReview)?.state;
   const revision =
     state?.status === "READY_FOR_REVIEW"
       ? state.revisions.find((entry) => entry.id === state.candidateRevisionId)
@@ -32,11 +33,38 @@ export function useReconciledUpdate<
     return {
       proposal,
       existing,
+      staged: !!review?.staged,
       reviewedServiceIds: undefined,
-      hideDiff: !!activeReview && (!state || activeReview.approvalDisabled),
+      hideDiff: futureReview
+        ? !futureReview.state ||
+          ["RECONCILIATION_REQUIRED", "AGENT_FIX_REQUIRED"].includes(
+            futureReview.state.status,
+          )
+        : !!activeReview && (!state || activeReview.approvalDisabled),
     };
   const before = basis.content;
-  const after = revision.proposedResult;
+  const result = revision.proposedResult;
+  const futureSections = Array.isArray(result.sections)
+    ? (result.sections as {
+        key: string;
+        order: number;
+        materializedMarkdown: string;
+      }[])
+    : null;
+  const after = futureSections
+    ? {
+        ...result,
+        sections: Object.fromEntries(
+          futureSections.map((section) => [
+            section.key,
+            section.materializedMarkdown,
+          ]),
+        ),
+        sectionOrder: Object.fromEntries(
+          futureSections.map((section) => [section.key, section.order]),
+        ),
+      }
+    : result;
   const sections = before.sections as Record<string, unknown>;
   const order = before.sectionOrder as Record<string, number>;
   const updates = { ...proposal.updates };
@@ -54,7 +82,9 @@ export function useReconciledUpdate<
   }
   const resultSections = after.sections as Record<string, unknown>;
   const resultOrder = after.sectionOrder as Record<string, number>;
-  updates.sections = Object.keys(resultSections)
+  updates.sections = [
+    ...new Set([...Object.keys(sections), ...Object.keys(resultSections)]),
+  ]
     .filter(
       (key) =>
         !isEqual(sections[key], resultSections[key]) ||
@@ -62,8 +92,8 @@ export function useReconciledUpdate<
     )
     .map((key) => ({
       key,
-      content: resultSections[key],
-      order: resultOrder[key],
+      content: resultSections[key] ?? null,
+      order: key in resultSections ? resultOrder[key] : null,
     })) as U["sections"];
   // Basis content is the API's normalized entity projection; restore section rows for ordinary renderers.
   const baseline = {
@@ -82,9 +112,10 @@ export function useReconciledUpdate<
     })),
   } as T;
   return {
+    staged: !!review?.staged,
     proposal: { ...proposal, updates },
     existing: baseline,
     reviewedServiceIds: before.serviceIds as string[] | undefined,
-    hideDiff: !!activeReview?.approvalDisabled,
+    hideDiff: !!(activeReview ?? futureReview)?.approvalDisabled,
   };
 }

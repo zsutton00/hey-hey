@@ -1,3 +1,5 @@
+import { ProposalReconciliationSuggestion } from 'src/generated';
+import { ProposalReconciliationCandidatePipe } from '../../pipes/proposal-reconciliation-candidate.pipe';
 import { ConflictException, Inject, Injectable, Logger } from '@nestjs/common';
 import type {
   Prisma,
@@ -17,6 +19,7 @@ import type {
   UpdateTaskDto,
   UpdateDesignDocDto,
   WorkItemChangeSetValidationRequest,
+  ProjectedWorkItemChangeSetResponse,
 } from 'src/generated';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 import {
@@ -34,6 +37,12 @@ import {
   remapReconciliationIdentity,
 } from './proposal-reconciliation-content';
 import { AgentEdgeClientService } from '../agent-edge-client.service';
+import {
+  futureGraph,
+  graphContentBasis,
+  remapGraphProjection,
+  type FutureGraphApplication,
+} from './future-graph';
 import { parseFutureRevisionMutation } from './future-revision';
 import type { FutureRevisionMaterializerPorts } from './future-revision-materializer';
 import {
@@ -58,6 +67,39 @@ export type ReconciliationGroupMember = {
   sourceProposalId: string;
   provenance?: ReconciliationProvenance;
   identityMappings?: Record<string, string>;
+};
+
+export type ReconciliationDecision = {
+  kind: 'NOT_REQUIRED' | 'REQUIRED' | 'BLOCKED';
+  differences: BasisMismatch[];
+  differingPaths: string[];
+};
+
+type ReconciliationInput =
+  | {
+      kind: 'bases';
+      reviewed: readonly ProposalReconciliationBasis[] | null;
+      current: readonly ProposalReconciliationBasis[];
+      delivered?: readonly ProposalReconciliationBasis[];
+    }
+  | {
+      kind: 'graph';
+      reviewed: ProjectedWorkItemChangeSetResponse;
+      current: ProjectedWorkItemChangeSetResponse;
+    };
+
+type FutureDecisionInput = {
+  kind: 'future';
+  tx: AnyTransactionClient;
+  target: {
+    organizationId: string;
+    projectId: string;
+    targetEntityType: 'TASK' | 'DESIGN_DOC';
+    targetEntityId: string;
+  };
+  baseline: FutureRevisionBaseline;
+  result?: FutureRevisionContent;
+  proposalId?: string;
 };
 
 type InterveningRow = {
@@ -86,6 +128,51 @@ export class ProposalReconciliationService {
     @Inject(SERVICE_TOKEN_FACTORY)
     private readonly tokenFactory: ServiceTokenFactory,
   ) {}
+
+  /** The sole content-currency decision, including guarded writes and graph projections. */
+  decision(input: ReconciliationInput): ReconciliationDecision;
+  decision(input: FutureDecisionInput): Promise<ReconciliationDecision>;
+  decision(
+    input: ReconciliationInput | FutureDecisionInput,
+  ): ReconciliationDecision | Promise<ReconciliationDecision> {
+    if (input.kind === 'future') {
+      return this.readFutureDecision(
+        input.tx,
+        input.target,
+        input.baseline,
+        input.result,
+        input.proposalId,
+      );
+    }
+    if (input.kind === 'graph') {
+      const differingPaths = differingContentKeys(
+        graphContentBasis(input.reviewed),
+        graphContentBasis(input.current),
+      );
+      return {
+        kind: differingPaths.length ? 'REQUIRED' : 'NOT_REQUIRED',
+        differences: [],
+        differingPaths,
+      };
+    }
+    if (input.reviewed === null) {
+      return { kind: 'BLOCKED', differences: [], differingPaths: [''] };
+    }
+    const differences = basisMismatches(input.reviewed, input.current);
+    if (
+      input.delivered &&
+      basisMismatches(input.delivered, input.current).length === 0
+    ) {
+      return { kind: 'NOT_REQUIRED', differences: [], differingPaths: [] };
+    }
+    return {
+      kind: differences.length ? 'REQUIRED' : 'NOT_REQUIRED',
+      differences,
+      differingPaths: differences.flatMap((difference) =>
+        difference.differingKeys.length ? difference.differingKeys : [''],
+      ),
+    };
+  }
 
   async currentBases(
     tx: AnyTransactionClient,
@@ -119,9 +206,27 @@ export class ProposalReconciliationService {
     }
     if (proposal.action === 'CREATE') return [];
     if (proposal.targetEntityType === 'TASK') {
-      return [
-        await this.taskBasis(tx, proposal, proposal.targetEntityId, lock),
-      ];
+      const basis = await this.taskBasis(
+        tx,
+        proposal,
+        proposal.targetEntityId,
+        lock,
+      );
+      if (proposal.action === 'VERSIONED_UPDATE') {
+        const mutation = parseFutureRevisionMutation(proposal.updates);
+        if (mutation.operation === 'REVISE' && futureGraph(mutation.result)) {
+          const graph = await this.adapter.readFutureGraph(
+            proposal.organizationId,
+            proposal.projectId,
+            proposal.targetEntityId,
+            tx,
+          );
+          basis.content.graph = graphContentBasis(
+            graph,
+          ) as unknown as Prisma.JsonObject;
+        }
+      }
+      return [basis];
     }
     if (proposal.targetEntityType === 'DESIGN_DOC') {
       return [
@@ -140,7 +245,123 @@ export class ProposalReconciliationService {
     return [];
   }
 
-  async futureBaselineChanged(
+  /** Load only comparison inputs. Review history, merge previews and suggestions stay on state(). */
+  async decisionsForProposals(
+    tx: AnyTransactionClient,
+    proposals: readonly Proposal[],
+  ): Promise<Map<string, ReconciliationDecision>> {
+    const decisions = new Map<string, ReconciliationDecision>();
+    if (!proposals.length) {
+      return decisions;
+    }
+    const revisions: Pick<StoredRevision, 'proposalId' | 'bases'>[] =
+      await tx.proposalReconciliationRevision.findMany({
+        where: { proposalId: { in: proposals.map((proposal) => proposal.id) } },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        distinct: ['proposalId'],
+        select: { proposalId: true, bases: true },
+      });
+    const reviewedByProposal = new Map(
+      revisions.map((revision) => [
+        revision.proposalId,
+        revision.bases as unknown as ProposalReconciliationBasis[],
+      ]),
+    );
+    const scopes = new Map<string, Proposal[]>();
+    for (const proposal of proposals) {
+      const key = `${proposal.organizationId}:${proposal.projectId}`;
+      scopes.set(key, [...(scopes.get(key) ?? []), proposal]);
+    }
+    for (const scoped of scopes.values()) {
+      const ordinary = scoped.filter(
+        (proposal) => proposal.action !== 'VERSIONED_UPDATE',
+      );
+      const ids = new Set(
+        ordinary.flatMap((proposal) =>
+          (reviewedByProposal.get(proposal.id) ?? [])
+            .filter((basis) => basis.entityType === 'TASK')
+            .map((basis) => basis.entityId),
+        ),
+      );
+      const current = ids.size
+        ? await this.adapter.tasks(
+            tx,
+            {
+              organizationId: scoped[0]!.organizationId,
+              projectId: scoped[0]!.projectId,
+            },
+            [...ids],
+          )
+        : new Map<string, ProposalReconciliationBasis>();
+      for (const proposal of scoped) {
+        let reviewed = reviewedByProposal.get(proposal.id);
+        if (!reviewed || !reviewed.length) {
+          decisions.set(
+            proposal.id,
+            this.decision({ kind: 'bases', reviewed: null, current: [] }),
+          );
+          continue;
+        }
+        if (proposal.action === 'VERSIONED_UPDATE') {
+          const mutation = parseFutureRevisionMutation(proposal.updates);
+          if (
+            mutation.operation === 'REVISE' &&
+            (proposal.targetEntityType === 'TASK' ||
+              proposal.targetEntityType === 'DESIGN_DOC')
+          ) {
+            decisions.set(
+              proposal.id,
+              await this.decision({
+                kind: 'future',
+                proposalId: proposal.id,
+                tx,
+                target: {
+                  ...proposal,
+                  targetEntityType: proposal.targetEntityType,
+                },
+                baseline: mutation.baseline,
+                result: mutation.result,
+              }),
+            );
+            continue;
+          }
+        }
+        const reservedIds = new Set(
+          reviewed
+            .filter((basis) => basis.version.startsWith('reserved:'))
+            .map((basis) => basis.entityId),
+        );
+        if (reservedIds.size) {
+          reviewed = await this.resolveReservedBases(tx, reviewed);
+        }
+        const actual: ProposalReconciliationBasis[] = [];
+        for (const basis of reviewed) {
+          const value =
+            basis.entityType === 'TASK'
+              ? reservedIds.has(basis.entityId)
+                ? await this.taskBasis(tx, proposal, basis.entityId, false)
+                : current.get(basis.entityId)
+              : basis.entityType === 'EDGE'
+                ? await this.edgeBasis(proposal, basis.entityId)
+                : undefined;
+          if (value) {
+            actual.push(value);
+          }
+        }
+        decisions.set(
+          proposal.id,
+          this.decision({
+            kind: 'bases',
+            reviewed: actual.length === reviewed.length ? reviewed : null,
+            current: actual,
+          }),
+        );
+      }
+    }
+    return decisions;
+  }
+
+  private async readFutureDecision(
     tx: AnyTransactionClient,
     target: {
       organizationId: string;
@@ -149,7 +370,83 @@ export class ProposalReconciliationService {
       targetEntityId: string;
     },
     baseline: FutureRevisionBaseline,
-  ): Promise<boolean> {
+    reviewedResult?: FutureRevisionContent,
+    proposalId?: string,
+  ): Promise<ReconciliationDecision> {
+    if (
+      proposalId &&
+      !(await tx.proposalReconciliationRevision.findFirst({
+        where: { proposalId },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      }))
+    ) {
+      return this.decision({ kind: 'bases', reviewed: null, current: [] });
+    }
+    let resultGraph = reviewedResult && futureGraph(reviewedResult);
+    if (baseline.kind === 'FUTURE') {
+      const parent = await tx.proposalFuture.findFirst({
+        where: {
+          id: baseline.futureId,
+          organizationId: target.organizationId,
+          projectId: target.projectId,
+          targetEntityId: target.targetEntityId,
+          targetEntityType: target.targetEntityType,
+        },
+      });
+      if (
+        !parent ||
+        parent.outcome !== 'APPLIED' ||
+        String(parent.appliedRevision) !== baseline.revision
+      ) {
+        return this.decision({ kind: 'bases', reviewed: null, current: [] });
+      }
+      const graph = futureGraph(baseline.content);
+      if (graph && 'type' in baseline.content) {
+        const intent = await tx.workItemChangeSetMaterialization.findUnique({
+          where: { proposalId: parent.latestProposalId },
+        });
+        if (!intent || intent.status !== 'PUBLISHED') {
+          return this.decision({ kind: 'bases', reviewed: null, current: [] });
+        }
+        baseline = {
+          ...baseline,
+          content: {
+            ...baseline.content,
+            graph: remapGraphProjection(
+              graph,
+              intent.workItemIdMappings as Record<string, string>,
+              intent.relationshipIdMappings as Record<string, string>,
+            ),
+          },
+        };
+        if (resultGraph) {
+          resultGraph = remapGraphProjection(
+            resultGraph,
+            intent.workItemIdMappings as Record<string, string>,
+            intent.relationshipIdMappings as Record<string, string>,
+            true,
+          );
+        }
+      }
+    }
+    if (resultGraph && proposalId) {
+      // An interrupted Apply may already have created the result's new graph items.
+      const own = await tx.workItemChangeSetMaterialization.findUnique({
+        where: { proposalId: proposalId },
+      });
+      if (own) {
+        resultGraph = remapGraphProjection(
+          resultGraph,
+          own.workItemIdMappings as Record<string, string>,
+          own.relationshipIdMappings as Record<string, string>,
+          true,
+        );
+      }
+    }
+    reviewedResult =
+      reviewedResult && resultGraph && 'type' in reviewedResult
+        ? { ...reviewedResult, graph: resultGraph }
+        : reviewedResult;
     const current =
       target.targetEntityType === 'TASK'
         ? await this.adapter.task(tx, target, target.targetEntityId, false)
@@ -159,14 +456,78 @@ export class ProposalReconciliationService {
             target.targetEntityId,
             false,
           );
-    return !isEqual(
-      this.adapter.futureContentBasis(
-        target.targetEntityType,
-        baseline.content,
-        target.projectId,
-      ),
-      this.adapter.currentFutureBasisContent(target.targetEntityType, current),
+    if (current.version === 'absent' || current.content.archivedAt) {
+      return this.decision({
+        kind: 'bases',
+        reviewed: null,
+        current: [current],
+      });
+    }
+    const graph =
+      futureGraph(baseline.content) ||
+      (reviewedResult && futureGraph(reviewedResult));
+    const currentGraph = graph
+      ? await this.adapter.readFutureGraph(
+          target.organizationId,
+          target.projectId,
+          target.targetEntityId,
+          tx,
+        )
+      : undefined;
+    const actual = {
+      ...current,
+      content: {
+        ...this.adapter.currentFutureBasisContent(
+          target.targetEntityType,
+          current,
+        ),
+        ...(currentGraph ? { graph: graphContentBasis(currentGraph) } : {}),
+      },
+    } satisfies ProposalReconciliationBasis;
+    const reviewed = this.futureBasis(
+      target.targetEntityType,
+      target.targetEntityId,
+      target.projectId,
+      baseline,
     );
+    return this.decision({
+      kind: 'bases',
+      reviewed: [reviewed],
+      current: [actual],
+      delivered:
+        reviewedResult && futureGraph(reviewedResult)
+          ? [
+              this.futureBasis(
+                target.targetEntityType,
+                target.targetEntityId,
+                target.projectId,
+                { ...baseline, content: reviewedResult },
+              ),
+            ]
+          : undefined,
+    });
+  }
+
+  private futureBasis(
+    entityType: 'TASK' | 'DESIGN_DOC',
+    entityId: string,
+    projectId: string,
+    baseline: FutureRevisionBaseline,
+  ): ProposalReconciliationBasis {
+    const graph = futureGraph(baseline.content);
+    return {
+      entityType,
+      entityId,
+      version: baseline.revision,
+      content: {
+        ...this.adapter.futureContentBasis(
+          entityType,
+          baseline.content,
+          projectId,
+        ),
+        ...(graph ? { graph: graphContentBasis(graph) } : {}),
+      },
+    };
   }
 
   currentFutureContent(target: {
@@ -185,6 +546,13 @@ export class ProposalReconciliationService {
 
   futureMaterializationPorts(): FutureRevisionMaterializerPorts {
     return {
+      projectGraph: (target, basis, request) =>
+        this.adapter.projectFutureGraph(
+          target.organizationId,
+          target.projectId,
+          basis,
+          request,
+        ),
       readLiveContent: (target) => this.currentFutureContent(target),
       readLiveRevision: (tx, target) =>
         this.adapter.liveFutureRevision(
@@ -211,30 +579,127 @@ export class ProposalReconciliationService {
     proposal: Proposal,
     baseline: FutureRevisionBaseline,
   ): Promise<ProposalReconciliationState> {
-    const state = await this.state(tx, proposal);
     if (
       proposal.targetEntityType !== 'TASK' &&
       proposal.targetEntityType !== 'DESIGN_DOC'
     )
+      return this.state(tx, proposal);
+    if (
+      proposal.status === 'REJECTED' ||
+      (proposal.status === 'APPROVED' &&
+        !(await this.isUnappliedFuture(tx, proposal)))
+    ) {
+      const state = await this.state(tx, proposal);
+      const rows: StoredRevision[] =
+        await tx.proposalReconciliationRevision.findMany({
+          where: { proposalId: proposal.id },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        });
+      // Retain inspectable suggestion evidence after Apply without restoring eligibility.
+      return this.withSuggestions(tx, proposal, {
+        ...state,
+        revisions: rows.map((row) => ({
+          id: row.id,
+          proposalId: row.proposalId,
+          source: row.source as ProposalReconciliationRevision['source'],
+          previousRevisionId: row.previousRevisionId,
+          bases: row.bases as unknown as ProposalReconciliationBasis[],
+          proposedResult: row.proposedResult as Prisma.JsonObject,
+          intent: row.intent,
+          createdAt: row.createdAt.toISOString(),
+        })),
+      });
+    }
+    const mutation = parseFutureRevisionMutation(proposal.updates);
+    const future = await tx.proposalFuture.findFirst({
+      where: {
+        id: mutation.futureId,
+        organizationId: proposal.organizationId,
+        projectId: proposal.projectId,
+      },
+    });
+    const state = await this.state(tx, proposal);
+    if (!state.revisions.length || state.status === 'NOT_APPLICABLE') {
       return state;
-    if (!state.revisions.length) return state;
-    const changed = await this.futureBaselineChanged(
-      tx,
-      {
+    }
+    let currentBases = state.currentBases;
+    if (state.status === 'RECONCILIATION_REQUIRED') {
+      // Section identities are response metadata, outside the semantic basis check.
+      // Manual recovery must retain actual live identities when carrying new sections forward.
+      const live = await this.currentFutureContent({
         organizationId: proposal.organizationId,
         projectId: proposal.projectId,
         targetEntityType: proposal.targetEntityType,
         targetEntityId: proposal.targetEntityId,
-      },
-      baseline,
-    );
+      });
+      currentBases = state.currentBases.map((basis) => ({
+        ...basis,
+        content: {
+          ...basis.content,
+          ...('type' in live ? { source: live.source } : {}),
+          materializedSections: live.sections as unknown as Prisma.JsonArray,
+        },
+      }));
+    }
+    const {
+      replacementProposalId: _legacyProposal,
+      replacementGroupId: _legacyGroup,
+      ...currentState
+    } = state;
+    return this.withSuggestions(tx, proposal, {
+      ...currentState,
+      currentBases,
+      futureRevision: future?.revision ?? 0,
+    });
+  }
+
+  private async withSuggestions(
+    tx: AnyTransactionClient,
+    proposal: Proposal,
+    state: ProposalReconciliationState,
+  ): Promise<ProposalReconciliationState> {
+    const suggestions: import('@prisma/client').ProposalReconciliationSuggestion[] =
+      await tx.proposalReconciliationSuggestion.findMany({
+        where: { proposalId: proposal.id },
+        orderBy: { createdAt: 'asc' },
+      });
     return {
       ...state,
-      status: changed
-        ? 'RECONCILIATION_REQUIRED'
-        : state.revisions.at(-1)?.source === 'AUTHORING'
-          ? 'CURRENT'
-          : 'READY_FOR_REVIEW',
+      suggestions: suggestions.map((suggestion) => {
+        const request = new ProposalReconciliationCandidatePipe().transform(
+          suggestion.request,
+        );
+        if (request.method !== 'AGENT_FIX')
+          throw new ConflictException(
+            'Stored suggestion violates its authoring contract.',
+          );
+        const statuses = Object.values(
+          ProposalReconciliationSuggestion.StatusEnum,
+        );
+        const status = statuses.find((value) => value === suggestion.status);
+        if (!status)
+          throw new ConflictException(
+            'Stored suggestion has an invalid status.',
+          );
+        return {
+          id: suggestion.id,
+          proposalId: proposal.id,
+          organizationId: proposal.organizationId,
+          projectId: proposal.projectId,
+          status:
+            status === 'PENDING' &&
+            suggestion.candidateRevisionId !== state.candidateRevisionId
+              ? ('OUT_OF_DATE' as const)
+              : status,
+          candidateRevisionId: suggestion.candidateRevisionId,
+          proposedResult: request.proposedResult,
+          ...(suggestion.messageId ? { messageId: suggestion.messageId } : {}),
+          ...(suggestion.legacyProposalId
+            ? { legacyProposalId: suggestion.legacyProposalId }
+            : {}),
+          createdAt: suggestion.createdAt.toISOString(),
+        };
+      }),
     };
   }
 
@@ -243,25 +708,22 @@ export class ProposalReconciliationService {
     current: readonly ProposalReconciliationBasis[],
     targetEntityType: 'TASK' | 'DESIGN_DOC',
   ): void {
-    const expected = reviewed[0];
-    const actual = current[0];
-    if (
-      reviewed.length !== 1 ||
-      current.length !== 1 ||
-      !expected ||
-      !actual ||
-      expected.entityType !== targetEntityType ||
-      actual.entityType !== targetEntityType ||
-      expected.entityId !== actual.entityId ||
-      !isEqual(
-        this.adapter.currentFutureBasisContent(targetEntityType, expected),
-        this.adapter.currentFutureBasisContent(targetEntityType, actual),
-      )
-    ) {
-      throw new ConflictException(
-        'Future target content changed after reconciliation review.',
-      );
-    }
+    this.assertReviewedBasisCurrent(
+      reviewed.map((basis) => ({
+        ...basis,
+        content: {
+          ...this.adapter.currentFutureBasisContent(targetEntityType, basis),
+          graph: basis.content.graph,
+        },
+      })),
+      current.map((basis) => ({
+        ...basis,
+        content: {
+          ...this.adapter.currentFutureBasisContent(targetEntityType, basis),
+          graph: basis.content.graph,
+        },
+      })),
+    );
   }
 
   private async taskBasis(
@@ -497,10 +959,25 @@ export class ProposalReconciliationService {
       where: { proposalId: proposal.id },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
+    const mutation =
+      proposal.action === 'VERSIONED_UPDATE'
+        ? parseFutureRevisionMutation(proposal.updates)
+        : undefined;
     const bases =
-      previous && !provenance
-        ? (previous.bases as unknown as ProposalReconciliationBasis[])
-        : current;
+      mutation?.operation === 'REVISE' &&
+      (proposal.targetEntityType === 'TASK' ||
+        proposal.targetEntityType === 'DESIGN_DOC')
+        ? [
+            this.futureBasis(
+              proposal.targetEntityType,
+              proposal.targetEntityId,
+              proposal.projectId,
+              mutation.baseline,
+            ),
+          ]
+        : previous && !provenance
+          ? (previous.bases as unknown as ProposalReconciliationBasis[])
+          : current;
     if (previous && !provenance?.preserveVotes)
       await tx.proposalApprovalRecord.deleteMany({
         where: { proposalId: proposal.id },
@@ -645,12 +1122,33 @@ export class ProposalReconciliationService {
     });
   }
 
+  private async isUnappliedFuture(
+    tx: AnyTransactionClient,
+    proposal: Proposal,
+  ): Promise<boolean> {
+    if (proposal.action !== 'VERSIONED_UPDATE') return false;
+    const mutation = parseFutureRevisionMutation(proposal.updates);
+    if (mutation.operation !== 'REVISE') return false;
+    const future = await tx.proposalFuture.findFirst({
+      where: {
+        id: mutation.futureId,
+        organizationId: proposal.organizationId,
+        projectId: proposal.projectId,
+      },
+    });
+    return future?.outcome === 'STAGED';
+  }
+
   async state(
     tx: AnyTransactionClient,
     proposal: Proposal,
   ): Promise<ProposalReconciliationState> {
     // A decided proposal has nothing left to reconcile or review.
-    if (proposal.status === 'APPROVED' || proposal.status === 'REJECTED') {
+    if (
+      proposal.status === 'REJECTED' ||
+      (proposal.status === 'APPROVED' &&
+        !(await this.isUnappliedFuture(tx, proposal)))
+    ) {
       return {
         status: 'NOT_APPLICABLE',
         currentBases: [],
@@ -748,19 +1246,41 @@ export class ProposalReconciliationService {
         `${effect.entityType}:${effect.entityId}`,
         effect.basis as unknown as ProposalReconciliationBasis,
       );
-    let status: ProposalReconciliationState['status'] = 'NOT_APPLICABLE';
-    if (currentBases.length) {
-      status = !latest
+    const mutation =
+      proposal.action === 'VERSIONED_UPDATE'
+        ? parseFutureRevisionMutation(proposal.updates)
+        : undefined;
+    const decision =
+      mutation?.operation === 'REVISE' &&
+      (proposal.targetEntityType === 'TASK' ||
+        proposal.targetEntityType === 'DESIGN_DOC')
+        ? await this.decision({
+            kind: 'future',
+            proposalId: proposal.id,
+            tx,
+            target: {
+              ...proposal,
+              targetEntityType: proposal.targetEntityType,
+            },
+            baseline: mutation.baseline,
+            result: mutation.result,
+          })
+        : this.decision({
+            kind: 'bases',
+            reviewed: latest
+              ? await this.resolveReservedBases(tx, [...expectedBases.values()])
+              : null,
+            current: currentBases,
+          });
+    let status: ProposalReconciliationState['status'] = !currentBases.length
+      ? 'NOT_APPLICABLE'
+      : !latest || decision.kind === 'BLOCKED'
         ? 'AGENT_FIX_REQUIRED'
-        : this.basesMatch(
-              await this.resolveReservedBases(tx, [...expectedBases.values()]),
-              currentBases,
-            )
-          ? latest.source === 'AUTHORING'
+        : decision.kind === 'REQUIRED'
+          ? 'RECONCILIATION_REQUIRED'
+          : latest.source === 'AUTHORING'
             ? 'CURRENT'
-            : 'READY_FOR_REVIEW'
-          : 'RECONCILIATION_REQUIRED';
-    }
+            : 'READY_FOR_REVIEW';
     if (materialization?.status === 'PUBLISHED') status = 'NOT_APPLICABLE';
     let replacement =
       proposal.action === 'VERSIONED_UPDATE' ||
@@ -772,6 +1292,12 @@ export class ProposalReconciliationService {
             orderBy: { createdAt: 'desc' },
           })
         : null;
+    if (replacement && proposal.action === 'VERSIONED_UPDATE') {
+      const candidate = await tx.proposal.findUnique({
+        where: { id: replacement.replacementProposalId },
+      });
+      if (!candidate || candidate.status !== 'DRAFT') replacement = null;
+    }
     if (replacement?.replacementGroupId) {
       const group = await tx.proposalGroup.findUnique({
         where: { id: replacement.replacementGroupId },
@@ -788,22 +1314,36 @@ export class ProposalReconciliationService {
     const intervening = outOfDate
       ? await this.interveningProposals(tx, proposal, origin)
       : [];
-    const overlaps =
+    const reviewState = {
+      status,
+      currentBases,
+      revisions,
+      conflictingPaths: [],
+      interveningProposals: [],
+      overlaps: [],
+    };
+    const contentMerge =
       status === 'RECONCILIATION_REQUIRED' && !replacement
-        ? this.overlaps(
-            this.prepareMerge(proposal, {
-              status,
-              currentBases,
-              revisions,
-              conflictingPaths: [],
-              interveningProposals: [],
-              overlaps: [],
-            }),
-            latest?.proposedResult,
-            currentBases[0]?.content,
-            intervening,
-          )
-        : [];
+        ? proposal.action === 'VERSIONED_UPDATE'
+          ? this.prepareFutureMerge(proposal, reviewState)
+          : this.prepareMerge(proposal, reviewState)
+        : undefined;
+    const overlaps = contentMerge
+      ? this.overlaps(
+          contentMerge,
+          proposal.action === 'VERSIONED_UPDATE' &&
+            (proposal.targetEntityType === 'TASK' ||
+              proposal.targetEntityType === 'DESIGN_DOC')
+            ? this.adapter.futureContentBasis(
+                proposal.targetEntityType,
+                this.futureRevisionResult(proposal),
+                proposal.projectId,
+              )
+            : latest?.proposedResult,
+          currentBases[0]?.content,
+          intervening,
+        )
+      : [];
     for (const entry of intervening)
       entry.overlappingPaths = overlaps
         .filter((overlap) => overlap.interveningProposalId === entry.proposalId)
@@ -812,7 +1352,12 @@ export class ProposalReconciliationService {
       status,
       currentBases,
       revisions,
-      conflictingPaths: overlaps.map((overlap) => overlap.path),
+      conflictingPaths: [
+        ...new Set([
+          ...decision.differingPaths,
+          ...overlaps.map((overlap) => overlap.path),
+        ]),
+      ],
       ...(outOfDate ? { writtenAt: origin.createdAt.toISOString() } : {}),
       interveningProposals: intervening,
       overlaps,
@@ -912,7 +1457,9 @@ export class ProposalReconciliationService {
 
   /** Fields the merge could not combine, attributed to the latest intervening change to them. */
   private overlaps(
-    merge: ReturnType<ProposalReconciliationService['prepareMerge']>,
+    merge:
+      | { kind: 'MERGED' }
+      | { kind: 'AGENT_FIX_REQUIRED'; conflictingPaths: readonly string[] },
     proposedResult: Prisma.JsonValue | undefined,
     current: Prisma.JsonValue | undefined,
     intervening: readonly ProposalReconciliationIntervening[],
@@ -939,15 +1486,205 @@ export class ProposalReconciliationService {
       });
   }
 
+  private futureRevisionResult(proposal: Proposal): FutureRevisionContent {
+    const mutation = parseFutureRevisionMutation(proposal.updates);
+    if (mutation.operation !== 'REVISE')
+      throw new ConflictException('Cancelled futures have no proposed result.');
+    return mutation.result;
+  }
+
+  mergeFutureContent(
+    targetEntityType: 'TASK' | 'DESIGN_DOC',
+    projectId: string,
+    baseline: FutureRevisionContent,
+    result: FutureRevisionContent,
+    current: ProposalReconciliationBasis,
+  ) {
+    const before = this.adapter.futureContentBasis(
+      targetEntityType,
+      baseline,
+      projectId,
+    );
+    const after = this.adapter.futureContentBasis(
+      targetEntityType,
+      result,
+      projectId,
+    );
+    const textPaths = new Set(
+      Object.keys(before.sections as Prisma.JsonObject).map((key) =>
+        fieldPathToPointer(`sections.${key}`),
+      ),
+    );
+    return mergeProposalContent(
+      before,
+      this.adapter.currentFutureBasisContent(targetEntityType, current),
+      after,
+      textPaths,
+    );
+  }
+
+  /** Read through the caller's transaction so Apply merges against the locked target. */
+  async mergeFutureForApplication(
+    tx: AnyTransactionClient,
+    target: {
+      organizationId: string;
+      projectId: string;
+      targetEntityType: 'TASK' | 'DESIGN_DOC';
+      targetEntityId: string;
+    },
+    baseline: FutureRevisionBaseline,
+    result: FutureRevisionContent,
+  ) {
+    const basis =
+      target.targetEntityType === 'TASK'
+        ? await this.adapter.task(tx, target, target.targetEntityId, false)
+        : await this.adapter.designDoc(
+            tx,
+            target,
+            target.targetEntityId,
+            false,
+          );
+    const decision = this.decision({
+      kind: 'bases',
+      reviewed: [
+        this.futureBasis(
+          target.targetEntityType,
+          target.targetEntityId,
+          target.projectId,
+          baseline,
+        ),
+      ],
+      current: [
+        {
+          ...basis,
+          content: this.adapter.currentFutureBasisContent(
+            target.targetEntityType,
+            basis,
+          ),
+        },
+      ],
+    });
+    if (decision.kind !== 'NOT_REQUIRED') {
+      return {
+        kind: 'AGENT_FIX_REQUIRED' as const,
+        conflictingPaths: decision.differingPaths,
+      };
+    }
+    const merged = this.mergeFutureContent(
+      target.targetEntityType,
+      target.projectId,
+      baseline.content,
+      result,
+      basis,
+    );
+    if (merged.kind !== 'MERGED') {
+      return merged;
+    }
+    return {
+      kind: 'MERGED' as const,
+      candidate: merged.candidate as Prisma.JsonObject,
+      basis,
+    };
+  }
+
+  async futureCandidateMatches(
+    tx: AnyTransactionClient,
+    target: {
+      organizationId: string;
+      projectId: string;
+      targetEntityType: 'TASK' | 'DESIGN_DOC';
+      targetEntityId: string;
+    },
+    candidate: Prisma.JsonObject,
+  ) {
+    const basis =
+      target.targetEntityType === 'TASK'
+        ? await this.adapter.task(tx, target, target.targetEntityId, false)
+        : await this.adapter.designDoc(
+            tx,
+            target,
+            target.targetEntityId,
+            false,
+          );
+    return isEqual(
+      candidate,
+      this.adapter.currentFutureBasisContent(target.targetEntityType, basis),
+    );
+  }
+
+  mergedFutureResult(
+    proposal: Proposal,
+    state: ProposalReconciliationState,
+    live: FutureRevisionContent,
+  ): Prisma.JsonObject {
+    const merged = this.prepareFutureMerge(proposal, state);
+    if (merged.kind !== 'MERGED' || futureGraph(live)) {
+      throw new ConflictException(
+        'These changes require manual reconciliation or Agent fix.',
+      );
+    }
+    const { sectionOrder: _sectionOrder, ...candidate } =
+      merged.candidate as Prisma.JsonObject;
+    const sections = Object.entries(
+      candidate.sections as Prisma.JsonObject,
+    ).map(([key, content], order) => ({ key, content, order }));
+    const rendered =
+      'type' in live
+        ? this.adapter.renderFutureTaskSections(
+            proposal.projectId,
+            live.type,
+            sections,
+          )
+        : sections.map(({ key, content }) => ({ key, content }));
+    const proposed = this.futureRevisionResult(proposal);
+    return {
+      ...live,
+      ...candidate,
+      sections: sections.map(({ key, order }) => ({
+        ...(live.sections.find((section) => section.key === key) ??
+          proposed.sections.find((section) => section.key === key) ?? {
+            id: uuidv4(),
+            materializedProposalId: '',
+          }),
+        key,
+        order,
+        materializedMarkdown: rendered.find((section) => section.key === key)!
+          .content,
+      })),
+    } as Prisma.JsonObject;
+  }
+
+  prepareFutureMerge(proposal: Proposal, state: ProposalReconciliationState) {
+    if (
+      (proposal.targetEntityType !== 'TASK' &&
+        proposal.targetEntityType !== 'DESIGN_DOC') ||
+      !state.currentBases[0]
+    ) {
+      return { kind: 'AGENT_FIX_REQUIRED', conflictingPaths: [''] } as const;
+    }
+    const mutation = parseFutureRevisionMutation(proposal.updates);
+    if (mutation.operation !== 'REVISE') {
+      return { kind: 'AGENT_FIX_REQUIRED', conflictingPaths: [''] } as const;
+    }
+    return this.mergeFutureContent(
+      proposal.targetEntityType,
+      proposal.projectId,
+      mutation.baseline.content,
+      mutation.result,
+      state.currentBases[0],
+    );
+  }
+
   prepareMerge(proposal: Proposal, state: ProposalReconciliationState) {
     const original = state.revisions.at(-1);
     if (!original || !state.currentBases[0] || proposal.action === 'DELETE') {
       return { kind: 'AGENT_FIX_REQUIRED', conflictingPaths: [''] } as const;
     }
+    if (proposal.action === 'VERSIONED_UPDATE') {
+      return { kind: 'AGENT_FIX_REQUIRED', conflictingPaths: [] } as const;
+    }
     const patch = proposal.updates as UpdateTaskDto | UpdateDesignDocDto;
-    // Ordered requirement operations carry semantic intent, not replacement content.
     if (
-      'requirementOps' in patch ||
       'operations' in patch ||
       proposal.targetEntityType === 'ENTITY_PROMPT_TEMPLATE' ||
       proposal.targetEntityType === 'WORK_ITEM_TYPE'
@@ -986,16 +1723,14 @@ export class ProposalReconciliationService {
     reviewedRevisionId?: string,
     requireRevisionReview = false,
   ): Promise<void> {
-    const replacement =
-      proposal.action === 'VERSIONED_UPDATE' ||
-      (await tx.proposalGroupMember.findUnique({
-        where: { proposalId: proposal.id },
-      }))
-        ? await tx.proposalReconciliationReplacement.findFirst({
-            where: { proposalId: proposal.id },
-            orderBy: { createdAt: 'desc' },
-          })
-        : null;
+    const replacement = (await tx.proposalGroupMember.findUnique({
+      where: { proposalId: proposal.id },
+    }))
+      ? await tx.proposalReconciliationReplacement.findFirst({
+          where: { proposalId: proposal.id },
+          orderBy: { createdAt: 'desc' },
+        })
+      : null;
     if (replacement) {
       const group = replacement.replacementGroupId
         ? await tx.proposalGroup.findUnique({
@@ -1039,14 +1774,39 @@ export class ProposalReconciliationService {
         'Approval must identify the reconciled revision displayed for review.',
       );
     }
-    this.assertReviewedBasisCurrent(
-      await this.resolveReservedBases(
-        tx,
-        revision.bases as unknown as ProposalReconciliationBasis[],
-      ),
-      current,
-      proposal.id,
-    );
+    const mutation =
+      proposal.action === 'VERSIONED_UPDATE'
+        ? parseFutureRevisionMutation(proposal.updates)
+        : undefined;
+    const reviewed =
+      mutation?.operation === 'REVISE' &&
+      (proposal.targetEntityType === 'TASK' ||
+        proposal.targetEntityType === 'DESIGN_DOC')
+        ? [
+            this.futureBasis(
+              proposal.targetEntityType,
+              proposal.targetEntityId,
+              proposal.projectId,
+              mutation.baseline,
+            ),
+          ]
+        : await this.resolveReservedBases(
+            tx,
+            revision.bases as unknown as ProposalReconciliationBasis[],
+          );
+    if (
+      mutation?.operation === 'REVISE' &&
+      (proposal.targetEntityType === 'TASK' ||
+        proposal.targetEntityType === 'DESIGN_DOC')
+    ) {
+      this.assertFutureReviewedBasisCurrent(
+        reviewed,
+        current,
+        proposal.targetEntityType,
+      );
+    } else {
+      this.assertReviewedBasisCurrent(reviewed, current, proposal.id);
+    }
   }
 
   /** The entity write and its receipt share one transaction and the same owner lock. */
@@ -1067,21 +1827,30 @@ export class ProposalReconciliationService {
     const receipt = await tx.proposalReconciliationEffect.findUnique({
       where: { materializationId_entityType_entityId: identity },
     });
+    if (receipt?.operationIndexes.includes(operationIndex)) return undefined;
     if (!createsTarget || receipt) {
       const current = await this.adapter.task(tx, proposal, taskId, true);
       const revision = await tx.proposalReconciliationRevision.findFirst({
         where: { proposalId: proposal.id },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       });
+      const appliedBasis = await this.futureApplicationBasis(
+        tx,
+        proposal,
+        materializationId,
+        'TASK',
+        taskId,
+      );
       const expected = receipt
         ? (receipt.basis as unknown as ProposalReconciliationBasis)
-        : (
+        : (appliedBasis ??
+          (
             revision?.bases as unknown as
               | ProposalReconciliationBasis[]
               | undefined
           )?.find(
             (basis) => basis.entityType === 'TASK' && basis.entityId === taskId,
-          );
+          ));
       if (!expected)
         throw new ConflictException(
           'Original target content is unavailable. Reconciliation is required.',
@@ -1091,7 +1860,6 @@ export class ProposalReconciliationService {
         [current],
         proposal.id,
       );
-      if (receipt?.operationIndexes.includes(operationIndex)) return undefined;
     }
     const result = await write();
     const basis = await this.adapter.task(tx, proposal, taskId, true);
@@ -1108,6 +1876,25 @@ export class ProposalReconciliationService {
       },
     });
     return result;
+  }
+
+  private async futureApplicationBasis(
+    tx: AnyTransactionClient,
+    proposal: Proposal,
+    materializationId: string,
+    entityType: 'TASK' | 'EDGE',
+    entityId: string,
+  ): Promise<ProposalReconciliationBasis | undefined> {
+    if (proposal.action !== 'VERSIONED_UPDATE') return undefined;
+    const intent = await tx.workItemChangeSetMaterialization.findUnique({
+      where: { id: materializationId, proposalId: proposal.id },
+    });
+    const stored = intent?.targetProjection as unknown as
+      | { futureApplication?: FutureGraphApplication }
+      | undefined;
+    return stored?.futureApplication?.reviewedBases.find(
+      (basis) => basis.entityType === entityType && basis.entityId === entityId,
+    );
   }
 
   async reviewedEdgeBasis(
@@ -1130,15 +1917,23 @@ export class ProposalReconciliationService {
       where: { proposalId: proposal.id },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
+    const appliedBasis = await this.futureApplicationBasis(
+      tx,
+      proposal,
+      materializationId,
+      'EDGE',
+      edgeId,
+    );
     const expected = receipt
       ? (receipt.basis as unknown as ProposalReconciliationBasis)
-      : (
+      : (appliedBasis ??
+        (
           revision?.bases as unknown as
             | ProposalReconciliationBasis[]
             | undefined
         )?.find(
           (basis) => basis.entityType === 'EDGE' && basis.entityId === edgeId,
-        );
+        ));
     if (!expected)
       throw new ConflictException(
         'Original relationship content is unavailable. Reconciliation is required.',
@@ -1247,8 +2042,11 @@ export class ProposalReconciliationService {
     current: readonly ProposalReconciliationBasis[],
     proposalId?: string,
   ): void {
-    const differences = this.basisMismatches(reviewed, current);
-    if (differences.length === 0) return;
+    const decision = this.decision({ kind: 'bases', reviewed, current });
+    if (decision.kind === 'NOT_REQUIRED') {
+      return;
+    }
+    const differences = decision.differences;
     const correlationId = uuidv4();
     this.logger.warn(
       `Proposal approval blocked: reviewed basis no longer current ${JSON.stringify({ proposalId, correlationId, differences })}`,
@@ -1261,60 +2059,55 @@ export class ProposalReconciliationService {
       correlationId,
     });
   }
-
-  private basesMatch(
-    reviewed: readonly ProposalReconciliationBasis[],
-    current: readonly ProposalReconciliationBasis[],
-  ): boolean {
-    return this.basisMismatches(reviewed, current).length === 0;
-  }
-
-  /**
-   * Work items and design docs are compared by content alone: their versions are
-   * built from timestamps that unrelated writes (e.g. adding a child) also move.
-   */
-  private basisMismatches(
-    reviewed: readonly ProposalReconciliationBasis[],
-    current: readonly ProposalReconciliationBasis[],
-  ): BasisMismatch[] {
-    const currentByIdentity = new Map(
-      current.map((basis) => [`${basis.entityType}:${basis.entityId}`, basis]),
-    );
-    const mismatches: BasisMismatch[] = [];
-    for (const basis of reviewed) {
-      const identity = `${basis.entityType}:${basis.entityId}`;
-      const actual = currentByIdentity.get(identity);
-      currentByIdentity.delete(identity);
-      const mismatch = {
-        entityType: basis.entityType,
-        entityId: basis.entityId,
-      };
-      if (!actual) {
-        mismatches.push({ ...mismatch, kind: 'missing', differingKeys: [] });
-        continue;
-      }
-      if (
-        (versionIsMeaningful(basis) || versionIsMeaningful(actual)) &&
-        basis.version !== actual.version
-      ) {
-        mismatches.push({ ...mismatch, kind: 'version', differingKeys: [] });
-        continue;
-      }
-      const differingKeys = differingContentKeys(basis.content, actual.content);
-      if (differingKeys.length > 0)
-        mismatches.push({ ...mismatch, kind: 'content', differingKeys });
-    }
-    for (const extra of currentByIdentity.values())
-      mismatches.push({
-        entityType: extra.entityType,
-        entityId: extra.entityId,
-        kind: 'missing',
-        differingKeys: [],
-      });
-    return mismatches;
-  }
 }
 
+/**
+ * Work items and design docs are compared by content alone: their versions are
+ * built from timestamps that unrelated writes (e.g. adding a child) also move.
+ */
+function basisMismatches(
+  reviewed: readonly ProposalReconciliationBasis[],
+  current: readonly ProposalReconciliationBasis[],
+): BasisMismatch[] {
+  const currentByIdentity = new Map(
+    current.map((basis) => [`${basis.entityType}:${basis.entityId}`, basis]),
+  );
+  const mismatches: BasisMismatch[] = [];
+  for (const basis of reviewed) {
+    const identity = `${basis.entityType}:${basis.entityId}`;
+    const actual = currentByIdentity.get(identity);
+    currentByIdentity.delete(identity);
+    const mismatch = {
+      entityType: basis.entityType,
+      entityId: basis.entityId,
+    };
+    if (!actual) {
+      mismatches.push({ ...mismatch, kind: 'missing', differingKeys: [] });
+      continue;
+    }
+    if (
+      (versionIsMeaningful(basis) || versionIsMeaningful(actual)) &&
+      basis.version !== actual.version
+    ) {
+      mismatches.push({ ...mismatch, kind: 'version', differingKeys: [] });
+      continue;
+    }
+    const differingKeys = differingContentKeys(
+      reviewedContent(basis),
+      reviewedContent(actual),
+    );
+    if (differingKeys.length > 0)
+      mismatches.push({ ...mismatch, kind: 'content', differingKeys });
+  }
+  for (const extra of currentByIdentity.values())
+    mismatches.push({
+      entityType: extra.entityType,
+      entityId: extra.entityId,
+      kind: 'missing',
+      differingKeys: [],
+    });
+  return mismatches;
+}
 export type BasisMismatch = {
   entityType: string;
   entityId: string;
@@ -1345,14 +2138,35 @@ const versionIsMeaningful = (basis: ProposalReconciliationBasis): boolean =>
   basis.version === 'absent' ||
   String(basis.version).startsWith('reserved:');
 
-const NESTED_KEYS = new Set(['sections', 'sectionOrder']);
+// JSON persistence omits unset optional object fields. Their absence does not
+// change reviewed content; null, array membership and order remain meaningful.
+const sameReviewedContent = (left: unknown, right: unknown): boolean => {
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right)) return false;
+    return (
+      left.length === right.length &&
+      left.every((value, index) => sameReviewedContent(value, right[index]))
+    );
+  }
+  if (isPlainObject(left) || isPlainObject(right)) {
+    if (!isPlainObject(left) || !isPlainObject(right)) return false;
+    const a = left as Record<string, unknown>;
+    const b = right as Record<string, unknown>;
+    return [...new Set([...Object.keys(a), ...Object.keys(b)])].every((key) =>
+      sameReviewedContent(a[key], b[key]),
+    );
+  }
+  return left === right;
+};
+
+const NESTED_KEYS = new Set(['sections', 'sectionOrder', 'definition']);
 
 const differingContentKeys = (
   left: unknown,
   right: unknown,
   prefix = '',
 ): string[] => {
-  if (isEqual(left, right)) return [];
+  if (sameReviewedContent(left, right)) return [];
   if (!isPlainObject(left) || !isPlainObject(right))
     return [prefix ? prefix.slice(0, -1) : '(root)'];
   const a = left as Record<string, unknown>;
@@ -1360,8 +2174,20 @@ const differingContentKeys = (
   return [...new Set([...Object.keys(a), ...Object.keys(b)])].flatMap((key) =>
     prefix === '' && NESTED_KEYS.has(key)
       ? differingContentKeys(a[key], b[key], `${key}.`)
-      : isEqual(a[key], b[key])
+      : sameReviewedContent(a[key], b[key])
         ? []
         : [`${prefix}${key}`],
   );
 };
+
+// Full snapshots remain available for candidate construction and writes.
+const reviewedContent = (basis: ProposalReconciliationBasis): unknown =>
+  basis.entityType === 'TASK' || basis.entityType === 'DESIGN_DOC'
+    ? reviewedTargetContent(basis.content)
+    : basis.content;
+
+const reviewedTargetContent = (content: Prisma.JsonObject) => ({
+  name: content.name,
+  sections: content.sections,
+  graph: content.graph,
+});

@@ -1,3 +1,4 @@
+import { SessionRole } from "../../api";
 import type {
   WorkItemTypeDefinitionDto,
   WorkItemTypeSectionDefinition,
@@ -70,20 +71,13 @@ function definitionFields(
     Icon: d.iconKey,
     Color: d.colorKey,
     Purpose: d.description ?? "",
-    "Semantic guidance": d.agentGuidance && {
-      ...d.agentGuidance,
-      ...(d.agentGuidance.contexts === undefined
-        ? {}
-        : {
-            contexts: d.agentGuidance.contexts.map((context) => ({
-              ...context,
-              // Focal types are membership, not priority. Normalize only for review;
-              // keep the submitted definition and all example/context order intact.
-              focalTypeKeys: [...context.focalTypeKeys].sort(),
-            })),
-          }),
-    },
     "Maintenance guidance": d.maintenanceGuidance ?? "",
+    ...Object.fromEntries(
+      Object.values(SessionRole).map((role) => [
+        `Session-role guidance — ${role}`,
+        d.sessionRoleGuidance?.[role] ?? "",
+      ]),
+    ),
     "Required scalars": d.requiredScalars ?? [],
     "Forbidden scalars": d.forbiddenScalars ?? [],
     "Allowed statuses": d.allowedStatuses,

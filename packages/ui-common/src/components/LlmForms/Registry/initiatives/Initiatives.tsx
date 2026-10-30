@@ -1,3 +1,5 @@
+import { useModalState } from "../../../Modals/useModalState";
+import { ModalWorkOwner } from "../../../Modals/ModalWorkOwner";
 import AddIcon from "@mui/icons-material/Add";
 import {
   Box,
@@ -36,7 +38,7 @@ interface InitiativesMessageProps {
   onInitiativeClick?: (initiative: InitiativeResponseDto) => void;
   onInitiativeCreate: (
     newInitiative: CreateInitiativeDto,
-    callbacks?: MutationCallbacks<InitiativeResponseDto>
+    callbacks?: MutationCallbacks<InitiativeResponseDto>,
   ) => Promise<InitiativeResponseDto>;
   onInitiativeDelete?: (initiative: InitiativeResponseDto) => void;
   onInitiativeReject?: (initiative: InitiativeResponseDto) => void;
@@ -65,8 +67,11 @@ export const Initiatives: React.FC<InitiativesMessageProps> = ({
   const { t } = useTranslation();
 
   // Modal state management
-  const [isNewInitiativeModalOpen, setIsNewInitiativeModalOpen] =
-    useState(false);
+  const [
+    isNewInitiativeModalOpen,
+    setIsNewInitiativeModalOpen,
+    isNewInitiativeModalOpenOwnerKey,
+  ] = useModalState(false);
 
   // Use initiatives hook for creation
   const [isCreatingInitiative, setIsCreatingInitiative] = useState(false);
@@ -92,7 +97,7 @@ export const Initiatives: React.FC<InitiativesMessageProps> = ({
                 description: formData.description ?? "",
                 acceptanceCriteria: "",
               },
-              { includeEmpty: false }
+              { includeEmpty: false },
             ),
             status: "REFINING_DESCRIPTION" as WorkStatus,
             priority: "MEDIUM" as Priority,
@@ -111,13 +116,13 @@ export const Initiatives: React.FC<InitiativesMessageProps> = ({
             onError: (error) => {
               console.error("Failed to create initiative:", error);
             },
-          }
+          },
         );
       } finally {
         setIsCreatingInitiative(false);
       }
     },
-    [onInitiativeCreate, onInitiativeCreated]
+    [onInitiativeCreate, onInitiativeCreated],
   );
 
   // Data loading is now handled by the parent component via TanStack Query
@@ -192,14 +197,16 @@ export const Initiatives: React.FC<InitiativesMessageProps> = ({
         </Grid>
 
         {/* New Initiative Modal */}
-        <NewInitiativeModal
-          open={isNewInitiativeModalOpen}
-          organizationId={organizationId}
-          onClose={handleCloseModal}
-          onSubmit={handleSubmitNewInitiative}
-          isLoading={isCreatingInitiative}
-          conversationId={conversationId}
-        />
+        <ModalWorkOwner.Provider value={isNewInitiativeModalOpenOwnerKey}>
+          <NewInitiativeModal
+            open={isNewInitiativeModalOpen}
+            organizationId={organizationId}
+            onClose={handleCloseModal}
+            onSubmit={handleSubmitNewInitiative}
+            isLoading={isCreatingInitiative}
+            conversationId={conversationId}
+          />
+        </ModalWorkOwner.Provider>
       </CardContent>
     </Card>
   );

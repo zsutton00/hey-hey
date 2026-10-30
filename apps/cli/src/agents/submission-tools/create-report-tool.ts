@@ -41,10 +41,15 @@ import { parseFeatureSyncDecisionReport } from './feature-sync-decision/schemas'
 
 export const CREATE_REPORT_TOOL_NAME = 'create_report';
 
-const CREATE_REPORT_INPUT_SCHEMA = {
+export const CREATE_REPORT_INPUT_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
+    ragEnabled: {
+      type: 'boolean',
+      description:
+        'Whether this report may be reused as project knowledge. The execution may force exclusion.',
+    },
     schemaVersion: {
       type: 'integer',
       minimum: 1,
@@ -105,7 +110,7 @@ const CREATE_REPORT_INPUT_SCHEMA = {
     },
   },
   required: ['reportType', 'audience', 'payload'],
-} as const;
+};
 
 interface ImplementReportPartition {
   args: Record<string, unknown>;

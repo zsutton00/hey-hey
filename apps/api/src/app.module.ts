@@ -27,6 +27,7 @@ import { ArtifactController } from './controllers/artifact.controller';
 import { AdminController } from './controllers/admin.controller';
 import { DemoSandboxController } from './controllers/demo-sandbox.controller';
 import { DemoTemplateController } from './controllers/demo-template.controller';
+import { AdminHintController } from './controllers/admin-hint.controller';
 import { AdminImplementationHintController } from './controllers/admin-implementation-hint.controller';
 import { PlatformAdminAccessController } from './controllers/platform-admin-access.controller';
 import { BotCheckService } from './services/demo-sandbox/bot-check.service';
@@ -251,6 +252,7 @@ import { TypeSafeJevModule } from './services/typesafe-jev/typesafe-jev.module';
     AdminController,
     PlatformAdminAccessController,
     AdminImplementationHintController,
+    AdminHintController,
     DemoTemplateController,
     DemoSandboxController,
     AuthController,

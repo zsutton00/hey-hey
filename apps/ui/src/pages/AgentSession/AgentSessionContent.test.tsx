@@ -4,10 +4,11 @@ import {
   type AgentSessionDto,
 } from "@hey-hey/ui-common/api";
 import {
+  AgentConversationView,
   ExistingEntityConversationSession,
   LoadingPanel,
 } from "@hey-hey/ui-common/components";
-import { useAgentSession } from "@hey-hey/ui-common/data";
+import { useAgentSession, useProposal } from "@hey-hey/ui-common/data";
 import { render, screen } from "@testing-library/react";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,9 +18,13 @@ import { FeatureTreeConversationPage } from "./FeatureTreeConversationPage";
 
 vi.mock("@hey-hey/ui-common/data", () => ({
   useAgentSession: vi.fn(),
+  useProposal: vi.fn(),
 }));
 
 vi.mock("@hey-hey/ui-common/components", () => ({
+  AgentConversationView: vi.fn(() => (
+    <div data-testid="agent-conversation-view" />
+  )),
   ExistingEntityConversationSession: vi.fn(() => (
     <div data-testid="existing-entity-conversation-session" />
   )),
@@ -113,6 +118,17 @@ describe("AgentSessionContent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setSessionQuery();
+    vi.mocked(useProposal).mockReturnValue({
+      proposal: null,
+      data: null,
+      error: null,
+      isFetched: true,
+      isFetching: false,
+      isLoading: false,
+      isReady: false,
+      isStale: false,
+      refetch: vi.fn(),
+    });
   });
 
   it("renders an explicit loading state while session metadata resolves", () => {
@@ -183,6 +199,46 @@ describe("AgentSessionContent", () => {
     ).toBeInTheDocument();
     expect(ExistingEntityConversationSession).not.toHaveBeenCalled();
     expect(AgenticAgentSessionPage).not.toHaveBeenCalled();
+  });
+
+  it("renders proposal-refining sessions as continuable proposal conversations", () => {
+    const agentSession = buildSession({
+      type: AgentSessionType.ProposalRefining,
+      entityId: "proposal-1",
+    });
+    setSessionQuery({ agentSession });
+    vi.mocked(useProposal).mockReturnValue({
+      proposal: {
+        id: "proposal-1",
+        action: "UPDATE",
+        status: "DRAFT",
+        targetEntityId: "target-1",
+        targetEntityType: "TASK",
+        title: "Proposal",
+        updates: {},
+      },
+      data: null,
+      error: null,
+      isFetched: true,
+      isFetching: false,
+      isLoading: false,
+      isReady: true,
+      isStale: false,
+      refetch: vi.fn(),
+    });
+
+    renderContent();
+
+    expect(screen.getByTestId("agent-conversation-view")).toBeInTheDocument();
+    expect(AgenticAgentSessionPage).not.toHaveBeenCalled();
+    const props = vi.mocked(AgentConversationView).mock.calls.at(-1)?.[0];
+    expect(props?.hideComposer).toBeFalsy();
+    const reply = props?.buildReplyMessage?.("Continue this proposal fix");
+    expect(reply?.data.agentInput).toMatchObject({
+      promptType: "proposal_refiner",
+      userMessage: "Continue this proposal fix",
+      proposal: { id: "proposal-1" },
+    });
   });
 
   it("leaves the canonical entity-conversation route on its existing lifecycle", () => {

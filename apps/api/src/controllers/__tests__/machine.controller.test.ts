@@ -67,8 +67,15 @@ describe('MachineController', () => {
     resolveSelectableCredentialIds: jest.fn().mockResolvedValue(new Map()),
   };
   const controllerBrowserBindingService = {
-    resolveForSelection: jest.fn().mockResolvedValue({
-      controllerInstallationId: TEST_CONTROLLER_INSTALLATION_ID,
+    resolveInventory: jest.fn().mockResolvedValue({
+      hasIdentity: true,
+      bindings: [
+        {
+          machineId: TEST_MACHINE_ID,
+          controllerCredentialPublicId: 'selected-credential',
+          controllerInstallationId: TEST_CONTROLLER_INSTALLATION_ID,
+        },
+      ],
     }),
   };
   // Pick the two methods the controller calls. Typing the mock as the full
@@ -460,7 +467,7 @@ describe('MachineController', () => {
             authorizationProtocolVersion: 2,
             executionReadiness: 'READY',
             currentControllerEligibility: 'ELIGIBLE',
-            currentControllerCredentialId: null,
+            currentControllerCredentialId: 'selected-credential',
             active: false,
             bindings: null,
           },
@@ -502,14 +509,84 @@ describe('MachineController', () => {
       ]);
       presenceService.isPresent.mockResolvedValue(false);
 
-      controllerBrowserBindingService.resolveForSelection.mockResolvedValueOnce(
-        null,
-      );
+      controllerBrowserBindingService.resolveInventory.mockResolvedValueOnce({
+        hasIdentity: false,
+        bindings: [],
+      });
       const result = await controller.listMachines(TEST_USER, TEST_REQUEST);
 
       expect(controllerEligibilityService.resolveMany).not.toHaveBeenCalled();
       expect(result.machines[0]!.currentControllerEligibility).toBeNull();
     });
+
+    it.each([
+      ['missing', false, [], null, null],
+      ['not enrolled', true, [], 'NOT_ENROLLED', null],
+      [
+        'revoked',
+        true,
+        [
+          {
+            machineId: TEST_MACHINE_ID,
+            revoked: true,
+            controllerCredentialPublicId: 'revoked',
+          },
+        ],
+        'REVOKED',
+        null,
+      ],
+      [
+        'eligible',
+        true,
+        [
+          {
+            machineId: TEST_MACHINE_ID,
+            revoked: false,
+            controllerCredentialPublicId: 'chosen',
+          },
+        ],
+        'ELIGIBLE',
+        'chosen',
+      ],
+      [
+        'ambiguous',
+        true,
+        [
+          { machineId: TEST_MACHINE_ID, controllerCredentialPublicId: 'first' },
+          {
+            machineId: TEST_MACHINE_ID,
+            controllerCredentialPublicId: 'second',
+          },
+        ],
+        'AMBIGUOUS',
+        null,
+      ],
+    ])(
+      'preserves the %s controller relationship independently of connectivity',
+      async (_name, hasIdentity, bindings, state, credentialId) => {
+        service.listMachines.mockResolvedValue([
+          {
+            machineId: TEST_MACHINE_ID,
+            name: 'Linux',
+            pairedAt: new Date(),
+            lastSeen: null,
+            revokedAt: null,
+            authorizationProtocolVersion: 2,
+          },
+        ]);
+        presenceService.isPresent.mockResolvedValue(false);
+        controllerBrowserBindingService.resolveInventory.mockResolvedValueOnce({
+          hasIdentity,
+          bindings,
+        });
+        const result = await controller.listMachines(TEST_USER, TEST_REQUEST);
+        expect(result.machines[0]).toMatchObject({
+          active: false,
+          currentControllerEligibility: state,
+          currentControllerCredentialId: credentialId,
+        });
+      },
+    );
 
     it('includes repo bindings for an active machine', async () => {
       const pairedAt = new Date('2026-05-10T10:00:00.000Z');

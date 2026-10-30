@@ -1,11 +1,19 @@
+import { evalJudgeHandler, parseEvalJudgeOutput } from '../agents/run-eval/eval-judge.handler';
+import type { EvalRunCaseInput } from '../shared/api/generated/api';
+import { ChildAgentLauncher, type ChildAgentLauncherDependencies } from './child-agent-launcher';
+import {
+  createPromptTypeHandlerTestDeps,
+  createPromptTypeHandlerTestRunStore,
+} from '../agents/prompt-type-handler.test-support';
+import { EntityContextApi, WorkItemTypesApi } from '../shared/api/generated/api';
 import { researchHandler } from '../agents/research/research.handler';
 import { LocalPromptType } from '../shared/agent-bridge-contract/generated';
 /**
  * Unified `SubAgent` regression test.
  *
  * Verifies that a fake `UserLaunchablePromptTypeHandler` with
- * `runnerKind:'subagent'` flows through the runtime SubAgent class in the
- * expected order — buildPrompt → addUserMessage → run_started → SDK
+ * `runnerKind:'subagent'` flows through the shared launcher/resolver and executor in the
+ * expected order — prompt resolution → run_started → SDK
  * startSession — without any runtime branch on promptType. Pairs with
  * `resolve-prompt.test.ts`'s coverage of the same handler shape on the
  * provider-session path to prove the two runtimes share the contract.
@@ -32,8 +40,13 @@ import { PromptTypeRegistry } from '../agents/prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../agents/prompt-type-registry.test-support';
 import { LocalAgentEndpoint } from '../server/local-base-url';
 import { SubAgent } from './subagent';
-import { createRunTestOAuthClient } from './run.test-support';
+import { createTestRepoMappingStore, createRunTestOAuthClient } from './run.test-support';
 
+const claudeEmitters = new Map<unknown, (event: Record<string, unknown>) => void>();
+const codexEmitters = new Map<
+  unknown,
+  (event: { method: string; params?: Record<string, unknown> }) => void
+>();
 const startSessionMock = vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined);
 const disconnectMock = vi.fn<() => Promise<undefined>>(async () => undefined);
 const onEventMock = vi.fn();
@@ -69,13 +82,16 @@ vi.mock('../agent-runtime/index', async () => {
   return {
     ...actual,
     ClaudeCodeSdkClient: class {
+      private emit: ((event: Record<string, unknown>) => void) | null = null;
       async startSession(...args: Parameters<typeof startSessionMock>) {
+        if (this.emit) claudeEmitters.set(args[0], this.emit);
         return startSessionMock(...args);
       }
       async disconnect() {
         return disconnectMock();
       }
       onEvent(handler: ((event: Record<string, unknown>) => void) | null) {
+        this.emit = handler;
         onEventMock(handler);
       }
       onPermissionRequest(handler: unknown) {
@@ -89,10 +105,13 @@ vi.mock('../agent-runtime/index', async () => {
       }
     },
     CodexSdkClient: class {
+      private emit: ((event: { method: string; params?: Record<string, unknown> }) => void) | null =
+        null;
       constructor() {
         codexConstructorMock();
       }
       async startSession(...args: Parameters<typeof codexStartSessionMock>) {
+        if (this.emit) codexEmitters.set(args[0], this.emit);
         return codexStartSessionMock(...args);
       }
       async disconnect() {
@@ -101,6 +120,7 @@ vi.mock('../agent-runtime/index', async () => {
       onEvent(
         handler: ((event: { method: string; params?: Record<string, unknown> }) => void) | null,
       ) {
+        this.emit = handler;
         codexOnEventMock(handler);
       }
       onServerRequest(handler: unknown) {
@@ -139,6 +159,8 @@ interface TestPayload {
 const makeSession = (overrides: Partial<AgenticSession> = {}): AgenticSession =>
   ({
     agentic_session_id: 'agentic-1',
+    entity: null,
+    services: [],
     serviceId: 'svc-1',
     provider: 'claude',
     provider_session_id: 'pending_abc',
@@ -163,19 +185,259 @@ const makeLogger = () =>
     child: vi.fn().mockReturnThis(),
   }) as unknown as ConstructorParameters<typeof SubAgent>[0]['logger'];
 
+// Exercise the sole production launch path; these fixtures are already prepared.
 const makeSubAgent = (
   args: Omit<
     ConstructorParameters<typeof SubAgent>[0],
-    'submissionToolRegistry' | 'localAgentEndpoint'
-  >,
-): SubAgent =>
-  new SubAgent({
-    ...args,
-    submissionToolRegistry: new SubmissionToolRegistry(),
-    localAgentEndpoint: new LocalAgentEndpoint(),
-  });
+    'submissionToolRegistry' | 'localAgentEndpoint' | 'prompt' | 'sessionStartContext'
+  > & { payload: unknown },
+) => ({
+  execute: () =>
+    new ChildAgentLauncher({
+      handlerDeps: createPromptTypeHandlerTestDeps(),
+      promptTypeRegistry: new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES),
+      repoStore: createTestRepoMappingStore(),
+      oauthClient: args.oauthClient,
+      logger: args.logger,
+      submissionToolRegistry: new SubmissionToolRegistry(),
+      localAgentEndpoint: new LocalAgentEndpoint(),
+    }).launch({
+      parentSession: args.session,
+      handler: args.handler,
+      payload: args.payload,
+      prepared: true,
+      signal: args.signal ?? new AbortController().signal,
+      workspace: {
+        cwd: args.cwd,
+        ...(args.allowedRepositoryRoots
+          ? { allowedRepositoryRoots: args.allowedRepositoryRoots }
+          : {}),
+      },
+      touchedFiles: args.touchedFiles,
+      priorReports: args.priorReports,
+      onAgentOutput: args.onAgentOutput,
+      ...(args.startupPromptInput ? { startupPromptInput: args.startupPromptInput } : {}),
+      ...(args.model ? { model: args.model } : {}),
+      ...(args.reasoningEffort ? { reasoningEffort: args.reasoningEffort } : {}),
+      ...(args.fastMode !== undefined ? { fastMode: args.fastMode } : {}),
+      ...(args.tokenBudget !== undefined ? { tokenBudget: args.tokenBudget } : {}),
+    }),
+});
 
 describe('SubAgent — unified runtime contract', () => {
+  it.each(['claude', 'codex'] as const)(
+    'judges supplied evidence with no %s tools or prior reports',
+    async (provider) => {
+      const caseInput: EvalRunCaseInput = {
+        id: 'case',
+        evalCaseId: 'case',
+        title: 'Evidence case',
+        target: {
+          targetHandler: 'entity_conversation',
+          situation: 'Recorded situation',
+          initiatingRequest: 'Recorded request',
+        },
+        grading: { checks: [], rubric: [] },
+      };
+      const answer = JSON.stringify({
+        checkResults: [],
+        recognition: { recognized: true, explanation: 'Evidence supplied' },
+        quality: [],
+      });
+      let permission: unknown;
+      if (provider === 'claude') {
+        startSessionMock.mockImplementationOnce(async (config) => {
+          expect(config).toMatchObject({
+            builtinTools: [],
+            strictMcpConfig: true,
+            mcpServers: {},
+            allowedTools: [],
+          });
+          expect(JSON.stringify(config)).toContain('Recorded situation');
+          expect(JSON.stringify(config)).toContain('Recorded answer');
+          const decide = onPermissionRequestMock.mock.calls.at(-1)![0] as (
+            name: string,
+            input: unknown,
+          ) => Promise<unknown>;
+          permission = await decide('mcp__external__read', {});
+          const emit = claudeEmitters.get(config)!;
+          emit({
+            type: 'assistant',
+            message: { id: 'judge', content: [{ type: 'text', text: answer }] },
+          });
+          emit({ type: 'result', subtype: 'success' });
+          return undefined;
+        });
+      } else {
+        codexStartSessionMock.mockImplementationOnce(async (config) => {
+          expect(config).toMatchObject({
+            disableMcpServers: true,
+            config: { web_search: 'disabled' },
+            sandbox: 'read-only',
+          });
+          const decide = codexOnServerRequestMock.mock.calls.at(-1)![0] as (
+            request: unknown,
+          ) => void;
+          decide({
+            id: 12,
+            method: 'mcpServer/elicitation/request',
+            params: {
+              serverName: 'external',
+              message: 'Allow the external MCP server to run tool "read"?',
+            },
+          });
+          await new Promise((resolve) => setImmediate(resolve));
+          expect(codexSubmitClientResponseMock).toHaveBeenCalledWith(
+            12,
+            expect.objectContaining({ action: 'decline' }),
+          );
+          const emit = codexEmitters.get(config)!;
+          emit({
+            method: 'item/completed',
+            params: { item: { type: 'agentMessage', text: answer } },
+          });
+          emit({ method: 'turn/completed', params: { turn: { status: 'completed' } } });
+          return undefined;
+        });
+      }
+      const result = await makeSubAgent({
+        session: makeSession({ provider }),
+        handler: evalJudgeHandler,
+        config: evalJudgeHandler.childConfig!,
+        payload: { caseInput, outputText: 'Recorded answer' },
+        touchedFiles: [],
+        priorReports: [
+          {
+            reportType: 'EVAL_ATTEMPT',
+            reportId: 'SECRET-REPORT',
+            createdAt: '2026-01-01T00:00:00Z',
+            phase: LocalPromptType.RunEval,
+            summary: 'SECRET-REPORT',
+            audience: 'INTERNAL',
+          },
+        ],
+        cwd: '/repo',
+        oauthClient: makeOauth(),
+        logger: makeLogger(),
+        onAgentOutput: () => {},
+      }).execute();
+      if (provider === 'claude') {
+        expect(permission).toMatchObject({ behavior: 'deny' });
+      }
+      expect(result.assistantCompleted).toBe(true);
+      expect(
+        parseEvalJudgeOutput(result.outputText!, caseInput, 'now').recognition.recognized,
+      ).toBe(true);
+      expect(result.usage).toEqual({});
+      const config = (
+        provider === 'claude' ? startSessionMock : codexStartSessionMock
+      ).mock.calls.at(-1)![0];
+      expect(JSON.stringify(config)).not.toContain('SECRET-REPORT');
+    },
+  );
+
+  it.each([
+    ['claude', 'judge-session'],
+    ['codex', 'judge-thread'],
+    ['claude', 'pending_judge'],
+    ['codex', 'pending_judge'],
+  ] as const)('retains only real %s judge identity when the client aborts (%s)', async (provider, id) => {
+    const onProviderSessionId = vi.fn(async () => {});
+    if (provider === 'claude') {
+      startSessionMock.mockImplementationOnce(async (config) => {
+        claudeGetSessionIdMock.mockReturnValue(id);
+        claudeEmitters.get(config)!({ type: 'system', subtype: 'init', session_id: id });
+        // Claude's abort handler disconnects and clears its identity before rejecting.
+        claudeGetSessionIdMock.mockReturnValue(null);
+        throw new Error('Aborted');
+      });
+    } else {
+      codexStartSessionMock.mockImplementationOnce(async (config) => {
+        codexGetSessionIdMock.mockReturnValue(id);
+        codexEmitters.get(config)!({ method: 'thread/started', params: { thread: { id } } });
+        codexGetSessionIdMock.mockReturnValue(null);
+        throw new Error('Aborted');
+      });
+    }
+    const child = makeSubAgent({
+      session: makeSession({ provider }),
+      handler: evalJudgeHandler,
+      config: evalJudgeHandler.childConfig!,
+      payload: {
+        caseInput: {
+          id: 'case', evalCaseId: 'case', title: 'Evidence case',
+          target: { targetHandler: 'entity_conversation', situation: 'Situation', initiatingRequest: 'Request' },
+          grading: { checks: [], rubric: [] },
+        },
+        outputText: 'Recorded answer',
+      },
+      touchedFiles: [], priorReports: [], cwd: '/repo',
+      oauthClient: makeOauth(), logger: makeLogger(), onAgentOutput: () => {},
+      onProviderSessionId,
+    });
+    await expect(child.execute()).rejects.toThrow('Aborted');
+    if (id.startsWith('pending_')) {
+      expect(onProviderSessionId).not.toHaveBeenCalled();
+    } else {
+      expect(onProviderSessionId).toHaveBeenCalledExactlyOnceWith(id);
+    }
+  });
+
+  it('refuses inert built-in execution before a handler policy can allow it', async () => {
+    const runStore = createPromptTypeHandlerTestRunStore();
+    await runStore.initialize();
+    const endpoint = new LocalAgentEndpoint();
+    endpoint.set('http://127.0.0.1:3849');
+    const decidePermission = vi.fn(async () => ({ behavior: 'allow' as const }));
+    const handler: UserLaunchablePromptTypeHandler<TestPayload> = {
+      id: 'commit',
+      promptType: 'commit',
+      service: 'required',
+      launchEntity: 'none',
+      implementationReadiness: 'none',
+      runnerKind: 'subagent',
+      providerSessionCountsForContext: false,
+      reports: [],
+      buildPrompt: () => 'Produce evaluation evidence.',
+      addUserMessage: defaultAddUserMessage,
+      subagentConfig: {
+        mcpAllowedTools: [],
+        builtinAllowedTools: ['Bash'],
+        adapterId: 'inert-permission-test',
+        decidePermission,
+      },
+    };
+    let decision: unknown;
+    startSessionMock.mockImplementationOnce(async () => {
+      const permission = onPermissionRequestMock.mock.calls.at(-1)![0] as (
+        name: string,
+        input: unknown,
+      ) => Promise<unknown>;
+      decision = await permission('Bash', { command: 'perform a forbidden write' });
+      return undefined;
+    });
+    const launcher = new ChildAgentLauncher({
+      runStore,
+      handlerDeps: createPromptTypeHandlerTestDeps(),
+      promptTypeRegistry: new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES),
+      repoStore: createTestRepoMappingStore(),
+      oauthClient: makeOauth(),
+      submissionToolRegistry: new SubmissionToolRegistry(),
+      localAgentEndpoint: endpoint,
+      logger: makeLogger(),
+    });
+    await launcher.launch({
+      parentSession: makeSession({ inert: true }),
+      handler,
+      payload: { userMessage: 'Evaluate' },
+      prepared: true,
+      signal: new AbortController().signal,
+      workspace: { cwd: '/repo' },
+    });
+    expect(decision).toMatchObject({ behavior: 'deny' });
+    expect(decidePermission).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     startSessionMock.mockClear();
     disconnectMock.mockClear();
@@ -201,6 +463,190 @@ describe('SubAgent — unified runtime contract', () => {
       maturity: 'ESTABLISHED',
     });
   });
+
+  it.each(['research', 'code_review', 'commit', 'final_assessment'] as const)(
+    'captures the complete registered %s child prompt',
+    async (promptType) => {
+      const registry = new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES);
+      const handler = registry.get(promptType)!;
+      const focalId = '20000000-0000-4000-8000-000000000002';
+      const startupPromptInput: AgentStartupPromptInputResult = {
+        startupInput: {
+          task: { taskType: 'STANDARD', description: 'Fixed task' },
+          adjacentScopeTasks: [],
+          evidenceItems: [],
+        },
+        renderedInput: 'AUTHORITATIVE ENTITY CONTEXT',
+        loadedEntityContext: {
+          kind: 'entity',
+          focalEntity: { entityType: 'TASK', entityId: focalId },
+          entity: { type: 'STANDARD' } as never,
+          context: {
+            entityId: focalId,
+            entityType: 'TASK',
+            taskType: 'STANDARD',
+            displayName: 'Fixed task',
+            content: { sections: {}, status: 'ACTIVE' },
+          } as never,
+        },
+        provenance: {
+          templateKey: 'task',
+          ownershipSource: { scope: 'CANONICAL' },
+          revisionId: 'fixed-revision',
+          revisionNumber: 1,
+        },
+      };
+      readSessionStartContextMock.mockResolvedValue({
+        workItemTypeDefinitions: [{ key: 'STANDARD', name: 'Task' } as WorkItemTypeDefinitionDto],
+        intentFirst: false,
+        maturity: 'ESTABLISHED',
+      });
+      const advice = vi
+        .spyOn(WorkItemTypesApi.prototype, 'getWorkItemTypeGuidanceBatch')
+        .mockImplementation(
+          async (request) =>
+            ({
+              data: {
+                success: true,
+                data: {
+                  results: [
+                    {
+                      typeKey: 'STANDARD',
+                      name: 'Task',
+                      sessionRole: request.workItemTypeGuidanceBatchRequestDto.sessionRole,
+                      guidance: 'Follow the reviewed requirements.',
+                    },
+                  ],
+                },
+              },
+            }) as never,
+        );
+      try {
+        await makeSubAgent({
+          session: makeSession({
+            launchServiceId: 'service-fixed',
+            services: [{ id: 'service-fixed', path: '/repo' }],
+          }),
+          handler,
+          config: (handler.subagentConfig ?? handler.childConfig)!,
+          payload: {
+            payloadVersion: 1,
+            userMessage: `Inspect @[task:${focalId}|Fixed task].`,
+            context: { organizationId: 'org-1', projectId: 'proj-1' },
+            executionSummary: 'Fixed implementation evidence.',
+            taskNeighborhood: { parentTasks: [], childTasks: [] },
+            _services: [{ id: 'service-fixed', path: '/repo' }],
+            _launchServiceId: 'service-fixed',
+            changedFiles: ['/repo/src/change.ts'],
+          },
+          touchedFiles: ['/repo/src/change.ts'],
+          onAgentOutput: vi.fn(),
+          oauthClient: makeOauth(),
+          logger: makeLogger(),
+          cwd: '/repo',
+          priorReports: [
+            {
+              reportId: '30000000-0000-4000-8000-000000000003',
+              reportType: 'IMPLEMENT',
+              phase: 'implement',
+              audience: 'EXTERNAL',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              summary: 'The requested change is implemented.',
+            },
+          ],
+          startupPromptInput,
+        }).execute();
+        const delivered = startSessionMock.mock.calls[0]?.[0] as { prompt: string };
+        expect(delivered.prompt).toMatchSnapshot();
+      } finally {
+        advice.mockRestore();
+      }
+    },
+  );
+
+  it.each(['codex', 'claude'] as const)(
+    'delivers effective advice in rebuilt %s child prompts before the request',
+    async (provider) => {
+      const referenceId = '20000000-0000-4000-8000-000000000002';
+      readSessionStartContextMock.mockResolvedValue({
+        workItemTypeDefinitions: [{ key: 'mockup', name: 'Mockup' } as WorkItemTypeDefinitionDto],
+        intentFirst: false,
+        maturity: 'ESTABLISHED',
+      });
+      const context = vi.spyOn(EntityContextApi.prototype, 'getEntityContext').mockResolvedValue({
+        data: {
+          success: true,
+          data: {
+            entityId: referenceId,
+            entityType: 'TASK',
+            taskType: 'mockup',
+            displayName: 'Reviewed mockup',
+            content: { sections: {}, status: 'BACKLOG' },
+          },
+        },
+      } as never);
+      const advice = vi
+        .spyOn(WorkItemTypesApi.prototype, 'getWorkItemTypeGuidanceBatch')
+        .mockResolvedValue({
+          data: {
+            success: true,
+            data: {
+              results: [
+                {
+                  typeKey: 'mockup',
+                  name: 'Mockup',
+                  sessionRole: 'research',
+                  guidance: 'READ THE REVIEWED MOCKUP CONTENT BEFORE AFFECTED WORK',
+                },
+              ],
+            },
+          },
+        } as never);
+      try {
+        const registry = new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES);
+        const handler = {
+          ...registry.get(LocalPromptType.Research)!,
+          sessionRole: 'research' as const,
+        };
+        await makeSubAgent({
+          session: makeSession({ provider }),
+          handler,
+          config: handler.childConfig!,
+          payload: {
+            userMessage: `Inspect @[mockup:${referenceId}|Reviewed mockup]`,
+            startupInput: {},
+          },
+          touchedFiles: [],
+          onAgentOutput: vi.fn(),
+          oauthClient: makeOauth(),
+          logger: makeLogger(),
+          cwd: '/tmp',
+          priorReports: [],
+        }).execute();
+        const request = (
+          provider === 'codex'
+            ? codexStartSessionMock.mock.calls[0]?.[0]
+            : startSessionMock.mock.calls[0]?.[0]
+        ) as { prompt: string };
+        expect(request.prompt.indexOf('READ THE REVIEWED MOCKUP')).toBeGreaterThanOrEqual(0);
+        expect(request.prompt.indexOf('READ THE REVIEWED MOCKUP')).toBeLessThan(
+          request.prompt.indexOf('Inspect @['),
+        );
+        expect(advice).toHaveBeenCalledWith(
+          expect.objectContaining({
+            workItemTypeGuidanceBatchRequestDto: {
+              typeKeys: ['mockup'],
+              purpose: 'role',
+              sessionRole: 'research',
+            },
+          }),
+        );
+      } finally {
+        context.mockRestore();
+        advice.mockRestore();
+      }
+    },
+  );
 
   it.each(['codex', 'claude'] as const)(
     'registered research children replace %s defaults',
@@ -291,6 +737,51 @@ describe('SubAgent — unified runtime contract', () => {
         content: null,
         _meta: null,
       });
+    }
+  });
+
+  it('keeps Review read-only on each fresh Codex helper, including approval requests', async () => {
+    const registry = new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES);
+    const handler = registry.get(LocalPromptType.CodeReview)!;
+    const requests = [
+      { id: 101, method: 'applyPatchApproval', params: { changes: {} } },
+      { id: 102, method: 'item/fileChange/requestApproval', params: {} },
+      {
+        id: 103,
+        method: 'execCommandApproval',
+        params: { command: ['sh', '-c', 'echo repair > source.ts'] },
+      },
+      {
+        id: 104,
+        method: 'item/commandExecution/requestApproval',
+        params: { command: 'git commit -am repair' },
+      },
+    ];
+    for (let launch = 0; launch < 2; launch++) {
+      codexStartSessionMock.mockImplementationOnce(async () => {
+        const request = codexOnServerRequestMock.mock.calls.at(-1)?.[0] as (input: object) => void;
+        requests.forEach(request);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      await makeSubAgent({
+        session: makeSession({ provider: 'codex' }),
+        handler,
+        config: handler.subagentConfig!,
+        payload: {},
+        touchedFiles: [],
+        onAgentOutput: vi.fn(),
+        oauthClient: makeOauth(),
+        logger: makeLogger(),
+        cwd: '/tmp',
+        priorReports: [],
+      }).execute();
+      expect(codexStartSessionMock.mock.calls.at(-1)?.[0]).toMatchObject({
+        sandbox: 'read-only',
+        config: { approvals_reviewer: 'user' },
+      });
+      for (const { id } of requests) {
+        expect(codexSubmitClientResponseMock).toHaveBeenCalledWith(id, { decision: 'decline' });
+      }
     }
   });
 
@@ -437,15 +928,20 @@ describe('SubAgent — unified runtime contract', () => {
       expectedMessageCount: number;
       expectedPreambleCount: number;
     }> = [
-      { userMessage: uniqueUserMessage, expectedMessageCount: 1, expectedPreambleCount: 1 },
+      { userMessage: uniqueUserMessage, expectedMessageCount: 1, expectedPreambleCount: 0 },
       { userMessage: '', expectedMessageCount: 0, expectedPreambleCount: 0 },
       { expectedMessageCount: 0, expectedPreambleCount: 0 },
     ];
     for (const testCase of cases) {
-      const payload: LocalStartupSessionPromptPayload = {
-        ...basePayload,
-        ...(testCase.userMessage !== undefined ? { userMessage: testCase.userMessage } : {}),
-      };
+      // SubAgent receives the payload already prepared by Run, including conversational feedback.
+      const payload: import('../agents/coding-plan/coding-plan.handler').EnrichedCodingPlanPromptPayload =
+        {
+          ...basePayload,
+          _recentUserReplies: testCase.userMessage
+            ? [{ messageId: 'reply', text: testCase.userMessage, createdAt: '' }]
+            : [],
+          ...(testCase.userMessage !== undefined ? { userMessage: testCase.userMessage } : {}),
+        };
       const subagent = makeSubAgent({
         session: makeSession(),
         handler: registeredCodingPlanHandler,
@@ -1135,6 +1631,7 @@ describe('SubAgent — unified runtime contract', () => {
 
       const result = await executeRegistered(LocalPromptType.StartupSession, 'claude');
 
+      expect(result.providerSessionId).toBe('plan-session');
       expect(result.contextReading).toEqual({
         providerSessionId: 'plan-session',
         usage: { totalTokens: 7_000, maxTokens: 200_000 },
@@ -1151,6 +1648,7 @@ describe('SubAgent — unified runtime contract', () => {
 
       const result = await executeRegistered(LocalPromptType.StartupSession, 'codex');
 
+      expect(result.providerSessionId).toBe('plan-thread');
       expect(result.contextReading).toEqual({
         providerSessionId: 'plan-thread',
         usage: { totalTokens: 5_000, maxTokens: 258_000 },
@@ -1165,6 +1663,41 @@ describe('SubAgent — unified runtime contract', () => {
       expect(claudeGetContextUsageMock).not.toHaveBeenCalled();
       expect(result).not.toHaveProperty('contextReading');
     });
+
+    it.each([LocalPromptType.StartupSession, LocalPromptType.CodeReview, LocalPromptType.Commit])(
+      'lets the read-only %s helper load deferred tools without being allowed to call off-allowlist ones',
+      async (promptType) => {
+        const decisions: Record<string, string> = {};
+        startSessionMock.mockImplementationOnce(async () => {
+          const decide = onPermissionRequestMock.mock.calls.at(-1)?.[0] as (
+            toolName: string,
+            input: unknown,
+          ) => Promise<{ behavior: string }>;
+          for (const toolName of [
+            'ToolSearch',
+            'mcp__heyhey-platform__edit_work_item',
+            'mcp__context7__query-docs',
+          ]) {
+            decisions[toolName] = (
+              await decide(toolName, { query: `select:${toolName}` })
+            ).behavior;
+          }
+          return undefined;
+        });
+
+        await executeRegistered(promptType, 'claude');
+
+        const launch = startSessionMock.mock.calls.at(-1)?.[0] as { builtinTools?: string[] };
+        // Commit has no read-only boundary, so Claude keeps its full built-in set.
+        if (promptType === LocalPromptType.Commit) expect(launch.builtinTools).toBeUndefined();
+        else expect(launch.builtinTools).toContain('ToolSearch');
+        expect(decisions).toEqual({
+          ToolSearch: 'allow',
+          'mcp__heyhey-platform__edit_work_item': 'deny',
+          'mcp__context7__query-docs': 'deny',
+        });
+      },
+    );
 
     it('logs a failed reading and still disconnects', async () => {
       const logger = makeLogger();

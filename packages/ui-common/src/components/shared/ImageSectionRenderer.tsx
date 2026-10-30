@@ -1,8 +1,9 @@
+import { useModalState } from "../Modals/useModalState";
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import {
   Alert,
   Box,
   Button,
-  Dialog,
   DialogContent,
   Link,
   Stack,
@@ -38,7 +39,8 @@ const ImagePreview: React.FC<{ src: string; label: string }> = ({
     width: number;
     height: number;
   }>();
-  const [originalOpen, setOriginalOpen] = useState(false);
+  const [originalOpen, setOriginalOpen, originalOpenOwnerKey] =
+    useModalState(false);
 
   return (
     <Stack spacing={0.5} alignItems="flex-start">
@@ -75,12 +77,19 @@ const ImagePreview: React.FC<{ src: string; label: string }> = ({
         </Link>
       </Typography>
       <Dialog
+        ownerKey={originalOpenOwnerKey}
+        workTitle="Image preview"
         open={originalOpen}
         onClose={() => setOriginalOpen(false)}
         maxWidth={false}
       >
         <DialogContent sx={{ p: 1, overflow: "auto" }}>
-          <Box component="img" src={src} alt={label} sx={{ display: "block" }} />
+          <Box
+            component="img"
+            src={src}
+            alt={label}
+            sx={{ display: "block" }}
+          />
         </DialogContent>
       </Dialog>
     </Stack>
@@ -99,7 +108,8 @@ export const ImageSectionRenderer: React.FC<ImageSectionRendererProps> = ({
   emptyText = "No image",
 }) => {
   const value = useMemo(() => readImageSection(content), [content]);
-  const src = value.status === "valid" ? imageSectionDataUrl(value.image) : undefined;
+  const src =
+    value.status === "valid" ? imageSectionDataUrl(value.image) : undefined;
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string>();
   const [dragging, setDragging] = useState(false);
@@ -116,7 +126,7 @@ export const ImageSectionRenderer: React.FC<ImageSectionRendererProps> = ({
       setError(undefined);
       onChange(serializeImageSection(encoded.image));
     },
-    [onChange]
+    [onChange],
   );
 
   const editable = Boolean(onChange) && !disabled;

@@ -1,5 +1,4 @@
 import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
-import { HintsConfig } from '../../config/hints.config';
 import {
   ENTITY_RESOURCES,
   ProjectResourceAccessService,
@@ -41,13 +40,6 @@ export interface HintView {
   updatedAt: string;
 }
 
-export class HintsDisabledError extends Error {
-  constructor() {
-    super('Hints are turned off for this deployment');
-    this.name = 'HintsDisabledError';
-  }
-}
-
 const toHintView = (hint: Hint): HintView => ({
   id: hint.id,
   text: hint.text,
@@ -71,13 +63,18 @@ export class HintService {
   private readonly logger = new Logger(HintService.name);
 
   constructor(
-    private readonly hintsConfig: HintsConfig,
     private readonly graphsClient: GraphsClientService,
     private readonly resourceAccess: ProjectResourceAccessService,
   ) {}
 
-  get enabled(): boolean {
-    return this.hintsConfig.enabled;
+  // Only the platform-admin controller exposes this project-wide read.
+  async listProjectHints(requestor: HintRequestor) {
+    await this.assertProjectAccess(requestor);
+    return this.graphsClient.listProjectHints(
+      requestor.organizationId,
+      requestor.projectId,
+      requestor.token,
+    );
   }
 
   async createHint(
@@ -88,7 +85,6 @@ export class HintService {
       connections: HintConnectionInput[];
     },
   ): Promise<HintView> {
-    this.assertEnabled();
     if (
       input.connections.length < 1 ||
       input.connections.length > MAX_HINT_CONNECTIONS
@@ -129,7 +125,6 @@ export class HintService {
     hintId: string,
     connection: HintConnectionInput,
   ): Promise<HintView> {
-    this.assertEnabled();
     this.logger.log('Adding hint connection', {
       projectId: requestor.projectId,
       hintId,
@@ -169,12 +164,6 @@ export class HintService {
     requestor: HintRequestor,
     itemIds: string[],
   ): Promise<HintView[]> {
-    if (!this.enabled) {
-      this.logger.log('Hints disabled; returning no hints', {
-        projectId: requestor.projectId,
-      });
-      return [];
-    }
     const nodeIds = Array.from(new Set(itemIds));
     if (nodeIds.length === 0) return [];
     if (nodeIds.length > MAX_HINT_READ_ITEMS) {
@@ -219,10 +208,6 @@ export class HintService {
       dropped: hints.length - kept.length,
     });
     return kept.map(toHintView);
-  }
-
-  private assertEnabled(): void {
-    if (!this.enabled) throw new HintsDisabledError();
   }
 
   private assertProjectAccess(requestor: HintRequestor): Promise<void> {

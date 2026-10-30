@@ -300,6 +300,12 @@ export interface AgentEdgeResponseDto {
      */
     'predicate'?: string | null;
     /**
+     * Optional plain-language user action that triggers this flow transition. UX_FLOW Diagrams require it to be non-blank on each flow link.
+     * @type {string}
+     * @memberof AgentEdgeResponseDto
+     */
+    'actionLabel'?: string | null;
+    /**
      *
      * @type {string}
      * @memberof AgentEdgeResponseDto
@@ -345,7 +351,7 @@ export interface AgentEdgeResponseDto {
 
 
 /**
- * Relationship type for agent-authored topology edges between two entities. Each value carries a distinct semantic: - RELATED_TO: source and target share context but have no directional   dependency, derivation, or replacement relationship. - DEPENDS_ON: source entity requires the target entity to be in place   (functionally or temporally) before it is meaningful or completable. - DERIVES_FROM: target entity is the origin or basis from which the   source entity was produced; the target remains canonical and the   source is a downstream artifact. - SUPERSEDES: source entity replaces the target entity; the target is   displaced and should no longer be treated as canonical. - CONTRADICTS: source entity disagrees with the target entity; both   remain visible so the conflict can be resolved by an authoring agent. - EVOLVES: source entity refines, extends, or iterates on the target   entity, which remains canonical. Distinct from SUPERSEDES (target is   displaced) and DERIVES_FROM (target is origin only and the source   stands apart). - TRACKS: source references the target as a tracked deliverable. The   meaning is composed with source and target type — the canonical   use is a GOAL-typed task referencing a FEATURE / STANDARD / BUG task   or a PLAN it expects to ship. DESIGN_DOC and other GOAL targets are   rejected at the attach boundary (track the parent feature or plan   instead). Validation lives in the boundary handler, not the edge   service. - PROPOSED_TOGETHER: source and target were created or modified by the   same proposal, making them co-authored siblings. Symmetric (the edge   carries no direction beyond the storage tuple) and system-emitted   (derived by the Graph service from a proposal-approved event rather   than authored by a user or agent). Carries no semantic claim about   dependency, derivation, or replacement — only that the two entities   share a proposal origin. Always paired with source `system`. - FULFILLED_BY: meta edge from a WORKFLOW_STEP work item to the work item   where that step\'s implementation lives. It remains visible in generic   meta-edge surfaces and is never categorized as flow. - STANDARD: flow edge from one WORKFLOW_STEP to the next ordinary step in   the same workflow graph. Carries category `flow` and requires direction. - CONDITIONAL: flow edge from a WORKFLOW_STEP to the next branch selected   by a predicate. Carries category `flow` and requires both direction and   predicate. - LOOP: flow edge representing a self-loop or return loop in a workflow   graph. Carries category `flow`, does not carry direction, and may carry   a predicate when the return is conditional.
+ * Relationship type for agent-authored topology edges between two entities. Each value carries a distinct semantic: - RELATED_TO: source and target share context but have no directional   dependency, derivation, or replacement relationship. - DEPENDS_ON: source entity requires the target entity to be in place   (functionally or temporally) before it is meaningful or completable. - DERIVES_FROM: target entity is the origin or basis from which the   source entity was produced; the target remains canonical and the   source is a downstream artifact. - SUPERSEDES: source entity replaces the target entity; the target is   displaced and should no longer be treated as canonical. - CONTRADICTS: source entity disagrees with the target entity; both   remain visible so the conflict can be resolved by an authoring agent. - EVOLVES: source entity refines, extends, or iterates on the target   entity, which remains canonical. Distinct from SUPERSEDES (target is   displaced) and DERIVES_FROM (target is origin only and the source   stands apart). - TRACKS: source references the target as a tracked deliverable. The   meaning is composed with source and target type — the canonical   use is a GOAL-typed task referencing a FEATURE / STANDARD / BUG task   or a PLAN it expects to ship. DESIGN_DOC and other GOAL targets are   rejected at the attach boundary (track the parent feature or plan   instead). Validation lives in the boundary handler, not the edge   service. - PROPOSED_TOGETHER: source and target were created or modified by the   same proposal, making them co-authored siblings. Symmetric (the edge   carries no direction beyond the storage tuple) and system-emitted   (derived by the Graph service from a proposal-approved event rather   than authored by a user or agent). Carries no semantic claim about   dependency, derivation, or replacement — only that the two entities   share a proposal origin. Always paired with source `system`. - FULFILLED_BY: meta edge from a WORKFLOW_STEP work item to the work item   where that step\'s implementation lives. It remains visible in generic   meta-edge surfaces and is never categorized as flow. - STANDARD: flow edge from one WORKFLOW_STEP to the next ordinary step in   the same workflow graph. Carries category `flow`, requires direction,   and may carry an action label. - CONDITIONAL: flow edge from a WORKFLOW_STEP to the next branch selected   by a predicate. Carries category `flow` and requires both direction and   predicate. It may also carry an action label. - LOOP: flow edge representing a self-loop or return loop in a workflow   graph. Carries category `flow`, does not carry direction, and may carry   a predicate when the return is conditional. It may also carry an action   label.
  * @export
  * @enum {string}
  */
@@ -1472,6 +1478,56 @@ export const AgentSessionConfigV2VersionEnum = {
 } as const;
 
 export type AgentSessionConfigV2VersionEnum = typeof AgentSessionConfigV2VersionEnum[keyof typeof AgentSessionConfigV2VersionEnum];
+
+/**
+ * Preparation for a non-revisioned Agent Session action. Direct actions bind target identity and complete semantic inputs, independently of delivery framing and mutable conversation counters.
+ * @export
+ * @interface AgentSessionHostActionPreparation
+ */
+export interface AgentSessionHostActionPreparation {
+    /**
+     * Retry identity only; it conveys no execution authority.
+     * @type {string}
+     * @memberof AgentSessionHostActionPreparation
+     */
+    'requestId': string;
+    /**
+     *
+     * @type {HostActionCategory}
+     * @memberof AgentSessionHostActionPreparation
+     */
+    'actionCategory': HostActionCategory;
+    /**
+     *
+     * @type {HostAffectingActionType}
+     * @memberof AgentSessionHostActionPreparation
+     */
+    'actionType': HostAffectingActionType;
+    /**
+     *
+     * @type {string}
+     * @memberof AgentSessionHostActionPreparation
+     */
+    'targetKind': AgentSessionHostActionPreparationTargetKindEnum;
+    /**
+     * Selection hint only. The server resolves and authorizes the canonical target instead of copying browser scope into the intent.
+     * @type {string}
+     * @memberof AgentSessionHostActionPreparation
+     */
+    'targetId': string;
+    /**
+     *
+     * @type {ControllerActionInputs}
+     * @memberof AgentSessionHostActionPreparation
+     */
+    'inputs'?: ControllerActionInputs;
+}
+
+export const AgentSessionHostActionPreparationTargetKindEnum = {
+    AgentSession: 'AGENT_SESSION'
+} as const;
+
+export type AgentSessionHostActionPreparationTargetKindEnum = typeof AgentSessionHostActionPreparationTargetKindEnum[keyof typeof AgentSessionHostActionPreparationTargetKindEnum];
 
 /**
  *
@@ -3312,6 +3368,12 @@ export interface CliReadChangedFilesInventoryResult {
 export type CliReadEnvelopeBody = { operation: 'project.session_costs.list' } & CliReadProjectSessionCostsListEnvelopeBody | { operation: 'provider.usage.get' } & CliReadProviderUsageGetEnvelopeBody | { operation: 'run.changed_files.count' } & CliReadRunChangedFilesCountEnvelopeBody | { operation: 'run.changed_files.detail' } & CliReadRunChangedFileDetailEnvelopeBody | { operation: 'run.changed_files.inventory' } & CliReadRunChangedFilesInventoryEnvelopeBody | { operation: 'run.context_usage.get' } & CliReadRunContextUsageGetEnvelopeBody | { operation: 'run.skills.list' } & CliReadRunSkillsListEnvelopeBody | { operation: 'run.tool_calls.latest_turn' } & CliReadRunToolCallsLatestTurnEnvelopeBody | { operation: 'runtime.model_catalog.get' } & CliReadRuntimeModelCatalogGetEnvelopeBody | { operation: 'workspace.skills.list' } & CliReadWorkspaceSkillsListEnvelopeBody;
 
 /**
+ * @type CliReadEnvelopeBody1
+ * @export
+ */
+export type CliReadEnvelopeBody1 = { operation: 'project.session_costs.list' } & CliReadProjectSessionCostsListEnvelopeBody | { operation: 'provider.usage.get' } & CliReadProviderUsageGetEnvelopeBody1 | { operation: 'run.changed_files.count' } & CliReadRunChangedFilesCountEnvelopeBody | { operation: 'run.changed_files.detail' } & CliReadRunChangedFileDetailEnvelopeBody1 | { operation: 'run.changed_files.inventory' } & CliReadRunChangedFilesInventoryEnvelopeBody1 | { operation: 'run.context_usage.get' } & CliReadRunContextUsageGetEnvelopeBody1 | { operation: 'run.skills.list' } & CliReadRunSkillsListEnvelopeBody1 | { operation: 'run.tool_calls.latest_turn' } & CliReadRunToolCallsLatestTurnEnvelopeBody1 | { operation: 'runtime.model_catalog.get' } & CliReadRuntimeModelCatalogGetEnvelopeBody1 | { operation: 'workspace.skills.list' } & CliReadWorkspaceSkillsListEnvelopeBody1;
+
+/**
  *
  * @export
  * @interface CliReadError
@@ -3371,6 +3433,13 @@ export type CliReadErrorCode = typeof CliReadErrorCode[keyof typeof CliReadError
  * @export
  */
 export type CliReadErrorResponseDto = { operation: 'project.session_costs.list' } & CliReadProjectSessionCostsListErrorResponseDto | { operation: 'provider.usage.get' } & CliReadProviderUsageGetErrorResponseDto | { operation: 'run.changed_files.count' } & CliReadRunChangedFilesCountErrorResponseDto | { operation: 'run.changed_files.detail' } & CliReadRunChangedFileDetailErrorResponseDto | { operation: 'run.changed_files.inventory' } & CliReadRunChangedFilesInventoryErrorResponseDto | { operation: 'run.context_usage.get' } & CliReadRunContextUsageGetErrorResponseDto | { operation: 'run.skills.list' } & CliReadRunSkillsListErrorResponseDto | { operation: 'run.tool_calls.latest_turn' } & CliReadRunToolCallsLatestTurnErrorResponseDto | { operation: 'runtime.model_catalog.get' } & CliReadRuntimeModelCatalogGetErrorResponseDto | { operation: 'workspace.skills.list' } & CliReadWorkspaceSkillsListErrorResponseDto;
+
+/**
+ * @type CliReadHostActionPreparation
+ * Closed selector for a machine-addressed CLI read under existing CLI_READ authority.
+ * @export
+ */
+export type CliReadHostActionPreparation = RuntimeModelCatalogHostActionPreparation | WorkspaceSkillsHostActionPreparation;
 
 /**
  *
@@ -4157,6 +4226,50 @@ export const CliReadRunChangedFileDetailEnvelopeBodyOperationEnum = {
 } as const;
 
 export type CliReadRunChangedFileDetailEnvelopeBodyOperationEnum = typeof CliReadRunChangedFileDetailEnvelopeBodyOperationEnum[keyof typeof CliReadRunChangedFileDetailEnvelopeBodyOperationEnum];
+
+/**
+ *
+ * @export
+ * @interface CliReadRunChangedFileDetailEnvelopeBody1
+ */
+export interface CliReadRunChangedFileDetailEnvelopeBody1 {
+    /**
+     * Correlation identity minted by the platform for this read.
+     * @type {string}
+     * @memberof CliReadRunChangedFileDetailEnvelopeBody1
+     */
+    'requestId': string;
+    /**
+     * Canonical Agent Session authorization target.
+     * @type {string}
+     * @memberof CliReadRunChangedFileDetailEnvelopeBody1
+     */
+    'agentSessionId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CliReadRunChangedFileDetailEnvelopeBody1
+     */
+    'operation': CliReadRunChangedFileDetailEnvelopeBody1OperationEnum;
+    /**
+     * Persisted CLI Run identity whose selected changed file is requested.
+     * @type {string}
+     * @memberof CliReadRunChangedFileDetailEnvelopeBody1
+     */
+    'runId': string;
+    /**
+     *
+     * @type {CliReadChangedFileIdentity}
+     * @memberof CliReadRunChangedFileDetailEnvelopeBody1
+     */
+    'file': CliReadChangedFileIdentity;
+}
+
+export const CliReadRunChangedFileDetailEnvelopeBody1OperationEnum = {
+    RunChangedFilesDetail: 'run.changed_files.detail'
+} as const;
+
+export type CliReadRunChangedFileDetailEnvelopeBody1OperationEnum = typeof CliReadRunChangedFileDetailEnvelopeBody1OperationEnum[keyof typeof CliReadRunChangedFileDetailEnvelopeBody1OperationEnum];
 
 /**
  *
@@ -5722,6 +5835,68 @@ export type CliReadWorkspaceSkillsListEnvelopeBodyOperationEnum = typeof CliRead
 /**
  *
  * @export
+ * @interface CliReadWorkspaceSkillsListEnvelopeBody1
+ */
+export interface CliReadWorkspaceSkillsListEnvelopeBody1 {
+    /**
+     * Correlation identity minted by the platform for this read.
+     * @type {string}
+     * @memberof CliReadWorkspaceSkillsListEnvelopeBody1
+     */
+    'requestId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CliReadWorkspaceSkillsListEnvelopeBody1
+     */
+    'operation': CliReadWorkspaceSkillsListEnvelopeBody1OperationEnum;
+    /**
+     *
+     * @type {AgentSkillProvider}
+     * @memberof CliReadWorkspaceSkillsListEnvelopeBody1
+     */
+    'provider': AgentSkillProvider;
+    /**
+     *
+     * @type {AgentSkillCatalogContext}
+     * @memberof CliReadWorkspaceSkillsListEnvelopeBody1
+     */
+    'catalogContext': AgentSkillCatalogContext;
+    /**
+     *
+     * @type {string}
+     * @memberof CliReadWorkspaceSkillsListEnvelopeBody1
+     */
+    'organizationId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CliReadWorkspaceSkillsListEnvelopeBody1
+     */
+    'projectId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CliReadWorkspaceSkillsListEnvelopeBody1
+     */
+    'machineId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CliReadWorkspaceSkillsListEnvelopeBody1
+     */
+    'authorizationRequestId': string;
+}
+
+export const CliReadWorkspaceSkillsListEnvelopeBody1OperationEnum = {
+    WorkspaceSkillsList: 'workspace.skills.list'
+} as const;
+
+export type CliReadWorkspaceSkillsListEnvelopeBody1OperationEnum = typeof CliReadWorkspaceSkillsListEnvelopeBody1OperationEnum[keyof typeof CliReadWorkspaceSkillsListEnvelopeBody1OperationEnum];
+
+/**
+ *
+ * @export
  * @interface CliReadWorkspaceSkillsListErrorResponseDto
  */
 export interface CliReadWorkspaceSkillsListErrorResponseDto {
@@ -5952,6 +6127,211 @@ export const CodingPlanActionSchemasREFINEActionEnum = {
 } as const;
 
 export type CodingPlanActionSchemasREFINEActionEnum = typeof CodingPlanActionSchemasREFINEActionEnum[keyof typeof CodingPlanActionSchemasREFINEActionEnum];
+
+/**
+ * One evidence-bearing, individually replyable planning issue.
+ * @export
+ * @interface CodingPlanDiscrepancy
+ */
+export interface CodingPlanDiscrepancy {
+    /**
+     *
+     * @type {CodingPromptStartupSourceRef}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'sourceRef': CodingPromptStartupSourceRef;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'sourceField': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'sourceExcerpt': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'reasoning': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'discrepancyText': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'severity': CodingPlanDiscrepancySeverityEnum;
+}
+
+export const CodingPlanDiscrepancySeverityEnum = {
+    Low: 'low',
+    Medium: 'medium',
+    High: 'high'
+} as const;
+
+export type CodingPlanDiscrepancySeverityEnum = typeof CodingPlanDiscrepancySeverityEnum[keyof typeof CodingPlanDiscrepancySeverityEnum];
+
+/**
+ *
+ * @export
+ * @interface CodingPlanEmissionInput
+ */
+export interface CodingPlanEmissionInput {
+    /**
+     * Complete visible plan. Preserve this exact text through approval and implementation.
+     * @type {string}
+     * @memberof CodingPlanEmissionInput
+     */
+    'markdown': string;
+    /**
+     *
+     * @type {Array<string>}
+     * @memberof CodingPlanEmissionInput
+     */
+    'requiredServiceIds': Array<string>;
+    /**
+     * Complete discrepancy list for this plan version. A replacement plan re-lists the discrepancies that still hold.
+     * @type {Array<CodingPlanDiscrepancy>}
+     * @memberof CodingPlanEmissionInput
+     */
+    'discrepancies'?: Array<CodingPlanDiscrepancy>;
+}
+/**
+ *
+ * @export
+ * @interface CodingPlanVersion
+ */
+export interface CodingPlanVersion {
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanVersion
+     */
+    'responseType': CodingPlanVersionResponseTypeEnum;
+    /**
+     * Complete visible plan. Preserve this exact text through approval and implementation.
+     * @type {string}
+     * @memberof CodingPlanVersion
+     */
+    'markdown': string;
+    /**
+     *
+     * @type {Array<string>}
+     * @memberof CodingPlanVersion
+     */
+    'requiredServiceIds': Array<string>;
+    /**
+     * Complete discrepancy list for this plan version. A replacement plan re-lists the discrepancies that still hold.
+     * @type {Array<CodingPlanDiscrepancy>}
+     * @memberof CodingPlanVersion
+     */
+    'discrepancies'?: Array<CodingPlanDiscrepancy>;
+}
+
+export const CodingPlanVersionResponseTypeEnum = {
+    CodingPlanVersionV1: 'coding_plan_version_v1'
+} as const;
+
+export type CodingPlanVersionResponseTypeEnum = typeof CodingPlanVersionResponseTypeEnum[keyof typeof CodingPlanVersionResponseTypeEnum];
+
+/**
+ * Input discrepancy captured in startup-plan output
+ * @export
+ * @interface CodingPromptStartupDiscrepancy
+ */
+export interface CodingPromptStartupDiscrepancy {
+    /**
+     *
+     * @type {CodingPromptStartupSourceRef}
+     * @memberof CodingPromptStartupDiscrepancy
+     */
+    'sourceRef': CodingPromptStartupSourceRef;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPromptStartupDiscrepancy
+     */
+    'sourceField'?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPromptStartupDiscrepancy
+     */
+    'sourceExcerpt': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPromptStartupDiscrepancy
+     */
+    'reasoning': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPromptStartupDiscrepancy
+     */
+    'discrepancyText': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPromptStartupDiscrepancy
+     */
+    'severity': CodingPromptStartupDiscrepancySeverityEnum;
+}
+
+export const CodingPromptStartupDiscrepancySeverityEnum = {
+    Low: 'low',
+    Medium: 'medium',
+    High: 'high'
+} as const;
+
+export type CodingPromptStartupDiscrepancySeverityEnum = typeof CodingPromptStartupDiscrepancySeverityEnum[keyof typeof CodingPromptStartupDiscrepancySeverityEnum];
+
+/**
+ * Source reference used by startup-plan structured responses
+ * @export
+ * @interface CodingPromptStartupSourceRef
+ */
+export interface CodingPromptStartupSourceRef {
+    /**
+     *
+     * @type {CodingPromptStartupSourceType}
+     * @memberof CodingPromptStartupSourceRef
+     */
+    'sourceType': CodingPromptStartupSourceType;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPromptStartupSourceRef
+     */
+    'sourceId': string;
+}
+
+
+/**
+ * Source types used by startup-plan structured responses
+ * @export
+ * @enum {string}
+ */
+
+export const CodingPromptStartupSourceType = {
+    EvidenceItem: 'evidenceItem',
+    Task: 'task',
+    DesignDoc: 'designDoc',
+    Plan: 'plan',
+    Initiative: 'initiative'
+} as const;
+
+export type CodingPromptStartupSourceType = typeof CodingPromptStartupSourceType[keyof typeof CodingPromptStartupSourceType];
+
 
 /**
  *
@@ -6479,6 +6859,13 @@ export interface ContextToolDetail {
     'isLoaded'?: boolean;
 }
 /**
+ * @type ControllerActionInputs
+ * Complete typed semantic inputs for a direct action. Approval and local admission use the same definition. Authorization and platform signatures are never inputs. Correlation-only fields are removed by the shared canonicalizer; operation parameters and ordered arrays remain bound.
+ * @export
+ */
+export type ControllerActionInputs = { kind: 'CLI_READ' } & ControllerReadInputs | { kind: 'CONTROL' } & ControllerControlInputs | { kind: 'START_RUN' } & ControllerStartInputs | { kind: 'TASK_MONITOR' } & ControllerMonitorInputs | { kind: 'USER_MESSAGE' } & ControllerMessageInputs;
+
+/**
  * Fresh browser-submitted controller proof. It carries no server grant identifier. The API verifies and consumes this evidence before deriving or resolving any reusable grant and constructing executable activation evidence.
  * @export
  * @interface ControllerAssertionEvidence
@@ -6806,6 +7193,32 @@ export const ControllerAuthorizedSignedMonitorCommandEnvelopeProtocolVersionEnum
 export type ControllerAuthorizedSignedMonitorCommandEnvelopeProtocolVersionEnum = typeof ControllerAuthorizedSignedMonitorCommandEnvelopeProtocolVersionEnum[keyof typeof ControllerAuthorizedSignedMonitorCommandEnvelopeProtocolVersionEnum];
 
 /**
+ *
+ * @export
+ * @interface ControllerControlInputs
+ */
+export interface ControllerControlInputs {
+    /**
+     *
+     * @type {string}
+     * @memberof ControllerControlInputs
+     */
+    'kind': ControllerControlInputsKindEnum;
+    /**
+     *
+     * @type {ConversationAuthorityIncreasingControlBody1}
+     * @memberof ControllerControlInputs
+     */
+    'body': ConversationAuthorityIncreasingControlBody1;
+}
+
+export const ControllerControlInputsKindEnum = {
+    Control: 'CONTROL'
+} as const;
+
+export type ControllerControlInputsKindEnum = typeof ControllerControlInputsKindEnum[keyof typeof ControllerControlInputsKindEnum];
+
+/**
  * Immutable descriptor hashed by CanonicalControllerAuthorizationIntent.grantDescriptorHash. Every cadence creates one reusable controller-device window with this effective expiry.
  * @export
  * @interface ControllerDeviceGrantDescriptor
@@ -6900,10 +7313,132 @@ export type ControllerDeviceGrantScope = typeof ControllerDeviceGrantScope[keyof
 
 
 /**
+ *
+ * @export
+ * @interface ControllerMessageInputs
+ */
+export interface ControllerMessageInputs {
+    /**
+     *
+     * @type {string}
+     * @memberof ControllerMessageInputs
+     */
+    'kind': ControllerMessageInputsKindEnum;
+    /**
+     *
+     * @type {UserMessagePromptPayload}
+     * @memberof ControllerMessageInputs
+     */
+    'payload': UserMessagePromptPayload;
+    /**
+     *
+     * @type {UserMessageAdmittedServiceScope}
+     * @memberof ControllerMessageInputs
+     */
+    'admittedServiceScope'?: UserMessageAdmittedServiceScope;
+}
+
+export const ControllerMessageInputsKindEnum = {
+    UserMessage: 'USER_MESSAGE'
+} as const;
+
+export type ControllerMessageInputsKindEnum = typeof ControllerMessageInputsKindEnum[keyof typeof ControllerMessageInputsKindEnum];
+
+/**
+ *
+ * @export
+ * @interface ControllerMonitorInputs
+ */
+export interface ControllerMonitorInputs {
+    /**
+     *
+     * @type {string}
+     * @memberof ControllerMonitorInputs
+     */
+    'kind': ControllerMonitorInputsKindEnum;
+    /**
+     *
+     * @type {TaskMonitorExternalCommand1}
+     * @memberof ControllerMonitorInputs
+     */
+    'command': TaskMonitorExternalCommand1;
+}
+
+export const ControllerMonitorInputsKindEnum = {
+    TaskMonitor: 'TASK_MONITOR'
+} as const;
+
+export type ControllerMonitorInputsKindEnum = typeof ControllerMonitorInputsKindEnum[keyof typeof ControllerMonitorInputsKindEnum];
+
+/**
+ *
+ * @export
+ * @interface ControllerReadInputs
+ */
+export interface ControllerReadInputs {
+    /**
+     *
+     * @type {string}
+     * @memberof ControllerReadInputs
+     */
+    'kind': ControllerReadInputsKindEnum;
+    /**
+     *
+     * @type {CliReadEnvelopeBody1}
+     * @memberof ControllerReadInputs
+     */
+    'body': CliReadEnvelopeBody1;
+}
+
+export const ControllerReadInputsKindEnum = {
+    CliRead: 'CLI_READ'
+} as const;
+
+export type ControllerReadInputsKindEnum = typeof ControllerReadInputsKindEnum[keyof typeof ControllerReadInputsKindEnum];
+
+/**
+ *
+ * @export
+ * @interface ControllerStartInputs
+ */
+export interface ControllerStartInputs {
+    /**
+     *
+     * @type {string}
+     * @memberof ControllerStartInputs
+     */
+    'kind': ControllerStartInputsKindEnum;
+    /**
+     *
+     * @type {StartRunPromptPayload}
+     * @memberof ControllerStartInputs
+     */
+    'payload': StartRunPromptPayload;
+    /**
+     *
+     * @type {UserMessageAdmittedServiceScope}
+     * @memberof ControllerStartInputs
+     */
+    'admittedServiceScope'?: UserMessageAdmittedServiceScope;
+}
+
+export const ControllerStartInputsKindEnum = {
+    StartRun: 'START_RUN'
+} as const;
+
+export type ControllerStartInputsKindEnum = typeof ControllerStartInputsKindEnum[keyof typeof ControllerStartInputsKindEnum];
+
+/**
  * @type ConversationAuthorityIncreasingControlBody
  * @export
  */
 export type ConversationAuthorityIncreasingControlBody = { kind: 'compact_run' } & ConversationControlCompactRun | { kind: 'permission_decision' } & ConversationControlPermissionDecision | { kind: 'question_answer' } & ConversationControlQuestionAnswer;
+
+/**
+ * @type ConversationAuthorityIncreasingControlBody1
+ * @export
+ */
+export type ConversationAuthorityIncreasingControlBody1 = { kind: 'compact_run' } & ConversationControlCompactRun1 | { kind: 'permission_decision' } & ConversationControlPermissionDecision | { kind: 'question_answer' } & ConversationControlQuestionAnswer;
 
 /**
  * @type ConversationControlBody
@@ -6999,6 +7534,44 @@ export const ConversationControlCompactRunKindEnum = {
 } as const;
 
 export type ConversationControlCompactRunKindEnum = typeof ConversationControlCompactRunKindEnum[keyof typeof ConversationControlCompactRunKindEnum];
+
+/**
+ * Structural control body for compacting a CLI Run owned by the conversation. Carries entity IDs only: no free-form text, prompt fragment, or `payload` escape hatch. The CLI dispatcher resolves the Run via `conversationId` and invokes the compaction path on the addressed Run.
+ * @export
+ * @interface ConversationControlCompactRun1
+ */
+export interface ConversationControlCompactRun1 {
+    /**
+     * Discriminator for the compact-run control. Selects the dispatcher branch that compacts the conversation history of the addressed Run.
+     * @type {string}
+     * @memberof ConversationControlCompactRun1
+     */
+    'kind': ConversationControlCompactRun1KindEnum;
+    /**
+     * Canonical Agent Session authorization target.
+     * @type {string}
+     * @memberof ConversationControlCompactRun1
+     */
+    'agentSessionId': string;
+    /**
+     * Unique identifier for a conversation (branded type)
+     * @type {string}
+     * @memberof ConversationControlCompactRun1
+     */
+    'conversationId': string;
+    /**
+     * Agentic-session id of the live CLI Run to compact. The dispatcher uses the `conversationId` to locate the active Run binding and verifies the binding\'s runId matches before invoking the compaction path.
+     * @type {string}
+     * @memberof ConversationControlCompactRun1
+     */
+    'runId': string;
+}
+
+export const ConversationControlCompactRun1KindEnum = {
+    CompactRun: 'compact_run'
+} as const;
+
+export type ConversationControlCompactRun1KindEnum = typeof ConversationControlCompactRun1KindEnum[keyof typeof ConversationControlCompactRun1KindEnum];
 
 /**
  * Structural control body for delivering a user permission decision to a live CLI runner awaiting a permission gate. Carries the decision payload and matching identifiers only: no free-form prompt fragment or `payload` escape hatch. The CLI dispatcher matches the frame to the awaiting runner via `requestId`, `sessionId`, and `agentType`, then unblocks the gate with the received `decision`.
@@ -7173,6 +7746,56 @@ export const ConversationControlStopRunKindEnum = {
 export type ConversationControlStopRunKindEnum = typeof ConversationControlStopRunKindEnum[keyof typeof ConversationControlStopRunKindEnum];
 
 /**
+ * Closed selector for a non-revisioned conversation action. Conversation authorization is bound to target identity and the immutable operation fingerprint instead of a mutable conversation counter.
+ * @export
+ * @interface ConversationHostActionPreparation
+ */
+export interface ConversationHostActionPreparation {
+    /**
+     * Retry identity only; it conveys no execution authority.
+     * @type {string}
+     * @memberof ConversationHostActionPreparation
+     */
+    'requestId': string;
+    /**
+     *
+     * @type {HostActionCategory}
+     * @memberof ConversationHostActionPreparation
+     */
+    'actionCategory': HostActionCategory;
+    /**
+     *
+     * @type {HostAffectingActionType}
+     * @memberof ConversationHostActionPreparation
+     */
+    'actionType': HostAffectingActionType;
+    /**
+     *
+     * @type {string}
+     * @memberof ConversationHostActionPreparation
+     */
+    'targetKind': ConversationHostActionPreparationTargetKindEnum;
+    /**
+     * Selection hint only. The server resolves and authorizes the canonical target instead of copying browser scope into the intent.
+     * @type {string}
+     * @memberof ConversationHostActionPreparation
+     */
+    'targetId': string;
+    /**
+     *
+     * @type {ControllerActionInputs}
+     * @memberof ConversationHostActionPreparation
+     */
+    'inputs'?: ControllerActionInputs;
+}
+
+export const ConversationHostActionPreparationTargetKindEnum = {
+    Conversation: 'CONVERSATION'
+} as const;
+
+export type ConversationHostActionPreparationTargetKindEnum = typeof ConversationHostActionPreparationTargetKindEnum[keyof typeof ConversationHostActionPreparationTargetKindEnum];
+
+/**
  * Closed bundle of host-affecting operations supported by the current controller-authorization protocol. Adding a HostAffectingActionType does not add it to an existing grant; this bundle must be revised deliberately.
  * @export
  * @enum {string}
@@ -7238,6 +7861,20 @@ export type EntityType = typeof EntityType[keyof typeof EntityType];
 
 
 /**
+ * Which output the judge assesses for an attempt.
+ * @export
+ * @enum {string}
+ */
+
+export const EvalAssessedOutput = {
+    ResearchReport: 'RESEARCH_REPORT',
+    HandlerReply: 'HANDLER_REPLY'
+} as const;
+
+export type EvalAssessedOutput = typeof EvalAssessedOutput[keyof typeof EvalAssessedOutput];
+
+
+/**
  * For the coordinator and judge only. Never passed to the target.
  * @export
  * @interface EvalCaseGrading
@@ -7263,7 +7900,7 @@ export interface EvalCaseGrading {
     'rubric': Array<EvalRubricDimension>;
 }
 /**
- * Everything the target handler may see. Never contains checks or rubric.
+ * Recorded case context. Only the initiating request and focal entity reach the target; situation and supporting items are reviewer and judge context.
  * @export
  * @interface EvalCaseTarget
  */
@@ -7281,6 +7918,12 @@ export interface EvalCaseTarget {
      */
     'focalItemId'?: string | null;
     /**
+     * Canonical entity family of the focal item. Required whenever focalItemId is present; work-item subtypes use TASK.
+     * @type {EntityType}
+     * @memberof EvalCaseTarget
+     */
+    'focalItemType'?: EntityType;
+    /**
      *
      * @type {Array<string>}
      * @memberof EvalCaseTarget
@@ -7293,12 +7936,20 @@ export interface EvalCaseTarget {
      */
     'initiatingRequest': string;
     /**
-     * Handler the case runs through.
-     * @type {string}
+     *
+     * @type {EvalTargetHandlerKey}
      * @memberof EvalCaseTarget
      */
-    'targetHandler': string;
+    'targetHandler': EvalTargetHandlerKey;
+    /**
+     * Present exactly when `targetHandler` is `project_assistant`: the real handler whose policy, tools and prompt Project Assistant runs under. Always explicit; there is no default.
+     * @type {EvalConsumerHandlerKey}
+     * @memberof EvalCaseTarget
+     */
+    'consumerHandler'?: EvalConsumerHandlerKey;
 }
+
+
 /**
  *
  * @export
@@ -7344,6 +7995,49 @@ export interface EvalConfiguration {
     'preparation'?: EvalModelSetting;
 }
 /**
+ * Registry key of a handler whose real Project Assistant policy a Project Assistant case runs under. Each key must be a registered handler that declares a Project Assistant policy; the Hey Hey CLI tests the list against its registry.
+ * @export
+ * @enum {string}
+ */
+
+export const EvalConsumerHandlerKey = {
+    StartupSession: 'startup_session',
+    DesignDocRefiner: 'design_doc_refiner',
+    FeatureSyncAnalyze: 'feature_sync_analyze',
+    FeatureRefiner: 'feature_refiner',
+    TaskRefiner: 'task_refiner',
+    PlanShapingFeatureSyncAnalyze: 'plan_shaping_feature_sync_analyze',
+    FreeForm: 'free_form',
+    EntityConversation: 'entity_conversation',
+    HtmlCssMockupRevision: 'html_css_mockup_revision',
+    ValidationWalkthrough: 'validation_walkthrough'
+} as const;
+
+export type EvalConsumerHandlerKey = typeof EvalConsumerHandlerKey[keyof typeof EvalConsumerHandlerKey];
+
+
+/**
+ * Handler settings recorded with a run setup, shared by every case in the run.
+ * @export
+ * @interface EvalHandlerConfig
+ */
+export interface EvalHandlerConfig {
+    /**
+     * The handler every case in the run executes, in place of the handler each case names. `project_assistant` runs Project Assistant research alone, ignoring `projectAssistant`. Omission keeps each case\'s own handler. Never edits the cases.
+     * @type {EvalTargetHandlerKey}
+     * @memberof EvalHandlerConfig
+     */
+    'handler'?: EvalTargetHandlerKey;
+    /**
+     * Project Assistant participation for an entity conversation case. `enabled: false` is an explicit choice to run without Project Assistant; omission keeps the handler\'s real-use behavior, where it runs. Never grants participation a handler does not declare.
+     * @type {ProjectAssistantConfig}
+     * @memberof EvalHandlerConfig
+     */
+    'projectAssistant'?: ProjectAssistantConfig;
+}
+
+
+/**
  *
  * @export
  * @interface EvalModelSetting
@@ -7368,11 +8062,11 @@ export interface EvalModelSetting {
      */
     'reasoningEffort'?: string;
     /**
-     * Handler settings recorded from Agent Config.
-     * @type {{ [key: string]: any; }}
+     *
+     * @type {EvalHandlerConfig}
      * @memberof EvalModelSetting
      */
-    'handlerConfig'?: { [key: string]: any; };
+    'handlerConfig'?: EvalHandlerConfig;
 }
 /**
  * One case x configuration attempt as recorded for the coordinator.
@@ -7386,6 +8080,12 @@ export interface EvalRecordedAttempt {
      * @memberof EvalRecordedAttempt
      */
     'attemptId': string;
+    /**
+     *
+     * @type {EvalResolvedExecution}
+     * @memberof EvalRecordedAttempt
+     */
+    'execution': EvalResolvedExecution;
     /**
      * Agent Session the attempt\'s target runs and writes under.
      * @type {string}
@@ -7411,6 +8111,39 @@ export interface EvalRecordedAttempt {
      */
     'configuration': EvalConfiguration;
 }
+/**
+ * What one attempt runs, resolved at launch from the run\'s chosen handler (or the case\'s own) and the Project Assistant setting. Recorded so later changes to defaults never rewrite what ran.
+ * @export
+ * @interface EvalResolvedExecution
+ */
+export interface EvalResolvedExecution {
+    /**
+     *
+     * @type {EvalTargetHandlerKey}
+     * @memberof EvalResolvedExecution
+     */
+    'handler': EvalTargetHandlerKey;
+    /**
+     * Present exactly when `handler` is `project_assistant`: the handler whose real policy Project Assistant runs under.
+     * @type {EvalConsumerHandlerKey}
+     * @memberof EvalResolvedExecution
+     */
+    'consumerHandler'?: EvalConsumerHandlerKey;
+    /**
+     * True when Project Assistant runs first and hands its research to `handler`. False when `handler` runs alone, and for `project_assistant`, which is the research itself.
+     * @type {boolean}
+     * @memberof EvalResolvedExecution
+     */
+    'projectAssistantPrepares': boolean;
+    /**
+     *
+     * @type {EvalAssessedOutput}
+     * @memberof EvalResolvedExecution
+     */
+    'assessedOutput': EvalAssessedOutput;
+}
+
+
 /**
  *
  * @export
@@ -7498,6 +8231,22 @@ export interface EvalRunSettings {
      */
     'attemptTokenLimit'?: number;
 }
+/**
+ * Registry key of a handler an Eval Case or an eval run may execute. Each key must be a registered handler the Hey Hey CLI can start directly as the first agent; the CLI refuses to start when one is not registered.
+ * @export
+ * @enum {string}
+ */
+
+export const EvalTargetHandlerKey = {
+    AgentSearch: 'agent_search',
+    EntityConversation: 'entity_conversation',
+    ProjectAssistant: 'project_assistant',
+    FeatureSyncAnalyze: 'feature_sync_analyze'
+} as const;
+
+export type EvalTargetHandlerKey = typeof EvalTargetHandlerKey[keyof typeof EvalTargetHandlerKey];
+
+
 /**
  * Post-admission activation evidence constructed by the API and carried inside a platform-signed executable envelope. The CLI independently verifies the assertion and immutable descriptor before installing reusable authority.
  * @export
@@ -8159,6 +8908,13 @@ export type HostActionCategory = typeof HostActionCategory[keyof typeof HostActi
 
 
 /**
+ * @type HostActionPreparation
+ * Preparation for a server-resolved action. Direct actions carry complete typed execution or disclosure inputs. Account, organization, project, payload hash, authorization ID, nonce, and lifetime remain server-owned.
+ * @export
+ */
+export type HostActionPreparation = { targetKind: 'AGENT_SESSION' } & AgentSessionHostActionPreparation | { targetKind: 'CLI_READ' } & CliReadHostActionPreparation | { targetKind: 'CONVERSATION' } & ConversationHostActionPreparation | { targetKind: 'TASK_MONITOR' } & TaskMonitorHostActionPreparation;
+
+/**
  *
  * @export
  * @interface HostActionTarget
@@ -8279,6 +9035,30 @@ export type ImplementActionSchemasDONEActionEnum = typeof ImplementActionSchemas
  * @interface ImplementPromptPayload
  */
 export interface ImplementPromptPayload {
+    /**
+     *
+     * @type {CodingPlanVersion}
+     * @memberof ImplementPromptPayload
+     */
+    'approvedVersion'?: CodingPlanVersion;
+    /**
+     *
+     * @type {string}
+     * @memberof ImplementPromptPayload
+     */
+    'versionMessageId'?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof ImplementPromptPayload
+     */
+    'approvalFeedback'?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof ImplementPromptPayload
+     */
+    'planningDiscussion'?: string;
     /**
      *
      * @type {ImplementRuntimeSelection}
@@ -10145,38 +10925,6 @@ export const LocalHtmlCssMockupRevisionPromptPayloadPayloadVersionEnum = {
 } as const;
 
 export type LocalHtmlCssMockupRevisionPromptPayloadPayloadVersionEnum = typeof LocalHtmlCssMockupRevisionPromptPayloadPayloadVersionEnum[keyof typeof LocalHtmlCssMockupRevisionPromptPayloadPayloadVersionEnum];
-
-/**
- * Immutable authoritative HTML/CSS snapshot and selected open, current review annotations used to request one source-plus-resolution proposal. The run entity is the focal task identity.
- * @export
- * @interface LocalHtmlCssMockupRevisionPromptPayload1
- */
-export interface LocalHtmlCssMockupRevisionPromptPayload1 {
-    /**
-     *
-     * @type {number}
-     * @memberof LocalHtmlCssMockupRevisionPromptPayload1
-     */
-    'payloadVersion': LocalHtmlCssMockupRevisionPromptPayload1PayloadVersionEnum;
-    /**
-     *
-     * @type {LocalHtmlCssMockupRevisionSection1}
-     * @memberof LocalHtmlCssMockupRevisionPromptPayload1
-     */
-    'section': LocalHtmlCssMockupRevisionSection1;
-    /**
-     *
-     * @type {Array<LocalHtmlCssMockupRevisionAnnotation1>}
-     * @memberof LocalHtmlCssMockupRevisionPromptPayload1
-     */
-    'annotations': Array<LocalHtmlCssMockupRevisionAnnotation1>;
-}
-
-export const LocalHtmlCssMockupRevisionPromptPayload1PayloadVersionEnum = {
-    NUMBER_1: 1
-} as const;
-
-export type LocalHtmlCssMockupRevisionPromptPayload1PayloadVersionEnum = typeof LocalHtmlCssMockupRevisionPromptPayload1PayloadVersionEnum[keyof typeof LocalHtmlCssMockupRevisionPromptPayload1PayloadVersionEnum];
 
 /**
  *
@@ -13908,11 +14656,11 @@ export interface LocalTokenUsage {
      */
     'inputTokens': number | null;
     /**
-     * Cumulative output tokens produced.
+     * Cumulative output tokens produced, or null when unavailable.
      * @type {number}
      * @memberof LocalTokenUsage
      */
-    'outputTokens': number;
+    'outputTokens': number | null;
     /**
      * Cumulative input tokens written to prompt cache, or null when unavailable.
      * @type {number}
@@ -14032,7 +14780,7 @@ export interface MaterializedWorkItemSection {
      */
     'materializedMarkdown': string;
     /**
-     * Proposal whose successfully materialized change produced the section\'s current composition or resolved presentation context.
+     * Proposal whose successfully materialized change produced the section\'s current composition or resolved presentation context. Empty when the section has no recorded proposal provenance.
      * @type {string}
      * @memberof MaterializedWorkItemSection
      */
@@ -14963,6 +15711,18 @@ export type PlanShapingFeatureSyncIterateActionSchemasDISMISSEDActionEnum = type
  */
 export interface PlanShapingFeatureSyncIteratePromptPayload {
     /**
+     * Canonical delivering Plan identity from the persisted plan seed.
+     * @type {string}
+     * @memberof PlanShapingFeatureSyncIteratePromptPayload
+     */
+    'planId': string;
+    /**
+     * Authoritative design document from the persisted plan seed.
+     * @type {string}
+     * @memberof PlanShapingFeatureSyncIteratePromptPayload
+     */
+    'designDocId': string;
+    /**
      * The outstanding flagged items, each with its stable `id`, in the order the user saw them.
      * @type {Array<FeatureSyncDiscrepancy>}
      * @memberof PlanShapingFeatureSyncIteratePromptPayload
@@ -15670,6 +16430,12 @@ export interface ProjectModeSettings {
      */
     'projectAssistant': ProjectModeProjectAssistantSetting;
     /**
+     * Session role declared by this Agent Mode. Omission, including omission of the settings section, resolves to implementation.
+     * @type {SessionRole}
+     * @memberof ProjectModeSettings
+     */
+    'sessionRole'?: SessionRole;
+    /**
      * Stable effective work-item type keys this MODE may launch against, chosen per MODE. Keys must be unique (enforced by the platform validator rather than `uniqueItems`, which generators map to sets). Each key must resolve to an active type in the project\'s effective registry snapshot. Launch eligibility is this list intersected with the MODE\'s Feature `DEPENDS_ON` scope. When absent, the MODE keeps its legacy eligibility derived from the shared MODE type\'s agent-guidance contexts; consumers must not widen access for an absent list.
      * @type {Array<string>}
      * @memberof ProjectModeSettings
@@ -15684,13 +16450,13 @@ export const ProjectModeSettingsSchemaVersionEnum = {
 export type ProjectModeSettingsSchemaVersionEnum = typeof ProjectModeSettingsSchemaVersionEnum[keyof typeof ProjectModeSettingsSchemaVersionEnum];
 
 /**
- * Platform-captured immutable MODE configuration persisted with a coding session. The repeated mode identity lets admission verify that the snapshot matches `ProjectModeSelection` before constructing a Run or Turn.
+ * Platform-captured immutable MODE configuration persisted with a coding session. The repeated mode identity lets admission verify that the snapshot matches `ProjectModeSelection` before constructing a Run or Turn. v3 requires sessionRole and projectAssistant; v2 requires projectAssistant and excludes sessionRole; v1 excludes both fields.
  * @export
  * @interface ProjectModeSnapshot
  */
 export interface ProjectModeSnapshot {
     /**
-     * v2 adds `projectAssistant`. v1 is kept so snapshots captured before the setting existed still verify against their original hash.
+     * v3 adds the resolved `sessionRole`. v2 adds `projectAssistant`. v1/v2 retain their original hash inputs for resume compatibility.
      * @type {string}
      * @memberof ProjectModeSnapshot
      */
@@ -15726,6 +16492,12 @@ export interface ProjectModeSnapshot {
      */
     'projectAssistant'?: ProjectModeProjectAssistantSetting;
     /**
+     *
+     * @type {SessionRole}
+     * @memberof ProjectModeSnapshot
+     */
+    'sessionRole'?: SessionRole;
+    /**
      * Lowercase hexadecimal SHA-256 digest of the platform-canonicalized snapshot content. Consumers preserve and compare this value; they do not refresh the snapshot from the live MODE.
      * @type {string}
      * @memberof ProjectModeSnapshot
@@ -15735,7 +16507,8 @@ export interface ProjectModeSnapshot {
 
 export const ProjectModeSnapshotSchemaVersionEnum = {
     ProjectModeSnapshotV1: 'project-mode-snapshot.v1',
-    ProjectModeSnapshotV2: 'project-mode-snapshot.v2'
+    ProjectModeSnapshotV2: 'project-mode-snapshot.v2',
+    ProjectModeSnapshotV3: 'project-mode-snapshot.v3'
 } as const;
 
 export type ProjectModeSnapshotSchemaVersionEnum = typeof ProjectModeSnapshotSchemaVersionEnum[keyof typeof ProjectModeSnapshotSchemaVersionEnum];
@@ -16036,7 +16809,8 @@ export interface ProposalReconciliationRevision {
 export const ProposalReconciliationRevisionSourceEnum = {
     Authoring: 'AUTHORING',
     Merge: 'MERGE',
-    AgentFix: 'AGENT_FIX'
+    AgentFix: 'AGENT_FIX',
+    Manual: 'MANUAL'
 } as const;
 
 export type ProposalReconciliationRevisionSourceEnum = typeof ProposalReconciliationRevisionSourceEnum[keyof typeof ProposalReconciliationRevisionSourceEnum];
@@ -16054,13 +16828,25 @@ export interface ProposalReconciliationState {
      */
     'status': ProposalReconciliationStateStatusEnum;
     /**
+     *
+     * @type {Array<ProposalReconciliationSuggestion>}
+     * @memberof ProposalReconciliationState
+     */
+    'suggestions'?: Array<ProposalReconciliationSuggestion>;
+    /**
+     * Stored future revision used to prepare this context; include as expectedFutureRevision when submitting future reconciliation.
+     * @type {number}
+     * @memberof ProposalReconciliationState
+     */
+    'futureRevision'?: number;
+    /**
      * When the change under review was originally written; for a merged replacement, when the proposal it reconciles was written.
      * @type {string}
      * @memberof ProposalReconciliationState
      */
     'writtenAt'?: string;
     /**
-     * Proposals approved on the same target after this change was written, oldest first. Empty when the proposal is approved or rejected.
+     * Proposals approved on the same target after this change was written, oldest first. Empty for terminal proposals; approved unapplied futures remain reviewable.
      * @type {Array<ProposalReconciliationIntervening>}
      * @memberof ProposalReconciliationState
      */
@@ -16118,6 +16904,85 @@ export const ProposalReconciliationStateStatusEnum = {
 } as const;
 
 export type ProposalReconciliationStateStatusEnum = typeof ProposalReconciliationStateStatusEnum[keyof typeof ProposalReconciliationStateStatusEnum];
+
+/**
+ *
+ * @export
+ * @interface ProposalReconciliationSuggestion
+ */
+export interface ProposalReconciliationSuggestion {
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'id': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'organizationId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'projectId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'proposalId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'status': ProposalReconciliationSuggestionStatusEnum;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'candidateRevisionId': string;
+    /**
+     *
+     * @type {{ [key: string]: any; }}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'proposedResult': { [key: string]: any; };
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'messageId'?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'legacyProposalId'?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof ProposalReconciliationSuggestion
+     */
+    'createdAt': string;
+}
+
+export const ProposalReconciliationSuggestionStatusEnum = {
+    Pending: 'PENDING',
+    Accepted: 'ACCEPTED',
+    Rejected: 'REJECTED',
+    Superseded: 'SUPERSEDED',
+    OutOfDate: 'OUT_OF_DATE',
+    Retired: 'RETIRED'
+} as const;
+
+export type ProposalReconciliationSuggestionStatusEnum = typeof ProposalReconciliationSuggestionStatusEnum[keyof typeof ProposalReconciliationSuggestionStatusEnum];
 
 /**
  * Agent provider selected for the implementation run.
@@ -16374,25 +17239,6 @@ export interface RepositoryFeatureEnrichmentAnswer {
     'answer': string;
 }
 /**
- *
- * @export
- * @interface RepositoryFeatureEnrichmentAnswerBatch
- */
-export interface RepositoryFeatureEnrichmentAnswerBatch {
-    /**
-     *
-     * @type {number}
-     * @memberof RepositoryFeatureEnrichmentAnswerBatch
-     */
-    'round': number;
-    /**
-     *
-     * @type {Array<RepositoryFeatureEnrichmentAnswer>}
-     * @memberof RepositoryFeatureEnrichmentAnswerBatch
-     */
-    'answers': Array<RepositoryFeatureEnrichmentAnswer>;
-}
-/**
  * @type RepositoryFeatureEnrichmentCompletion
  * @export
  */
@@ -16444,7 +17290,7 @@ export const RepositoryFeatureEnrichmentQuestionsOutcomeEnum = {
 export type RepositoryFeatureEnrichmentQuestionsOutcomeEnum = typeof RepositoryFeatureEnrichmentQuestionsOutcomeEnum[keyof typeof RepositoryFeatureEnrichmentQuestionsOutcomeEnum];
 
 /**
- * Stateless enrichment request. Each turn consumes the latest accepted repository analysis snapshot, while the API owns runtime identity, the ordered round count, and answer history. Enrichment is user-selected and may succeed without questions when repository evidence is sufficient.
+ *
  * @export
  * @interface RepositoryFeatureEnrichmentRequest
  */
@@ -16526,19 +17372,19 @@ export interface RepositoryFeatureEnrichmentRequest {
      * @type {RepositoryGroundingHierarchy}
      * @memberof RepositoryFeatureEnrichmentRequest
      */
-    'reviewedCandidates': RepositoryGroundingHierarchy;
+    'reviewedCandidates'?: RepositoryGroundingHierarchy;
     /**
-     *
-     * @type {number}
+     * Approved Features created by this import. Enrichment proposes edits only to these Features.
+     * @type {Array<string>}
      * @memberof RepositoryFeatureEnrichmentRequest
      */
-    'completedRounds': number;
+    'materializedFeatureIds': Array<string>;
     /**
-     *
-     * @type {Array<RepositoryFeatureEnrichmentAnswerBatch>}
+     * Optional user reply within the continuing enrichment conversation.
+     * @type {string}
      * @memberof RepositoryFeatureEnrichmentRequest
      */
-    'answerBatches': Array<RepositoryFeatureEnrichmentAnswerBatch>;
+    'userMessage'?: string;
 }
 
 export const RepositoryFeatureEnrichmentRequestPromptTypeEnum = {
@@ -18988,6 +19834,18 @@ export type RunCreatePayloadGoalPmPromptTypeEnum = typeof RunCreatePayloadGoalPm
 export interface RunCreatePayloadHtmlCssMockupRevision {
     /**
      *
+     * @type {string}
+     * @memberof RunCreatePayloadHtmlCssMockupRevision
+     */
+    'promptType': RunCreatePayloadHtmlCssMockupRevisionPromptTypeEnum;
+    /**
+     *
+     * @type {RunEntityReference}
+     * @memberof RunCreatePayloadHtmlCssMockupRevision
+     */
+    'entity': RunEntityReference;
+    /**
+     *
      * @type {number}
      * @memberof RunCreatePayloadHtmlCssMockupRevision
      */
@@ -19004,30 +19862,18 @@ export interface RunCreatePayloadHtmlCssMockupRevision {
      * @memberof RunCreatePayloadHtmlCssMockupRevision
      */
     'annotations': Array<LocalHtmlCssMockupRevisionAnnotation1>;
-    /**
-     *
-     * @type {string}
-     * @memberof RunCreatePayloadHtmlCssMockupRevision
-     */
-    'promptType': RunCreatePayloadHtmlCssMockupRevisionPromptTypeEnum;
-    /**
-     *
-     * @type {RunEntityReference}
-     * @memberof RunCreatePayloadHtmlCssMockupRevision
-     */
-    'entity': RunEntityReference;
 }
 
-export const RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum = {
-    NUMBER_1: 1
-} as const;
-
-export type RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum = typeof RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum[keyof typeof RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum];
 export const RunCreatePayloadHtmlCssMockupRevisionPromptTypeEnum = {
     HtmlCssMockupRevision: 'html_css_mockup_revision'
 } as const;
 
 export type RunCreatePayloadHtmlCssMockupRevisionPromptTypeEnum = typeof RunCreatePayloadHtmlCssMockupRevisionPromptTypeEnum[keyof typeof RunCreatePayloadHtmlCssMockupRevisionPromptTypeEnum];
+export const RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum = {
+    NUMBER_1: 1
+} as const;
+
+export type RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum = typeof RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum[keyof typeof RunCreatePayloadHtmlCssMockupRevisionPayloadVersionEnum];
 
 /**
  *
@@ -19185,6 +20031,18 @@ export type RunCreatePayloadPlanShapingFeatureSyncAnalyzePromptTypeEnum = typeof
  * @interface RunCreatePayloadPlanShapingFeatureSyncIterate
  */
 export interface RunCreatePayloadPlanShapingFeatureSyncIterate {
+    /**
+     * Canonical delivering Plan identity from the persisted plan seed.
+     * @type {string}
+     * @memberof RunCreatePayloadPlanShapingFeatureSyncIterate
+     */
+    'planId': string;
+    /**
+     * Authoritative design document from the persisted plan seed.
+     * @type {string}
+     * @memberof RunCreatePayloadPlanShapingFeatureSyncIterate
+     */
+    'designDocId': string;
     /**
      * The outstanding flagged items, each with its stable `id`, in the order the user saw them.
      * @type {Array<FeatureSyncDiscrepancy>}
@@ -19514,6 +20372,18 @@ export interface RunCreatePayloadPlanShapingVisualPreview {
      * @type {string}
      * @memberof RunCreatePayloadPlanShapingVisualPreview
      */
+    'promptType': RunCreatePayloadPlanShapingVisualPreviewPromptTypeEnum;
+    /**
+     *
+     * @type {RunEntityReference}
+     * @memberof RunCreatePayloadPlanShapingVisualPreview
+     */
+    'entity': RunEntityReference;
+    /**
+     *
+     * @type {string}
+     * @memberof RunCreatePayloadPlanShapingVisualPreview
+     */
     'designDocId': string;
     /**
      *
@@ -19557,18 +20427,6 @@ export interface RunCreatePayloadPlanShapingVisualPreview {
      * @memberof RunCreatePayloadPlanShapingVisualPreview
      */
     'userMessage'?: string;
-    /**
-     *
-     * @type {string}
-     * @memberof RunCreatePayloadPlanShapingVisualPreview
-     */
-    'promptType': RunCreatePayloadPlanShapingVisualPreviewPromptTypeEnum;
-    /**
-     *
-     * @type {RunEntityReference}
-     * @memberof RunCreatePayloadPlanShapingVisualPreview
-     */
-    'entity': RunEntityReference;
 }
 
 export const RunCreatePayloadPlanShapingVisualPreviewPromptTypeEnum = {
@@ -19902,19 +20760,19 @@ export interface RunCreatePayloadRepositoryFeatureEnrichment {
      * @type {RepositoryGroundingHierarchy}
      * @memberof RunCreatePayloadRepositoryFeatureEnrichment
      */
-    'reviewedCandidates': RepositoryGroundingHierarchy;
+    'reviewedCandidates'?: RepositoryGroundingHierarchy;
     /**
-     *
-     * @type {number}
+     * Approved Features created by this import. Enrichment proposes edits only to these Features.
+     * @type {Array<string>}
      * @memberof RunCreatePayloadRepositoryFeatureEnrichment
      */
-    'completedRounds': number;
+    'materializedFeatureIds': Array<string>;
     /**
-     *
-     * @type {Array<RepositoryFeatureEnrichmentAnswerBatch>}
+     * Optional user reply within the continuing enrichment conversation.
+     * @type {string}
      * @memberof RunCreatePayloadRepositoryFeatureEnrichment
      */
-    'answerBatches': Array<RepositoryFeatureEnrichmentAnswerBatch>;
+    'userMessage'?: string;
 }
 
 export const RunCreatePayloadRepositoryFeatureEnrichmentPromptTypeEnum = {
@@ -20474,6 +21332,18 @@ export interface RunCreatePayloadTaskMonitor {
      * @type {string}
      * @memberof RunCreatePayloadTaskMonitor
      */
+    'promptType': RunCreatePayloadTaskMonitorPromptTypeEnum;
+    /**
+     *
+     * @type {RunEntityReference}
+     * @memberof RunCreatePayloadTaskMonitor
+     */
+    'entity': RunEntityReference;
+    /**
+     *
+     * @type {string}
+     * @memberof RunCreatePayloadTaskMonitor
+     */
     'monitorId': string;
     /**
      *
@@ -20523,18 +21393,6 @@ export interface RunCreatePayloadTaskMonitor {
      * @memberof RunCreatePayloadTaskMonitor
      */
     'settledTurn'?: SessionMonitorSettledTurnEvidence;
-    /**
-     *
-     * @type {string}
-     * @memberof RunCreatePayloadTaskMonitor
-     */
-    'promptType': RunCreatePayloadTaskMonitorPromptTypeEnum;
-    /**
-     *
-     * @type {RunEntityReference}
-     * @memberof RunCreatePayloadTaskMonitor
-     */
-    'entity': RunEntityReference;
 }
 
 export const RunCreatePayloadTaskMonitorPromptTypeEnum = {
@@ -20639,6 +21497,18 @@ export type RunCreatePayloadValidationWalkthroughPromptTypeEnum = typeof RunCrea
  */
 export interface RunCreatePayloadVerifyFeature {
     /**
+     *
+     * @type {string}
+     * @memberof RunCreatePayloadVerifyFeature
+     */
+    'promptType': RunCreatePayloadVerifyFeaturePromptTypeEnum;
+    /**
+     *
+     * @type {RunEntityReference}
+     * @memberof RunCreatePayloadVerifyFeature
+     */
+    'entity': RunEntityReference;
+    /**
      * The flagged discrepancy this session investigates, and nothing else.
      * @type {string}
      * @memberof RunCreatePayloadVerifyFeature
@@ -20662,18 +21532,6 @@ export interface RunCreatePayloadVerifyFeature {
      * @memberof RunCreatePayloadVerifyFeature
      */
     'userMessage': string;
-    /**
-     *
-     * @type {string}
-     * @memberof RunCreatePayloadVerifyFeature
-     */
-    'promptType': RunCreatePayloadVerifyFeaturePromptTypeEnum;
-    /**
-     *
-     * @type {RunEntityReference}
-     * @memberof RunCreatePayloadVerifyFeature
-     */
-    'entity': RunEntityReference;
 }
 
 export const RunCreatePayloadVerifyFeaturePromptTypeEnum = {
@@ -20923,7 +21781,7 @@ export interface RunCreatePayloadWorkflowKickoff {
      */
     'entity'?: RunEntityReference;
     /**
-     * The user\'s launch kickoff text. The API authors a real USER message row from this value before the start-run trigger, ordered ahead of the workflow\'s first turn, so the user\'s opening text renders before the response.
+     * The user\'s launch kickoff text, which may be empty for a supported blank startup. The API authors a real USER message row from this value before the start-run trigger, ordered ahead of the workflow\'s first turn, so the user\'s opening text renders before the response.
      * @type {string}
      * @memberof RunCreatePayloadWorkflowKickoff
      */
@@ -20993,6 +21851,60 @@ export interface RunReferences {
      */
     'unresolved': Array<string>;
 }
+/**
+ * Exact machine-addressed model catalog read under existing CLI_READ authority.
+ * @export
+ * @interface RuntimeModelCatalogHostActionPreparation
+ */
+export interface RuntimeModelCatalogHostActionPreparation {
+    /**
+     *
+     * @type {string}
+     * @memberof RuntimeModelCatalogHostActionPreparation
+     */
+    'requestId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof RuntimeModelCatalogHostActionPreparation
+     */
+    'actionCategory': RuntimeModelCatalogHostActionPreparationActionCategoryEnum;
+    /**
+     *
+     * @type {string}
+     * @memberof RuntimeModelCatalogHostActionPreparation
+     */
+    'actionType': RuntimeModelCatalogHostActionPreparationActionTypeEnum;
+    /**
+     *
+     * @type {string}
+     * @memberof RuntimeModelCatalogHostActionPreparation
+     */
+    'targetKind': RuntimeModelCatalogHostActionPreparationTargetKindEnum;
+    /**
+     * Durable selected machine identity, never a request correlation identity.
+     * @type {string}
+     * @memberof RuntimeModelCatalogHostActionPreparation
+     */
+    'targetId': string;
+}
+
+export const RuntimeModelCatalogHostActionPreparationActionCategoryEnum = {
+    CliRead: 'CLI_READ'
+} as const;
+
+export type RuntimeModelCatalogHostActionPreparationActionCategoryEnum = typeof RuntimeModelCatalogHostActionPreparationActionCategoryEnum[keyof typeof RuntimeModelCatalogHostActionPreparationActionCategoryEnum];
+export const RuntimeModelCatalogHostActionPreparationActionTypeEnum = {
+    CliRead: 'CLI_READ'
+} as const;
+
+export type RuntimeModelCatalogHostActionPreparationActionTypeEnum = typeof RuntimeModelCatalogHostActionPreparationActionTypeEnum[keyof typeof RuntimeModelCatalogHostActionPreparationActionTypeEnum];
+export const RuntimeModelCatalogHostActionPreparationTargetKindEnum = {
+    CliRead: 'CLI_READ'
+} as const;
+
+export type RuntimeModelCatalogHostActionPreparationTargetKindEnum = typeof RuntimeModelCatalogHostActionPreparationTargetKindEnum[keyof typeof RuntimeModelCatalogHostActionPreparationTargetKindEnum];
+
 /**
  * One implementation-note bullet attached to a JourneyStep. Names a plain-language piece of implementation work and the platform service that owns it. `serviceId` and `serviceName` are nullable to express cross-cutting notes that no single service clearly owns; both fields must be present (nullable) so consumers do not have to distinguish \"missing\" from \"intentionally null\".
  * @export
@@ -21373,6 +22285,22 @@ export const SessionMonitorWorkflowContextStateEnum = {
 } as const;
 
 export type SessionMonitorWorkflowContextStateEnum = typeof SessionMonitorWorkflowContextStateEnum[keyof typeof SessionMonitorWorkflowContextStateEnum];
+
+/**
+ * Kind of work performed by a mode session, independent of mode identity and work-item-type registry role.
+ * @export
+ * @enum {string}
+ */
+
+export const SessionRole = {
+    Implementation: 'implementation',
+    Research: 'research',
+    Planning: 'planning',
+    Review: 'review'
+} as const;
+
+export type SessionRole = typeof SessionRole[keyof typeof SessionRole];
+
 
 /**
  * Server-signed envelope wrapping a closed, operation-discriminated CLI read body. Carried by the `cli.read.request` frame and verified under the same signature, machine/user binding, freshness, and replay rules as trigger envelopes.
@@ -22146,6 +23074,56 @@ export const TaskMonitorHaltCommandCauseEnum = {
 export type TaskMonitorHaltCommandCauseEnum = typeof TaskMonitorHaltCommandCauseEnum[keyof typeof TaskMonitorHaltCommandCauseEnum];
 
 /**
+ * Preparation for a Task Monitor machine action. Authorization binds the complete typed command and Task Monitor identity; the CLI evaluates the command against its own durable snapshot and internal revision.
+ * @export
+ * @interface TaskMonitorHostActionPreparation
+ */
+export interface TaskMonitorHostActionPreparation {
+    /**
+     * Retry identity only; it conveys no execution authority.
+     * @type {string}
+     * @memberof TaskMonitorHostActionPreparation
+     */
+    'requestId': string;
+    /**
+     *
+     * @type {HostActionCategory}
+     * @memberof TaskMonitorHostActionPreparation
+     */
+    'actionCategory': HostActionCategory;
+    /**
+     *
+     * @type {HostAffectingActionType}
+     * @memberof TaskMonitorHostActionPreparation
+     */
+    'actionType': HostAffectingActionType;
+    /**
+     *
+     * @type {string}
+     * @memberof TaskMonitorHostActionPreparation
+     */
+    'targetKind': TaskMonitorHostActionPreparationTargetKindEnum;
+    /**
+     * Selection hint only. The server resolves and authorizes the canonical target instead of copying browser scope into the intent.
+     * @type {string}
+     * @memberof TaskMonitorHostActionPreparation
+     */
+    'targetId': string;
+    /**
+     *
+     * @type {ControllerActionInputs}
+     * @memberof TaskMonitorHostActionPreparation
+     */
+    'inputs'?: ControllerActionInputs;
+}
+
+export const TaskMonitorHostActionPreparationTargetKindEnum = {
+    TaskMonitor: 'TASK_MONITOR'
+} as const;
+
+export type TaskMonitorHostActionPreparationTargetKindEnum = typeof TaskMonitorHostActionPreparationTargetKindEnum[keyof typeof TaskMonitorHostActionPreparationTargetKindEnum];
+
+/**
  *
  * @export
  * @interface TaskMonitorHumanDecisionCommand
@@ -22847,7 +23825,7 @@ export interface TaskResponseDto {
      * @type {string}
      * @memberof TaskResponseDto
      */
-    'initiativeId'?: string;
+    'initiativeId'?: string | null;
     /**
      *
      * @type {WorkStatus}
@@ -22895,7 +23873,7 @@ export interface TaskResponseDto {
      * @type {string}
      * @memberof TaskResponseDto
      */
-    'parentTaskId'?: string;
+    'parentTaskId'?: string | null;
     /**
      *
      * @type {TaskResponseDtoChildCounts}
@@ -22907,19 +23885,19 @@ export interface TaskResponseDto {
      * @type {number}
      * @memberof TaskResponseDto
      */
-    'designDocCount'?: number;
+    'designDocCount'?: number | null;
     /**
      * Number of coding sessions (type=CODING) linked to this task. Present when includeAgentSessionCounts=true; otherwise null.
      * @type {number}
      * @memberof TaskResponseDto
      */
-    'codingSessionCount'?: number;
+    'codingSessionCount'?: number | null;
     /**
      * Number of non-coding agent sessions (e.g. DAILY_SESSION, TASK_REFINING) linked to this task. Present when includeAgentSessionCounts=true; otherwise null.
      * @type {number}
      * @memberof TaskResponseDto
      */
-    'agentSessionCount'?: number;
+    'agentSessionCount'?: number | null;
     /**
      * Service-to-task relation records linked to this task. Present when includeServiceRelations=true.
      * @type {Array<ServiceTaskRelation>}
@@ -22955,7 +23933,7 @@ export interface TaskResponseDto {
      * @type {string}
      * @memberof TaskResponseDto
      */
-    'archivedAt'?: string;
+    'archivedAt'?: string | null;
     /**
      * Outgoing `TRACKS` edges from this task, inlined as snapshots so list views render tracked items without a second hop. Populated only for GOAL-typed tasks (other task types omit the field or return an empty array). Order is unspecified; callers should not rely on it.
      * @type {Array<TrackedEntitySnapshot>}
@@ -23226,6 +24204,18 @@ export interface UserMessageFeatureSyncIterateContext {
  * @interface UserMessagePlanShapingFeatureSyncIterateContext
  */
 export interface UserMessagePlanShapingFeatureSyncIterateContext {
+    /**
+     * Canonical delivering Plan identity from the persisted plan seed.
+     * @type {string}
+     * @memberof UserMessagePlanShapingFeatureSyncIterateContext
+     */
+    'planId': string;
+    /**
+     * Authoritative design document from the persisted plan seed.
+     * @type {string}
+     * @memberof UserMessagePlanShapingFeatureSyncIterateContext
+     */
+    'designDocId': string;
     /**
      *
      * @type {Array<FeatureSyncDiscrepancy>}
@@ -23705,3 +24695,70 @@ export const WorkflowName = {
 } as const;
 
 export type WorkflowName = typeof WorkflowName[keyof typeof WorkflowName];
+
+
+/**
+ * Exact machine-addressed workspace Skill catalog read under existing CLI_READ authority.
+ * @export
+ * @interface WorkspaceSkillsHostActionPreparation
+ */
+export interface WorkspaceSkillsHostActionPreparation {
+    /**
+     *
+     * @type {string}
+     * @memberof WorkspaceSkillsHostActionPreparation
+     */
+    'requestId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof WorkspaceSkillsHostActionPreparation
+     */
+    'actionCategory': WorkspaceSkillsHostActionPreparationActionCategoryEnum;
+    /**
+     *
+     * @type {string}
+     * @memberof WorkspaceSkillsHostActionPreparation
+     */
+    'actionType': WorkspaceSkillsHostActionPreparationActionTypeEnum;
+    /**
+     *
+     * @type {string}
+     * @memberof WorkspaceSkillsHostActionPreparation
+     */
+    'targetKind': WorkspaceSkillsHostActionPreparationTargetKindEnum;
+    /**
+     * Durable selected machine identity, never a request correlation identity.
+     * @type {string}
+     * @memberof WorkspaceSkillsHostActionPreparation
+     */
+    'targetId': string;
+    /**
+     *
+     * @type {AgentSkillProvider}
+     * @memberof WorkspaceSkillsHostActionPreparation
+     */
+    'provider': AgentSkillProvider;
+    /**
+     *
+     * @type {AgentSkillCatalogContext}
+     * @memberof WorkspaceSkillsHostActionPreparation
+     */
+    'catalogContext': AgentSkillCatalogContext;
+}
+
+export const WorkspaceSkillsHostActionPreparationActionCategoryEnum = {
+    CliRead: 'CLI_READ'
+} as const;
+
+export type WorkspaceSkillsHostActionPreparationActionCategoryEnum = typeof WorkspaceSkillsHostActionPreparationActionCategoryEnum[keyof typeof WorkspaceSkillsHostActionPreparationActionCategoryEnum];
+export const WorkspaceSkillsHostActionPreparationActionTypeEnum = {
+    CliRead: 'CLI_READ'
+} as const;
+
+export type WorkspaceSkillsHostActionPreparationActionTypeEnum = typeof WorkspaceSkillsHostActionPreparationActionTypeEnum[keyof typeof WorkspaceSkillsHostActionPreparationActionTypeEnum];
+export const WorkspaceSkillsHostActionPreparationTargetKindEnum = {
+    CliRead: 'CLI_READ'
+} as const;
+
+export type WorkspaceSkillsHostActionPreparationTargetKindEnum = typeof WorkspaceSkillsHostActionPreparationTargetKindEnum[keyof typeof WorkspaceSkillsHostActionPreparationTargetKindEnum];

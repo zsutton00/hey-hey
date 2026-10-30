@@ -1,3 +1,4 @@
+import { filterInertBuiltinTools } from '../inert-execution-policy';
 import { TurnContinuation } from './turn-continuation';
 import type { ServerLogger } from '../../server/logger';
 import type { SessionRunnerFacade } from '../../server/runtime/providers/select';
@@ -74,10 +75,24 @@ export class NewSessionRunner implements Runner {
       startupInputAvailable: this.ctx.startupPromptInput !== undefined,
       startupInputDelivered: startupProjection?.delivered ?? false,
     });
-    const providerInput = startupProjection?.input ?? {
+    const baseProviderInput = startupProjection?.input ?? {
       kind: 'turn' as const,
       prompt: resolvedPrompt,
     };
+    const advice = this.ctx.roleGuidance?.text;
+    const providerInput = advice
+      ? baseProviderInput.kind === 'startup'
+        ? {
+            ...baseProviderInput,
+            segments: {
+              ...baseProviderInput.segments,
+              dynamicContext: [baseProviderInput.segments.dynamicContext, advice]
+                .filter(Boolean)
+                .join('\n\n'),
+            },
+          }
+        : { ...baseProviderInput, prompt: `${advice}\n\n${baseProviderInput.prompt}` }
+      : baseProviderInput;
     const providerPrompt =
       providerInput.kind === 'turn'
         ? providerInput.prompt
@@ -123,10 +138,14 @@ export class NewSessionRunner implements Runner {
             ];
             return merged.length > 0 ? Array.from(new Set(merged)) : undefined;
           })();
-    const additionalBuiltinTools = handler.additionalBuiltinTools;
-    const readOnlyFilesystem = handler.readOnlyFilesystem;
+    const additionalBuiltinTools = run.session.inert
+      ? filterInertBuiltinTools(handler.additionalBuiltinTools ?? [])
+      : handler.additionalBuiltinTools;
+    const readOnlyFilesystem = run.session.inert || handler.readOnlyFilesystem;
     const repositoryResearch = handler.repositoryResearch;
-    const builtinTools = handler.builtinTools;
+    const builtinTools = run.session.inert
+      ? filterInertBuiltinTools(handler.builtinTools ?? ['Read', 'Glob', 'Grep', 'ToolSearch'])
+      : handler.builtinTools;
     const mcpToolUseCase = handler.mcpToolUseCase;
 
     const prompt = this.ctx.serviceScopeRecovery
@@ -184,6 +203,17 @@ export class NewSessionRunner implements Runner {
       run.refreshSessionFields(patch);
     }
 
+    if (
+      this.ctx.roleGuidance?.deliveryKeys.length &&
+      result.errorCount === 0 &&
+      result.providerSessionId
+    ) {
+      await run.sessionRoleGuidance.acknowledge(
+        run.session,
+        result.providerSessionId,
+        this.ctx.roleGuidance,
+      );
+    }
     run.setHasProviderSession(true, 'new-session-mint');
     if (this.ctx.serviceScopeRecovery) {
       await run.serviceScope.completeServiceScopeRecoveryDelivery(this.ctx.serviceScopeRecovery);

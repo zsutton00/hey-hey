@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import {
   AgentEdgeCategory,
   AgentEdgeDirection,
@@ -33,6 +34,8 @@ export type ProposalItemState =
   "pending" | "applying" | "applied" | "rejected" | "failed";
 
 export interface ProposalItemStatus {
+  /** Approval can precede application for a future revision. */
+  reviewAccepted?: boolean;
   state: ProposalItemState;
   error?: string;
   diagnostic?: ProposalApprovalFailureDiagnostic;
@@ -99,7 +102,12 @@ export type OnRejectProposal = (
  * when the attempt ran. Display only; the server refuses to apply it.
  */
 export type ProposalRenderMode =
-  "standalone" | "group-member" | "evaluation-output";
+  | "standalone"
+  | "group-member"
+  | "detail"
+  | "future-review"
+  | "reconciliation-refinement"
+  | "evaluation-output";
 
 /**
  * Props for the CreateProposal dispatcher component.
@@ -119,6 +127,8 @@ export interface CreateProposalProps {
  * Props for the UpdateProposal dispatcher component.
  */
 export interface UpdateProposalProps {
+  /** Places the existing future controls outside the comparison scroll area. */
+  renderFutureFooter?: (footer: ReactNode) => ReactNode;
   proposals: ProposalResponseDto[];
   onApply: OnApplyProposal;
   onApplied?: OnAppliedProposal;

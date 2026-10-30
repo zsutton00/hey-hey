@@ -17,6 +17,7 @@ import { UIElement } from './uIElement';
 import { SystemMessageData } from './systemMessageData';
 import { UIHints } from './uIHints';
 import { AgentTrigger } from './agentTrigger';
+import { ProposalReconciliationSuggestion } from './proposalReconciliationSuggestion';
 import { ExternalAgentNodeCompletion } from './externalAgentNodeCompletion';
 
 

@@ -474,6 +474,14 @@ describe("CodingSession run lifecycle wiring", () => {
       },
     });
     expect(lifecycleInput?.config).toBe(projectModeConfig);
+    expect(
+      useSubmitFollowupByTextMock.mock.calls.at(-1)?.[0]?.sessionMethod,
+    ).toEqual({
+      method: undefined,
+      projectModeSelection: projectModeConfig.projectModeSelection,
+      serviceIds: expect.any(Array),
+      services: expect.any(Array),
+    });
   });
 
   it("launches a project-defined work-item type that has no acceptance criteria", () => {

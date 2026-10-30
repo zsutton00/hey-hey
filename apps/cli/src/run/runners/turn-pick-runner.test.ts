@@ -163,6 +163,7 @@ const wire = (args: WireArgs) => {
   vi.spyOn(run, 'onTurnRunnerCompleted').mockResolvedValue(undefined);
   vi.spyOn(run, 'onTurnEnded').mockResolvedValue(undefined);
   const turn = new Turn({
+    effectiveRole: 'implementation',
     turnId: 'turn-test-1',
     runId: run.runId,
     resolvedPrompt: ctx.resolvedPrompt,

@@ -315,6 +315,67 @@ process.stdout.write(JSON.stringify({ method: "turn/completed", params: { thread
     }
   });
 
+  it('disables inherited MCP servers before starting a tool-free child', async () => {
+    const stdout = new Readable({ read() {} });
+    const chunks: string[] = [];
+    const stdin = new Writable({
+      write(chunk, _encoding, callback) {
+        chunks.push(String(chunk));
+        callback();
+      },
+    });
+    const proc = Object.assign(new EventEmitter(), {
+      stdout,
+      stderr: new Readable({ read() {} }),
+      stdin,
+      pid: 123,
+      kill: vi.fn(),
+    }) as unknown as ReturnType<typeof spawn>;
+    vi.mocked(spawn).mockReturnValueOnce(proc);
+    const client = new CodexSdkClient();
+    const started = client.startSession({
+      prompt: 'Judge supplied evidence',
+      cwd: '/repo',
+      disableMcpServers: true,
+    });
+    emitInitializeResponse(stdout);
+    await new Promise((resolve) => setImmediate(resolve));
+    const request = parseClientFrames(chunks)[0]!;
+    expect(request).toMatchObject({
+      method: 'config/read',
+      params: { cwd: '/repo', includeLayers: false },
+    });
+    stdout.push(
+      JSON.stringify({
+        id: request['id'],
+        result: { config: { mcp_servers: { external: { url: 'https://external.test' } } } },
+      }) + '\n',
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(parseClientFrames(chunks)[1]).toMatchObject({
+      method: 'thread/start',
+      params: { config: { mcp_servers: { external: { enabled: false } } } },
+    });
+    stdout.push(
+      JSON.stringify({ method: 'thread/started', params: { thread: { id: 'judge' } } }) + '\n',
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    stdout.push(
+      JSON.stringify({
+        method: 'turn/started',
+        params: { threadId: 'judge', turn: { id: 'assessment' } },
+      }) + '\n',
+    );
+    stdout.push(
+      JSON.stringify({
+        method: 'turn/completed',
+        params: { threadId: 'judge', turn: { id: 'assessment' } },
+      }) + '\n',
+    );
+    await started;
+    proc.emit('exit', 0);
+  });
+
   it('writes thread/start, then turn/start with structured Skill and text input', async () => {
     const fakeStdout = new Readable({ read() {} });
     const fakeStderr = new Readable({ read() {} });

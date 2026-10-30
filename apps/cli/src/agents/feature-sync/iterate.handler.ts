@@ -30,8 +30,8 @@ export const featureSyncIterateHandler: UserLaunchablePromptTypeHandler<LocalFea
 
     addUserMessage: (payload) => turnUserMessageBlock(payload.userMessage),
 
-    buildPrompt(payload: LocalFeatureSyncIteratePromptPayload): string {
-      return buildIteratePrompt({ discrepancies: payload.discrepancies });
+    buildPrompt(payload: LocalFeatureSyncIteratePromptPayload, ctx): string {
+      return buildIteratePrompt({ discrepancies: payload.discrepancies, provider: ctx?.provider });
     },
 
     buildStartingMessage(): string | null {

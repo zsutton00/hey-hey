@@ -1,3 +1,4 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import { EntityType, type AgentSkillSelection } from "../../api";
 import React, {
   useCallback,
@@ -13,8 +14,6 @@ import {
   Button,
   CircularProgress,
   Checkbox,
-  Dialog,
-  DialogActions,
   DialogContent,
   DialogTitle,
   FormControlLabel,
@@ -23,6 +22,8 @@ import {
   Typography,
   useTheme,
 } from "@mui/material";
+import AttachFileIcon from "@mui/icons-material/AttachFile";
+import { ModalActions } from "../Modals/ModalActions";
 import LanguageIcon from "@mui/icons-material/Language";
 import type { SlashFocalEntityState } from "../SmarterTextAreaCard/slashCommands/types";
 import { SmarterTextAreaEditor } from "../SmarterTextAreaCard/SmarterTextAreaEditor";
@@ -74,6 +75,7 @@ const PROJECT_ASSISTANT_DISABLED = {
 
 export interface DiscussModalProps {
   open: boolean;
+  ownerKey?: string;
   onClose: () => void;
   /** Resolves true once the launcher confirms the conversation started. */
   onSubmit: (submission: DiscussModalSubmitInput) => Promise<boolean>;
@@ -134,6 +136,7 @@ const DiscussSubmitError: React.FC<{
 
 export const DiscussModal: React.FC<DiscussModalProps> = ({
   open,
+  ownerKey,
   onClose,
   onSubmit,
   submitError = null,
@@ -151,6 +154,7 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
   initialValue,
   disablePortal = false,
 }) => {
+  const filePicker = useRef<HTMLInputElement>(null);
   const theme = useTheme();
   const { isOrganizationAdmin } = useRole();
   const { isPlatformAdmin } = usePlatformAdminAccess();
@@ -418,6 +422,12 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
 
   return (
     <Dialog
+      ownerKey={
+        ownerKey ??
+        (focalEntity.kind === "entity"
+          ? `discuss:${focalEntity.entityType}:${focalEntity.entityId}`
+          : undefined)
+      }
       open={open}
       onClose={handleClose}
       maxWidth="md"
@@ -568,15 +578,6 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
             testId="discuss-machine-unavailable"
           />
         ) : null}
-      </DialogContent>
-      <DialogActions
-        sx={{
-          flexDirection: "column",
-          alignItems: "stretch",
-          gap: 1.5,
-          "& > :not(style) ~ :not(style)": { ml: 0 },
-        }}
-      >
         <Box
           sx={{
             display: "flex",
@@ -606,7 +607,10 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
                     machines={machines}
                     selectedMachineId={selectedMachineId}
                     onSelect={setSelectedMachineId}
-                    disabled={isLoading}
+                    disabled={
+                      isLoading ||
+                      (machineMode === "one" && selectedMachineId !== null)
+                    }
                     mobileMode="editor"
                   />
                 ) : undefined
@@ -664,18 +668,42 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
             </Box>
           ) : null}
         </Box>
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1,
-            mt: 1,
-          }}
-        >
+      </DialogContent>
+      <ModalActions
+        contextualActions={
           <Box
             data-testid="discuss-launch-tools"
             sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}
           >
+            <input
+              ref={filePicker}
+              type="file"
+              multiple
+              hidden
+              data-testid="discuss-attachment-picker"
+              onChange={(event) => {
+                attachments.drop(Array.from(event.target.files ?? []));
+                event.target.value = "";
+              }}
+            />
+            <Tooltip title="Attach files">
+              <span>
+                <IconButton
+                  aria-label="Attach files"
+                  data-testid="discuss-attach-files"
+                  disabled={isLoading || !attachments.canDrop}
+                  onClick={() => filePicker.current?.click()}
+                  sx={{
+                    width: 44,
+                    height: 44,
+                    border: 1,
+                    borderColor: "divider",
+                  }}
+                >
+                  <AttachFileIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
             <Tooltip
               title={
                 stagedBrowser.blockedReason ??
@@ -697,8 +725,8 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
                   }
                   color={stagedBrowser.stagedBrowserTab ? "primary" : "default"}
                   sx={{
-                    width: 40,
-                    height: 40,
+                    width: 44,
+                    height: 44,
                     border: 1,
                     borderColor: "divider",
                   }}
@@ -722,71 +750,71 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
               </Typography>
             ) : null}
           </Box>
-          <Box sx={{ flex: 1 }} />
-          <Button onClick={handleClose} disabled={isLoading}>
-            Cancel
-          </Button>
-          <Button
-            variant="outlined"
-            onClick={() =>
-              void handleSubmit(PROJECT_ASSISTANT_DISABLED, "quickQuestion")
-            }
-            disabled={
-              isLoading ||
-              prompt.trim().length === 0 ||
-              !selectedMachineId ||
-              !selection ||
-              attachments.blocked
-            }
-            data-testid="discuss-modal-ask"
-            aria-label={
-              pendingAction === "quickQuestion" && isLoading
-                ? "Quick Question, starting conversation"
-                : "Quick Question"
-            }
-            aria-busy={pendingAction === "quickQuestion" && isLoading}
-          >
-            {pendingAction === "quickQuestion" && isLoading ? (
-              <CircularProgress
-                size={18}
-                color="inherit"
-                aria-label="Starting conversation"
-              />
-            ) : (
-              "Quick Question"
-            )}
-          </Button>
-          <Button
-            variant="contained"
-            ref={walkthrough.startTargetRef}
-            onClick={() => void handleSubmit(undefined, "startConversation")}
-            disabled={
-              isLoading ||
-              prompt.trim().length === 0 ||
-              !selectedMachineId ||
-              !selection ||
-              attachments.blocked
-            }
-            data-testid="discuss-modal-submit"
-            aria-label={
-              pendingAction === "startConversation" && isLoading
-                ? "Start Conversation, starting conversation"
-                : "Start Conversation"
-            }
-            aria-busy={pendingAction === "startConversation" && isLoading}
-          >
-            {pendingAction === "startConversation" && isLoading ? (
-              <CircularProgress
-                size={18}
-                color="inherit"
-                aria-label="Starting conversation"
-              />
-            ) : (
-              "Start Conversation"
-            )}
-          </Button>
-        </Box>
-      </DialogActions>
+        }
+      >
+        <Button onClick={handleClose} disabled={isLoading}>
+          Cancel
+        </Button>
+        <Button
+          variant="outlined"
+          onClick={() =>
+            void handleSubmit(PROJECT_ASSISTANT_DISABLED, "quickQuestion")
+          }
+          disabled={
+            isLoading ||
+            prompt.trim().length === 0 ||
+            !selectedMachineId ||
+            !selection ||
+            attachments.blocked
+          }
+          data-testid="discuss-modal-ask"
+          aria-label={
+            pendingAction === "quickQuestion" && isLoading
+              ? "Quick Question, starting conversation"
+              : "Quick Question"
+          }
+          aria-busy={pendingAction === "quickQuestion" && isLoading}
+        >
+          {pendingAction === "quickQuestion" && isLoading ? (
+            <CircularProgress
+              size={18}
+              color="inherit"
+              aria-label="Starting conversation"
+            />
+          ) : (
+            "Quick Question"
+          )}
+        </Button>
+        <Button
+          variant="contained"
+          ref={walkthrough.startTargetRef}
+          onClick={() => void handleSubmit(undefined, "startConversation")}
+          disabled={
+            isLoading ||
+            prompt.trim().length === 0 ||
+            !selectedMachineId ||
+            !selection ||
+            attachments.blocked
+          }
+          data-testid="discuss-modal-submit"
+          aria-label={
+            pendingAction === "startConversation" && isLoading
+              ? "Start Conversation, starting conversation"
+              : "Start Conversation"
+          }
+          aria-busy={pendingAction === "startConversation" && isLoading}
+        >
+          {pendingAction === "startConversation" && isLoading ? (
+            <CircularProgress
+              size={18}
+              color="inherit"
+              aria-label="Starting conversation"
+            />
+          ) : (
+            "Start Conversation"
+          )}
+        </Button>
+      </ModalActions>
     </Dialog>
   );
 };

@@ -1,8 +1,9 @@
+import { useModalState } from "../Modals/useModalState";
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import {
   Box,
   Button,
   Chip,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -412,8 +413,13 @@ export const EntityListItem: React.FC<EntityListItemProps> = ({
   const isCompactStatus = titleStatusLayout === "responsive" && isMobile;
   const { t } = useTranslation();
   const [isHovered, setIsHovered] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [dependencyDetailsOpen, setDependencyDetailsOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen, confirmOpenOwnerKey] =
+    useModalState(false);
+  const [
+    dependencyDetailsOpen,
+    setDependencyDetailsOpen,
+    dependencyDetailsOpenOwnerKey,
+  ] = useModalState(false);
   const [containerRef, descriptionWidth] = useElementWidth<HTMLElement>();
   const isMinimal = displayMode === "minimal";
   const isList = displayMode === "list";
@@ -838,6 +844,7 @@ export const EntityListItem: React.FC<EntityListItemProps> = ({
 
       {hiddenDependencyCount > 0 && (
         <Dialog
+          ownerKey={dependencyDetailsOpenOwnerKey}
           data-testid="entity-dependency-dialog"
           open={dependencyDetailsOpen}
           onClose={() => setDependencyDetailsOpen(false)}
@@ -884,7 +891,11 @@ export const EntityListItem: React.FC<EntityListItemProps> = ({
       )}
 
       {onDelete && (
-        <Dialog open={confirmOpen} onClose={handleCancelDelete}>
+        <Dialog
+          ownerKey={confirmOpenOwnerKey}
+          open={confirmOpen}
+          onClose={handleCancelDelete}
+        >
           <DialogTitle>{t(KEYS.common.delete)}</DialogTitle>
           <DialogContent>
             <Typography>Are you sure you want to delete "{title}"?</Typography>

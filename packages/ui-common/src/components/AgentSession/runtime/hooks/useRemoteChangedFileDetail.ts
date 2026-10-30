@@ -144,6 +144,12 @@ export const useRemoteChangedFileDetail = (params: {
         return;
       }
       try {
+        const controllerReadInputs = {
+          operation:
+            CliReadRunChangedFileDetailRequestOperationEnum.RunChangedFilesDetail,
+          runId,
+          file,
+        } as const;
         const response = await authorize({
           cause: {
             operation: "read one changed file from the connected computer",
@@ -159,19 +165,21 @@ export const useRemoteChangedFileDetail = (params: {
             actionType: HostAffectingActionType.CliRead,
             targetKind: HostActionTargetKind.AgentSession,
             targetId: params.agentSessionId,
+            inputs: {
+              kind: "CLI_READ",
+              body: {
+                requestId: crypto.randomUUID(),
+                agentSessionId: params.agentSessionId,
+                ...controllerReadInputs,
+              },
+            },
           },
           submit: ({ authorization }) =>
             unifiedApiClient.readAgentSessionCliState({
               organizationId: params.organizationId,
               projectId: params.projectId,
               agentSessionId: params.agentSessionId,
-              cliReadRequestDto: {
-                operation:
-                  CliReadRunChangedFileDetailRequestOperationEnum.RunChangedFilesDetail,
-                runId,
-                file,
-                authorization,
-              },
+              cliReadRequestDto: { ...controllerReadInputs, authorization },
             }),
         });
         if (activeRequestRef.current !== requestGeneration) return;

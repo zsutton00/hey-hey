@@ -10,7 +10,13 @@ import {
   useTheme,
 } from "@mui/material";
 import { type Change, diffLines } from "diff";
-import React, { useCallback, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useCallback,
+  useMemo,
+  useState,
+} from "react";
 import type { Components } from "react-markdown";
 import {
   type InlineNode,
@@ -21,6 +27,11 @@ import { calculateWordDiff } from "../../utils/textDiff";
 import type { DiffOperation } from "../../utils/textDiff";
 import { MarkdownRenderer } from "../shared/MarkdownRenderer";
 import { renderMentionNode } from "../shared/WorkflowMentionInlineRenderer";
+
+/** Snapshot names shared by all specialized comparisons in one review. */
+export const DiffLabelsContext = createContext<
+  { before: string; after: string } | undefined
+>(undefined);
 
 export type DiffOperationDecision = "accepted" | "rejected";
 export type DiffViewMode = "inline" | "split" | "split-code";
@@ -47,6 +58,8 @@ interface DiffRendererBaseProps {
   codeLanguage?: string;
   /** Whether to render the internal inline/split mode toggle */
   showViewModeToggle?: boolean;
+  /** Names the two snapshots being compared. */
+  splitLabels?: { before: string; after: string };
   /** Structured content that must retain its domain-specific presentation. */
   contentRenderers?: {
     inline: React.ReactNode;
@@ -1005,59 +1018,64 @@ const InlineMarkdownDiffOperations: React.FC<
   InlineMarkdownDiffOperationsProps
 > = ({ operations, markdownComponents }) => {
   const theme = useTheme();
-
-  const renderHighlight = (
-    key: string,
-    text: string,
-    tone: "insert" | "delete",
-  ): React.ReactElement => (
+  // Fragments belong to the same paragraph. Only authored paragraph breaks
+  // introduce vertical space; a word-level operation is never a block boundary.
+  const renderFragment = (key: string, text: string, tone: MentionDiffTone) => (
     <Box
       key={key}
+      data-diff-tone={tone}
       sx={{
-        // MarkdownRenderer's container hardcodes its own text color, so the
-        // diff color must be applied via a descendant selector to reach the
-        // rendered markdown elements.
-        "& *": {
-          color: getDiffTextColor(tone, theme.palette.mode),
-          ...(tone === "delete" ? { textDecoration: "line-through" } : {}),
-        },
-        "& [data-mention-token]": {
-          backgroundColor: `${getMentionDiffBackground(tone, theme)} !important`,
-          borderRadius: "3px",
-        },
+        display: "contents",
+        ...(tone === "equal"
+          ? {}
+          : {
+              "& *": {
+                color: getDiffTextColor(tone, theme.palette.mode),
+                ...(tone === "delete"
+                  ? { textDecoration: "line-through" }
+                  : {}),
+              },
+              "& [data-mention-token]": {
+                backgroundColor: `${getMentionDiffBackground(tone, theme)} !important`,
+              },
+            }),
       }}
     >
-      <MarkdownRenderer components={markdownComponents}>
-        {text}
-      </MarkdownRenderer>
+      {text.split(/(\n\s*\n)/).map((part, index) =>
+        /^\n\s*\n$/.test(part) ? (
+          <React.Fragment key={index}>
+            <br />
+            <br />
+          </React.Fragment>
+        ) : (
+          <React.Fragment key={index}>
+            {part.match(/^[ \t]+/)?.[0]}
+            <MarkdownRenderer
+              components={markdownComponents}
+              sx={{ display: "contents", "& p": { display: "inline", m: 0 } }}
+            >
+              {part.replace(/^[ \t]+|[ \t]+$/g, "")}
+            </MarkdownRenderer>
+            {part.trim() ? part.match(/[ \t]+$/)?.[0] : null}
+          </React.Fragment>
+        ),
+      )}
     </Box>
   );
-
   return (
     <>
-      {operations.map((op, index) => {
+      {operations.map((operation, index) => {
         const key = `inline-op-${index}`;
-
-        if (op.type === "equal") {
-          return (
-            <MarkdownRenderer key={key} components={markdownComponents}>
-              {op.originalText}
-            </MarkdownRenderer>
-          );
-        }
-
-        if (op.type === "insert") {
-          return renderHighlight(key, op.newText, "insert");
-        }
-
-        if (op.type === "delete") {
-          return renderHighlight(key, op.originalText, "delete");
-        }
-
+        if (operation.type === "equal")
+          return renderFragment(key, operation.originalText, "equal");
+        if (operation.type === "insert")
+          return renderFragment(key, operation.newText, "insert");
+        if (operation.type === "delete")
+          return renderFragment(key, operation.originalText, "delete");
         return (
           <React.Fragment key={key}>
-            {renderHighlight(`${key}-del`, op.originalText, "delete")}
-            {renderHighlight(`${key}-ins`, op.newText, "insert")}
+            {renderFragment(`${key}-del`, operation.originalText, "delete")}
+            {renderFragment(`${key}-ins`, operation.newText, "insert")}
           </React.Fragment>
         );
       })}
@@ -1237,7 +1255,7 @@ const DiffViewModeToggle: React.FC<DiffViewModeToggleProps> = ({
 
 /**
  * DiffRenderer displays differences between old and new content as a
- * sequence of per-operation markdown segments. Each segment is rendered
+ * flowing sequence of per-operation markdown fragments. Each fragment is rendered
  * in its own MarkdownRenderer to avoid embedding raw HTML diff markers
  * (which leak as literal text when adjacent markdown delimiters — like
  * backticks — turn the surrounding region into a code span).
@@ -1262,7 +1280,10 @@ export const DiffRenderer: React.FC<DiffRendererProps> = ({
   defaultViewMode,
   onViewModeChange,
   contentRenderers,
+  splitLabels: explicitSplitLabels,
 }) => {
+  const inheritedSplitLabels = useContext(DiffLabelsContext);
+  const splitLabels = explicitSplitLabels ?? inheritedSplitLabels;
   const operations = useMemo(() => {
     return calculateWordDiff(oldContent, newContent).operations;
   }, [oldContent, newContent]);
@@ -1446,7 +1467,10 @@ export const DiffRenderer: React.FC<DiffRendererProps> = ({
             gap: 1.5,
           }}
         >
-          <DiffSplitPane title="Current" testId={SPLIT_OLD_PANE_TEST_ID}>
+          <DiffSplitPane
+            title={splitLabels?.before ?? "Current"}
+            testId={SPLIT_OLD_PANE_TEST_ID}
+          >
             {contentRenderers ? (
               contentRenderers.split.old
             ) : enableInteractiveReview ? (
@@ -1461,7 +1485,10 @@ export const DiffRenderer: React.FC<DiffRendererProps> = ({
               />
             )}
           </DiffSplitPane>
-          <DiffSplitPane title="Suggested" testId={SPLIT_NEW_PANE_TEST_ID}>
+          <DiffSplitPane
+            title={splitLabels?.after ?? "Suggested"}
+            testId={SPLIT_NEW_PANE_TEST_ID}
+          >
             {contentRenderers ? (
               contentRenderers.split.new
             ) : enableInteractiveReview ? (

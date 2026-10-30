@@ -35,6 +35,8 @@ const makeDiscrepancy = (
 const makeIteratePayload = (
   overrides: Partial<LocalPlanShapingFeatureSyncIteratePromptPayload> = {},
 ): LocalPlanShapingFeatureSyncIteratePromptPayload => ({
+  planId: 'plan-123',
+  designDocId: 'design-456',
   discrepancies: [makeDiscrepancy({ id: 'fs-1' })],
   decisions: [],
   ...overrides,
@@ -169,10 +171,14 @@ describe('planShapingFeatureSyncAnalyzeHandler', () => {
       expect(prompt).not.toContain('"action": "DISCREPANCY"');
     });
 
-    it('forbids authoring proposals on the flagging turn — remediations are suggestions only', () => {
+    it('waits for the user before drafting even settled future remediations', () => {
       const prompt = planShapingFeatureSyncAnalyzeHandler.buildPrompt(makeAnalyzePayload());
-      expect(prompt).toContain('You flag and suggest; you do not fix.');
-      expect(prompt).toMatch(/never call `edit_work_item` or author any proposal/i);
+      expect(prompt).toContain('Do not draft any proposal or future revision during Analyze');
+      expect(prompt).toContain('even when the design doc settles the intended outcome');
+      expect(prompt).toContain('wait for the user to choose before drafting');
+      expect(prompt).toContain('it does not authorize drafting before the reply');
+      expect(prompt).not.toContain('draft a non-live future remediation and present its review card');
+      expect(prompt).toContain('Leave unresolved product choices as findings');
       expect(prompt).toMatch(/concrete recommendation|concrete remediation/);
       // The eager-drafting step is gone: no instruction to draft edits on this turn.
       expect(prompt).not.toMatch(/draft edit proposals/i);

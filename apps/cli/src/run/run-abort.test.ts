@@ -174,6 +174,7 @@ const makeStubHandler = (): PromptTypeHandler<unknown> =>
 
 const makeTurn = (): Turn =>
   new Turn({
+    effectiveRole: 'implementation',
     turnId: 'turn-1',
     runId: 'run-1',
     resolvedPrompt: '',

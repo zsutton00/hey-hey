@@ -1,3 +1,5 @@
+import { useModalState } from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import React, { useState, useCallback } from "react";
 import {
   Box,
@@ -13,7 +15,6 @@ import {
   TextField,
   Alert,
   Stack,
-  Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
@@ -62,15 +63,15 @@ export const UnifiedSearchAdminPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useQueryState("q", parseAsString);
   const [selectedTaskId, setSelectedTaskId] = useQueryState(
     "task",
-    parseAsString
+    parseAsString,
   );
   const [selectedInitiativeId, setSelectedInitiativeId] = useQueryState(
     "initiative",
-    parseAsString
+    parseAsString,
   );
   const [selectedDesignDocId, setSelectedDesignDocId] = useQueryState(
     "designDoc",
-    parseAsString
+    parseAsString,
   );
 
   // Local state
@@ -78,7 +79,7 @@ export const UnifiedSearchAdminPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedResult, setSelectedResult] = useState<unknown>(null);
-  const [modalOpen, setModalOpen] = useState<boolean>(false);
+  const [modalOpen, setModalOpen, modalOpenOwnerKey] = useModalState(false);
   const [resultType, setResultType] = useState<
     "combined" | "graph" | "embeddings" | null
   >(null);
@@ -93,7 +94,7 @@ export const UnifiedSearchAdminPage: React.FC = () => {
 
   const { unifiedSearch } = useUnifiedSearch(
     currentOrgId || "",
-    selectedProjectId || ""
+    selectedProjectId || "",
   );
 
   const handleSearch = useCallback(async (): Promise<void> => {
@@ -142,7 +143,7 @@ export const UnifiedSearchAdminPage: React.FC = () => {
       setError(
         error.response?.data?.message ||
           error.message ||
-          "Failed to perform search"
+          "Failed to perform search",
       );
     } finally {
       setLoading(false);
@@ -171,7 +172,7 @@ export const UnifiedSearchAdminPage: React.FC = () => {
 
   const handleViewDetails = (
     result: unknown,
-    type: "combined" | "graph" | "embeddings"
+    type: "combined" | "graph" | "embeddings",
   ): void => {
     setSelectedResult(result);
     setResultType(type);
@@ -179,7 +180,10 @@ export const UnifiedSearchAdminPage: React.FC = () => {
   };
 
   const handleViewEntity = useCallback(
-    (entityType?: UnifiedSearchResult["entityType"], entityId?: string): void => {
+    (
+      entityType?: UnifiedSearchResult["entityType"],
+      entityId?: string,
+    ): void => {
       if (!modalService || !currentOrgId || !entityType || !entityId) {
         return;
       }
@@ -192,7 +196,7 @@ export const UnifiedSearchAdminPage: React.FC = () => {
         projectId: selectedProjectId || undefined,
       });
     },
-    [modalService, currentOrgId, selectedProjectId]
+    [modalService, currentOrgId, selectedProjectId],
   );
 
   const handleCloseModal = (): void => {
@@ -266,7 +270,12 @@ export const UnifiedSearchAdminPage: React.FC = () => {
 
           {/* Entity Selectors Row */}
           {selectedProjectId && (
-            <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+            <Stack
+              direction="row"
+              spacing={2}
+              alignItems="center"
+              flexWrap="wrap"
+            >
               <InitiativeSelector
                 organizationId={currentOrgId}
                 projectId={selectedProjectId}
@@ -445,9 +454,7 @@ export const UnifiedSearchAdminPage: React.FC = () => {
       {/* Combined Results Section */}
       <Accordion defaultExpanded>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="h6">
-            Results ({combinedResultsCount})
-          </Typography>
+          <Typography variant="h6">Results ({combinedResultsCount})</Typography>
         </AccordionSummary>
         <AccordionDetails>
           <TableContainer>
@@ -499,14 +506,19 @@ export const UnifiedSearchAdminPage: React.FC = () => {
                           <Button
                             size="small"
                             startIcon={<VisibilityIcon />}
-                            onClick={() => handleViewDetails(result, "combined")}
+                            onClick={() =>
+                              handleViewDetails(result, "combined")
+                            }
                           >
                             View
                           </Button>
                           <Button
                             size="small"
                             onClick={() =>
-                              handleViewEntity(result.entityType, result.entityId)
+                              handleViewEntity(
+                                result.entityType,
+                                result.entityId,
+                              )
                             }
                             disabled={
                               !modalService ||
@@ -520,7 +532,7 @@ export const UnifiedSearchAdminPage: React.FC = () => {
                         </Stack>
                       </TableCell>
                     </TableRow>
-                  )
+                  ),
                 )}
               </TableBody>
             </Table>
@@ -554,35 +566,49 @@ export const UnifiedSearchAdminPage: React.FC = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {results?.graph?.results?.map((result: UnifiedGraphSearchResult, index: number) => (
-                  <TableRow key={index}>
-                    <TableCell>
-                      <Typography
-                        variant="body2"
-                        sx={{ fontFamily: "monospace", fontSize: "0.8rem" }}
-                      >
-                        {result.node ? JSON.stringify(result.node).substring(0, 24) : "N/A"}...
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip label={result.score?.toFixed(3) ?? "N/A"} size="small" />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" noWrap sx={{ maxWidth: 400 }}>
-                        {result.node ? JSON.stringify(result.node).substring(0, 100) : "No data"}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        size="small"
-                        startIcon={<VisibilityIcon />}
-                        onClick={() => handleViewDetails(result, "graph")}
-                      >
-                        View
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {results?.graph?.results?.map(
+                  (result: UnifiedGraphSearchResult, index: number) => (
+                    <TableRow key={index}>
+                      <TableCell>
+                        <Typography
+                          variant="body2"
+                          sx={{ fontFamily: "monospace", fontSize: "0.8rem" }}
+                        >
+                          {result.node
+                            ? JSON.stringify(result.node).substring(0, 24)
+                            : "N/A"}
+                          ...
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={result.score?.toFixed(3) ?? "N/A"}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Typography
+                          variant="body2"
+                          noWrap
+                          sx={{ maxWidth: 400 }}
+                        >
+                          {result.node
+                            ? JSON.stringify(result.node).substring(0, 100)
+                            : "No data"}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="small"
+                          startIcon={<VisibilityIcon />}
+                          onClick={() => handleViewDetails(result, "graph")}
+                        >
+                          View
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ),
+                )}
               </TableBody>
             </Table>
           </TableContainer>
@@ -616,51 +642,55 @@ export const UnifiedSearchAdminPage: React.FC = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {results?.embeddings?.data?.map((result: UnifiedEmbeddingsSearchResult, index: number) => (
-                  <TableRow key={index}>
-                    <TableCell>
-                      <Chip
-                        label={result.similarity?.toFixed(3) ?? "N/A"}
-                        size="small"
-                        color="primary"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Typography
-                        variant="body2"
-                        sx={{ fontFamily: "monospace", fontSize: "0.8rem" }}
-                      >
-                        {result.id?.substring(0, 24) ?? "N/A"}...
-                      </Typography>
-                    </TableCell>
-                    <TableCell>{result.metadata?.type ?? "N/A"}</TableCell>
-                    <TableCell>
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          fontFamily: "monospace",
-                          fontSize: "0.75rem",
-                          maxWidth: 300,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {result.metadata?.title?.substring(0, 100) ??
-                          "No preview"}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        size="small"
-                        startIcon={<VisibilityIcon />}
-                        onClick={() => handleViewDetails(result, "embeddings")}
-                      >
-                        View
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {results?.embeddings?.data?.map(
+                  (result: UnifiedEmbeddingsSearchResult, index: number) => (
+                    <TableRow key={index}>
+                      <TableCell>
+                        <Chip
+                          label={result.similarity?.toFixed(3) ?? "N/A"}
+                          size="small"
+                          color="primary"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Typography
+                          variant="body2"
+                          sx={{ fontFamily: "monospace", fontSize: "0.8rem" }}
+                        >
+                          {result.id?.substring(0, 24) ?? "N/A"}...
+                        </Typography>
+                      </TableCell>
+                      <TableCell>{result.metadata?.type ?? "N/A"}</TableCell>
+                      <TableCell>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            fontFamily: "monospace",
+                            fontSize: "0.75rem",
+                            maxWidth: 300,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {result.metadata?.title?.substring(0, 100) ??
+                            "No preview"}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="small"
+                          startIcon={<VisibilityIcon />}
+                          onClick={() =>
+                            handleViewDetails(result, "embeddings")
+                          }
+                        >
+                          View
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ),
+                )}
               </TableBody>
             </Table>
           </TableContainer>
@@ -684,18 +714,19 @@ export const UnifiedSearchAdminPage: React.FC = () => {
 
       {/* Result Detail Modal */}
       <Dialog
+        ownerKey={modalOpenOwnerKey}
         open={modalOpen}
         onClose={handleCloseModal}
         maxWidth="md"
         fullWidth
       >
-      <DialogTitle>
+        <DialogTitle>
           Result Details -{" "}
           {resultType === "graph"
             ? "Graph"
             : resultType === "embeddings"
-            ? "Embeddings"
-            : "Combined"}
+              ? "Embeddings"
+              : "Combined"}
         </DialogTitle>
         <DialogContent>
           <Paper
@@ -718,7 +749,9 @@ export const UnifiedSearchAdminPage: React.FC = () => {
                 fontSize: "0.85rem",
               }}
             >
-              {selectedResult ? JSON.stringify(selectedResult, null, 2) : "No data"}
+              {selectedResult
+                ? JSON.stringify(selectedResult, null, 2)
+                : "No data"}
             </Typography>
           </Paper>
         </DialogContent>
@@ -726,7 +759,7 @@ export const UnifiedSearchAdminPage: React.FC = () => {
           <Button
             onClick={() => {
               navigator.clipboard.writeText(
-                JSON.stringify(selectedResult, null, 2)
+                JSON.stringify(selectedResult, null, 2),
               );
             }}
           >

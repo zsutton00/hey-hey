@@ -1,3 +1,5 @@
+import { useModalState } from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import { OrganizationHome } from "@hey-hey/ui-common/components";
 import { useAuth, useOrganization } from "@hey-hey/ui-common/context";
 import { usePermissions, useUserIdentity } from "@hey-hey/ui-common/hooks";
@@ -9,7 +11,6 @@ import {
   Alert,
   Box,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -35,7 +36,8 @@ export const OrganizationHomePage = () => {
     enabled: Boolean(currentOrganization?.id),
   });
   const navigate = useNavigate();
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen, createDialogOpenOwnerKey] =
+    useModalState(false);
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
   const [creatingProject, setCreatingProject] = useState(false);
@@ -115,7 +117,11 @@ export const OrganizationHomePage = () => {
 
   if (user.name === undefined) {
     return (
-      <Box component="main" data-testid="organization-home-profile-error" sx={{ p: 3 }}>
+      <Box
+        component="main"
+        data-testid="organization-home-profile-error"
+        sx={{ p: 3 }}
+      >
         <Alert severity="error">Unable to load your profile.</Alert>
       </Box>
     );
@@ -142,6 +148,7 @@ export const OrganizationHomePage = () => {
       />
       {canCreateProjects ? (
         <Dialog
+          ownerKey={createDialogOpenOwnerKey}
           open={createDialogOpen}
           onClose={handleCloseCreateDialog}
           maxWidth="sm"
@@ -169,7 +176,10 @@ export const OrganizationHomePage = () => {
             />
           </DialogContent>
           <DialogActions>
-            <Button onClick={handleCloseCreateDialog} disabled={creatingProject}>
+            <Button
+              onClick={handleCloseCreateDialog}
+              disabled={creatingProject}
+            >
               Cancel
             </Button>
             <Button

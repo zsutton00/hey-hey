@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { PhysicalFootprintReader } from './physical-footprint';
 import { StructuredServerLogger, type ServerLogEntry } from './logger';
 import {
   LARGE_READ_BYTES,
@@ -54,6 +55,28 @@ describe('MemoryMonitor', () => {
         registeredRunCount: 3,
       }),
     ]);
+  });
+
+  it('reports the physical footprint once it has been read', async () => {
+    const { logger, entries } = recordingLogger();
+    const footprint = new PhysicalFootprintReader();
+    vi.spyOn(footprint, 'refresh').mockImplementation(async () => {
+      await Promise.resolve();
+      vi.spyOn(footprint, 'bytes', 'get').mockReturnValue(6400 * MB);
+    });
+    const monitor = new MemoryMonitor({
+      logger,
+      gauges: () => ({}),
+      readMemory: () => reading(100),
+      footprint,
+    });
+
+    monitor.sample();
+    await Promise.resolve();
+    monitor.sample();
+
+    expect(entries[0]).not.toHaveProperty('physicalFootprintMb');
+    expect(entries[1]).toEqual(expect.objectContaining({ physicalFootprintMb: 6400 }));
   });
 
   it('warns once per upward pressure threshold and reports growth from the first sample', () => {

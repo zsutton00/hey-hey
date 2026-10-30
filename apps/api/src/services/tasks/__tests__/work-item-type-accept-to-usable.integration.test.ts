@@ -26,6 +26,8 @@ import { guidanceTokenForType } from '../../../mcp/tools/work-item-guidance-toke
 import type { ProposalService } from '../../proposal/proposal.service';
 import type { WorkItemTypeDefinitionDto } from '../../../generated/model/workItemTypeDefinitionDto';
 import { EntityType } from '../../../generated/model/entityType';
+import { SessionRole } from '../../../generated/model/sessionRole';
+import { WorkItemTypeGuidancePurpose } from '../../../generated/model/workItemTypeGuidancePurpose';
 import { WorkStatus } from '../../../generated/model/workStatus';
 import * as TestUtils from '../../../utils/testUtils';
 import { UserId } from '../../../types';
@@ -54,14 +56,9 @@ const EDIT_STANDARDS =
   'Revise the hypothesis only; never rewrite the recorded outcome after the fact.';
 
 const experimentDefinition: WorkItemTypeDefinitionDto = {
-  agentGuidance: {
-    overview: 'Evaluate a hypothesis.',
-    contexts: [
-      {
-        focalTypeKeys: ['STANDARD'],
-        guidance: 'Use evidence from implementation.',
-      },
-    ],
+  sessionRoleGuidance: {
+    implementation: '  Follow the experiment decision rule.  ',
+    review: 'Review evidence.',
   },
   key: NEW_TYPE_KEY,
   name: 'Experiment',
@@ -184,7 +181,9 @@ describe('Accepted work-item type is immediately usable (live registry snapshot)
   let warmedAt: number;
 
   beforeAll(async () => {
-    server = new RedisMemoryServer();
+    server = new RedisMemoryServer({
+      spawn: { env: { ...process.env, LC_ALL: 'C' } },
+    });
     await server.getPort();
   }, 30000);
   afterEach(async () => {
@@ -250,13 +249,6 @@ describe('Accepted work-item type is immediately usable (live registry snapshot)
         create: jest.fn(async ({ data }: { data: WorkItemType }) => {
           const persisted = {
             ...data,
-            agentGuidance:
-              data.agentGuidance ===
-                (Prisma.JsonNull as unknown as typeof data.agentGuidance) ||
-              data.agentGuidance ===
-                (Prisma.DbNull as unknown as typeof data.agentGuidance)
-                ? null
-                : data.agentGuidance,
             graphConfiguration:
               data.graphConfiguration ===
               (Prisma.JsonNull as unknown as typeof data.graphConfiguration)
@@ -382,7 +374,6 @@ describe('Accepted work-item type is immediately usable (live registry snapshot)
     });
     const proposalService = {
       create: proposalCreate,
-      createBatch: jest.fn(),
       findOne: jest.fn(),
     } as unknown as ProposalService;
     const taskService = { findOne: jest.fn() } as any;
@@ -461,9 +452,13 @@ describe('Accepted work-item type is immediately usable (live registry snapshot)
         instance.getDefinition(PROJECT_ID, NEW_TYPE_KEY)?.definition.name,
       ).toBe('Experiment');
       expect(
-        instance.getGuidance(PROJECT_ID, NEW_TYPE_KEY, 'STANDARD')
-          .contextualGuidance?.[0]?.guidance,
-      ).toBe('Use evidence from implementation.');
+        instance.getGuidance(
+          PROJECT_ID,
+          NEW_TYPE_KEY,
+          WorkItemTypeGuidancePurpose.Role,
+          SessionRole.Review,
+        ).guidance,
+      ).toBe('Review evidence.');
     }
     expect(Date.now() - warmedAt).toBeLessThan(5000);
   }
@@ -529,6 +524,27 @@ describe('Accepted work-item type is immediately usable (live registry snapshot)
       registry.getDefinition(PROJECT_ID, NEW_TYPE_KEY)?.definition.capabilities
         ?.showsInExplorerSidebar,
     ).toBe(true);
+
+    expect(
+      registry.getDefinition(PROJECT_ID, NEW_TYPE_KEY)?.definition
+        .sessionRoleGuidance,
+    ).toEqual(experimentDefinition.sessionRoleGuidance);
+    expect(
+      registry.getGuidanceBatch(PROJECT_ID, {
+        typeKeys: [NEW_TYPE_KEY],
+        purpose: 'role',
+        sessionRole: 'implementation',
+      }),
+    ).toEqual({
+      results: [
+        {
+          typeKey: NEW_TYPE_KEY,
+          name: 'Experiment',
+          sessionRole: 'implementation',
+          guidance: experimentDefinition.sessionRoleGuidance!.implementation,
+        },
+      ],
+    });
 
     // --- create_work_item now succeeds and derives sections from the new entry.
     const afterCreate = await proposalTools.createWorkItem(

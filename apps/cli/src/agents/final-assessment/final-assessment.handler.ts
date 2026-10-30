@@ -31,7 +31,6 @@ const FINAL_ASSESSMENT_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
   'create_implementation_hint',
   // Proposal edits
   'edit_work_item',
-  'edit_tasks',
   'edit_design_doc',
   'edit_implementation_hint',
   'delete_implementation_hint',

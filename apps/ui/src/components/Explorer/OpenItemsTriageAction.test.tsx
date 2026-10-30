@@ -1,3 +1,27 @@
+import { ModalProvider, useModal } from "@hey-hey/ui-common/context";
+import { HostedModalBoundary } from "@hey-hey/ui-common/components/Modals";
+import { OpenItemsTriageReview } from "./HostedTriageOwner";
+function TestHost() {
+  const modal = useModal();
+  return (
+    <>
+      {modal?.modalInstances.map((item) =>
+        item.config.type === "triage" ? (
+          <HostedModalBoundary key={item.id} instanceId={item.id}>
+            <OpenItemsTriageReview
+              organizationId={item.config.organizationId}
+              projectId={item.config.projectId}
+              open
+              onClosed={() => modal.closeModal(item.id)}
+              ownerKey={item.id}
+            />
+          </HostedModalBoundary>
+        ) : null,
+      )}
+    </>
+  );
+}
+import { ModalRestoreControls } from "@hey-hey/ui-common/components/Modals";
 import { useEffect } from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -24,7 +48,7 @@ vi.mock("@hey-hey/ui-common/data", async (original) => ({
     error: mocks.agentSessionError,
   }),
 }));
-vi.mock("../../pages/AgentSession/OpenItemsTriagePage", () => ({
+vi.mock("./OpenItemsTriageContent", () => ({
   OpenItemsTriagePage: ({
     agentSession,
     pageIdentity,
@@ -55,7 +79,7 @@ vi.mock("../../pages/AgentSession/OpenItemsTriagePage", () => ({
         data-guidance={review.options.guidance}
       >
         <h2 id="open-items-triage-title">Open Items triage</h2>
-        <button data-testid="open-items-triage-close" onClick={onClose}>
+        <button data-testid="mock-page-close" onClick={onClose}>
           Close triage
         </button>
         {review.closeGate}
@@ -92,10 +116,14 @@ const mount = () => {
   const onHeaderClick = vi.fn();
   render(
     <MemoryRouter initialEntries={["/projects/project-1/tasks/t"]}>
-      <div data-testid="header" onClick={onHeaderClick}>
-        <OpenItemsTriageAction organizationId="org-1" projectId="project-1" />
-      </div>
-      <Location />
+      <ModalProvider>
+        <div data-testid="header" onClick={onHeaderClick}>
+          <OpenItemsTriageAction organizationId="org-1" projectId="project-1" />
+        </div>
+        <Location />
+        <TestHost />
+        <ModalRestoreControls />
+      </ModalProvider>
     </MemoryRouter>,
   );
   return { onHeaderClick };
@@ -418,6 +446,32 @@ describe("Open Items triage modal", () => {
     await click("triage-close-confirm");
     expect(mocks.stop).toHaveBeenCalledTimes(1);
     await expectClosed();
+  });
+
+  it("minimizes the same running review and warning without stopping, discarding or creating another session", async () => {
+    mount();
+    await open();
+    await run();
+    await click("sim-submitted");
+    await click("sim-running");
+    const page = screen.getByTestId("triage-page");
+    const session = page.getAttribute("data-session");
+    await click("modal-minimize");
+    await click("open-items-triage-action");
+    await waitFor(() => expect(page).toBeVisible());
+    expect(screen.getByTestId("triage-page")).toBe(page);
+    expect(page).toHaveAttribute("data-session", session);
+    expect(mocks.mutate).toHaveBeenCalledOnce();
+    expect(mocks.stop).not.toHaveBeenCalled();
+    await click("open-items-triage-close");
+    expect(screen.getByTestId("triage-confirm-cancel")).toBeVisible();
+    await click("modal-minimize");
+    await click("modal-restore");
+    await waitFor(() =>
+      expect(screen.getByTestId("triage-confirm-cancel")).toBeVisible(),
+    );
+    expect(mocks.stop).not.toHaveBeenCalled();
+    expect(mocks.mutate).toHaveBeenCalledOnce();
   });
 
   it("reopens at help with none of the closed review's state", async () => {

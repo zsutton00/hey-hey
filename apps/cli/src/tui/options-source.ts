@@ -12,7 +12,7 @@ export interface OptionsSnapshot {
   /** Null until the saved choice has been read. */
   readonly remoteToolCallViewing: boolean | null;
   /** Null until the saved choice has been read. */
-  readonly jevParentFeatureFilter: boolean | null;
+  readonly jevEnabled: boolean | null;
   /** Whether the user's environment defines a Jev key; the saved choice is kept either way. */
   readonly jevKeyDefined: boolean;
 }
@@ -55,8 +55,8 @@ export class OptionsSource {
     await this.save({ remoteToolCallViewing });
   }
 
-  public async setJevParentFeatureFilter(jevParentFeatureFilter: boolean): Promise<void> {
-    await this.save({ jevParentFeatureFilter });
+  public async setJevEnabled(jevEnabled: boolean): Promise<void> {
+    await this.save({ jevEnabled });
   }
 
   private async save(patch: Partial<MachineOptions>): Promise<void> {
@@ -85,7 +85,7 @@ export class OptionsSource {
     return Object.freeze({
       intentFirst: this.options?.intentFirst ?? null,
       remoteToolCallViewing: this.options?.remoteToolCallViewing ?? null,
-      jevParentFeatureFilter: this.options?.jevParentFeatureFilter ?? null,
+      jevEnabled: this.options?.jevEnabled ?? null,
       jevKeyDefined: this.jevKeyDefined,
     });
   }

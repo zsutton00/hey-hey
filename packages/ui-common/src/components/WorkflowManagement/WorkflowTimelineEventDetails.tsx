@@ -1,3 +1,4 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 /**
  * Workflow Timeline Event Details Component
  *
@@ -6,7 +7,6 @@
 
 import React from "react";
 import {
-  Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
@@ -39,7 +39,7 @@ interface WorkflowTimelineEventDetailsProps {
  */
 const getEventLevelColor = (
   level: string | null | undefined,
-  theme: Theme
+  theme: Theme,
 ): string => {
   switch (level?.toLowerCase()) {
     case "error":
@@ -111,7 +111,7 @@ const deepParse = (value: unknown): unknown => {
  * Parse double-stringified JSON values in metadata
  */
 const parseMetadata = (
-  metadata: Record<string, unknown>
+  metadata: Record<string, unknown>,
 ): Record<string, unknown> => {
   const result: Record<string, unknown> = {};
 
@@ -148,6 +148,11 @@ export const WorkflowTimelineEventDetails: React.FC<
           maxHeight: "80vh",
         },
       }}
+      closeControl={
+        <IconButton size="small" onClick={onClose}>
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      }
     >
       <DialogTitle
         sx={{
@@ -177,9 +182,6 @@ export const WorkflowTimelineEventDetails: React.FC<
               <CopyIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          <IconButton size="small" onClick={onClose}>
-            <CloseIcon fontSize="small" />
-          </IconButton>
         </Box>
       </DialogTitle>
 

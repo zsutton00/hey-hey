@@ -1,3 +1,5 @@
+import { useModalState } from "../Modals/useModalState";
+import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import type { TriageApplicationCoordinator } from "../../data/triage/application";
 import type { OpenItemsTriageItem } from "../../api";
 import { SubmissionPreviews } from "./SubmissionPreviews";
@@ -409,29 +411,15 @@ const ConversationViewerContent: React.FC<{
     agentSessionCurrentState === AgentSessionCurrentState.Thinking ||
     agentSessionCurrentState === AgentSessionCurrentState.Writing;
 
-  // While a step is starting, the latest Turn can still be the previous step's
-  // finished one, so only calls that began after starting belong on screen.
-  const [startingSince, setStartingSince] = React.useState<number | null>(null);
-  const isStarting =
-    agentSessionCurrentState === AgentSessionCurrentState.Starting;
-  React.useEffect(() => {
-    setStartingSince(isStarting ? Date.now() : null);
-  }, [isStarting]);
-  const liveToolCalls = React.useMemo(() => {
-    if (latestTurnToolCalls.status !== "available") return null;
-    const { toolCalls, omittedEarlierCount, evictedCount } =
-      latestTurnToolCalls.result;
-    if (!isStarting) {
-      return { toolCalls, hiddenCount: omittedEarlierCount + evictedCount };
-    }
-    if (startingSince === null) return { toolCalls: [], hiddenCount: 0 };
-    return {
-      toolCalls: toolCalls.filter(
-        ({ createdAt }) => Date.parse(createdAt) >= startingSince,
-      ),
-      hiddenCount: 0,
-    };
-  }, [isStarting, latestTurnToolCalls, startingSince]);
+  const liveToolCalls =
+    latestTurnToolCalls.status === "available"
+      ? {
+          toolCalls: latestTurnToolCalls.result.toolCalls,
+          hiddenCount:
+            latestTurnToolCalls.result.omittedEarlierCount +
+            latestTurnToolCalls.result.evictedCount,
+        }
+      : null;
 
   const latestTimelineMessage = conversationTimeline.at(-1)?.message;
   const latestMessageData =
@@ -493,8 +481,11 @@ const ConversationViewerContent: React.FC<{
   // New conversation state
   const [isCreatingConversation, setIsCreatingConversation] =
     React.useState(false);
-  const [isNewConversationDialogOpen, setIsNewConversationDialogOpen] =
-    React.useState(false);
+  const [
+    isNewConversationDialogOpen,
+    setIsNewConversationDialogOpen,
+    isNewConversationDialogOpenOwnerKey,
+  ] = useModalState(false);
 
   const onCreateNewConversationRef = React.useRef(onCreateNewConversation);
   onCreateNewConversationRef.current = onCreateNewConversation;
@@ -849,12 +840,14 @@ const ConversationViewerContent: React.FC<{
             </Box>
           )}
 
-          <NewConversationConfirmationDialog
-            open={isNewConversationDialogOpen}
-            onClose={() => setIsNewConversationDialogOpen(false)}
-            onConfirm={guard("new-conv-confirm", handleNewConversation)}
-            isConfirming={isCreatingConversation}
-          />
+          <ModalWorkOwner.Provider value={isNewConversationDialogOpenOwnerKey}>
+            <NewConversationConfirmationDialog
+              open={isNewConversationDialogOpen}
+              onClose={() => setIsNewConversationDialogOpen(false)}
+              onConfirm={guard("new-conv-confirm", handleNewConversation)}
+              isConfirming={isCreatingConversation}
+            />
+          </ModalWorkOwner.Provider>
         </Paper>
       </Box>
     </>

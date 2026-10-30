@@ -34,13 +34,12 @@ export interface ControllerAuthorizedActionVariables<TResult> {
   machine: MachineDto;
   action: HostActionPreparation;
   submit: (
-    authorization: ControllerAuthorizedActionSubmission
+    authorization: ControllerAuthorizedActionSubmission,
   ) => Promise<TResult>;
 }
 
 export type ControllerAuthorizedActionResult<TResult> =
-  | { outcome: "ADMITTED"; data: TResult }
-  | ControllerAuthorizationDeniedDto;
+  { outcome: "ADMITTED"; data: TResult } | ControllerAuthorizationDeniedDto;
 
 export type UseControllerAuthorizedActionOptions<TResult> = MutationOptions<
   ControllerAuthorizedActionResult<TResult>
@@ -48,7 +47,7 @@ export type UseControllerAuthorizedActionOptions<TResult> = MutationOptions<
 
 const requirePayload = <T>(
   payload: T | null | undefined,
-  message: string
+  message: string,
 ): T => {
   if (!payload) {
     throw new Error(message);
@@ -83,7 +82,7 @@ const getAuthorizationRetryMessage = (error: unknown): string | null => {
 };
 
 export function useControllerAuthorizedAction<TResult>(
-  options: UseControllerAuthorizedActionOptions<TResult> = {}
+  options: UseControllerAuthorizedActionOptions<TResult> = {},
 ) {
   return useMutation(executeControllerAuthorizedAction<TResult>, options);
 }
@@ -101,7 +100,7 @@ export async function executeControllerAuthorizedAction<TResult>({
   if (machine.executionReadiness !== MachineExecutionReadinessState.Ready) {
     throw new ControllerAuthorizationClientError(
       ControllerAuthorizationClientFailureCode.MachineNotReady,
-      "The selected machine is not ready for controller-authorized work."
+      "The selected machine is not ready for controller-authorized work.",
     );
   }
 
@@ -112,12 +111,15 @@ export async function executeControllerAuthorizedAction<TResult>({
       projectId,
       resolveControllerAuthorizationRequestDto: {
         machineId: machine.machineId,
+        ...(machine.currentControllerCredentialId
+          ? { controllerCredentialId: machine.currentControllerCredentialId }
+          : {}),
         action,
       },
     });
   const resolution = requirePayload(
     resolutionResponse.data?.data,
-    "The platform did not return a controller authorization decision."
+    "The platform did not return a controller authorization decision.",
   );
 
   let retryMessage: string | null = null;
@@ -146,7 +148,7 @@ export async function executeControllerAuthorizedAction<TResult>({
       if (!machine.currentControllerCredentialId) {
         throw new ControllerAuthorizationClientError(
           ControllerAuthorizationClientFailureCode.InvalidCredential,
-          "Choose an exact active controller passkey before authorizing."
+          "Choose an exact active controller passkey before authorizing.",
         );
       }
       const preparationResponse =
@@ -162,7 +164,7 @@ export async function executeControllerAuthorizedAction<TResult>({
         });
       const prepared = requirePayload(
         preparationResponse.data?.data,
-        "The platform did not return controller authorization preparation."
+        "The platform did not return controller authorization preparation.",
       );
       const assertion = await collectControllerAssertion({
         grantDescriptor: prepared.grantDescriptor,
@@ -180,7 +182,7 @@ export async function executeControllerAuthorizedAction<TResult>({
         });
       const admission = requirePayload(
         admissionResponse.data?.data,
-        "The platform did not return a controller authorization admission decision."
+        "The platform did not return a controller authorization admission decision.",
       );
       if (admission.outcome === "DENIED") {
         if (!admission.retryable) {

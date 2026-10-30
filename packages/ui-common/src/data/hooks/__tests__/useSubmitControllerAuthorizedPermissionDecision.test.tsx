@@ -51,7 +51,7 @@ describe("useSubmitControllerAuthorizedPermissionDecision", () => {
         data: await submit({
           authorization: { kind: "bounded_grant", grantId: "grant-1" },
         } satisfies ControllerAuthorizedActionSubmission),
-      })
+      }),
     );
   });
 
@@ -60,8 +60,8 @@ describe("useSubmitControllerAuthorizedPermissionDecision", () => {
       useSubmitControllerAuthorizedPermissionDecision(
         "organization-1",
         "project-1",
-        "agent-session-1"
-      )
+        "agent-session-1",
+      ),
     );
     const request = {
       decision: "approve" as const,
@@ -77,17 +77,24 @@ describe("useSubmitControllerAuthorizedPermissionDecision", () => {
     const authorizedAction = authorize.mock.calls[0][0].action;
     expect(authorizedAction).toEqual({
       requestId: expect.stringMatching(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
       ),
       actionCategory: HostActionCategory.AuthorityIncreasingControl,
-      actionType:
-        HostAffectingActionType.ConversationControlPermissionDecision,
+      actionType: HostAffectingActionType.ConversationControlPermissionDecision,
       targetKind: HostActionTargetKind.AgentSession,
       targetId: "agent-session-1",
+      inputs: {
+        kind: "CONTROL",
+        body: {
+          kind: "permission_decision",
+          agentSessionId: "agent-session-1",
+          ...request,
+        },
+      },
     });
     expect(authorizedAction.requestId).not.toBe(request.requestId);
     expect(authorize).toHaveBeenCalledWith(
-      expect.objectContaining({ machine, action: authorizedAction })
+      expect.objectContaining({ machine, action: authorizedAction }),
     );
     expect(authorizedAction).not.toHaveProperty("targetRevision");
     expect(endpoint).toHaveBeenCalledWith({

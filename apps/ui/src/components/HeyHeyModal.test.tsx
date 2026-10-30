@@ -10,12 +10,14 @@ const { useModalMock, useUserIdentityMock } = vi.hoisted(() => ({
 }));
 
 vi.mock("@hey-hey/ui-common/context", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@hey-hey/ui-common/context")>();
+  const actual =
+    await importOriginal<typeof import("@hey-hey/ui-common/context")>();
   return { ...actual, useModal: useModalMock };
 });
 
 vi.mock("@hey-hey/ui-common/hooks", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@hey-hey/ui-common/hooks")>();
+  const actual =
+    await importOriginal<typeof import("@hey-hey/ui-common/hooks")>();
   return { ...actual, useUserIdentity: useUserIdentityMock };
 });
 
@@ -47,11 +49,13 @@ vi.mock("@hey-hey/ui-common/components/EntityViewer", () => ({
   EntityViewerLoader: () => null,
 }));
 
-vi.mock("@hey-hey/ui-common/components/Modals", () => ({
+vi.mock("@hey-hey/ui-common/components/Modals", async (original) => ({
+  ...(await original<typeof import("@hey-hey/ui-common/components/Modals")>()),
   SuggestedActionTaskModal: () => null,
 }));
 
 vi.mock("react-i18next", () => ({
+  initReactI18next: { type: "3rdParty", init: () => {} },
   useTranslation: () => ({ t: (_key: string, fallback?: string) => fallback }),
 }));
 
@@ -85,12 +89,14 @@ const renderSearchModal = () =>
 describe("HeyHeyModal search surface", () => {
   beforeEach(() => {
     useUserIdentityMock.mockReturnValue({ currentOrgId: "org-1" });
+    const config = {
+      type: ModalType.ADVANCED_SEARCH,
+      organizationId: "org-1",
+      onSelect: vi.fn(),
+    };
     useModalMock.mockReturnValue({
-      currentModal: {
-        type: ModalType.ADVANCED_SEARCH,
-        organizationId: "org-1",
-        onSelect: vi.fn(),
-      },
+      currentModal: config,
+      modalInstances: [{ id: "search-instance", config }],
       closeModal: vi.fn(),
     });
   });

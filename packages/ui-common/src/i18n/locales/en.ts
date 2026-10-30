@@ -31,7 +31,8 @@ export const en = {
   "demo.consent.botCheckUnavailable":
     "The bot check couldn't be loaded, so a demo can't be started right now. Please try again later.",
   "demo.consent.start": "Start my demo",
-  "demo.consent.starting": "Setting up your demo…",
+  "demo.consent.signsOutWarning":
+    "You're signed in to your Hey Hey account. Starting the demo signs you out of it, and you'll need to sign in again afterwards.",
   "demo.consent.error.RATE_LIMITED":
     "You've started several demos recently. Please wait a little and try again.",
   "demo.consent.error.BOT_CHECK_FAILED":
@@ -42,6 +43,20 @@ export const en = {
     "The demo terms have been updated. Reload this page to review and accept them.",
   "demo.consent.error.UNKNOWN":
     "Something went wrong starting your demo. Please try again.",
+  "demo.setup.title": "Setting up your demo",
+  "demo.setup.stage.COPYING": "Copying your project…",
+  "demo.setup.stage.CONNECTING": "Connecting your project…",
+  "demo.setup.stage.READY": "Ready. Taking you to your demo…",
+  "demo.setup.features": "{{connected}} of {{total}} features connected",
+  "demo.setup.note":
+    "This can take a minute. You can refresh or come back to this page and pick up where you left off.",
+  "demo.setup.unreachable":
+    "We can't check your demo's progress right now. We'll keep trying.",
+  "demo.setup.checkAgain": "Check again",
+  "demo.setup.failed.title": "We couldn't set up your demo",
+  "demo.setup.failed.body":
+    "Setup didn't finish, so nothing from this attempt was kept. Please try again.",
+  "demo.setup.failed.retry": "Try again",
   "demo.unavailable.title": "Demo unavailable right now",
   "demo.unavailable.body":
     "We're not starting new demos at the moment. Please try again later.",
@@ -56,19 +71,19 @@ export const en = {
   "demo.expired.startNew": "Start a new demo",
   "demo.backHome": "Back to home",
 
-  "demo.banner.title": "Temporary private demo",
-  "demo.banner.policy":
-    "Stays active during use · expires after {{duration}} of inactivity",
+  "demo.banner.title": "Demo sandbox",
+  "demo.logout.title": "Leave this demo?",
+  "demo.logout.body":
+    "Logging out ends your demo for good. You won't be able to get back into it and will need to start a new one.",
+  "demo.logout.confirm": "Log out",
+  "demo.logout.cancel": "Stay in demo",
+  "demo.banner.policy": "expires after {{duration}} of inactivity",
   "demo.banner.timeoutHours_one": "{{count}} hour",
   "demo.banner.timeoutHours_other": "{{count}} hours",
   "demo.banner.timeoutMinutes_one": "{{count}} minute",
   "demo.banner.timeoutMinutes_other": "{{count}} minutes",
-  "demo.banner.expiry": "Current expiry: {{time}} · server reported",
-  "demo.banner.pairCli": "Pair CLI",
-  "demo.banner.repository": "Example repository",
-  "demo.banner.cloneLabel": "Clone the example repository",
-  "demo.banner.copyClone": "Copy clone command",
-  "demo.banner.copied": "Copied",
+  "demo.banner.remainingHours": "{{hours}}h {{minutes}}m left",
+  "demo.banner.remainingMinutes": "{{minutes}}m left",
 
   "triage.generating": "Preparing triage suggestions…",
   "triage.resultsError": "Unable to load suggestions.",
@@ -1316,6 +1331,22 @@ export const en = {
   "eval.run.settings.custom": "Custom…",
   "eval.run.settings.customMinutes": "Minutes",
   "eval.run.settings.customTokens": "Tokens",
+  "eval.run.settings.handler": "Handler to run",
+  "eval.run.settings.handlerCaseOwn": "Each case's own handler",
+  "eval.run.settings.handlerNoteCaseOwn":
+    "Every case runs the handler it names. Choose a handler to run all cases through it instead; the cases themselves are not changed.",
+  "eval.run.settings.handlerNoteHandler":
+    "Every case in this run runs this handler on its initiating request, in place of the handler the case names. The handler's reply is what gets judged. It is saved with the run.",
+  "eval.run.settings.handlerNoteProjectAssistantAlone":
+    "Only Project Assistant research runs; no answering handler starts, and the research report is what gets judged. It is saved with the run.",
+  "eval.run.handler.project_assistant": "Project Assistant alone",
+  "eval.run.handler.entity_conversation": "Entity conversation",
+  "eval.run.handler.feature_sync_analyze": "Feature sync",
+  "eval.run.handler.agent_search": "Agent search",
+  "eval.run.settings.projectAssistant":
+    "Project Assistant prepares the handler",
+  "eval.run.settings.projectAssistantNote":
+    "Applies to every case in this run, so you can compare with and without it. When on, Project Assistant researches first and hands off to the handler as in real use. Turn it off to run the handler without Project Assistant. It is saved with the run.",
   "eval.run.settings.limitsNote":
     "Attempts run until they finish unless you set a limit here. Any limit is saved with the run and shown on every attempt it stops.",
   "eval.run.page.attempts": "Attempts",
@@ -1325,7 +1356,10 @@ export const en = {
     "You can leave this page; the run keeps going.",
   "eval.run.page.stop": "Stop run",
   "eval.run.page.settingsSummary":
-    "{{concurrency}} at once · Time limit: {{time}} · Token limit: {{tokens}}",
+    "{{concurrency}} at once · Time limit: {{time}} · Token limit: {{tokens}} · Handler: {{handler}} · Project Assistant: {{projectAssistant}}",
+  "eval.run.page.projectAssistantOn": "on",
+  "eval.run.page.projectAssistantOff": "off",
+  "eval.run.page.projectAssistantAlone": "research only",
   "eval.run.page.timeLimitValue": "{{value}} per attempt",
   "eval.run.page.tokenLimitValue": "{{value}} tokens per attempt",
   "eval.run.page.limitNone": "none",
@@ -1389,7 +1423,7 @@ export const en = {
   "eval.results.observationNote":
     "These are observations on your current project and cases, not a general ranking of models.",
   "eval.results.columns.setup": "Setup",
-  "eval.results.columns.recognition": "Noticed the need",
+  "eval.results.columns.recognition": "Recognition",
   "eval.results.columns.quality": "Quality",
   "eval.results.columns.checks": "Checks",
   "eval.results.columns.elapsed": "Elapsed (prep / handler)",
@@ -1401,32 +1435,63 @@ export const en = {
     "Judge: {{judge}} · Coordinator: {{coordinator}} (not included above)",
   "eval.results.overheadMeasures":
     "{{elapsed}} · {{tokens}} tokens · {{toolCalls}} tool calls",
-  "eval.results.attempts.title": "Attempts",
-  "eval.results.attempts.case": "Case",
-  "eval.results.attempts.setup": "Setup",
-  "eval.results.attempts.status": "Status",
-  "eval.results.attempts.open": "Open",
-  "eval.results.attempts.status.QUEUED": "Waiting",
-  "eval.results.attempts.status.PREPARING": "Preparing",
-  "eval.results.attempts.status.RUNNING": "Running",
-  "eval.results.attempts.status.JUDGING": "Judging",
-  "eval.results.attempts.status.COMPLETED": "Finished",
-  "eval.results.attempts.status.ERROR": "Error",
-  "eval.results.attempts.status.STOPPED": "Stopped",
-  "eval.results.attempt.heading": "{{setup}} — {{case}}",
-  "eval.results.attempt.unknownCase": "Unrecorded case",
-  "eval.results.attempt.openSession": "Open session",
+  "eval.results.cases.title": "Cases",
+  "eval.results.cases.help":
+    "Each row is one case run with one setup. The case name opens that attempt's session; the arrow opens the specifics. Recognition says whether the agent correctly decided what the case needed, including correctly doing nothing when no work was needed.",
+  "eval.results.cases.col.case": "Case",
+  "eval.results.cases.col.recognition": "Recognition",
+  "eval.results.cases.col.quality": "Quality",
+  "eval.results.cases.col.checks": "Checks",
+  "eval.results.cases.col.elapsed": "Elapsed",
+  "eval.results.cases.col.tokens": "Tokens",
+  "eval.results.cases.col.toolCalls": "Tool calls",
+  "eval.results.cases.unknownCase": "Unrecorded case",
+  "eval.results.cases.noSession": "No session was recorded for this attempt.",
+  "eval.results.cases.expand": "Show details for {{case}}",
+  "eval.results.cases.collapse": "Hide details for {{case}}",
+  "eval.results.cases.errored": "Errored before finishing",
+  "eval.results.cases.partial": "{{value}} (part reported)",
+  "eval.results.recognition.correct": "Correct",
+  "eval.results.recognition.missed": "Missed",
+  "eval.results.recognition.pending": "Not assessed",
+  "eval.results.detail.expected": "Expected",
+  "eval.results.detail.noExpectation":
+    "This case recorded no expectation text.",
+  "eval.results.detail.result": "Result",
+  "eval.results.detail.noResult": "The judge hasn't assessed this attempt.",
+  "eval.results.detail.openEvalCase": "Open the Eval Case",
+  "eval.results.work.scope": "Work done",
+  "eval.results.work.TARGET_PREPARATION": "Preparing context",
+  "eval.results.work.TARGET_HANDLER": "Handler (the tested work)",
   "eval.results.attempt.produced": "What this attempt produced",
   "eval.results.attempt.savedNote":
     "Shown read-only, as saved when the attempt ran.",
+  "eval.results.sessions.target": "Attempt session (what the handler did)",
+  "eval.results.sessions.noTarget": "No attempt session was recorded.",
+  "eval.results.sessions.judge": "Judge",
+  "eval.results.sessions.info": "Info",
+  "eval.results.sessions.attemptProvider": "Attempt provider id",
+  "eval.results.sessions.judgeProvider": "Judge provider id",
+  "eval.results.sessions.judged": "Given to the judge ({{count}} characters)",
+  "eval.results.sessions.judgedNone":
+    "Nothing was given to the judge: the attempt ended before judging started.",
+  "eval.results.attempt.ran":
+    "Ran: {{handler}} · Project Assistant: {{projectAssistant}} · Assessed: {{output}}",
+  "eval.results.attempt.projectAssistantAlone": "research only",
+  "eval.results.attempt.projectAssistantPrepared": "prepared it first",
+  "eval.results.attempt.projectAssistantNotUsed": "not used",
+  "eval.results.attempt.assessed.RESEARCH_REPORT": "research report",
+  "eval.results.attempt.assessed.HANDLER_REPLY": "handler reply",
   "eval.results.attempt.openProposal": "Open in proposal view",
   "eval.results.attempt.openLiveItem": "Open the live item",
   "eval.results.attempt.noOutput":
-    "This attempt produced no proposals or reports.",
+    "This attempt saved no proposals or reports.",
   "eval.results.attempt.outputsUnavailable":
-    "This attempt's outputs couldn't be read.",
+    "This attempt's saved outputs couldn't be read.",
   "eval.results.attempt.noConversation":
-    "This attempt didn't record a session, so there is no output to show.",
+    "This attempt recorded no session conversation, so nothing is attached to it.",
+  "eval.results.attempt.noAttachments":
+    "No proposals or reports are attached to this attempt's session.",
   "eval.results.assessment.title": "Automated assessment",
   "eval.results.assessment.pending": "The judge hasn't assessed this attempt.",
   "eval.results.assessment.checks": "Checks",
@@ -1434,9 +1499,9 @@ export const en = {
   "eval.results.assessment.passed": "Passed",
   "eval.results.assessment.failed": "Failed",
   "eval.results.assessment.rubric": "Rubric",
-  "eval.results.assessment.recognition": "Noticed the need",
-  "eval.results.assessment.recognized": "Yes",
-  "eval.results.assessment.notRecognized": "No",
+  "eval.results.assessment.recognition": "Recognition",
+  "eval.results.assessment.recognized": "Correct",
+  "eval.results.assessment.notRecognized": "Missed",
   "eval.results.assessment.unscored": "not scored",
   "eval.results.review.title": "Your review",
   "eval.results.review.score": "Score out of 5",

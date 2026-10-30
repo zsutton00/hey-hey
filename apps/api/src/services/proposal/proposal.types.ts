@@ -15,6 +15,7 @@ import type {
   ProposalEdgeDeclaration,
   TargetEntityType,
   FutureRevisionResponse,
+  FutureDependencyPresentation,
 } from 'src/generated';
 import type {
   Prisma,
@@ -179,6 +180,7 @@ export function toProposalResponseDto(
   requiredApprovals: number,
   reviewedFuture: FutureRevisionResponse | null = null,
   outOfDateStatus: ProposalOutOfDateStatus = 'NOT_APPLICABLE',
+  dependencyPresentation?: FutureDependencyPresentation[],
 ): TypedProposalResponse {
   const approvals: ProposalApprovalDto[] = (proposal.approvalRecords ?? []).map(
     (r) => ({
@@ -217,6 +219,7 @@ export function toProposalResponseDto(
     eli5: proposal.eli5 ?? undefined,
     updates: proposal.updates,
     reviewedFuture,
+    ...(dependencyPresentation ? { dependencyPresentation } : {}),
     requestorId: proposal.requestorId,
     requiredApprovals,
     requestorContext: proposal.requestorContext ?? undefined,

@@ -98,4 +98,25 @@ describe('repository-grounding prompts', () => {
     expect(prompt).not.toContain('with uncertainty');
     expect(prompt).toContain('The three outcome branches are mutually exclusive.');
   });
+
+  it('teaches discovery before description and shows multi-sentence example descriptions', () => {
+    const prompt = buildRepositoryAnalysisPrompt(analysisInput);
+    expect(prompt).toContain('Discovering what a capability is and does');
+    expect(prompt).toContain('entry points');
+    expect(prompt).toContain('outcomes they produce');
+    expect(prompt).toContain('boundaries the code enforces');
+    expect(prompt).toContain('neighboring capabilities');
+    expect(prompt).toContain('never requirements or claimed intent');
+
+    const success = JSON.parse(/```json\n([\s\S]*?)\n```/u.exec(prompt)?.[1] ?? '') as {
+      hierarchy: { topLevels: { description: string; children: { description: string }[] }[] };
+    };
+    const descriptions = success.hierarchy.topLevels.flatMap((top) => [
+      top.description,
+      ...top.children.map((child) => child.description),
+    ]);
+    for (const description of descriptions) {
+      expect(description.split(/(?<=[.!?])\s+/u).length).toBeGreaterThan(1);
+    }
+  });
 });

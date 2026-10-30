@@ -14,7 +14,7 @@ import {
   type StoredInput,
 } from './input-admission-codec';
 import { InputAdmissionStore, type InputAdmissionStorePaths } from './input-admission-store';
-import { storedTriggerFrameV7Schema } from './storage-schema/v7';
+import { storedTriggerFrameV13Schema } from './storage-schema/v13';
 
 export const MAX_PROJECTION_ATTEMPTS = 3;
 /** A `started` projection gates the Turn's output, so it retries quickly and never exhausts. */
@@ -212,7 +212,7 @@ export class InputAdmissionOwner {
     for (const records of sessions)
       for (const record of records) {
         if (record.state !== 'failed' || record.kind !== 'trigger_frame') continue;
-        const frame = storedTriggerFrameV7Schema.safeParse(record.payload);
+        const frame = storedTriggerFrameV13Schema.safeParse(record.payload);
         if (
           frame.success &&
           frame.data.event.promptType === 'start_run' &&

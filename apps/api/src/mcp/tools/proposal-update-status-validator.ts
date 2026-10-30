@@ -3,7 +3,7 @@ import { formatWorkItemStatusNotAllowedMessage } from '../../services/tasks/work
 
 // Subset of WorkStatus that an agent can set on a TASK/FEATURE proposal via the
 // MCP edit_work_item / update_proposal surface. Mirrors the literal list embedded in
-// proposal-tools.provider.ts (updateTaskFields.status). The create tools no
+// proposal-tools.provider.ts (updateWorkItemFields.status). The create tools no
 // longer expose `status` — a new task's initial status is decided per type by
 // WorkItemTypeRegistryService.getInitialStatusPolicy, not chosen by the caller.
 const TASK_USER_SETTABLE_STATUSES = [

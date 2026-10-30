@@ -18,12 +18,12 @@ export type BrowserPermissionDecisionRequest = Omit<
 export const useSubmitControllerAuthorizedPermissionDecision = (
   organizationId: string,
   projectId: string,
-  agentSessionId: string | undefined
+  agentSessionId: string | undefined,
 ) => {
   const { agentSession } = useAgentSession(
     organizationId,
     projectId,
-    agentSessionId
+    agentSessionId,
   );
   const { machines } = useUserPairedMachines();
   const authorization = useControllerAuthorizedAction();
@@ -35,7 +35,7 @@ export const useSubmitControllerAuthorizedPermissionDecision = (
         throw new Error("An agent session is required for this decision.");
       }
       const machine = machines.find(
-        (candidate) => candidate.machineId === agentSession?.machineId
+        (candidate) => candidate.machineId === agentSession?.machineId,
       );
       if (!machine) {
         throw new Error("The selected execution machine is unavailable.");
@@ -52,6 +52,10 @@ export const useSubmitControllerAuthorizedPermissionDecision = (
             HostAffectingActionType.ConversationControlPermissionDecision,
           targetKind: HostActionTargetKind.AgentSession,
           targetId: agentSessionId,
+          inputs: {
+            kind: "CONTROL",
+            body: { kind: "permission_decision", agentSessionId, ...request },
+          },
         },
         submit: ({ authorization: admission }) =>
           apiClient.submitAgentSessionPermissionDecision({
@@ -75,7 +79,7 @@ export const useSubmitControllerAuthorizedPermissionDecision = (
       machines,
       organizationId,
       projectId,
-    ]
+    ],
   );
 
   return { submit, isPending: authorization.isPending };

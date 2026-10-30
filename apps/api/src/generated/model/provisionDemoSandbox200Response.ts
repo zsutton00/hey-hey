@@ -11,7 +11,7 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
-import { DemoSandboxResponseDto } from './demoSandboxResponseDto';
+import { DemoSandboxAdmissionDto } from './demoSandboxAdmissionDto';
 
 
 export interface ProvisionDemoSandbox200Response { 
@@ -23,7 +23,7 @@ export interface ProvisionDemoSandbox200Response {
      * Human-readable message about the operation
      */
     message: string;
-    data: DemoSandboxResponseDto;
+    data: DemoSandboxAdmissionDto;
     /**
      * ISO timestamp of when the response was generated
      */

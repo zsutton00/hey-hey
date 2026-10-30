@@ -1,3 +1,4 @@
+import type { SessionRole } from '../shared/agent-bridge-contract/generated/api';
 import type { RunAttachmentReference } from '../shared/agent-bridge-contract/generated/api';
 /**
  * Turn — one user-message → assistant-complete cycle on a Run.
@@ -106,6 +107,8 @@ export interface TurnArgs {
   abortController: AbortController;
   logger: ServerLogger;
   owner: Run;
+  /** Effective role resolved from the fixed executing handler. */
+  effectiveRole: SessionRole;
   /** Effective model id submitted to the SDK for this Turn (or null when none resolves). */
   effectiveModel: string | null;
   /** Effective reasoning effort submitted to the SDK for this Turn (or null when none resolves). */
@@ -130,6 +133,7 @@ export class Turn {
   readonly runner: Runner;
   readonly platformMcpProxy: TurnPlatformMcpProxy | null;
   readonly abortController: AbortController;
+  readonly effectiveRole: SessionRole;
   readonly effectiveModel: string | null;
   readonly effectiveReasoningEffort: LocalReasoningEffort | null;
 
@@ -160,6 +164,7 @@ export class Turn {
     this.runner = args.runner;
     this.platformMcpProxy = args.platformMcpProxy;
     this.abortController = args.abortController;
+    this.effectiveRole = args.effectiveRole;
     this.effectiveModel = args.effectiveModel;
     this.effectiveReasoningEffort = args.effectiveReasoningEffort;
     this.logger = args.logger;
@@ -354,6 +359,8 @@ export class Turn {
     }
     this._phase = 'began';
     this.logger.info('runtime.turn.begin.ready', {
+      handlerId: this.handler.id,
+      effectiveRole: this.effectiveRole,
       turnId: this.turnId,
       runId: this.runId,
       promptType: this.handler.promptType,
@@ -406,13 +413,15 @@ export class Turn {
           message: formatRunEventAppendLockGuidance(),
         });
       }
-      this.logger.error('runtime.turn.run_failed', {
-        turnId: this.turnId,
-        runId: this.runId,
-        promptType: this.handler.promptType,
-        triggerMessageId: this.triggerMessageId,
-        error,
-      });
+      if (!this.abortSignal.aborted) {
+        this.logger.error('runtime.turn.run_failed', {
+          turnId: this.turnId,
+          runId: this.runId,
+          promptType: this.handler.promptType,
+          triggerMessageId: this.triggerMessageId,
+          error,
+        });
+      }
       try {
         await this.owner.onTurnRunnerFailed(this, error);
       } catch (publishError) {
@@ -425,6 +434,14 @@ export class Turn {
         });
       }
     } finally {
+      if (this.abortSignal.aborted) {
+        this.logger.info('runtime.turn.run.cancelled', {
+          turnId: this.turnId,
+          runId: this.runId,
+          promptType: this.handler.promptType,
+          triggerMessageId: this.triggerMessageId,
+        });
+      }
       await this.end();
     }
   }

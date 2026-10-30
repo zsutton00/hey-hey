@@ -1,62 +1,90 @@
-import { Alert, Stack, Typography } from "@mui/material";
-import { useWorkItem } from "../../data/hooks/useWorkItem";
+import { Stack, Typography } from "@mui/material";
+import { useNavigate } from "react-router-dom";
+import type { FutureDependencyPresentation } from "../../api";
 import { getStatusLabel } from "../../utils/statusUtils";
-import { EntityLinkWithPreview } from "../Entity";
+import { MentionBadgeInner } from "../SmarterTextAreaCard/MentionBadge";
+import { MentionEditorContext } from "../SmarterTextAreaCard/EditorContext";
 
-/** One piece of linked work a future waits on, with its current status. */
+/** Display identity comes from review responses; rendering never reads linked work. */
 export function FutureDependency({
   organizationId,
   projectId,
-  taskId,
+  dependency,
+  showStatus = true,
 }: {
   organizationId: string;
   projectId: string;
-  taskId: string;
+  dependency: FutureDependencyPresentation;
+  /** Before approval linked work is named only; live status follows approval. */
+  showStatus?: boolean;
 }) {
-  const { workItem, isLoading, error } = useWorkItem(
-    organizationId,
-    "task",
-    taskId,
-    { projectId },
-  );
-  if (isLoading)
-    return <Typography variant="body2">Loading linked work…</Typography>;
-  if (error || !workItem || workItem.status === "ARCHIVED")
-    return <Alert severity="warning">Linked work unavailable</Alert>;
+  const navigate = useNavigate();
+  if (dependency.availability === "UNAVAILABLE") {
+    return (
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        data-testid="future-dependency-unavailable"
+      >
+        Linked work unavailable
+      </Typography>
+    );
+  }
   return (
     <Stack
       direction="row"
       spacing={0.75}
       alignItems="center"
+      sx={{
+        minWidth: 0,
+        overflow: "hidden",
+        whiteSpace: "nowrap",
+        "& > [data-testid=interaction-component]": { minWidth: 0, flex: 1 },
+        "& [data-testid=mention-badge]": {
+          maxWidth: "100%",
+          boxSizing: "border-box",
+          margin: 0,
+          top: 0,
+          "&:hover": { transform: "none" },
+        },
+      }}
       data-testid="future-dependency"
-      data-task-id={taskId}
+      data-task-id={dependency.targetEntityId}
     >
-      <EntityLinkWithPreview
-        label={workItem.name}
-        entityId={taskId}
-        entityType="TASK"
-        organizationId={organizationId}
-        projectId={projectId}
-      />
-      <Typography variant="caption" color="text.secondary">
-        {getStatusLabel(workItem.status)}
-      </Typography>
+      <MentionEditorContext.Provider
+        value={{ organizationId, projectId, navigate }}
+      >
+        <MentionBadgeInner
+          mention={{
+            entityId: dependency.targetEntityId,
+            entityType: dependency.workItemType.toLowerCase(),
+            entityName: dependency.title,
+          }}
+        />
+      </MentionEditorContext.Provider>
+      {showStatus && dependency.status && (
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ whiteSpace: "nowrap", flexShrink: 0 }}
+        >
+          {getStatusLabel(dependency.status)}
+        </Typography>
+      )}
     </Stack>
   );
 }
 
-/** Plain-text name of linked work, for use inside a sentence. */
 export function FutureDependencyName({
-  organizationId,
-  projectId,
-  taskId,
+  dependency,
 }: {
-  organizationId: string;
-  projectId: string;
-  taskId: string;
+  dependency: FutureDependencyPresentation;
 }) {
-  const { workItem } = useWorkItem(organizationId, "task", taskId, {
-    projectId,
-  });
-  return <>{workItem?.name ?? "linked work"}</>;
+  return (
+    <>
+      {dependency.availability === "AVAILABLE"
+        ? dependency.title
+        : "unavailable linked work"}
+    </>
+  );
 }

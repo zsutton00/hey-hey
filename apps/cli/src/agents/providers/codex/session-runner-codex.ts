@@ -1,3 +1,4 @@
+import { CODEX_MCP_ONLY_FEATURE_OVERRIDES } from './mcp-only-features';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { withoutCodexInputEcho } from './codex-input-echo';
 import {
@@ -110,27 +111,6 @@ const HEYHEY_MCP_SERVER_NAMES = new Set([
   BROWSER_MCP_SERVER_NAME,
 ]);
 const CONTEXT_USAGE_RESUME_TIMEOUT_MS = 60_000;
-
-const CODEX_PROJECT_REPORT_FEATURE_OVERRIDES: Readonly<Record<string, boolean>> = {
-  shell_tool: false,
-  unified_exec: false,
-  unified_exec_tty: false,
-  view_image: false,
-  sleep_tool: false,
-  code_mode: false,
-  code_mode_host: false,
-  code_mode_only: false,
-  standalone_web_search: false,
-  web_search_request: false,
-  web_search_cached: false,
-  apps: false,
-  plugins: false,
-  computer_use: false,
-  collab: false,
-  multi_agent_v2: false,
-  memory_tool: false,
-  external_agent_memory_import: false,
-};
 
 export const resolveCodexPlatformPromptDeliveryMode = (
   config: RunPromptArgs['session']['config'],
@@ -891,7 +871,9 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
             enforceWorkspaceContainment: true,
           }
         : {}),
-      ...(reportingRepair || readOnlyFilesystem ? { readOnlyFilesystem: true } : {}),
+      ...(session.inert || reportingRepair || readOnlyFilesystem
+        ? { readOnlyFilesystem: true }
+        : {}),
     });
     const sandboxMode = codexPermissionPlan.sandboxMode;
     const runCwd = codexPermissionPlan.cwd;
@@ -965,6 +947,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
     let firstPersistError: unknown = null;
     let persistQueue = Promise.resolve();
     let runCompleted = false;
+    let pendingUsageWrite = Promise.resolve();
 
     const enqueueAgentOutputPersist = (input: {
       runId: string;
@@ -1397,6 +1380,24 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
         };
       };
 
+      this.client.onTokenUsage((usage) => {
+        pendingUsageWrite = pendingUsageWrite
+          .then(() =>
+            this.runStore.setRunTokenUsage(session.agentic_session_id, {
+              inputTokens: usage.inputTokens,
+              outputTokens: usage.outputTokens,
+              ...(usage.cacheReadInputTokens === null
+                ? {}
+                : { cacheReadInputTokens: usage.cacheReadInputTokens }),
+              cacheAvailability: usage.cacheAvailability,
+            }),
+          )
+          .then(() => undefined)
+          .catch((error: unknown) => {
+            this.logger.warn('local.runner.codex.token-usage.persist-failed', { runId, error });
+          });
+      });
+
       this.client.onEvent((providerEvent: CodexSdkEvent) => {
         const event = withoutCodexInputEcho(providerEvent);
         if (!event) return;
@@ -1732,6 +1733,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
             ...(epistemicCalibration ? { epistemicCalibration } : {}),
           },
           {
+            provider: 'codex',
             intentFirst: sessionStartContext.intentFirst,
             maturity: sessionStartContext.maturity,
             hints: resolveHintPromptAccess(
@@ -1750,6 +1752,9 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
       let platformMcpConfig: CodexConfigOverrides | null = null;
       const allowedMcpToolNames = new Set<string>();
       const cliBaseUrl = this.localAgentEndpoint.get();
+      if (session.inert && (!platformMcpProxyMount || !cliBaseUrl)) {
+        throw new Error('Inert execution requires the scoped platform MCP proxy.');
+      }
       if ((platformMcpProxyMount && cliBaseUrl) || this.oauthClient) {
         requestContext.log(this.logger, 'debug', 'local.runner.codex.mcp_config.building', {
           runId,
@@ -1806,6 +1811,9 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
             );
           }
         } catch (err: unknown) {
+          if (session.inert) {
+            throw err;
+          }
           requestContext.log(this.logger, 'warn', 'local.runner.codex.mcp_config.failed', {
             runId,
             sessionId: session.agentic_session_id,
@@ -1927,10 +1935,10 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
         sandboxMode,
       );
       const config =
-        mcpToolUseCase === 'project_report'
+        session.inert || mcpToolUseCase === 'project_report'
           ? {
               ...(baseConfig ?? {}),
-              features: CODEX_PROJECT_REPORT_FEATURE_OVERRIDES,
+              features: CODEX_MCP_ONLY_FEATURE_OVERRIDES,
             }
           : baseConfig;
       requestContext.log(this.logger, 'debug', 'local.runner.codex.session_policy.resolved', {
@@ -2138,6 +2146,8 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
         );
       }
       this.client.onEvent(null);
+      this.client.onTokenUsage(null);
+      await pendingUsageWrite;
       this.client.onServerRequest(null);
       this.emitLocalStatus('');
       process.stdout.write('\n');
@@ -2271,6 +2281,8 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
       };
     } catch (error) {
       this.client.onEvent(null);
+      this.client.onTokenUsage(null);
+      await pendingUsageWrite;
       this.client.onServerRequest(null);
       this.emitLocalStatus('');
       this.clearPendingPermissionRequests(
@@ -2436,13 +2448,15 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
       await withSessionWriteLockRetry('set_status_idle', async () =>
         this.runStore.updateRunStatus(session.agentic_session_id, 'idle'),
       );
-      requestContext.log(this.logger, 'error', 'local.runner.codex.run_prompt.failed', {
-        runId,
-        sessionId: session.agentic_session_id,
-        durationMs: Date.now() - startedAt,
-        error: mapped,
-        ...(isModelCapacityFailure ? { rawProviderErrorMessage: rawErrorMessage } : {}),
-      });
+      if (!signal?.aborted) {
+        requestContext.log(this.logger, 'error', 'local.runner.codex.run_prompt.failed', {
+          runId,
+          sessionId: session.agentic_session_id,
+          durationMs: Date.now() - startedAt,
+          error: mapped,
+          ...(isModelCapacityFailure ? { rawProviderErrorMessage: rawErrorMessage } : {}),
+        });
+      }
       await this.client.disconnect().catch(() => undefined);
       throw mapped;
     } finally {

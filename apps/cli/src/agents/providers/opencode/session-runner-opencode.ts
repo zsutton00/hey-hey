@@ -255,7 +255,6 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
     // proposals
     'create_work_item',
     'edit_work_item',
-    'edit_tasks',
     'create_design_doc',
     'edit_design_doc',
     'update_proposal',
@@ -1027,6 +1026,7 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
       void reader.cancel().catch(() => undefined);
     };
 
+    let pendingUsageWrite = Promise.resolve();
     const handleAssistantMessageUpdated = (info: OpencodeMessageInfo): void => {
       if (info.role !== 'assistant' || !info.tokens) return;
       const snapshot = this.contextSnapshotFromInfo(info);
@@ -1037,25 +1037,20 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
       const cacheReadInputTokens = info.tokens.cache.read;
       const cacheCreationInputTokens = info.tokens.cache.write;
 
-      if (
-        inputTokens === 0 &&
-        outputTokens === 0 &&
-        cacheReadInputTokens === 0 &&
-        cacheCreationInputTokens === 0
-      ) {
-        return;
-      }
-
       // Use setRunTokenUsage so cumulative totals (assistant message carries
       // running totals across the run, not per-turn deltas) overwrite the
       // session record. Mirrors the Claude runner's `result` handling.
-      void this.runStore
-        .setRunTokenUsage(agenticSessionId, {
-          inputTokens,
-          outputTokens,
-          cacheCreationInputTokens,
-          cacheReadInputTokens,
-        })
+      pendingUsageWrite = pendingUsageWrite
+        .then(() =>
+          this.runStore.setRunTokenUsage(agenticSessionId, {
+            inputTokens,
+            outputTokens,
+            cacheCreationInputTokens,
+            cacheReadInputTokens,
+            cacheAvailability: 'reported',
+          }),
+        )
+        .then(() => undefined)
         .catch((err: unknown) => {
           requestContext.log(
             this.logger,
@@ -1490,6 +1485,7 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
           });
           bufferedAssistantText = '';
         }
+        await pendingUsageWrite;
         onTerminal();
       }
     };
@@ -1511,6 +1507,7 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
       if (stallError) throw stallError;
     } finally {
       clearTimeout(stallTimer);
+      await pendingUsageWrite;
       reader.releaseLock();
     }
   };
@@ -1824,6 +1821,7 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
           sessionStartContext.workItemTypeDefinitions,
           undefined,
           {
+            provider: 'opencode',
             intentFirst: sessionStartContext.intentFirst,
             maturity: sessionStartContext.maturity,
             hints: resolveHintPromptAccess(
@@ -2124,12 +2122,14 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
       });
 
       await this.runStore.updateRunStatus(session.agentic_session_id, 'idle');
-      requestContext.log(this.logger, 'error', 'local.runner.opencode.run_prompt.failed', {
-        runId,
-        sessionId: session.agentic_session_id,
-        durationMs: Date.now() - startedAt,
-        error: mapped,
-      });
+      if (!signal?.aborted) {
+        requestContext.log(this.logger, 'error', 'local.runner.opencode.run_prompt.failed', {
+          runId,
+          sessionId: session.agentic_session_id,
+          durationMs: Date.now() - startedAt,
+          error: mapped,
+        });
+      }
       throw mapped;
     }
   }

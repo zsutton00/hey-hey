@@ -13,14 +13,15 @@
 
 import { ProjectModeFiles } from './projectModeFiles';
 import { ProjectModeProjectAssistantSetting } from './projectModeProjectAssistantSetting';
+import { SessionRole } from './sessionRole';
 
 
 /**
- * Platform-captured immutable MODE configuration persisted with a coding session. The repeated mode identity lets admission verify that the snapshot matches `ProjectModeSelection` before constructing a Run or Turn. 
+ * Platform-captured immutable MODE configuration persisted with a coding session. The repeated mode identity lets admission verify that the snapshot matches `ProjectModeSelection` before constructing a Run or Turn. v3 requires sessionRole and projectAssistant; v2 requires projectAssistant and excludes sessionRole; v1 excludes both fields. 
  */
 export interface ProjectModeSnapshot { 
     /**
-     * v2 adds `projectAssistant`. v1 is kept so snapshots captured before the setting existed still verify against their original hash. 
+     * v3 adds the resolved `sessionRole`. v2 adds `projectAssistant`. v1/v2 retain their original hash inputs for resume compatibility. 
      */
     schemaVersion: ProjectModeSnapshot.SchemaVersionEnum;
     /**
@@ -37,16 +38,18 @@ export interface ProjectModeSnapshot {
     applicableWorkItemTypeKeys: Array<string>;
     files: ProjectModeFiles;
     projectAssistant?: ProjectModeProjectAssistantSetting;
+    sessionRole?: SessionRole;
     /**
      * Lowercase hexadecimal SHA-256 digest of the platform-canonicalized snapshot content. Consumers preserve and compare this value; they do not refresh the snapshot from the live MODE. 
      */
     snapshotHash: string;
 }
 export namespace ProjectModeSnapshot {
-    export type SchemaVersionEnum = 'project-mode-snapshot.v1' | 'project-mode-snapshot.v2';
+    export type SchemaVersionEnum = 'project-mode-snapshot.v1' | 'project-mode-snapshot.v2' | 'project-mode-snapshot.v3';
     export const SchemaVersionEnum = {
         ProjectModeSnapshotV1: 'project-mode-snapshot.v1' as SchemaVersionEnum,
-        ProjectModeSnapshotV2: 'project-mode-snapshot.v2' as SchemaVersionEnum
+        ProjectModeSnapshotV2: 'project-mode-snapshot.v2' as SchemaVersionEnum,
+        ProjectModeSnapshotV3: 'project-mode-snapshot.v3' as SchemaVersionEnum
     };
 }
 

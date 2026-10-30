@@ -82,6 +82,25 @@ describe('ImplementationHintController', () => {
     });
   });
 
+  it('passes an explicitly selected legacy Service through the project-scoped list read', async () => {
+    mockService.findAll.mockResolvedValue([
+      { id: 'legacy-hint', serviceId: 'archived-service' },
+    ]);
+    const result = await controller.findAll(
+      'caller',
+      'org-1' as Parameters<ImplementationHintController['findAll']>[1],
+      'archived-service',
+    );
+    expect(mockService.findAll).toHaveBeenCalledWith(
+      'org-1',
+      'archived-service',
+      expect.objectContaining({ accessibleProjectIds: ['allowed-project'] }),
+    );
+    expect(result).toEqual([
+      { id: 'legacy-hint', serviceId: 'archived-service' },
+    ]);
+  });
+
   it('delegates create to the service', async () => {
     mockService.create.mockResolvedValue({ id: 'hint-1' });
 

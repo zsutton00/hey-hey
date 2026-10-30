@@ -1,9 +1,9 @@
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import ArchiveOutlinedIcon from "@mui/icons-material/ArchiveOutlined";
 import {
   Alert,
   Box,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,

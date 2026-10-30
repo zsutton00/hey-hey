@@ -18,8 +18,7 @@ const mockDeleteAgentSession = vi.fn();
 
 vi.mock("@hey-hey/ui-common/clients", () => ({
   unifiedApiClient: {
-    deleteAgentSession: (...args: unknown[]) =>
-      mockDeleteAgentSession(...args),
+    deleteAgentSession: (...args: unknown[]) => mockDeleteAgentSession(...args),
   },
 }));
 
@@ -50,7 +49,8 @@ vi.mock("../../components/Activity/PaginatedCodingSessionsFeed", () => ({
   },
 }));
 
-vi.mock("@hey-hey/ui-common/components", () => ({
+vi.mock("@hey-hey/ui-common/components", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@hey-hey/ui-common/components")>()),
   EntityFilters: () => null,
   EntityGrid: ({ emptyMessage }: { emptyMessage?: string }) => (
     <div>{emptyMessage}</div>
@@ -61,7 +61,8 @@ vi.mock("@hey-hey/ui-common/components", () => ({
   },
 }));
 
-vi.mock("react-i18next", () => ({
+vi.mock("react-i18next", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("react-i18next")>()),
   useTranslation: () => ({
     t: (_key: string, fallback?: string) => fallback ?? _key,
   }),
@@ -156,7 +157,9 @@ describe("TaskAgentSessionsTab", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Start New Session" }));
+    fireEvent.click(
+      screen.getByTestId("task-agent-sessions-start-new-session-button"),
+    );
 
     await waitFor(() => {
       expect(mockCreateAgentSession).toHaveBeenCalledWith(
@@ -193,7 +196,9 @@ describe("TaskAgentSessionsTab", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Start New Session" }));
+    fireEvent.click(
+      screen.getByTestId("task-agent-sessions-start-new-session-button"),
+    );
 
     expect(await screen.findByText("Creation failed")).toBeInTheDocument();
   });
@@ -217,7 +222,9 @@ describe("TaskAgentSessionsTab", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Start New Session" }));
+    fireEvent.click(
+      screen.getByTestId("task-agent-sessions-start-new-session-button"),
+    );
 
     expect(
       screen.getByText(
@@ -263,7 +270,9 @@ describe("TaskAgentSessionsTab", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Start New Session" }));
+    fireEvent.click(
+      screen.getByTestId("task-agent-sessions-start-new-session-button"),
+    );
 
     expect(screen.getByText("API contract")).toBeInTheDocument();
     expect(screen.getByText("Database migration")).toBeInTheDocument();
@@ -294,7 +303,9 @@ describe("TaskAgentSessionsTab", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Start New Session" }));
+    fireEvent.click(
+      screen.getByTestId("task-agent-sessions-start-new-session-button"),
+    );
     const continueButton = screen.getByTestId(
       "task-session-dependency-warning-continue-button",
     );
@@ -334,7 +345,9 @@ describe("TaskAgentSessionsTab", () => {
         />,
       );
 
-      fireEvent.click(screen.getByRole("button", { name: "Start New Session" }));
+      fireEvent.click(
+        screen.getByTestId("task-agent-sessions-start-new-session-button"),
+      );
 
       expect(screen.getByText("Unfinished implementation")).toBeInTheDocument();
       expect(mockCreateAgentSession).not.toHaveBeenCalled();
@@ -363,7 +376,9 @@ describe("TaskAgentSessionsTab", () => {
         />,
       );
 
-      fireEvent.click(screen.getByRole("button", { name: "Start New Session" }));
+      fireEvent.click(
+        screen.getByTestId("task-agent-sessions-start-new-session-button"),
+      );
 
       await waitFor(() => {
         expect(mockCreateAgentSession).toHaveBeenCalledOnce();

@@ -1,3 +1,5 @@
+import { createPromptTypeHandlerTestRunStore } from '../prompt-type-handler.test-support';
+import { createTestRun } from '../../run/run.test-support';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CreateReportProxy, CreateReportProxyError } from './create-report-proxy';
 import { CreateReportTool } from './create-report-tool';
@@ -7,7 +9,10 @@ import { createTestOAuthClient as createProviderTestOAuthClient } from '../../au
 import { jointDecision } from '../feature-sync/__tests__/feature-sync-decision.fixtures';
 import type { Run } from '../../run/run';
 import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
-import type { ProjectReportCoverage, ProjectReportEvidenceReference } from '../../shared/api/generated/api';
+import type {
+  ProjectReportCoverage,
+  ProjectReportEvidenceReference,
+} from '../../shared/api/generated/api';
 import { serializeProjectReportPreparedEvidence } from '../project-report/project-report-submission';
 import type { ProjectReportEvidenceResult } from '../project-report/project-report-evidence-reader';
 
@@ -141,6 +146,60 @@ const restResult = (
   });
 
 describe('CreateReportProxy', () => {
+  it.each([false, true])(
+    'uses persisted Run inertness for ordinary and inert callers: %s',
+    async (inert) => {
+      const store = createPromptTypeHandlerTestRunStore();
+      await store.initialize();
+      const session = createTestRun().session;
+      const run = await store.createRun({
+        ...session,
+        inert,
+        contextMetadata: { ...session.contextMetadata, organizationId: 'org-42' },
+      });
+      const fetchImpl = makeFetch(restResult('stored-run-report'));
+      const listener = vi.fn();
+      const proxy = new CreateReportProxy({
+        runStore: store,
+        fetchImpl,
+        auth: makeSubmissionToolAuth('token-with-org:org-42'),
+        apiBaseUrl: 'http://localhost:3000/api/v1',
+        reportEmissionEvents: makeReportEmissionEvents(listener),
+      });
+      await proxy.create({
+        runId: run.agentic_session_id,
+        conversationId: run.conversationId!,
+        projectId: run.contextMetadata.projectId,
+        args: { reportType: 'SNAPSHOT', ragEnabled: true, payload: { summary: 'Report' } },
+      });
+      expect(JSON.parse(String(vi.mocked(fetchImpl).mock.calls[0]![1]!.body))).toMatchObject({
+        ragEnabled: !inert,
+      });
+      expect(listener).toHaveBeenCalledTimes(inert ? 0 : 1);
+    },
+  );
+
+  it('overrides agent-supplied retrieval eligibility for inert report evidence', async () => {
+    const fetchImpl = makeFetch(restResult('inert-report'));
+    const listener = vi.fn();
+    const proxy = new CreateReportProxy({
+      fetchImpl,
+      auth: makeSubmissionToolAuth('token-with-org:org-42'),
+      apiBaseUrl: 'http://localhost:3000/api/v1',
+      reportEmissionEvents: makeReportEmissionEvents(listener),
+    });
+    await proxy.create({
+      runId: 'inert-run',
+      conversationId: 'conversation',
+      projectId: 'project',
+      inert: true,
+      args: { reportType: 'SNAPSHOT', ragEnabled: true, payload: { summary: 'Evidence' } },
+    });
+    const init = vi.mocked(fetchImpl).mock.calls[0]![1]!;
+    expect(JSON.parse(String(init.body))).toMatchObject({ ragEnabled: false });
+    expect(listener).not.toHaveBeenCalled();
+  });
+
   it('preserves schemaVersion 2 and grouped choices in the REST body', async () => {
     const fetchImpl = makeFetch(restResult('report-grouped'));
     const listener = vi.fn();
@@ -572,21 +631,27 @@ describe('CreateReportProxy', () => {
   });
 
   it('preserves exact citation keys and typed evidence through canonical submission', async () => {
-    const create = vi.fn<CreateReportProxy['create']>()
+    const create = vi
+      .fn<CreateReportProxy['create']>()
       .mockResolvedValue({ content: [], reportId: 'project-report-1' });
     const tool = new CreateReportTool({ create } as unknown as CreateReportProxy);
     const run = makeProjectReportRun();
     const reference: ProjectReportEvidenceReference = {
       key: 'selected-period-1',
       subject: { entityType: 'TASK', entityId: PROJECT_REPORT_REQUEST_ID },
-      title: 'Deliver invoices', kind: 'SELECTED_PERIOD',
+      title: 'Deliver invoices',
+      kind: 'SELECTED_PERIOD',
     };
     const original = makeProjectReportArgs();
     const body = { html: `<span data-evidence-key="${reference.key}">Delivered</span>`, css: '' };
-    const args = { ...original, payload: {
-      ...original.payload, body,
-      provenance: { ...original.payload.provenance, evidence: [reference] },
-    } };
+    const args = {
+      ...original,
+      payload: {
+        ...original.payload,
+        body,
+        provenance: { ...original.payload.provenance, evidence: [reference] },
+      },
+    };
     await tool.execute({ runId: run.session.agentic_session_id, run, args });
     expect(sentPayload(create)).toMatchObject({ body, provenance: { evidence: [reference] } });
   });

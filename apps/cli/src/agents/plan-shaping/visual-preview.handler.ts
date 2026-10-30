@@ -50,8 +50,8 @@ export const planShapingVisualPreviewHandler: UserLaunchablePromptTypeHandler<Pl
       });
       return { payload };
     },
-    buildPrompt(payload): string {
-      return buildVisualPreviewPrompt(payload);
+    buildPrompt(payload, ctx): string {
+      return buildVisualPreviewPrompt(payload, ctx?.provider);
     },
     buildStartingMessage(): string | null {
       return 'Preparing the visual plan preview…';

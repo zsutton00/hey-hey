@@ -64,18 +64,15 @@ function makeProposal(overrides: Record<string, any> = {}) {
 function createProvider(
   opts: {
     proposalCreate?: jest.Mock;
-    proposalCreateBatch?: jest.Mock;
     proposalUpdate?: jest.Mock;
     taskFindOne?: jest.Mock;
   } = {},
 ) {
   const proposalCreate = opts.proposalCreate ?? jest.fn();
-  const proposalCreateBatch = opts.proposalCreateBatch ?? jest.fn();
   const proposalUpdate = opts.proposalUpdate ?? jest.fn();
   const taskFindOne = opts.taskFindOne ?? jest.fn();
   const proposalService = {
     create: proposalCreate,
-    createBatch: proposalCreateBatch,
     update: proposalUpdate,
     findOne: jest.fn(),
   } as unknown as ProposalService;
@@ -105,7 +102,6 @@ function createProvider(
   return {
     provider,
     proposalCreate,
-    proposalCreateBatch,
     proposalUpdate,
     taskFindOne,
   };
@@ -148,7 +144,9 @@ describe('work-item-guidance-token — token derivation', () => {
   });
 
   it('derives a token for any string — custom registry types are gated too', () => {
-    expect(guidanceTokenForType('RESEARCH', PROJECT_ID)).toMatch(/^gtg-research-[0-9a-f]+$/);
+    expect(guidanceTokenForType('RESEARCH', PROJECT_ID)).toMatch(
+      /^gtg-research-[0-9a-f]+$/,
+    );
   });
 });
 
@@ -403,6 +401,46 @@ describe('edit_work_item — proof-of-read token gate', () => {
     expect((result as any).status).toBe('proposed');
   });
 
+  it('proposes two independent edits with their own targets and preserves inert flags', async () => {
+    const proposalCreate = jest
+      .fn()
+      .mockResolvedValue(makeProposal({ action: 'UPDATE' }));
+    const taskFindOne = jest.fn().mockImplementation(async (_org, id) => ({
+      id,
+      type: 'STANDARD',
+      sections: [],
+    }));
+    const { provider } = createProvider({ proposalCreate, taskFindOne });
+
+    for (const targetEntityId of [TASK_ID, PARENT_ID]) {
+      const result = await provider.editWorkItem(
+        {
+          eli5: 'Updates the selected item independently.',
+          targetEntityId,
+          sections: [{ key: 'description', content: GOOD_DESCRIPTION }],
+          guidanceToken: guidanceTokenForType('STANDARD', PROJECT_ID),
+          ragEnabled: false,
+          applicationEligible: false,
+        },
+        {} as any,
+        makeRequest(),
+      );
+      expect(result).toMatchObject({ status: 'proposed' });
+    }
+
+    expect(proposalCreate).toHaveBeenCalledTimes(2);
+    for (const [index, targetEntityId] of [TASK_ID, PARENT_ID].entries()) {
+      expect(proposalCreate.mock.calls[index][3]).toMatchObject({
+        targetEntityId,
+        ragEnabled: false,
+        applicationEligible: false,
+        updates: {
+          sections: [{ key: 'description', content: GOOD_DESCRIPTION }],
+        },
+      });
+    }
+  });
+
   it('lets a scalar-only edit through with no token', async () => {
     const proposalCreate = jest
       .fn()
@@ -519,52 +557,6 @@ describe('FEATURE requirement authoring — proof-of-read token gate', () => {
     expect((result as any).isError).toBe(true);
     expect((result as any).content[0].text).toContain('does not match');
     expect(proposalCreate).not.toHaveBeenCalled();
-  });
-});
-
-describe('edit_tasks — topology root proof gate', () => {
-  beforeEach(() => jest.clearAllMocks());
-
-  it('rejects a hierarchy-bearing batch before resolving tasks when the root proof is missing', async () => {
-    const { provider, proposalCreateBatch, taskFindOne } = createProvider();
-
-    const result = await provider.editTasks(
-      {
-        edits: [{ taskId: TASK_ID, parentTaskId: PARENT_ID, status: 'ACTIVE' }],
-      } as any,
-      {} as any,
-      makeRequest(),
-    );
-
-    expect((result as any).isError).toBe(true);
-    expect((result as any).content[0].text).toContain(
-      'get_authoring_guidance()',
-    );
-    expect(taskFindOne).not.toHaveBeenCalled();
-    expect(proposalCreateBatch).not.toHaveBeenCalled();
-  });
-
-  it('accepts one reusable root proof for a valid hierarchy-bearing batch', async () => {
-    const proposalCreateBatch = jest
-      .fn()
-      .mockResolvedValue([makeProposal({ action: 'UPDATE' })]);
-    const taskFindOne = jest
-      .fn()
-      .mockResolvedValue({ id: TASK_ID, type: 'STANDARD', sections: [] });
-    const { provider } = createProvider({ proposalCreateBatch, taskFindOne });
-
-    const result = await provider.editTasks(
-      {
-        authoringRootProof: AUTHORING_ROOT_PROOF,
-        edits: [{ taskId: TASK_ID, parentTaskId: PARENT_ID, status: 'ACTIVE' }],
-      } as any,
-      {} as any,
-      makeRequest(),
-    );
-
-    expect((result as any).isError).toBeUndefined();
-    expect((result as any).proposals).toHaveLength(1);
-    expect(proposalCreateBatch).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -1,3 +1,4 @@
+import { FutureOfferContext } from "../../futureOffers/FutureOfferContext";
 import React, { StrictMode } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -17,7 +18,6 @@ import {
 import { workItemReferenceKeys } from "../../collections/workItemReferences";
 import { DataEventType } from "../../relationships/dataEvents";
 import { emitDataEvent } from "../../relationships/relationshipRules";
-import { QueryMountPolicyProvider } from "../../core/queryMountPolicy";
 import { useConversation } from "../../hooks/useConversation";
 import { useTaskHierarchy } from "../../hooks/useTaskHierarchy";
 import { useWorkItem } from "../../hooks/useWorkItem";
@@ -26,6 +26,7 @@ import { useWorkItemTypes } from "../../hooks/useWorkItemTypes";
 import { WebSocketHandler } from "../../websockets/handler";
 
 const mocks = vi.hoisted(() => ({
+  checkTask: vi.fn(),
   getTask: vi.fn(),
   getTasks: vi.fn(),
   createTask: vi.fn(),
@@ -63,7 +64,7 @@ const PROJECT = "project";
 
 const task = (
   id: string,
-  overrides: Partial<TaskResponseDto> = {}
+  overrides: Partial<TaskResponseDto> = {},
 ): TaskResponseDto =>
   ({
     id,
@@ -91,20 +92,21 @@ function deferred<T = unknown>() {
 const createClient = () =>
   new QueryClient({ defaultOptions: { queries: { retryDelay: 0 } } });
 
-type WrapperOptions = { tabPolicy?: boolean; strict?: boolean };
+type WrapperOptions = { strict?: boolean };
 const clientWrapper =
-  (client: QueryClient, { tabPolicy = false, strict = false }: WrapperOptions = {}) =>
+  (client: QueryClient, { strict = false }: WrapperOptions = {}) =>
   ({ children }: { children: React.ReactNode }) => {
-    const policed = tabPolicy ? (
-      <QueryMountPolicyProvider policy="always-refetch">
-        {children}
-      </QueryMountPolicyProvider>
-    ) : (
-      children
-    );
     const tree = (
       <QueryClientProvider client={client}>
-        <Provider store={createStore()}>{policed}</Provider>
+        <Provider store={createStore()}>
+          <FutureOfferContext.Provider
+            value={{
+              checkTask: mocks.checkTask,
+            }}
+          >
+            {children}
+          </FutureOfferContext.Provider>
+        </Provider>
       </QueryClientProvider>
     );
     return strict ? <StrictMode>{tree}</StrictMode> : tree;
@@ -113,6 +115,9 @@ const clientWrapper =
 /** The mention badge and inline renderer read the same item this way. */
 const useMention = (id: string, enabled = true) =>
   useWorkItem(ORG, "task", id, { projectId: PROJECT, enabled });
+// A detail page's own entity read, which re-reads each time it mounts.
+const usePageItem = (id: string) =>
+  useWorkItem(ORG, "task", id, { projectId: PROJECT, refetchOnMount: true });
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -130,9 +135,8 @@ describe("shared work-item reads", () => {
       }),
       {
         initialProps: { inlineReady: false },
-        // Detail pages request authoritative mount reads.
-        wrapper: clientWrapper(client, { tabPolicy: true }),
-      }
+        wrapper: clientWrapper(client),
+      },
     );
     await waitFor(() => expect(result.current.badge.isReady).toBe(true));
     rerender({ inlineReady: true });
@@ -146,7 +150,7 @@ describe("shared work-item reads", () => {
       ok([
         task("a", { status: WorkStatus.Active, parentTaskId: "p" }),
         task("b", { status: WorkStatus.Completed, parentTaskId: "p" }),
-      ])
+      ]),
     );
     const client = createClient();
     const { result } = renderHook(
@@ -165,7 +169,7 @@ describe("shared work-item reads", () => {
           taskIds: ["b", "a"],
         }),
       }),
-      { wrapper: clientWrapper(client) }
+      { wrapper: clientWrapper(client) },
     );
 
     await waitFor(() => expect(result.current.byIds.isReady).toBe(true));
@@ -179,20 +183,20 @@ describe("shared work-item reads", () => {
       "a",
     ]);
     expect(result.current.childrenAgain.workItems).toBe(
-      result.current.children.workItems
+      result.current.children.workItems,
     );
   });
 });
 
-describe("tab-open reads", () => {
-  it("re-reads a fresh work item when a tab mounts it, keeping cached data visible", async () => {
+describe("per-query mount reads", () => {
+  it("re-reads a fresh work item when a page mounts its own read, keeping cached data visible", async () => {
     const client = createClient();
     client.setQueryData(workItemKeys.detail(ORG, PROJECT, "t1"), task("t1"));
     const read = deferred<unknown>();
     mocks.getTask.mockReturnValue(read.promise);
 
-    const { result } = renderHook(() => useMention("t1"), {
-      wrapper: clientWrapper(client, { tabPolicy: true }),
+    const { result } = renderHook(() => usePageItem("t1"), {
+      wrapper: clientWrapper(client),
     });
 
     expect(mocks.getTask).toHaveBeenCalledTimes(1);
@@ -206,7 +210,7 @@ describe("tab-open reads", () => {
     await waitFor(() => expect(result.current.workItem?.name).toBe("Renamed"));
   });
 
-  it("reads fresh work items only when stale outside a detail page", () => {
+  it("reads fresh work items only when stale without a per-query mount read", () => {
     const client = createClient();
     client.setQueryData(workItemKeys.detail(ORG, PROJECT, "t1"), task("t1"));
 
@@ -215,26 +219,29 @@ describe("tab-open reads", () => {
     expect(mocks.getTask).not.toHaveBeenCalled();
   });
 
-  it("reads once per tab open, including under Strict Mode", async () => {
+  it("reads once per page mount, including under Strict Mode", async () => {
     const client = createClient();
     client.setQueryData(workItemKeys.detail(ORG, PROJECT, "t1"), task("t1"));
     mocks.getTask.mockResolvedValue(ok(task("t1")));
-    const wrapper = clientWrapper(client, { tabPolicy: true, strict: true });
+    const wrapper = clientWrapper(client, { strict: true });
 
-    const first = renderHook(() => useMention("t1"), { wrapper });
+    const first = renderHook(() => usePageItem("t1"), { wrapper });
     await waitFor(() => expect(first.result.current.isFetching).toBe(false));
     expect(mocks.getTask).toHaveBeenCalledTimes(1);
     first.unmount();
 
-    // Reopening the tab reads again even though the data is fresh.
-    const second = renderHook(() => useMention("t1"), { wrapper });
+    // Reopening the page reads again even though the data is fresh.
+    const second = renderHook(() => usePageItem("t1"), { wrapper });
     await waitFor(() => expect(second.result.current.isFetching).toBe(false));
     expect(mocks.getTask).toHaveBeenCalledTimes(2);
   });
 
-  it("re-reads lists and hierarchies on tab open too", async () => {
+  it("re-reads lists and hierarchies that request a mount read", async () => {
     const client = createClient();
-    client.setQueryData(workItemKeys.list(ORG, PROJECT, { parentTaskId: "p" }), []);
+    client.setQueryData(
+      workItemKeys.list(ORG, PROJECT, { parentTaskId: "p" }),
+      [],
+    );
     client.setQueryData(workItemKeys.hierarchy(ORG, PROJECT, "p"), {
       task: task("p"),
       children: [],
@@ -244,24 +251,31 @@ describe("tab-open reads", () => {
 
     renderHook(
       () => ({
-        list: useWorkItems(ORG, "task", PROJECT, undefined, { parentTaskId: "p" }),
-        hierarchy: useTaskHierarchy(ORG, PROJECT, "p"),
+        list: useWorkItems(ORG, "task", PROJECT, undefined, {
+          parentTaskId: "p",
+          refetchOnMount: true,
+        }),
+        hierarchy: useTaskHierarchy(ORG, PROJECT, "p", {
+          refetchOnMount: true,
+        }),
       }),
-      { wrapper: clientWrapper(client, { tabPolicy: true }) }
+      { wrapper: clientWrapper(client) },
     );
 
     await waitFor(() => expect(mocks.getHierarchy).toHaveBeenCalledTimes(1));
     expect(mocks.getTasks).toHaveBeenCalledTimes(1);
   });
 
-  it("does not re-read fresh work-item types or conversations on tab open", async () => {
+  it("does not re-read fresh shared datasets alongside a page mount read", async () => {
     const client = createClient();
     mocks.dataRequest.mockResolvedValue({ data: { data: [] } });
     mocks.getConversation.mockResolvedValue(
-      ok({ id: "c1", createdAt: "2026-01-01T00:00:00.000Z" })
+      ok({ id: "c1", createdAt: "2026-01-01T00:00:00.000Z" }),
     );
-    const wrapper = clientWrapper(client, { tabPolicy: true });
+    mocks.getTask.mockResolvedValue(ok(task("t1")));
+    const wrapper = clientWrapper(client);
     const useShared = () => ({
+      page: usePageItem("t1"),
       types: useWorkItemTypes(ORG, { projectId: PROJECT }),
       conversation: useConversation(ORG, PROJECT, { conversationId: "c1" }),
     });
@@ -269,7 +283,7 @@ describe("tab-open reads", () => {
     const first = renderHook(useShared, { wrapper });
     await waitFor(() => expect(first.result.current.types.isReady).toBe(true));
     await waitFor(() =>
-      expect(first.result.current.conversation.isReady).toBe(true)
+      expect(first.result.current.conversation.isReady).toBe(true),
     );
     const typeReads = mocks.dataRequest.mock.calls.length;
     const conversationReads = mocks.getConversation.mock.calls.length;
@@ -323,7 +337,7 @@ describe("realtime work-item events", () => {
 
   it("re-reads each affected mounted key once, leaving other items alone", async () => {
     mocks.getTask.mockImplementation(async ({ taskId }: { taskId: string }) =>
-      ok(task(taskId))
+      ok(task(taskId)),
     );
     mocks.getTasks.mockResolvedValue(ok([task("t1")]));
     const client = createClient();
@@ -331,9 +345,11 @@ describe("realtime work-item events", () => {
       () => ({
         changed: useMention("t1"),
         other: useMention("t2"),
-        list: useWorkItems(ORG, "task", PROJECT, undefined, { parentTaskId: "p" }),
+        list: useWorkItems(ORG, "task", PROJECT, undefined, {
+          parentTaskId: "p",
+        }),
       }),
-      { wrapper: clientWrapper(client) }
+      { wrapper: clientWrapper(client) },
     );
     await waitFor(() => expect(result.current.list.isReady).toBe(true));
     await waitFor(() => expect(result.current.other.isReady).toBe(true));
@@ -351,7 +367,7 @@ describe("realtime work-item events", () => {
 
   it("re-reads every mounted work-item key once on reconnect", async () => {
     mocks.getTask.mockImplementation(async ({ taskId }: { taskId: string }) =>
-      ok(task(taskId))
+      ok(task(taskId)),
     );
     mocks.getTasks.mockResolvedValue(ok([]));
     mocks.getHierarchy.mockResolvedValue(ok({ task: task("p"), children: [] }));
@@ -361,10 +377,12 @@ describe("realtime work-item events", () => {
         a: useMention("t1"),
         aAgain: useMention("t1"),
         b: useMention("t2"),
-        list: useWorkItems(ORG, "task", PROJECT, undefined, { taskType: "GOAL" }),
+        list: useWorkItems(ORG, "task", PROJECT, undefined, {
+          taskType: "GOAL",
+        }),
         hierarchy: useTaskHierarchy(ORG, PROJECT, "p"),
       }),
-      { wrapper: clientWrapper(client) }
+      { wrapper: clientWrapper(client) },
     );
     await waitFor(() => expect(result.current.hierarchy.isReady).toBe(true));
     await waitFor(() => expect(result.current.b.isReady).toBe(true));
@@ -421,7 +439,7 @@ describe("agent-session changes to a work item", () => {
         invalidateWorkItem: (organizationId, taskId) =>
           void invalidateWorkItemHolders(client, organizationId, taskId),
         invalidateConversation: vi.fn(),
-      }
+      },
     );
     await act(async () => {});
 
@@ -447,23 +465,26 @@ describe("agent-session changes to a work item", () => {
 
 describe("optimistic work-item writes", () => {
   const seed = (client: QueryClient) => {
-    client.setQueryData(workItemKeys.list(ORG, PROJECT, { parentTaskId: "p" }), [
-      task("t1", { parentTaskId: "p" }),
-    ]);
+    client.setQueryData(
+      workItemKeys.list(ORG, PROJECT, { parentTaskId: "p" }),
+      [task("t1", { parentTaskId: "p" })],
+    );
     client.setQueryData(workItemKeys.detail(ORG, PROJECT, "t1"), task("t1"));
     client.setQueryData<TaskHierarchyResponseDto>(
       workItemKeys.hierarchy(ORG, PROJECT, "p"),
-      { task: task("p"), children: [task("t1", { parentTaskId: "p" })] }
+      { task: task("p"), children: [task("t1", { parentTaskId: "p" })] },
     );
   };
   const renderWrites = (client: QueryClient) =>
     renderHook(
       () => ({
-        list: useWorkItems(ORG, "task", PROJECT, undefined, { parentTaskId: "p" }),
+        list: useWorkItems(ORG, "task", PROJECT, undefined, {
+          parentTaskId: "p",
+        }),
         item: useMention("t1"),
         hierarchy: useTaskHierarchy(ORG, PROJECT, "p"),
       }),
-      { wrapper: clientWrapper(client) }
+      { wrapper: clientWrapper(client) },
     );
 
   it("shows an update in every cached list, item and hierarchy, then rolls back on failure", async () => {
@@ -478,7 +499,9 @@ describe("optimistic work-item writes", () => {
       update = result.current.list.updateTask("t1", { name: "Renamed" });
       update.catch(() => undefined);
     });
-    await waitFor(() => expect(result.current.item.workItem?.name).toBe("Renamed"));
+    await waitFor(() =>
+      expect(result.current.item.workItem?.name).toBe("Renamed"),
+    );
     expect(result.current.list.workItems[0].name).toBe("Renamed");
     expect(result.current.hierarchy.children[0].name).toBe("Renamed");
 
@@ -497,7 +520,7 @@ describe("optimistic work-item writes", () => {
     const unchanged = task("t1", { parentTaskId: "p", priority: undefined });
     const proposal = { id: "proposal-1" };
     mocks.updateTask.mockResolvedValueOnce(
-      ok({ status: UpdateTaskResultStatus.Pending, task: unchanged, proposal })
+      ok({ status: UpdateTaskResultStatus.Pending, task: unchanged, proposal }),
     );
     const onPendingProposal = vi.fn();
     const { result } = renderWrites(client);
@@ -506,7 +529,7 @@ describe("optimistic work-item writes", () => {
       await result.current.list.updateTask(
         "t1",
         { name: "Renamed", reason: "" },
-        { onPendingProposal }
+        { onPendingProposal },
       );
     });
 
@@ -529,7 +552,7 @@ describe("optimistic work-item writes", () => {
       ok({
         status: UpdateTaskResultStatus.Applied,
         task: task("t1", { parentTaskId: "q" }),
-      })
+      }),
     );
     const { result } = renderWrites(client);
 
@@ -547,7 +570,10 @@ describe("optimistic work-item writes", () => {
     const client = createClient();
     seed(client);
     mocks.getTasks.mockResolvedValue(
-      ok([task("t1", { parentTaskId: "p" }), task("t2", { parentTaskId: "p" })])
+      ok([
+        task("t1", { parentTaskId: "p" }),
+        task("t2", { parentTaskId: "p" }),
+      ]),
     );
     mocks.createTask
       .mockResolvedValueOnce(ok(task("t2", { parentTaskId: "p" })))
@@ -567,13 +593,13 @@ describe("optimistic work-item writes", () => {
       });
     });
     expect(mocks.createTask.mock.calls[0][0].createTaskDto.config).toEqual(
-      config
+      config,
     );
     await waitFor(() =>
       expect(result.current.list.workItems.map((item) => item.id)).toEqual([
         "t1",
         "t2",
-      ])
+      ]),
     );
 
     const before = result.current.list.workItems;
@@ -584,8 +610,8 @@ describe("optimistic work-item writes", () => {
     });
     await waitFor(() =>
       expect(result.current.list.workItems.map((item) => item.id)).toEqual(
-        before.map((item) => item.id)
-      )
+        before.map((item) => item.id),
+      ),
     );
   });
 
@@ -609,14 +635,16 @@ describe("optimistic work-item writes", () => {
       await removal.catch(() => undefined);
     });
     await waitFor(() =>
-      expect(result.current.list.workItems.map((item) => item.id)).toEqual(["t1"])
+      expect(result.current.list.workItems.map((item) => item.id)).toEqual([
+        "t1",
+      ]),
     );
     expect(result.current.hierarchy.children.map((item) => item.id)).toEqual([
       "t1",
     ]);
-    expect(client.getQueryData(workItemKeys.detail(ORG, PROJECT, "t1"))).toEqual(
-      task("t1")
-    );
+    expect(
+      client.getQueryData(workItemKeys.detail(ORG, PROJECT, "t1")),
+    ).toEqual(task("t1"));
   });
 
   it("updates an item cached only as a single read, from a hook that never reads", async () => {
@@ -626,12 +654,11 @@ describe("optimistic work-item writes", () => {
       ok({
         status: UpdateTaskResultStatus.Applied,
         task: task("t9", { name: "Renamed" }),
-      })
+      }),
     );
     const { result } = renderHook(
-      () =>
-        useWorkItems(ORG, "task", PROJECT, undefined, { enabled: false }),
-      { wrapper: clientWrapper(client) }
+      () => useWorkItems(ORG, "task", PROJECT, undefined, { enabled: false }),
+      { wrapper: clientWrapper(client) },
     );
 
     await act(async () => {
@@ -640,7 +667,7 @@ describe("optimistic work-item writes", () => {
 
     expect(
       client.getQueryData<TaskResponseDto>(workItemKeys.detail(ORG, "", "t9"))
-        ?.name
+        ?.name,
     ).toBe("Renamed");
     expect(mocks.getTasks).not.toHaveBeenCalled();
   });
@@ -685,11 +712,14 @@ describe("read lifecycle states", () => {
       Object.assign(new Error("Not Found"), {
         isAxiosError: true,
         response: { status: 404 },
-      })
+      }),
     );
-    const { result } = renderHook(() => useTaskHierarchy(ORG, PROJECT, "gone"), {
-      wrapper: clientWrapper(createClient()),
-    });
+    const { result } = renderHook(
+      () => useTaskHierarchy(ORG, PROJECT, "gone"),
+      {
+        wrapper: clientWrapper(createClient()),
+      },
+    );
     await waitFor(() => expect(result.current.error).not.toBeNull());
     expect(result.current).toMatchObject({
       isReady: false,
@@ -703,7 +733,7 @@ describe("read lifecycle states", () => {
     mocks.getTasks.mockResolvedValue(ok([]));
     const { result } = renderHook(
       () => useWorkItems(ORG, "task", PROJECT, undefined, { taskType: "GOAL" }),
-      { wrapper: clientWrapper(createClient()) }
+      { wrapper: clientWrapper(createClient()) },
     );
     expect(result.current.isReady).toBe(false);
     await waitFor(() => expect(result.current.isReady).toBe(true));
@@ -724,7 +754,7 @@ describe("read lifecycle states", () => {
           includeDesignDocCounts: true,
           includeAgentSessionCounts: true,
         }),
-      { wrapper: clientWrapper(createClient()) }
+      { wrapper: clientWrapper(createClient()) },
     );
     await waitFor(() => expect(result.current.isReady).toBe(true));
     expect(result.current.hierarchy).toEqual(hierarchy);
@@ -734,5 +764,99 @@ describe("read lifecycle states", () => {
       includeAgentSessionCounts: true,
     });
     await expect(result.current.refetch()).resolves.toEqual(hierarchy);
+  });
+});
+
+describe("shared completion offer checks", () => {
+  it.each([WorkStatus.Verifying, WorkStatus.Completed])(
+    "checks linked futures after saving %s, even if the task already has that status",
+    async (status) => {
+      const current = task("canonical-task", { status });
+      mocks.updateTask.mockResolvedValue(
+        ok({ status: UpdateTaskResultStatus.Applied, task: current }),
+      );
+      const { result } = renderHook(
+        () => useWorkItems(ORG, "task", PROJECT, undefined, { enabled: false }),
+        { wrapper: clientWrapper(createClient()) },
+      );
+      await act(async () => {
+        await result.current.updateTask(
+          current.id,
+          { status },
+          { authoritativeTask: current },
+        );
+      });
+      expect(mocks.checkTask).toHaveBeenCalledExactlyOnceWith(current.id);
+      expect(mocks.getTask).not.toHaveBeenCalled();
+    },
+  );
+  it("does not check before a pending approval actually changes the status", async () => {
+    const current = task("canonical-task", { status: WorkStatus.Active });
+    mocks.updateTask.mockResolvedValue(
+      ok({
+        status: UpdateTaskResultStatus.Pending,
+        task: current,
+        proposal: { id: "proposal" },
+      }),
+    );
+    const { result } = renderHook(
+      () => useWorkItems(ORG, "task", PROJECT, undefined, { enabled: false }),
+      { wrapper: clientWrapper(createClient()) },
+    );
+    await act(async () => {
+      await result.current.updateTask(
+        current.id,
+        { status: WorkStatus.Completed },
+        { authoritativeTask: current },
+      );
+    });
+    expect(mocks.checkTask).not.toHaveBeenCalled();
+  });
+  it("does not check if an approved change has not yet changed the returned status", async () => {
+    const current = task("canonical-task", { status: WorkStatus.Active });
+    mocks.updateTask.mockResolvedValue(
+      ok({ status: UpdateTaskResultStatus.Applied, task: current }),
+    );
+    const { result } = renderHook(
+      () => useWorkItems(ORG, "task", PROJECT, undefined, { enabled: false }),
+      { wrapper: clientWrapper(createClient()) },
+    );
+    await act(async () => {
+      await result.current.updateTask(
+        current.id,
+        { status: WorkStatus.Completed },
+        { authoritativeTask: current },
+      );
+    });
+    expect(mocks.checkTask).not.toHaveBeenCalled();
+  });
+  it("does not check on unrelated edits or failed completion", async () => {
+    const current = task("canonical-task", { status: WorkStatus.Completed });
+    mocks.updateTask
+      .mockResolvedValueOnce(
+        ok({ status: UpdateTaskResultStatus.Applied, task: current }),
+      )
+      .mockRejectedValueOnce(new Error("Update denied"));
+    const { result } = renderHook(
+      () => useWorkItems(ORG, "task", PROJECT, undefined, { enabled: false }),
+      { wrapper: clientWrapper(createClient()) },
+    );
+    await act(async () => {
+      await result.current.updateTask(
+        current.id,
+        { name: "Renamed" },
+        { authoritativeTask: current },
+      );
+    });
+    await act(async () => {
+      await expect(
+        result.current.updateTask(
+          current.id,
+          { status: WorkStatus.Completed },
+          { authoritativeTask: current },
+        ),
+      ).rejects.toThrow("Update denied");
+    });
+    expect(mocks.checkTask).not.toHaveBeenCalled();
   });
 });

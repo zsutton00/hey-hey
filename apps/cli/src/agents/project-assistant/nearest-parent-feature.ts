@@ -41,7 +41,7 @@ export class ProjectAssistantPreparationError extends Error {
  * feature. Project Assistant needs the nearest one in full, so the CLI reads
  * it here instead of relying on the agent to.
  */
-const findNearestParentFeatureId = (context: FullEntityContextDto): string | null =>
+export const findNearestParentFeatureId = (context: FullEntityContextDto): string | null =>
   context.featureHierarchy?.find(
     (entry) =>
       entry.relationshipType === 'structural' &&

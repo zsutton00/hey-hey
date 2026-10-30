@@ -10,6 +10,10 @@ import { QueryClient, type QueryKey } from "@tanstack/react-query";
 import { vi } from "vitest";
 import { WebSocketHandler } from "../handler";
 import { WebSocketDebugger } from "../debug";
+import { messageKeys } from "../../collections/messages";
+import { subscribeProposalReconciliation } from "../../../components/ProposalReconciliation/reconciliationInvalidation";
+import type { MessageRecordDto, ProposalResponseDto } from "../../../api";
+import { proposalKeys } from "../../collections/proposals";
 import { conversationKeys } from "../../collections/conversations";
 import type {
   ConversationResponseDto,
@@ -52,7 +56,7 @@ describe("WebSocket handler with queryKeys", () => {
   let queryClient: QueryClient;
   let mockDebugger: WebSocketDebugger;
   let logEventSpy: ReturnType<typeof vi.spyOn>;
-  let logCollectionActionSpy: ReturnType<typeof vi.spyOn>;
+  let logQueryInvalidationSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     store = createStore();
@@ -62,8 +66,8 @@ describe("WebSocket handler with queryKeys", () => {
     logEventSpy = vi
       .spyOn(mockDebugger, "logEvent")
       .mockImplementation(() => {});
-    logCollectionActionSpy = vi
-      .spyOn(mockDebugger, "logCollectionAction")
+    logQueryInvalidationSpy = vi
+      .spyOn(mockDebugger, "logQueryInvalidation")
       .mockImplementation(() => {});
 
     queryClient = new QueryClient({
@@ -73,14 +77,129 @@ describe("WebSocket handler with queryKeys", () => {
 
     // Clear mock calls
     logEventSpy.mockClear();
-    logCollectionActionSpy.mockClear();
+    logQueryInvalidationSpy.mockClear();
   });
 
   afterEach(() => {
     queryClient.clear();
   });
 
+  it.each(["attachment", "suggestion", "standalone", "list"])(
+    "refreshes only the proposal affected by a message update (%s)",
+    (source) => {
+      const affected = proposalKeys.detail(ORG, PROJECT, "affected");
+      const unrelated = proposalKeys.detail(ORG, PROJECT, "unrelated");
+      const foreign = proposalKeys.detail(ORG, "other-project", "foreign");
+      queryClient.setQueryData(affected, {
+        id: "affected",
+        messageId: source === "standalone" ? "changed" : "owner",
+      } as ProposalResponseDto);
+      queryClient.setQueryData(unrelated, {
+        id: "unrelated",
+        messageId: "unrelated-message",
+      } as ProposalResponseDto);
+      queryClient.setQueryData(foreign, {
+        id: "foreign",
+        messageId: "changed",
+      } as ProposalResponseDto);
+      if (source === "attachment" || source === "suggestion")
+        queryClient.setQueryData(
+          messageKeys.list(ORG, PROJECT, "conversation"),
+          [
+            {
+              id: "changed",
+              type: "SYSTEM",
+              proposals: source === "attachment" ? [{ id: "affected" }] : [],
+              data: {
+                type: "AGENT",
+                ...(source === "suggestion"
+                  ? { proposalSuggestion: { proposalId: "affected" } }
+                  : {}),
+              },
+            },
+          ] as MessageRecordDto[],
+        );
+      const affectedList = proposalKeys.list(ORG, PROJECT, { status: "DRAFT" });
+      const unrelatedList = proposalKeys.list(ORG, PROJECT, {
+        status: "APPROVED",
+      });
+      queryClient.setQueryData(affectedList, {
+        proposals: [
+          {
+            id: "affected",
+            messageId: source === "list" ? "changed" : "owner",
+          },
+        ],
+      });
+      queryClient.setQueryData(unrelatedList, {
+        proposals: [{ id: "unrelated", messageId: "other" }],
+      });
+      const refreshAffected = vi.fn();
+      const refreshUnrelated = vi.fn();
+      const refreshForeign = vi.fn();
+      const unsubscribe = [
+        subscribeProposalReconciliation("affected", refreshAffected),
+        subscribeProposalReconciliation("unrelated", refreshUnrelated),
+        subscribeProposalReconciliation("foreign", refreshForeign),
+      ];
+      try {
+        handler.handleEvent({
+          type: "message.updated",
+          timestamp: new Date().toISOString(),
+          organizationId: ORG,
+          projectId: PROJECT,
+          conversationId: "conversation",
+          messageId: "unrelated-message-with-no-proposals",
+        });
+        expect(refreshAffected).not.toHaveBeenCalled();
+        expect(refreshUnrelated).not.toHaveBeenCalled();
+        expect(isInvalidated(queryClient, affected)).toBe(false);
+        handler.handleEvent({
+          type: "message.updated",
+          timestamp: new Date().toISOString(),
+          organizationId: ORG,
+          projectId: PROJECT,
+          conversationId: "conversation",
+          messageId: "changed",
+        });
+        expect(refreshAffected).toHaveBeenCalledTimes(1);
+        expect(refreshUnrelated).not.toHaveBeenCalled();
+        expect(refreshForeign).not.toHaveBeenCalled();
+        expect(isInvalidated(queryClient, affected)).toBe(true);
+        expect(isInvalidated(queryClient, unrelated)).toBe(false);
+        expect(isInvalidated(queryClient, foreign)).toBe(false);
+        expect(isInvalidated(queryClient, affectedList)).toBe(true);
+        expect(isInvalidated(queryClient, unrelatedList)).toBe(false);
+      } finally {
+        unsubscribe.forEach((stop) => stop());
+      }
+    },
+  );
+
   describe("handleConversationUpdated invalidation ownership", () => {
+    it("invalidates project-ready lists after remote future approval while isolating other projects", () => {
+      const ready = [...proposalKeys.lists(ORG, PROJECT), "ready-futures", 1];
+      const other = [
+        ...proposalKeys.lists(ORG, "other-project"),
+        "ready-futures",
+        1,
+      ];
+      queryClient.setQueryData(ready, { items: [] });
+      queryClient.setQueryData(other, { items: [] });
+      handler.handleEvent({
+        type: "proposal.approved",
+        timestamp: "2026-10-01T00:00:00Z",
+        organizationId: ORG,
+        projectId: PROJECT,
+        proposalId: "proposal",
+        targetEntityId: "target",
+        targetEntityType: "TASK",
+        action: "VERSIONED_UPDATE",
+      });
+      expect(isInvalidated(queryClient, ready)).toBe(true);
+      expect(isInvalidated(queryClient, other)).toBe(false);
+    });
+
     it("does not invalidate conversation envelope variants for conversation.updated", () => {
       const event: WebSocketConversationUpdatedEvent = {
         type: "conversation.updated",
@@ -93,15 +212,15 @@ describe("WebSocket handler with queryKeys", () => {
       };
       queryClient.setQueryData(
         conversationKeys.envelope("org-789", "project-456", "conv-123"),
-        conversation("conv-123")
+        conversation("conv-123"),
       );
       queryClient.setQueryData(
         conversationKeys.envelope("org-789", "project-456", "conv-123", true),
-        conversation("conv-123")
+        conversation("conv-123"),
       );
       queryClient.setQueryData(
         conversationKeys.list("org-789", "project-456", {}),
-        [conversation("conv-123")]
+        [conversation("conv-123")],
       );
 
       handler.handleEvent(event);
@@ -335,9 +454,8 @@ describe("WebSocket handler with queryKeys", () => {
       handler.handleEvent(event);
 
       // Should log the collection action
-      expect(logCollectionActionSpy).toHaveBeenCalledWith(
+      expect(logQueryInvalidationSpy).toHaveBeenCalledWith(
         "conversations",
-        "MARK_ITEM_STALE",
         "item:conv-debug-test",
         expect.objectContaining({
           eventType: "conversation.status_changed",
@@ -345,7 +463,7 @@ describe("WebSocket handler with queryKeys", () => {
             "Conversation status changed, marking cached envelope queries stale",
           conversationId: "conv-debug-test",
           timestamp: "2024-01-01T00:00:00Z",
-        })
+        }),
       );
     });
 
@@ -367,7 +485,7 @@ describe("WebSocket handler with queryKeys", () => {
           type: "conversation.status_changed",
           source: "websocket-handler",
           data: event,
-        })
+        }),
       );
 
       // Should log successful processing
@@ -375,7 +493,7 @@ describe("WebSocket handler with queryKeys", () => {
         expect.objectContaining({
           type: "conversation.status_changed",
           source: "websocket-handler-success",
-        })
+        }),
       );
     });
   });
@@ -437,7 +555,7 @@ describe("WebSocket handler with queryKeys", () => {
 
       // Precise: only conv-simple's envelopes
       expect(invalidatedKeys(queryClient)).toEqual(
-        expect.arrayContaining(keys["conv-simple"])
+        expect.arrayContaining(keys["conv-simple"]),
       );
       expect(invalidatedKeys(queryClient)).toHaveLength(2);
     });

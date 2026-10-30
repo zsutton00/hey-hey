@@ -228,22 +228,28 @@ beforeEach(() => {
 
 describe('readActiveWorkItemTypeDefinitions', () => {
   it.each([
-    { overview: '' },
-    { overview: 'Guide', contexts: [{ focalTypeKeys: [], guidance: 'Context' }] },
-    { overview: 'Guide', examples: [{ title: 'Example', guidance: 42 }] },
-    { overview: 'Guide', extra: true },
-  ])('rejects malformed agent guidance: %s', async (agentGuidance) => {
-    listMock.mockResolvedValue({ data: { data: [summary({ ...taskDefinition, agentGuidance })] } });
-    await expect(readActiveWorkItemTypeDefinitions(TOKEN, PROJECT_ID)).rejects.toThrow();
-  });
-
-  it('preserves overview-only guidance without synthesizing optional arrays', async () => {
+    undefined,
+    {},
+    { implementation: '  Build advice  ', research: '', planning: 'Plan' },
+    { review: 'Review' },
+  ])('preserves role advice as optional registry data: %j', async (sessionRoleGuidance) => {
     listMock.mockResolvedValue({
-      data: { data: [summary({ ...taskDefinition, agentGuidance: { overview: 'Guide' } })] },
+      data: {
+        data: [
+          summary({
+            ...taskDefinition,
+            ...(sessionRoleGuidance === undefined ? {} : { sessionRoleGuidance }),
+          }),
+        ],
+      },
     });
     const definitions = await readActiveWorkItemTypeDefinitions(TOKEN, PROJECT_ID);
-    expect(definitions[0]?.agentGuidance).toEqual({ overview: 'Guide' });
+    expect(definitions[0]?.sessionRoleGuidance).toEqual(sessionRoleGuidance);
+    expect(Object.hasOwn(definitions[0]!, 'sessionRoleGuidance')).toBe(
+      sessionRoleGuidance !== undefined,
+    );
   });
+
   it('unwraps validated summaries into typed definitions', async () => {
     const taskDefinitionWithAcceptedConfigKinds = {
       ...taskDefinition,
@@ -375,13 +381,6 @@ describe('readActiveWorkItemTypeDefinitions', () => {
           summary({
             ...taskDefinition,
             sections: [{ ...taskSection, diagramElementPolicy }],
-            agentGuidance: {
-              overview: 'Implementation guidance',
-              examples: [{ title: 'Example', guidance: 'Keep the work concrete.' }],
-              contexts: [
-                { focalTypeKeys: ['FEATURE'], guidance: 'Use the feature context.', examples: [] },
-              ],
-            },
           } satisfies WorkItemTypeDefinitionDto),
           {
             ...summary(featureDefinition),
@@ -396,13 +395,6 @@ describe('readActiveWorkItemTypeDefinitions', () => {
 
     expect(listMock).toHaveBeenCalledTimes(1);
     expect(context.workItemTypeDefinitions).toHaveLength(2);
-    expect(context.workItemTypeDefinitions[0]?.agentGuidance).toEqual({
-      overview: 'Implementation guidance',
-      examples: [{ title: 'Example', guidance: 'Keep the work concrete.' }],
-      contexts: [
-        { focalTypeKeys: ['FEATURE'], guidance: 'Use the feature context.', examples: [] },
-      ],
-    });
     expect(prompt).toContain('**Task** (`TASK`)');
     expect(prompt).toContain('**Feature** (`FEATURE`)');
     expect(prompt).not.toContain('DIAGRAM_REFERENCE');
@@ -410,7 +402,7 @@ describe('readActiveWorkItemTypeDefinitions', () => {
     expect(prompt).toContain('`get_work_item_type_guidance_batch`');
     expect(prompt).toContain('typeKeys: [key]');
     expect(prompt).toContain('deduplicated array of 1–10 relevant encountered keys');
-    expect(prompt).toContain('same purpose and relevant focal context');
+    expect(prompt).toContain('same purpose and session role');
     expect(prompt).toContain('request order');
   });
 

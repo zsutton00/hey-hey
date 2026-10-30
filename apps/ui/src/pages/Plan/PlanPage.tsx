@@ -1,4 +1,8 @@
 import {
+  useModalState,
+  ModalWorkOwner,
+} from "@hey-hey/ui-common/components/Modals";
+import {
   DiscussCapsuleAction,
   DependentFutures,
   PlanViewer,
@@ -107,7 +111,7 @@ export const PlanPage = ({
   );
   const feature = cachedFeature ?? loadedFeature;
   const [previewTab, setPreviewTab] = useState<PlanTab>("plan");
-  const [manageOpen, setManageOpen] = useState(false);
+  const [manageOpen, setManageOpen, manageOpenOwnerKey] = useModalState(false);
   const layoutMainScrollOwner = useLayoutMainScrollOwner();
   const mainContentRef = layoutMainScrollOwner?.mainContentRef ?? null;
   const planGenerationScrollPolicy = useMemo<ConversationScrollPolicy>(
@@ -442,16 +446,18 @@ export const PlanPage = ({
             )}
           </Box>
         </DetailPageContainer>
-        <PlanArchiveDeleteDialog
-          open={manageOpen}
-          onClose={() => setManageOpen(false)}
-          organizationId={organizationId}
-          projectId={projectId}
-          planId={planId}
-          planName={plan.name}
-          planStatus={plan.status}
-          onDeleted={() => navigate("/projects/" + projectId + "/plans")}
-        />
+        <ModalWorkOwner.Provider value={manageOpenOwnerKey}>
+          <PlanArchiveDeleteDialog
+            open={manageOpen}
+            onClose={() => setManageOpen(false)}
+            organizationId={organizationId}
+            projectId={projectId}
+            planId={planId}
+            planName={plan.name}
+            planStatus={plan.status}
+            onDeleted={() => navigate("/projects/" + projectId + "/plans")}
+          />
+        </ModalWorkOwner.Provider>
       </CanonicalPageBoundary>
     </TrackingProvider>
   );

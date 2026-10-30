@@ -20,10 +20,58 @@ tags:
     description: Local changed-file detail operations
   - name: RunChangedFilesInventory
     description: Local changed-file inventory operations
+  - name: RunToolCallsLatestTurn
+    description: Same-machine latest-Turn tool-call reads
   - name: RunBrowser
     description: Local Shared Browser operations for a Run
 
 paths:
+  /runs/{runId}/tool-calls/latest-turn:
+    post:
+      tags:
+        - RunToolCallsLatestTurn
+      summary: Read the latest Turn tool calls of a locally owned Run
+      description: >
+        Approved-origin loopback read after verifying this CLI matches the Run owner.
+        Preserves the remote bounded ordered summaries, detail, subagents and truncation.
+        Enforces the machine viewing preference. Content is transient and must not be cached.
+        Rejections never authorize a fallback to remote transport.
+      operationId: readLocalRunToolCallsLatestTurn
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocalRunToolCallsLatestTurnRequest"
+      responses:
+        "200":
+          description: The bounded latest-Turn snapshot, or the typed disabled outcome.
+          content:
+            application/json:
+              schema:
+                $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunToolCallsLatestTurnSuccessResponseDto"
+        "400":
+          $ref: "#/components/responses/RunToolCallsLatestTurnFailure"
+        "403":
+          $ref: "#/components/responses/RunToolCallsLatestTurnFailure"
+        "404":
+          $ref: "#/components/responses/RunToolCallsLatestTurnFailure"
+        "409":
+          $ref: "#/components/responses/RunToolCallsLatestTurnFailure"
+        "422":
+          $ref: "#/components/responses/RunToolCallsLatestTurnFailure"
+        "500":
+          $ref: "#/components/responses/RunToolCallsLatestTurnFailure"
+        "503":
+          $ref: "#/components/responses/RunToolCallsLatestTurnFailure"
+
   /repos:
     get:
       tags:
@@ -502,15 +550,15 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LocalWalkthroughSourceRequest'
+              $ref: "#/components/schemas/LocalWalkthroughSourceRequest"
       responses:
-        '200':
+        "200":
           description: Verified current source location
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LocalWalkthroughSourceLocation'
-        '422':
+                $ref: "#/components/schemas/LocalWalkthroughSourceLocation"
+        "422":
           description: Source unavailable, historical, or changed
   /runs/{runId}/browser/open:
     post:
@@ -608,6 +656,13 @@ components:
           schema:
             $ref: "#/components/schemas/LocalRepositoryBindingErrorResponse"
 
+    RunToolCallsLatestTurnFailure:
+      description: The read was rejected without tool-call content.
+      content:
+        application/json:
+          schema:
+            $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunToolCallsLatestTurnErrorResponseDto"
+
     RunChangedFileDetailFailure:
       description: The local detail request was rejected or could not be completed.
       content:
@@ -637,6 +692,15 @@ components:
             $ref: "#/components/schemas/LocalStagedBrowserTabOpenErrorResponse"
 
   schemas:
+    LocalRunToolCallsLatestTurnRequest:
+      type: object
+      additionalProperties: false
+      required: [machineId]
+      properties:
+        machineId:
+          type: string
+          minLength: 1
+
     LocalRunAttachment:
       type: object
       additionalProperties: false
@@ -929,7 +993,7 @@ components:
           type: string
           format: uuid
         excerpt:
-          $ref: '../schemas/reports.yaml#/ChangeWalkthroughExcerpt'
+          $ref: "../schemas/reports.yaml#/ChangeWalkthroughExcerpt"
     LocalWalkthroughSourceLocation:
       type: object
       required: [runId, serviceId, file, path, line, column]

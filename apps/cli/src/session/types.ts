@@ -33,13 +33,7 @@ type AgenticEventType =
   | 'run_completed'
   | 'post_processed';
 
-export interface TokenUsage {
-  inputTokens: number;
-  outputTokens: number;
-  cacheCreationInputTokens: number;
-  cacheReadInputTokens: number;
-  cacheAvailability: LocalTokenUsage['cacheAvailability'];
-}
+export type TokenUsage = LocalTokenUsage;
 
 export interface PreviousProviderSession {
   promptType: string;
@@ -145,6 +139,8 @@ export interface AgenticSessionEvent {
 }
 
 interface AgenticSessionBase {
+  /** Immutable execution isolation, retained across restoration. */
+  readonly inert?: boolean;
   agentic_session_id: string;
   /** Canonical entity scope captured from payload.entity before Run creation. */
   entity: RunEntityReference | null;
@@ -186,6 +182,16 @@ interface AgenticSessionBase {
   reasoningEffort?: LocalReasoningEffort;
   fastMode?: boolean;
   tokenUsage?: TokenUsage;
+  latestTurn?:
+    | { turnId: string; state: 'running' }
+    | { turnId: string; state: 'settled'; outcome: 'COMPLETED' | 'FAILED' | 'ABORTED' };
+  /** Last committed final answer; retained when provider carryover is consumed. */
+  finalAssistantMessage?: {
+    turnId: string;
+    messageId: string;
+    text: string;
+    committedAt: string;
+  };
   sessionContext?: Record<string, unknown>;
   /**
    * The previous provider session's final output — the last text message the
@@ -253,6 +259,7 @@ export type AgenticSession = AgenticSessionBase & {
 };
 
 interface CreateAgenticSessionInputBase {
+  readonly inert?: boolean;
   agentic_session_id?: string;
   entity: RunEntityReference | null;
   services: ResolvedServiceBinding[];

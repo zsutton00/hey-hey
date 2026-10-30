@@ -1,3 +1,7 @@
+import {
+  startControllerInputs,
+  messageControllerInputs,
+} from "../../../generated/controller-action-inputs";
 import { createContext, type PropsWithChildren, useMemo } from "react";
 import {
   AgentOperationKind,
@@ -388,6 +392,10 @@ export const defaultAgentOperationDependencies: AgentOperationDependencies = {
         actionType: HostAffectingActionType.ConversationTrigger,
         targetKind: HostActionTargetKind.AgentSession,
         targetId: input.agentSessionId,
+        inputs: startControllerInputs({
+          ...input.intent,
+          agentSessionId: input.agentSessionId,
+        }),
       },
       submit: ({ authorization }) =>
         unifiedApiClient.startConversationRun({
@@ -442,6 +450,7 @@ export const defaultAgentOperationDependencies: AgentOperationDependencies = {
         actionType: HostAffectingActionType.ConversationTrigger,
         targetKind: HostActionTargetKind.AgentSession,
         targetId: input.agentSessionId,
+        inputs: messageControllerInputs(input.intent.data),
       },
       submit: ({ authorization }) =>
         unifiedApiClient.postMessage({

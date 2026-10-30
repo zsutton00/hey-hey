@@ -1,6 +1,8 @@
+import { useModalState } from "../../Modals/useModalState";
+import { ModalWorkOwner } from "../../Modals/ModalWorkOwner";
 import { Box, Link } from "@mui/material";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
-import { useContext, useState, type MouseEvent } from "react";
+import { useContext, type MouseEvent } from "react";
 import {
   buildExternalEditorUrl,
   readExternalEditorPreference,
@@ -16,6 +18,7 @@ import {
   type FileReferenceEditorAction,
 } from "./FileReferenceActions";
 import type { FileReferenceValueV1 } from "./types";
+import { useFileReferenceSource } from "./useFileReferenceSource";
 
 export type FileReferenceRenderMode =
   "service-qualified" | "path" | "file-name";
@@ -28,10 +31,6 @@ interface FileReferenceLinkProps {
 }
 
 const DEFAULT_FILE_REFERENCE_RENDER_MODE = "service-qualified" as const;
-
-const resolveMappedSource = (
-  _value: FileReferenceValueV1,
-): SourceReference | null => null;
 
 const resolveFileReferenceLabel = (
   value: FileReferenceValueV1,
@@ -88,8 +87,9 @@ export const FileReferenceLink = ({
 }: FileReferenceLinkProps) => {
   const editorContext = useContext(MentionEditorContext);
   const projectContext = useProjectContext();
-  const [isSetupOpen, setIsSetupOpen] = useState(false);
-  const sourceReference = resolveMappedSource(value);
+  const [isSetupOpen, setIsSetupOpen, isSetupOpenOwnerKey] =
+    useModalState(false);
+  const sourceReference = useFileReferenceSource(value);
   const label = resolveFileReferenceLabel(value, renderMode);
   const contextCandidate = editorContext ?? projectContext;
   const actionContext: FileReferenceActionContext | null =
@@ -169,11 +169,13 @@ export const FileReferenceLink = ({
       ) : (
         reference
       )}
-      <ExternalEditorPreferenceDialog
-        open={isSetupOpen}
-        onCancel={() => setIsSetupOpen(false)}
-        onSaved={handleSaved}
-      />
+      <ModalWorkOwner.Provider value={isSetupOpenOwnerKey}>
+        <ExternalEditorPreferenceDialog
+          open={isSetupOpen}
+          onCancel={() => setIsSetupOpen(false)}
+          onSaved={handleSaved}
+        />
+      </ModalWorkOwner.Provider>
     </>
   );
 };

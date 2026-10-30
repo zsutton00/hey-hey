@@ -56,6 +56,10 @@ export class ChangedFileReporting {
       this.evidence.validatedRevision === this.evidence.editRevision
     );
   }
+  /** Omission permits completion but never counts as validated evidence. */
+  public get needsCorrection(): boolean {
+    return this.evidence.state !== 'not_reported' && !this.ready;
+  }
   public snapshot(): ChangedFileReportingEvidence {
     return { ...this.evidence, findings: [...this.evidence.findings] };
   }
@@ -180,7 +184,8 @@ export class ChangedFileReporting {
     this.log('response_retained');
   }
   public beginRepair(): string | null {
-    if (this.ready || this.evidence.attempts >= 2 || !this.evidence.retainedResponse) return null;
+    if (!this.needsCorrection || this.evidence.attempts >= 2 || !this.evidence.retainedResponse)
+      return null;
     this.evidence.attempts += 1;
     this.repairing = true;
     this.log('repair_started');
@@ -193,8 +198,8 @@ export class ChangedFileReporting {
   public release(): AssistantCompleteEvent | null {
     if (this.releasing) return null;
     this.releasing = true;
-    this.evidence.incomplete = !this.ready;
-    this.log(this.ready ? 'ready' : 'recovery_exhausted');
+    this.evidence.incomplete = this.needsCorrection;
+    this.log(this.evidence.incomplete ? 'recovery_exhausted' : this.ready ? 'ready' : 'omitted');
     return this.evidence.retainedResponse;
   }
   private log(action: string): void {

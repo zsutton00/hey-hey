@@ -1,3 +1,10 @@
+import { handleAssistantComplete } from '../../run/handlers/assistant-complete';
+import { codingFreeformHandler } from '../../agents/coding-conversation';
+import { mapCodexEvent } from '../../agents/providers/codex/codex-event-mapper';
+import { normalizeProviderEventPayload } from '../../agents/providers/provider-event-normalization';
+import { normalizeEvent } from '../../run/normalize';
+import { handleToolUse } from '../../run/handlers/tool-use';
+import { makeTestRun, makeDeps, makeTestTurn } from '../../run/handlers/__test-utils';
 import type { GatherTrace } from '../../jev/trace';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -151,6 +158,230 @@ afterEach(async () => {
 });
 
 describe('RunStore', () => {
+  it.each(['claude', 'codex', 'opencode'] as const)(
+    'persists %s tool calls once from provider events',
+    async (provider) => {
+      await store.createRun(createTaskInput({ agentic_session_id: 'run-1', provider }));
+      const ctx = makeTestRun({ provider, persistenceStore: store });
+      const command = {
+        type: 'commandExecution',
+        id: 'call-1',
+        command: 'ls',
+        cwd: '/tmp',
+        status: 'completed',
+        exitCode: 0,
+        aggregatedOutput: 'a.txt',
+      };
+      const inputs =
+        provider === 'codex'
+          ? ['item/started', 'item/completed'].map((eventType) => ({
+              eventType,
+              rawEvent: { threadId: 'thread-1', turnId: 'turn-1', item: command },
+            }))
+          : provider === 'claude'
+            ? [
+                {
+                  eventType: 'assistant',
+                  rawEvent: {
+                    type: 'assistant',
+                    message: {
+                      content: [
+                        { type: 'tool_use', id: 'call-1', name: 'Bash', input: { command: 'ls' } },
+                      ],
+                    },
+                  },
+                },
+              ]
+            : [
+                {
+                  eventType: 'message.part.updated',
+                  rawEvent: {
+                    sessionID: 'provider-1',
+                    part: {
+                      type: 'tool',
+                      tool: 'bash',
+                      callID: 'call-1',
+                      sessionID: 'provider-1',
+                      state: {
+                        status: 'completed',
+                        input: { command: 'ls' },
+                        output: 'a.txt',
+                        time: { start: 1, end: 2 },
+                      },
+                    },
+                  },
+                },
+              ];
+      for (const input of inputs) {
+        const normalize = provider === 'codex' ? mapCodexEvent : normalizeProviderEventPayload;
+        const mapped = normalize({
+          provider,
+          runId: 'run-1',
+          sessionId: 'provider-1',
+          agentId: provider,
+          timestamp: '2026-10-29T00:00:00.000Z',
+          ...input,
+          config: { validationMode: 'strict', maxDiffBlobBytes: 4096, trackTools: true },
+        });
+        const event = normalizeEvent(
+          {
+            runId: 'run-1',
+            source: 'provider',
+            eventType: mapped.resolvedEventType ?? input.eventType,
+            timestamp: '2026-10-29T00:00:00.000Z',
+            sessionId: 'provider-1',
+            agentId: provider,
+            payload: mapped.payload,
+          },
+          provider,
+        );
+        if (event.kind === 'tool_use') {
+          await handleToolUse(event, ctx, makeDeps());
+        }
+      }
+      await vi.waitFor(async () => {
+        expect(await store.getToolUsage('run-1')).toHaveLength(1);
+      });
+      const reopened = new RunStore({ paths: createTempPaths(tempRoot) });
+      await reopened.initialize();
+      expect((await reopened.getRunResult('run-1'))?.usage.toolCalls).toBe(1);
+      expect(await reopened.getToolUsage('run-1')).toEqual([
+        expect.objectContaining({ toolUseId: 'call-1' }),
+      ]);
+    },
+  );
+
+  it.each(['claude', 'codex', 'opencode'] as const)(
+    'reads retained %s results without changing storage',
+    async (provider) => {
+      await store.createRun(createTaskInput({ agentic_session_id: 'run-1', provider }));
+      expect(await store.getRunResult('missing')).toBeNull();
+      expect(await store.getRunResult('run-1')).toEqual({ assistantCompleted: false, usage: {} });
+      await store.updateRunLatestTurn('run-1', { turnId: 'first', state: 'running' });
+      await store.updateRunFinalAssistantMessage('run-1', {
+        turnId: 'first',
+        messageId: 'answer',
+        text: 'finished',
+        committedAt: new Date().toISOString(),
+      });
+      await store.updateRunLatestTurn('run-1', {
+        turnId: 'first',
+        state: 'settled',
+        outcome: 'COMPLETED',
+      });
+      const reopened = new RunStore({ paths: createTempPaths(tempRoot) });
+      expect(await reopened.getRunResult('run-1')).toEqual({
+        assistantCompleted: true,
+        outputText: 'finished',
+        usage: {},
+      });
+      for (const outcome of ['FAILED', 'ABORTED'] as const) {
+        await store.updateRunLatestTurn('run-1', { turnId: 'next', state: 'settled', outcome });
+        expect(await reopened.getRunResult('run-1')).toEqual({
+          assistantCompleted: false,
+          usage: {},
+        });
+      }
+      await store.updateRunLatestTurn('run-1', {
+        turnId: 'missing-answer',
+        state: 'settled',
+        outcome: 'COMPLETED',
+      });
+      await store.updateRunTokenUsage('run-1', { inputTokens: 0, outputTokens: 0 });
+      const metadataPath = await runFamilyMemberPath(tempRoot, 'run-1', 'metadata');
+      const before = await fs.readFile(metadataPath, 'utf8');
+      expect(await reopened.getRunResult('run-1')).toEqual({
+        assistantCompleted: true,
+        usage: { inputTokens: 0, outputTokens: 0, cacheAvailability: 'unsupported' },
+      });
+      expect(await fs.readFile(metadataPath, 'utf8')).toBe(before);
+    },
+  );
+
+  it('reads older evidence without promoting and surfaces corrupt evidence', async () => {
+    await store.createRun(createTaskInput({ agentic_session_id: 'legacy', inert: true }));
+    await demoteCurrentFamilyToLegacy(tempRoot, 'legacy');
+    expect(await store.getRunResult('legacy')).toEqual({ assistantCompleted: false, usage: {} });
+    await expect(fs.stat(path.join(tempRoot, 'runs', 'legacy.family.json'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
+    await fs.writeFile(
+      path.join(tempRoot, 'runs', legacyRunFamilyMemberFileName('legacy', 'toolUsage')),
+      '{broken',
+    );
+    await expect(store.getRunResult('legacy')).rejects.toThrow();
+  });
+
+  it('restores the latest final answer after carryover is consumed', async () => {
+    const run = await store.createRun(createTaskInput({ agentic_session_id: 'run-1' }));
+    for (const text of ['first answer', 'last answer']) {
+      const ctx = makeTestRun({ persistenceStore: store, lastProviderStreamMessage: text });
+      const event = normalizeEvent(
+        {
+          runId: 'run-1',
+          source: 'provider',
+          eventType: 'agent_output',
+          timestamp: '2026-10-29T00:00:00.000Z',
+          sessionId: 'provider-1',
+          agentId: 'claude',
+          payload: { summary: text, taskComplete: true, messageType: 'assistant' },
+        },
+        'claude',
+      );
+      if (event.kind !== 'assistant_complete') {
+        throw new Error('Expected assistant completion');
+      }
+      await handleAssistantComplete(
+        event,
+        ctx,
+        makeDeps(),
+        makeTestTurn(codingFreeformHandler, text),
+      );
+    }
+    await store.updateRunPreviousProviderSession(run.agentic_session_id, null);
+    const reopened = new RunStore({ paths: createTempPaths(tempRoot) });
+    await reopened.initialize();
+    expect((await reopened.getRun(run.agentic_session_id))?.finalAssistantMessage).toMatchObject({
+      turnId: 'last answer',
+      messageId: 'oob-msg-1',
+      text: 'last answer',
+    });
+  });
+
+  it('retains every inert Run when an evaluation creates several executions concurrently', async () => {
+    const runs = await Promise.all(
+      [1, 2, 3].map((number) =>
+        store.createRun(
+          createTaskInput({
+            agentic_session_id: `inert-${number}`,
+            conversationId: `evidence-${number}`,
+            inert: true,
+          }),
+        ),
+      ),
+    );
+    const reopened = new RunStore({ paths: createTempPaths(tempRoot) });
+    await reopened.initialize();
+    for (const run of runs) {
+      expect(await reopened.getRun(run.agentic_session_id)).toMatchObject({ inert: true });
+    }
+  });
+
+  it('restores immutable inertness after a fresh store opens the persisted Run', async () => {
+    const run = await store.createRun(createTaskInput({ inert: true }));
+    const reopened = new RunStore({ paths: createTempPaths(tempRoot) });
+    await reopened.initialize();
+    expect(await reopened.getRun(run.agentic_session_id)).toMatchObject({ inert: true });
+    await expect(
+      reopened.createRun(
+        createTaskInput({
+          agentic_session_id: run.agentic_session_id,
+          inert: false,
+        }),
+      ),
+    ).rejects.toThrow('Run inertness cannot change');
+  });
+
   it('preserves attachments when the authoritative completed Run is newer than retention cutoff', async () => {
     const run = await store.createRun(createTaskInput({ status: 'complete' }));
     const directory = path.join(tempRoot, 'run-attachments', run.agentic_session_id, 'attachment');
@@ -192,6 +423,27 @@ describe('RunStore', () => {
     await reopened.initialize();
     expect((await reopened.getRunWithEvents(runId))!.events.map((event) => event.seq)).toEqual([
       1, 2, 3, 4,
+    ]);
+  });
+
+  it('recovers a Run whose last event append was interrupted before a restart', async () => {
+    const created = await store.createRun(createTaskInput());
+    const runId = created.agentic_session_id;
+    const input = {
+      run_id: runId,
+      actor: 'app',
+      event_type: 'run_started',
+      state_version: 1,
+    } satisfies AppendAgenticEventInput;
+    await store.appendEvent(runId, input);
+    const eventLog = await runFamilyMemberPath(tempRoot, runId, 'events');
+    await fs.appendFile(eventLog, '{"schema_version":1,"seq":2');
+
+    const restarted = new RunStore({ paths: createTempPaths(tempRoot) });
+    await restarted.initialize();
+    await restarted.appendEvent(runId, input);
+    expect((await restarted.getRunWithEvents(runId))!.events.map((event) => event.seq)).toEqual([
+      1, 2,
     ]);
   });
 
@@ -1886,6 +2138,38 @@ describe('RunStore', () => {
         closed: true,
       });
       expect(rehydrated?.reviewFileScopeReconciliations).toEqual(reconciliations);
+    });
+  });
+
+  it('preserves unavailable final usage and reported cache zeros across reopening', async () => {
+    const run = await store.createRun(createTaskInput());
+    await store.setRunTokenUsage(run.agentic_session_id, {
+      inputTokens: null,
+      outputTokens: 7,
+      cacheReadInputTokens: 0,
+      cacheCreationInputTokens: null,
+      cacheAvailability: 'partial',
+    });
+    const reopened = new RunStore({ paths: createTempPaths(tempRoot) });
+    expect((await reopened.getRunResult(run.agentic_session_id))?.usage).toEqual({
+      outputTokens: 7,
+      cacheReadInputTokens: 0,
+      cacheAvailability: 'partial',
+    });
+    expect((await reopened.getRunMetadata(run.agentic_session_id))?.tokenUsage).toEqual({
+      inputTokens: null,
+      outputTokens: 7,
+      cacheReadInputTokens: 0,
+      cacheCreationInputTokens: null,
+      cacheAvailability: 'partial',
+    });
+    await reopened.updateRunTokenUsage(run.agentic_session_id, {
+      inputTokens: 50,
+      outputTokens: 3,
+    });
+    expect((await reopened.getRunResult(run.agentic_session_id))?.usage).toEqual({
+      outputTokens: 10,
+      cacheAvailability: 'partial',
     });
   });
 

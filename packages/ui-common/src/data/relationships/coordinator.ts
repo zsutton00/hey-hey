@@ -1,8 +1,7 @@
-import type { QueryKey as TanStackQueryKey } from "@tanstack/react-query";
-import type { QueryKey } from "../core/types";
+import type { QueryKey } from "@tanstack/react-query";
 
-/** Legacy collections mark a `QueryKey` stale; TanStack-backed collections invalidate a key prefix. */
-export type InvalidationKey = QueryKey | TanStackQueryKey;
+/** Collections invalidate a TanStack key prefix. */
+export type InvalidationKey = QueryKey;
 
 export type MarkStaleAction<K extends InvalidationKey = QueryKey> = {
   type: "MARK_STALE";

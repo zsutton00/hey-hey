@@ -14,16 +14,22 @@ import { ProposalReconciliationBasis } from '../models/ProposalReconciliationBas
 import { ProposalReconciliationIntervening } from '../models/ProposalReconciliationIntervening';
 import { ProposalReconciliationOverlap } from '../models/ProposalReconciliationOverlap';
 import { ProposalReconciliationRevision } from '../models/ProposalReconciliationRevision';
+import { ProposalReconciliationSuggestion } from '../models/ProposalReconciliationSuggestion';
 import { HttpFile } from '../http/http';
 
 export class ProposalReconciliationState {
   'status': ProposalReconciliationStateStatusEnum;
+  'suggestions'?: Array<ProposalReconciliationSuggestion>;
+  /**
+   * Stored future revision used to prepare this context; include as expectedFutureRevision when submitting future reconciliation.
+   */
+  'futureRevision'?: number;
   /**
    * When the change under review was originally written; for a merged replacement, when the proposal it reconciles was written.
    */
   'writtenAt'?: Date;
   /**
-   * Proposals approved on the same target after this change was written, oldest first. Empty when the proposal is approved or rejected.
+   * Proposals approved on the same target after this change was written, oldest first. Empty for terminal proposals; approved unapplied futures remain reviewable.
    */
   'interveningProposals': Array<ProposalReconciliationIntervening>;
   /**
@@ -51,6 +57,18 @@ export class ProposalReconciliationState {
       name: 'status',
       baseName: 'status',
       type: 'ProposalReconciliationStateStatusEnum',
+      format: '',
+    },
+    {
+      name: 'suggestions',
+      baseName: 'suggestions',
+      type: 'Array<ProposalReconciliationSuggestion>',
+      format: '',
+    },
+    {
+      name: 'futureRevision',
+      baseName: 'futureRevision',
+      type: 'number',
       format: '',
     },
     {

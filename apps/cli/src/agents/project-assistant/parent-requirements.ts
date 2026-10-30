@@ -22,8 +22,6 @@ import type { NearestParentFeatureRequest } from './nearest-parent-feature';
 export interface ParentRequirementsFilter {
   jevClient: JevEvaluator;
   entityContextLoader: Pick<EntityContextLoader, 'load'>;
-  /** Read on every Project Assistant prepare so a change applies to the next run. */
-  isEnabled: () => Promise<boolean>;
   /** Where each attempt's full Jev input and output, and the loads before and after, are written. */
   attemptLogDir: string;
   model?: string;

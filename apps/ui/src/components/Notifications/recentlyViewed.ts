@@ -1,5 +1,8 @@
 import { WebPathService } from "@hey-hey/ui-common";
-import type { AttentionEventResponse } from "@hey-hey/ui-common/api";
+import {
+  EntityType,
+  type AttentionEventResponse,
+} from "@hey-hey/ui-common/api";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -47,7 +50,7 @@ export const getRecentlyViewedEntityName = (
 export const getRecentlyViewedEntityIconType = (
   event: AttentionEventResponse,
 ): string => {
-  if (event.entityType === "task") {
+  if (event.entityType === EntityType.Task) {
     const entity = isRecord(event.entity) ? event.entity : undefined;
     const taskType = toStringValue(entity, "type");
     if (taskType === "FEATURE") {

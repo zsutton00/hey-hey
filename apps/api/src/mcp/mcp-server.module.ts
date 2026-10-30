@@ -38,17 +38,10 @@ import { RecentlyViewedToolsProvider } from './tools/recently-viewed-tools.provi
 import { PlanToolsProvider } from './tools/plan-tools.provider';
 import { GetDiagramToolsProvider } from './tools/get-diagram-tools.provider';
 import { HelpService } from '../services/help.service';
-import { readHintsEnabled } from '../config/hints.config';
 import {
   HINT_READ_TOOL_PROVIDERS,
   HINT_WRITE_TOOL_PROVIDERS,
 } from './tools/hint-tools.provider';
-
-// Tools are registered at boot, so the deployment switch decides whether
-// agents are offered hint tools at all.
-const hintToolProviders = readHintsEnabled()
-  ? [...HINT_WRITE_TOOL_PROVIDERS, ...HINT_READ_TOOL_PROVIDERS]
-  : [];
 
 @Module({
   imports: [
@@ -89,7 +82,8 @@ const hintToolProviders = readHintsEnabled()
     RecentlyViewedToolsProvider,
     PlanToolsProvider,
     GetDiagramToolsProvider,
-    ...hintToolProviders,
+    ...HINT_WRITE_TOOL_PROVIDERS,
+    ...HINT_READ_TOOL_PROVIDERS,
   ],
   exports: [McpHealthService],
 })

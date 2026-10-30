@@ -1,3 +1,4 @@
+import type { RunStore } from '../run-store/run-store';
 import path from 'node:path';
 import { resolveBaseDir } from '../session/paths';
 import type { OAuthClient } from '../auth';
@@ -28,12 +29,13 @@ import { createLiveSearchExecutor } from '../jev/search';
 import { createLiveReader } from '../jev/traversal';
 
 export interface AgentApplicationRuntimeDependencies {
+  runStore?: RunStore;
   oauthClient: OAuthClient;
   apiBaseUrl: string;
   logger: ServerLogger;
   taskMonitorManagedTurnRuntime: TaskMonitorManagedTurnRuntime;
-  /** Read on every Project Assistant prepare; backed by the machine options file. */
-  isJevParentFeatureFilterEnabled: () => Promise<boolean>;
+  /** The Jev switch, read on every Project Assistant prepare; backed by the machine options file. */
+  isJevEnabled: () => Promise<boolean>;
   fetchImpl?: typeof fetch;
 }
 
@@ -78,7 +80,7 @@ export class AgentApplicationRuntime {
   public readonly startupPromptInput: AgentStartupPromptInput;
   public readonly baseSubmissionTools: readonly SubmissionToolDeclaration[];
 
-  private readonly createReportProxy: CreateReportProxy;
+  public readonly createReportProxy: CreateReportProxy;
 
   public constructor(dependencies: AgentApplicationRuntimeDependencies) {
     this.jevClient = createJevClient(process.env, dependencies.logger.child({ component: 'jev' }));
@@ -93,6 +95,7 @@ export class AgentApplicationRuntime {
       dependencies.logger.child({ component: 'session-monitor.evaluation-store' }),
     );
     this.createReportProxy = new CreateReportProxy({
+      ...(dependencies.runStore ? { runStore: dependencies.runStore } : {}),
       auth: this.auth,
       apiBaseUrl: dependencies.apiBaseUrl,
       fetchImpl,
@@ -123,9 +126,9 @@ export class AgentApplicationRuntime {
             parentRequirements: {
               jevClient: this.jevClient,
               entityContextLoader: this.entityContextLoader,
-              isEnabled: dependencies.isJevParentFeatureFilterEnabled,
               attemptLogDir: path.join(resolveBaseDir(), 'jev-logs', 'parent-requirements'),
             },
+            isJevEnabled: dependencies.isJevEnabled,
           }
         : {}),
       planSubmissionAdmissionClient: new PlanSubmissionAdmissionClient({

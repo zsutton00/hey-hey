@@ -19,6 +19,8 @@ import { TaskMonitorLifecycleCause } from '../models/TaskMonitorLifecycleCause';
 import { HttpFile } from '../http/http';
 
 export class RunCreatePayloadTaskMonitor {
+  'promptType': RunCreatePayloadTaskMonitorPromptTypeEnum;
+  'entity': RunEntityReference;
   'monitorId': string;
   'cause': TaskMonitorLifecycleCause;
   'correlationId': string;
@@ -31,8 +33,6 @@ export class RunCreatePayloadTaskMonitor {
   'launchConfig'?: TaskMonitorLaunchConfig;
   'judgment'?: TaskMonitorJudgmentResponse;
   'settledTurn'?: SessionMonitorSettledTurnEvidence;
-  'promptType': RunCreatePayloadTaskMonitorPromptTypeEnum;
-  'entity': RunEntityReference;
 
   static readonly discriminator: string | undefined = undefined;
 
@@ -44,6 +44,18 @@ export class RunCreatePayloadTaskMonitor {
     type: string;
     format: string;
   }> = [
+    {
+      name: 'promptType',
+      baseName: 'promptType',
+      type: 'RunCreatePayloadTaskMonitorPromptTypeEnum',
+      format: '',
+    },
+    {
+      name: 'entity',
+      baseName: 'entity',
+      type: 'RunEntityReference',
+      format: '',
+    },
     {
       name: 'monitorId',
       baseName: 'monitorId',
@@ -96,18 +108,6 @@ export class RunCreatePayloadTaskMonitor {
       name: 'settledTurn',
       baseName: 'settledTurn',
       type: 'SessionMonitorSettledTurnEvidence',
-      format: '',
-    },
-    {
-      name: 'promptType',
-      baseName: 'promptType',
-      type: 'RunCreatePayloadTaskMonitorPromptTypeEnum',
-      format: '',
-    },
-    {
-      name: 'entity',
-      baseName: 'entity',
-      type: 'RunEntityReference',
       format: '',
     },
   ];

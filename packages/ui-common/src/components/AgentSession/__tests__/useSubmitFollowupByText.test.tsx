@@ -3,6 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 import type { SessionMethodContext } from "../../../agents/coordination/types";
 import { useSubmitFollowupByText } from "../useSubmitFollowupByText";
 
+const workflowNode = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({
+    data: { data: { currentNodeId: "feature-sync-analyze" } },
+  }),
+);
+vi.mock("../../../clients/serviceClients", () => ({
+  workflowsClient: { getConversationWorkflowNode: workflowNode },
+}));
 const submitFreeformViaPlatformMock = vi.fn();
 
 const enabledAccess = {
@@ -25,7 +33,7 @@ vi.mock("../runtime/hooks/submitFreeformViaPlatform", () => ({
 }));
 
 const buildSessionMethod = (
-  method: SessionMethodContext["method"]
+  method: SessionMethodContext["method"],
 ): SessionMethodContext => ({
   method,
   serviceIds: [],
@@ -33,7 +41,7 @@ const buildSessionMethod = (
 });
 
 const dispatchFollowup = async (
-  sessionMethod: SessionMethodContext | undefined
+  sessionMethod: SessionMethodContext | undefined,
 ) => {
   submitFreeformViaPlatformMock.mockReset();
   submitFreeformViaPlatformMock.mockResolvedValue({
@@ -63,7 +71,7 @@ const dispatchFollowup = async (
       projectId: "proj-1",
       trackSubmitPromptTelemetry,
       setPromptDraft,
-    })
+    }),
   );
 
   await result.current({
@@ -84,6 +92,18 @@ describe("useSubmitFollowupByText: workflow methods tag follow-ups WorkflowDefin
   it("dispatches localPromptType 'workflow-defined' when sessionMethod.method === 'plan'", async () => {
     const arg = await dispatchFollowup(buildSessionMethod("plan"));
     expect(arg.localPromptType).toBe("workflow-defined");
+  });
+});
+
+describe("conversational planning replies", () => {
+  it("sends normal planning feedback directly to the planner", async () => {
+    workflowNode.mockResolvedValueOnce({
+      data: { data: { currentNodeId: "feature-sync-coding-plan" } },
+    });
+    await dispatchFollowup(buildSessionMethod("plan"));
+    expect(submitFreeformViaPlatformMock.mock.calls[0][0].localPromptType).toBe(
+      "startup_session",
+    );
   });
 });
 
@@ -156,7 +176,7 @@ describe("useSubmitFollowupByText: post failure propagation", () => {
         projectId: "proj-1",
         trackSubmitPromptTelemetry,
         setPromptDraft,
-      })
+      }),
     );
 
     await expect(
@@ -165,13 +185,13 @@ describe("useSubmitFollowupByText: post failure propagation", () => {
         clearDraftOnSuccess: false,
         actionName: "submitFollowupPrompt",
         followupAction: null,
-      })
+      }),
     ).rejects.toThrow("Platform rejected the message");
 
     // The failure surfaces to the caller (the composer) instead of feeding
     // the page-level submission error.
     expect(setSubmissionError).not.toHaveBeenCalledWith(
-      "Platform rejected the message"
+      "Platform rejected the message",
     );
     // The in-flight flag is still cleared by the finally block.
     expect(setSubmittingPrompt).toHaveBeenLastCalledWith(false);
@@ -206,7 +226,7 @@ describe("useSubmitFollowupByText: unavailable context", () => {
           projectId: "proj-1",
           trackSubmitPromptTelemetry: vi.fn(),
           setPromptDraft: vi.fn(),
-        })
+        }),
       );
 
       await expect(
@@ -215,10 +235,10 @@ describe("useSubmitFollowupByText: unavailable context", () => {
           clearDraftOnSuccess: false,
           actionName: "submitFollowupPrompt",
           followupAction: null,
-        })
+        }),
       ).rejects.toThrow(expectedMessage);
       expect(submitFreeformViaPlatformMock).not.toHaveBeenCalled();
-    }
+    },
   );
 });
 
@@ -246,7 +266,7 @@ describe("useSubmitFollowupByText: helper input shape", () => {
         projectId: "proj-1",
         trackSubmitPromptTelemetry: vi.fn(),
         setPromptDraft: vi.fn(),
-      })
+      }),
     );
 
     await result.current({

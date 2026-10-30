@@ -20,7 +20,7 @@ export const reportChangedFilesTool = {
   kind: 'pass_through',
   name: 'report_changed_files',
   description:
-    'Report service-qualified repository-relative changed files before completing. Use [] for no changes. Correct rejected claims and report again after edits. Supply the current Turn and provider session; a context rejection returns the expected identities.',
+    'Report service-qualified repository-relative changed files before completing. No submission is required when no files changed. Correct rejected claims and report again after edits. Supply the current Turn and provider session; a context rejection returns the expected identities.',
   inputSchema: {
     type: 'object',
     additionalProperties: false,

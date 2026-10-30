@@ -18,6 +18,10 @@ import { ReportAudience } from './reportAudience';
 
 export interface CreateReportDtoBase { 
     /**
+     * Whether this report may be reused as project knowledge. Omitted means true on creation.
+     */
+    ragEnabled?: boolean;
+    /**
      * Optional project scope for the report
      */
     projectId?: string | null;

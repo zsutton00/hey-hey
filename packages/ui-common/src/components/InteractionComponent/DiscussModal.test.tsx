@@ -1,3 +1,5 @@
+import { HostedModalFixture } from "../../test/HostedModalFixture";
+import { ModalRestoreControls } from "../Modals/ModalRestoreControls";
 import type { AgentComposerContext } from "../SmarterTextAreaCard/slashCommands/types";
 import React from "react";
 import {
@@ -1182,6 +1184,40 @@ describe("DiscussModal submit and close behavior", () => {
     );
   });
 
+  it("preserves the same editable draft, launch selections and retry error through minimization without launching", async () => {
+    const props = {
+      ...defaultProps(),
+      submitError: { code: null, message: "Retry this launch" },
+    };
+    render(
+      <MemoryRouter>
+        <HostedModalFixture>
+          <DiscussModal {...props} />
+          <ModalRestoreControls />
+        </HostedModalFixture>
+      </MemoryRouter>,
+    );
+    const input = screen.getByTestId("mock-editor-input");
+    fireEvent.change(input, { target: { value: "Keep this draft" } });
+    const model = within(screen.getByTestId("discuss-model-select")).getByRole(
+      "combobox",
+    );
+    const modelBefore = model.textContent;
+    await userEvent.click(screen.getByTestId("modal-minimize"));
+    await userEvent.click(
+      screen.getByRole("button", { name: /Restore Discuss/ }),
+    );
+    expect(screen.getByTestId("mock-editor-input")).toBe(input);
+    expect(input).toHaveValue("Keep this draft");
+    expect(
+      within(screen.getByTestId("discuss-model-select")).getByRole("combobox")
+        .textContent,
+    ).toBe(modelBefore);
+    expect(screen.getByText("Retry this launch")).toBeVisible();
+    expect(props.onClose).not.toHaveBeenCalled();
+    expect(props.onSubmit).not.toHaveBeenCalled();
+  });
+
   describe("file attachments", () => {
     const stagedResult = (name: string) => ({
       result: {
@@ -1196,6 +1232,45 @@ describe("DiscussModal submit and close behavior", () => {
       fireEvent.drop(screen.getByTestId("discuss-modal-attachment-drop-zone"), {
         dataTransfer: { types: ["Files"], files },
       });
+
+    it("uses the same upload path from the Attach files picker and preserves attachments while minimized", async () => {
+      attachmentMocks.stage.mockImplementation((_machine, file: File) =>
+        Promise.resolve(stagedResult(file.name)),
+      );
+      const props = defaultProps();
+      render(
+        <MemoryRouter>
+          <HostedModalFixture>
+            <DiscussModal {...props} />
+            <ModalRestoreControls />
+          </HostedModalFixture>
+        </MemoryRouter>,
+      );
+      await userEvent.upload(
+        screen.getByTestId("discuss-attachment-picker"),
+        new File(["notes"], "notes.txt"),
+      );
+      await waitFor(() =>
+        expect(screen.getByTestId("run-attachment-chip")).toHaveAttribute(
+          "data-upload-status",
+          "ready",
+        ),
+      );
+      expect(attachmentMocks.stage).toHaveBeenCalledWith(
+        "machine-1",
+        expect.any(File),
+      );
+      await userEvent.click(screen.getByTestId("modal-minimize"));
+      await userEvent.click(
+        screen.getByRole("button", { name: /Restore Discuss/ }),
+      );
+      expect(screen.getByTestId("run-attachment-chip")).toHaveAttribute(
+        "data-file-name",
+        "notes.txt",
+      );
+      expect(attachmentMocks.stage).toHaveBeenCalledOnce();
+      expect(props.onSubmit).not.toHaveBeenCalled();
+    });
 
     it("uploads dropped files to the selected machine, shows removable chips and creates no conversation", async () => {
       attachmentMocks.stage.mockImplementation((_machine, file: File) =>
@@ -1447,6 +1522,9 @@ describe("DiscussModal machine selection", () => {
     });
 
     expect(screen.getByTestId("machine-picker")).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("machine-picker")).getByRole("combobox"),
+    ).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByTestId("discuss-service-selector")).toBeInTheDocument();
     expect(screen.getByTestId("mock-service-selection")).toHaveTextContent(
       "None",

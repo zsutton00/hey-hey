@@ -1,3 +1,6 @@
+import { useModalState } from "../Modals/useModalState";
+import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import { DiagramReferenceActions } from "./DiagramReferenceActions";
 import { DIAGRAM_TASK_TYPE } from "../../constants/taskTypes";
 import { MentionArtifactCard } from "./MentionArtifactCard";
@@ -63,7 +66,6 @@ import {
   Box,
   Alert,
   Button,
-  Dialog,
   DialogContent,
   DialogTitle,
   IconButton,
@@ -140,7 +142,9 @@ import type { EntityMention } from "../SmarterTextAreaCard/types";
 import { InteractionComponent } from "../InteractionComponent";
 import { getPathService } from "../../services/webPathService";
 import {
+  getEntityColors,
   getEntityIcon,
+  getFallbackEntityColors,
   resolveWorkItemIcon,
   resolveWorkItemIconPresentation,
 } from "../../utils/entityIcons";
@@ -165,6 +169,17 @@ import {
   type WorkItemGraphNodeContextMenu,
 } from "./workflowGraphInteractions";
 import { getAuthoredWorkflowStepColor } from "./workflowGraphNodePresentation";
+import {
+  DiagramElementScreenBody,
+  DiagramElementScreenUnavailable,
+} from "./DiagramElementScreen";
+import {
+  type DiagramElementScreenState,
+  getDiagramScreenPlacement,
+  type ProjectedReferenceTarget,
+  useDiagramElementScreen,
+  useDiagramScreenLayout,
+} from "./diagramScreenResolution";
 import type {
   PreferredLayoutDeparture,
   PreferredWorkItemGraphShape,
@@ -329,6 +344,10 @@ type GraphWorkItem = Omit<WorkItemResponseDto, "sections"> & {
 };
 
 export interface WorkflowGraphSurfaceData {
+  referenceReviewControls?: Readonly<Record<string, React.ReactNode>>;
+  projectedReferenceTargets?: Readonly<
+    Record<string, ProjectedReferenceTarget>
+  >;
   workflow: GraphWorkItem;
   steps: GraphWorkItem[];
   edges: AgentEdgeResponseDto[];
@@ -362,6 +381,9 @@ interface WorkflowStepNodeData extends Record<string, unknown> {
   referenceSelected?: boolean;
   onSelectReference?: () => void;
   canonicalReference?: DiagramElementMetadata["canonicalReference"];
+  /** The canonical target's content when the displayed graph contains it. */
+  projectedReferenceTarget?: ProjectedReferenceTarget;
+  referenceReviewControl?: React.ReactNode;
   onExpandReference?: () => void;
   entityId: string;
   entityType: typeof TargetEntityType.Task;
@@ -501,6 +523,10 @@ const DEFAULT_WORKFLOW_GRAPH_MODEL_OPTIONS: WorkflowGraphModelOptions = {
 };
 
 export interface WorkItemGraphProjectionData {
+  referenceReviewControls?: Readonly<Record<string, React.ReactNode>>;
+  projectedReferenceTargets?: Readonly<
+    Record<string, ProjectedReferenceTarget>
+  >;
   layoutSource: "authored" | "canonical";
   projectedRoot: ProjectedWorkItem;
   children: readonly ProjectedWorkItem[];
@@ -716,7 +742,7 @@ const parseJsonSection = (
 };
 
 export const getDiagramMetadata = (
-  workItem: GraphWorkItem,
+  workItem: Pick<GraphWorkItem, "sections">,
 ): DiagramMetadata | null => {
   const value = parseJsonSection(workItem.sections, "diagramMetadata");
   if (
@@ -876,7 +902,7 @@ const DiagramBoundaryLayer: React.FC<{
 };
 
 export const getDiagramElementMetadata = (
-  workItem: GraphWorkItem,
+  workItem: Pick<GraphWorkItem, "sections">,
 ): DiagramElementMetadata | null =>
   (() => {
     const value = parseJsonSection(workItem.sections, "diagramElementMetadata");
@@ -1251,6 +1277,7 @@ const projectedRelationshipToSurfaceEdge = (
     targetNodeType,
     direction: relationship.direction,
     predicate: relationship.predicate,
+    actionLabel: relationship.actionLabel,
     reasoning: relationship.reasoning ?? "",
     metadata: relationship.metadata,
     createdAt: PROJECTED_EDGE_TIMESTAMP,
@@ -1265,6 +1292,8 @@ type ProjectableWorkItemGraph = Pick<
   | "incidentRelationships"
   | "identityLabels"
   | "externalEntities"
+  | "projectedReferenceTargets"
+  | "referenceReviewControls"
 >;
 
 export const projectWorkItemGraphForWorkflowSurface = (
@@ -1313,6 +1342,8 @@ const projectWorkItemGraph = (
         ),
       ),
     participation: null,
+    projectedReferenceTargets: projection.projectedReferenceTargets,
+    referenceReviewControls: projection.referenceReviewControls,
   };
 };
 
@@ -1422,16 +1453,15 @@ const getFulfilledByTargetsByStepId = ({
 };
 
 const getEdgeLabel = (edge: AgentEdgeResponseDto): string | undefined => {
-  if (edge.type !== AgentEdgeType.Conditional) {
-    return undefined;
-  }
-
-  const predicate = edge.predicate?.trim();
-  if (!predicate) {
-    return undefined;
-  }
-
-  return predicate;
+  const actionLabel = edge.actionLabel?.trim();
+  const predicate =
+    edge.type === AgentEdgeType.Conditional
+      ? edge.predicate?.trim()
+      : undefined;
+  const labels = [actionLabel, predicate].filter((label): label is string =>
+    Boolean(label),
+  );
+  return labels.length > 0 ? labels.join(" · ") : undefined;
 };
 
 const getEdgeStyle = (edge: AgentEdgeResponseDto): Edge["style"] => {
@@ -3898,6 +3928,8 @@ const getStepLanes = (
 
 export const buildWorkflowGraphModel = (
   {
+    projectedReferenceTargets,
+    referenceReviewControls,
     workflow,
     steps,
     edges,
@@ -3920,6 +3952,21 @@ export const buildWorkflowGraphModel = (
   const flowEdges = edges.filter(isFlowEdge);
   const stepById = new Map(steps.map((step) => [step.id, step]));
   const stepIds = new Set(stepById.keys());
+  // Canonical targets present in the displayed graph keep their displayed
+  // (projected) content; only targets outside it are read from the server.
+  const projectedReferenceTargetById = new Map<
+    string,
+    ProjectedReferenceTarget
+  >([
+    ...Object.entries(projectedReferenceTargets ?? {}),
+    ...[workflow, ...steps].map(
+      (item) =>
+        [
+          item.id,
+          { type: item.type, name: item.name, sections: item.sections },
+        ] as const,
+    ),
+  ]);
   const directEntityLinksByStepId = isDiagram
     ? getDirectEntityLinksByNodeId(
         steps,
@@ -4095,7 +4142,16 @@ export const buildWorkflowGraphModel = (
                   workflowTypeDefinition,
                 )
               : undefined,
+          referenceReviewControl:
+            referenceReviewControls?.[
+              diagramElementMetadata?.canonicalReference?.entityId ?? ""
+            ],
           canonicalReference: diagramElementMetadata?.canonicalReference,
+          projectedReferenceTarget: isDiagram
+            ? projectedReferenceTargetById.get(
+                diagramElementMetadata?.canonicalReference?.entityId ?? "",
+              )
+            : undefined,
           onExpandReference:
             explorationTargetId && options.onExpandReference
               ? () => options.onExpandReference?.(explorationTargetId)
@@ -4721,7 +4777,9 @@ const getWorkflowStepCardSx = (
 
 const WorkflowStepCardContent: React.FC<{
   data: WorkflowStepNodeData;
-}> = ({ data }) => {
+  screen: DiagramElementScreenState;
+  screenLayout: ReturnType<typeof useDiagramScreenLayout>;
+}> = ({ data, screen, screenLayout }) => {
   const theme = useTheme();
   const {
     hasLeftSourceHandle,
@@ -4749,6 +4807,19 @@ const WorkflowStepCardContent: React.FC<{
             ? "diagram-element-end-icon"
             : undefined;
   const highlightTextColor = getWorkflowGraphHighlightTextColor(theme);
+  const showsScreen = screen.kind === "loading" || screen.kind === "ready";
+  // The role icon sits at the screen's own upper-left corner, not the card's.
+  // Offsets are relative to the card's padding box, inside its 1px border.
+  const roleIconOffset =
+    screen.kind === "ready"
+      ? (() => {
+          const placement = getDiagramScreenPlacement(
+            data.sizeConfig.nodeSize,
+            screen,
+          );
+          return { top: placement.top - 1 + 6, left: placement.left - 1 + 6 };
+        })()
+      : { top: 6, left: 6 };
   const forwardSourceHandleStyle = {
     right: -7,
     width: 14,
@@ -4905,10 +4976,16 @@ const WorkflowStepCardContent: React.FC<{
             data-testid="diagram-element-role-icon"
             sx={{
               position: "absolute",
-              top: 6,
-              left: 6,
+              top: roleIconOffset.top,
+              left: roleIconOffset.left,
               display: "inline-flex",
-              color: data.isHighlighted ? highlightTextColor : "text.secondary",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 20,
+              height: 20,
+              borderRadius: "2px",
+              bgcolor: getFallbackEntityColors().background,
+              color: getFallbackEntityColors().color,
               lineHeight: 0,
               zIndex: 1,
             }}
@@ -4916,86 +4993,103 @@ const WorkflowStepCardContent: React.FC<{
             <DiagramRoleIcon
               aria-hidden
               data-testid={diagramRoleIconTestId}
-              sx={{ fontSize: "1rem" }}
+              sx={{ fontSize: 14 }}
             />
           </Box>
         </Tooltip>
       ) : null}
-      <Stack
-        spacing={0.5}
-        sx={{
-          height: "100%",
-          minHeight: 0,
-          boxSizing: "border-box",
-          // The link strip (24px icons, 4px inset from the frame) overlays
-          // the card bottom, so reserve its full height regardless of the
-          // card's own padding.
-          pb:
-            data.directEntityLinks.length > 0
-              ? "28px"
-              : fulfilledByCount > 0
-                ? 3
-                : 0,
-          pt: data.isDiagram ? 3 : 0,
-        }}
-      >
-        {(!data.isDiagram || data.diagramRoleKey === "DIAGRAM_REFERENCE") &&
-        data.diagramRole ? (
-          <Typography
-            variant="caption"
-            data-testid="diagram-element-role"
-            sx={{
-              color: "text.secondary",
-              fontSize: "0.625rem",
-              lineHeight: 1,
-            }}
-          >
-            {data.diagramRole}
-          </Typography>
-        ) : null}
-        <Typography
-          data-testid="workflow-inline-step-title"
-          variant="body2"
-          fontWeight={700}
+      {showsScreen ? (
+        <DiagramElementScreenBody
+          state={screen}
+          layout={screenLayout}
+          title={data.title}
+          titleFontSize={sizeConfig.titleFontSize}
+          titleColor={
+            data.isHighlighted ? highlightTextColor : theme.palette.text.primary
+          }
+          organizationId={data.organizationId}
+          projectId={data.projectId}
+        />
+      ) : (
+        <Stack
+          spacing={0.5}
           sx={{
-            color: data.isHighlighted ? highlightTextColor : "text.primary",
-            fontSize: sizeConfig.titleFontSize,
-            lineHeight: 1.25,
-            minHeight: sizeConfig.titleMinHeight,
-            flexShrink: 0,
-            overflow: "hidden",
-            whiteSpace: "normal",
-            display: "-webkit-box",
-            overflowWrap: "anywhere",
-            WebkitLineClamp: sizeConfig.titleLineClamp,
-            WebkitBoxOrient: "vertical",
+            height: "100%",
+            minHeight: 0,
+            boxSizing: "border-box",
+            // The link strip (24px icons, 4px inset from the frame) overlays
+            // the card bottom, so reserve its full height regardless of the
+            // card's own padding.
+            pb:
+              data.directEntityLinks.length > 0
+                ? "28px"
+                : fulfilledByCount > 0
+                  ? 3
+                  : 0,
+            pt: data.isDiagram ? 3 : 0,
           }}
         >
-          {data.title}
-        </Typography>
-        {data.summary && (
+          {(!data.isDiagram || data.diagramRoleKey === "DIAGRAM_REFERENCE") &&
+          data.diagramRole ? (
+            <Typography
+              variant="caption"
+              data-testid="diagram-element-role"
+              sx={{
+                color: "text.secondary",
+                fontSize: "0.625rem",
+                lineHeight: 1,
+              }}
+            >
+              {data.diagramRole}
+            </Typography>
+          ) : null}
           <Typography
-            data-testid="workflow-inline-step-summary"
+            data-testid="workflow-inline-step-title"
             variant="body2"
-            color={data.isHighlighted ? highlightTextColor : "text.secondary"}
+            fontWeight={700}
             sx={{
-              fontSize: sizeConfig.summaryFontSize,
-              lineHeight: 1.35,
-              minHeight: 0,
+              color: data.isHighlighted ? highlightTextColor : "text.primary",
+              fontSize: sizeConfig.titleFontSize,
+              lineHeight: 1.25,
+              minHeight: sizeConfig.titleMinHeight,
+              flexShrink: 0,
               overflow: "hidden",
               whiteSpace: "normal",
               display: "-webkit-box",
               overflowWrap: "anywhere",
-              WebkitLineClamp: sizeConfig.summaryLineClamp,
+              WebkitLineClamp: sizeConfig.titleLineClamp,
               WebkitBoxOrient: "vertical",
             }}
           >
-            {renderInlineMentions(data.summary, "minimal", {
-              disableLinks: data.disableLinks,
-            })}
+            {data.title}
           </Typography>
-        )}
-      </Stack>
+          {screen.kind === "unavailable" ? (
+            <DiagramElementScreenUnavailable />
+          ) : null}
+          {data.summary && (
+            <Typography
+              data-testid="workflow-inline-step-summary"
+              variant="body2"
+              color={data.isHighlighted ? highlightTextColor : "text.secondary"}
+              sx={{
+                fontSize: sizeConfig.summaryFontSize,
+                lineHeight: 1.35,
+                minHeight: 0,
+                overflow: "hidden",
+                whiteSpace: "normal",
+                display: "-webkit-box",
+                overflowWrap: "anywhere",
+                WebkitLineClamp: sizeConfig.summaryLineClamp,
+                WebkitBoxOrient: "vertical",
+              }}
+            >
+              {renderInlineMentions(data.summary, "minimal", {
+                disableLinks: data.disableLinks,
+              })}
+            </Typography>
+          )}
+        </Stack>
+      )}
       {fulfilledByCount > 0 ? (
         <Box
           data-testid="workflow-inline-fulfilled-count"
@@ -5072,6 +5166,8 @@ const WorkflowGraphDirectEntityLinkButton: React.FC<{
         )
       : undefined;
   const Icon = taskPresentation?.Icon ?? link.Icon;
+  const colors =
+    taskPresentation?.colors ?? getEntityColors(link.targetEntityType);
   const relationship = formatDiagramSemanticLabel(link.relationshipType);
   const accessibleName = `Preview ${link.targetTitle}; ${relationship}`;
 
@@ -5097,15 +5193,16 @@ const WorkflowGraphDirectEntityLinkButton: React.FC<{
       sx={{
         width: 24,
         height: 24,
-        p: 0.25,
-        border: (theme) => `1px solid ${theme.palette.divider}`,
-        bgcolor: "background.paper",
-        "&:hover": { bgcolor: "action.hover" },
+        p: 0,
+        borderRadius: "2px",
+        bgcolor: colors.background,
+        color: colors.color,
+        "&:hover": { bgcolor: colors.background, opacity: 0.85 },
       }}
     >
       <Icon
         aria-hidden
-        fontSize="small"
+        sx={{ fontSize: 16 }}
         data-testid="diagram-element-direct-link-icon"
         data-work-item-type={taskType}
       />
@@ -5117,7 +5214,9 @@ const WorkflowGraphDirectEntityLinkStrip: React.FC<{
   links: readonly WorkflowGraphRenderedEntityLink[];
   organizationId: string;
   projectId: string;
-}> = ({ links, organizationId, projectId }) => {
+  /** Frame-relative inset of the strip's lower-left corner. */
+  inset?: { left: number; bottom: number };
+}> = ({ links, organizationId, projectId, inset }) => {
   const hasScope = Boolean(organizationId && projectId);
   const [hoveredTarget, setHoveredTarget] = useState<{
     anchorEl: HTMLElement;
@@ -5233,8 +5332,8 @@ const WorkflowGraphDirectEntityLinkStrip: React.FC<{
         data-testid="diagram-element-link-strip"
         sx={{
           position: "absolute",
-          left: 4,
-          bottom: 4,
+          left: inset?.left ?? 4,
+          bottom: inset?.bottom ?? 4,
           alignItems: "center",
           zIndex: 3,
           pointerEvents: "all",
@@ -5288,114 +5387,99 @@ const WorkflowStepNode = memo(
     useEffect(() => {
       updateNodeInternals(id);
     }, [handleSignature, id, updateNodeInternals]);
+    // Content arriving later fills the fixed card footprint; it never feeds
+    // back into node data, layout, or positions.
+    const screenLayout = useDiagramScreenLayout(data.sizeConfig);
+    const screen = useDiagramElementScreen({
+      canonicalReference: data.isDiagram ? data.canonicalReference : undefined,
+      organizationId: data.organizationId,
+      projectId: data.projectId,
+      projectedTarget: data.projectedReferenceTarget,
+      layout: screenLayout,
+    });
+    const screenPlacement =
+      screen.kind === "ready"
+        ? getDiagramScreenPlacement(data.sizeConfig.nodeSize, screen)
+        : undefined;
+    const screenInset = screenPlacement
+      ? {
+          left: screenPlacement.left + 4,
+          bottom:
+            data.sizeConfig.nodeSize -
+            (screenPlacement.top + screenPlacement.height) +
+            4,
+        }
+      : undefined;
 
     return (
-      <Tooltip
-        title={
-          <WorkflowFulfillmentTooltipContent
-            disableLinks={data.disableLinks}
-            sizeConfig={data.sizeConfig}
-            sizeMode={data.sizeMode}
-            title={data.title}
-            description={data.description}
-            targets={data.fulfilledByTargets}
-          />
-        }
-        arrow
-        placement="top"
-        disableHoverListener={!hasTooltipContent}
-        slotProps={{
-          tooltip: {
-            sx: {
-              maxWidth: data.sizeConfig.tooltipMaxWidth,
-              p: 1.25,
-            },
-          },
-        }}
-      >
-        <Box
-          className={data.isEditable ? undefined : "nodrag nopan"}
-          tabIndex={data.disableLinks && data.onExpandReference ? 0 : undefined}
-          onFocus={data.onSelectReference}
-          onContextMenuCapture={
-            data.onExpandReference
-              ? (event) => {
-                  event.preventDefault();
-                  data.onSelectReference?.();
-                }
-              : undefined
+      <Box>
+        <Tooltip
+          title={
+            <WorkflowFulfillmentTooltipContent
+              disableLinks={data.disableLinks}
+              sizeConfig={data.sizeConfig}
+              sizeMode={data.sizeMode}
+              title={data.title}
+              description={data.description}
+              targets={data.fulfilledByTargets}
+            />
           }
-          onKeyDown={(event) => {
-            if (
-              event.key === "ContextMenu" ||
-              (event.shiftKey && event.key === "F10")
-            ) {
-              event.preventDefault();
-              data.onSelectReference?.();
-            }
-          }}
-          onMouseEnter={() => data.onNodeHover?.(id)}
-          onMouseLeave={() => data.onNodeHover?.(undefined)}
-          data-testid="workflow-inline-step-frame"
-          data-workflow-graph-size={data.sizeMode}
-          data-diagram-role={data.diagramRole}
-          data-diagram-notation={data.diagramNotation}
-          sx={{
-            width: data.sizeConfig.nodeSize,
-            height: data.sizeConfig.nodeSize,
-            pointerEvents: "all",
-            "& > [data-testid='interaction-component']": {
-              display: "block",
-              width: "100%",
-              height: "100%",
+          arrow
+          placement="top"
+          disableHoverListener={!hasTooltipContent}
+          slotProps={{
+            tooltip: {
+              sx: {
+                maxWidth: data.sizeConfig.tooltipMaxWidth,
+                p: 1.25,
+              },
             },
-            position: "relative",
           }}
         >
-          {data.disableLinks ? (
-            <Box
-              className={data.isEditable ? undefined : "nodrag nopan"}
-              data-testid="workflow-inline-step"
-              data-step-id={data.entityId}
-              data-step-drop-target={String(data.isDropTarget)}
-              data-step-highlighted={String(data.isHighlighted)}
-              data-step-created={String(data.isCreated)}
-              data-step-diff={data.diffStatus ?? "unchanged"}
-              data-step-presentation={data.presentationState}
-              data-links-disabled="true"
-              data-diagram-role={data.diagramRole}
-              data-diagram-notation={data.diagramNotation}
-              sx={getWorkflowStepCardSx(
-                true,
-                data.isDropTarget,
-                data.isHighlighted,
-                data.isCreated,
-                data.diffStatus,
-                data.presentationState,
-                data.authoredColor,
-                data.sizeConfig,
-                data.diagramNotation,
-              )}
-            >
-              <WorkflowStepCardContent data={data} />
-            </Box>
-          ) : (
-            <InteractionComponent
-              entityId={data.entityId}
-              entityType={data.entityType}
-              entitySubtype={data.entitySubtype}
-              entityTitle={data.entityTitle}
-              organizationId={data.organizationId}
-              projectId={data.projectId}
-              hasProposalSupport
-              draggable={false}
-              showIndicator={false}
-              idScope={WORKFLOW_GRAPH_INTERACTION_SCOPE}
-            >
+          <Box
+            className={data.isEditable ? undefined : "nodrag nopan"}
+            tabIndex={
+              data.disableLinks && data.onExpandReference ? 0 : undefined
+            }
+            onFocus={data.onSelectReference}
+            onContextMenuCapture={
+              data.onExpandReference
+                ? (event) => {
+                    event.preventDefault();
+                    data.onSelectReference?.();
+                  }
+                : undefined
+            }
+            onKeyDown={(event) => {
+              if (
+                event.key === "ContextMenu" ||
+                (event.shiftKey && event.key === "F10")
+              ) {
+                event.preventDefault();
+                data.onSelectReference?.();
+              }
+            }}
+            onMouseEnter={() => data.onNodeHover?.(id)}
+            onMouseLeave={() => data.onNodeHover?.(undefined)}
+            data-testid="workflow-inline-step-frame"
+            data-workflow-graph-size={data.sizeMode}
+            data-diagram-role={data.diagramRole}
+            data-diagram-notation={data.diagramNotation}
+            sx={{
+              width: data.sizeConfig.nodeSize,
+              height: data.sizeConfig.nodeSize,
+              pointerEvents: "all",
+              "& > [data-testid='interaction-component']": {
+                display: "block",
+                width: "100%",
+                height: "100%",
+              },
+              position: "relative",
+            }}
+          >
+            {data.disableLinks ? (
               <Box
-                className="nodrag nopan"
-                component={RouterLink}
-                to={data.href}
+                className={data.isEditable ? undefined : "nodrag nopan"}
                 data-testid="workflow-inline-step"
                 data-step-id={data.entityId}
                 data-step-drop-target={String(data.isDropTarget)}
@@ -5403,11 +5487,11 @@ const WorkflowStepNode = memo(
                 data-step-created={String(data.isCreated)}
                 data-step-diff={data.diffStatus ?? "unchanged"}
                 data-step-presentation={data.presentationState}
-                data-links-disabled="false"
+                data-links-disabled="true"
                 data-diagram-role={data.diagramRole}
                 data-diagram-notation={data.diagramNotation}
                 sx={getWorkflowStepCardSx(
-                  false,
+                  true,
                   data.isDropTarget,
                   data.isHighlighted,
                   data.isCreated,
@@ -5418,81 +5502,161 @@ const WorkflowStepNode = memo(
                   data.diagramNotation,
                 )}
               >
-                <WorkflowStepCardContent data={data} />
+                <WorkflowStepCardContent
+                  data={data}
+                  screen={screen}
+                  screenLayout={screenLayout}
+                />
               </Box>
-            </InteractionComponent>
-          )}
-          <WorkflowGraphDirectEntityLinkStrip
-            links={data.directEntityLinks}
-            organizationId={data.organizationId}
-            projectId={data.projectId}
-          />
-          {data.diagramRoleKey === "DIAGRAM_REFERENCE" && data.referenceIcon ? (
-            <DiagramReferenceActions
-              Icon={data.referenceIcon}
-              href={
-                !data.disableLinks &&
-                data.canonicalReference?.entityType === TargetEntityType.Task &&
-                !data.canonicalReference.entityId.startsWith("temporary:")
-                  ? getPathService().task({
-                      projectId: data.projectId,
-                      taskId: data.canonicalReference.entityId,
-                    })
-                  : undefined
-              }
-              selected={Boolean(data.referenceSelected)}
-              onExplore={data.onExpandReference}
-            />
-          ) : null}
-          {data.diagramRoleKey !== "DIAGRAM_REFERENCE" &&
-          data.canonicalReference &&
-          !data.disableLinks ? (
-            <Stack
-              direction="row"
-              className="nodrag nopan"
-              sx={{
-                position: "absolute",
-                bottom: 0,
-                left: 0,
-                right: 0,
-                justifyContent: "center",
-                bgcolor: "background.paper",
-              }}
-            >
-              <Tooltip title="Open reference">
-                <IconButton
-                  size="small"
+            ) : (
+              <InteractionComponent
+                entityId={data.entityId}
+                entityType={data.entityType}
+                entitySubtype={data.entitySubtype}
+                entityTitle={data.entityTitle}
+                organizationId={data.organizationId}
+                projectId={data.projectId}
+                hasProposalSupport
+                draggable={false}
+                showIndicator={false}
+                idScope={WORKFLOW_GRAPH_INTERACTION_SCOPE}
+              >
+                <Box
+                  className="nodrag nopan"
                   component={RouterLink}
-                  to={
-                    data.canonicalReference.entityType === TargetEntityType.Task
-                      ? getPathService().task({
-                          projectId: data.projectId,
-                          taskId: data.canonicalReference.entityId,
-                        })
-                      : getPathService().service({
-                          projectId: data.projectId,
-                          serviceId: data.canonicalReference.entityId,
-                        })
-                  }
-                  aria-label="Open reference"
-                  data-testid="diagram-reference-open"
+                  to={data.href}
+                  data-testid="workflow-inline-step"
+                  data-step-id={data.entityId}
+                  data-step-drop-target={String(data.isDropTarget)}
+                  data-step-highlighted={String(data.isHighlighted)}
+                  data-step-created={String(data.isCreated)}
+                  data-step-diff={data.diffStatus ?? "unchanged"}
+                  data-step-presentation={data.presentationState}
+                  data-links-disabled="false"
+                  data-diagram-role={data.diagramRole}
+                  data-diagram-notation={data.diagramNotation}
+                  sx={getWorkflowStepCardSx(
+                    false,
+                    data.isDropTarget,
+                    data.isHighlighted,
+                    data.isCreated,
+                    data.diffStatus,
+                    data.presentationState,
+                    data.authoredColor,
+                    data.sizeConfig,
+                    data.diagramNotation,
+                  )}
                 >
-                  <OpenInNewIcon sx={{ fontSize: "1rem" }} />
-                </IconButton>
-              </Tooltip>
-              {data.onExpandReference ? (
-                <Button
-                  size="small"
-                  onClick={data.onExpandReference}
-                  data-testid="diagram-reference-expand"
-                >
-                  Expand
-                </Button>
-              ) : null}
-            </Stack>
-          ) : null}
-        </Box>
-      </Tooltip>
+                  <WorkflowStepCardContent
+                    data={data}
+                    screen={screen}
+                    screenLayout={screenLayout}
+                  />
+                </Box>
+              </InteractionComponent>
+            )}
+            <WorkflowGraphDirectEntityLinkStrip
+              links={data.directEntityLinks}
+              organizationId={data.organizationId}
+              projectId={data.projectId}
+              inset={screenInset}
+            />
+            {data.diagramRoleKey === "DIAGRAM_REFERENCE" &&
+            data.referenceIcon ? (
+              <DiagramReferenceActions
+                Icon={data.referenceIcon}
+                href={
+                  !data.disableLinks &&
+                  data.canonicalReference?.entityType ===
+                    TargetEntityType.Task &&
+                  !data.canonicalReference.entityId.startsWith("temporary:")
+                    ? getPathService().task({
+                        projectId: data.projectId,
+                        taskId: data.canonicalReference.entityId,
+                      })
+                    : undefined
+                }
+                selected={Boolean(data.referenceSelected)}
+                onExplore={data.onExpandReference}
+              />
+            ) : null}
+            {data.diagramRoleKey !== "DIAGRAM_REFERENCE" &&
+            data.canonicalReference &&
+            !data.disableLinks ? (
+              <Stack
+                direction="row"
+                className="nodrag nopan"
+                sx={
+                  screenPlacement
+                    ? {
+                        // Over the screen's upper-right corner, so the name
+                        // below it stays readable.
+                        position: "absolute",
+                        top: screenPlacement.top + 4,
+                        right:
+                          data.sizeConfig.nodeSize -
+                          (screenPlacement.left + screenPlacement.width) +
+                          4,
+                        zIndex: 3,
+                        bgcolor: "background.paper",
+                        border: (theme) => `1px solid ${theme.palette.divider}`,
+                        borderRadius: 1,
+                      }
+                    : {
+                        position: "absolute",
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        justifyContent: "center",
+                        bgcolor: "background.paper",
+                      }
+                }
+              >
+                <Tooltip title="Open reference">
+                  <IconButton
+                    size="small"
+                    component={RouterLink}
+                    to={
+                      data.canonicalReference.entityType ===
+                      TargetEntityType.Task
+                        ? getPathService().task({
+                            projectId: data.projectId,
+                            taskId: data.canonicalReference.entityId,
+                          })
+                        : getPathService().service({
+                            projectId: data.projectId,
+                            serviceId: data.canonicalReference.entityId,
+                          })
+                    }
+                    aria-label="Open reference"
+                    data-testid="diagram-reference-open"
+                  >
+                    <OpenInNewIcon sx={{ fontSize: "1rem" }} />
+                  </IconButton>
+                </Tooltip>
+                {data.onExpandReference ? (
+                  <Button
+                    size="small"
+                    onClick={data.onExpandReference}
+                    data-testid="diagram-reference-expand"
+                  >
+                    Expand
+                  </Button>
+                ) : null}
+              </Stack>
+            ) : null}
+          </Box>
+        </Tooltip>
+        {data.referenceReviewControl ? (
+          <Box
+            className="nodrag nopan"
+            data-testid="journey-screen-review-controls"
+            sx={{ width: data.sizeConfig.nodeSize, pt: 1 }}
+          >
+            {data.referenceReviewControl}
+          </Box>
+        ) : null}
+      </Box>
     );
   },
 );
@@ -6844,6 +7008,16 @@ const WorkflowGraphFullscreenDialog: React.FC<
         },
       },
     }}
+    closeControl={
+      <IconButton
+        size="small"
+        onClick={onClose}
+        aria-label="Close workflow viewer"
+        data-testid="workflow-fullscreen-dialog-close"
+      >
+        <CloseIcon fontSize="small" />
+      </IconButton>
+    }
   >
     <DialogTitle
       data-testid="workflow-fullscreen-dialog-title"
@@ -6861,14 +7035,6 @@ const WorkflowGraphFullscreenDialog: React.FC<
         testId="workflow-fullscreen-dialog-title-link"
         workflowHref={workflowHref}
       />
-      <IconButton
-        size="small"
-        onClick={onClose}
-        aria-label="Close workflow viewer"
-        data-testid="workflow-fullscreen-dialog-close"
-      >
-        <CloseIcon fontSize="small" />
-      </IconButton>
     </DialogTitle>
     <DialogContent
       dividers
@@ -7019,7 +7185,8 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
   ...interaction
 }) => {
   const hasRouter = useInRouterContext();
-  const [isFullscreenOpen, setIsFullscreenOpen] = useState(false);
+  const [isFullscreenOpen, setIsFullscreenOpen, isFullscreenOpenOwnerKey] =
+    useModalState(false);
   const [graphSizeMode, setGraphSizeMode] = useState<WorkflowGraphSizeMode>(
     DEFAULT_WORKFLOW_GRAPH_SIZE_MODE,
   );
@@ -7175,34 +7342,36 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
         }}
         onExpandReference={openExploration}
       />
-      <WorkflowGraphFullscreenDialog
-        layoutComparisonControls={layoutComparisonControls}
-        graphData={hydratedGraphData}
-        projection={projection}
-        graphSizeMode={graphSizeMode}
-        disableLinks={resolvedDisableLinks}
-        highlightedStepId={highlightedStepId}
-        highlightedEdgeId={highlightedEdgeId}
-        hoveredNodeId={hoveredNodeId}
-        onNodeHover={setHoveredNodeId}
-        onEdgeMouseEnter={handleEdgeMouseEnter}
-        onEdgeMouseLeave={handleEdgeMouseLeave}
-        onViewportPointerLeave={handleViewportPointerLeave}
-        createdElements={createdElements}
-        diffElements={diffElements}
-        presentationState={presentationState}
-        workflowHref={resolvedDisableLinks ? undefined : workflowHref}
-        interaction={{ mode, ...interaction }}
-        directEntityLinks={directEntityLinks}
-        onSizeModeChange={setGraphSizeMode}
-        onExpandReference={openExploration}
-        open={isFullscreenOpen}
-        onClose={() => {
-          setIsFullscreenOpen(false);
-          setHighlightedEdgeId(undefined);
-          setHoveredNodeId(undefined);
-        }}
-      />
+      <ModalWorkOwner.Provider value={isFullscreenOpenOwnerKey}>
+        <WorkflowGraphFullscreenDialog
+          layoutComparisonControls={layoutComparisonControls}
+          graphData={hydratedGraphData}
+          projection={projection}
+          graphSizeMode={graphSizeMode}
+          disableLinks={resolvedDisableLinks}
+          highlightedStepId={highlightedStepId}
+          highlightedEdgeId={highlightedEdgeId}
+          hoveredNodeId={hoveredNodeId}
+          onNodeHover={setHoveredNodeId}
+          onEdgeMouseEnter={handleEdgeMouseEnter}
+          onEdgeMouseLeave={handleEdgeMouseLeave}
+          onViewportPointerLeave={handleViewportPointerLeave}
+          createdElements={createdElements}
+          diffElements={diffElements}
+          presentationState={presentationState}
+          workflowHref={resolvedDisableLinks ? undefined : workflowHref}
+          interaction={{ mode, ...interaction }}
+          directEntityLinks={directEntityLinks}
+          onSizeModeChange={setGraphSizeMode}
+          onExpandReference={openExploration}
+          open={isFullscreenOpen}
+          onClose={() => {
+            setIsFullscreenOpen(false);
+            setHighlightedEdgeId(undefined);
+            setHoveredNodeId(undefined);
+          }}
+        />
+      </ModalWorkOwner.Provider>
       {explorationTarget ? (
         <DiagramExplorationDialog
           organizationId={hydratedGraphData.workflow.organizationId}

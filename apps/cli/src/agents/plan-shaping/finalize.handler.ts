@@ -46,6 +46,7 @@ export const planShapingFinalizeHandler: UserLaunchablePromptTypeHandler<PlanSha
     buildPrompt(payload: PlanShapingFinalizePromptPayload, context): string {
       return buildFinalizePrompt({
         taskId: taskIdFromHandlerContext(context),
+        provider: context?.provider,
         userMessage: payload.userMessage ?? null,
       });
     },

@@ -249,6 +249,8 @@ components:
       $ref: ../schemas/coding-sessions.yaml#/AgentSessionConfigV2
     ProjectModeFiles:
       $ref: ../schemas/work-items.yaml#/ProjectModeFiles
+    SessionRole:
+      $ref: "../schemas/work-items.yaml#/SessionRole"
     ProjectModeSettings:
       $ref: ../schemas/work-items.yaml#/ProjectModeSettings
     ProjectModeProjectAssistantSetting:
@@ -295,6 +297,8 @@ components:
       $ref: ../schemas/conversations.yaml#/AgentTrigger
     ImplementRuntimeSelection:
       $ref: ../schemas/conversations.yaml#/ImplementRuntimeSelection
+    CodingPlanEmissionInput:
+      $ref: ../schemas/conversations.yaml#/CodingPlanEmissionInput
     ImplementPromptPayload:
       $ref: ../schemas/conversations.yaml#/ImplementPromptPayload
     AgentTriggerRepositoryGrounding:
@@ -2103,7 +2107,7 @@ components:
         - updates
       properties:
         reconciliation:
-          $ref: '../schemas/proposals.yaml#/ProposalReconciliationState'
+          $ref: "../schemas/proposals.yaml#/ProposalReconciliationState"
           description: Server-owned original/current content and immutable revision history for reconciliation. Candidate submissions return to review and never approve or apply.
         id:
           type: string
@@ -3125,6 +3129,10 @@ components:
         Server-signed envelope wrapping a closed, operation-discriminated CLI read body. Carried by the
         `cli.read.request` frame and verified under the same signature, machine/user binding, freshness, and replay
         rules as trigger envelopes.
+    HostActionPreparation:
+      $ref: "../schemas/controller-authorization.yaml#/HostActionPreparation"
+    ControllerActionInputs:
+      $ref: "../schemas/controller-authorization.yaml#/ControllerActionInputs"
     ControllerAuthorizedSignedConversationTriggerEnvelope:
       type: object
       additionalProperties: false

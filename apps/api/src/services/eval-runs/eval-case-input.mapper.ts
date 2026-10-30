@@ -1,10 +1,14 @@
 import { BadRequestException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type {
+  EvalCaseTarget,
   EvalCheckDefinition,
   EvalRubricDimension,
   EvalRunCaseInput,
 } from 'src/generated';
+import { RunEntityReference } from 'src/generated';
+import { normalizeMentionTypeAlias } from '../mentions/mention-type-aliases';
+import { resolveEvalCaseHandlers } from './eval-case-handlers';
 
 export type EvalCaseRecord = {
   id: string;
@@ -13,25 +17,40 @@ export type EvalCaseRecord = {
 };
 
 const MENTION_PATTERN =
-  /@\[[a-z_]+:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\|[^\]]*\]/gi;
+  /@\[([a-z_-]+):([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\|[^\]]*\]/gi;
 const LIST_ITEM_PATTERN = /^\s*(?:[-*+]|\d+[.)])\s+(.*)$/;
 
 /**
  * Items are listed with inline mentions; the first mentioned item is the
  * case's focal item and the rest support it.
  */
-function parseItems(markdown: string): {
-  focalItemId: string | null;
-  supportingItemIds: string[];
-} {
-  const ids = [
-    ...new Set(
-      [...markdown.matchAll(MENTION_PATTERN)].map((match) =>
-        match[1]!.toLowerCase(),
-      ),
-    ),
-  ];
-  return { focalItemId: ids[0] ?? null, supportingItemIds: ids.slice(1) };
+function parseItems(
+  markdown: string,
+): Pick<EvalCaseTarget, 'focalItemId' | 'focalItemType' | 'supportingItemIds'> {
+  const mentions = [...markdown.matchAll(MENTION_PATTERN)];
+  const ids = [...new Set(mentions.map((match) => match[2]!.toLowerCase()))];
+  const focal = mentions[0];
+  if (!focal) {
+    return { focalItemId: null, supportingItemIds: [] };
+  }
+
+  const canonicalType = normalizeMentionTypeAlias(focal[1]!)
+    .toUpperCase()
+    .replace(/-/g, '_');
+  const focalItemType = Object.values(RunEntityReference.EntityTypeEnum).find(
+    (type) => type === canonicalType,
+  );
+  if (!focalItemType) {
+    throw new BadRequestException(
+      'The focal item mention must use a supported entity family (task for work items).',
+    );
+  }
+
+  return {
+    focalItemId: ids[0]!,
+    focalItemType,
+    supportingItemIds: ids.slice(1),
+  };
 }
 
 function parseListItems(markdown: string): string[] {
@@ -85,8 +104,8 @@ function parseRubric(markdown: string): EvalRubricDimension[] {
 
 /**
  * Records an approved Eval Case exactly as it stands at launch. The target
- * half carries only what the handler may see; checks, rubric and expectations
- * stay in the grading half.
+ * context includes reviewer-only situation and supporting items; the launch
+ * sends only the request and focal entity to the tested handler.
  */
 export function toEvalRunCaseInput(record: EvalCaseRecord): EvalRunCaseInput {
   const section = (key: string): string =>
@@ -95,20 +114,27 @@ export function toEvalRunCaseInput(record: EvalCaseRecord): EvalRunCaseInput {
       ?.materializedMarkdown?.trim() ?? '';
 
   const situation = section('situation');
-  const initiatingRequest = section('request');
-  const targetHandler = section('handler');
+  const initiatingRequest =
+    record.sections.find((candidate) => candidate.key === 'request')
+      ?.materializedMarkdown ?? '';
+  const handler = section('handler');
   const missing = [
     ['situation', situation],
     ['request', initiatingRequest],
-    ['handler', targetHandler],
+    ['handler', handler],
   ]
-    .filter(([, value]) => !value)
+    .filter(([, value]) => !value?.trim())
     .map(([key]) => key);
   if (missing.length > 0) {
     throw new BadRequestException(
       `Eval case "${record.name}" cannot run: missing ${missing.join(', ')}`,
     );
   }
+  const handlers = resolveEvalCaseHandlers(
+    record.name,
+    handler,
+    section('consumerHandler'),
+  );
 
   const items = parseItems(section('items'));
   const expectations = section('expectations');
@@ -118,10 +144,9 @@ export function toEvalRunCaseInput(record: EvalCaseRecord): EvalRunCaseInput {
     title: record.name,
     target: {
       situation,
-      focalItemId: items.focalItemId,
-      supportingItemIds: items.supportingItemIds,
+      ...items,
       initiatingRequest,
-      targetHandler,
+      ...handlers,
     },
     grading: {
       ...(expectations ? { expectations } : {}),

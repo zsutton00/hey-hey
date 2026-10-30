@@ -9,7 +9,6 @@ import type {
   AggregatedErrorState,
   DebugTab,
   ModalState,
-  QueryKeysDebugState,
   TabConfig,
   UnifiedDebugState,
   UseUnifiedDebugOptions,
@@ -159,25 +158,6 @@ export const useUnifiedDebug = (
     ]
   );
 
-  const queryKeysDomainState = useMemo<QueryKeysDebugState>(
-    () => ({
-      collections: [],
-      isLoading: false,
-      lastUpdated: null,
-      autoRefresh: false,
-      refreshInterval: 60000,
-      globalStats: {
-        totalCollections: 0,
-        totalItems: 0,
-        totalQueryKeys: 0,
-        migrationProgress: 0,
-        memoryUsage: 0,
-        validationErrors: 0,
-      },
-    }),
-    []
-  );
-
   // Aggregate errors from both domains
   const aggregatedErrors: AggregatedErrorState = useMemo(() => {
     const sources: ("workflow" | "websocket")[] = [];
@@ -238,7 +218,6 @@ export const useUnifiedDebug = (
       selectedTab,
       workflow: workflowDomainState,
       websocket: webSocketDomainState,
-      querykeys: queryKeysDomainState,
       aggregatedErrors,
       modals,
       enabledTabs,
@@ -249,7 +228,6 @@ export const useUnifiedDebug = (
       selectedTab,
       workflowDomainState,
       webSocketDomainState,
-      queryKeysDomainState,
       aggregatedErrors,
       modals,
       enabledTabs,

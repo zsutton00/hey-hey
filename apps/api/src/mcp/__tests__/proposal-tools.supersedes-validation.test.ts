@@ -79,7 +79,6 @@ function createProvider(predecessorType: 'BUG' | 'STANDARD') {
   });
   const proposalService = {
     create: proposalCreate,
-    createBatch: jest.fn(),
     findOne: jest.fn(),
   } as unknown as ProposalService;
   const taskService = {

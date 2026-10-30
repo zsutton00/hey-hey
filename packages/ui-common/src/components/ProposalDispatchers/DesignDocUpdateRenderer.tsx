@@ -1,7 +1,10 @@
+import { useContext as useInlineBodyContext } from "react";
+import { InlineReconciliationBodyContext } from "../ProposalReconciliation/ProposalReconciliationReview";
+import { useUpdateProposalExpansion } from "./useUpdateProposalExpansion";
 import { useReconciledUpdate } from "../ProposalReconciliation/useReconciledUpdate";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { Box, Collapse, IconButton, Paper, Stack } from "@mui/material";
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { ProposalAction } from "../../api";
 import type {
   ProposalResponseDto,
@@ -28,6 +31,7 @@ import { useProposalHeaderTypeResolution } from "./proposalHeaderType";
  * content instead of the diff view.
  */
 export const DesignDocUpdateRenderer: React.FC<{
+  presentationAction?: ProposalAction;
   proposal: ProposalResponseDto & { updates: UpdateDesignDocDto };
   existing: DesignDocResponseDto;
   status: ProposalItemStatus;
@@ -44,6 +48,7 @@ export const DesignDocUpdateRenderer: React.FC<{
   footer?: React.ReactNode;
 }> = ({
   proposal: inputProposal,
+  presentationAction,
   existing: inputExisting,
   status,
   onApply,
@@ -56,12 +61,17 @@ export const DesignDocUpdateRenderer: React.FC<{
   notice,
   footer,
 }) => {
-  const { proposal, existing, hideDiff } = useReconciledUpdate(
+  const { proposal, existing, hideDiff, staged } = useReconciledUpdate(
     inputProposal,
     inputExisting,
   );
-  const isApplied = status.state === "applied";
-  const [expanded, setExpanded] = useState(!isApplied);
+  const { isApplied, collapsible, expanded, toggleExpanded } =
+    useUpdateProposalExpansion(
+      inputProposal,
+      status,
+      presentationAction,
+      hideDiff,
+    );
 
   const pathService = usePathService();
   const href = useMemo(
@@ -82,10 +92,15 @@ export const DesignDocUpdateRenderer: React.FC<{
     { kind: "entity", entityType: proposal.targetEntityType },
   );
 
+  const reconciliationBody = useInlineBodyContext(
+    InlineReconciliationBodyContext,
+  );
+
   const content = (
     <Stack spacing={1.5}>
-      {!overrides?.hideHeader && (
+      {!overrides?.hideHeader && (!staged || !!reconciliationBody) && (
         <ProposalTitle
+          presentationAction={presentationAction}
           proposal={proposal}
           resolvedTargetName={existing.name}
           typePresentation={typePresentation}
@@ -101,10 +116,13 @@ export const DesignDocUpdateRenderer: React.FC<{
               : undefined
           }
           endAdornment={
-            isApplied ? (
+            collapsible ? (
               <IconButton
                 size="small"
-                onClick={() => setExpanded((prev) => !prev)}
+                onClick={toggleExpanded}
+                aria-label={expanded ? "Collapse update" : "Expand update"}
+                aria-expanded={expanded}
+                data-testid="update-proposal-expand"
                 sx={{
                   transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
                   transition: "transform 0.2s",
@@ -116,52 +134,66 @@ export const DesignDocUpdateRenderer: React.FC<{
           }
         />
       )}
-      {notice}
-      <Collapse in={expanded && !hideDiff}>
-        <Stack spacing={1.5}>
-          {isApplied ? (
-            <Box sx={{ px: 1 }}>
-              <MarkdownRenderer allowMentionEscapes>
-                {newContent}
-              </MarkdownRenderer>
-            </Box>
-          ) : (
-            <DiffRenderer
-              oldContent={oldContent}
-              newContent={newContent}
-              defaultViewMode={diffDefaultViewMode ?? "split"}
-              showViewModeToggle
-            />
+      {reconciliationBody ?? (
+        <>
+          {overrides?.hideHeader && collapsible && (
+            <IconButton
+              onClick={toggleExpanded}
+              aria-label={expanded ? "Collapse update" : "Expand update"}
+              aria-expanded={expanded}
+              data-testid="update-proposal-expand"
+            >
+              <ExpandMoreIcon fontSize="small" />
+            </IconButton>
           )}
-          {siblingProposals && (
-            <ProposalEdges
-              edges={proposal.edges}
-              siblingProposals={siblingProposals}
-              organizationId={proposal.organizationId}
-              projectId={proposal.projectId}
-              ownerApplied={isApplied}
-            />
-          )}
-        </Stack>
-      </Collapse>
-      {footer && !overrides?.hideStateIndicator
-        ? footer
-        : !overrides?.hideStateIndicator && (
-            <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
-              <ProposalStateIndicator
-                status={status}
-                action={ProposalAction.Update}
-                onApply={onApply}
-                onReject={onReject}
-                disabled={disabled}
-                approvalProgress={approvalProgress}
-              />
-            </Box>
-          )}
+          <Collapse in={expanded && !hideDiff}>
+            <Stack spacing={1.5}>
+              {notice}
+              {isApplied ? (
+                <Box sx={{ px: 1 }}>
+                  <MarkdownRenderer allowMentionEscapes>
+                    {newContent}
+                  </MarkdownRenderer>
+                </Box>
+              ) : (
+                <DiffRenderer
+                  oldContent={oldContent}
+                  newContent={newContent}
+                  defaultViewMode={diffDefaultViewMode ?? "split"}
+                  showViewModeToggle
+                />
+              )}
+              {siblingProposals && (
+                <ProposalEdges
+                  edges={proposal.edges}
+                  siblingProposals={siblingProposals}
+                  organizationId={proposal.organizationId}
+                  projectId={proposal.projectId}
+                  ownerApplied={isApplied}
+                />
+              )}
+            </Stack>
+          </Collapse>
+          {footer && !overrides?.hideStateIndicator
+            ? footer
+            : !overrides?.hideStateIndicator && (
+                <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
+                  <ProposalStateIndicator
+                    status={status}
+                    action={ProposalAction.Update}
+                    onApply={onApply}
+                    onReject={onReject}
+                    disabled={disabled}
+                    approvalProgress={approvalProgress}
+                  />
+                </Box>
+              )}
+        </>
+      )}
     </Stack>
   );
 
-  return overrides?.hideCard ? (
+  return overrides?.hideCard || (staged && !reconciliationBody) ? (
     content
   ) : (
     <Paper variant="outlined" sx={{ p: 2 }}>

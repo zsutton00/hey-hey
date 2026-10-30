@@ -1,4 +1,3 @@
-import { assertProposalApplicationEligible } from './proposal-application-eligibility';
 import { lockReconciliationReplacement } from './proposal-reconciliation-group.service';
 import {
   BadRequestException,
@@ -106,12 +105,6 @@ export class ProposalGroupFinalizationService {
             groupId,
             dto.expectedRevision,
           );
-          for (const member of group.members) {
-            assertProposalApplicationEligible(
-              member.proposal,
-              'groupFinalization.finalize',
-            );
-          }
           const replacementSourceGroupId = await lockReconciliationReplacement(
             tx,
             groupId,
@@ -345,6 +338,15 @@ export class ProposalGroupFinalizationService {
             }
           }
 
+          if (issues.length === 0) {
+            topologyLintFindings = await this.lintProjectedGroupTopology({
+              organizationId,
+              projectId,
+              members: group.members,
+              issues,
+            });
+          }
+
           if (issues.length > 0) {
             this.logger.warn(
               'Proposal-group finalization validation failed; draft remains mutable and hidden',
@@ -353,6 +355,23 @@ export class ProposalGroupFinalizationService {
                 revision: group.revision,
                 issueCount: issues.length,
                 issueCodes: issues.map((issue) => issue.code),
+                issues: issues.slice(0, 20).map((issue) => ({
+                  code: issue.code,
+                  location: issue.location,
+                  memberId: issue.memberId,
+                  message: issue.message,
+                })),
+                extractedReferences: [
+                  ...referenceResult.referencesByMemberId,
+                ].map(([memberId, references]) => ({
+                  memberId,
+                  references,
+                })),
+                reservations: group.members.map((member) => ({
+                  memberId: member.id,
+                  targetEntityType: member.proposal.targetEntityType,
+                  reservedTargetEntityId: member.reservedTargetEntityId,
+                })),
               },
             );
             return {
@@ -361,12 +380,6 @@ export class ProposalGroupFinalizationService {
               issues,
             };
           }
-
-          topologyLintFindings = await this.lintProjectedGroupTopology({
-            organizationId,
-            projectId,
-            members: group.members,
-          });
 
           const reviewMessageId = group.messageId;
           const proposalIds = group.members.map((member) => member.proposalId);
@@ -408,7 +421,9 @@ export class ProposalGroupFinalizationService {
                 `Approval policy missing after successful validation for member ${member.id}`,
               );
             }
-            const approvalSatisfied = requiredApprovals === 0;
+            const approvalSatisfied =
+              member.proposal.applicationEligible !== false &&
+              requiredApprovals === 0;
             const prerequisitesApplied = (
               prerequisitesByMemberId.get(member.id) ?? []
             ).every(
@@ -540,6 +555,7 @@ export class ProposalGroupFinalizationService {
     organizationId: OrganizationId;
     projectId: ProjectId;
     members: ReadonlyArray<ProposalGroupWithSnapshot['members'][number]>;
+    issues?: ProposalGroupValidationIssue[];
   }): Promise<LintFinding[]> {
     if (!this.workItemChangeSetProjector || !this.workItemTypeRegistry) {
       return [];
@@ -555,6 +571,12 @@ export class ProposalGroupFinalizationService {
         member.proposal.action !== 'CREATE' ||
         !member.reservedTargetEntityId
       ) {
+        continue;
+      }
+      const graph = workItemChangeSetValidationRequestSchema.safeParse(
+        member.proposal.updates,
+      );
+      if (graph.success) {
         continue;
       }
       const updates = member.proposal.updates as Record<string, unknown>;
@@ -611,7 +633,8 @@ export class ProposalGroupFinalizationService {
     for (const member of params.members) {
       if (
         member.proposal.targetEntityType !== 'TASK' ||
-        member.proposal.action !== 'UPDATE'
+        (member.proposal.action !== 'UPDATE' &&
+          member.proposal.action !== 'CREATE')
       ) {
         continue;
       }
@@ -619,14 +642,60 @@ export class ProposalGroupFinalizationService {
         member.proposal.updates,
       );
       if (!parsed.success) continue;
+      if (
+        member.proposal.action === 'CREATE' &&
+        !parsed.data.operations.some(
+          (operation) =>
+            operation.op === 'workItem.create' &&
+            (operation.type === 'DIAGRAM' ||
+              operation.type === 'DIAGRAM_ELEMENT'),
+        )
+      ) {
+        continue;
+      }
       const topology = await this.workItemChangeSetProjector.projectTopology({
         organizationId: params.organizationId,
         projectId: params.projectId,
         request: parsed.data,
+        reservedEntities: params.members.flatMap((member) =>
+          member.reservedTargetEntityId
+            ? [
+                {
+                  entityId: member.reservedTargetEntityId,
+                  entityType: member.proposal.targetEntityType,
+                  workItemType: (member.proposal.updates as { type?: string })
+                    .type,
+                },
+              ]
+            : [],
+        ),
         overlayNodes: [...overlayNodes.values()],
         overlayRelationships: [...overlayRelationships.values()],
         view: rootChildrenView,
       });
+      const diagramChange =
+        topology.projection.projectedRoot?.type === 'DIAGRAM' ||
+        topology.projection.projectedRoot?.type === 'DIAGRAM_ELEMENT' ||
+        parsed.data.operations.some(
+          (operation) =>
+            (operation.op === 'workItem.create' &&
+              (operation.type === 'DIAGRAM' ||
+                operation.type === 'DIAGRAM_ELEMENT')) ||
+            ((operation.op === 'section.replace' ||
+              operation.op === 'section.clear') &&
+              (operation.key === 'diagramMetadata' ||
+                operation.key === 'diagramElementMetadata')),
+        );
+      if (!topology.projection.valid && diagramChange) {
+        for (const issue of topology.projection.issues) {
+          params.issues?.push({
+            code: 'MEMBER_INVALID',
+            memberId: member.id,
+            location: `/members/${member.memberOrder}/updates`,
+            message: issue.reason,
+          });
+        }
+      }
       if (topology.projection.valid) {
         topologies.push(topology);
         topology.nodes.forEach((node) =>

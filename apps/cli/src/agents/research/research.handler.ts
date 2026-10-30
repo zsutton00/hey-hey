@@ -88,6 +88,7 @@ export const researchHandler: UserLaunchablePromptTypeHandler<LocalResearchPromp
       },
       Array.isArray(enriched._touchedFiles),
       enriched._projectAssistantChecks,
+      ctx?.provider,
     );
   },
 

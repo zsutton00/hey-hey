@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  hasDemoSandboxSession,
+  markDemoSandboxSession,
+} from "../../data/demoSandboxSession";
+
 type AuthServiceModule = typeof import("../authService");
 
 type BroadcastMessageListener = (event: { data: unknown }) => void;
@@ -16,7 +21,7 @@ class TestBroadcastChannel {
 
   addEventListener(
     eventName: string,
-    listener: BroadcastMessageListener
+    listener: BroadcastMessageListener,
   ): void {
     if (eventName === "message") {
       this.listeners.add(listener);
@@ -45,12 +50,12 @@ class TestLockManager {
 
   request<Result>(
     _name: string,
-    callback: () => Result | PromiseLike<Result>
+    callback: () => Result | PromiseLike<Result>,
   ): Promise<Result> {
     const result = this.tail.then(callback, callback);
     this.tail = result.then(
       () => undefined,
-      () => undefined
+      () => undefined,
     );
     return result;
   }
@@ -141,14 +146,14 @@ describe("explicit browser selection", () => {
     expect(getAuthToken()).toBeNull();
     expect(getCurrentUser()).toEqual(selection.user);
     expect(getBrowserSessionContinuityDecision()).toBe(
-      BrowserSessionContinuityDecision.RenewFromServer
+      BrowserSessionContinuityDecision.RenewFromServer,
     );
     clientMocks.refreshToken.mockResolvedValueOnce(
       responseEnvelope({
         user: { ...browserUser, currentOrganizationId: organizationId },
         accessToken: "confirmed-access",
         expiresIn: 900,
-      })
+      }),
     );
     await refreshAuthToken(undefined, organizationId);
     expect(getAuthToken()).toBe("confirmed-access");
@@ -159,7 +164,7 @@ describe("explicit browser selection", () => {
     clientMocks.refreshToken.mockReturnValueOnce(
       new Promise((resolve) => {
         finish = resolve;
-      })
+      }),
     );
     const renewal = refreshAuthToken();
     const organizationId = "550e8400-e29b-41d4-a716-446655440002";
@@ -168,7 +173,7 @@ describe("explicit browser selection", () => {
         user: { ...browserUser, currentOrganizationId: organizationId },
         accessToken: "switched",
         expiresIn: 900,
-      })
+      }),
     );
     const switching = refreshAuthToken(undefined, organizationId);
     expect(clientMocks.refreshToken).toHaveBeenCalledTimes(1);
@@ -177,7 +182,7 @@ describe("explicit browser selection", () => {
         user: browserUser,
         accessToken: "renewed",
         expiresIn: 900,
-      })
+      }),
     );
     await Promise.all([renewal, switching]);
     expect(clientMocks.refreshToken).toHaveBeenLastCalledWith({
@@ -191,6 +196,21 @@ describe("authService.login", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetAuthState();
+  });
+
+  it("clears the demo marker when a real user signs in", async () => {
+    markDemoSandboxSession(true);
+    clientMocks.login.mockResolvedValue(
+      responseEnvelope({
+        user: browserUser,
+        accessToken: "access-token",
+        expiresIn: 900,
+      }),
+    );
+
+    await login({ email: "test@example.com", password: "password" });
+
+    expect(hasDemoSandboxSession()).toBe(false);
   });
 
   it("accepts a browser-safe response and stores only its access token", async () => {
@@ -249,7 +269,7 @@ describe("authService.login", () => {
       login({
         email: "test@example.com",
         password: "password",
-      })
+      }),
     ).rejects.toThrow("Invalid browser authentication response");
 
     expect(getAuthToken()).toBeNull();
@@ -262,11 +282,11 @@ describe("authService.initiatePasswordRecovery", () => {
 
   it("returns the fixed acknowledgement without changing auth state", async () => {
     clientMocks.initiatePasswordRecovery.mockResolvedValue(
-      responseEnvelope({ message: recoveryAcknowledgement })
+      responseEnvelope({ message: recoveryAcknowledgement }),
     );
 
     await expect(
-      initiatePasswordRecovery("person@example.com")
+      initiatePasswordRecovery("person@example.com"),
     ).resolves.toEqual({ message: recoveryAcknowledgement });
     expect(clientMocks.initiatePasswordRecovery).toHaveBeenCalledWith({
       passwordRecoveryRequestDto: { email: "person@example.com" },
@@ -276,11 +296,11 @@ describe("authService.initiatePasswordRecovery", () => {
 
   it("rejects response drift instead of inventing an acknowledgement", async () => {
     clientMocks.initiatePasswordRecovery.mockResolvedValue(
-      responseEnvelope({ message: "Account exists" })
+      responseEnvelope({ message: "Account exists" }),
     );
 
     await expect(
-      initiatePasswordRecovery("person@example.com")
+      initiatePasswordRecovery("person@example.com"),
     ).rejects.toThrow("unexpected error occurred during password recovery");
   });
 });
@@ -298,7 +318,7 @@ describe("authService.refreshAuthToken", () => {
       expiresIn: 900,
     };
     clientMocks.refreshToken.mockResolvedValue(
-      responseEnvelope(browserAuthResponse)
+      responseEnvelope(browserAuthResponse),
     );
     const authChanges = vi.fn();
     const unsubscribe = onAuthChange(authChanges);
@@ -326,7 +346,7 @@ describe("authService.refreshAuthToken", () => {
     clientMocks.refreshToken.mockResolvedValue(responseEnvelope(switched));
 
     await expect(
-      refreshAuthToken(undefined, "550e8400-e29b-41d4-a716-446655440002")
+      refreshAuthToken(undefined, "550e8400-e29b-41d4-a716-446655440002"),
     ).resolves.toEqual(switched);
     expect(clientMocks.refreshToken).toHaveBeenCalledWith({
       refreshBrowserSessionDto: {
@@ -344,7 +364,7 @@ describe("authService.refreshAuthToken", () => {
     });
 
     await expect(
-      refreshAuthToken(undefined, "550e8400-e29b-41d4-a716-446655440002")
+      refreshAuthToken(undefined, "550e8400-e29b-41d4-a716-446655440002"),
     ).rejects.toThrow("Access forbidden.");
     expect(getAuthToken()).toBe("current-access-token");
   });
@@ -358,17 +378,17 @@ describe("authService.refreshAuthToken", () => {
         user: browserUser,
         accessToken: 42,
         expiresIn: 900,
-      })
+      }),
     );
 
     const firstRenewal = refreshAuthToken();
     const secondRenewal = refreshAuthToken();
 
     await expect(firstRenewal).rejects.toThrow(
-      "unexpected error occurred during token refresh"
+      "unexpected error occurred during token refresh",
     );
     await expect(secondRenewal).rejects.toThrow(
-      "unexpected error occurred during token refresh"
+      "unexpected error occurred during token refresh",
     );
     expect(clientMocks.refreshToken).toHaveBeenCalledOnce();
     expect(getAuthToken()).toBeNull();
@@ -404,12 +424,11 @@ describe("authService cross-tab renewal", () => {
       expiresIn: 900,
     };
     let resolveRefresh:
-      | ((value: ReturnType<typeof responseEnvelope>) => void)
-      | undefined;
+      ((value: ReturnType<typeof responseEnvelope>) => void) | undefined;
     clientMocks.refreshToken.mockReturnValue(
       new Promise((resolve) => {
         resolveRefresh = resolve;
-      })
+      }),
     );
 
     const ownerRenewal = ownerTab.refreshAuthToken();
@@ -448,7 +467,7 @@ describe("authService cross-tab renewal", () => {
     const recoveredRenewal = recoveryTab.refreshAuthToken();
 
     await expect(failedRenewal).rejects.toThrow(
-      "unexpected error occurred during token refresh"
+      "unexpected error occurred during token refresh",
     );
     await expect(recoveredRenewal).resolves.toEqual(recoveredResponse);
     expect(clientMocks.refreshToken).toHaveBeenCalledTimes(2);
@@ -470,14 +489,14 @@ describe("authService cross-tab renewal", () => {
     };
 
     clientMocks.refreshToken.mockResolvedValue(
-      responseEnvelope(initialBrowserAuthResponse)
+      responseEnvelope(initialBrowserAuthResponse),
     );
     await idleTab.refreshAuthToken();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     idleTab.setAuthToken("idle-tab-access-token");
     clientMocks.refreshToken.mockResolvedValue(
-      responseEnvelope(browserAuthResponse)
+      responseEnvelope(browserAuthResponse),
     );
 
     await ownerTab.refreshAuthToken();
@@ -500,19 +519,19 @@ describe("authService.changePassword", () => {
       expiresIn: 900,
     };
     clientMocks.changePassword.mockResolvedValue(
-      responseEnvelope(browserAuthResponse)
+      responseEnvelope(browserAuthResponse),
     );
 
     await expect(
-      changePassword("password-change-token", "replacement-password")
+      changePassword("password-change-token", "replacement-password"),
     ).resolves.toEqual(browserAuthResponse);
 
     expect(getAuthToken()).toBe("replacement-access-token");
     expect(clientMocks.setAuthToken).toHaveBeenCalledWith(
-      "replacement-access-token"
+      "replacement-access-token",
     );
     expect(getBrowserSessionContinuityDecision()).toBe(
-      BrowserSessionContinuityDecision.RenewFromServer
+      BrowserSessionContinuityDecision.RenewFromServer,
     );
   });
 
@@ -527,11 +546,11 @@ describe("authService.changePassword", () => {
         accessToken: "replacement-access-token",
         expiresIn: 900,
         refreshToken: "must-not-be-exposed",
-      })
+      }),
     );
 
     await expect(
-      changePassword("password-change-token", "replacement-password")
+      changePassword("password-change-token", "replacement-password"),
     ).rejects.toThrow("unexpected error occurred during change password");
 
     expect(getAuthToken()).toBeNull();
@@ -556,11 +575,11 @@ describe("authService.changeCurrentPassword", () => {
     setAuthToken("existing-access-token");
     vi.clearAllMocks();
     clientMocks.changeCurrentPassword.mockResolvedValue(
-      responseEnvelope(browserAuthResponse)
+      responseEnvelope(browserAuthResponse),
     );
 
     await expect(
-      changeCurrentPassword("current-password", "replacement-password")
+      changeCurrentPassword("current-password", "replacement-password"),
     ).resolves.toEqual(browserAuthResponse);
 
     expect(clientMocks.changeCurrentPassword).toHaveBeenCalledWith({
@@ -581,7 +600,7 @@ describe("authService.changeCurrentPassword", () => {
     });
 
     await expect(
-      changeCurrentPassword("wrong-password", "replacement-password")
+      changeCurrentPassword("wrong-password", "replacement-password"),
     ).rejects.toThrow("Current password is incorrect");
 
     expect(getAuthToken()).toBe("existing-access-token");
@@ -592,23 +611,23 @@ describe("authService.changeCurrentPassword", () => {
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
     clientMocks.changeCurrentPassword.mockRejectedValue(
-      new Error("request failed")
+      new Error("request failed"),
     );
 
     try {
       await expect(
-        changeCurrentPassword("current-password", "replacement-password")
+        changeCurrentPassword("current-password", "replacement-password"),
       ).rejects.toThrow(
-        "An unexpected error occurred during change current password. Please try again."
+        "An unexpected error occurred during change current password. Please try again.",
       );
 
       expect(consoleError).toHaveBeenCalledWith(
         "Change current password failed",
-        { errorType: "Error" }
+        { errorType: "Error" },
       );
       expect(consoleError.mock.calls.flat()).not.toContain("current-password");
       expect(consoleError.mock.calls.flat()).not.toContain(
-        "replacement-password"
+        "replacement-password",
       );
     } finally {
       consoleError.mockRestore();
@@ -629,7 +648,7 @@ describe("authService.logout", () => {
     clientMocks.logout.mockReturnValue(
       new Promise<void>((resolve) => {
         resolveLogout = resolve;
-      })
+      }),
     );
 
     const logoutPromise = logout();
@@ -637,7 +656,7 @@ describe("authService.logout", () => {
     expect(clientMocks.logout).toHaveBeenCalledOnce();
     expect(getAuthToken()).toBe("active-access-token");
     expect(getBrowserSessionContinuityDecision()).toBe(
-      BrowserSessionContinuityDecision.RenewFromServer
+      BrowserSessionContinuityDecision.RenewFromServer,
     );
 
     resolveLogout?.();
@@ -646,20 +665,29 @@ describe("authService.logout", () => {
     expect(getAuthToken()).toBeNull();
     expect(clientMocks.setAuthToken).toHaveBeenCalledWith(null);
     expect(getBrowserSessionContinuityDecision()).toBe(
-      BrowserSessionContinuityDecision.RemainSignedOut
+      BrowserSessionContinuityDecision.RemainSignedOut,
     );
+  });
+
+  it("forgets the demo marker so signing out of a demo does not route back into it", async () => {
+    markDemoSandboxSession(true);
+    setAuthToken("active-access-token");
+    clientMocks.logout.mockResolvedValue(responseEnvelope({ message: "ok" }));
+
+    await logout();
+
+    expect(hasDemoSandboxSession()).toBe(false);
   });
 
   it("lets an in-flight renewal settle before clearing server cookies", async () => {
     setAuthToken("active-access-token");
     vi.clearAllMocks();
     let resolveRenewal:
-      | ((value: ReturnType<typeof responseEnvelope>) => void)
-      | undefined;
+      ((value: ReturnType<typeof responseEnvelope>) => void) | undefined;
     clientMocks.refreshToken.mockReturnValue(
       new Promise((resolve) => {
         resolveRenewal = resolve;
-      })
+      }),
     );
     clientMocks.logout.mockResolvedValue(responseEnvelope({ message: "ok" }));
 
@@ -668,7 +696,7 @@ describe("authService.logout", () => {
 
     expect(clientMocks.logout).not.toHaveBeenCalled();
     await expect(refreshAuthToken()).rejects.toThrow(
-      "Cannot renew the browser session while logout is in progress"
+      "Cannot renew the browser session while logout is in progress",
     );
 
     resolveRenewal?.(
@@ -676,7 +704,7 @@ describe("authService.logout", () => {
         user: browserUser,
         accessToken: "renewed-access-token",
         expiresIn: 900,
-      })
+      }),
     );
     await refreshPromise;
     await logoutPromise;
@@ -684,7 +712,7 @@ describe("authService.logout", () => {
     expect(clientMocks.logout).toHaveBeenCalledOnce();
     expect(getAuthToken()).toBeNull();
     expect(getBrowserSessionContinuityDecision()).toBe(
-      BrowserSessionContinuityDecision.RemainSignedOut
+      BrowserSessionContinuityDecision.RemainSignedOut,
     );
   });
 
@@ -696,19 +724,19 @@ describe("authService.logout", () => {
     clientMocks.refreshToken.mockReturnValue(
       new Promise((_resolve, reject) => {
         rejectRenewal = reject;
-      })
+      }),
     );
     clientMocks.logout.mockReturnValue(
       new Promise<void>((resolve) => {
         resolveLogout = resolve;
-      })
+      }),
     );
 
     const refreshPromise = refreshAuthToken();
     const logoutPromise = logout();
     rejectRenewal?.(new Error("renewal failed"));
     await expect(refreshPromise).rejects.toThrow(
-      "unexpected error occurred during token refresh"
+      "unexpected error occurred during token refresh",
     );
 
     expect(clientMocks.logout).toHaveBeenCalledOnce();
@@ -726,13 +754,13 @@ describe("authService.logout", () => {
     clientMocks.logout.mockRejectedValue(new Error("server unavailable"));
 
     await expect(logout()).rejects.toThrow(
-      "unexpected error occurred during logout"
+      "unexpected error occurred during logout",
     );
 
     expect(getAuthToken()).toBe("active-access-token");
     expect(clientMocks.setAuthToken).not.toHaveBeenCalled();
     expect(getBrowserSessionContinuityDecision()).toBe(
-      BrowserSessionContinuityDecision.RenewFromServer
+      BrowserSessionContinuityDecision.RenewFromServer,
     );
   });
 
@@ -741,7 +769,7 @@ describe("authService.logout", () => {
     clientMocks.logout.mockResolvedValue(responseEnvelope({ message: "ok" }));
     await logout();
     expect(getBrowserSessionContinuityDecision()).toBe(
-      BrowserSessionContinuityDecision.RemainSignedOut
+      BrowserSessionContinuityDecision.RemainSignedOut,
     );
 
     clientMocks.login.mockResolvedValue(
@@ -749,12 +777,12 @@ describe("authService.logout", () => {
         user: browserUser,
         accessToken: "new-access-token",
         expiresIn: 900,
-      })
+      }),
     );
     await login({ email: browserUser.email, password: "password" });
 
     expect(getBrowserSessionContinuityDecision()).toBe(
-      BrowserSessionContinuityDecision.RenewFromServer
+      BrowserSessionContinuityDecision.RenewFromServer,
     );
   });
 
@@ -768,12 +796,12 @@ describe("authService.logout", () => {
         user: browserUser,
         accessToken: "renewed-access-token",
         expiresIn: 900,
-      })
+      }),
     );
     await refreshAuthToken();
 
     expect(getBrowserSessionContinuityDecision()).toBe(
-      BrowserSessionContinuityDecision.RenewFromServer
+      BrowserSessionContinuityDecision.RenewFromServer,
     );
   });
 
@@ -787,12 +815,12 @@ describe("authService.logout", () => {
         user: browserUser,
         accessToken: "replacement-access-token",
         expiresIn: 900,
-      })
+      }),
     );
     await changePassword("password-change-token", "replacement-password");
 
     expect(getBrowserSessionContinuityDecision()).toBe(
-      BrowserSessionContinuityDecision.RenewFromServer
+      BrowserSessionContinuityDecision.RenewFromServer,
     );
   });
 });

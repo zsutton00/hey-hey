@@ -1,3 +1,4 @@
+import { createTestMessagePoster } from '../../run/run.test-support';
 import { startFailureOf } from './start-failure';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -28,11 +29,15 @@ const api = vi.hoisted(() => ({
   settle: vi.fn(),
   claim: vi.fn(),
   restore: vi.fn(),
+  service: vi.fn(),
 }));
 vi.mock('../../shared/api/generated/api', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   ProjectsApi: class {
     projectInputExecution = api.project;
+  },
+  ServicesApi: class {
+    getService = api.service;
   },
   AgentSessionsApi: class {
     settleAgentInteractionTurn = api.settle;
@@ -71,6 +76,7 @@ describe('input admission lifecycle delivery', () => {
   beforeEach(async () => {
     directory = await mkdtemp(join(tmpdir(), 'admission-lifecycle-'));
     vi.resetAllMocks();
+    api.service.mockResolvedValue({ data: { data: { name: 'Backend' } } });
     api.project.mockResolvedValue({ data: { data: { accepted: true } } });
     api.settle.mockResolvedValue({ data: { data: { accepted: true } } });
   });
@@ -140,6 +146,7 @@ describe('input admission lifecycle delivery', () => {
     const warn = vi.fn();
     const info = vi.fn();
     const attachmentStore = new RunAttachmentStore(directory);
+    const poster = createTestMessagePoster();
     const materialize = vi.fn().mockResolvedValue({ status: 'started' });
     const adoptStagedBrowserTab = vi.fn().mockResolvedValue(undefined);
     const make = (admissionOwner = owner, operationTimeline?: OperationTimelineRegistry) => {
@@ -162,6 +169,7 @@ describe('input admission lifecycle delivery', () => {
         { ...NOOP_LOGGER, info, warn, debug: vi.fn(), error: vi.fn() },
         () => ready,
         {} as never,
+        poster,
         operationTimeline,
         attachmentStore,
       );
@@ -176,6 +184,7 @@ describe('input admission lifecycle delivery', () => {
       collaboration,
       payload,
       attachmentStore,
+      poster,
       materialize,
       adoptStagedBrowserTab,
       attemptId,
@@ -274,6 +283,7 @@ describe('input admission lifecycle delivery', () => {
       { ...NOOP_LOGGER, debug, info: vi.fn(), warn: vi.fn(), error: vi.fn() },
       () => false,
       {} as never,
+      createTestMessagePoster(),
     );
     lifecycles.push(lifecycle);
     await lifecycle.start();
@@ -361,7 +371,12 @@ describe('input admission lifecycle delivery', () => {
           handlerPromptType: 'plan_shaping_feature_sync_iterate',
           userMessage: 'Keep refining.',
           attachments: [],
-          featureSyncContext: { discrepancies: [], decisions: [] },
+          featureSyncContext: {
+            planId: randomUUID(),
+            designDocId: randomUUID(),
+            discrepancies: [],
+            decisions: [],
+          },
         },
       }),
     );
@@ -508,6 +523,17 @@ describe('input admission lifecycle delivery', () => {
 
     const [record] = await f.records();
     expect(record?.state).toBe('failed');
+    expect(f.poster.createOutOfBand).toHaveBeenCalledOnce();
+    expect(f.poster.createOutOfBand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dto: expect.objectContaining({
+          data: expect.objectContaining({
+            response:
+              "Service Backend isn't bound to a folder on this machine. Bind a folder, then send your message again.",
+          }),
+        }),
+      }),
+    );
     expect(startFailureOf(record?.settlement)).toEqual({
       reason: 'service_folder_not_bound',
       serviceIds: [serviceId],
@@ -566,6 +592,32 @@ describe('input admission lifecycle delivery', () => {
     await healthy.make().start();
     expect(healthy.send).toHaveBeenCalledOnce();
   });
+
+  it.each([401, 403, 409, 429, 'unclassified'] as const)(
+    'ends a rejected request with a message for HTTP %s, without retrying it',
+    async (status) => {
+      const f = await fixture(randomUUID(), startRunFrame([]));
+      f.materialize.mockRejectedValue(
+        status === 'unclassified'
+          ? new Error('private diagnostic')
+          : new LocalAgentApiError('INVALID_REQUEST', 'private diagnostic', status),
+      );
+      const lifecycle = f.make();
+      await lifecycle.start();
+      expect((await f.records())[0]?.state).toBe('failed');
+      expect(f.poster.createOutOfBand).toHaveBeenCalledOnce();
+      expect(f.poster.createOutOfBand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          dto: expect.objectContaining({
+            data: expect.objectContaining({ response: expect.stringContaining('try again') }),
+          }),
+        }),
+      );
+      await lifecycle.advance(f.identity.agentSessionId);
+      expect(f.materialize).toHaveBeenCalledOnce();
+      expect(f.poster.createOutOfBand).toHaveBeenCalledOnce();
+    },
+  );
 
   it('delivers a no-file launch with an explicit empty list', async () => {
     const f = await fixture(randomUUID(), startRunFrame([]));
@@ -631,13 +683,13 @@ describe('input admission lifecycle delivery', () => {
 
   it('retries transient preparation across restart with the same input and Turn without failing projection', async () => {
     const f = await fixture(randomUUID());
-    f.send.mockRejectedValueOnce(new Error('temporary preparation failure'));
+    f.send.mockRejectedValueOnce(new AxiosError('temporary preparation failure', 'ECONNRESET'));
     const lifecycle = f.make();
     await lifecycle.start();
     const picked = (await f.records())[0]!;
     expect(picked.state).toBe('picked');
     expect(picked.turnId).not.toBeNull();
-    f.send.mockRejectedValueOnce(new Error('still unavailable'));
+    f.send.mockRejectedValueOnce(new AxiosError('still unavailable', 'ECONNRESET'));
     await lifecycle.advance(f.identity.agentSessionId);
     expect(f.send).toHaveBeenCalledTimes(2);
     lifecycle.dispose();
@@ -1092,6 +1144,7 @@ describe('input admission lifecycle delivery', () => {
       logger,
       () => true,
       {} as never,
+      createTestMessagePoster(),
     );
     lifecycles.push(lifecycle);
     return lifecycle;

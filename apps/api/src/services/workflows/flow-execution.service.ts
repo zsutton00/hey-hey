@@ -21,6 +21,7 @@ import {
   WorkflowId,
 } from '../../types';
 import {
+  AgentHandoffNodeBase,
   ExternalAgentNodeBase,
   FlowContext,
   MutableContextHandle,
@@ -1079,6 +1080,18 @@ export class FlowExecutionService {
         ? this.nodeExecutionService.getNode(flow.id, status.currentNodeId)
         : undefined;
 
+      if (nodeEntry?.node instanceof AgentHandoffNodeBase) {
+        this.logger.debug(
+          `Workflow ${workflowId} is on handoff node=${status.currentNodeId}; the conversation now belongs to the CLI handler, returning workflowState=terminal terminalPromptType=${flow.terminalPromptType}`,
+        );
+        return {
+          workflowState: WorkflowState.Terminal,
+          promptType: flow.terminalPromptType,
+          nodeId: null,
+          triggerMessageId: null,
+        };
+      }
+
       if (nodeEntry?.node.type === NodeType.EXTERNAL_AGENT) {
         const promptType = (nodeEntry.node as ExternalAgentNodeBase).promptType;
         const { triggerMessageId } =
@@ -1146,6 +1159,18 @@ export class FlowExecutionService {
         const nodeEntry = resolvedNodeId
           ? this.nodeExecutionService.getNode(flow.id, resolvedNodeId)
           : undefined;
+
+        if (nodeEntry?.node instanceof AgentHandoffNodeBase) {
+          this.logger.debug(
+            `Workflow ${workflowId} is gone and its saved execution=${pausedExecution.id} ended on handoff node=${resolvedNodeId}; the conversation now belongs to the CLI handler, returning workflowState=terminal terminalPromptType=${flow.terminalPromptType}`,
+          );
+          return {
+            workflowState: WorkflowState.Terminal,
+            promptType: flow.terminalPromptType,
+            nodeId: null,
+            triggerMessageId: null,
+          };
+        }
 
         if (nodeEntry?.node.type === NodeType.EXTERNAL_AGENT) {
           const promptType = (nodeEntry.node as ExternalAgentNodeBase)

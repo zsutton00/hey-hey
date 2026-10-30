@@ -60,7 +60,8 @@ import { reviewHandler } from './review-subagent/review.handler';
 import { rollupProposalHandler } from './rollup-proposal/rollup-proposal.handler';
 import { runEvalHandler } from './run-eval';
 import { evalJudgeHandler } from './run-eval/eval-judge.handler';
-import { EVAL_TARGET_HANDLER_IDS } from './run-eval/eval-targets';
+import { evalPreparationHandler } from './run-eval/eval-preparation.handler';
+import { EVAL_CONSUMER_HANDLER_IDS, EVAL_TARGET_HANDLER_IDS } from './run-eval/eval-targets';
 import { SessionMonitorHandler } from './session-monitor';
 import { setSplittingHandler } from './set-splitting/set-splitting.handler';
 import type { CreateReportProxy } from './submission-tools/create-report-proxy';
@@ -85,6 +86,8 @@ export interface PromptTypeRegistryDependencies {
   parentRequirements?: ParentRequirementsFilter;
   /** Defined only with a Jev key; Project Assistant then gathers context into its prompt before its session starts. */
   contextGathering?: ContextGatheringDeps;
+  /** The machine's Jev switch, read on every Project Assistant prepare; off disables both Jev uses above. */
+  isJevEnabled?: () => Promise<boolean>;
 }
 
 interface BuilderSpec {
@@ -104,6 +107,7 @@ const createHandlerBuilders = (
   runSubagentsTool: RunSubagentsTool | null | undefined,
   parentRequirements: ParentRequirementsFilter | undefined,
   contextGathering: ContextGatheringDeps | undefined,
+  isJevEnabled: (() => Promise<boolean>) | undefined,
 ): readonly BuilderSpec[] => [
   staticHandler(LocalPromptType.StartupSession, codingPlanHandler),
   staticHandler(LocalPromptType.PlanExecution, planExecutionHandler),
@@ -196,6 +200,7 @@ const createHandlerBuilders = (
         runSubagentsTool,
         parentRequirements,
         contextGathering,
+        isJevEnabled,
       ),
   },
   // Project-defined routing is deliberately last: built-ins retain first
@@ -208,6 +213,7 @@ const createHandlerBuilders = (
  * declare a child configuration and are never dispatched by prompt type.
  */
 const CHILD_ONLY_HANDLERS: readonly PromptTypeHandler<unknown>[] = [
+  evalPreparationHandler,
   projectReportSectionHandler,
   evalJudgeHandler,
 ];
@@ -226,6 +232,7 @@ export class PromptTypeRegistry {
       dependencies.runSubagentsTool,
       dependencies.parentRequirements,
       dependencies.contextGathering,
+      dependencies.isJevEnabled,
     );
 
     for (const spec of handlerBuilders) {
@@ -269,9 +276,17 @@ export class PromptTypeRegistry {
     }
 
     for (const handlerId of EVAL_TARGET_HANDLER_IDS) {
-      if (!this.handlersById.get(handlerId)?.childConfig) {
+      if (!this.handlersById.has(handlerId)) {
         throw new Error(
-          `PromptTypeRegistry: eval target '${handlerId}' must be a registered handler with a child configuration.`,
+          `PromptTypeRegistry: eval target '${handlerId}' must be a registered handler.`,
+        );
+      }
+    }
+
+    for (const handlerId of EVAL_CONSUMER_HANDLER_IDS) {
+      if (!this.handlersById.get(handlerId)?.projectAssistant) {
+        throw new Error(
+          `PromptTypeRegistry: eval consumer '${handlerId}' must be a registered handler that declares a Project Assistant policy.`,
         );
       }
     }

@@ -1,3 +1,5 @@
+import type { UpdateTaskDto } from 'src/generated';
+import { reconciliationPatch } from '../proposal-reconciliation-content';
 import { mergeProposalContent } from '../proposal-reconciliation-merge';
 
 describe('proposal reconciliation merge', () => {
@@ -129,6 +131,93 @@ describe('proposal reconciliation merge', () => {
     expect(result).toEqual({
       kind: 'MERGED',
       candidate: JSON.parse('{"__proto__":{"value":2},"constructor":2}'),
+    });
+  });
+});
+
+describe('requirement identity merges', () => {
+  const requirement = (id: string, statement = id) => ({
+    id,
+    statement,
+    designedBy: [],
+    fulfilledBy: [],
+    contracts: [],
+  });
+  const content = (...records: ReturnType<typeof requirement>[]) => ({
+    sections: { requirements: { records } },
+  });
+  const a = requirement('a');
+  const b = requirement('b');
+  it('merges independent edits and positions additions after their surviving predecessor', () => {
+    expect(
+      mergeProposalContent(
+        content(a, b),
+        content(requirement('a', 'Live'), b),
+        content(a, requirement('new'), requirement('b', 'Proposed')),
+      ),
+    ).toEqual({
+      kind: 'MERGED',
+      candidate: content(
+        requirement('a', 'Live'),
+        requirement('new'),
+        requirement('b', 'Proposed'),
+      ),
+    });
+  });
+  it.each([
+    [
+      content(requirement('a', 'Live'), b),
+      content(requirement('a', 'Proposed'), b),
+    ],
+    [content(b), content(requirement('a', 'Proposed'), b)],
+    [content(requirement('a', 'Live'), b), content(b)],
+  ])('reports only the overlapping requirement', (current, proposed) => {
+    expect(mergeProposalContent(content(a, b), current, proposed)).toEqual({
+      kind: 'AGENT_FIX_REQUIRED',
+      conflictingPaths: ['/sections/requirements/records/a'],
+    });
+  });
+  it('preserves live order and accepts equivalent reordering', () => {
+    expect(
+      mergeProposalContent(
+        content(a, b),
+        content(b, a),
+        content(requirement('a', 'Proposed'), b),
+      ),
+    ).toEqual({
+      kind: 'MERGED',
+      candidate: content(b, requirement('a', 'Proposed')),
+    });
+  });
+  it('carries the merged requirements into an operation-authored update', () => {
+    const patch = {
+      requirementOps: [{ op: 'update', targetId: 'b', statement: 'Proposed' }],
+    } satisfies UpdateTaskDto;
+    const current = content(requirement('a', 'Live'), b);
+    const proposed = content(a, requirement('b', 'Proposed'));
+    const result = mergeProposalContent(content(a, b), current, proposed);
+    expect(result.kind).toBe('MERGED');
+    if (result.kind !== 'MERGED') {
+      throw new Error('Independent requirements must merge');
+    }
+    expect(result.candidate).toEqual(
+      content(requirement('a', 'Live'), requirement('b', 'Proposed')),
+    );
+    expect(
+      reconciliationPatch(
+        patch,
+        current,
+        content(requirement('a', 'Live'), requirement('b', 'Proposed')),
+      ),
+    ).toEqual({
+      sections: [
+        {
+          key: 'requirements',
+          content: {
+            records: [requirement('a', 'Live'), requirement('b', 'Proposed')],
+          },
+        },
+      ],
     });
   });
 });

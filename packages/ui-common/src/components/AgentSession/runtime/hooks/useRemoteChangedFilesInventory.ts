@@ -58,7 +58,7 @@ export const useRemoteChangedFilesInventory = (params: {
     params.organizationId,
     params.projectId,
     params.agentSessionId,
-    { enabled: params.open }
+    { enabled: params.open },
   );
   const { machines } = useUserPairedMachines();
   const { mutate: authorize } =
@@ -83,7 +83,7 @@ export const useRemoteChangedFilesInventory = (params: {
       const owningMachineId = agentSession?.machineId ?? null;
       if (owningMachineId) {
         const localApi = createDirectoryBindingApi(
-          resolveLocalDirectoryRuntimeBaseUrl()
+          resolveLocalDirectoryRuntimeBaseUrl(),
         );
         let localMachineId: string | null = null;
         try {
@@ -100,7 +100,7 @@ export const useRemoteChangedFilesInventory = (params: {
           try {
             const response = await localApi.readRunChangedFilesInventory(
               runId,
-              localMachineId
+              localMachineId,
             );
             if (activeRequestRef.current !== requestGeneration) return;
             setState({
@@ -127,7 +127,7 @@ export const useRemoteChangedFilesInventory = (params: {
       }
 
       const machine = machines.find(
-        (candidate) => candidate.machineId === owningMachineId
+        (candidate) => candidate.machineId === owningMachineId,
       );
       if (!machine) {
         setState({
@@ -140,6 +140,11 @@ export const useRemoteChangedFilesInventory = (params: {
         return;
       }
       try {
+        const controllerReadInputs = {
+          operation:
+            CliReadRunChangedFilesInventoryRequestOperationEnum.RunChangedFilesInventory,
+          runId,
+        } as const;
         const response = await authorize({
           cause: {
             operation:
@@ -155,18 +160,21 @@ export const useRemoteChangedFilesInventory = (params: {
             actionType: HostAffectingActionType.CliRead,
             targetKind: HostActionTargetKind.AgentSession,
             targetId: params.agentSessionId,
+            inputs: {
+              kind: "CLI_READ",
+              body: {
+                requestId: crypto.randomUUID(),
+                agentSessionId: params.agentSessionId,
+                ...controllerReadInputs,
+              },
+            },
           },
           submit: ({ authorization }) =>
             unifiedApiClient.readAgentSessionCliState({
               organizationId: params.organizationId,
               projectId: params.projectId,
               agentSessionId: params.agentSessionId,
-              cliReadRequestDto: {
-                operation:
-                  CliReadRunChangedFilesInventoryRequestOperationEnum.RunChangedFilesInventory,
-                runId,
-                authorization,
-              },
+              cliReadRequestDto: { ...controllerReadInputs, authorization },
             }),
         });
         if (activeRequestRef.current !== requestGeneration) return;

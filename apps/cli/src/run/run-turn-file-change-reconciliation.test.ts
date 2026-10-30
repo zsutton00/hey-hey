@@ -181,6 +181,11 @@ describe('same-Turn changed-file reporting recovery', () => {
     'mixed',
     'retry',
     'reporting_write_failure',
+    'omitted',
+    'omitted_confirmed_edit',
+    'omitted_uncertain_edit',
+    'explicit_empty',
+    'in_flight_invalid',
   ] as const)('retains the answer and settles %s once', async (outcome) => {
     const repositoryRoot = await mkdtemp(path.join(os.tmpdir(), 'reporting-recovery-'));
     tempDirs.push(repositoryRoot);
@@ -222,6 +227,27 @@ describe('same-Turn changed-file reporting recovery', () => {
       async (args: import('../agents/providers/session-runner').ResumeArgs) => {
         turnIds.push(run.activeTurn!.turnId);
         if (!args.reportingRepair) {
+          for (const identity of [
+            { turnId: 'inactive-turn', providerSessionId: 'provider-1' },
+            { turnId: run.activeTurn!.turnId, providerSessionId: 'inactive-provider' },
+          ]) {
+            const rejected = await reportChangedFilesTool.execute({
+              runId: run.runId,
+              run,
+              args: { ...identity, changedFiles: [] },
+            });
+            expect(JSON.stringify(rejected)).toContain('context_rejected');
+          }
+          expect(run.activeTurn!.changedFileReporting.snapshot().state).toBe('not_reported');
+
+          if (['repaired', 'exhausted', 'retry'].includes(outcome)) {
+            await submit([null]);
+          }
+          if (outcome === 'explicit_empty') await submit([]);
+          if (outcome === 'in_flight_invalid') void submit([null]);
+          if (outcome === 'omitted_uncertain_edit') {
+            await writeFile(path.join(repositoryRoot, 'uncertain.ts'), 'unattributed');
+          }
           if (outcome === 'mixed') {
             const result = await submit([
               { serviceId: 'service-1', path: 'feature.ts' },
@@ -243,7 +269,11 @@ describe('same-Turn changed-file reporting recovery', () => {
           ) {
             await submit([]);
           }
-          if (outcome === 'stale_after_edit' || outcome === 'reporting_write_failure') {
+          if (
+            outcome === 'stale_after_edit' ||
+            outcome === 'reporting_write_failure' ||
+            outcome === 'omitted_confirmed_edit'
+          ) {
             if (outcome === 'reporting_write_failure') {
               vi.spyOn(run, 'persistChangedFileReporting').mockRejectedValueOnce(
                 new Error('Reporting evidence unavailable'),
@@ -347,7 +377,11 @@ describe('same-Turn changed-file reporting recovery', () => {
     await run.awaitIdle();
     expect(new Set(turnIds).size).toBe(1);
     expect(resumeSession).toHaveBeenCalledTimes(
-      outcome === 'exhausted' || outcome === 'retry' ? 3 : 2,
+      outcome === 'exhausted' || outcome === 'retry'
+        ? 3
+        : outcome.startsWith('omitted') || outcome === 'explicit_empty'
+          ? 1
+          : 2,
     );
     if (outcome === 'mixed') expect(harness.appendFileChangeFacts).toHaveBeenCalledOnce();
     expect(harness.poster.createOutOfBand).toHaveBeenCalledOnce();
@@ -362,9 +396,27 @@ describe('same-Turn changed-file reporting recovery', () => {
       (event) => event.payload.kind === 'changed_file_reporting',
     );
     expect(evidence.at(-1)?.payload).toMatchObject({
-      state: outcome === 'exhausted' ? 'not_reported' : 'validated',
+      state:
+        outcome === 'exhausted'
+          ? 'needs_correction'
+          : outcome.startsWith('omitted')
+            ? 'not_reported'
+            : 'validated',
       incomplete: outcome === 'exhausted',
     });
+    if (outcome.startsWith('omitted')) {
+      expect(evidence.at(-1)?.payload).toMatchObject({ attempts: 0 });
+      if (outcome !== 'omitted_confirmed_edit') expect(harness.createReport).not.toHaveBeenCalled();
+      expect(harness.loggerDebug).not.toHaveBeenCalledWith(
+        'runtime.turn.changed_file_reporting.transition',
+        expect.objectContaining({ action: 'recovery_exhausted' }),
+      );
+      expect(run.getFileChangeProjection()).toEqual(
+        outcome === 'omitted_confirmed_edit'
+          ? [{ serviceId: 'service-1', repoRelativePath: 'later.ts' }]
+          : [],
+      );
+    }
     const stale = await submit([], turnIds[0]);
     expect(JSON.stringify(stale)).toContain('context_rejected');
     // Durable validation from an ended Turn is evidence, never a new Turn's readiness.

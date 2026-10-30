@@ -1,4 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { WorkItemTypeRegistryService } from '../../tasks/work-item-type-registry.service';
 import { ProposalGroupDecisionService } from '../proposal-group-decision.service';
 import * as permissionContext from '../permission-evaluation-context';
 import * as permissionEvaluation from '../permission-evaluation';
@@ -33,6 +36,101 @@ const decisionMember = (overrides: Record<string, unknown> = {}) => ({
 
 describe('ProposalGroupDecisionService', () => {
   afterEach(() => jest.restoreAllMocks());
+
+  it('injects the registry for grouped future section approval before implementation completes', async () => {
+    const content = {
+      type: 'FEATURE',
+      name: 'Live',
+      sections: [{ key: 'description', materializedMarkdown: 'Before' }],
+    };
+    const member = decisionMember({
+      proposal: {
+        ...decisionMember().proposal,
+        action: 'VERSIONED_UPDATE',
+        updates: {
+          operation: 'REVISE',
+          baseline: { kind: 'LIVE', content },
+          result: {
+            ...content,
+            sections: [{ key: 'description', materializedMarkdown: 'After' }],
+          },
+          dependencies: [
+            { targetEntityType: 'TASK', targetEntityId: 'unfinished-work' },
+          ],
+        },
+      },
+      dependenciesAsDependent: [
+        { prerequisiteMember: { executionState: 'PENDING_APPROVAL' } },
+      ],
+    });
+    const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([]),
+      projectMember: {
+        findMany: jest.fn().mockResolvedValue([{ userId: 'user-1' }]),
+      },
+      task: {
+        findFirst: jest
+          .fn()
+          .mockResolvedValue({ type: 'FEATURE', parentTaskId: null }),
+        update: jest.fn(),
+      },
+      proposalGroupMember: {
+        findFirst: jest.fn().mockResolvedValue(member),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      proposalApprovalRecord: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({}),
+        count: jest.fn().mockResolvedValue(1),
+      },
+    };
+    const registry = {
+      getSectionDefinitions: jest
+        .fn()
+        .mockReturnValue([{ key: 'description', kind: 'markdown' }]),
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        ProposalGroupDecisionService,
+        {
+          provide: PrismaService,
+          useValue: {
+            db: {
+              $transaction: (callback: (client: typeof tx) => unknown) =>
+                callback(tx),
+            },
+          },
+        },
+        { provide: WorkItemTypeRegistryService, useValue: registry },
+      ],
+    })
+      .useMocker((token) =>
+        token === Object
+          ? undefined
+          : { publishInTransaction: jest.fn(), assertApplicable: jest.fn() },
+      )
+      .compile();
+    try {
+      const result = await module.get(ProposalGroupDecisionService).approve(
+        {
+          proposalId: 'proposal-1',
+          organizationId: 'organization-1' as never,
+          projectId: 'project-1' as never,
+          userId: 'user-1' as never,
+        },
+        await new ProjectApprovalPolicyService().resolve('project-1' as never),
+      );
+      expect(result.recorded).toBe(true);
+      expect(registry.getSectionDefinitions).toHaveBeenCalledWith(
+        'FEATURE',
+        'project-1',
+      );
+      expect(tx.proposalApprovalRecord.create).toHaveBeenCalledTimes(1);
+      expect(tx.task.update).not.toHaveBeenCalled();
+    } finally {
+      await module.close();
+    }
+  });
 
   function setupGroupedRejection(action: 'CREATE' | 'UPDATE' | 'DELETE') {
     const member = decisionMember({

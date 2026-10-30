@@ -9,6 +9,8 @@ import type { SubAgentUsage } from '../../run/subagent';
 
 /** What one target child produced. */
 export interface EvalTargetResult {
+  preparationMeasurements?: EvalMeasurement[];
+  handlerElapsedMs?: number;
   assistantCompleted: boolean;
   outputText?: string;
   budgetExhausted?: boolean;
@@ -25,6 +27,8 @@ export interface EvalJudgeResult {
 export type EvalAttemptPatch = Partial<
   Pick<
     EvalAttemptReportPayload,
+    | 'attemptProviderSessionIds'
+    | 'judgeProviderSessionId'
     | 'status'
     | 'stopReason'
     | 'error'
@@ -32,6 +36,7 @@ export type EvalAttemptPatch = Partial<
     | 'completedAt'
     | 'measurements'
     | 'automatedAssessment'
+    | 'judgedOutput'
     | 'summary'
   >
 >;
@@ -46,7 +51,7 @@ export interface EvalRunnerPorts {
   /** Starts the attempt's target as a fresh child. Rejects when the child fails. */
   launchTarget(
     attempt: EvalRecordedAttempt,
-    options: { signal: AbortSignal; tokenBudget?: number },
+    options: { signal: AbortSignal; tokenBudget?: number; onTokenLimit?: () => void },
   ): Promise<EvalTargetResult>;
   /** Judges a finished attempt's output against its recorded checks and rubric. */
   judge(
@@ -74,6 +79,12 @@ const toMeasurement = (
   elapsedMs,
   ...(usage.inputTokens !== undefined ? { inputTokens: usage.inputTokens } : {}),
   ...(usage.outputTokens !== undefined ? { outputTokens: usage.outputTokens } : {}),
+  ...(usage.cacheReadInputTokens !== undefined
+    ? { cacheReadInputTokens: usage.cacheReadInputTokens }
+    : {}),
+  ...(usage.cacheCreationInputTokens !== undefined
+    ? { cacheCreationInputTokens: usage.cacheCreationInputTokens }
+    : {}),
   ...(usage.toolCalls !== undefined ? { toolCalls: usage.toolCalls } : {}),
 });
 
@@ -133,6 +144,7 @@ export const runEvalAttempts = async (
       try {
         target = await ports.launchTarget(attempt, {
           signal: controller.signal,
+          onTokenLimit: () => stop('TOKEN_LIMIT'),
           ...(settings.attemptTokenLimit !== undefined
             ? { tokenBudget: settings.attemptTokenLimit }
             : {}),
@@ -149,8 +161,13 @@ export const runEvalAttempts = async (
         }
         return;
       }
+      measurements.push(...(target.preparationMeasurements ?? []));
       measurements.push(
-        toMeasurement('TARGET_HANDLER', ports.now().getTime() - startedAt.getTime(), target.usage),
+        toMeasurement(
+          'TARGET_HANDLER',
+          target.handlerElapsedMs ?? ports.now().getTime() - startedAt.getTime(),
+          target.usage,
+        ),
       );
       if (target.budgetExhausted) stopped.reason ??= 'TOKEN_LIMIT';
       const summary = target.outputText ? { outputText: target.outputText } : undefined;
@@ -176,6 +193,7 @@ export const runEvalAttempts = async (
       await ports.recorder.updateAttempt(attempt.attemptId, {
         status: 'JUDGING',
         measurements,
+        judgedOutput: target.outputText,
         summary,
       });
       try {

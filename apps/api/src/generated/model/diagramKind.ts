@@ -13,13 +13,14 @@
 
 
 
-export type DiagramKind = 'GENERAL' | 'ARCHITECTURE' | 'PROCESS' | 'DYNAMIC' | 'DEPLOYMENT';
+export type DiagramKind = 'GENERAL' | 'ARCHITECTURE' | 'PROCESS' | 'DYNAMIC' | 'DEPLOYMENT' | 'UX_FLOW';
 
 export const DiagramKind = {
     General: 'GENERAL' as DiagramKind,
     Architecture: 'ARCHITECTURE' as DiagramKind,
     Process: 'PROCESS' as DiagramKind,
     Dynamic: 'DYNAMIC' as DiagramKind,
-    Deployment: 'DEPLOYMENT' as DiagramKind
+    Deployment: 'DEPLOYMENT' as DiagramKind,
+    UxFlow: 'UX_FLOW' as DiagramKind
 };
 

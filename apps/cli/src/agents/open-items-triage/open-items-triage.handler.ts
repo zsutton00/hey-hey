@@ -15,6 +15,7 @@ import {
   type CompletionValidationFailure,
 } from '../prompt-type-handler';
 import { TriageInputOwner, type TriageInput } from './input-owner';
+import { TriageInputDiagnostics } from './input-diagnostics';
 import { buildTriagePrompt, type PreparedTriagePayload } from './prompts/triage-prompt';
 import { parseTriageResponse } from './schemas';
 
@@ -42,6 +43,7 @@ export class OpenItemsTriageHandler implements UserLaunchablePromptTypeHandler<T
   public readonly rebuildPromptOnUserMessage = true;
   public readonly reports = [] as const;
   public readonly mcpToolUseCase = 'research' as const;
+  public readonly additionalAllowedTools = ['get_agent_session'] as const;
   public readonly builtinTools = [] as const;
   public readonly readOnlyFilesystem = true;
   public readonly omitServiceContextNote = true;
@@ -95,14 +97,30 @@ export class OpenItemsTriageHandler implements UserLaunchablePromptTypeHandler<T
       mode: request.mode,
     });
     const token = await deps.auth.getAccessToken();
+    const diagnostics = new TriageInputDiagnostics();
     const inputOwner = new TriageInputOwner(
       deps,
       organizationId,
       request.projectId,
       token,
       Date.now(),
+      diagnostics,
     );
-    const triageInput = await inputOwner.build();
+    let triageInput: TriageInput | null = null;
+    try {
+      triageInput = await inputOwner.build();
+    } finally {
+      await diagnostics.write(
+        {
+          runId: run.agentic_session_id,
+          projectId: request.projectId,
+          requestKind: request.requestKind,
+          mode: request.mode,
+        },
+        triageInput,
+        deps.logger,
+      );
+    }
     return {
       payload: {
         projectId: request.projectId,

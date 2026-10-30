@@ -1,8 +1,12 @@
+import { isInertPlatformToolAllowed } from '../../run/inert-execution-policy';
 import type { McpSessionContext } from '../mcp-server-config';
 import type { ServerLogger } from '../../server/logger';
 import type { ActivePlatformToolCatalog } from './catalog';
 import type { PlatformMcpForwarder } from './forwarder';
-import { ProposalGroupFinalizationGuard } from './proposal-group-finalization-guard';
+import {
+  ProposalGroupFinalizationGuard,
+  readMcpPayload,
+} from './proposal-group-finalization-guard';
 
 type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
@@ -43,6 +47,16 @@ export interface PlatformMcpProxyRuntime {
   active: boolean;
   logger?: ServerLogger;
 }
+
+const INERT_PROPOSAL_TOOLS = new Set([
+  'create_work_item',
+  'edit_work_item',
+  'create_plan',
+  'create_design_doc',
+  'edit_design_doc',
+  'create_work_item_type',
+  'edit_work_item_type',
+]);
 
 const success = (id: string | number | null, result: JsonValue): JsonRpcSuccess => ({
   jsonrpc: '2.0',
@@ -186,6 +200,8 @@ const mismatchText = (input: { toolName: string; promptType: string; active: boo
 };
 
 export class PlatformMcpProxySession {
+  private readonly inertGroupIds = new Set<string>();
+
   private readonly proposalGroupFinalizationGuard: ProposalGroupFinalizationGuard;
   private protocolVersion: McpProtocolVersion = '2024-11-05';
 
@@ -291,7 +307,12 @@ export class PlatformMcpProxySession {
       .filter((name): name is string => name !== null);
     const activeUpstreamTools = upstreamTools.filter((entry) => {
       const name = readToolEntryName(entry);
-      return name !== null && this.runtime.catalog.has(name);
+      return (
+        name !== null &&
+        this.runtime.catalog.has(name) &&
+        (!this.runtime.context.inert ||
+          isInertPlatformToolAllowed(this.runtime.catalog.normalize(name)))
+      );
     });
     const normalizedActiveTools = activeUpstreamTools.map((entry) => ({
       name: readToolEntryName(entry),
@@ -378,9 +399,38 @@ export class PlatformMcpProxySession {
     }
 
     const normalizedName = this.runtime.catalog.normalize(toolName);
-    const params = request.params
+    if (this.runtime.context.inert && !isInertPlatformToolAllowed(normalizedName)) {
+      return {
+        statusCode: 200,
+        body: failure(request.id, -32602, 'Tool unavailable to inert execution.'),
+      };
+    }
+    const params: JsonObject = request.params
       ? { ...request.params, name: normalizedName }
       : { name: normalizedName };
+    if (this.runtime.context.inert) {
+      const suppliedArguments = params['arguments'];
+      const args = isJsonObject(suppliedArguments) ? suppliedArguments : {};
+      const groupContext = args['groupContext'];
+      if (isJsonObject(groupContext)) {
+        const groupId = groupContext['groupId'];
+        if (typeof groupId !== 'string' || !this.inertGroupIds.has(groupId)) {
+          return {
+            statusCode: 200,
+            body: failure(
+              request.id,
+              -32602,
+              'Inert execution can only change proposal groups it created.',
+            ),
+          };
+        }
+      }
+      if (INERT_PROPOSAL_TOOLS.has(normalizedName)) {
+        params['arguments'] = { ...args, ragEnabled: false, applicationEligible: false };
+      } else if (normalizedName === 'create_report' || normalizedName === 'update_report') {
+        params['arguments'] = { ...args, ragEnabled: false };
+      }
+    }
     const normalizedRequest = { ...request, params };
     if (normalizedName === 'finalize_proposal_group') {
       this.runtime.logger?.debug(
@@ -419,6 +469,16 @@ export class PlatformMcpProxySession {
       normalizedName,
     });
     const forwarded = await this.forwarder.forward(normalizedRequest, this.runtime.context);
+    if (
+      this.runtime.context.inert &&
+      normalizedName === 'start_proposal_group' &&
+      'result' in forwarded
+    ) {
+      const snapshot = readMcpPayload(forwarded.result);
+      if (isJsonObject(snapshot) && typeof snapshot['groupId'] === 'string') {
+        this.inertGroupIds.add(snapshot['groupId']);
+      }
+    }
     this.runtime.logger?.debug('local.platform_mcp_proxy.tool_call.forwarded', {
       runId: this.runtime.runId,
       turnId: this.runtime.turnId,

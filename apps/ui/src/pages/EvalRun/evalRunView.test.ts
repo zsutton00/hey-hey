@@ -9,8 +9,11 @@ import type { EvalAttemptReport } from "@hey-hey/ui-common/data";
 import {
   attemptCellView,
   defaultRunSettings,
+  isProjectAssistantEnabled,
+  runHandlerOf,
   formatElapsed,
   progressEntries,
+  toConfiguration,
   toLaunchSettings,
 } from "./evalRunView";
 
@@ -42,6 +45,74 @@ const attempt = (
   }) as unknown as EvalAttemptReport;
 
 const NOW = Date.parse("2026-10-22T10:10:00.000Z");
+
+describe("toConfiguration", () => {
+  it("assigns distinct UUID identities while preserving the chosen target", () => {
+    const target = {
+      provider: "claude",
+      model: "claude-opus-5-5",
+      reasoningEffort: "medium",
+    };
+    const first = toConfiguration(target, true);
+    const second = toConfiguration(target, true);
+    const uuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    expect(first.id).toMatch(uuid);
+    expect(second.id).toMatch(uuid);
+    expect(first.id).not.toBe(second.id);
+    expect(first.target).toEqual(target);
+  });
+
+  it("records Project Assistant off on the target and leaves it out while on", () => {
+    const target = { provider: "claude", model: "claude-opus-5-5" };
+    const off = toConfiguration(target, false);
+
+    expect(toConfiguration(target, true).target).toEqual(target);
+    expect(off.target).toEqual({
+      ...target,
+      handlerConfig: { projectAssistant: { enabled: false } },
+    });
+    expect(isProjectAssistantEnabled([off])).toBe(false);
+    expect(isProjectAssistantEnabled([toConfiguration(target, true)])).toBe(
+      true,
+    );
+  });
+});
+
+describe("toConfiguration with a run-level handler", () => {
+  const target = { provider: "claude", model: "claude-opus-5-5" };
+
+  it("records the chosen handler with Project Assistant's setting", () => {
+    expect(
+      toConfiguration(target, true, "feature_sync_analyze").target,
+    ).toEqual({
+      ...target,
+      handlerConfig: { handler: "feature_sync_analyze" },
+    });
+    expect(
+      toConfiguration(target, false, "feature_sync_analyze").target,
+    ).toEqual({
+      ...target,
+      handlerConfig: {
+        handler: "feature_sync_analyze",
+        projectAssistant: { enabled: false },
+      },
+    });
+  });
+
+  it("records no preparation setting for Project Assistant alone", () => {
+    const alone = toConfiguration(target, false, "project_assistant");
+
+    expect(alone.target.handlerConfig).toEqual({
+      handler: "project_assistant",
+    });
+    expect(runHandlerOf([alone])).toBe("project_assistant");
+  });
+
+  it("leaves each case's own handler alone when none is chosen", () => {
+    expect(runHandlerOf([toConfiguration(target, true)])).toBeUndefined();
+  });
+});
 
 describe("toLaunchSettings", () => {
   it("defaults to 3 at once and leaves both limits out (no limit)", () => {

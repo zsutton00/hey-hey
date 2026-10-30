@@ -11,12 +11,13 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
+import { ControllerActionInputs } from './controllerActionInputs';
 import { HostActionCategory } from './hostActionCategory';
 import { HostAffectingActionType } from './hostAffectingActionType';
 
 
 /**
- * Closed selector for a non-revisioned Agent Session action. Agent Session authorization is bound to target identity and the immutable operation fingerprint instead of a mutable conversation counter.
+ * Preparation for a non-revisioned Agent Session action. Direct actions bind target identity and complete semantic inputs, independently of delivery framing and mutable conversation counters.
  */
 export interface AgentSessionHostActionPreparation { 
     /**
@@ -30,6 +31,7 @@ export interface AgentSessionHostActionPreparation {
      * Selection hint only. The server resolves and authorizes the canonical target instead of copying browser scope into the intent.
      */
     targetId: string;
+    inputs?: ControllerActionInputs;
 }
 export namespace AgentSessionHostActionPreparation {
     export type TargetKindEnum = 'AGENT_SESSION';

@@ -43,6 +43,10 @@ export interface AgentEdgeContractRules {
      */
     predicateAllowedEdgeTypes: Array<AgentEdgeType>;
     /**
+     * Flow edge types that may carry an action label.
+     */
+    actionLabelAllowedEdgeTypes: Array<AgentEdgeType>;
+    /**
      * Cross-workflow edges always originate from a workflow step.
      */
     workflowCrossWorkflowSourceType: AgentEdgeContractRules.WorkflowCrossWorkflowSourceTypeEnum;

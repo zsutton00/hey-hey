@@ -1,3 +1,7 @@
+import {
+  buildWorkflowGraphModel,
+  projectWorkItemGraphForWorkflowSurface,
+} from "../../shared/WorkflowMentionInlineRenderer";
 import { describe, expect, it } from "vitest";
 import {
   ProposalAction,
@@ -52,7 +56,7 @@ const diagramDefinition: WorkItemTypeDefinitionDto = {
 const proposal = (
   id: string,
   title: string,
-  updates: ProposalResponseDto["updates"]
+  updates: ProposalResponseDto["updates"],
 ): ProposalResponseDto => ({
   id,
   organizationId: "org-1",
@@ -75,7 +79,7 @@ const member = (
   memberId: string,
   memberOrder: number,
   reservedEntityId: string,
-  memberProposal: ProposalResponseDto
+  memberProposal: ProposalResponseDto,
 ): ProposalGroupMemberSnapshot => ({
   memberId,
   memberOrder,
@@ -121,7 +125,7 @@ const root = member(
         },
       },
     ],
-  })
+  }),
 );
 const elementA = member(
   "element-a-member",
@@ -131,7 +135,7 @@ const elementA = member(
     name: "Test Element A",
     type: "DIAGRAM_ELEMENT",
     parentTaskId: "diagram-id",
-  })
+  }),
 );
 const elementB = member(
   "element-b-member",
@@ -141,7 +145,7 @@ const elementB = member(
     name: "Test Element B",
     type: "DIAGRAM_ELEMENT",
     parentTaskId: "diagram-id",
-  })
+  }),
 );
 
 const group: ProposalGroupSnapshot = {
@@ -167,6 +171,140 @@ const group: ProposalGroupSnapshot = {
 };
 
 describe("projectCanonicalProposalGroupGraph", () => {
+  it("renders a frozen graph-operation journey using its canonical proposed screen", () => {
+    const screen = member(
+      "screen-member",
+      1,
+      "screen-id",
+      proposal("screen-proposal", "Screen", {
+        name: "Screen",
+        type: "mockup",
+        sections: [{ key: "mockup", content: "frozen design" }],
+      }),
+    );
+    const journey = member(
+      "journey-member",
+      0,
+      "journey-id",
+      proposal("journey-proposal", "Journey", {
+        root: { refType: "temporary", tempId: "journey" },
+        operations: [
+          {
+            op: "workItem.create",
+            ref: { refType: "temporary", tempId: "journey" },
+            name: "Journey",
+            type: "DIAGRAM",
+          },
+          {
+            op: "workItem.create",
+            ref: { refType: "temporary", tempId: "screen-element" },
+            parent: { refType: "temporary", tempId: "journey" },
+            name: "First screen",
+            type: "DIAGRAM_ELEMENT",
+          },
+          {
+            op: "section.replace",
+            ref: { refType: "temporary", tempId: "screen-element" },
+            key: "diagramElementMetadata",
+            content: {
+              role: "GENERIC",
+              canonicalReference: { entityType: "TASK", entityId: "screen-id" },
+            },
+          },
+        ],
+      }),
+    );
+    screen.executionState = ProposalGroupMemberExecutionState.Rejected;
+    const snapshot = { ...group, members: [journey, screen], dependencies: [] };
+    const root = resolveCanonicalProposalGroupRootDefinition(snapshot, [
+      diagramDefinition,
+    ]);
+    expect(root.kind).toBe("resolved");
+    const result = projectCanonicalProposalGroupGraph(
+      snapshot,
+      diagramDefinition,
+    );
+    if (result.kind !== "ready") {
+      throw new Error("Expected the complete frozen journey");
+    }
+    const surface = projectWorkItemGraphForWorkflowSurface(result.projection, {
+      organizationId: "org-1",
+      projectId: "project-1",
+    });
+    const model = buildWorkflowGraphModel(surface);
+    expect(model.nodes[0].data.projectedReferenceTarget).toEqual({
+      type: "mockup",
+      name: "Screen",
+      sections: [{ key: "mockup", content: "frozen design" }],
+    });
+    expect(surface.steps).toHaveLength(1);
+    expect(surface.edges).toHaveLength(0);
+  });
+
+  it("preserves triggering actions and outcomes through the screen preview boundary", () => {
+    const projection = projectCanonicalProposalGroupGraph(
+      group,
+      diagramDefinition,
+    );
+    if (projection.kind !== "ready") {
+      throw new Error("Expected Diagram projection");
+    }
+    projection.projection.incidentRelationships = [
+      {
+        identity: { refType: "temporary", tempId: "transition" },
+        label: "CONDITIONAL",
+        source: { refType: "existing", id: "element-a-id" },
+        target: { refType: "existing", id: "element-b-id" },
+        edgeType: "CONDITIONAL",
+        category: "flow",
+        direction: "forward",
+        predicate: "Payment accepted",
+        actionLabel: "Place order",
+        deleted: false,
+      },
+    ];
+    const surface = projectWorkItemGraphForWorkflowSurface(
+      projection.projection,
+      { organizationId: "org-1", projectId: "project-1" },
+    );
+    expect(surface.edges[0].actionLabel).toBe("Place order");
+    expect(surface.edges[0].predicate).toBe("Payment accepted");
+  });
+
+  it("retains frozen screen content outside the Diagram hierarchy after rejection", () => {
+    const screen = member(
+      "screen-member",
+      3,
+      "screen-id",
+      proposal("screen-proposal", "Screen", {
+        name: "Screen",
+        type: "mockup",
+        sections: [{ key: "mockup", content: "frozen design" }],
+      }),
+    );
+    screen.proposal.status = ProposalStatus.Rejected;
+    const result = projectCanonicalProposalGroupGraph(
+      { ...group, members: [...group.members, screen] },
+      diagramDefinition,
+    );
+
+    expect(result.kind).toBe("ready");
+    if (result.kind !== "ready") {
+      throw new Error("Expected a reviewable projection");
+    }
+
+    expect(result.projection.projectedReferenceTargets?.["screen-id"]).toEqual({
+      type: "mockup",
+      name: "Screen",
+      sections: [{ key: "mockup", content: "frozen design" }],
+    });
+    expect(result.projection.children.map(({ name }) => name)).toEqual([
+      "Test Element A",
+      "Test Element B",
+    ]);
+    expect(result.projection.incidentRelationships).toEqual([]);
+  });
+
   it("projects both dependency-qualified Diagram Elements without inventing an edge", () => {
     const result = projectCanonicalProposalGroupGraph(group, diagramDefinition);
 
@@ -197,7 +335,7 @@ describe("projectCanonicalProposalGroupGraph", () => {
   it("excludes children whose prerequisite closure does not reach the root", () => {
     const result = projectCanonicalProposalGroupGraph(
       { ...group, dependencies: group.dependencies.slice(0, 1) },
-      diagramDefinition
+      diagramDefinition,
     );
 
     expect(result.kind).toBe("ready");
@@ -219,7 +357,7 @@ describe("projectCanonicalProposalGroupGraph", () => {
     };
 
     expect(
-      projectCanonicalProposalGroupGraph(group, unauthorizedDefinition)
+      projectCanonicalProposalGroupGraph(group, unauthorizedDefinition),
     ).toEqual({
       kind: "unavailable",
       reason: "Graph rendering is unavailable for this work-item type.",
@@ -228,7 +366,7 @@ describe("projectCanonicalProposalGroupGraph", () => {
 
   it("resolves the root only from a registry-authorized graph definition", () => {
     expect(
-      resolveCanonicalProposalGroupRootDefinition(group, [diagramDefinition])
+      resolveCanonicalProposalGroupRootDefinition(group, [diagramDefinition]),
     ).toEqual({ kind: "resolved", definition: diagramDefinition });
     expect(resolveCanonicalProposalGroupRootDefinition(group, [])).toEqual({
       kind: "unavailable",

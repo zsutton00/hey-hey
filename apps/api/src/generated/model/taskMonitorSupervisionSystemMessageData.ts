@@ -18,6 +18,7 @@ import { TaskMonitorAwaitingReviewSystemMessageData } from './taskMonitorAwaitin
 import { TaskMonitorWaitingSystemMessageData } from './taskMonitorWaitingSystemMessageData';
 import { AgentTrigger } from './agentTrigger';
 import { TaskMonitorReviewRecoveryJudgmentRequiredSystemMessageData } from './taskMonitorReviewRecoveryJudgmentRequiredSystemMessageData';
+import { ProposalReconciliationSuggestion } from './proposalReconciliationSuggestion';
 import { TaskMonitorReviewRequestFailedSystemMessageData } from './taskMonitorReviewRequestFailedSystemMessageData';
 import { UIHints } from './uIHints';
 import { TaskMonitorJudgmentRequestedSystemMessageData } from './taskMonitorJudgmentRequestedSystemMessageData';

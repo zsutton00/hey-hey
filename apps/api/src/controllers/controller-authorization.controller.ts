@@ -39,7 +39,12 @@ import type { Request, Response } from 'express';
 
 @ApiTags('Controller Authorization')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, OrganizationGuard, ProjectAccessGuard, ControllerBindingOriginGuard)
+@UseGuards(
+  JwtAuthGuard,
+  OrganizationGuard,
+  ProjectAccessGuard,
+  ControllerBindingOriginGuard,
+)
 @Controller(
   'api/v1/organizations/:organizationId/projects/:projectId/controller-authorizations',
 )
@@ -102,12 +107,14 @@ export class ControllerAuthorizationController {
     @CurrentUser('userId') userId: UserId,
     @Body() body: SubmitControllerAuthorizedActionRequestDto,
     @Res({ passthrough: true }) response: Response,
+    @Req() request?: Request,
   ): Promise<SubmitControllerAuthorizedActionResponseDto> {
     const result = await this.controllerAuthorizationService.submit({
       organizationId,
       projectId,
       userId,
       input: body,
+      controllerBindingSecret: readControllerBindingSecret(request),
     });
     if (result.binding) {
       this.controllerBindingCookieService.set(

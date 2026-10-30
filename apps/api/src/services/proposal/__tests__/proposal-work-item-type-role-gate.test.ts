@@ -76,20 +76,6 @@ describe('work-item type proposal authoring role gate', () => {
       },
     );
 
-    it('createBatch denies the whole batch when any member targets a work-item type', async () => {
-      const assertProjectRole = denied();
-      const { service, db } = setup(assertProjectRole);
-
-      await expect(
-        service.createBatch(ORGANIZATION_ID, PROJECT_ID, USER_ID, [
-          taskProposal,
-          typeProposal,
-        ]),
-      ).rejects.toBeInstanceOf(ForbiddenException);
-
-      expect(db.$transaction).not.toHaveBeenCalled();
-    });
-
     it('does not apply the role gate to non-type proposals', async () => {
       const assertProjectRole = denied();
       const { service } = setup(assertProjectRole);

@@ -1,6 +1,6 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import React, { useState, useMemo } from "react";
 import {
-  Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
@@ -109,7 +109,7 @@ export const CloneConversationModal: React.FC<CloneConversationModalProps> = ({
     // Remove duplicates based on nodeId and sort by order of appearance
     const uniqueNodes = nodes.filter(
       (node, index, self) =>
-        index === self.findIndex((n) => n.nodeId === node.nodeId)
+        index === self.findIndex((n) => n.nodeId === node.nodeId),
     );
 
     return uniqueNodes;

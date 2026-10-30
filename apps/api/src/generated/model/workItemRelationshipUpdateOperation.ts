@@ -30,6 +30,10 @@ export interface WorkItemRelationshipUpdateOperation {
     category?: AgentEdgeCategory;
     direction?: AgentEdgeDirection;
     predicate?: string | null;
+    /**
+     * Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate. 
+     */
+    actionLabel?: string | null;
     reasoning?: string | null;
     metadata?: { [key: string]: any; } | null;
 }

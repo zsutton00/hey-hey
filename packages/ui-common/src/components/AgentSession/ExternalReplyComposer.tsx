@@ -1,3 +1,5 @@
+import { useModalState } from "../Modals/useModalState";
+import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import { AttachmentDropZone } from "./AttachmentDropZone";
 import { AttachmentChips } from "./AttachmentChips";
 import { useRunAttachments } from "./runtime/hooks/useRunAttachments";
@@ -191,7 +193,8 @@ export const ExternalReplyComposer = ({
   const [
     isNewConversationConfirmationOpen,
     setIsNewConversationConfirmationOpen,
-  ] = useState(false);
+    isNewConversationConfirmationOpenOwnerKey,
+  ] = useModalState(false);
   const [pendingNewConversationDraft, setPendingNewConversationDraft] =
     useState<string | null>(null);
   const [isCreatingNewConversation, setIsCreatingNewConversation] =
@@ -738,15 +741,19 @@ export const ExternalReplyComposer = ({
           </Box>
         </Box>
       </AttachmentDropZone>
-      <NewConversationConfirmationDialog
-        open={isNewConversationConfirmationOpen}
-        onClose={handleCloseNewConversationConfirmation}
-        onConfirm={() => {
-          void handleConfirmNewConversation().catch(() => undefined);
-        }}
-        isConfirming={isCreatingNewConversation}
-        setupContent={newConversationModelSelector}
-      />
+      <ModalWorkOwner.Provider
+        value={isNewConversationConfirmationOpenOwnerKey}
+      >
+        <NewConversationConfirmationDialog
+          open={isNewConversationConfirmationOpen}
+          onClose={handleCloseNewConversationConfirmation}
+          onConfirm={() => {
+            void handleConfirmNewConversation().catch(() => undefined);
+          }}
+          isConfirming={isCreatingNewConversation}
+          setupContent={newConversationModelSelector}
+        />
+      </ModalWorkOwner.Provider>
     </MentionEditorContext.Provider>
   );
 };

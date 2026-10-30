@@ -115,7 +115,7 @@ const makeDeps = (
   logger: PromptTypeHandlerDeps['logger'] = makeLogger(),
 ): PromptTypeHandlerDeps =>
   ({
-    runStore: {},
+    preparationRecords: {},
     fetchImpl,
     auth: { getAccessToken: vi.fn().mockResolvedValue('token-1') },
     apiBaseUrl: 'http://platform.test',
@@ -142,7 +142,6 @@ describe('projectAssistantHandler — read-only by construction', () => {
     const forbidden = [
       'create_work_item',
       'edit_work_item',
-      'edit_tasks',
       'create_edge',
       'delete_edge',
       'update_edge',
@@ -451,8 +450,8 @@ describe('projectAssistantHandler — recent report startup context', () => {
     read.mockRestore();
   });
 
-  describe('Jev-filtered parent feature load setting', () => {
-    const mockParentRead = () =>
+  describe('Jev setting', () => {
+    const mockParentRead = (description = 'Full parent description.') =>
       vi
         .spyOn(TasksApi.prototype, 'organizationsOrganizationIdProjectsProjectIdTasksTaskIdGet')
         .mockResolvedValue({
@@ -468,7 +467,7 @@ describe('projectAssistantHandler — recent report startup context', () => {
                   id: 's1',
                   key: 'description',
                   order: 0,
-                  materializedMarkdown: 'Full parent description.',
+                  materializedMarkdown: description,
                   materializedProposalId: 'p',
                 },
                 {
@@ -491,17 +490,23 @@ describe('projectAssistantHandler — recent report startup context', () => {
         entity: { id: 'task-1', name: 'Focal', type: 'STANDARD', sections: [] },
       },
     } as unknown as PromptTypeHandlerContext;
-    const makeFilter = (enabled: boolean) => ({
+    const makeFilter = () => ({
       jevClient: { evaluate: vi.fn() },
       entityContextLoader: { load: vi.fn().mockRejectedValue(new Error('requirements read')) },
-      isEnabled: vi.fn().mockResolvedValue(enabled),
       attemptLogDir: path.join(os.tmpdir(), 'jev-attempt-log-test'),
     });
 
     it('loads the parent in full without consulting Jev when the setting is off', async () => {
       const read = mockParentRead();
-      const filter = makeFilter(false);
-      const filtered = new ProjectAssistantHandler(makeCreateReportProxy(), null, filter);
+      const filter = makeFilter();
+      const isJevEnabled = vi.fn().mockResolvedValue(false);
+      const filtered = new ProjectAssistantHandler(
+        makeCreateReportProxy(),
+        null,
+        filter,
+        undefined,
+        isJevEnabled,
+      );
 
       const prepared = await filtered.prepare!(
         makeRun(),
@@ -510,23 +515,59 @@ describe('projectAssistantHandler — recent report startup context', () => {
         loadedCtx,
       );
 
-      expect(filter.isEnabled).toHaveBeenCalledTimes(1);
+      expect(isJevEnabled).toHaveBeenCalledTimes(1);
       expect(filter.entityContextLoader.load).not.toHaveBeenCalled();
       expect(filter.jevClient.evaluate).not.toHaveBeenCalled();
       expect(filtered.buildPrompt(prepared.payload, loadedCtx)).toContain('], in full.');
       read.mockRestore();
     });
 
+    it('skips context gathering when the setting is off and runs it when on', async () => {
+      const read = mockParentRead();
+      const gather = vi
+        .spyOn(await import('../context-gathering'), 'gatherProjectContext')
+        .mockResolvedValue('## Gathered context\n\ntask kept-1');
+      const isJevEnabled = vi.fn().mockResolvedValue(false);
+      const gated = new ProjectAssistantHandler(
+        makeCreateReportProxy(),
+        null,
+        undefined,
+        {} as ContextGathering.ContextGatheringDeps,
+        isJevEnabled,
+      );
+      const ctx = {
+        ...loadedCtx,
+        turnId: 'turn-1',
+        abortSignal: () => new AbortController().signal,
+      } as PromptTypeHandlerContext;
+
+      await gated.prepare!(makeRun(), makePayload(), makeDeps(reportsOnlyFetch), ctx);
+      expect(gather).not.toHaveBeenCalled();
+
+      isJevEnabled.mockResolvedValue(true);
+      await gated.prepare!(makeRun(), makePayload(), makeDeps(reportsOnlyFetch), ctx);
+      expect(gather).toHaveBeenCalledTimes(1);
+      gather.mockRestore();
+      read.mockRestore();
+    });
+
     it('reads the setting on every prepare and filters when it is on', async () => {
       const read = mockParentRead();
-      const filter = makeFilter(true);
-      const filtered = new ProjectAssistantHandler(makeCreateReportProxy(), null, filter);
+      const filter = makeFilter();
+      const isJevEnabled = vi.fn().mockResolvedValue(true);
+      const filtered = new ProjectAssistantHandler(
+        makeCreateReportProxy(),
+        null,
+        filter,
+        undefined,
+        isJevEnabled,
+      );
 
       await filtered.prepare!(makeRun(), makePayload(), makeDeps(reportsOnlyFetch), loadedCtx);
-      filter.isEnabled.mockResolvedValue(false);
+      isJevEnabled.mockResolvedValue(false);
       await filtered.prepare!(makeRun(), makePayload(), makeDeps(reportsOnlyFetch), loadedCtx);
 
-      expect(filter.isEnabled).toHaveBeenCalledTimes(2);
+      expect(isJevEnabled).toHaveBeenCalledTimes(2);
       expect(filter.entityContextLoader.load).toHaveBeenCalledTimes(1);
       read.mockRestore();
     });
@@ -545,7 +586,7 @@ describe('projectAssistantHandler — recent report startup context', () => {
 
     it('logs a Feature focal as an expected unfiltered load, not a warning', async () => {
       const read = mockParentRead();
-      const filter = makeFilter(true);
+      const filter = makeFilter();
       const filtered = new ProjectAssistantHandler(makeCreateReportProxy(), null, filter);
       const featureCtx = {
         loadedEntityContext: {
@@ -584,7 +625,9 @@ describe('projectAssistantHandler — recent report startup context', () => {
         }) as PromptTypeHandlerContext;
 
       it('puts the gathered entities in the first prompt and mounts no search tool', async () => {
-        const read = mockParentRead();
+        const read = mockParentRead(
+          'Full parent description.\n\n@[feature:other-feature|Related feature] governs another capability.',
+        );
         const gather = vi
           .spyOn(await import('../context-gathering'), 'gatherProjectContext')
           .mockResolvedValue('## Gathered context\n\ntask kept-1\n\nKept body');
@@ -606,6 +649,7 @@ describe('projectAssistantHandler — recent report startup context', () => {
         expect(gather).toHaveBeenCalledWith(
           expect.objectContaining({
             deps: gathering,
+            fullEntityIds: ['feature-1'],
             runId: 'run-1',
             turnId: 'turn-1',
             project: { organizationId: 'org-1', projectId: 'proj-1' },

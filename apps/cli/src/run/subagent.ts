@@ -1,3 +1,15 @@
+import { randomUUID } from 'node:crypto';
+import { TurnPlatformMcpProxy } from '../agents/platform-mcp-proxy/turn-proxy';
+import { childPlatformMcpProxies } from '../agents/platform-mcp-proxy/child-proxy-registry';
+import { ActivePlatformToolCatalog } from '../agents/platform-mcp-proxy/catalog';
+import { buildPlatformMcpProxyMcpConfig } from '../agents/platform-mcp-proxy/mcp-config';
+import {
+  filterInertBuiltinTools,
+  filterInertPlatformTools,
+  isInertSubmissionToolAllowed,
+} from './inert-execution-policy';
+import type { CreateReportProxy } from '../agents/submission-tools/create-report-proxy';
+import { CODEX_MCP_ONLY_FEATURE_OVERRIDES } from '../agents/providers/codex/mcp-only-features';
 import {
   composeFreshPlatformPromptDelivery,
   resolveProviderPlatformPromptDeliveryMode,
@@ -5,32 +17,10 @@ import {
   type PlatformPromptFreshDelivery,
 } from '../agents/providers/platform-prompt-delivery';
 import { applyCodexSessionReviewerPolicy } from '../agents/providers/codex/codex-session-policy';
-/**
- * SubAgent — the unified isolated provider-helper-session executor for every
- * handler that declares `runnerKind: 'subagent'`.
- *
- * Replaces the per-handler `spawnXSubagent` helpers (commit, implement,
- * review, coding-plan, final-assessment) with one class that consumes the
- * handler's declarative `SubagentConfig` plus the per-Turn `RunnerContext`.
- * The class owns the entire session lifetime: build prompt, construct the
- * MCP server, wire the permission handler, pipe normalized events, fire
- * `run_started`/`run_completed`, and disconnect the SDK client.
- *
- * Invariants:
- *   - The provider helper session is created and disconnected inside
- *     `execute`. No external code observes its ephemeral session id.
- *   - The prompt is `prependPriorReports(buildPrompt(payload) +
- *     buildServiceContextNote(serviceId) + handler.addUserMessage(payload))`.
- *     The runtime always invokes `buildPrompt` + `addUserMessage` on the
- *     subagent path; the resolver no longer special-cases subagent-owned
- *     promptTypes.
- *   - Handler-prepared payloads (the enriched payload returned by
- *     `handler.prepare`) are preferred over the raw wire payload so
- *     enrichment work like the implement handler's approved-plan fetch
- *     reaches the prompt.
- */
+/** Executes a launcher-resolved prompt in one isolated provider session. */
 
 import path from 'node:path';
+import { RunWorkspaceWriteBoundary } from '../agents/workspace-write-boundary';
 import {
   ClaudeCodeSdkClient,
   CodexSdkClient,
@@ -48,16 +38,10 @@ import type {
   AgentStartupPromptInputResult,
   PromptTypeHandler,
   SubagentConfig,
-  UserLaunchablePromptTypeHandler,
 } from '../agents/prompt-type-handler';
 import { buildMcpServerConfig, resolveHintPromptAccess } from '../agents/mcp-server-config';
-import {
-  buildServiceContextNote,
-  buildPlatformSystemPrompt,
-  mentionFormatReminder,
-} from '../agents/prompts/common';
-import { readSessionStartContext } from '../agents/prompts/session-start-context';
-import { prependPriorReports } from '../agents/prompts/report-chain';
+import { buildPlatformSystemPrompt } from '../agents/prompts/common';
+import type { SessionStartContext } from '../agents/prompts/session-start-context';
 import { loadProviderEventNormalizationConfig } from '../agents/providers/provider-event-normalization';
 import { resolveAgentProviderId } from '../agents/providers/provider-config';
 import { mapCodexEvent } from '../agents/providers/codex/codex-event-mapper';
@@ -67,6 +51,7 @@ import {
 } from '../agents/providers/codex/codex-permissions';
 import { emitNormalizedSubagentEvent } from '../agents/subagent-event-pipe';
 import { buildSubmissionToolsMcpConfig } from '../agents/submission-tools/mcp-config';
+import { summarizeClaudeInitToolExposure } from '../agents/providers/claude/init-tool-exposure';
 import type { SubmissionToolRegistry } from '../agents/submission-tools/registry';
 import type { LocalAgentEndpoint } from '../server/local-base-url';
 import type { ServerLogger } from '../server/logger';
@@ -75,13 +60,6 @@ import type { AgenticSession } from '../session/types';
 import type { LocalReasoningEffort } from '../shared/agent-bridge-contract/index';
 import type { LocalContextData } from '../shared/agent-bridge-contract/runtime-types';
 import type { ProviderPhase, ReportChainEntry } from './types';
-import {
-  withholdEvalMutationTools,
-  type EvalExecutionContext,
-} from '../agents/run-eval/eval-execution-context';
-import { EvalChildPlatformMcpProxy } from '../agents/platform-mcp-proxy/eval-child-proxy';
-import { childPlatformMcpProxies } from '../agents/platform-mcp-proxy/child-proxy-registry';
-import { buildPlatformMcpProxyMcpConfig } from '../agents/platform-mcp-proxy/mcp-config';
 
 const MCP_SERVER_NAME = 'heyhey-platform';
 const AGENT_ID = 'claude-subagent';
@@ -102,11 +80,6 @@ const extractAssistantText = (event: ClaudeCodeSdkEvent): string | null => {
   }
   return parts.length > 0 ? parts.join('') : null;
 };
-
-const isUserLaunchable = (
-  handler: PromptTypeHandler<unknown>,
-): handler is UserLaunchablePromptTypeHandler<{ userMessage?: string }> =>
-  typeof (handler as { addUserMessage?: unknown } | undefined)?.addUserMessage === 'function';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
@@ -325,10 +298,13 @@ const applyCodexWorkspaceContainment = (
 });
 
 export interface SubAgentArgs {
+  onProviderSessionId?: (id: string) => Promise<void>;
+  reportProxy?: CreateReportProxy;
   session: AgenticSession;
   handler: PromptTypeHandler<unknown>;
   config: SubagentConfig;
-  payload: unknown;
+  prompt: string;
+  sessionStartContext: SessionStartContext;
   touchedFiles: readonly string[];
   onAgentOutput: AgentOutputHandler;
   oauthClient: OAuthClient;
@@ -350,8 +326,6 @@ export interface SubAgentArgs {
    * alone is not honoured by models.
    */
   tokenBudget?: number;
-  /** Present when the child runs one eval attempt; narrows its tools and hides eval reports. */
-  evalExecution?: EvalExecutionContext;
 }
 
 /** Context usage read from a subagent's live session just before it disconnects. */
@@ -361,6 +335,7 @@ export interface SubAgentContextReading {
 }
 
 export interface SubAgentResult {
+  providerSessionId?: string;
   assistantCompleted: boolean;
   outputText?: string;
   /** Present only for a handler whose session counts for context; null when unreadable. */
@@ -372,6 +347,9 @@ export interface SubAgentResult {
 }
 
 export interface SubAgentUsage {
+  cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
+  cacheAvailability?: NonNullable<AgenticSession['tokenUsage']>['cacheAvailability'];
   inputTokens?: number;
   outputTokens?: number;
   toolCalls?: number;
@@ -521,8 +499,9 @@ const readContextBeforeDisconnect = async (input: {
 };
 
 export class SubAgent {
+  private providerSessionId?: string;
+  private releaseProxy: (() => void) | null = null;
   private readonly usageMeter = new ChildUsageMeter();
-  private releaseEvalProxy: (() => void) | null = null;
 
   constructor(private readonly args: SubAgentArgs) {}
 
@@ -530,7 +509,13 @@ export class SubAgent {
     try {
       return await this.executeSession();
     } finally {
-      this.releaseEvalProxy?.();
+      try {
+        if (this.providerSessionId) {
+          await this.args.onProviderSessionId?.(this.providerSessionId);
+        }
+      } finally {
+        this.releaseProxy?.();
+      }
     }
   }
 
@@ -538,13 +523,14 @@ export class SubAgent {
     const {
       session,
       handler,
-      config,
-      payload,
+      config: requestedConfig,
+      prompt,
+      sessionStartContext,
       touchedFiles,
       onAgentOutput,
       oauthClient,
       logger,
-      signal,
+      signal: parentSignal,
       cwd,
       allowedRepositoryRoots,
       priorReports,
@@ -555,39 +541,17 @@ export class SubAgent {
       submissionToolRegistry,
       localAgentEndpoint,
       tokenBudget,
-      evalExecution,
     } = this.args;
+    const config = session.inert
+      ? {
+          ...requestedConfig,
+          builtinAllowedTools: filterInertBuiltinTools(requestedConfig.builtinAllowedTools),
+          codexSandboxMode: 'read-only' as const,
+        }
+      : requestedConfig;
+    const signal = parentSignal;
     const runId = session.agentic_session_id;
 
-    // Build the prompt the runtime way: handler.buildPrompt + service-context
-    // note + handler.addUserMessage (when the handler is user-launchable).
-    // Mirrors `resolvePrompt`'s composition for provider-session flows so the
-    // subagent and provider-session paths share one contract.
-    //
-    // touchedFiles is a runtime-only concept the resolver never sees; it is
-    // injected onto the payload here under the underscore-prefixed `_touchedFiles`
-    // convention so handlers that care (review) can read it through their
-    // existing `buildPrompt(payload)` signature without taking a runtime dep.
-    const enrichedPayload =
-      payload !== null && typeof payload === 'object'
-        ? { ...(payload as Record<string, unknown>), _touchedFiles: touchedFiles }
-        : payload;
-    const launchable = isUserLaunchable(handler) ? handler : null;
-    const systemPrompt =
-      handler.buildPrompt(enrichedPayload, {
-        entity: session.entity,
-        ...(startupPromptInput?.loadedEntityContext
-          ? { loadedEntityContext: startupPromptInput.loadedEntityContext }
-          : {}),
-        recentUserReplies: [],
-        triggerParentMessageId: null,
-      }) + buildServiceContextNote(session.launchServiceId);
-    const userInjection =
-      launchable?.addUserMessage(enrichedPayload as { userMessage?: string }) ?? null;
-    const handlerPrompt = userInjection ? `${systemPrompt}${userInjection}` : systemPrompt;
-    const composed = startupPromptInput
-      ? `${startupPromptInput.renderedInput}\n\n---\n\n${handlerPrompt}`
-      : handlerPrompt;
     logger.debug('local.subagent.provider_session.action', {
       runId,
       providerSessionAction: 'mint',
@@ -613,35 +577,23 @@ export class SubAgent {
         revisionNumber: provenance.revisionNumber,
       });
     }
-    // Tail the entity-mention HARD STOP reminder so it is the last thing the
-    // subagent reads before composing its report — parity with the main-session
-    // per-turn append in `resolve-prompt.ts`. Prior reports are prepended, so
-    // the reminder stays at the very end.
-    const prompt = `${prependPriorReports(composed, priorReports)}\n\n${mentionFormatReminder}`;
-
-    // An eval child writes as its attempt's target session, never the Run's,
-    // so the platform attributes its output to that attempt.
     const mcpContext = {
+      inert: session.inert === true,
       ...(session.contextMetadata?.projectId
         ? { projectId: session.contextMetadata.projectId }
         : {}),
-      ...(evalExecution
-        ? { conversationId: evalExecution.targetConversationId }
-        : session.conversationId
-          ? { conversationId: session.conversationId }
-          : {}),
+      ...(session.conversationId ? { conversationId: session.conversationId } : {}),
       ...(session.launchServiceId ? { serviceId: session.launchServiceId } : {}),
-      agentSessionId: evalExecution ? evalExecution.targetSessionId : session.agentic_session_id,
+      agentSessionId: session.agentic_session_id,
     };
-    const mcpConfig = await buildMcpServerConfig(oauthClient, mcpContext);
+    const toolFree =
+      config.mcpAllowedTools.length === 0 &&
+      config.builtinAllowedTools.length === 0 &&
+      config.submissionTools === 'none';
+    const mcpConfig = toolFree
+      ? { mcpServers: {} }
+      : await buildMcpServerConfig(oauthClient, mcpContext);
 
-    // Assemble the platform system prompt from the project's active work-item
-    // type definitions, read once before the subagent session starts. A failed
-    // read aborts the subagent rather than opening on a stale or empty ontology.
-    const sessionStartContext = await readSessionStartContext({
-      oauthClient,
-      projectId: session.contextMetadata?.projectId,
-    });
     const providerId = resolveAgentProviderId(session.provider);
     const platformSystemPrompt = buildPlatformSystemPrompt(
       sessionStartContext.workItemTypeDefinitions,
@@ -653,18 +605,20 @@ export class SubAgent {
           }
         : undefined,
       {
+        provider: providerId,
         intentFirst: sessionStartContext.intentFirst,
         maturity: sessionStartContext.maturity,
         hints: resolveHintPromptAccess(sessionStartContext.hintsEnabled, config.mcpAllowedTools),
       },
     );
 
-    const mcpAllowedShortNames = evalExecution
-      ? withholdEvalMutationTools(config.mcpAllowedTools)
-      : config.mcpAllowedTools;
+    const mcpAllowedShortNames = session.inert
+      ? [...filterInertPlatformTools(config.mcpAllowedTools)]
+      : [...config.mcpAllowedTools];
     const allowedMcpTools = mcpAllowedShortNames.map((tool) => `mcp__${MCP_SERVER_NAME}__${tool}`);
     const allowedMcpToolsSet = new Set(allowedMcpTools);
     const allowedBuiltinSet = new Set(config.builtinAllowedTools);
+    const readOnlyFilesystem = session.inert === true || handler.readOnlyFilesystem === true;
     const touchedFilesSet = new Set(touchedFiles);
 
     // Use the Run-resolved roots verbatim when present. In worktree-backed
@@ -682,25 +636,26 @@ export class SubAgent {
     const cliBaseUrl = localAgentEndpoint.get();
     let submissionAllowedTools: readonly string[] = [];
     let mcpServers: Record<string, unknown> = mcpConfig.mcpServers;
-    if (evalExecution) {
-      // Eval children reach the platform only through a CLI proxy that hides
-      // eval reports; they never mount the Run's submission tools.
-      if (!cliBaseUrl) throw new Error('Eval child requires the local agent endpoint.');
-      const proxy = new EvalChildPlatformMcpProxy({
+    if (session.inert && mcpAllowedShortNames.length > 0) {
+      if (!cliBaseUrl) {
+        throw new Error('Inert children require the local MCP endpoint.');
+      }
+      const proxy = new TurnPlatformMcpProxy({
         runId,
-        attemptId: evalExecution.attemptId,
+        turnId: randomUUID(),
         context: mcpContext,
-        allowedTools: mcpAllowedShortNames,
+        catalog: new ActivePlatformToolCatalog({ exactTools: mcpAllowedShortNames }),
         activeHandlerPromptType: handler.promptType,
         logger,
       });
       const unregister = childPlatformMcpProxies.register(proxy);
-      this.releaseEvalProxy = () => {
+      this.releaseProxy = () => {
         proxy.close();
         unregister();
       };
       mcpServers = buildPlatformMcpProxyMcpConfig({ mount: proxy.mount, cliBaseUrl }).mcpServers;
-    } else if (
+    }
+    if (
       config.submissionTools !== 'none' &&
       runRegistration &&
       cliBaseUrl &&
@@ -709,15 +664,27 @@ export class SubAgent {
       const submissionConfig = buildSubmissionToolsMcpConfig({
         token: runRegistration.token,
         cliBaseUrl,
-        tools: runRegistration.tools,
+        tools: session.inert
+          ? runRegistration.tools.filter((tool) => isInertSubmissionToolAllowed(tool.name))
+          : runRegistration.tools,
       });
       mcpServers = { ...mcpServers, [submissionConfig.serverName]: submissionConfig.serverEntry };
       submissionAllowedTools = submissionConfig.allowedTools;
-      requestContext.log(logger, 'debug', 'local.subagent.submission_tools.attached', {
+      requestContext.log(logger, 'info', 'local.subagent.submission_tools.attached', {
         runId,
         adapterId: config.adapterId,
         toolCount: runRegistration.tools.length,
         allowedTools: submissionConfig.allowedTools,
+      });
+    } else {
+      requestContext.log(logger, 'info', 'local.subagent.submission_tools.not_attached', {
+        runId,
+        adapterId: config.adapterId,
+        promptType: handler.promptType,
+        optedOut: config.submissionTools === 'none',
+        hasRunRegistration: runRegistration !== undefined && runRegistration !== null,
+        registeredToolCount: runRegistration?.tools.length ?? 0,
+        hasCliBaseUrl: Boolean(cliBaseUrl),
       });
     }
     const submissionAllowedSet = new Set(submissionAllowedTools);
@@ -755,6 +722,10 @@ export class SubAgent {
           : {}),
       mcpServers,
       allowedTools,
+      ...(session.inert
+        ? { builtinTools: [...config.builtinAllowedTools], strictMcpConfig: true }
+        : {}),
+      ...(toolFree ? { builtinTools: [], strictMcpConfig: true } : {}),
       ...(model ? { model } : {}),
       ...(reasoningEffort ? { reasoningEffort } : {}),
     };
@@ -788,6 +759,7 @@ export class SubAgent {
         touchedFilesSet,
         allowedRepoRoots,
         enforceWorkspaceContainment: allowedRepositoryRoots !== undefined,
+        readOnlyFilesystem,
         onAgentOutput,
         logger,
         signal: sessionSignal,
@@ -820,6 +792,9 @@ export class SubAgent {
           allowedMcpToolsSet.has(toolName) ||
           allowedBuiltinSet.has(toolName) ||
           submissionAllowedSet.has(toolName);
+        if ((session.inert || toolFree) && !inAllowlist) {
+          return { behavior: 'deny', message: 'Tool unavailable to inert execution.' };
+        }
         if (config.decidePermission) {
           const result = await config.decidePermission({
             toolName,
@@ -860,6 +835,7 @@ export class SubAgent {
     let lastAssistantText = '';
     let assistantCompleted = false;
     let contextReading: SubAgentContextReading | null | undefined;
+    let providerSessionId: string | undefined;
     let firstProviderEventReceived = false;
     let lastProcessingKind: ProviderPhase | null = null;
 
@@ -947,6 +923,15 @@ export class SubAgent {
         });
       }
 
+      if (eventType === 'system' && event['subtype'] === 'init') {
+        requestContext.log(logger, 'info', 'local.subagent.tool_search.init_diff', {
+          runId,
+          adapterId: config.adapterId,
+          promptType: handler.promptType,
+          ...summarizeClaudeInitToolExposure(event, allowedTools, []),
+        });
+      }
+
       if (eventType === 'assistant') {
         const text = extractAssistantText(event);
         if (text) {
@@ -1028,7 +1013,24 @@ export class SubAgent {
       mcpServerCount: Object.keys(mcpServers).length,
     });
 
+    let readOnlyBoundary: RunWorkspaceWriteBoundary | undefined;
     try {
+      if (readOnlyFilesystem) {
+        readOnlyBoundary = await RunWorkspaceWriteBoundary.create({
+          ok: true,
+          runMode: 'default',
+          repositoryPathForRunStarted: cwd,
+          cwd,
+          allowedRepositoryRoots: [...allowedRepoRoots],
+          bindingRepositoryPath: cwd,
+          workspaceRoot: null,
+        });
+        requestContext.log(logger, 'debug', 'local.subagent.read_only.enforced', {
+          runId,
+          adapterId: config.adapterId,
+          provider: providerId,
+        });
+      }
       emit({
         source: 'local',
         eventType: 'processing_status',
@@ -1039,7 +1041,15 @@ export class SubAgent {
       });
 
       await client.startSession(
-        startSessionConfig,
+        {
+          ...startSessionConfig,
+          ...(readOnlyBoundary
+            ? {
+                builtinTools: [...config.builtinAllowedTools],
+                workspaceContainment: readOnlyBoundary.claudeReadOnlyContainment(),
+              }
+            : {}),
+        },
         sessionSignal ? { signal: sessionSignal } : undefined,
       );
 
@@ -1088,6 +1098,12 @@ export class SubAgent {
         });
       }
 
+      await readOnlyBoundary?.dispose();
+      const reportedSessionId = client.getSessionId();
+      if (reportedSessionId && !reportedSessionId.startsWith('pending_')) {
+        providerSessionId = reportedSessionId;
+        this.providerSessionId = reportedSessionId;
+      }
       await client.disconnect().catch((error: unknown) => {
         requestContext.log(logger, 'warn', 'local.subagent.disconnect_failed', {
           runId,
@@ -1102,6 +1118,7 @@ export class SubAgent {
       outputText: lastAssistantText,
       ...(contextReading !== undefined ? { contextReading } : {}),
       ...(budgetGuard?.isExhausted ? { budgetExhausted: true } : {}),
+      ...(providerSessionId ? { providerSessionId } : {}),
       usage: this.usageMeter.read(),
     };
   }
@@ -1121,6 +1138,7 @@ export class SubAgent {
     touchedFilesSet: ReadonlySet<string>;
     allowedRepoRoots: ReadonlySet<string>;
     enforceWorkspaceContainment: boolean;
+    readOnlyFilesystem: boolean;
     onAgentOutput: AgentOutputHandler;
     logger: ServerLogger;
     signal?: AbortSignal | undefined;
@@ -1147,6 +1165,7 @@ export class SubAgent {
       touchedFilesSet,
       allowedRepoRoots,
       enforceWorkspaceContainment,
+      readOnlyFilesystem,
       onAgentOutput,
       logger,
       signal,
@@ -1170,7 +1189,7 @@ export class SubAgent {
       return null;
     })();
     const codexPermissionPlan: CodexPermissionPlan =
-      config.codexSandboxMode === 'read-only'
+      readOnlyFilesystem || config.codexSandboxMode === 'read-only'
         ? {
             sandboxMode: 'read-only',
             cwd,
@@ -1190,21 +1209,32 @@ export class SubAgent {
               extraWritableDirs: [],
             };
     const mcpConfig = mergeCodexMcpConfigs([platformMcpConfig, submissionConfig]);
-    const codexConfig = applyCodexSessionReviewerPolicy(
+    const baseCodexConfig = applyCodexSessionReviewerPolicy(
       codexPermissionPlan.workspaceWriteConfig
         ? applyCodexWorkspaceContainment(mcpConfig, codexPermissionPlan.workspaceWriteConfig)
         : mcpConfig,
       codexPermissionPlan.sandboxMode,
     );
+    const toolFree =
+      config.mcpAllowedTools.length === 0 &&
+      config.builtinAllowedTools.length === 0 &&
+      config.submissionTools === 'none';
+    const codexConfig =
+      session.inert || toolFree
+        ? {
+            ...baseCodexConfig,
+            features: CODEX_MCP_ONLY_FEATURE_OVERRIDES,
+            ...(toolFree ? { mcp_servers: {}, web_search: 'disabled' } : {}),
+          }
+        : baseCodexConfig;
     const allowedMcpToolNames = new Set([...allowedMcpTools, ...submissionAllowedTools]);
     const client = new CodexSdkClient();
-    const normalizationConfig = emitNormalizedEvents
-      ? loadProviderEventNormalizationConfig()
-      : null;
+    const normalizationConfig = loadProviderEventNormalizationConfig();
     let bufferedAssistantText = '';
     let lastAssistantText = '';
     let assistantCompleted = false;
     let contextReading: SubAgentContextReading | null | undefined;
+    let providerSessionId: string | undefined;
     let firstProviderEventReceived = false;
     let lastProcessingKind: ProviderPhase | null = null;
 
@@ -1256,6 +1286,12 @@ export class SubAgent {
     const decideCodexServerRequest = async (
       request: CodexSdkServerRequest,
     ): Promise<{ accepted: boolean; kind: 'mcp_elicitation' | 'approval'; reason?: string }> => {
+      if (toolFree) {
+        return {
+          accepted: false,
+          kind: request.method === CODEX_MCP_ELICITATION_METHOD ? 'mcp_elicitation' : 'approval',
+        };
+      }
       if (request.method === CODEX_MCP_ELICITATION_METHOD) {
         const tool = readMcpElicitationTool(request);
         if (tool.qualifiedToolName && allowedMcpToolNames.has(tool.qualifiedToolName)) {
@@ -1272,6 +1308,16 @@ export class SubAgent {
           accepted: false,
           kind: 'mcp_elicitation',
           reason: 'External MCP elicitations are not supported for ephemeral subagents.',
+        };
+      }
+
+      // A read-only sandbox must never be upgraded by an approval request.
+      // Normal inspection/check commands execute inside it without escalation.
+      if (codexPermissionPlan.sandboxMode === 'read-only') {
+        return {
+          accepted: false,
+          kind: 'approval',
+          reason: 'This subagent cannot authorize filesystem writes or sandbox escalation.',
         };
       }
 
@@ -1349,20 +1395,20 @@ export class SubAgent {
       const eventTimestamp = new Date().toISOString();
       const fallbackSessionId = client.getSessionId();
 
-      if (normalizationConfig) {
-        const normalized = mapCodexEvent({
-          provider: 'codex',
-          runId,
-          eventType: event.method,
-          timestamp: eventTimestamp,
-          sessionId: fallbackSessionId,
-          agentId: CODEX_AGENT_ID,
-          rawEvent: event.params ?? {},
-          config: normalizationConfig,
-        });
-        const payloadSessionId = normalized.payload['session_id'];
-        const sessionIdForEmit =
-          typeof payloadSessionId === 'string' ? payloadSessionId : fallbackSessionId;
+      const normalized = mapCodexEvent({
+        provider: 'codex',
+        runId,
+        eventType: event.method,
+        timestamp: eventTimestamp,
+        sessionId: fallbackSessionId,
+        agentId: CODEX_AGENT_ID,
+        rawEvent: event.params ?? {},
+        config: normalizationConfig,
+      });
+      const payloadSessionId = normalized.payload['session_id'];
+      const sessionIdForEmit =
+        typeof payloadSessionId === 'string' ? payloadSessionId : fallbackSessionId;
+      if (emitNormalizedEvents) {
         emit({
           source: 'provider',
           eventType: normalized.resolvedEventType ?? event.method,
@@ -1371,64 +1417,17 @@ export class SubAgent {
           agentId: CODEX_AGENT_ID,
           payload: normalized.payload,
         });
+      }
 
-        if (normalized.assistantText && normalized.assistantText.kind === 'text') {
-          if (normalized.assistantText.isFinal) {
-            bufferedAssistantText = normalized.assistantText.text;
-          } else if (normalized.assistantText.text.length > bufferedAssistantText.length) {
-            bufferedAssistantText = normalized.assistantText.text;
-          }
+      if (normalized.assistantText && normalized.assistantText.kind === 'text') {
+        if (normalized.assistantText.isFinal) {
+          bufferedAssistantText = normalized.assistantText.text;
+        } else if (normalized.assistantText.text.length > bufferedAssistantText.length) {
+          bufferedAssistantText = normalized.assistantText.text;
         }
-        if (normalized.assistantTextDelta) {
-          bufferedAssistantText += normalized.assistantTextDelta;
-        }
-
-        if (!firstProviderEventReceived) {
-          firstProviderEventReceived = true;
-          lastProcessingKind = 'thinking';
-          emitProcessingStatus(
-            { kind: 'loading.update', loadingText: 'Thinking...', phase: 'thinking' },
-            sessionIdForEmit,
-          );
-        }
-        if (normalized.assistantText && lastProcessingKind !== 'writing') {
-          lastProcessingKind = 'writing';
-          emitProcessingStatus(
-            { kind: 'loading.update', loadingText: 'Writing response...', phase: 'writing' },
-            sessionIdForEmit,
-          );
-        } else if (
-          !normalized.assistantText &&
-          !normalized.isTerminal &&
-          lastProcessingKind !== 'thinking'
-        ) {
-          lastProcessingKind = 'thinking';
-          emitProcessingStatus(
-            { kind: 'loading.update', loadingText: 'Thinking...', phase: 'thinking' },
-            sessionIdForEmit,
-          );
-        }
-
-        if (normalized.isTerminal) {
-          assistantCompleted = true;
-          if (bufferedAssistantText.length > 0) {
-            lastAssistantText = bufferedAssistantText;
-            emit({
-              source: 'provider',
-              eventType: 'agent_output',
-              timestamp: eventTimestamp,
-              sessionId: sessionIdForEmit,
-              agentId: CODEX_AGENT_ID,
-              payload: {
-                messageType: 'assistant',
-                summary: bufferedAssistantText,
-                taskComplete: true,
-              },
-            });
-            bufferedAssistantText = '';
-          }
-        }
-        return;
+      }
+      if (normalized.assistantTextDelta) {
+        bufferedAssistantText += normalized.assistantTextDelta;
       }
 
       if (!firstProviderEventReceived) {
@@ -1436,8 +1435,45 @@ export class SubAgent {
         lastProcessingKind = 'thinking';
         emitProcessingStatus(
           { kind: 'loading.update', loadingText: 'Thinking...', phase: 'thinking' },
-          fallbackSessionId,
+          sessionIdForEmit,
         );
+      }
+      if (normalized.assistantText && lastProcessingKind !== 'writing') {
+        lastProcessingKind = 'writing';
+        emitProcessingStatus(
+          { kind: 'loading.update', loadingText: 'Writing response...', phase: 'writing' },
+          sessionIdForEmit,
+        );
+      } else if (
+        !normalized.assistantText &&
+        !normalized.isTerminal &&
+        lastProcessingKind !== 'thinking'
+      ) {
+        lastProcessingKind = 'thinking';
+        emitProcessingStatus(
+          { kind: 'loading.update', loadingText: 'Thinking...', phase: 'thinking' },
+          sessionIdForEmit,
+        );
+      }
+
+      if (normalized.isTerminal) {
+        assistantCompleted = true;
+        if (bufferedAssistantText.length > 0) {
+          lastAssistantText = bufferedAssistantText;
+          emit({
+            source: 'provider',
+            eventType: 'agent_output',
+            timestamp: eventTimestamp,
+            sessionId: sessionIdForEmit,
+            agentId: CODEX_AGENT_ID,
+            payload: {
+              messageType: 'assistant',
+              summary: bufferedAssistantText,
+              taskComplete: true,
+            },
+          });
+          bufferedAssistantText = '';
+        }
       }
     });
 
@@ -1529,6 +1565,7 @@ export class SubAgent {
             ? { baseInstructions: delivery.baseInstructions }
             : {}),
           cwd: codexPermissionPlan.cwd,
+          ...(toolFree || session.inert ? { disableMcpServers: true } : {}),
           ...(codexPermissionPlan.sandboxMode ? { sandbox: codexPermissionPlan.sandboxMode } : {}),
           ...(codexPermissionPlan.extraWritableDirs.length > 0
             ? { extraWritableDirs: codexPermissionPlan.extraWritableDirs }
@@ -1582,6 +1619,11 @@ export class SubAgent {
           adapterId: config.adapterId,
         });
       }
+      const reportedSessionId = client.getSessionId();
+      if (reportedSessionId && !reportedSessionId.startsWith('pending_')) {
+        providerSessionId = reportedSessionId;
+        this.providerSessionId = reportedSessionId;
+      }
       await client.disconnect().catch((error: unknown) => {
         requestContext.log(logger, 'warn', 'local.subagent.codex.disconnect_failed', {
           runId,
@@ -1596,6 +1638,7 @@ export class SubAgent {
       outputText: lastAssistantText,
       ...(contextReading !== undefined ? { contextReading } : {}),
       ...(budgetGuard?.isExhausted ? { budgetExhausted: true } : {}),
+      ...(providerSessionId ? { providerSessionId } : {}),
       usage: this.usageMeter.read(),
     };
   }

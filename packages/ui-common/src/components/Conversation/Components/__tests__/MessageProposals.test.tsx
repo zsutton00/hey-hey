@@ -11,9 +11,6 @@ import {
   type ProposalResponseDto,
   type SystemMessage,
 } from "../../../../api";
-import { designDocStateAtom } from "../../../../data/collections/designDocs";
-import { CollectionMap } from "../../../../data/core/CollectionMap";
-import { ListQueryMap } from "../../../../data/core/ListQueryMap";
 import type { ConversationMessage } from "../../../../types/conversation";
 import type { ProposalsAcceptedHandler } from "../../hooks/proposalsAcceptedTypes";
 import type { OnApplyProposal } from "../../../ProposalDispatchers";

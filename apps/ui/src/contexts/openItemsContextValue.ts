@@ -46,7 +46,7 @@ export interface OpenItemsContextValue {
     identities: readonly OpenItemIdentity[],
     includeDescendants: boolean,
   ) => Promise<boolean>;
-  removeOthers: (identity: OpenItemIdentity) => Promise<boolean>;
+  removeOthers: (keep: readonly OpenItemIdentity[]) => Promise<boolean>;
   removeAllAbove: (identity: OpenItemIdentity) => Promise<boolean>;
   removeAllBelow: (identity: OpenItemIdentity) => Promise<boolean>;
   removeAll: () => Promise<boolean>;

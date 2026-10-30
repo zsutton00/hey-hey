@@ -288,6 +288,7 @@ describe("WorkflowDetailPageView graph surface", () => {
     render(
       <MemoryRouter>
         <WorkflowStepPageView
+          linkedDiagram={{ status: "absent" }}
           organizationId="org-1"
           projectId="project-1"
           task={steps[0]}
@@ -399,6 +400,7 @@ describe("WorkflowDetailPageView graph surface", () => {
     render(
       <MemoryRouter>
         <WorkflowStepPageView
+          linkedDiagram={{ status: "absent" }}
           organizationId="org-1"
           projectId="project-1"
           task={steps[0]}

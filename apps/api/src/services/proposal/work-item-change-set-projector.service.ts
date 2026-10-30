@@ -1,3 +1,4 @@
+import type { GroupReservedEntity } from './proposal-group-authoring.service';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ProposalEdgeEndpointMode } from 'src/generated/model/proposalEdgeEndpointMode';
 import {
@@ -36,7 +37,10 @@ import {
 } from 'src/generated/graphs/model/agentEdgeType';
 import { PrismaService } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId } from 'src/types';
-import { TaskSectionSchemaValidatorRegistry } from '../tasks/task-section-schema-validator.registry';
+import {
+  TaskSectionSchemaValidatorRegistry,
+  resolveWorkItemSectionContentKind,
+} from '../tasks/task-section-schema-validator.registry';
 import { WorkItemTypeRegistryService } from '../tasks/work-item-type-registry.service';
 import { WorkItemParentageValidator } from '../tasks/work-item-parentage-validator.service';
 import { validateFeatureRequirementsSection } from '../tasks/feature-requirements-section.validator';
@@ -75,7 +79,7 @@ import { ProjectionLoader } from './work-item-change-set-projection/projection-l
  * callers request none, so their projection reads only what active rules load.
  */
 export type ProjectionView =
-  | { kind: 'rootChildren' }
+  | { kind: 'rootChildren'; includeExternalRelationships?: boolean }
   | { kind: 'sourceRefs'; refs: readonly WorkItemChangeSetIdentity[] };
 
 /** The root's children and every relationship between them and the root. */
@@ -131,6 +135,8 @@ export class WorkItemChangeSetProjectorService {
     organizationId: OrganizationId;
     projectId: ProjectId;
     request: WorkItemChangeSetValidationRequest;
+    reservedEntities?: readonly GroupReservedEntity[];
+    basis?: ProjectedWorkItemChangeSetResponse;
     overlayNodes?: readonly ProjectedWorkItem[];
     overlayRelationships?: readonly ProjectedWorkItemRelationship[];
     view?: ProjectionView;
@@ -751,6 +757,8 @@ export class WorkItemChangeSetProjectorService {
     organizationId: OrganizationId;
     projectId: ProjectId;
     request: WorkItemChangeSetValidationRequest;
+    reservedEntities?: readonly GroupReservedEntity[];
+    basis?: ProjectedWorkItemChangeSetResponse;
     overlayNodes?: readonly ProjectedWorkItem[];
     overlayRelationships?: readonly ProjectedWorkItemRelationship[];
     view?: ProjectionView;
@@ -971,6 +979,8 @@ export class WorkItemChangeSetProjectorService {
     organizationId: OrganizationId;
     projectId: ProjectId;
     request: WorkItemChangeSetValidationRequest;
+    reservedEntities?: readonly GroupReservedEntity[];
+    basis?: ProjectedWorkItemChangeSetResponse;
     overlayNodes?: readonly ProjectedWorkItem[];
     overlayRelationships?: readonly ProjectedWorkItemRelationship[];
     view?: ProjectionView;
@@ -987,6 +997,7 @@ export class WorkItemChangeSetProjectorService {
     for (const relationship of params.overlayRelationships ?? []) {
       const key = this.relationshipKey(relationship.identity);
       state.relationships.set(key, { ...relationship });
+      findings.overlayRelationships.add(key);
       state.identityLabels[key] = relationship.label;
     }
 
@@ -1023,6 +1034,20 @@ export class WorkItemChangeSetProjectorService {
     });
     findings.namedMissing = named.namedMissing;
     findings.namedUnavailable = named.namedUnavailable;
+    if (params.basis) {
+      this.restoreGraphBasis(state, params.basis);
+      const basisKeys = new Set(
+        [params.basis.projectedRoot, ...params.basis.children].map((node) =>
+          this.identityKey(node.identity),
+        ),
+      );
+      findings.namedMissing = findings.namedMissing.filter(
+        (id) => !basisKeys.has(`existing:${id}`),
+      );
+      for (const key of basisKeys) findings.overlayNodes.add(key);
+      for (const edge of params.basis.incidentRelationships)
+        findings.overlayRelationships.add(this.relationshipKey(edge.identity));
+    }
     const facts = deriveRequestFacts(params.request, state, named.parentTypes);
     const plan = planProjection({
       rules: PROJECTION_RULES,
@@ -1038,6 +1063,7 @@ export class WorkItemChangeSetProjectorService {
       agentEdgeClient: this.agentEdgeClient,
       tokenFactory: this.tokenFactory,
       request: params.request,
+      reservedEntities: params.reservedEntities,
       facts,
       state,
       loaded,
@@ -1054,6 +1080,7 @@ export class WorkItemChangeSetProjectorService {
       viewCounts = await loader.loadRootNeighbourhood(
         facts.root,
         this.incidentGraphAgentEdgeTypes(),
+        params.view.includeExternalRelationships,
       );
     }
     for (const node of params.overlayNodes ?? []) {
@@ -1065,6 +1092,21 @@ export class WorkItemChangeSetProjectorService {
       const key = this.relationshipKey(relationship.identity);
       state.relationships.set(key, { ...relationship });
       state.identityLabels[key] = relationship.label;
+    }
+    if (params.basis) {
+      this.restoreGraphBasis(state, params.basis);
+      const rootKey = this.identityKey(params.basis.projectedRoot.identity);
+      loaded.children.set(
+        rootKey,
+        params.basis.children
+          .filter((n) => !n.deleted)
+          .map((n) => this.identityKey(n.identity)),
+      );
+      for (const edge of params.basis.incidentRelationships) {
+        const key = this.relationshipKey(edge.identity);
+        loaded.missingEdges.delete(key);
+        loaded.storedEdgeTypes.set(key, edge.edgeType);
+      }
     }
     this.logger.debug('Planned work-item change-set projection', {
       projectId: params.projectId,
@@ -1115,6 +1157,46 @@ export class WorkItemChangeSetProjectorService {
       workItemKeys: [...state.nodes.keys()].sort(),
       relationshipKeys: [...state.relationships.keys()].sort(),
     };
+  }
+
+  /** Restore the selected graph after loading current external validation context.
+   * Live children/edges cannot leak into a refinement of a captured future.
+   */
+  private restoreGraphBasis(
+    state: ProjectionState,
+    basis: ProjectedWorkItemChangeSetResponse,
+  ): void {
+    const root = this.identityKey(basis.projectedRoot.identity);
+    const owned = new Set([
+      root,
+      ...basis.children.map((n) => this.identityKey(n.identity)),
+    ]);
+    for (const [key, node] of state.nodes) {
+      if (this.identityKey(node.parent) === root) {
+        owned.add(key);
+        state.nodes.delete(key);
+        delete state.identityLabels[key];
+      }
+    }
+    for (const [key, edge] of state.relationships) {
+      if (
+        owned.has(this.identityKey(edge.source)) ||
+        owned.has(this.identityKey(edge.target))
+      ) {
+        state.relationships.delete(key);
+        delete state.identityLabels[key];
+      }
+    }
+    for (const node of [basis.projectedRoot, ...basis.children]) {
+      const key = this.identityKey(node.identity);
+      state.nodes.set(key, structuredClone(node));
+      state.identityLabels[key] = node.label;
+    }
+    for (const edge of basis.incidentRelationships) {
+      const key = this.relationshipKey(edge.identity);
+      state.relationships.set(key, structuredClone(edge));
+      state.identityLabels[key] = edge.label;
+    }
   }
 
   /** Loaded neighbours of unavailable types are recorded, never projected. */
@@ -1326,6 +1408,7 @@ export class WorkItemChangeSetProjectorService {
       category: edge.category,
       direction: edge.direction ?? undefined,
       predicate: edge.predicate ?? null,
+      actionLabel: edge.actionLabel ?? null,
       reasoning: edge.reasoning,
       metadata: edge.metadata ?? null,
       deleted: false,
@@ -1352,7 +1435,7 @@ export class WorkItemChangeSetProjectorService {
       priority: task.priority ?? undefined,
       dueDate: task.dueDate?.toISOString() ?? null,
       assigneeId: task.assigneeId ?? null,
-      tag: task.tag as ProjectedNode['tag'],
+      tag: (task.tag ?? undefined) as ProjectedNode['tag'],
       serviceIds: new Set(
         task.serviceRelations.map((relation) => relation.serviceId).sort(),
       ),
@@ -1360,7 +1443,7 @@ export class WorkItemChangeSetProjectorService {
         .filter((section) => section.materializedMarkdown !== null)
         .map((section) => ({
           key: section.key,
-          content: this.projectPersistedSectionContent(
+          content: this.projectSectionContent(
             task.type,
             projectId,
             section.key,
@@ -1371,20 +1454,26 @@ export class WorkItemChangeSetProjectorService {
     };
   }
 
-  private projectPersistedSectionContent(
+  /**
+   * Structured sections are persisted as JSON text but reviewed as values, so
+   * every projected structured section holds the parsed value. Otherwise a
+   * rehydrated graph never equals the reviewed graph it materialized.
+   */
+  private projectSectionContent(
     taskType: string,
     projectId: ProjectId,
     sectionKey: string,
-    content: string,
+    content: unknown,
   ): unknown {
+    if (typeof content !== 'string') return content;
     // Deleting an orphan preserves its persisted sections without interpreting
     // them using a type definition that no longer exists.
     const definition = this.workItemTypeRegistry
       .getRulesForProject(taskType, projectId)
       ?.sectionDefinitions.find((section) => section.key === sectionKey);
     if (
-      definition?.kind !== 'html/css' &&
-      definition?.kind !== 'structured-mockup'
+      !definition ||
+      resolveWorkItemSectionContentKind(definition) === 'markdown'
     ) {
       return content;
     }
@@ -1440,7 +1529,7 @@ export class WorkItemChangeSetProjectorService {
             this.applyDelete(operation, state, outcomes);
             break;
           case 'section.replace':
-            this.applySectionReplace(operation, state, outcomes);
+            this.applySectionReplace(operation, projectId, state, outcomes);
             break;
           case 'section.clear':
             this.applySectionClear(operation, projectId, state, outcomes);
@@ -1573,6 +1662,7 @@ export class WorkItemChangeSetProjectorService {
 
   private applySectionReplace(
     operation: WorkItemSectionReplaceOperation,
+    projectId: ProjectId,
     state: ProjectionState,
     outcomes: ApplyOutcome[],
   ): void {
@@ -1588,7 +1678,12 @@ export class WorkItemChangeSetProjectorService {
     );
     sections.set(operation.key, {
       key: operation.key,
-      content: operation.content,
+      content: this.projectSectionContent(
+        node.type,
+        projectId,
+        operation.key,
+        operation.content,
+      ),
     });
     node.sections = this.sortedSections([...sections.values()]);
   }
@@ -1651,6 +1746,8 @@ export class WorkItemChangeSetProjectorService {
           : undefined,
       predicate:
         'predicate' in operation ? (operation.predicate ?? null) : null,
+      actionLabel:
+        'actionLabel' in operation ? (operation.actionLabel ?? null) : null,
       reasoning: operation.reasoning ?? null,
       metadata: operation.metadata ?? null,
       deleted: false,
@@ -1684,12 +1781,22 @@ export class WorkItemChangeSetProjectorService {
       state.identityLabels[this.relationshipKey(operation.ref)] =
         operation.edgeType;
     }
+    if (
+      operation.category !== undefined &&
+      operation.category !== 'flow' &&
+      !Object.prototype.hasOwnProperty.call(operation, 'actionLabel')
+    ) {
+      edge.actionLabel = null;
+    }
     if (operation.category !== undefined) edge.category = operation.category;
     if (Object.prototype.hasOwnProperty.call(operation, 'direction')) {
       edge.direction = operation.direction ?? undefined;
     }
     if (Object.prototype.hasOwnProperty.call(operation, 'predicate')) {
       edge.predicate = operation.predicate ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(operation, 'actionLabel')) {
+      edge.actionLabel = operation.actionLabel ?? null;
     }
     if (Object.prototype.hasOwnProperty.call(operation, 'reasoning')) {
       edge.reasoning = operation.reasoning ?? null;

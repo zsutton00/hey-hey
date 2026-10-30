@@ -13,6 +13,7 @@ import { createTestOAuthClient as createProviderTestOAuthClient } from '../auth/
 import { SubmissionToolAuth } from './submission-tools/submission-tool-auth';
 import { TaskMonitorDecisionStore } from './task-monitor/task-monitor-decision-store';
 import { SessionMonitorEvaluationStore } from './session-monitor';
+import { createRunStorePreparationRecords } from './preparation-records';
 import type { OnCompleteDeps, PromptTypeHandlerDeps } from './prompt-type-handler';
 import type { MachineEffectProofSigner } from '../auth/machine-effect-proof';
 import { AgentStartupPromptInput } from '../commands/agent-startup-prompt-input';
@@ -86,9 +87,11 @@ const unusedFetch = (() =>
     new Error('Handler test fetch boundary was called unexpectedly.'),
   )) as typeof fetch;
 
-export const createPromptTypeHandlerTestDeps = (
-  overrides: Partial<PromptTypeHandlerDeps> = {},
-): PromptTypeHandlerDeps => {
+/** `runStore` backs the default `preparationRecords` the way a real Run does. */
+export const createPromptTypeHandlerTestDeps = ({
+  runStore = createPromptTypeHandlerTestRunStore(),
+  ...overrides
+}: Partial<PromptTypeHandlerDeps> & { runStore?: RunStore } = {}): PromptTypeHandlerDeps => {
   const auth = overrides.auth ?? createPromptTypeHandlerTestAuth();
   const apiBaseUrl = overrides.apiBaseUrl ?? 'https://api.example.test/api/v1';
   const logger = overrides.logger ?? NOOP_LOGGER;
@@ -120,7 +123,7 @@ export const createPromptTypeHandlerTestDeps = (
     }));
   }
   return {
-    runStore: createPromptTypeHandlerTestRunStore(),
+    preparationRecords: createRunStorePreparationRecords(runStore),
     fetchImpl: unusedFetch,
     auth,
     apiBaseUrl,
@@ -130,6 +133,7 @@ export const createPromptTypeHandlerTestDeps = (
     startupPromptInput,
     childAgentLauncher: {
       launchRegistered: () => Promise.reject(new Error('No child launcher in this test')),
+      resolveChildHandler: () => undefined,
     },
     promptOnce: () => Promise.reject(new Error('No promptOnce in this test')),
     ...overrides,

@@ -3,7 +3,9 @@ import {
   ConversationStartRunRequestDtoReasoningEffortEnum,
   EvalAttemptStatus,
   EvalAttemptStopReason,
+  EvalTargetHandlerKey,
   type EvalConfiguration,
+  type EvalHandlerConfig,
   type EvalModelSetting,
   type EvalRunSettings,
   type LaunchEvalRunRequestSettings,
@@ -28,17 +30,31 @@ export type LimitChoice =
 export const TIME_LIMIT_PRESETS_MINUTES = [15, 30] as const;
 export const TOKEN_LIMIT_PRESETS = [200_000] as const;
 
+/** "Project Assistant alone" first, then each real handler a run can execute. */
+export const RUN_HANDLER_OPTIONS: readonly EvalTargetHandlerKey[] = [
+  EvalTargetHandlerKey.ProjectAssistant,
+  ...Object.values(EvalTargetHandlerKey).filter(
+    (handler) => handler !== EvalTargetHandlerKey.ProjectAssistant,
+  ),
+];
+
 export interface RunSettingsDraft {
   concurrency: number | null;
   /** Minutes. */
   timeLimit: LimitChoice;
   tokenLimit: LimitChoice;
+  /** The handler every case runs in place of its own; null keeps each case's handler. */
+  handler: EvalTargetHandlerKey | null;
+  /** Whether Project Assistant prepares the handler first, as in real use. Not offered for Project Assistant alone. */
+  projectAssistantEnabled: boolean;
 }
 
 export const defaultRunSettings = (): RunSettingsDraft => ({
   concurrency: DEFAULT_CONCURRENCY,
   timeLimit: { kind: "none" },
   tokenLimit: { kind: "none" },
+  handler: null,
+  projectAssistantEnabled: true,
 });
 
 const limitValue = (choice: LimitChoice): number | null | undefined =>
@@ -76,12 +92,47 @@ export const setupLabel = (setting: EvalModelSetting): string =>
     ? `${setting.model} · ${setting.reasoningEffort}`
     : setting.model;
 
+/**
+ * The chosen handler and turning Project Assistant off are recorded on the
+ * target; leaving either at its default is left out, which keeps each case's
+ * handler and the handler's real-use behavior. Project Assistant alone has no
+ * preparation to turn off.
+ */
 export const toConfiguration = (
   setting: EvalModelSetting,
-): EvalConfiguration => ({
-  id: setupKey(setting),
-  target: setting,
-});
+  projectAssistantEnabled: boolean,
+  handler: EvalTargetHandlerKey | null = null,
+): EvalConfiguration => {
+  const preparationOff =
+    !projectAssistantEnabled &&
+    handler !== EvalTargetHandlerKey.ProjectAssistant;
+  const handlerConfig: EvalHandlerConfig = {
+    ...(handler ? { handler } : {}),
+    ...(preparationOff ? { projectAssistant: { enabled: false } } : {}),
+  };
+  return {
+    id: crypto.randomUUID(),
+    target:
+      Object.keys(handlerConfig).length > 0
+        ? { ...setting, handlerConfig }
+        : setting,
+  };
+};
+
+/** Every configuration of a run shares the setting, so one turned off means the run's is off. */
+export const isProjectAssistantEnabled = (
+  configurations: readonly EvalConfiguration[],
+): boolean =>
+  configurations.every(
+    (configuration) =>
+      configuration.target.handlerConfig?.projectAssistant?.enabled !== false,
+  );
+
+/** Every configuration of a run shares the handler, so the first one's is the run's. */
+export const runHandlerOf = (
+  configurations: readonly EvalConfiguration[],
+): EvalTargetHandlerKey | undefined =>
+  configurations[0]?.target.handlerConfig?.handler;
 
 export const formatElapsed = (ms: number): string => {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));

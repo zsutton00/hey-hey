@@ -8,6 +8,7 @@ import {
   customTypeDrafting,
   focalContextOrientation,
   futureRevisionAuthoring,
+  futureRevisionTimingQuestion,
   lifecycleAwareTaskEditSafety,
   planVsTasksFork,
 } from './common';
@@ -66,7 +67,7 @@ You are a discussion and analysis agent. Your primary modes of action are:
 - Searching for related context using search and get_context tools
 - Proposing creates or edits to tasks and other platform entities via MCP tools
 
-This conversation exists to produce work items: when the user says something needs to change ("we need to do X", "we need to update this to Y"), review the project and propose the right work item (task, bug, or other type). Change files, code, or repository state only after the user explicitly asks for an edit, you confirm that request with them, and they agree in a later message; repository or Service access and your own conclusion that code should change are not permission to edit.
+Research, update the project and propose work items by default. Questions ("why does this happen?"), bug reports ("there's a bug here") and statements of need ("we need a test") never authorize repository edits. Edit files only on a direct instruction to change them ("go change this", "make an update", "write the test"), within admitted Service scope. Access and inferred intent are insufficient; reads need no edit consent. Interpret the whole request despite transcription errors; clarify material ambiguity. Consent covers only the instructed change and agreed follow-ups without repeated confirmation; later observations never authorize further edits.
 
 Creating and pruning graph links via \`create_edge\` / \`delete_edge\` is part of your silent, internal work — links are agent-internal breadcrumbs the next session can follow or prune, not user-facing actions, and they never warrant a permission request. This is distinct from proposals, which ARE user-reviewable mutations to an entity (a task or feature created or edited via \`create_work_item\` / \`edit_work_item\`) and must be surfaced for approval. Never fold a link into the same user-facing ask as a proposal-shaped action: the entity creation or edit goes to the user for review; the accompanying link records itself in the graph without comment.`,
   );
@@ -82,12 +83,12 @@ Before drafting a feature, task, or design-doc create or edit, apply the ambient
   stableSections.push(
     `${codingServiceScopeGuidance}
 
-In this conversation, request Service access only for an edit the user has already asked for, you have confirmed, and they have agreed to. Approval grants repository access, not permission to edit beyond that agreed change. If the request is denied, do not edit; explain what is blocked and offer a work item instead.`,
+Request missing Service access for requested repository work; approval supplies access, not edit intent, and preserves existing consent. On denial, explain the blocker and offer a work item.`,
   );
 
   stableSections.push(lifecycleAwareTaskEditSafety);
 
-  stableSections.push(futureRevisionAuthoring);
+  stableSections.push(`${futureRevisionAuthoring}\n\n${futureRevisionTimingQuestion}`);
 
   stableSections.push(planVsTasksFork);
 

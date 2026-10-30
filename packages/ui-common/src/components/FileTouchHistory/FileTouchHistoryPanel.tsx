@@ -1,8 +1,8 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import {
   Alert,
   Box,
   CircularProgress,
-  Dialog,
   DialogContent,
   DialogTitle,
   Divider,
@@ -45,12 +45,12 @@ export const FileTouchHistoryPanel: React.FC<FileTouchHistoryPanelProps> = ({
   });
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
-      <DialogTitle sx={{ pr: 6 }}>
-        Task history
-        <Typography variant="body2" color="text.secondary" noWrap>
-          {normalizedPath}
-        </Typography>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth
+      maxWidth="md"
+      closeControl={
         <IconButton
           aria-label="Close task history"
           onClick={onClose}
@@ -58,6 +58,13 @@ export const FileTouchHistoryPanel: React.FC<FileTouchHistoryPanelProps> = ({
         >
           <CloseIcon />
         </IconButton>
+      }
+    >
+      <DialogTitle sx={{ pr: 6 }}>
+        Task history
+        <Typography variant="body2" color="text.secondary" noWrap>
+          {normalizedPath}
+        </Typography>
       </DialogTitle>
       <DialogContent dividers>
         {state.status === "loading" && (
@@ -67,11 +74,15 @@ export const FileTouchHistoryPanel: React.FC<FileTouchHistoryPanelProps> = ({
         )}
 
         {state.status === "error" && (
-          <Alert severity="error">Couldn’t load task history: {state.error.message}</Alert>
+          <Alert severity="error">
+            Couldn’t load task history: {state.error.message}
+          </Alert>
         )}
 
         {state.status === "empty" && (
-          <Alert severity="info">No tasks have historical evidence for this file.</Alert>
+          <Alert severity="info">
+            No tasks have historical evidence for this file.
+          </Alert>
         )}
 
         {(state.status === "ready" || state.status === "updating") && (
@@ -131,7 +142,9 @@ export const FileTouchHistoryPanel: React.FC<FileTouchHistoryPanelProps> = ({
                                 {evidenceIndex > 0 && " · "}
                                 <Link
                                   component={RouterLink}
-                                  data-agent-session-id={evidence.agentSessionId}
+                                  data-agent-session-id={
+                                    evidence.agentSessionId
+                                  }
                                   data-testid="file-task-history-session-link"
                                   onClick={onClose}
                                   to={pathService.agentSession({

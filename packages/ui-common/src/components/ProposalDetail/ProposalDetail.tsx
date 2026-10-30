@@ -1,3 +1,4 @@
+import { useFutureOfferCheck } from "../../data/hooks/useFutureOfferCheck";
 import {
   Alert,
   Box,
@@ -42,8 +43,6 @@ import {
 import { getProposalDisplayTitle } from "../ProposalDispatchers/getProposalDisplayTitle";
 import { RefinerChat } from "../AgentSession/RefinerChat";
 import { CapsuleAction } from "../ActionsCapsule";
-import { ProposalPlacementBlock } from "./ProposalPlacementBlock";
-import { ProposalInfluencesBlock } from "./ProposalInfluencesBlock";
 import { ProposalGroupReview } from "../ProposalGroupReview";
 import { formatProposalAction } from "../ProposalDispatchers/ProposalHeader";
 
@@ -188,6 +187,8 @@ const ProposalDetailLoaded: React.FC<ProposalDetailLoadedProps> = ({
 
   const { isExpanded } = useConversationPanel();
 
+  const checkAppliedProposal = useFutureOfferCheck();
+
   const handleApply = useCallback(
     async (
       id: string,
@@ -220,6 +221,7 @@ const ProposalDetailLoaded: React.FC<ProposalDetailLoadedProps> = ({
           );
         }
         approvedProposal = response.data.data;
+        checkAppliedProposal(approvedProposal);
       } finally {
         invalidateReview(proposal.organizationId, proposal.projectId);
         await refetch().catch(() => null);
@@ -230,7 +232,13 @@ const ProposalDetailLoaded: React.FC<ProposalDetailLoadedProps> = ({
       }
       return approvedProposal;
     },
-    [proposal, refetch, invalidateConversation, invalidateReview],
+    [
+      proposal,
+      refetch,
+      invalidateConversation,
+      invalidateReview,
+      checkAppliedProposal,
+    ],
   );
 
   useEffect(() => {
@@ -361,20 +369,7 @@ const ProposalDetailLoaded: React.FC<ProposalDetailLoadedProps> = ({
         entityId={proposal.id}
         entityName={getProposalDisplayTitle(proposal)}
       />
-    ) : (
-      <Stack spacing={2} sx={{ p: 3 }}>
-        <ProposalPlacementBlock
-          organizationId={organizationId}
-          projectId={projectId}
-          proposal={proposal}
-        />
-        <ProposalInfluencesBlock
-          organizationId={organizationId}
-          projectId={projectId}
-          proposal={proposal}
-        />
-      </Stack>
-    );
+    ) : null;
 
   return (
     <>
@@ -430,7 +425,7 @@ const ProposalContent: React.FC<{
   // Eval output is never application-eligible: show it read-only from its
   // retained content. The server refuses approval regardless.
   const renderMode =
-    proposal.applicationEligible === false ? "evaluation-output" : undefined;
+    proposal.applicationEligible === false ? "evaluation-output" : "detail";
 
   if (proposal.action === ProposalAction.Create) {
     return (

@@ -1,7 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Prisma, ReportType as PrismaReportType } from '@prisma/client';
-import { EvalAttemptStatus } from 'src/generated';
-import { EventContextManager } from 'src/core/events/observable-event.context';
+import { WorkItemTypeRegistryService } from '../tasks/work-item-type-registry.service';
+import { Injectable, Optional } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId } from 'src/types';
 import { captureRetainedOriginalTargetContent } from '../proposal/proposal-original-content';
@@ -19,37 +18,15 @@ export const ORDINARY_EVAL_OUTPUT_STAMP: EvalOutputAdmission = {
   isEvalOutput: false,
 };
 
-const EVAL_OUTPUT_STAMP: EvalOutputAdmission = {
-  ragEnabled: false,
-  applicationEligible: false,
-  isEvalOutput: true,
-};
-
-const IN_FLIGHT_ATTEMPT_STATUSES: EvalAttemptStatus[] = [
-  EvalAttemptStatus.Preparing,
-  EvalAttemptStatus.Running,
-  EvalAttemptStatus.Judging,
-];
-
-/**
- * The agent session the current request writes under, taken from the
- * X-Agent-Session-ID header the HTTP boundary records on the event context.
- */
-export function currentWritingSessionId(): string | null {
-  return (
-    EventContextManager.getInstance().getCurrentContext()?.agentSessionId ??
-    null
-  );
-}
-
 @Injectable()
 export class EvalOutputAdmissionService {
-  private readonly logger = new Logger(EvalOutputAdmissionService.name);
+  constructor(
+    @Optional() private readonly workItemTypes?: WorkItemTypeRegistryService,
+  ) {}
 
   /**
-   * Output written by the target session of an in-flight eval attempt in the
-   * same project is eval output: retained, but excluded from project knowledge
-   * and never applicable. Any other writer is stored as an ordinary write.
+   * Persist the writer's independent retrieval and application properties.
+   * Session identity and attempt lifecycle never classify output.
    */
   async resolve(
     tx: AnyTransactionClient,
@@ -57,40 +34,16 @@ export class EvalOutputAdmissionService {
       organizationId: OrganizationId;
       projectId: ProjectId;
       writingSessionId?: string | null;
+      ragEnabled?: boolean;
+      applicationEligible?: boolean;
     },
   ): Promise<EvalOutputAdmission> {
-    if (!params.writingSessionId) {
-      return ORDINARY_EVAL_OUTPUT_STAMP;
-    }
-    const attempt = await tx.report.findFirst({
-      where: {
-        organizationId: params.organizationId,
-        projectId: params.projectId,
-        reportType: PrismaReportType.EVAL_ATTEMPT,
-        AND: [
-          {
-            payload: {
-              path: ['targetSessionId'],
-              equals: params.writingSessionId,
-            },
-          },
-          {
-            OR: IN_FLIGHT_ATTEMPT_STATUSES.map((status) => ({
-              payload: { path: ['status'], equals: status },
-            })),
-          },
-        ],
-      },
-      select: { id: true },
-    });
-    if (!attempt) {
-      return ORDINARY_EVAL_OUTPUT_STAMP;
-    }
-    this.logger.log('Admitting eval target output as inert', {
-      evalAttemptReportId: attempt.id,
-      writingSessionId: params.writingSessionId,
-    });
-    return EVAL_OUTPUT_STAMP;
+    return {
+      ragEnabled: params.ragEnabled ?? true,
+      applicationEligible: params.applicationEligible ?? true,
+      isEvalOutput:
+        params.ragEnabled === false || params.applicationEligible === false,
+    };
   }
 
   /**
@@ -110,20 +63,28 @@ export class EvalOutputAdmissionService {
         targetEntityType: string;
         targetEntityId: string;
         updates: unknown;
+        ragEnabled?: boolean;
+        applicationEligible?: boolean;
       };
     },
   ): Promise<{
     stamp: EvalOutputAdmission;
     data: Partial<Prisma.ProposalUncheckedCreateInput>;
   }> {
-    const stamp = await this.resolve(tx, params);
+    const stamp = await this.resolve(tx, { ...params, ...params.proposal });
     if (!stamp.isEvalOutput) {
       return { stamp, data: {} };
     }
-    const retained = await captureRetainedOriginalTargetContent(
-      tx,
-      params.proposal,
-    );
+    const definition =
+      params.proposal.targetEntityType === 'WORK_ITEM_TYPE'
+        ? this.workItemTypes?.getDefinition(
+            params.projectId,
+            params.proposal.targetEntityId,
+          )?.definition
+        : undefined;
+    const retained = definition
+      ? { definition }
+      : await captureRetainedOriginalTargetContent(tx, params.proposal);
     return {
       stamp,
       data: {

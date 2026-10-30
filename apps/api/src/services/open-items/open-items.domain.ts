@@ -518,9 +518,26 @@ export function activateOpenItem(
   const open = existing !== undefined && existing.removedAt === null;
 
   if (existing && open) {
+    // Route hydration can temporarily supply no ancestors or only part of them.
+    // Keep the known branch until activation has at least as much ancestry.
+    const refreshLineage =
+      request.lineage.length > 0 &&
+      request.lineage.length >= existing.lineage.length;
+    const lineage = refreshLineage ? request.lineage : existing.lineage;
+    const presentation =
+      refreshLineage || !existing.presentation.routeParams?.lineageKinds
+        ? request.presentation
+        : {
+            ...request.presentation,
+            routeParams: {
+              ...request.presentation.routeParams,
+              lineageKinds: existing.presentation.routeParams.lineageKinds,
+            },
+          };
+
     if (
-      sameLineage(existing.lineage, request.lineage) &&
-      samePresentation(existing.presentation, request.presentation)
+      sameLineage(existing.lineage, lineage) &&
+      samePresentation(existing.presentation, presentation)
     ) {
       env.log(
         `Activation of open ${identityKey(premise)} is unchanged; collection revision stays ${state.revision}`,
@@ -531,8 +548,8 @@ export function activateOpenItem(
       `Activation refreshes lineage/presentation of ${identityKey(premise)}`,
     );
     workspace.touchItem(existing, {
-      lineage: request.lineage,
-      presentation: request.presentation,
+      lineage,
+      presentation,
     });
     return workspace.mutationResult([existing], []);
   }

@@ -20,7 +20,7 @@ export class RunCreatePayloadWorkflowKickoff {
   'promptType': RunCreatePayloadWorkflowKickoffPromptTypeEnum;
   'entity'?: RunEntityReference;
   /**
-   * The user\'s launch kickoff text. The API authors a real USER message row from this value before the start-run trigger, ordered ahead of the workflow\'s first turn, so the user\'s opening text renders before the response.
+   * The user\'s launch kickoff text, which may be empty for a supported blank startup. The API authors a real USER message row from this value before the start-run trigger, ordered ahead of the workflow\'s first turn, so the user\'s opening text renders before the response.
    */
   'userMessage': string;
 

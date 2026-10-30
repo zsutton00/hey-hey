@@ -1,6 +1,7 @@
 import {
   Conversation,
   DISABLED_CONVERSATION_SCROLL_POLICY,
+  useConversationMessageSubmitter,
   type RepositoryImportReplySubmission,
 } from "@hey-hey/ui-common/components";
 import {
@@ -53,19 +54,14 @@ const RepositoryImportPageContent = () => {
     data: activeImportConversation,
     isLoading: isLoadingActiveImport,
     error: activeImportError,
-  } = useConversationByWorkflow(
-    currentOrgId,
-    projectId,
-    "repository-import",
-    {
-      enabled: !!project && !requestedConversationId,
-      requireFirstMessage: false,
-      requireUiElements: false,
-      workflowAboutId: projectId,
-      workflowAboutType: "project",
-      statuses: REPOSITORY_IMPORT_CONVERSATION_STATUSES,
-    },
-  );
+  } = useConversationByWorkflow(currentOrgId, projectId, "repository-import", {
+    enabled: !!project && !requestedConversationId,
+    requireFirstMessage: false,
+    requireUiElements: false,
+    workflowAboutId: projectId,
+    workflowAboutType: "project",
+    statuses: REPOSITORY_IMPORT_CONVERSATION_STATUSES,
+  });
   const {
     data: requestedImportConversation,
     isLoading: isLoadingRequestedImport,
@@ -96,6 +92,12 @@ const RepositoryImportPageContent = () => {
   });
   const { mutate: submitRepositoryImportReply } =
     useSubmitRepositoryImportReply();
+  const submitEnrichmentReply = useConversationMessageSubmitter({
+    organizationId: currentOrgId,
+    projectId,
+    agentSessionId: agentSessions[0]?.id,
+    conversationId: conversation?.id,
+  });
 
   const handleSubmitRepositoryImportReply = useCallback(
     async (submission: RepositoryImportReplySubmission): Promise<void> => {
@@ -186,6 +188,7 @@ const RepositoryImportPageContent = () => {
         stepCount={-1}
         showNavigation
         onSubmitRepositoryImportReply={handleSubmitRepositoryImportReply}
+        onDirectTrigger={submitEnrichmentReply}
       />
     </Box>
   );

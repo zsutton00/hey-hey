@@ -250,6 +250,24 @@ describe('NotificationGenerationProcessor', () => {
     });
   };
 
+  it.each([true, false])(
+    'excludes retained reports from notifications (shouldProcess=%s)',
+    async (shouldProcess) => {
+      const { prisma, eventPublisher, service } = createService();
+      const event = buildReportCreatedEvent();
+      await service.handleReportCreatedEvent({
+        ...event,
+        payload: {
+          ...event.payload,
+          shouldProcess,
+          report: { ...event.payload.report, ragEnabled: false },
+        },
+      });
+      expect(eventPublisher.publish).not.toHaveBeenCalled();
+      expect(prisma.db.task.findFirst).not.toHaveBeenCalled();
+    },
+  );
+
   it('emits report notifications for resolved recipients', async () => {
     const { prisma, eventPublisher, service } = createService();
     prisma.db.task.findFirst.mockResolvedValue({

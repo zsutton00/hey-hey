@@ -18,12 +18,13 @@ export interface DiagramMetadataNot {
     level: DiagramMetadataNot.LevelEnum;
 }
 export namespace DiagramMetadataNot {
-    export type KindEnum = 'GENERAL' | 'PROCESS' | 'DYNAMIC' | 'DEPLOYMENT';
+    export type KindEnum = 'GENERAL' | 'PROCESS' | 'DYNAMIC' | 'DEPLOYMENT' | 'UX_FLOW';
     export const KindEnum = {
         General: 'GENERAL' as KindEnum,
         Process: 'PROCESS' as KindEnum,
         Dynamic: 'DYNAMIC' as KindEnum,
-        Deployment: 'DEPLOYMENT' as KindEnum
+        Deployment: 'DEPLOYMENT' as KindEnum,
+        UxFlow: 'UX_FLOW' as KindEnum
     };
     export type LevelEnum = 'SYSTEM_CONTEXT' | 'CONTAINER' | 'COMPONENT' | 'CODE';
     export const LevelEnum = {

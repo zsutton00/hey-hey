@@ -180,6 +180,67 @@ describe('ImplementationHintService', () => {
     expect(result[0]!.versions).toHaveLength(1);
   });
 
+  it('lists an archived Service without dropping organization or project scope', async () => {
+    prisma.db.service.findFirst.mockResolvedValue({
+      id: serviceId,
+      archivedAt: now,
+    });
+    prisma.db.implementationHint.findMany.mockResolvedValue([buildHint()]);
+    const hints = await service.findAll(organizationId, serviceId, {
+      accessibleProjectIds: [testIds.project],
+    });
+    expect(prisma.db.service.findFirst).toHaveBeenCalledWith({
+      where: { id: serviceId, organizationId },
+      select: { id: true },
+    });
+    expect(prisma.db.implementationHint.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          serviceId,
+          AND: [{ service: { projectId: { in: [testIds.project] } } }],
+        },
+      }),
+    );
+    expect(hints[0]?.hint).toBe('Use middleware guard');
+  });
+
+  it('retains inaccessible-project filtering even for an explicitly selected Service', async () => {
+    prisma.db.implementationHint.findMany.mockResolvedValue([]);
+    await expect(
+      service.findAll(organizationId, serviceId, { accessibleProjectIds: [] }),
+    ).resolves.toEqual([]);
+    expect(prisma.db.implementationHint.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { serviceId, AND: [{ service: { projectId: { in: [] } } }] },
+      }),
+    );
+  });
+
+  it('rejects administrative listing outside the organization before reading hints', async () => {
+    prisma.db.service.findFirst.mockResolvedValue(null);
+    await expect(
+      service.findAll(organizationId, serviceId),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.db.implementationHint.findMany).not.toHaveBeenCalled();
+  });
+
+  it('keeps mutations restricted to active Services', async () => {
+    prisma.db.service.findFirst.mockResolvedValue(null);
+    await expect(
+      service.create(organizationId, {
+        serviceId,
+        featureName: 'Auth',
+        description: 'Guard',
+        sourceType: 'USER',
+        agentSessionId: 'cs-1',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.db.service.findFirst).toHaveBeenCalledWith({
+      where: { id: serviceId, organizationId, archivedAt: null },
+      select: { id: true },
+    });
+  });
+
   it('throws version conflict when appending a stale version', async () => {
     prisma.db.implementationHint.findFirst.mockResolvedValue(
       buildHint({ version: 3 }),

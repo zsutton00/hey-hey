@@ -11,6 +11,7 @@
  */
 
 import { EvalConfiguration } from '../models/EvalConfiguration';
+import { EvalResolvedExecution } from '../models/EvalResolvedExecution';
 import { EvalRunCaseInput } from '../models/EvalRunCaseInput';
 import { HttpFile } from '../http/http';
 
@@ -19,6 +20,7 @@ import { HttpFile } from '../http/http';
  */
 export class EvalRecordedAttempt {
   'attemptId': string;
+  'execution': EvalResolvedExecution;
   /**
    * Agent Session the attempt\'s target runs and writes under.
    */
@@ -45,6 +47,12 @@ export class EvalRecordedAttempt {
       baseName: 'attemptId',
       type: 'string',
       format: 'uuid',
+    },
+    {
+      name: 'execution',
+      baseName: 'execution',
+      type: 'EvalResolvedExecution',
+      format: '',
     },
     {
       name: 'targetSessionId',

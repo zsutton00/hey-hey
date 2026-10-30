@@ -26,10 +26,7 @@ import {
   type TaskResponseDto,
 } from "@hey-hey/ui-common/api";
 import { unifiedApiClient } from "@hey-hey/ui-common/clients";
-import {
-  FutureApplicationOfferDialog,
-  useTaskGenerationCapsuleAction,
-} from "@hey-hey/ui-common/components";
+import { useTaskGenerationCapsuleAction } from "@hey-hey/ui-common/components";
 import {
   useFullEntityContext,
   useInitiative,
@@ -93,7 +90,6 @@ export const TaskPage: React.FC<TaskPageProps> = ({
   const [isUpdatingTaskServices, setIsUpdatingTaskServices] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeletingTask, setIsDeletingTask] = useState(false);
-  const [isFutureOfferOpen, setIsFutureOfferOpen] = useState(false);
   const [treeVisibilityOverride, setTreeVisibilityOverride] = useState<{
     taskId: string;
     visible: boolean;
@@ -143,6 +139,7 @@ export const TaskPage: React.FC<TaskPageProps> = ({
     error: taskError,
   } = useTaskHierarchy(organizationId, projectId, taskId, {
     enabled: !!organizationId && !!taskId,
+    refetchOnMount: true,
     includeDesignDocCounts: true,
     includeAgentSessionCounts: true,
   });
@@ -296,6 +293,7 @@ export const TaskPage: React.FC<TaskPageProps> = ({
       includeServiceRelations: true,
       projectId,
       enabled: !!organizationId && !!taskId,
+      refetchOnMount: true,
     },
   );
 
@@ -640,9 +638,6 @@ export const TaskPage: React.FC<TaskPageProps> = ({
 
       try {
         await updateTask(task.id, { status: newStatus });
-        // Each transition into review or completion re-offers linked futures.
-        if (newStatus === "VERIFYING" || newStatus === "COMPLETED")
-          setIsFutureOfferOpen(true);
       } catch (error) {
         console.error("Failed to update task status:", error);
         throw error;
@@ -870,15 +865,6 @@ export const TaskPage: React.FC<TaskPageProps> = ({
 
   return (
     <CanonicalPageBoundary composition={pageComposition}>
-      {task?.id && (
-        <FutureApplicationOfferDialog
-          organizationId={organizationId}
-          projectId={projectId}
-          taskId={task.id}
-          open={isFutureOfferOpen}
-          onClose={() => setIsFutureOfferOpen(false)}
-        />
-      )}
       <TaskPageView
         organizationId={organizationId}
         projectId={projectId}

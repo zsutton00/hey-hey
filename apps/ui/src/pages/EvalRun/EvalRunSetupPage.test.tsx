@@ -227,6 +227,73 @@ describe("EvalRunSetupPage", () => {
     expect(screen.getByTestId("eval-run-start")).toBeDisabled();
   });
 
+  it("records Project Assistant off on every setup when the run turns it off", async () => {
+    render(<EvalRunSetupPage />);
+    addSetup("pick-sonnet-high");
+    fireEvent.click(
+      within(
+        screen.getByTestId("eval-run-setting-project-assistant"),
+      ).getByRole("checkbox", { hidden: true }),
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("eval-run-start"));
+    });
+    expect(mockLaunch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        request: expect.objectContaining({
+          configurations: [
+            expect.objectContaining({
+              target: expect.objectContaining({
+                handlerConfig: { projectAssistant: { enabled: false } },
+              }),
+            }),
+          ],
+        }),
+      }),
+    );
+  });
+
+  it("records the chosen handler and offers no Project Assistant toggle for Project Assistant alone", async () => {
+    render(<EvalRunSetupPage />);
+    addSetup("pick-sonnet-high");
+    expect(
+      screen.getByTestId("eval-run-setting-project-assistant"),
+    ).toBeInTheDocument();
+
+    fireEvent.mouseDown(
+      within(screen.getByTestId("eval-run-setting-handler")).getByRole(
+        "combobox",
+        { hidden: true },
+      ),
+    );
+    fireEvent.click(
+      screen.getByRole("option", {
+        name: /eval\.run\.handler\.project_assistant/,
+        hidden: true,
+      }),
+    );
+
+    expect(
+      screen.queryByTestId("eval-run-setting-project-assistant"),
+    ).not.toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("eval-run-start"));
+    });
+    expect(mockLaunch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        request: expect.objectContaining({
+          configurations: [
+            expect.objectContaining({
+              target: expect.objectContaining({
+                handlerConfig: { handler: "project_assistant" },
+              }),
+            }),
+          ],
+        }),
+      }),
+    );
+  });
+
   it("records the run, starts it from the saved run, then opens it", async () => {
     render(<EvalRunSetupPage />);
     addSetup("pick-sonnet-high");
@@ -241,7 +308,9 @@ describe("EvalRunSetupPage", () => {
         evalCaseIds: ["case-1", "case-2"],
         configurations: [
           {
-            id: "claude:sonnet:high",
+            id: expect.stringMatching(
+              /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+            ),
             target: {
               provider: "claude",
               model: "sonnet",

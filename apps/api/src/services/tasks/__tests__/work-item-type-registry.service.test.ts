@@ -1,3 +1,4 @@
+import { SessionRole } from '../../../generated/model/sessionRole';
 import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
@@ -391,7 +392,11 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
   CONTRACT: {
     name: 'Contract',
     initialStatus: WorkStatus.Active,
-    baseStatuses: [WorkStatus.Active, WorkStatus.Superseded],
+    baseStatuses: [
+      WorkStatus.Active,
+      WorkStatus.Superseded,
+      WorkStatus.Archived,
+    ],
     sectionKeys: [TaskSectionKey.Description],
     requiredScalars: [],
     forbiddenScalars: ['tag', 'dueDate'],
@@ -409,7 +414,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
       },
     ],
     parentageAllowedEntityTypes: [EntityType.Task],
-    agentSettableStatuses: [],
     anchorableReportTypes: [],
     capabilities: {
       requiresParent: true,
@@ -1012,7 +1016,7 @@ describe('WorkItemTypeRegistryService', () => {
       rows[0] = {
         ...rows[0]!,
         name: 'Changed project',
-        agentGuidance: { overview: 'Recovered guidance' },
+        maintenanceGuidance: 'Recovered guidance',
       };
       await jest.advanceTimersByTimeAsync(4999);
       expect(
@@ -1023,9 +1027,13 @@ describe('WorkItemTypeRegistryService', () => {
       expect(
         registry.getDefinition(projectId, 'STANDARD')?.definition.name,
       ).toBe(template.name);
-      expect(registry.getGuidance(projectId, 'BUG').overview).toBe(
-        'Recovered guidance',
-      );
+      expect(
+        registry.getGuidance(
+          projectId,
+          'BUG',
+          WorkItemTypeGuidancePurpose.Maintenance,
+        ).maintenanceGuidance,
+      ).toBe('Recovered guidance');
       // A second committed write deliberately has no bus notification either.
       rows[0] = { ...rows[0]!, lifecycleStatus: 'archived' };
       await jest.advanceTimersByTimeAsync(5000);
@@ -1084,7 +1092,7 @@ describe('WorkItemTypeRegistryService', () => {
         ...rows[0]!,
         name: 'New override',
         allowedParentTypes: ['FEATURE'],
-        agentGuidance: { overview: 'New guidance' },
+        maintenanceGuidance: 'New guidance',
       };
       template.name = 'New canonical';
       release([
@@ -1098,16 +1106,20 @@ describe('WorkItemTypeRegistryService', () => {
       expect(registry.getAllowedParentTypes('STANDARD', projectId)).toEqual([
         'FEATURE',
       ]);
-      expect(registry.getGuidance(projectId, 'STANDARD').overview).toBe(
-        'New guidance',
-      );
+      expect(
+        registry.getGuidance(
+          projectId,
+          'STANDARD',
+          WorkItemTypeGuidancePurpose.Maintenance,
+        ).maintenanceGuidance,
+      ).toBe('New guidance');
     });
 
     it('rejects an incomplete recovery snapshot without replacing any read model', async () => {
       jest.useFakeTimers();
       const rows = [
         buildProjectOwnedRow('STANDARD', projectId, {
-          agentGuidance: { overview: 'Original guidance' },
+          maintenanceGuidance: 'Original guidance',
         }),
       ];
       const { registry } = buildRegistry(rows);
@@ -1122,9 +1134,13 @@ describe('WorkItemTypeRegistryService', () => {
       expect(registry.getAllowedParentTypes('STANDARD', projectId)).toEqual(
         parents,
       );
-      expect(registry.getGuidance(projectId, 'STANDARD').overview).toBe(
-        'Original guidance',
-      );
+      expect(
+        registry.getGuidance(
+          projectId,
+          'STANDARD',
+          WorkItemTypeGuidancePurpose.Maintenance,
+        ).maintenanceGuidance,
+      ).toBe('Original guidance');
       rows[0] = { ...rows[0]!, name: 'Repaired' };
       await jest.advanceTimersByTimeAsync(5000);
       expect(
@@ -1156,34 +1172,21 @@ describe('WorkItemTypeRegistryService', () => {
       const standardTemplate = {
         ...buildTemplate('STANDARD', 1),
         maintenanceGuidance: 'Canonical maintenance advice',
-        agentGuidance: { overview: 'Canonical task meaning' },
+        sessionRoleGuidance: { implementation: 'Canonical implementation' },
       } as unknown as WorkItemTypeTemplate;
       const standardOverride = buildProjectOwnedRow('STANDARD', PROJECT, {
         name: 'Project task meaning',
-        agentGuidance: {
-          overview: 'Project task meaning',
-          contexts: [
-            {
-              focalTypeKeys: ['FEATURE'],
-              guidance: 'Task meaning for features',
-            },
-          ],
-        },
         maintenanceGuidance: null,
       });
       const bugOverride = buildProjectOwnedRow('BUG', PROJECT, {
         name: 'Project bug meaning',
-        agentGuidance: {
-          overview: 'Project bug meaning',
-          examples: [{ title: 'Regression', guidance: 'Describe the break.' }],
-          contexts: [
-            {
-              focalTypeKeys: ['FEATURE'],
-              guidance: 'Bug meaning for features',
-            },
-          ],
-        },
         maintenanceGuidance: 'Project bug maintenance advice',
+        sessionRoleGuidance: Object.fromEntries(
+          Object.values(SessionRole).map((role) => [
+            role,
+            `  ${role} advice  `,
+          ]),
+        ),
       });
       const { registry } = buildRegistry(
         [standardOverride, bugOverride],
@@ -1194,39 +1197,53 @@ describe('WorkItemTypeRegistryService', () => {
       return registry;
     }
 
-    it('returns purpose projections in request order with focal contexts', async () => {
-      const registry = await createGuidanceRegistry();
-
-      expect(
-        registry.getGuidanceBatch(PROJECT, {
+    it.each(Object.values(SessionRole))(
+      'returns ordered role projections for %s without inheriting omitted advice',
+      async (sessionRole) => {
+        const registry = await createGuidanceRegistry();
+        const request = {
           typeKeys: ['BUG', 'STANDARD'],
-          focalTypeKey: 'FEATURE',
-        }),
-      ).toEqual({
-        results: [
-          {
-            typeKey: 'BUG',
-            name: 'Project bug meaning',
-            overview: 'Project bug meaning',
-            examples: [
-              { title: 'Regression', guidance: 'Describe the break.' },
-            ],
-            contextualGuidance: [
-              { guidance: 'Bug meaning for features', examples: [] },
-            ],
-          },
-          {
-            typeKey: 'STANDARD',
-            name: 'Project task meaning',
-            overview: 'Project task meaning',
-            examples: [],
-            contextualGuidance: [
-              { guidance: 'Task meaning for features', examples: [] },
-            ],
-          },
-        ],
-      });
-    });
+          purpose: WorkItemTypeGuidancePurpose.Role,
+          sessionRole,
+        };
+        expect(registry.getGuidanceBatch(PROJECT, request)).toEqual({
+          results: [
+            {
+              typeKey: 'BUG',
+              name: 'Project bug meaning',
+              sessionRole,
+              guidance: `  ${sessionRole} advice  `,
+            },
+            { typeKey: 'STANDARD', name: 'Project task meaning', sessionRole },
+          ],
+        });
+        expect(
+          registry.getGuidance(
+            PROJECT,
+            'BUG',
+            WorkItemTypeGuidancePurpose.Role,
+            sessionRole,
+          ),
+        ).toEqual(registry.getGuidanceBatch(PROJECT, request).results[0]);
+        expect(() =>
+          registry.getGuidance(
+            PROJECT,
+            'BUG',
+            WorkItemTypeGuidancePurpose.Role,
+          ),
+        ).toThrow('sessionRole is required');
+        for (const key of ['UNKNOWN']) {
+          expect(() =>
+            registry.getGuidance(
+              PROJECT,
+              key,
+              WorkItemTypeGuidancePurpose.Role,
+              sessionRole,
+            ),
+          ).toThrow(key);
+        }
+      },
+    );
 
     it('preserves complete overrides without inheriting canonical maintenance advice', async () => {
       const registry = await createGuidanceRegistry();
@@ -1246,6 +1263,50 @@ describe('WorkItemTypeRegistryService', () => {
           },
         ],
       });
+    });
+
+    it('keeps role batches on the captured snapshot when the published snapshot changes', async () => {
+      const registry = await createGuidanceRegistry();
+      const original = (registry as any).snapshot;
+      const definition = registry.getDefinition(PROJECT, 'BUG')!.definition;
+      const advice = definition.sessionRoleGuidance;
+      Object.defineProperty(definition, 'sessionRoleGuidance', {
+        configurable: true,
+        get: () => {
+          (registry as any).snapshot = {
+            ...original,
+            projectSummaries: new Map([[PROJECT, []]]),
+          };
+          return advice;
+        },
+      });
+      expect(
+        registry.getGuidanceBatch(PROJECT, {
+          typeKeys: ['BUG', 'STANDARD'],
+          purpose: WorkItemTypeGuidancePurpose.Role,
+          sessionRole: SessionRole.Review,
+        }).results,
+      ).toEqual([
+        {
+          typeKey: 'BUG',
+          name: 'Project bug meaning',
+          sessionRole: SessionRole.Review,
+          guidance: '  review advice  ',
+        },
+        {
+          typeKey: 'STANDARD',
+          name: 'Project task meaning',
+          sessionRole: SessionRole.Review,
+        },
+      ]);
+      expect(() =>
+        registry.getGuidanceBatch(PROJECT, {
+          typeKeys: ['STANDARD'],
+          purpose: WorkItemTypeGuidancePurpose.Role,
+          sessionRole: SessionRole.Review,
+        }),
+      ).toThrow('STANDARD');
+      (registry as any).snapshot = original;
     });
 
     it('names an unavailable requested type in the batch error', async () => {
@@ -1642,7 +1703,7 @@ describe('WorkItemTypeRegistryService', () => {
       }
     });
 
-    it('CONTRACT only allows ACTIVE and SUPERSEDED', () => {
+    it('CONTRACT only allows ACTIVE, SUPERSEDED, and ARCHIVED', () => {
       expect(
         registry.isStatusAllowed(
           WORK_ITEM_TYPE_KEYS.Contract,
@@ -1654,6 +1715,13 @@ describe('WorkItemTypeRegistryService', () => {
         registry.isStatusAllowed(
           WORK_ITEM_TYPE_KEYS.Contract,
           WorkStatus.Superseded,
+          TEST_PROJECT,
+        ),
+      ).toBe(true);
+      expect(
+        registry.isStatusAllowed(
+          WORK_ITEM_TYPE_KEYS.Contract,
+          WorkStatus.Archived,
           TEST_PROJECT,
         ),
       ).toBe(true);
@@ -2794,15 +2862,14 @@ describe('WorkItemTypeRegistryService', () => {
       expect(data.forbiddenScalars).toEqual(definition.forbiddenScalars);
     });
 
-    it('persists semantic guidance and materializes the same complete administrative definition', async () => {
+    it('persists role guidance and materializes the same complete administrative definition', async () => {
       const { registry } = buildRegistry([]);
       const { tx, create } = buildTx();
-      const agentGuidance = {
-        overview: 'Meaning',
-        examples: [{ title: 'T', guidance: 'B' }],
-        contexts: [{ focalTypeKeys: ['custom'], guidance: 'Context' }],
+      const accepted = {
+        ...definition,
+        sessionRoleGuidance: { research: '  Keep evidence verbatim.  ' },
       };
-      const accepted = { ...definition, agentGuidance };
+
       await registry.insertAcceptedDefinitionInTransaction(
         tx,
         accepted,
@@ -2810,15 +2877,20 @@ describe('WorkItemTypeRegistryService', () => {
         ORG,
       );
       const data = create.mock.calls[0]![0].data;
-      expect(data.agentGuidance).toEqual(agentGuidance);
+      expect(data.sessionRoleGuidance).toEqual(accepted.sessionRoleGuidance);
       const reloaded = buildRegistry([{ ...data, graphConfiguration: null }]);
       await reloaded.registry.refresh();
       expect(
         reloaded.registry.getDefinition(PROJECT, definition.key)?.definition,
       ).toMatchObject(accepted);
       expect(
-        reloaded.registry.getGuidance(PROJECT, definition.key).examples,
-      ).toEqual(agentGuidance.examples);
+        reloaded.registry.getGuidance(
+          PROJECT,
+          definition.key,
+          WorkItemTypeGuidancePurpose.Role,
+          SessionRole.Research,
+        ).guidance,
+      ).toBe(accepted.sessionRoleGuidance.research);
     });
 
     it('round-trips an independent custom color through effective reads', async () => {
@@ -2828,7 +2900,6 @@ describe('WorkItemTypeRegistryService', () => {
         ...definition,
         iconKey: 'shield' as const,
         colorKey: 'secondary' as const,
-        agentGuidance: { overview: 'Custom campaign work' },
       };
       await registry.insertAcceptedDefinitionInTransaction(
         tx,
@@ -2857,7 +2928,9 @@ describe('WorkItemTypeRegistryService', () => {
         PROJECT,
         ORG,
       );
-      expect(create.mock.calls[0]![0].data.agentGuidance).toBe(Prisma.DbNull);
+      expect(create.mock.calls[0]![0].data.sessionRoleGuidance).toBe(
+        Prisma.DbNull,
+      );
     });
 
     it('persists an explicit identity reserved by grouped enactment', async () => {
@@ -2878,6 +2951,29 @@ describe('WorkItemTypeRegistryService', () => {
         data: expect.objectContaining({ id: reservedId }),
       });
     });
+
+    it.each([
+      ['an explicit narrower list', [WorkStatus.Active]],
+      ['an explicit empty list', []],
+    ])(
+      'keeps %s of agent-settable statuses as authored',
+      async (_label, agentSettableStatuses) => {
+        const { registry } = buildRegistry([]);
+        const { tx, create } = buildTx();
+
+        await registry.insertAcceptedDefinitionInTransaction(
+          tx,
+          { ...definition, agentSettableStatuses },
+          PROJECT,
+          ORG,
+        );
+
+        const { data } = create.mock.calls[0]![0] as {
+          data: Record<string, unknown>;
+        };
+        expect(data.agentSettableStatuses).toEqual(agentSettableStatuses);
+      },
+    );
 
     it('defaults the optional axes to neutral and writes no dropped columns', async () => {
       const { registry } = buildRegistry([]);
@@ -2901,7 +2997,11 @@ describe('WorkItemTypeRegistryService', () => {
         allowedSourceEntityTypes: [],
         allowedSourceTaskTypes: [],
       });
-      expect(data.agentSettableStatuses).toEqual([]);
+      // No list means no restriction: agents may set every allowed status.
+      expect(data.agentSettableStatuses).toEqual([
+        WorkStatus.Active,
+        WorkStatus.Completed,
+      ]);
       expect(data.anchorableReportTypes).toEqual([]);
       expect(data.writingStandards).toEqual({ create: '', edit: '' });
       expect(data.graphConfiguration).toEqual(Prisma.JsonNull);
@@ -3066,22 +3166,22 @@ describe('WorkItemTypeRegistryService', () => {
       expect(publishSpy).toHaveBeenCalledWith(ORG, 'MARKETING', PROJECT);
     });
 
-    it.each([undefined, { overview: 'Updated semantic meaning' }])(
-      'preserves or removes guidance through complete approved edits',
-      async (agentGuidance) => {
+    it.each([undefined, {}, { implementation: '  New advice  ' }])(
+      'preserves or removes role entries through approved edits: %j',
+      async (sessionRoleGuidance) => {
         const { registry } = buildRegistry([]);
         const { tx, updateMany } = buildLifecycleTx([
-          { ...storedRow, agentGuidance: { overview: 'Previous meaning' } },
+          { ...storedRow, sessionRoleGuidance: { review: 'Old advice' } },
         ]);
         await registry.updateAcceptedDefinitionInTransaction(
           tx,
           'MARKETING',
-          { ...editedDefinition, agentGuidance },
+          { ...editedDefinition, sessionRoleGuidance },
           PROJECT,
           ORG,
         );
-        expect(updateMany.mock.calls[0]![0].data.agentGuidance).toEqual(
-          agentGuidance ?? Prisma.DbNull,
+        expect(updateMany.mock.calls[0]![0].data.sessionRoleGuidance).toEqual(
+          sessionRoleGuidance ?? Prisma.DbNull,
         );
       },
     );

@@ -3,7 +3,6 @@ import { PlanStageBatchApprovalService } from '../plan-stage-batch-approval.serv
 import { PlanStepBatchApprovalService } from '../plan-step-batch-approval.service';
 import { ProposalApprovalService } from '../proposal-approval.service';
 import { ProposalGroupDecisionService } from '../proposal-group-decision.service';
-import { ProposalGroupFinalizationService } from '../proposal-group-finalization.service';
 import { ProposalVoteService } from '../proposal-vote.service';
 import { WorkItemChangeSetMaterializerService } from '../work-item-change-set-materializer.service';
 
@@ -173,21 +172,6 @@ describe('application eligibility at every approval and enactment entry point', 
         },
         {},
       ),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-  });
-
-  it('refuses to finalize a group holding eval output so a zero threshold cannot apply it', async () => {
-    const service = instance(ProposalGroupFinalizationService, {
-      logger,
-      prisma: { db: { $transaction: (fn: any) => fn({}) } },
-    }) as any;
-    service.lockAndReadGroup = jest.fn().mockResolvedValue({
-      members: [{ id: 'member-1', proposal: evalProposal }],
-    });
-    await expect(
-      service.finalize(ORG, PROJECT, 'group-1', { userId: USER } as never, {
-        expectedRevision: 1,
-      }),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 

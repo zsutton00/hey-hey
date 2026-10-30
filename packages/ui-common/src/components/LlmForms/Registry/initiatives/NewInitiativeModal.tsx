@@ -1,6 +1,6 @@
+import { FunctionalDialog as Dialog } from "../../../Modals/FunctionalDialog";
 import React, { useState, useCallback } from "react";
 import {
-  Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
@@ -66,7 +66,7 @@ export const NewInitiativeModal: React.FC<NewInitiativeModalProps> = ({
 
     if (formData.description && formData.description.trim().length > 500) {
       newErrors.description = t(
-        KEYS.initiatives.newInitiativeDialog.descriptionTooLong
+        KEYS.initiatives.newInitiativeDialog.descriptionTooLong,
       );
     }
 
@@ -85,7 +85,7 @@ export const NewInitiativeModal: React.FC<NewInitiativeModalProps> = ({
         setErrors((prev) => ({ ...prev, name: undefined }));
       }
     },
-    [errors.name]
+    [errors.name],
   );
 
   const handleDescriptionChange = useCallback(
@@ -98,7 +98,7 @@ export const NewInitiativeModal: React.FC<NewInitiativeModalProps> = ({
         setErrors((prev) => ({ ...prev, description: undefined }));
       }
     },
-    [errors.description]
+    [errors.description],
   );
 
   const handleTagsChange = useCallback(
@@ -110,7 +110,7 @@ export const NewInitiativeModal: React.FC<NewInitiativeModalProps> = ({
         setErrors((prev) => ({ ...prev, tags: undefined }));
       }
     },
-    [errors.tags]
+    [errors.tags],
   );
 
   const handleSubmit = useCallback(() => {
@@ -163,7 +163,7 @@ export const NewInitiativeModal: React.FC<NewInitiativeModalProps> = ({
           fullWidth
           label={t(KEYS.initiatives.form.description)}
           placeholder={t(
-            KEYS.initiatives.newInitiativeDialog.descriptionPlaceholder
+            KEYS.initiatives.newInitiativeDialog.descriptionPlaceholder,
           )}
           value={formData.description || ""}
           onChange={handleDescriptionChange}

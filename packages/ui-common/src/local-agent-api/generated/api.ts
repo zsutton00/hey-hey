@@ -601,6 +601,329 @@ export type CliReadRunChangedFilesInventorySuccessResponseDtoStatusEnum =
 /**
  *
  * @export
+ * @interface CliReadRunToolCallsLatestTurnErrorResponseDto
+ */
+export interface CliReadRunToolCallsLatestTurnErrorResponseDto {
+  /**
+   *
+   * @type {string}
+   * @memberof CliReadRunToolCallsLatestTurnErrorResponseDto
+   */
+  requestId: string;
+  /**
+   *
+   * @type {string}
+   * @memberof CliReadRunToolCallsLatestTurnErrorResponseDto
+   */
+  operation: CliReadRunToolCallsLatestTurnErrorResponseDtoOperationEnum;
+  /**
+   *
+   * @type {string}
+   * @memberof CliReadRunToolCallsLatestTurnErrorResponseDto
+   */
+  status: CliReadRunToolCallsLatestTurnErrorResponseDtoStatusEnum;
+  /**
+   *
+   * @type {CliReadError}
+   * @memberof CliReadRunToolCallsLatestTurnErrorResponseDto
+   */
+  error: CliReadError;
+}
+
+export const CliReadRunToolCallsLatestTurnErrorResponseDtoOperationEnum = {
+  RunToolCallsLatestTurn: "run.tool_calls.latest_turn",
+} as const;
+
+export type CliReadRunToolCallsLatestTurnErrorResponseDtoOperationEnum =
+  (typeof CliReadRunToolCallsLatestTurnErrorResponseDtoOperationEnum)[keyof typeof CliReadRunToolCallsLatestTurnErrorResponseDtoOperationEnum];
+export const CliReadRunToolCallsLatestTurnErrorResponseDtoStatusEnum = {
+  Error: "error",
+} as const;
+
+export type CliReadRunToolCallsLatestTurnErrorResponseDtoStatusEnum =
+  (typeof CliReadRunToolCallsLatestTurnErrorResponseDtoStatusEnum)[keyof typeof CliReadRunToolCallsLatestTurnErrorResponseDtoStatusEnum];
+
+/**
+ *
+ * @export
+ * @interface CliReadRunToolCallsLatestTurnSuccessResponseDto
+ */
+export interface CliReadRunToolCallsLatestTurnSuccessResponseDto {
+  /**
+   *
+   * @type {string}
+   * @memberof CliReadRunToolCallsLatestTurnSuccessResponseDto
+   */
+  requestId: string;
+  /**
+   *
+   * @type {string}
+   * @memberof CliReadRunToolCallsLatestTurnSuccessResponseDto
+   */
+  operation: CliReadRunToolCallsLatestTurnSuccessResponseDtoOperationEnum;
+  /**
+   *
+   * @type {string}
+   * @memberof CliReadRunToolCallsLatestTurnSuccessResponseDto
+   */
+  status: CliReadRunToolCallsLatestTurnSuccessResponseDtoStatusEnum;
+  /**
+   *
+   * @type {CliReadToolCallsLatestTurnResult}
+   * @memberof CliReadRunToolCallsLatestTurnSuccessResponseDto
+   */
+  result: CliReadToolCallsLatestTurnResult;
+}
+
+export const CliReadRunToolCallsLatestTurnSuccessResponseDtoOperationEnum = {
+  RunToolCallsLatestTurn: "run.tool_calls.latest_turn",
+} as const;
+
+export type CliReadRunToolCallsLatestTurnSuccessResponseDtoOperationEnum =
+  (typeof CliReadRunToolCallsLatestTurnSuccessResponseDtoOperationEnum)[keyof typeof CliReadRunToolCallsLatestTurnSuccessResponseDtoOperationEnum];
+export const CliReadRunToolCallsLatestTurnSuccessResponseDtoStatusEnum = {
+  Success: "success",
+} as const;
+
+export type CliReadRunToolCallsLatestTurnSuccessResponseDtoStatusEnum =
+  (typeof CliReadRunToolCallsLatestTurnSuccessResponseDtoStatusEnum)[keyof typeof CliReadRunToolCallsLatestTurnSuccessResponseDtoStatusEnum];
+
+/**
+ *
+ * @export
+ * @interface CliReadToolCall
+ */
+export interface CliReadToolCall {
+  /**
+   * Stable within the live Run instance; unique per tool call.
+   * @type {string}
+   * @memberof CliReadToolCall
+   */
+  entryId: string;
+  /**
+   *
+   * @type {string}
+   * @memberof CliReadToolCall
+   */
+  toolUseId: string;
+  /**
+   * Null until the provider names the tool.
+   * @type {string}
+   * @memberof CliReadToolCall
+   */
+  toolName: string | null;
+  /**
+   * One short line naming the tool and its most telling argument.
+   * @type {string}
+   * @memberof CliReadToolCall
+   */
+  summary: string;
+  /**
+   *
+   * @type {string}
+   * @memberof CliReadToolCall
+   */
+  status: CliReadToolCallStatusEnum;
+  /**
+   *
+   * @type {number}
+   * @memberof CliReadToolCall
+   */
+  exitCode: number | null;
+  /**
+   *
+   * @type {CliReadToolCallLane}
+   * @memberof CliReadToolCall
+   */
+  lane: CliReadToolCallLane;
+  /**
+   *
+   * @type {string}
+   * @memberof CliReadToolCall
+   */
+  createdAt: string;
+  /**
+   *
+   * @type {string}
+   * @memberof CliReadToolCall
+   */
+  updatedAt: string;
+  /**
+   *
+   * @type {CliReadToolCallDetail}
+   * @memberof CliReadToolCall
+   */
+  detail: CliReadToolCallDetail;
+}
+
+export const CliReadToolCallStatusEnum = {
+  Running: "running",
+  Completed: "completed",
+  Failed: "failed",
+} as const;
+
+export type CliReadToolCallStatusEnum =
+  (typeof CliReadToolCallStatusEnum)[keyof typeof CliReadToolCallStatusEnum];
+
+/**
+ * Expandable content of a tool call, each part cut off with an explicit marker when large.
+ * @export
+ * @interface CliReadToolCallDetail
+ */
+export interface CliReadToolCallDetail {
+  /**
+   * Serialized arguments; null when the provider supplied none.
+   * @type {CliReadToolCallText}
+   * @memberof CliReadToolCallDetail
+   */
+  input: CliReadToolCallText | null;
+  /**
+   * Streamed command output; null when none was streamed.
+   * @type {CliReadToolCallText}
+   * @memberof CliReadToolCallDetail
+   */
+  output: CliReadToolCallText | null;
+  /**
+   * Result content; null before a result arrives.
+   * @type {CliReadToolCallText}
+   * @memberof CliReadToolCallDetail
+   */
+  result: CliReadToolCallText | null;
+}
+/**
+ * Who produced the call. All null means the Run\'s root agent.
+ * @export
+ * @interface CliReadToolCallLane
+ */
+export interface CliReadToolCallLane {
+  /**
+   *
+   * @type {string}
+   * @memberof CliReadToolCallLane
+   */
+  subagentTurnId: string | null;
+  /**
+   *
+   * @type {string}
+   * @memberof CliReadToolCallLane
+   */
+  providerThreadId: string | null;
+  /**
+   *
+   * @type {string}
+   * @memberof CliReadToolCallLane
+   */
+  parentToolUseId: string | null;
+}
+/**
+ *
+ * @export
+ * @interface CliReadToolCallText
+ */
+export interface CliReadToolCallText {
+  /**
+   *
+   * @type {string}
+   * @memberof CliReadToolCallText
+   */
+  text: string;
+  /**
+   * True when content was cut off, either earlier by the CLI\'s activity history or to fit the response budget.
+   * @type {boolean}
+   * @memberof CliReadToolCallText
+   */
+  truncated: boolean;
+}
+/**
+ *
+ * @export
+ * @interface CliReadToolCallsLatestTurnAvailable
+ */
+export interface CliReadToolCallsLatestTurnAvailable {
+  /**
+   *
+   * @type {string}
+   * @memberof CliReadToolCallsLatestTurnAvailable
+   */
+  state: CliReadToolCallsLatestTurnAvailableStateEnum;
+  /**
+   *
+   * @type {string}
+   * @memberof CliReadToolCallsLatestTurnAvailable
+   */
+  runId: string;
+  /**
+   * CLI-owned identity of the latest Turn (the active Turn, else the newest Turn with activity). Null when the Run has no tool activity.
+   * @type {string}
+   * @memberof CliReadToolCallsLatestTurnAvailable
+   */
+  turnId: string | null;
+  /**
+   * The Turn\'s tool calls in the order they began, subagent calls included and distinguished by lane.
+   * @type {Array<CliReadToolCall>}
+   * @memberof CliReadToolCallsLatestTurnAvailable
+   */
+  toolCalls: Array<CliReadToolCall>;
+  /**
+   * Earliest tool calls of the Turn dropped so the response fits the transport budget.
+   * @type {number}
+   * @memberof CliReadToolCallsLatestTurnAvailable
+   */
+  omittedEarlierCount: number;
+  /**
+   * Entries the CLI\'s bounded activity history has already discarded for this Run; earlier calls may be missing.
+   * @type {number}
+   * @memberof CliReadToolCallsLatestTurnAvailable
+   */
+  evictedCount: number;
+}
+
+export const CliReadToolCallsLatestTurnAvailableStateEnum = {
+  Available: "available",
+} as const;
+
+export type CliReadToolCallsLatestTurnAvailableStateEnum =
+  (typeof CliReadToolCallsLatestTurnAvailableStateEnum)[keyof typeof CliReadToolCallsLatestTurnAvailableStateEnum];
+
+/**
+ *
+ * @export
+ * @interface CliReadToolCallsLatestTurnDisabled
+ */
+export interface CliReadToolCallsLatestTurnDisabled {
+  /**
+   *
+   * @type {string}
+   * @memberof CliReadToolCallsLatestTurnDisabled
+   */
+  state: CliReadToolCallsLatestTurnDisabledStateEnum;
+  /**
+   *
+   * @type {string}
+   * @memberof CliReadToolCallsLatestTurnDisabled
+   */
+  runId: string;
+}
+
+export const CliReadToolCallsLatestTurnDisabledStateEnum = {
+  Disabled: "disabled",
+} as const;
+
+export type CliReadToolCallsLatestTurnDisabledStateEnum =
+  (typeof CliReadToolCallsLatestTurnDisabledStateEnum)[keyof typeof CliReadToolCallsLatestTurnDisabledStateEnum];
+
+/**
+ * @type CliReadToolCallsLatestTurnResult
+ * Live, transient view of the latest Turn\'s tool calls, or the typed outcome that remote viewing is turned off on this machine. Nothing here is stored by the CLI, the platform or the browser.
+ * @export
+ */
+export type CliReadToolCallsLatestTurnResult =
+  | ({ state: "available" } & CliReadToolCallsLatestTurnAvailable)
+  | ({ state: "disabled" } & CliReadToolCallsLatestTurnDisabled);
+
+/**
+ *
+ * @export
  * @interface LocalListRepoBindingsResponse
  */
 export interface LocalListRepoBindingsResponse {
@@ -1154,6 +1477,19 @@ export interface LocalRunChangedFilesInventoryRequest {
    *
    * @type {string}
    * @memberof LocalRunChangedFilesInventoryRequest
+   */
+  machineId: string;
+}
+/**
+ *
+ * @export
+ * @interface LocalRunToolCallsLatestTurnRequest
+ */
+export interface LocalRunToolCallsLatestTurnRequest {
+  /**
+   *
+   * @type {string}
+   * @memberof LocalRunToolCallsLatestTurnRequest
    */
   machineId: string;
 }
@@ -3681,6 +4017,234 @@ export class RunChangedFilesInventoryApi
       .readLocalRunChangedFilesInventory(
         requestParameters.runId,
         requestParameters.localRunChangedFilesInventoryRequest,
+        options,
+      )
+      .then((request) => request(this.axios, this.basePath));
+  }
+}
+
+/**
+ * RunToolCallsLatestTurnApi - axios parameter creator
+ * @export
+ */
+export const RunToolCallsLatestTurnApiAxiosParamCreator = function (
+  configuration?: Configuration,
+) {
+  return {
+    /**
+     * Approved-origin loopback read after verifying this CLI matches the Run owner. Preserves the remote bounded ordered summaries, detail, subagents and truncation. Enforces the machine viewing preference. Content is transient and must not be cached. Rejections never authorize a fallback to remote transport.
+     * @summary Read the latest Turn tool calls of a locally owned Run
+     * @param {string} runId
+     * @param {LocalRunToolCallsLatestTurnRequest} localRunToolCallsLatestTurnRequest
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     */
+    readLocalRunToolCallsLatestTurn: async (
+      runId: string,
+      localRunToolCallsLatestTurnRequest: LocalRunToolCallsLatestTurnRequest,
+      options: RawAxiosRequestConfig = {},
+    ): Promise<RequestArgs> => {
+      // verify required parameter 'runId' is not null or undefined
+      assertParamExists("readLocalRunToolCallsLatestTurn", "runId", runId);
+      // verify required parameter 'localRunToolCallsLatestTurnRequest' is not null or undefined
+      assertParamExists(
+        "readLocalRunToolCallsLatestTurn",
+        "localRunToolCallsLatestTurnRequest",
+        localRunToolCallsLatestTurnRequest,
+      );
+      const localVarPath = `/runs/{runId}/tool-calls/latest-turn`.replace(
+        `{${"runId"}}`,
+        encodeURIComponent(String(runId)),
+      );
+      // use dummy base URL string because the URL constructor only accepts absolute URLs.
+      const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+      let baseOptions;
+      if (configuration) {
+        baseOptions = configuration.baseOptions;
+      }
+
+      const localVarRequestOptions = {
+        method: "POST",
+        ...baseOptions,
+        ...options,
+      };
+      const localVarHeaderParameter = {} as any;
+      const localVarQueryParameter = {} as any;
+
+      localVarHeaderParameter["Content-Type"] = "application/json";
+
+      setSearchParams(localVarUrlObj, localVarQueryParameter);
+      let headersFromBaseOptions =
+        baseOptions && baseOptions.headers ? baseOptions.headers : {};
+      localVarRequestOptions.headers = {
+        ...localVarHeaderParameter,
+        ...headersFromBaseOptions,
+        ...options.headers,
+      };
+      localVarRequestOptions.data = serializeDataIfNeeded(
+        localRunToolCallsLatestTurnRequest,
+        localVarRequestOptions,
+        configuration,
+      );
+
+      return {
+        url: toPathString(localVarUrlObj),
+        options: localVarRequestOptions,
+      };
+    },
+  };
+};
+
+/**
+ * RunToolCallsLatestTurnApi - functional programming interface
+ * @export
+ */
+export const RunToolCallsLatestTurnApiFp = function (
+  configuration?: Configuration,
+) {
+  const localVarAxiosParamCreator =
+    RunToolCallsLatestTurnApiAxiosParamCreator(configuration);
+  return {
+    /**
+     * Approved-origin loopback read after verifying this CLI matches the Run owner. Preserves the remote bounded ordered summaries, detail, subagents and truncation. Enforces the machine viewing preference. Content is transient and must not be cached. Rejections never authorize a fallback to remote transport.
+     * @summary Read the latest Turn tool calls of a locally owned Run
+     * @param {string} runId
+     * @param {LocalRunToolCallsLatestTurnRequest} localRunToolCallsLatestTurnRequest
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     */
+    async readLocalRunToolCallsLatestTurn(
+      runId: string,
+      localRunToolCallsLatestTurnRequest: LocalRunToolCallsLatestTurnRequest,
+      options?: RawAxiosRequestConfig,
+    ): Promise<
+      (
+        axios?: AxiosInstance,
+        basePath?: string,
+      ) => AxiosPromise<CliReadRunToolCallsLatestTurnSuccessResponseDto>
+    > {
+      const localVarAxiosArgs =
+        await localVarAxiosParamCreator.readLocalRunToolCallsLatestTurn(
+          runId,
+          localRunToolCallsLatestTurnRequest,
+          options,
+        );
+      const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+      const localVarOperationServerBasePath =
+        operationServerMap[
+          "RunToolCallsLatestTurnApi.readLocalRunToolCallsLatestTurn"
+        ]?.[localVarOperationServerIndex]?.url;
+      return (axios, basePath) =>
+        createRequestFunction(
+          localVarAxiosArgs,
+          globalAxios,
+          BASE_PATH,
+          configuration,
+        )(axios, localVarOperationServerBasePath || basePath);
+    },
+  };
+};
+
+/**
+ * RunToolCallsLatestTurnApi - factory interface
+ * @export
+ */
+export const RunToolCallsLatestTurnApiFactory = function (
+  configuration?: Configuration,
+  basePath?: string,
+  axios?: AxiosInstance,
+) {
+  const localVarFp = RunToolCallsLatestTurnApiFp(configuration);
+  return {
+    /**
+     * Approved-origin loopback read after verifying this CLI matches the Run owner. Preserves the remote bounded ordered summaries, detail, subagents and truncation. Enforces the machine viewing preference. Content is transient and must not be cached. Rejections never authorize a fallback to remote transport.
+     * @summary Read the latest Turn tool calls of a locally owned Run
+     * @param {RunToolCallsLatestTurnApiReadLocalRunToolCallsLatestTurnRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     */
+    readLocalRunToolCallsLatestTurn(
+      requestParameters: RunToolCallsLatestTurnApiReadLocalRunToolCallsLatestTurnRequest,
+      options?: RawAxiosRequestConfig,
+    ): AxiosPromise<CliReadRunToolCallsLatestTurnSuccessResponseDto> {
+      return localVarFp
+        .readLocalRunToolCallsLatestTurn(
+          requestParameters.runId,
+          requestParameters.localRunToolCallsLatestTurnRequest,
+          options,
+        )
+        .then((request) => request(axios, basePath));
+    },
+  };
+};
+
+/**
+ * RunToolCallsLatestTurnApi - interface
+ * @export
+ * @interface RunToolCallsLatestTurnApi
+ */
+export interface RunToolCallsLatestTurnApiInterface {
+  /**
+   * Approved-origin loopback read after verifying this CLI matches the Run owner. Preserves the remote bounded ordered summaries, detail, subagents and truncation. Enforces the machine viewing preference. Content is transient and must not be cached. Rejections never authorize a fallback to remote transport.
+   * @summary Read the latest Turn tool calls of a locally owned Run
+   * @param {RunToolCallsLatestTurnApiReadLocalRunToolCallsLatestTurnRequest} requestParameters Request parameters.
+   * @param {*} [options] Override http request option.
+   * @throws {RequiredError}
+   * @memberof RunToolCallsLatestTurnApiInterface
+   */
+  readLocalRunToolCallsLatestTurn(
+    requestParameters: RunToolCallsLatestTurnApiReadLocalRunToolCallsLatestTurnRequest,
+    options?: RawAxiosRequestConfig,
+  ): AxiosPromise<CliReadRunToolCallsLatestTurnSuccessResponseDto>;
+}
+
+/**
+ * Request parameters for readLocalRunToolCallsLatestTurn operation in RunToolCallsLatestTurnApi.
+ * @export
+ * @interface RunToolCallsLatestTurnApiReadLocalRunToolCallsLatestTurnRequest
+ */
+export interface RunToolCallsLatestTurnApiReadLocalRunToolCallsLatestTurnRequest {
+  /**
+   *
+   * @type {string}
+   * @memberof RunToolCallsLatestTurnApiReadLocalRunToolCallsLatestTurn
+   */
+  readonly runId: string;
+
+  /**
+   *
+   * @type {LocalRunToolCallsLatestTurnRequest}
+   * @memberof RunToolCallsLatestTurnApiReadLocalRunToolCallsLatestTurn
+   */
+  readonly localRunToolCallsLatestTurnRequest: LocalRunToolCallsLatestTurnRequest;
+}
+
+/**
+ * RunToolCallsLatestTurnApi - object-oriented interface
+ * @export
+ * @class RunToolCallsLatestTurnApi
+ * @extends {BaseAPI}
+ */
+export class RunToolCallsLatestTurnApi
+  extends BaseAPI
+  implements RunToolCallsLatestTurnApiInterface
+{
+  /**
+   * Approved-origin loopback read after verifying this CLI matches the Run owner. Preserves the remote bounded ordered summaries, detail, subagents and truncation. Enforces the machine viewing preference. Content is transient and must not be cached. Rejections never authorize a fallback to remote transport.
+   * @summary Read the latest Turn tool calls of a locally owned Run
+   * @param {RunToolCallsLatestTurnApiReadLocalRunToolCallsLatestTurnRequest} requestParameters Request parameters.
+   * @param {*} [options] Override http request option.
+   * @throws {RequiredError}
+   * @memberof RunToolCallsLatestTurnApi
+   */
+  public readLocalRunToolCallsLatestTurn(
+    requestParameters: RunToolCallsLatestTurnApiReadLocalRunToolCallsLatestTurnRequest,
+    options?: RawAxiosRequestConfig,
+  ) {
+    return RunToolCallsLatestTurnApiFp(this.configuration)
+      .readLocalRunToolCallsLatestTurn(
+        requestParameters.runId,
+        requestParameters.localRunToolCallsLatestTurnRequest,
         options,
       )
       .then((request) => request(this.axios, this.basePath));

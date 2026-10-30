@@ -1,3 +1,4 @@
+import type { GroupReservedEntity } from '../proposal-group-authoring.service';
 import type { Logger } from '@nestjs/common';
 import { isAxiosError } from 'axios';
 import type { WorkItemChangeSetValidationRequest } from 'src/generated';
@@ -64,6 +65,7 @@ export class ProjectionLoader {
       agentEdgeClient: AgentEdgeClientService;
       tokenFactory: ServiceTokenFactory;
       request: WorkItemChangeSetValidationRequest;
+      reservedEntities?: readonly GroupReservedEntity[];
       facts: RequestFacts;
       state: ProjectionState;
       loaded: LoadedData;
@@ -115,6 +117,37 @@ export class ProjectionLoader {
         return this.loadDependsOnClosure(load.from, load.edges);
       case 'planStages':
         return this.loadPlanStages(load.plan);
+      case 'diagramGraph': {
+        // Element-rooted edits may know the parent type without its metadata.
+        // Hydrate the container so kind-specific rules see the whole Diagram.
+        const id = existingId(load.of);
+        let diagramNodes = 0;
+        if (id && !this.params.state.nodes.has(load.of)) {
+          const tasks = (await this.params.db.task.findMany({
+            where: { id, ...this.liveTaskWhere() },
+            include: TASK_INCLUDE,
+          })) as ProjectedTaskRecord[];
+          this.params.writer.writeTasks(tasks);
+          diagramNodes = tasks.length;
+        }
+
+        const graph = await this.loadRootNeighbourhood(
+          load.of,
+          [
+            GraphAgentEdgeType.Standard,
+            GraphAgentEdgeType.Conditional,
+            GraphAgentEdgeType.Loop,
+          ],
+          true,
+        );
+        const targets = await this.loadDiagramTargets(
+          this.params.loaded.children.get(load.of) ?? [],
+        );
+        return {
+          nodes: diagramNodes + graph.nodes + targets.nodes,
+          edges: graph.edges + targets.edges,
+        };
+      }
       case 'diagramTargets':
         return this.loadDiagramTargets(load.of);
       case 'services':
@@ -131,6 +164,7 @@ export class ProjectionLoader {
   async loadRootNeighbourhood(
     root: NodeKey,
     edgeTypes: readonly GraphAgentEdgeTypeValue[],
+    includeExternalRelationships = false,
   ): Promise<{ nodes: number; edges: number }> {
     const rootId = existingId(root);
     if (!rootId) return { nodes: 0, edges: 0 };
@@ -150,8 +184,9 @@ export class ProjectionLoader {
     const neighbourhoodEdges = edges.filter(
       (edge) =>
         isWorkItemEdge(edge) &&
-        this.params.state.nodes.has(`existing:${edge.sourceNodeId}`) &&
-        this.params.state.nodes.has(`existing:${edge.targetNodeId}`),
+        (includeExternalRelationships ||
+          (this.params.state.nodes.has(`existing:${edge.sourceNodeId}`) &&
+            this.params.state.nodes.has(`existing:${edge.targetNodeId}`))),
     );
     neighbourhoodEdges.forEach((edge) => this.params.writer.writeEdge(edge));
     return { nodes: children.nodes, edges: neighbourhoodEdges.length };
@@ -183,6 +218,7 @@ export class ProjectionLoader {
       include: TASK_INCLUDE,
     })) as ProjectedTaskRecord[];
     this.params.writer.writeTasks(tasks);
+
     return { nodes: tasks.length, edges: 0 };
   }
 
@@ -249,6 +285,7 @@ export class ProjectionLoader {
       of,
       tasks.map((task) => `existing:${task.id}`),
     );
+
     return { nodes: tasks.length, edges: 0 };
   }
 
@@ -264,6 +301,7 @@ export class ProjectionLoader {
       siblingsKey(parent, name),
       tasks.map((task) => `existing:${task.id}`),
     );
+
     return { nodes: tasks.length, edges: 0 };
   }
 
@@ -519,6 +557,19 @@ export class ProjectionLoader {
         entityType: 'SERVICE',
       }),
     );
+
+    for (const reserved of this.params.reservedEntities ?? []) {
+      if (
+        reserved.entityType === 'TASK' &&
+        taskIds.has(reserved.entityId) &&
+        !this.params.loaded.diagramTargets.has(reserved.entityId)
+      ) {
+        this.params.loaded.diagramTargets.set(reserved.entityId, {
+          entityType: 'TASK',
+          type: reserved.workItemType,
+        });
+      }
+    }
     return { nodes: tasks.length, edges: 0 };
   }
 
@@ -594,6 +645,7 @@ export class ProjectionLoader {
         projectId: doc.projectId,
       }),
     );
+
     return { nodes: tasks.length, edges: 0 };
   }
 

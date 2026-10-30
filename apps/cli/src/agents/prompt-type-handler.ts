@@ -1,6 +1,11 @@
+import type { EvalAttemptExecution } from './run-eval/eval-attempt-execution';
+import { projectModeSettingsJsonSchema } from '../generated/project-mode-contract.schema';
+import type { SessionRole } from '../shared/agent-bridge-contract/generated/api';
 import type { LocalPromptType } from '../shared/agent-bridge-contract/generated';
 import type { AgenticSession } from '../session/types';
+import type { AgentProviderId } from './providers/provider-config';
 import type { RunStore } from '../run-store/run-store';
+import type { PreparationRecords } from './preparation-records';
 import type { ReportAudience, ReportType, UpdateMessageDto } from '../shared/api/index';
 import type {
   AssistantDeltaEvent,
@@ -58,6 +63,8 @@ export type { RecentUserReply };
 export interface PromptTypeHandlerContext {
   /** Agentic Run identity used to correlate handler diagnostics across a Turn. */
   runId?: string;
+  /** Provider executing the Run; prompts name provider-specific tool forms from it. */
+  provider?: AgentProviderId | undefined;
   /** The Turn being prepared; set on Turn prompts only. */
   turnId?: string;
   /** The Run's abort signal, read when called; undefined once the Run is not running. */
@@ -119,7 +126,9 @@ export interface PromptTypeHandlerContext {
 }
 
 export interface PromptTypeHandlerDeps {
-  runStore: RunStore;
+  evalAttemptExecution?: EvalAttemptExecution;
+  /** Where `prepare` records its work; handlers never touch the run store directly. */
+  preparationRecords: PreparationRecords;
   fetchImpl: typeof fetch;
   auth: SubmissionToolAuth;
   apiBaseUrl: string;
@@ -131,7 +140,7 @@ export interface PromptTypeHandlerDeps {
   /** Authoritative first-turn entity startup-input owner. */
   startupPromptInput: AgentStartupPromptInput;
   /** Shared launcher for handlers that fan work out to registered child handlers. */
-  childAgentLauncher: Pick<ChildAgentLauncher, 'launchRegistered'>;
+  childAgentLauncher: Pick<ChildAgentLauncher, 'launchRegistered' | 'resolveChildHandler'>;
   /**
    * One-off, tool-free model call on the Run's own provider, model and effort.
    * Cancelled by the Turn's abort signal; rejects on failure. The Run sets
@@ -416,6 +425,8 @@ export interface ReportSpec {
 }
 
 export interface PromptTypeHandler<TPayload> {
+  readonly sessionRole?: SessionRole;
+  resolveSessionRole?(session: AgenticSession): SessionRole;
   /**
    * Stable identity of this logical agent. A Run persists this value as the
    * owner of its current provider session; promptType is routing metadata and
@@ -546,6 +557,14 @@ export interface PromptTypeHandler<TPayload> {
    *   accumulated conversation history.
    */
   providerSessionLifetime?: 'run' | 'turn';
+  /** Continue ordinary replies in this handler after its originating workflow finishes. */
+  retainsConversationAfterWorkflow?: true;
+  /**
+   * An ordinary user reply normally stays with the agent that owns the Run's
+   * provider session. A handler sets this only when it is a deliberate
+   * starting point whose follow-ups are handed to `coding_freeform`.
+   */
+  handsOffOrdinaryReplies?: true;
   /** Replace provider defaults with the platform prompt on fresh sessions. */
   replaceProviderSystemPrompt?: boolean;
 
@@ -596,6 +615,12 @@ export interface PromptTypeHandler<TPayload> {
    * the Run is stopped.
    */
   runProcedure?(payload: TPayload, ctx: ProceduralRunContext, signal: AbortSignal): Promise<string>;
+  /** Persist an actionable, terminal result when this handler cannot start its Turn. */
+  onStartupFailure?(
+    payload: TPayload,
+    context: { session: AgenticSession; deps: PromptTypeHandlerBaseDeps },
+    message: string,
+  ): Promise<void>;
 
   /** Feature-owned work performed after an isolated subagent returns. */
   onSubagentComplete?(ctx: OnSubagentCompleteContext): Promise<void>;
@@ -787,6 +812,17 @@ export interface PromptTypeHandler<TPayload> {
   getCompletionAction?(event: AssistantCompleteEvent, payload?: unknown): CompletionAction | null;
 
   /**
+   * Returns a user-facing notice when a completion with no recognised
+   * response type left the Turn's required output unsaved. The notice leads
+   * the ordinary reply; the Turn still completes so the user can retry.
+   */
+  getUnsavedOutputNotice?(
+    event: AssistantCompleteEvent,
+    payload: unknown,
+    saved: { codingPlanElementTypes: readonly string[] },
+  ): string | null;
+
+  /**
    * Maps a provider-runner failure into an EXTERNAL_AGENT action when the
    * handler owns a typed workflow handoff. This is called only after the
    * runner fails before it can emit `assistant_complete`, so handlers can
@@ -854,4 +890,16 @@ export interface UserLaunchablePromptTypeHandler<
   TPayload extends { userMessage?: string },
 > extends PromptTypeHandler<TPayload> {
   addUserMessage(payload: TPayload): string | null;
+}
+
+/** Resolve only the executing handler; selected modes never set a Run-wide role. */
+export function resolveHandlerSessionRole<TPayload>(
+  handler: PromptTypeHandler<TPayload>,
+  session: AgenticSession,
+): SessionRole {
+  return (
+    handler.resolveSessionRole?.(session) ??
+    handler.sessionRole ??
+    projectModeSettingsJsonSchema.properties.sessionRole.default
+  );
 }

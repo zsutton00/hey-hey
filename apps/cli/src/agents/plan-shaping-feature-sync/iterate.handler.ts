@@ -1,3 +1,4 @@
+import { FUTURE_REVISION_MCP_TOOLS } from '../mcp-server-config';
 // Every iterate trigger carries the outstanding flagged items (with stable ids,
 // in display order) and the user's per-item choices; the prompt renders them so
 // a reply like "6" resolves without relying on provider session history.
@@ -20,13 +21,17 @@ export const planShapingFeatureSyncIterateHandler: UserLaunchablePromptTypeHandl
     runnerKind: 'provider_session',
     providerSessionCountsForContext: true,
     reports: [],
+    additionalAllowedTools: ['get_proposal', ...FUTURE_REVISION_MCP_TOOLS],
 
     submissionTools: [submitPlanShapingRevisedTool],
 
     addUserMessage: (payload) => turnUserMessageBlock(payload.userMessage),
 
-    buildPrompt(payload): string {
+    buildPrompt(payload, ctx): string {
       return buildPlanShapingIteratePrompt({
+        provider: ctx?.provider,
+        planId: payload.planId,
+        designDocId: payload.designDocId,
         discrepancies: payload.discrepancies,
         decisions: payload.decisions,
       });

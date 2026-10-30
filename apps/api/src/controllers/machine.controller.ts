@@ -48,7 +48,6 @@ import {
   normalizeEnrollmentSourceAddress,
 } from '../services/machine-pairing/machine-pairing.service';
 import { MachineExecutionReadinessService } from '../services/machine-pairing/machine-execution-readiness.service';
-import { CurrentControllerMachineEligibilityService } from '../services/machine-pairing/current-controller-machine-eligibility.service';
 import { ControllerBrowserBindingService } from '../services/controller-authorization/controller-browser-binding.service';
 import { readControllerBindingSecret } from '../services/controller-authorization/controller-binding-cookie.service';
 import { MachineSecurityEventService } from '../services/machine-security-events/machine-security-event.service';
@@ -135,7 +134,6 @@ export class MachineController {
   constructor(
     private readonly machinePairingService: MachinePairingService,
     private readonly machineExecutionReadinessService: MachineExecutionReadinessService,
-    private readonly currentControllerMachineEligibilityService: CurrentControllerMachineEligibilityService,
     private readonly controllerBrowserBindingService: ControllerBrowserBindingService,
     private readonly serverSigningKeyService: ServerSigningKeyService,
     private readonly machineSecurityEventService: MachineSecurityEventService,
@@ -251,50 +249,52 @@ export class MachineController {
       ),
     );
 
-    const controllerBinding =
-      await this.controllerBrowserBindingService.resolveForSelection({
+    const controllerInventory =
+      await this.controllerBrowserBindingService.resolveInventory({
         secret: readControllerBindingSecret(request),
         userId: user.userId,
       });
-    const controllerEligibilityByMachine = controllerBinding
-      ? await this.currentControllerMachineEligibilityService.resolveMany({
-          machineIds: machines.map((machine) => machine.machineId),
-          userId: user.userId,
-          controllerInstallationId: controllerBinding.controllerInstallationId,
-        })
-      : null;
-    const selectableCredentialByMachine =
-      await this.currentControllerMachineEligibilityService.resolveSelectableCredentialIds(
-        {
-          machineIds: machines.map((machine) => machine.machineId),
-          userId: user.userId,
-          ...(controllerBinding
-            ? {
-                boundControllerCredentialId:
-                  controllerBinding.controllerCredentialId,
-              }
-            : {}),
-        },
-      );
+    const bindingByMachine = new Map<
+      string,
+      typeof controllerInventory.bindings
+    >();
+    for (const binding of controllerInventory.bindings) {
+      bindingByMachine.set(binding.machineId, [
+        ...(bindingByMachine.get(binding.machineId) ?? []),
+        binding,
+      ]);
+    }
 
     return {
-      machines: machines.map((m, i) => ({
-        machineId: m.machineId,
-        name: m.name,
-        pairedAt: m.pairedAt.toISOString(),
-        lastSeen: m.lastSeen?.toISOString() ?? null,
-        revokedAt: m.revokedAt?.toISOString() ?? null,
-        active: presenceResults[i]!,
-        authorizationProtocolVersion: m.authorizationProtocolVersion,
-        executionReadiness: readinessResults[i]!.executionReadiness,
-        currentControllerEligibility:
-          controllerEligibilityByMachine === null
-            ? null
-            : controllerEligibilityByMachine.get(m.machineId)!,
-        currentControllerCredentialId:
-          selectableCredentialByMachine.get(m.machineId) ?? null,
-        bindings: bindingsResults[i]?.bindings ?? null,
-      })),
+      machines: machines.map((m, i) => {
+        const proven = bindingByMachine.get(m.machineId) ?? [];
+        const active = proven.filter((binding) => !binding.revoked);
+        const eligibility = !controllerInventory.hasIdentity
+          ? null
+          : active.length > 1
+            ? 'AMBIGUOUS'
+            : active.length === 1
+              ? 'ELIGIBLE'
+              : proven.length > 0
+                ? 'REVOKED'
+                : 'NOT_ENROLLED';
+        return {
+          machineId: m.machineId,
+          name: m.name,
+          pairedAt: m.pairedAt.toISOString(),
+          lastSeen: m.lastSeen?.toISOString() ?? null,
+          revokedAt: m.revokedAt?.toISOString() ?? null,
+          active: presenceResults[i]!,
+          authorizationProtocolVersion: m.authorizationProtocolVersion,
+          executionReadiness: readinessResults[i]!.executionReadiness,
+          currentControllerEligibility: eligibility,
+          currentControllerCredentialId:
+            active.length === 1
+              ? active[0]!.controllerCredentialPublicId
+              : null,
+          bindings: bindingsResults[i]?.bindings ?? null,
+        };
+      }),
     };
   }
 

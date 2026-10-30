@@ -1,7 +1,10 @@
 import { renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { MessageType } from "../../../api/index";
-import type { SessionMethodContext } from "../../../agents/coordination/types";
+import type {
+  SessionMethodContext,
+  SessionMethodSelection,
+} from "../../../agents/coordination/types";
 import { useSubmitFollowupByText } from "../useSubmitFollowupByText";
 
 // Stub the prompt-recording network call so the helper can run end-to-end
@@ -32,8 +35,27 @@ const sessionMethod: SessionMethodContext = {
 
 describe("useSubmitFollowupByText: freeform follow-up writes to platform, never to LocalAgentApi", () => {
   it.each([
-    { attachments: [] },
     {
+      attachments: [],
+      selection: sessionMethod,
+      promptType: "coding_freeform",
+    },
+    {
+      attachments: [],
+      selection: {
+        method: undefined,
+        projectModeSelection: {
+          schemaVersion: "project-mode-selection.v1",
+          modeId: "11111111-1111-4111-8111-111111111111",
+        },
+        serviceIds: [],
+        services: [],
+      } satisfies SessionMethodSelection,
+      promptType: "project_mode",
+    },
+    {
+      selection: sessionMethod,
+      promptType: "coding_freeform",
       attachments: [
         {
           attachmentId: "f7a198de-03a6-47aa-b0bf-830cde418ddb",
@@ -43,7 +65,7 @@ describe("useSubmitFollowupByText: freeform follow-up writes to platform, never 
     },
   ])(
     "carries attachment references through the coding follow-up into the platform message: %j",
-    async ({ attachments }) => {
+    async ({ attachments, selection, promptType }) => {
       submitMessageMock.mockClear();
       submitMessageMock.mockResolvedValue({
         state: "succeeded",
@@ -66,7 +88,7 @@ describe("useSubmitFollowupByText: freeform follow-up writes to platform, never 
           setSubmissionError: vi.fn(),
           setSubmittingPrompt: vi.fn(),
           setSubmittingFollowupAction: vi.fn(),
-          sessionMethod,
+          sessionMethod: selection,
           interactionAccess: {
             isDeviceEnabled: true,
             interactions: {
@@ -81,7 +103,7 @@ describe("useSubmitFollowupByText: freeform follow-up writes to platform, never 
           projectId: "proj-1",
           trackSubmitPromptTelemetry: vi.fn(),
           setPromptDraft: vi.fn(),
-        })
+        }),
       );
 
       await result.current({
@@ -107,16 +129,16 @@ describe("useSubmitFollowupByText: freeform follow-up writes to platform, never 
       // as "append to conversation tail" (task b657c4c6).
       expect(messageArg.parentMessageId).toBeNull();
       // The dispatch instruction rides the nested `agentInput` envelope: the
-      // mode-agnostic coding follow-up `promptType` and the
+      // selected follow-up `promptType` and the
       // user's text on `agentInput.userMessage`. No `data.triggersAgent`.
       expect(messageArg.data.agentInput).toEqual({
-        promptType: "coding_freeform",
+        promptType,
         userMessage: "  follow-up text\n",
       });
       expect(messageArg.data.triggersAgent).toBeUndefined();
       expect(messageArg.data.attachments).toEqual(attachments);
 
       expect(localAgentSendMessage).not.toHaveBeenCalled();
-    }
+    },
   );
 });

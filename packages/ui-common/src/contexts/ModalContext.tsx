@@ -1,59 +1,42 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useMemo } from "react";
 import type { ModalConfig } from "./types/modalTypes";
-
+import type { PersistentModalRequest } from "./types/persistentModalRequest";
+import { modalDomain, type ModalInstance } from "../state/modalDomain";
+export type { ModalInstance } from "../state/modalDomain";
 export interface ModalContextValue {
-  /**
-   * Currently open modal configuration, or null if no modal is open
-   */
-  currentModal: ModalConfig | null;
-  /**
-   * Open a modal with the given configuration
-   */
-  openModal: (config: ModalConfig) => void;
-  /**
-   * Close the currently open modal
-   */
-  closeModal: () => void;
+  currentModal: ModalConfig | PersistentModalRequest | null;
+  modalInstances: readonly ModalInstance[];
+  openModal: (config: ModalConfig | PersistentModalRequest) => void;
+  closeModal: (instanceId?: string) => void;
 }
-
 const ModalContext = createContext<ModalContextValue | null>(null);
-
 export interface ModalProviderProps {
   children: React.ReactNode;
 }
-
-/**
- * Provider for generic modal management
- *
- * Stores the currently open modal configuration in context state.
- * Only ONE modal can be open at a time.
- */
-export function ModalProvider({
-  children,
-}: ModalProviderProps): React.ReactElement {
-  const [currentModal, setCurrentModal] = useState<ModalConfig | null>(null);
-
-  const value: ModalContextValue = {
-    currentModal,
-    openModal: (config: ModalConfig) => {
-      setCurrentModal(config);
-    },
-    closeModal: () => {
-      setCurrentModal(null);
-    },
-  };
-
+function ModalContextBridge({ children }: ModalProviderProps) {
+  const instances = modalDomain.useSelector((state) => state.instances);
+  const openModal = modalDomain.useSelector((state) => state.open);
+  const closeModal = modalDomain.useSelector((state) => state.acceptedClose);
+  const value = useMemo(
+    () => ({
+      currentModal: instances.at(-1)?.config ?? null,
+      modalInstances: instances,
+      openModal,
+      closeModal,
+    }),
+    [instances, openModal, closeModal],
+  );
   return (
     <ModalContext.Provider value={value}>{children}</ModalContext.Provider>
   );
 }
-
-/**
- * Hook to access modal functionality
- *
- * Returns null if ModalProvider is not in the component tree.
- * Components should check if the context is available before using it.
- */
-export function useModal(): ModalContextValue | null {
+export function ModalProvider({ children }: ModalProviderProps) {
+  return (
+    <modalDomain.Provider>
+      <ModalContextBridge>{children}</ModalContextBridge>
+    </modalDomain.Provider>
+  );
+}
+export function useModal() {
   return useContext(ModalContext);
 }

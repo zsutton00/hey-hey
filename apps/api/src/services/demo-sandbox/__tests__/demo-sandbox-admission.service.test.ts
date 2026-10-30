@@ -1,7 +1,9 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
-import { DemoSandboxStatus } from '@prisma/client';
+import { DemoSandboxStage, DemoSandboxStatus } from '@prisma/client';
+import { DemoSandboxReadinessService } from '../demo-sandbox-readiness.service';
+import type { GraphsClientService } from '../../graphs-client.service';
 import { DemoSandboxAdmissionService } from '../demo-sandbox-admission.service';
 import {
   DEMO_AGENT_BRIDGE_DOCUMENT,
@@ -42,7 +44,36 @@ const activeSandbox = {
   projectId: 'project-1',
   demoUserId: 'demo-user-1',
   status: DemoSandboxStatus.ACTIVE,
+  stage: DemoSandboxStage.READY,
+  readinessFeatureIds: ['copied-feature'],
+  connectedFeatureCount: 1,
   expiresAt: new Date(Date.now() + 3_600_000),
+};
+const connectingSandbox = {
+  ...activeSandbox,
+  status: DemoSandboxStatus.PROVISIONING,
+  stage: DemoSandboxStage.CONNECTING,
+  readinessFeatureIds: ['copied-a', 'copied-b', 'copied-c'],
+  connectedFeatureCount: 2,
+  expiresAt: null,
+};
+const failedTombstone = {
+  id: 'sandbox-0',
+  organizationId: null,
+  projectId: null,
+  demoUserId: null,
+  status: DemoSandboxStatus.DELETED,
+  stage: DemoSandboxStage.FAILED,
+  readinessFeatureIds: [],
+  connectedFeatureCount: 0,
+  expiresAt: null,
+};
+
+/** Lets the detached background setup run to completion. */
+const settle = async () => {
+  for (let tick = 0; tick < 50; tick++) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
 };
 
 function setup() {
@@ -56,11 +87,9 @@ function setup() {
       create: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn(),
-      findUniqueOrThrow: jest.fn(),
     },
     demoSandboxProgramState: { findUniqueOrThrow: jest.fn() },
     demoTemplate: { findFirstOrThrow: jest.fn() },
-    task: { findFirstOrThrow: jest.fn() },
     user: { create: jest.fn(), findUniqueOrThrow: jest.fn() },
     organizationMember: { create: jest.fn() },
     privateBetaDisclosureAcceptance: { create: jest.fn() },
@@ -107,7 +136,12 @@ function setup() {
   const clone = {
     snapshotTemplate: jest.fn().mockResolvedValue(templateSnapshot),
     cloneInto: jest.fn().mockResolvedValue({
-      idMap: new Map([['source-feature', 'copied-feature']]),
+      idMap: new Map([
+        ['source-feature', 'copied-feature'],
+        ['source-feature-2', 'copied-feature-2'],
+        ['source-task', 'copied-task'],
+      ]),
+      copiedFeatureIds: ['copied-feature', 'copied-feature-2'],
       graphCopyIntentId: 'intent-1',
     }),
   };
@@ -133,7 +167,6 @@ function setup() {
     projectId: 'template-project',
     repositoryUrl: 'https://github.com/example/template',
   });
-  db.task.findFirstOrThrow.mockResolvedValue({ id: 'source-feature' });
   db.user.create.mockResolvedValue({ id: 'demo-user-new' });
   db.user.findUniqueOrThrow.mockResolvedValue({
     id: 'demo-user-1',
@@ -151,21 +184,17 @@ function setup() {
     id: 'sandbox-new',
     ...data,
   }));
-  db.demoSandbox.update.mockImplementation(({ data }: { data: object }) => ({
-    ...activeSandbox,
-    id: 'sandbox-new',
-    organizationId: 'org-new',
-    projectId: 'project-new',
-    ...data,
-  }));
   db.demoSandbox.updateMany.mockResolvedValue({ count: 1 });
-  db.demoSandbox.findUniqueOrThrow.mockResolvedValue({
-    provisioningDeadline: new Date(Date.now() + 120_000),
-  });
   db.$queryRaw.mockImplementation((query: { strings?: string[] }) =>
     String(query.strings).includes('pg_advisory_xact_lock')
       ? advisoryLock()
-      : [{ id: 'sandbox-new' }],
+      : [
+          {
+            organizationId: 'org-new',
+            projectId: 'project-new',
+            demoUserId: 'demo-user-new',
+          },
+        ],
   );
 
   const service = new DemoSandboxAdmissionService(
@@ -213,23 +242,20 @@ describe('DemoSandboxAdmissionService', () => {
     it('resumes through POST /demo-sandboxes even when at capacity, creating nothing', async () => {
       const t = setup();
       t.db.demoSandbox.count.mockResolvedValue(99);
-      t.db.demoSandbox.findFirst.mockResolvedValue(activeSandbox);
+      t.db.demoSandbox.findUnique.mockResolvedValue(activeSandbox);
 
       const admission = await t.service.provision(input, context('secret'));
 
-      expect(admission.sandbox).toMatchObject({
+      expect(admission.admission.state).toBe('ACTIVE');
+      expect(admission.admission.sandbox).toMatchObject({
         organizationId: 'org-1',
         projectId: 'project-1',
         resumed: true,
         repositoryUrl: 'https://github.com/example/template',
       });
       expect(admission.bindingSecret).toBeUndefined();
-      expect(t.db.demoSandbox.findFirst).toHaveBeenCalledWith({
-        where: expect.objectContaining({
-          browserBindingHash: hash('secret'),
-          status: DemoSandboxStatus.ACTIVE,
-          expiresAt: { gt: expect.any(Date) },
-        }),
+      expect(t.db.demoSandbox.findUnique).toHaveBeenCalledWith({
+        where: { browserBindingHash: hash('secret') },
       });
       expect(t.botCheck.verify).not.toHaveBeenCalled();
       expect(
@@ -243,11 +269,12 @@ describe('DemoSandboxAdmissionService', () => {
 
     it('resumes through POST /demo-sandboxes/resume with the same lookup and creates nothing', async () => {
       const t = setup();
-      t.db.demoSandbox.findFirst.mockResolvedValue(activeSandbox);
+      t.db.demoSandbox.findUnique.mockResolvedValue(activeSandbox);
 
       const admission = await t.service.resume(context('secret'));
 
-      expect(admission.sandbox.resumed).toBe(true);
+      expect(admission.admission.sandbox?.resumed).toBe(true);
+      expect(admission.session).toBe(session);
       expect(admission.bindingSecret).toBeUndefined();
       expect(t.clone.cloneInto).not.toHaveBeenCalled();
       expect(t.db.demoSandbox.create).not.toHaveBeenCalled();
@@ -262,48 +289,107 @@ describe('DemoSandboxAdmissionService', () => {
       expect(t.db.demoSandbox.findUnique).not.toHaveBeenCalled();
     });
 
-    it('reports EXPIRED for a binding whose sandbox is gone', async () => {
+    it('reports NONE for an unknown binding', async () => {
       const t = setup();
-      t.db.demoSandbox.findUnique.mockResolvedValue({ id: 'old' });
-      const miss: unknown = await t.service
-        .resume(context('secret'))
-        .catch((e: unknown) => e);
-      expect(miss).toBeInstanceOf(NotFoundException);
-      expect((miss as NotFoundException).getResponse()).toMatchObject({
-        data: { state: 'EXPIRED' },
-      });
-      expect(t.db.demoSandbox.findUnique).toHaveBeenCalledWith({
-        where: { browserBindingHash: hash('secret') },
-        select: { id: true },
+      await expect(t.service.resume(context('secret'))).rejects.toMatchObject({
+        response: { data: { state: 'NONE' } },
       });
     });
   });
 
-  describe('expired and deleted bindings', () => {
-    it('matches only ACTIVE unexpired sandboxes that still have a demo user, never EXPIRING or DELETED ones', async () => {
+  describe('a browser whose sandbox is still being set up', () => {
+    it('reads the stage and the connected and total feature counts through resume, without a session', async () => {
       const t = setup();
+      t.db.demoSandbox.findUnique.mockResolvedValue(connectingSandbox);
 
-      await t.service.resume(context('secret')).catch(() => undefined);
-
-      expect(t.db.demoSandbox.findFirst).toHaveBeenCalledWith({
-        where: {
-          browserBindingHash: hash('secret'),
-          status: DemoSandboxStatus.ACTIVE,
-          expiresAt: { gt: expect.any(Date) },
-          demoUserId: { not: null },
+      await expect(t.service.resume(context('secret'))).resolves.toEqual({
+        admission: {
+          state: 'PROVISIONING',
+          progress: {
+            stage: 'CONNECTING',
+            connectedFeatureCount: 2,
+            totalFeatureCount: 3,
+          },
         },
       });
+      expect(t.browserSessions.establishInTransaction).not.toHaveBeenCalled();
     });
 
-    it.each([DemoSandboxStatus.EXPIRING, DemoSandboxStatus.DELETED])(
-      'tells a browser bound to a %s sandbox its demo expired, without a session',
-      async (status) => {
-        const t = setup();
-        t.db.demoSandbox.findUnique.mockResolvedValue({ id: 'old', status });
+    it('gets its status back from POST /demo-sandboxes instead of a second reservation', async () => {
+      const t = setup();
+      t.db.demoSandbox.findUnique.mockResolvedValue(connectingSandbox);
 
-        await expect(t.service.resume(context('secret'))).rejects.toMatchObject(
-          { response: { data: { state: 'EXPIRED' } } },
-        );
+      const admission = await t.service.provision(input, context('secret'));
+
+      expect(admission.admission.state).toBe('PROVISIONING');
+      expect(admission.bindingSecret).toBeUndefined();
+      expect(t.botCheck.verify).not.toHaveBeenCalled();
+      expect(t.db.demoSandbox.create).not.toHaveBeenCalled();
+      expect(t.clone.cloneInto).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('failed, expired and deleted bindings', () => {
+    it.each([
+      ['a FAILED tombstone', failedTombstone],
+      [
+        'a sandbox still being discarded',
+        {
+          ...connectingSandbox,
+          status: DemoSandboxStatus.DISCARDING,
+          stage: DemoSandboxStage.FAILED,
+        },
+      ],
+    ])('reports FAILED for %s, without a session', async (_label, row) => {
+      const t = setup();
+      t.db.demoSandbox.findUnique.mockResolvedValue(row);
+
+      await expect(t.service.resume(context('secret'))).resolves.toEqual({
+        admission: { state: 'FAILED' },
+      });
+      expect(t.browserSessions.establishInTransaction).not.toHaveBeenCalled();
+    });
+
+    it('lets a browser with a FAILED setup try again with a new reservation and binding', async () => {
+      const t = setup();
+      t.db.demoSandbox.findUnique.mockResolvedValue(failedTombstone);
+
+      const admission = await t.service.provision(input, context('old'));
+
+      expect(admission.admission.state).toBe('PROVISIONING');
+      expect(admission.bindingSecret).toEqual(expect.any(String));
+      expect(admission.bindingSecret).not.toBe('old');
+      expect(t.db.demoSandbox.create).toHaveBeenCalledTimes(1);
+      await settle();
+    });
+
+    it.each([
+      ['EXPIRING', { ...activeSandbox, status: DemoSandboxStatus.EXPIRING }],
+      [
+        'DELETED',
+        {
+          ...activeSandbox,
+          status: DemoSandboxStatus.DELETED,
+          demoUserId: null,
+        },
+      ],
+      [
+        'past its expiry',
+        { ...activeSandbox, expiresAt: new Date(Date.now() - 1) },
+      ],
+    ])(
+      'tells a browser bound to a sandbox that is %s its demo expired, without a session',
+      async (_label, row) => {
+        const t = setup();
+        t.db.demoSandbox.findUnique.mockResolvedValue(row);
+
+        const miss: unknown = await t.service
+          .resume(context('secret'))
+          .catch((e: unknown) => e);
+        expect(miss).toBeInstanceOf(NotFoundException);
+        expect((miss as NotFoundException).getResponse()).toMatchObject({
+          data: { state: 'EXPIRED' },
+        });
         expect(t.browserSessions.establishInTransaction).not.toHaveBeenCalled();
       },
     );
@@ -311,11 +397,11 @@ describe('DemoSandboxAdmissionService', () => {
     it('reports the configured inactivity timeout to the visitor', async () => {
       const t = setup();
       t.config.get.mockReturnValue('900');
-      t.db.demoSandbox.findFirst.mockResolvedValue(activeSandbox);
+      t.db.demoSandbox.findUnique.mockResolvedValue(activeSandbox);
 
       const admission = await t.service.resume(context('secret'));
 
-      expect(admission.sandbox.inactivityTimeoutSeconds).toBe(900);
+      expect(admission.admission.sandbox?.inactivityTimeoutSeconds).toBe(900);
     });
   });
 
@@ -369,7 +455,7 @@ describe('DemoSandboxAdmissionService', () => {
       });
     });
 
-    it('limits per hashed creator address within the configured window', async () => {
+    it('limits per hashed creator address within the configured window, ignoring failed setups', async () => {
       const t = setup();
       failing.limited(t);
       await refusal(t.service.provision(input, context()));
@@ -377,6 +463,7 @@ describe('DemoSandboxAdmissionService', () => {
         where: {
           creatorIpHash: expect.stringMatching(/^[0-9a-f]{64}$/),
           createdAt: { gt: expect.any(Date) },
+          stage: { not: DemoSandboxStage.FAILED },
         },
       });
       expect(JSON.stringify(t.db.demoSandbox.count.mock.calls)).not.toContain(
@@ -397,10 +484,58 @@ describe('DemoSandboxAdmissionService', () => {
   });
 
   describe('provisioning', () => {
-    it('prepares an inaccessible attempt, then activates it with exactly the member roles', async () => {
+    it('returns as soon as the reservation commits, publishing the binding and no session', async () => {
       const t = setup();
+      let finishClone!: (value: unknown) => void;
+      t.clone.cloneInto.mockReturnValue(
+        new Promise((resolve) => {
+          finishClone = resolve;
+        }),
+      );
 
       const admission = await t.service.provision(input, context());
+
+      expect(admission).toEqual({
+        admission: {
+          state: 'PROVISIONING',
+          progress: {
+            stage: 'COPYING',
+            connectedFeatureCount: 0,
+            totalFeatureCount: 0,
+          },
+        },
+        bindingSecret: expect.any(String),
+      });
+      expect(admission.session).toBeUndefined();
+      expect(t.db.demoSandbox.create).toHaveBeenCalledWith({
+        data: {
+          browserBindingHash: hash(admission.bindingSecret!),
+          creatorIpHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+          status: DemoSandboxStatus.PROVISIONING,
+          stage: DemoSandboxStage.COPYING,
+          provisioningDeadline: expect.any(Date),
+        },
+        select: { id: true },
+      });
+      // Preparation is still running in the background.
+      expect(t.db.demoSandbox.updateMany).not.toHaveBeenCalled();
+      expect(t.readiness.waitUntilConnected).not.toHaveBeenCalled();
+
+      finishClone({
+        idMap: new Map([['source-feature', 'copied-feature']]),
+        copiedFeatureIds: ['copied-feature'],
+      });
+      await settle();
+      expect(t.readiness.waitUntilConnected).toHaveBeenCalledWith(
+        'sandbox-new',
+      );
+    });
+
+    it('prepares an inaccessible attempt with every copied feature, then activates it with exactly the member roles and no session', async () => {
+      const t = setup();
+
+      await t.service.provision(input, context());
+      await settle();
 
       expect(
         t.organizations.createOrganizationWithTransaction,
@@ -414,7 +549,6 @@ describe('DemoSandboxAdmissionService', () => {
       expect(t.clone.cloneInto).toHaveBeenCalledWith(t.db, {
         targetOrganizationId: 'org-new',
         targetProjectId: 'project-new',
-        actorUserId: DEMO_SYSTEM_USER_ID,
         templateSnapshot: t.templateSnapshot,
       });
       expect(t.db.user.create).toHaveBeenCalledWith({
@@ -435,25 +569,17 @@ describe('DemoSandboxAdmissionService', () => {
         ['TERMS', DEMO_TERMS_DOCUMENT.version, 'AGREED'],
         ['SECURITY', DEMO_AGENT_BRIDGE_DOCUMENT.version, 'ACKNOWLEDGED'],
       ]);
-      expect(t.db.demoSandbox.create).toHaveBeenCalledWith({
-        data: {
-          browserBindingHash: expect.any(String),
-          creatorIpHash: expect.stringMatching(/^[0-9a-f]{64}$/),
-          status: DemoSandboxStatus.PROVISIONING,
-          provisioningDeadline: expect.any(Date),
-        },
-        select: { id: true },
-      });
       expect(t.db.demoSandbox.updateMany).toHaveBeenCalledWith({
         where: { id: 'sandbox-new', status: DemoSandboxStatus.PROVISIONING },
         data: {
           organizationId: 'org-new',
           projectId: 'project-new',
           demoUserId: 'demo-user-new',
-          readinessFeatureId: 'copied-feature',
+          readinessFeatureIds: ['copied-feature', 'copied-feature-2'],
+          stage: DemoSandboxStage.CONNECTING,
         },
       });
-      // Nothing is visible to the visitor before the Graph sample matches.
+      // Nothing is visible to the visitor before every feature is connected.
       const prepared = t.db.demoSandbox.updateMany.mock.invocationCallOrder[0]!;
       expect(
         t.db.organizationMember.create.mock.invocationCallOrder[0],
@@ -477,19 +603,40 @@ describe('DemoSandboxAdmissionService', () => {
         { userId: 'demo-user-new', role: 'MEMBER' },
         t.db,
       );
-      expect(t.browserSessions.establishInTransaction).toHaveBeenCalledTimes(1);
-      expect(admission.session).toBe(session);
-      expect(admission.sandbox).toMatchObject({
+      expect(t.db.demoSandbox.update).toHaveBeenCalledWith({
+        where: { id: 'sandbox-new' },
+        data: expect.objectContaining({
+          status: DemoSandboxStatus.ACTIVE,
+          stage: DemoSandboxStage.READY,
+          expiresAt: expect.any(Date),
+        }),
+      });
+      expect(t.browserSessions.establishInTransaction).not.toHaveBeenCalled();
+      expect(t.discard.discard).not.toHaveBeenCalled();
+    });
+
+    it('signs the visitor in on the next resume once activation flipped the row to ACTIVE', async () => {
+      const t = setup();
+      const admission = await t.service.provision(input, context());
+      await settle();
+      expect(t.browserSessions.establishInTransaction).not.toHaveBeenCalled();
+
+      t.db.demoSandbox.findUnique.mockResolvedValue({
+        ...activeSandbox,
         organizationId: 'org-new',
         projectId: 'project-new',
-        resumed: false,
-        inactivityTimeoutSeconds: 7200,
+        demoUserId: 'demo-user-new',
       });
-      expect(admission.bindingSecret).toEqual(expect.any(String));
-      expect(
-        t.db.demoSandbox.create.mock.calls[0]![0].data.browserBindingHash,
-      ).toBe(hash(admission.bindingSecret!));
-      expect(t.discard.discard).not.toHaveBeenCalled();
+      const resumed = await t.service.resume(context(admission.bindingSecret));
+
+      expect(resumed.admission).toMatchObject({
+        state: 'ACTIVE',
+        sandbox: { projectId: 'project-new' },
+      });
+      expect(resumed.session).toBe(session);
+      expect(t.db.demoSandbox.findUnique).toHaveBeenCalledWith({
+        where: { browserBindingHash: hash(admission.bindingSecret!) },
+      });
     });
 
     it('prepares concurrently admitted visitors at the same time', async () => {
@@ -501,13 +648,14 @@ describe('DemoSandboxAdmissionService', () => {
             releases.push(() =>
               resolve({
                 idMap: new Map([['source-feature', 'copied-feature']]),
+                copiedFeatureIds: ['copied-feature'],
               }),
             );
           }),
       );
 
-      const admissions = [1, 2, 3].map(() =>
-        t.service.provision(input, context()),
+      await Promise.all(
+        [1, 2, 3].map(() => t.service.provision(input, context())),
       );
       for (let tick = 0; tick < 50 && releases.length < 3; tick++) {
         await new Promise((resolve) => setImmediate(resolve));
@@ -515,9 +663,10 @@ describe('DemoSandboxAdmissionService', () => {
       // Every visitor is cloning before any clone finishes.
       expect(releases).toHaveLength(3);
       for (const release of releases) release();
+      await settle();
 
-      await expect(Promise.all(admissions)).resolves.toHaveLength(3);
       expect(t.db.demoSandbox.create).toHaveBeenCalledTimes(3);
+      expect(t.db.organizationMember.create).toHaveBeenCalledTimes(3);
     });
 
     it('keeps the reservation counted while the sandbox is prepared', async () => {
@@ -525,43 +674,58 @@ describe('DemoSandboxAdmissionService', () => {
       let counted: unknown;
       t.clone.cloneInto.mockImplementation(async () => {
         counted = t.db.demoSandbox.create.mock.calls.length;
-        return { idMap: new Map([['source-feature', 'copied-feature']]) };
+        return {
+          idMap: new Map([['source-feature', 'copied-feature']]),
+          copiedFeatureIds: ['copied-feature'],
+        };
       });
 
       await t.service.provision(input, context());
+      await settle();
 
       expect(counted).toBe(1);
     });
 
-    it('releases the reservation and reports PROVISIONING_FAILED when preparation fails', async () => {
+    it('discards the attempt when preparation fails, without waiting or activating', async () => {
       const t = setup();
       t.clone.cloneInto.mockRejectedValue(new Error('constraint violated'));
 
       await expect(
-        refusal(t.service.provision(input, context())),
-      ).resolves.toEqual({
-        status: 503,
-        code: 'PROVISIONING_FAILED',
-      });
+        t.service.provision(input, context()),
+      ).resolves.toMatchObject({ admission: { state: 'PROVISIONING' } });
+      await settle();
+
       expect(t.db.demoSandbox.updateMany).not.toHaveBeenCalled();
       expect(t.discard.discard).toHaveBeenCalledWith('sandbox-new');
       expect(t.readiness.waitUntilConnected).not.toHaveBeenCalled();
       expect(t.db.organizationMember.create).not.toHaveBeenCalled();
-      expect(t.browserSessions.establishInTransaction).not.toHaveBeenCalled();
+    });
+
+    it('discards the attempt when the clone copied no features', async () => {
+      const t = setup();
+      t.clone.cloneInto.mockResolvedValue({
+        idMap: new Map(),
+        copiedFeatureIds: [],
+        graphCopyIntentId: 'intent-1',
+      });
+
+      await t.service.provision(input, context());
+      await settle();
+
+      expect(t.db.demoSandbox.updateMany).not.toHaveBeenCalled();
+      expect(t.discard.discard).toHaveBeenCalledWith('sandbox-new');
     });
 
     it('fails preparation when the reservation was discarded meanwhile', async () => {
       const t = setup();
       t.db.demoSandbox.updateMany.mockResolvedValue({ count: 0 });
 
-      await expect(
-        refusal(t.service.provision(input, context())),
-      ).resolves.toEqual({
-        status: 503,
-        code: 'PROVISIONING_FAILED',
-      });
+      await t.service.provision(input, context());
+      await settle();
+
       expect(t.readiness.waitUntilConnected).not.toHaveBeenCalled();
-      expect(t.browserSessions.establishInTransaction).not.toHaveBeenCalled();
+      expect(t.db.organizationMember.create).not.toHaveBeenCalled();
+      expect(t.discard.discard).toHaveBeenCalledWith('sandbox-new');
     });
 
     it('keeps the template snapshot outside every database transaction', async () => {
@@ -587,36 +751,31 @@ describe('DemoSandboxAdmissionService', () => {
       });
 
       await t.service.provision(input, context());
+      await settle();
 
       expect(during).toBe(0);
     });
 
-    it('discards the whole attempt when the Graph sample never connects', async () => {
+    it('discards the whole attempt when the copied features never all connect', async () => {
       const t = setup();
       t.readiness.waitUntilConnected.mockResolvedValue(false);
 
-      await expect(
-        refusal(t.service.provision(input, context())),
-      ).resolves.toEqual({
-        status: 503,
-        code: 'PROVISIONING_FAILED',
-      });
+      await t.service.provision(input, context());
+      await settle();
+
       expect(t.discard.discard).toHaveBeenCalledWith('sandbox-new');
       expect(t.db.organizationMember.create).not.toHaveBeenCalled();
       expect(t.browserSessions.establishInTransaction).not.toHaveBeenCalled();
     });
 
-    it('still returns the typed 503 when the discard itself fails', async () => {
+    it('swallows a failing discard so the deadline sweep can retry it', async () => {
       const t = setup();
       t.readiness.waitUntilConnected.mockResolvedValue(false);
       t.discard.discard.mockRejectedValueOnce(new Error('db down'));
 
-      await expect(
-        refusal(t.service.provision(input, context())),
-      ).resolves.toEqual({
-        status: 503,
-        code: 'PROVISIONING_FAILED',
-      });
+      await t.service.provision(input, context());
+      await expect(settle()).resolves.toBeUndefined();
+      expect(t.discard.discard).toHaveBeenCalledTimes(1);
     });
 
     it('lets closure win against a late match', async () => {
@@ -629,17 +788,87 @@ describe('DemoSandboxAdmissionService', () => {
             : [{ id: 'sandbox-new' }],
       );
 
-      await expect(
-        refusal(t.service.provision(input, context())),
-      ).resolves.toEqual({
-        status: 503,
-        code: 'PROVISIONING_FAILED',
-      });
+      await t.service.provision(input, context());
+      await settle();
+
       expect(t.db.organizationMember.create).not.toHaveBeenCalled();
       expect(t.projects.createProjectMembership).not.toHaveBeenCalled();
-      expect(t.browserSessions.establishInTransaction).not.toHaveBeenCalled();
+      expect(t.db.demoSandbox.update).not.toHaveBeenCalled();
       expect(t.discard.discard).toHaveBeenCalledWith('sandbox-new');
     });
+  });
+
+  describe('scoped Graph readiness through provisioning', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    const realReadiness = (
+      t: ReturnType<typeof setup>,
+      checkFeatureProjectConnection: jest.Mock,
+    ) => {
+      t.db.demoSandbox.findUnique.mockResolvedValue({
+        organizationId: 'org-new',
+        projectId: 'project-new',
+        readinessFeatureIds: ['copied-feature', 'copied-feature-2'],
+        provisioningDeadline: new Date(Date.now() + 120_000),
+      });
+      const readiness = new DemoSandboxReadinessService(
+        { db: t.db } as never,
+        { checkFeatureProjectConnection } as unknown as GraphsClientService,
+        () => 'scoped-token',
+      );
+      t.readiness.waitUntilConnected.mockImplementation(
+        readiness.waitUntilConnected.bind(readiness),
+      );
+    };
+
+    it('withholds activation while only some features are connected, then activates on the full set', async () => {
+      const t = setup();
+      const checkFeatureProjectConnection = jest
+        .fn()
+        .mockResolvedValueOnce({ connectedCount: 1 })
+        .mockResolvedValue({ connectedCount: 2 });
+      realReadiness(t, checkFeatureProjectConnection);
+
+      await t.service.provision(input, context());
+      await jest.advanceTimersByTimeAsync(0);
+      expect(t.db.organizationMember.create).not.toHaveBeenCalled();
+      expect(t.db.demoSandbox.updateMany).toHaveBeenLastCalledWith({
+        where: { id: 'sandbox-new', status: DemoSandboxStatus.PROVISIONING },
+        data: { connectedFeatureCount: 1 },
+      });
+      await jest.advanceTimersByTimeAsync(1_000);
+
+      expect(t.db.organizationMember.create).toHaveBeenCalledTimes(1);
+      expect(t.browserSessions.establishInTransaction).not.toHaveBeenCalled();
+      expect(checkFeatureProjectConnection).toHaveBeenCalledTimes(2);
+      expect(checkFeatureProjectConnection).toHaveBeenLastCalledWith(
+        'org-new',
+        'project-new',
+        { featureIds: ['copied-feature', 'copied-feature-2'] },
+        'scoped-token',
+      );
+    });
+
+    it.each(['partial', 'unavailable'])(
+      'discards safely when Graph stays %s through the deadline',
+      async (state) => {
+        const t = setup();
+        const checkFeatureProjectConnection =
+          state === 'partial'
+            ? jest.fn().mockResolvedValue({ connectedCount: 1 })
+            : jest.fn().mockRejectedValue(new Error('Graph unavailable'));
+        realReadiness(t, checkFeatureProjectConnection);
+
+        await t.service.provision(input, context());
+        await jest.advanceTimersByTimeAsync(120_000);
+
+        expect(t.discard.discard).toHaveBeenCalledWith('sandbox-new');
+        expect(t.db.organizationMember.create).not.toHaveBeenCalled();
+        expect(t.projects.createProjectMembership).not.toHaveBeenCalled();
+        expect(t.browserSessions.establishInTransaction).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('current', () => {

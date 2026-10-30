@@ -3,7 +3,10 @@ import type { Proposal } from '@prisma/client';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 import type { ProposalReconciliationBasis } from 'src/generated';
 import { ProposalReconciliationService } from '../proposal-reconciliation.service';
-import { projectReconciliationContent } from '../proposal-reconciliation-content';
+import {
+  projectReconciliationContent,
+  manualReconciliationPatch,
+} from '../proposal-reconciliation-content';
 
 const original: ProposalReconciliationBasis = {
   entityType: 'TASK',
@@ -106,6 +109,198 @@ function fixture() {
 }
 
 describe('reviewed reconciliation application', () => {
+  it.each(['TASK', 'DESIGN_DOC'] as const)(
+    'compares only name and authored sections for %s, including stored wide snapshots',
+    (entityType) => {
+      const f = fixture();
+      const reviewed = {
+        ...original,
+        entityType,
+        content: {
+          ...original.content,
+          priority: 'LOW',
+          tag: 'backend',
+          parentTaskId: 'old-parent',
+          serviceIds: ['old-service'],
+        },
+      };
+      const current = {
+        ...reviewed,
+        version: 'metadata-write',
+        content: {
+          ...reviewed.content,
+          priority: 'HIGH',
+          tag: 'frontend',
+          parentTaskId: 'new-parent',
+          serviceIds: ['new-service'],
+          sectionOrder: { description: 1, notes: 0 },
+        },
+      };
+      expect(() =>
+        f.owner.assertReviewedBasisCurrent([reviewed], [current]),
+      ).not.toThrow();
+      expect(() =>
+        f.owner.assertReviewedBasisCurrent(
+          [reviewed],
+          [
+            {
+              ...current,
+              content: { ...current.content, name: 'Changed title' },
+            },
+          ],
+        ),
+      ).toThrow(ConflictException);
+      expect(() =>
+        f.owner.assertReviewedBasisCurrent(
+          [reviewed],
+          [
+            {
+              ...current,
+              content: {
+                ...current.content,
+                sections: {
+                  description: 'Changed description',
+                  notes: 'Notes',
+                },
+              },
+            },
+          ],
+        ),
+      ).toThrow(ConflictException);
+      expect(reviewed.content.priority).toBe('LOW');
+      expect(current.content.priority).toBe('HIGH');
+    },
+  );
+
+  it('does not replay or reject a completed effect after someone edits its result', async () => {
+    const f = fixture();
+    const write = jest.fn(async () => {
+      f.change({ ...original.content, name: 'Applied' }, 'own-write');
+    });
+    await f.owner.guardTaskEffect(
+      f.tx,
+      proposal,
+      'intent',
+      'target',
+      0,
+      false,
+      write,
+    );
+    f.change({ ...original.content, name: 'Later user edit' }, 'later-write');
+    await expect(
+      f.owner.guardTaskEffect(
+        f.tx,
+        proposal,
+        'intent',
+        'target',
+        0,
+        false,
+        write,
+      ),
+    ).resolves.toBeUndefined();
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(f.getCurrent().content.name).toBe('Later user edit');
+    await expect(
+      f.owner.guardTaskEffect(
+        f.tx,
+        proposal,
+        'intent',
+        'target',
+        1,
+        false,
+        write,
+      ),
+    ).rejects.toThrow(ConflictException);
+    expect(write).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not compare a shared parent or endpoints when only creating records and edges', async () => {
+    const f = fixture();
+    const request = {
+      ...proposal,
+      action: 'CREATE' as const,
+      updates: {
+        root: { refType: 'existing', id: 'parent' },
+        operations: [
+          {
+            op: 'workItem.create',
+            ref: { refType: 'temporary', tempId: 'new-task' },
+            parent: { refType: 'existing', id: 'parent' },
+            name: 'New task',
+            type: 'STANDARD',
+          },
+          {
+            op: 'relationship.create',
+            ref: { refType: 'temporary', tempId: 'new-edge' },
+            source: { refType: 'existing', id: 'parent' },
+            target: { refType: 'existing', id: 'endpoint' },
+            edgeType: 'RELATED_TO',
+            category: 'meta',
+          },
+        ],
+      },
+    } as unknown as Proposal;
+    f.revision.bases = [];
+    await expect(f.owner.currentBases(f.tx, request, true)).resolves.toEqual(
+      [],
+    );
+    await expect(
+      f.owner.assertApplicable(f.tx, request),
+    ).resolves.toBeUndefined();
+    expect(
+      f.db.proposalReconciliationRevision.findFirst,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('applies persisted type content with unset optionals but names genuine definition drift', async () => {
+    const f = fixture();
+    const live = {
+      entityType: 'WORK_ITEM_TYPE' as const,
+      entityId: 'mockup',
+      version: 'project:v1',
+      content: {
+        definition: { name: 'Mockup', iconKey: undefined, colorKey: undefined },
+        lifecycleStatus: 'active',
+      },
+    };
+    f.revision.bases = [JSON.parse(JSON.stringify(live))];
+    const typeProposal = {
+      ...proposal,
+      targetEntityType: 'WORK_ITEM_TYPE' as const,
+      targetEntityId: 'mockup',
+    };
+    const adapter = { workItemType: jest.fn(async () => live) };
+    const owner = new ProposalReconciliationService(
+      adapter as never,
+      {} as never,
+      jest.fn(),
+    );
+    await expect(
+      owner.assertApplicable(f.tx, typeProposal),
+    ).resolves.toBeUndefined();
+    live.content.definition.name = 'Intervening name';
+    const error = await owner
+      .assertApplicable(f.tx, typeProposal)
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ConflictException);
+    expect((error as ConflictException).getResponse()).toMatchObject({
+      issues: [
+        {
+          field: 'WORK_ITEM_TYPE:mockup.definition.name',
+          code: 'PROPOSAL_RECONCILIATION_REQUIRED',
+          layer: 'referential',
+        },
+      ],
+    });
+    expect(live.content.definition.name).toBe('Intervening name');
+    f.db.proposalReconciliationRevision.findFirst.mockResolvedValueOnce(
+      null as never,
+    );
+    await expect(owner.assertApplicable(f.tx, typeProposal)).rejects.toThrow(
+      'Original proposal content is unavailable',
+    );
+  });
+
   it('uses completed-effect receipts for retry classification without refreshing the original revision', async () => {
     const f = fixture();
     f.db.workItemChangeSetMaterialization.findUnique.mockResolvedValue({
@@ -228,6 +423,32 @@ describe('reviewed reconciliation application', () => {
     ).rejects.toThrow(ConflictException);
   });
 
+  it('carries every manually edited field and section into ordinary candidate validation', () => {
+    expect(
+      manualReconciliationPatch(
+        {
+          name: 'Current',
+          priority: 'LOW',
+          sections: { description: 'Old', remove: 'Remove' },
+          sectionOrder: { description: 0, remove: 1 },
+        },
+        {
+          name: 'Resolved',
+          priority: 'HIGH',
+          sections: { description: 'Resolved body', added: 'New' },
+          sectionOrder: { description: 0, added: 1 },
+        },
+      ),
+    ).toEqual({
+      name: 'Resolved',
+      priority: 'HIGH',
+      sections: [
+        { key: 'description', content: 'Resolved body', order: 0 },
+        { key: 'remove', content: null },
+        { key: 'added', content: 'New', order: 1 },
+      ],
+    });
+  });
   it('retains the original basis on edits and invalidates earlier votes', async () => {
     const f = fixture();
     f.change({ ...original.content, name: 'Intervening' }, 'second');
@@ -280,6 +501,77 @@ describe('reviewed reconciliation application', () => {
       );
     },
   );
+
+  it('uses the checked future Apply basis for element writes and then its own receipt, without rewriting proposal review history', async () => {
+    const f = fixture();
+    f.revision.bases = [];
+    f.db.workItemChangeSetMaterialization.findUnique.mockResolvedValue({
+      targetProjection: {
+        futureApplication: { reviewedBases: [structuredClone(original)] },
+      },
+    } as never);
+    const future = { ...proposal, action: 'VERSIONED_UPDATE' } as Proposal;
+    const write = jest.fn(async () =>
+      f.change({ ...original.content, name: 'Reviewed element' }, 'effect'),
+    );
+    await f.owner.guardTaskEffect(
+      f.tx,
+      future,
+      'materialization',
+      'target',
+      0,
+      false,
+      write,
+    );
+    await f.owner.guardTaskEffect(
+      f.tx,
+      future,
+      'materialization',
+      'target',
+      0,
+      false,
+      write,
+    );
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(f.revision.bases).toEqual([]);
+    expect(f.db.proposalReconciliationRevision.create).not.toHaveBeenCalled();
+    f.change({ ...original.content, name: 'External change' }, 'external');
+    await expect(
+      f.owner.guardTaskEffect(
+        f.tx,
+        future,
+        'materialization',
+        'target',
+        1,
+        false,
+        write,
+      ),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it('supplies the captured relationship token to a future graph operation and rejects subsequent graph drift', async () => {
+    const f = fixture();
+    const edge: ProposalReconciliationBasis = {
+      entityType: 'EDGE',
+      entityId: 'edge',
+      version: 'reviewed-edge-version',
+      content: { type: 'RELATED_TO' },
+    };
+    f.revision.bases = [];
+    f.db.workItemChangeSetMaterialization.findUnique.mockResolvedValue({
+      targetProjection: { futureApplication: { reviewedBases: [edge] } },
+    } as never);
+    const read = jest.spyOn(f.owner, 'edgeBasis').mockResolvedValue(edge);
+    const future = { ...proposal, action: 'VERSIONED_UPDATE' } as Proposal;
+    expect(
+      await f.owner.reviewedEdgeBasis(f.tx, future, 'materialization', 'edge'),
+    ).toEqual(edge);
+    read.mockResolvedValue({ ...edge, version: 'concurrent-edge-version' });
+    await expect(
+      f.owner.reviewedEdgeBasis(f.tx, future, 'materialization', 'edge'),
+    ).rejects.toThrow(ConflictException);
+    expect(f.revision.bases).toEqual([]);
+  });
 
   it('records its own effect, skips replay, and rejects a later external write', async () => {
     const f = fixture();

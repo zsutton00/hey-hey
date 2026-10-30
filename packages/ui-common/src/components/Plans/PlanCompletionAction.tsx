@@ -1,3 +1,5 @@
+import { useModalState } from "../Modals/useModalState";
+import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import { useCallback, useMemo, useState } from "react";
 import { EntityType, WorkStatus } from "../../api";
@@ -41,7 +43,7 @@ export const PlanCompletionAction = ({
   planStatus,
   disabled = false,
 }: PlanCompletionActionProps) => {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen, openOwnerKey] = useModalState(false);
   const [guidance, setGuidance] = useState("");
   const [completionState, setCompletionState] =
     useState<CompletionState>("idle");
@@ -243,49 +245,51 @@ export const PlanCompletionAction = ({
           order={20}
         />
       ) : null}
-      <EntityConversationPromptDialog
-        open={open}
-        title={`Complete Plan: ${planTitle}`}
-        question={
-          "Would you like to check the project for updates resulting from this completed Plan?"
-        }
-        preCannedPrompt={buildPlanCompletionReviewPrompt(planTitle)}
-        userInput={guidance}
-        onUserInputChange={setGuidance}
-        onClose={resetAndClose}
-        onSubmit={(prompt) => void completeAndReview(prompt)}
-        primaryAction={{
-          label: "Complete and Review",
-          pendingLabel: "Starting review…",
-          pending: completionState === "launching",
-          testId: "plan-completion-complete-and-review",
-          error: reviewLaunchError
-            ? {
-                message: reviewLaunchError,
-                testId: "plan-review-launch-error",
-              }
-            : null,
-        }}
-        secondaryAction={{
-          label: "Complete",
-          pendingLabel: "Completing…",
-          pending: completionState === "completing",
-          testId: "plan-completion-complete",
-          error: completionError
-            ? {
-                message: completionError,
-                testId: "plan-completion-error",
-              }
-            : null,
-          onClick: () => void complete(),
-        }}
-        inputLabel="Additional guidance (optional)"
-        testIdPrefix="plan-completion"
-        questionTestId="plan-completion-review-question"
-        inputTestId="plan-completion-guidance"
-        runtimeTestId="plan-completion-runtime"
-        runtimeSelection={runtimeSelection}
-      />
+      <ModalWorkOwner.Provider value={openOwnerKey}>
+        <EntityConversationPromptDialog
+          open={open}
+          title={`Complete Plan: ${planTitle}`}
+          question={
+            "Would you like to check the project for updates resulting from this completed Plan?"
+          }
+          preCannedPrompt={buildPlanCompletionReviewPrompt(planTitle)}
+          userInput={guidance}
+          onUserInputChange={setGuidance}
+          onClose={resetAndClose}
+          onSubmit={(prompt) => void completeAndReview(prompt)}
+          primaryAction={{
+            label: "Complete and Review",
+            pendingLabel: "Starting review…",
+            pending: completionState === "launching",
+            testId: "plan-completion-complete-and-review",
+            error: reviewLaunchError
+              ? {
+                  message: reviewLaunchError,
+                  testId: "plan-review-launch-error",
+                }
+              : null,
+          }}
+          secondaryAction={{
+            label: "Complete",
+            pendingLabel: "Completing…",
+            pending: completionState === "completing",
+            testId: "plan-completion-complete",
+            error: completionError
+              ? {
+                  message: completionError,
+                  testId: "plan-completion-error",
+                }
+              : null,
+            onClick: () => void complete(),
+          }}
+          inputLabel="Additional guidance (optional)"
+          testIdPrefix="plan-completion"
+          questionTestId="plan-completion-review-question"
+          inputTestId="plan-completion-guidance"
+          runtimeTestId="plan-completion-runtime"
+          runtimeSelection={runtimeSelection}
+        />
+      </ModalWorkOwner.Provider>
     </>
   );
 };

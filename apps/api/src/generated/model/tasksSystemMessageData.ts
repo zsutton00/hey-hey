@@ -17,6 +17,7 @@ import { SystemMessageData } from './systemMessageData';
 import { UIHints } from './uIHints';
 import { TaskResponseDto } from './taskResponseDto';
 import { AgentTrigger } from './agentTrigger';
+import { ProposalReconciliationSuggestion } from './proposalReconciliationSuggestion';
 
 
 export interface TasksSystemMessageData extends SystemMessageData { 

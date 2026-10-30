@@ -1,3 +1,5 @@
+import { useModalState } from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import {
   OrganizationEntitlementMutationError,
   useAdminOrganizationDetail,
@@ -10,7 +12,6 @@ import {
   Button,
   Chip,
   Container,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -60,7 +61,8 @@ export const AdminOrganizationDetailPage: React.FC = () => {
   const [name, setName] = useState("");
   const [cursor, setCursor] = useState<string>();
   const [history, setHistory] = useState<Array<string | undefined>>([]);
-  const [confirmationOpen, setConfirmationOpen] = useState(false);
+  const [confirmationOpen, setConfirmationOpen, confirmationOpenOwnerKey] =
+    useModalState(false);
   const [reason, setReason] = useState("");
   const detail = useAdminOrganizationDetail({ organizationId });
   const members = useAdminOrganizationMembers({
@@ -122,13 +124,13 @@ export const AdminOrganizationDetailPage: React.FC = () => {
     entitlement.accessThroughAt === null
       ? "Until revoked"
       : entitlement.effectiveAccessThroughAt
-      ? formatDate(entitlement.effectiveAccessThroughAt)
-      : entitlement.subscriptionType === "PAID" && !entitlement.paidThroughAt
-      ? "No paid-through date"
-      : "No active access horizon";
+        ? formatDate(entitlement.effectiveAccessThroughAt)
+        : entitlement.subscriptionType === "PAID" && !entitlement.paidThroughAt
+          ? "No paid-through date"
+          : "No active access horizon";
   const maximum = Math.max(
     1,
-    ...evidence.workItemsByType.map((item) => item.count)
+    ...evidence.workItemsByType.map((item) => item.count),
   );
   const memberRows = members.members.map((member) => ({
     ...member,
@@ -387,6 +389,7 @@ export const AdminOrganizationDetailPage: React.FC = () => {
         </Stack>
       </Paper>
       <Dialog
+        ownerKey={confirmationOpenOwnerKey}
         fullWidth
         maxWidth="sm"
         onClose={() =>

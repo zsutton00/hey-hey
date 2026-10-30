@@ -19,6 +19,8 @@ export const buildEntityHref = (
         projectId,
         initiativeId: target.entityId,
       });
+    case "plan":
+      return pathService.plan({ projectId, planId: target.entityId });
     case "design_doc":
       return pathService.designDoc({ projectId, designDocId: target.entityId });
     case "agent_session":

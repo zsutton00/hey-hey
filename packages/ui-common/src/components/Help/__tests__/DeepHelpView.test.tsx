@@ -383,7 +383,7 @@ describe("DeepHelpView", () => {
     expect(getRenderedTitles()).toEqual([
       "Install Agent Bridge",
       "Your features are ready",
-      "Read Your First Project",
+      "Read the Your First Project guide",
     ]);
     expect(
       screen.getByText(/Learn how to shape your feature tree/),
@@ -404,7 +404,7 @@ describe("DeepHelpView", () => {
 
     expect(getRenderedTitles()).toEqual([
       "Install Agent Bridge",
-      "Read Your First Project",
+      "Read the Your First Project guide",
     ]);
     expect(
       screen.queryByText("Your features are ready"),

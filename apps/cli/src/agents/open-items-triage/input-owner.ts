@@ -1,4 +1,10 @@
 import { z } from 'zod';
+import {
+  SessionEvidenceReader,
+  SESSION_EVIDENCE_CAP,
+  selectSessionCandidates,
+  type SessionObservation,
+} from './session-evidence';
 import { extractUserIdFromToken } from '../../auth';
 import type { CanonicalJsonValue } from '../../shared/canonical-json';
 import type { LocalOpenItemsTriageItem } from '../../shared/agent-bridge-contract/generated';
@@ -30,6 +36,7 @@ import {
   trackedSchema,
 } from './input-schemas';
 import { reduceConnections, type Connection } from './relationships';
+import type { TriageInputDiagnostics } from './input-diagnostics';
 
 export interface EvidenceLimit {
   scope: string;
@@ -69,14 +76,17 @@ export class TriageInputOwner {
   private readonly limits: EvidenceLimit[] = [];
   private readonly archivedKeys = new Set<string>();
   private readonly base: string;
+  private readonly sessionEvidence: SessionEvidenceReader;
   constructor(
     private readonly deps: PromptTypeHandlerDeps,
     organizationId: string,
     private readonly projectId: string,
     private readonly accessToken: string,
     private readonly now: number,
+    private readonly diagnostics?: TriageInputDiagnostics,
   ) {
     this.base = `${deps.apiBaseUrl}/organizations/${encodeURIComponent(organizationId)}/projects/${encodeURIComponent(projectId)}`;
+    this.sessionEvidence = new SessionEvidenceReader(deps, this.base, accessToken, projectId);
   }
 
   private async read(url: string): Promise<CanonicalJsonValue> {
@@ -86,6 +96,7 @@ export class TriageInputOwner {
       headers: { Authorization: `Bearer ${this.accessToken}` },
     });
     if (!response.ok) {
+      this.diagnostics?.record(url, response.status);
       this.deps.logger.debug('open_items_triage.read.http_failed', {
         path: new URL(url).pathname,
         status: response.status,
@@ -93,6 +104,7 @@ export class TriageInputOwner {
       throw new Error(`Read failed (${response.status}).`);
     }
     const data = envelopeSchema.parse(await response.json()).data;
+    this.diagnostics?.record(url, response.status, data);
     this.deps.logger.debug('open_items_triage.read.completed', { path: new URL(url).pathname });
     return data;
   }
@@ -433,6 +445,11 @@ export class TriageInputOwner {
         ].map((item) => [itemKey(item), item]),
       ).values(),
     ];
+    const sessionObservations = await this.sessionEvidence.build(
+      openItems.filter((item) => !this.archivedKeys.has(itemKey(item))),
+      this.limits,
+      this.archivedKeys,
+    );
     const connections = await this.connections(seeds);
     // Reopen candidates must be absent from the entire authoritative collection, including rows omitted by the input cap.
     const fullKeys =
@@ -462,6 +479,14 @@ export class TriageInputOwner {
         groups,
       },
       attention: reduced,
+      sessionObservations,
+      sessionSelection: {
+        cap: SESSION_EVIDENCE_CAP,
+        omittedCandidates: Math.max(
+          0,
+          selectSessionCandidates(openItems).length - SESSION_EVIDENCE_CAP,
+        ),
+      },
       goals: goals
         .filter((goal) => !this.archivedKeys.has(`TASK:${goal.id}`))
         .map((goal) => ({
@@ -490,6 +515,7 @@ export class TriageInputOwner {
     attention: { timeline: unknown[]; truncated: { timeline: boolean } };
     goals: { trackedItems: unknown[] }[];
     connections: unknown[];
+    sessionObservations: SessionObservation[];
     truncated: boolean;
     limits: EvidenceLimit[];
   }): number {
@@ -525,6 +551,14 @@ export class TriageInputOwner {
       input.truncated = true;
       connectionLimit.truncated = true;
       bytes = finalize();
+    }
+    if (bytes > TRIAGE_INPUT_BUDGET_BYTES) {
+      const sessionLimit = this.limit('budget:sessionObservations');
+      while (bytes > TRIAGE_INPUT_BUDGET_BYTES && input.sessionObservations.length) {
+        input.sessionObservations.pop();
+        sessionLimit.truncated = true;
+        bytes = finalize();
+      }
     }
     return bytes;
   }

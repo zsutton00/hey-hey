@@ -1,3 +1,6 @@
+import { Inject } from '@nestjs/common';
+import { ProposalReconciliationService } from './proposal-reconciliation.service';
+import { readProposalDependencyPresentation } from './future-dependency-presentation';
 import {
   Injectable,
   Logger,
@@ -43,6 +46,9 @@ export type ProposalGroupWithSnapshot = Prisma.ProposalGroupGetPayload<{
 
 @Injectable()
 export class ProposalGroupService {
+  @Inject(ProposalReconciliationService)
+  private readonly reconciliation!: ProposalReconciliationService;
+
   private readonly logger = new Logger(ProposalGroupService.name);
 
   constructor(
@@ -174,6 +180,7 @@ export class ProposalGroupService {
     const outOfDateStatuses = await resolveProposalOutOfDateStatuses(
       db,
       group.members.map((member) => member.proposal),
+      this.reconciliation,
     );
     const memberById = new Map(
       group.members.map((member) => [member.id, member]),
@@ -229,6 +236,10 @@ export class ProposalGroupService {
       preparedMembers.map(({ proposal }) => proposal),
     );
 
+    const dependencyPresentation = await readProposalDependencyPresentation(
+      db,
+      preparedMembers.map(({ proposal }) => proposal),
+    );
     const members = preparedMembers.map(
       ({
         member,
@@ -241,6 +252,7 @@ export class ProposalGroupService {
           requiredApprovals,
           reviewedFuturesByProposalId.get(proposal.id) ?? null,
           outOfDateStatus,
+          dependencyPresentation.get(proposal.id),
         );
         const approvalCount = reviewedProposal.approvals.filter(
           (record) => record.type === 'APPROVAL',

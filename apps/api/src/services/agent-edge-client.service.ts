@@ -5,6 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { AxiosResponse } from 'axios';
+import { isAxiosError } from 'axios';
 import { Prisma, WorkItemTypeCascadeExecutionState } from '@prisma/client';
 import { firstValueFrom } from 'rxjs';
 import {
@@ -24,7 +25,10 @@ import { AgentEdgesService } from 'src/generated/graphs/api/agentEdges.service';
 import type { RelationshipType } from 'src/generated/graphs/model/relationshipType';
 import { OrganizationId, ProjectId } from 'src/types';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { workflowEdgePredicateSchema } from 'src/services/proposal/workflow-proposal-link.schema';
+import {
+  workflowEdgeActionLabelSchema,
+  workflowEdgePredicateSchema,
+} from 'src/services/proposal/workflow-proposal-link.schema';
 import {
   axiosResponseToLoggable,
   errorToLoggable,
@@ -255,6 +259,15 @@ export class AgentEdgeClientService {
       AgentEdgeType.Conditional,
       AgentEdgeType.Loop,
     ]);
+    const hasActionLabel = hasOwnField(dto, 'actionLabel');
+    if (hasActionLabel && !flowEdgeTypes.has(dto.type)) {
+      throw new BadRequestException(
+        'CreateAgentEdgeDto.actionLabel is only allowed for STANDARD, CONDITIONAL, and LOOP relationships.',
+      );
+    }
+    if (hasActionLabel) {
+      this.validateActionLabel(dto.actionLabel);
+    }
     if (!flowEdgeTypes.has(dto.type)) return;
 
     if (dto.category !== AgentEdgeCategory.Flow) {
@@ -328,6 +341,16 @@ export class AgentEdgeClientService {
     }
   }
 
+  private validateActionLabel(
+    actionLabel: CreateAgentEdgeDto['actionLabel'],
+  ): void {
+    if (!workflowEdgeActionLabelSchema.safeParse(actionLabel).success) {
+      throw new BadRequestException(
+        'AgentEdgeDto.actionLabel must contain a non-blank plain-language action of at most 200 characters.',
+      );
+    }
+  }
+
   private validateEndpointEntityType(
     dtoName: 'CreateAgentEdgeDto' | 'UpdateAgentEdgeDto',
     field: 'sourceEntityType' | 'targetEntityType',
@@ -359,6 +382,9 @@ export class AgentEdgeClientService {
         'targetEntityType',
         dto.targetEntityType,
       );
+    }
+    if (dto.actionLabel !== undefined && dto.actionLabel !== null) {
+      this.validateActionLabel(dto.actionLabel);
     }
   }
 
@@ -547,6 +573,11 @@ export class AgentEdgeClientService {
         downstream: axiosResponseToLoggable(error),
         agentEdgeId,
       });
+      if (
+        isAxiosError<string | object>(error) &&
+        error.response?.status === 409
+      )
+        throw new ConflictException(error.response.data);
       throw error;
     }
   }
@@ -605,6 +636,11 @@ export class AgentEdgeClientService {
         downstream: axiosResponseToLoggable(error),
         agentEdgeId,
       });
+      if (
+        isAxiosError<string | object>(error) &&
+        error.response?.status === 409
+      )
+        throw new ConflictException(error.response.data);
       throw error;
     }
   }

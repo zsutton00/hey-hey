@@ -7,7 +7,9 @@ describe('RedisMessageBus delivery', () => {
   let server: RedisMemoryServer;
   let buses: RedisMessageBus[] = [];
   beforeAll(async () => {
-    server = new RedisMemoryServer();
+    server = new RedisMemoryServer({
+      spawn: { env: { ...process.env, LC_ALL: 'C' } },
+    });
     const url = `redis://${await server.getHost()}:${await server.getPort()}`;
     buses = [new RedisMessageBus(url), new RedisMessageBus(url)];
   }, 30000);

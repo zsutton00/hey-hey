@@ -9,9 +9,17 @@ import { EntityPromptTemplateOverrideEditor } from "./EntityPromptTemplateOverri
 
 const mocks = vi.hoisted(() => ({ create: vi.fn(), validate: vi.fn() }));
 beforeAll(() => {
-  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
   Range.prototype.getBoundingClientRect = () => new DOMRect();
-  Range.prototype.getClientRects = () => Object.assign([], { item: () => null });
+  Range.prototype.getClientRects = () =>
+    Object.assign([], { item: () => null });
 });
 
 vi.mock("@hey-hey/ui-common/data", async (importOriginal) => ({
@@ -50,7 +58,7 @@ const template = {
 
 const renderEditor = (
   rejectedContent?: string,
-  paletteMode: "light" | "dark" = "light"
+  paletteMode: "light" | "dark" = "light",
 ) =>
   render(
     <ThemeProvider theme={createTheme({ palette: { mode: paletteMode } })}>
@@ -66,50 +74,55 @@ const renderEditor = (
         onReviseRejected={vi.fn()}
         onPendingOperationChange={vi.fn()}
       />
-    </ThemeProvider>
+    </ThemeProvider>,
   );
 
 describe("EntityPromptTemplateOverrideEditor", () => {
   beforeEach(() => {
     mocks.create.mockReset();
-    mocks.validate.mockReset().mockResolvedValue({ data: { data: { status: "VALID", issues: [] } } });
-    vi.spyOn(EntityPromptTemplatesApi.prototype, "validateEntityPromptTemplateDraft").mockImplementation(mocks.validate);
+    mocks.validate
+      .mockReset()
+      .mockResolvedValue({ data: { data: { status: "VALID", issues: [] } } });
+    vi.spyOn(
+      EntityPromptTemplatesApi.prototype,
+      "validateEntityPromptTemplateDraft",
+    ).mockImplementation(mocks.validate);
   });
 
   it("keeps generated field help visible alongside authoritative template state", () => {
     renderEditor();
 
     expect(
-      screen.getByTestId("entity-prompt-template-language-help")
+      screen.getByTestId("entity-prompt-template-language-help"),
     ).toHaveTextContent("entity.sections.<key>");
     expect(
-      screen.queryByRole("heading", { name: "Current" })
+      screen.queryByRole("heading", { name: "Current" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByTestId("entity-prompt-template-current-metadata")
+      screen.getByTestId("entity-prompt-template-current-metadata"),
     ).toHaveTextContent("Source: Project override");
     expect(
-      screen.getByTestId("entity-prompt-template-current-metadata")
+      screen.getByTestId("entity-prompt-template-current-metadata"),
     ).toHaveTextContent("Revision 4");
     expect(
-      screen.getByTestId("entity-prompt-template-current-metadata")
+      screen.getByTestId("entity-prompt-template-current-metadata"),
     ).toHaveTextContent("Validation: VALID");
     expect(
-      screen.getByTestId("entity-prompt-template-language-help")
+      screen.getByTestId("entity-prompt-template-language-help"),
     ).toHaveTextContent("Supported Fields");
     expect(
-      screen.queryByTestId("entity-prompt-template-editor-input")
+      screen.queryByTestId("entity-prompt-template-editor-input"),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByTestId("entity-prompt-template-standard")
+      screen.getByTestId("entity-prompt-template-standard"),
     ).toHaveTextContent("Canonical entity context");
 
     const content = screen.getByTestId(
-      "entity-prompt-template-current-content"
+      "entity-prompt-template-current-content",
     );
     const edit = screen.getByTestId("entity-prompt-template-edit");
     const metadata = screen.getByTestId(
-      "entity-prompt-template-current-metadata"
+      "entity-prompt-template-current-metadata",
     ).parentElement;
     expect(content.nextElementSibling).toBe(edit);
     expect(edit.nextElementSibling).toBe(metadata);
@@ -143,27 +156,27 @@ describe("EntityPromptTemplateOverrideEditor", () => {
 
     await user.click(screen.getByTestId("entity-prompt-template-edit"));
     expect(
-      screen.getByTestId("entity-prompt-template-editor-input")
+      screen.getByTestId("entity-prompt-template-editor-input"),
     ).toHaveTextContent("Authoritative effective content");
     expect(
-      screen.getByTestId("entity-prompt-template-language-help")
+      screen.getByTestId("entity-prompt-template-language-help"),
     ).toHaveTextContent("entity.name");
     expect(
-      screen.getByTestId("entity-prompt-template-language-help")
+      screen.getByTestId("entity-prompt-template-language-help"),
     ).toHaveTextContent("entity.sections.<key>");
 
     await user.clear(screen.getByTestId("entity-prompt-template-editor-input"));
     await user.type(
       screen.getByTestId("entity-prompt-template-editor-input"),
-      "Local edit"
+      "Local edit",
     );
     await user.click(screen.getByTestId("entity-prompt-template-edit-cancel"));
 
     expect(
-      screen.queryByTestId("entity-prompt-template-editor-input")
+      screen.queryByTestId("entity-prompt-template-editor-input"),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByTestId("entity-prompt-template-current-content")
+      screen.getByTestId("entity-prompt-template-current-content"),
     ).toHaveTextContent("Authoritative effective content");
   });
 
@@ -178,9 +191,19 @@ describe("EntityPromptTemplateOverrideEditor", () => {
     await user.click(input);
     await user.keyboard("{Control>}a{/Control}{Backspace}");
     await user.paste("Proposed replacement");
-    await waitFor(() => expect(screen.getByTestId("entity-prompt-template-propose-change")).toBeEnabled());
+    fireEvent.change(
+      screen.getByRole("textbox", {
+        name: "Explain this change in one sentence",
+      }),
+      { target: { value: "Improve the project context." } },
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("entity-prompt-template-propose-change"),
+      ).toBeEnabled(),
+    );
     await user.click(
-      screen.getByTestId("entity-prompt-template-propose-change")
+      screen.getByTestId("entity-prompt-template-propose-change"),
     );
 
     expect(mocks.create).toHaveBeenCalledWith({
@@ -190,16 +213,17 @@ describe("EntityPromptTemplateOverrideEditor", () => {
       selector: { entityType: "WORK_ITEM", workItemTypeKey: "FEATURE" },
       syntaxVersion: "V1",
       content: "Proposed replacement",
+      eli5: "Improve the project context.",
       expectedEffectiveRevision: {
         revisionId: "effective-revision-id",
         revisionNumber: 4,
       },
     });
     expect(
-      screen.getByTestId("entity-prompt-template-proposal-success")
+      screen.getByTestId("entity-prompt-template-proposal-success"),
     ).toHaveTextContent("effective template will change only after approval");
     expect(
-      screen.queryByText(/validate saved revision/i)
+      screen.queryByText(/validate saved revision/i),
     ).not.toBeInTheDocument();
   });
 
@@ -225,6 +249,12 @@ describe("EntityPromptTemplateOverrideEditor", () => {
 
     fireEvent.click(screen.getByTestId("entity-prompt-template-edit"));
     const button = screen.getByTestId("entity-prompt-template-propose-change");
+    fireEvent.change(
+      screen.getByRole("textbox", {
+        name: "Explain this change in one sentence",
+      }),
+      { target: { value: "Improve the project context." } },
+    );
     await waitFor(() => expect(button).toBeEnabled());
     fireEvent.click(button);
     fireEvent.click(button);
@@ -232,8 +262,8 @@ describe("EntityPromptTemplateOverrideEditor", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByTestId("entity-prompt-template-proposal-success")
-      ).toBeInTheDocument()
+        screen.getByTestId("entity-prompt-template-proposal-success"),
+      ).toBeInTheDocument(),
     );
   });
   it("inserts a discovered substitution and proposes only its exact validated source", async () => {
@@ -244,27 +274,61 @@ describe("EntityPromptTemplateOverrideEditor", () => {
     await user.click(screen.getByRole("textbox", { name: "Template content" }));
     await user.keyboard("{Control>}a{/Control}{Backspace}");
     await user.paste("$");
-    expect(await screen.findByTestId("template-substitution-suggestions")).toHaveTextContent("Focal entity identifier.");
+    expect(
+      await screen.findByTestId("template-substitution-suggestions"),
+    ).toHaveTextContent("Focal entity identifier.");
     await user.keyboard("{Enter}");
     const save = screen.getByTestId("entity-prompt-template-propose-change");
     expect(save).toBeDisabled();
+    fireEvent.change(
+      screen.getByRole("textbox", {
+        name: "Explain this change in one sentence",
+      }),
+      { target: { value: "Improve the project context." } },
+    );
     await waitFor(() => expect(save).toBeEnabled());
-    expect(mocks.validate).toHaveBeenLastCalledWith(expect.objectContaining({
-      organizationId: "org-1", projectId: "project-1", templateKey: "entity_context",
-      entityPromptTemplateDraftValidationRequestDto: {
-        selector: template.effective.selector, syntaxVersion: "V1", content: "{{entity.id}}",
-      },
-    }), expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    expect(mocks.validate).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        organizationId: "org-1",
+        projectId: "project-1",
+        templateKey: "entity_context",
+        entityPromptTemplateDraftValidationRequestDto: {
+          selector: template.effective.selector,
+          syntaxVersion: "V1",
+          content: "{{entity.id}}",
+        },
+      }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
     await user.click(save);
-    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ content: "{{entity.id}}" }));
-    expect(screen.getByTestId("entity-prompt-template-current-content")).toHaveTextContent("Authoritative effective content");
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({ content: "{{entity.id}}" }),
+    );
+    expect(
+      screen.getByTestId("entity-prompt-template-current-content"),
+    ).toHaveTextContent("Authoritative effective content");
   });
 
   it("blocks invalid drafts, surfaces validation failures, and retains content when a proposal fails", async () => {
     const user = userEvent.setup();
-    mocks.validate.mockResolvedValueOnce({ data: { data: { status: "INVALID", issues: [{ code: "UNSUPPORTED_INPUT", path: "content", message: "Unsupported field" }] } } });
+    mocks.validate.mockResolvedValueOnce({
+      data: {
+        data: {
+          status: "INVALID",
+          issues: [
+            {
+              code: "UNSUPPORTED_INPUT",
+              path: "content",
+              message: "Unsupported field",
+            },
+          ],
+        },
+      },
+    });
     renderEditor("{{bad}}");
-    expect(await screen.findByTestId("template-validation-issue")).toHaveTextContent("Unsupported field");
+    expect(
+      await screen.findByTestId("template-validation-issue"),
+    ).toHaveTextContent("Unsupported field");
     const save = screen.getByTestId("entity-prompt-template-propose-change");
     expect(save).toBeDisabled();
     mocks.validate.mockRejectedValueOnce(new Error("Validation offline"));
@@ -274,12 +338,21 @@ describe("EntityPromptTemplateOverrideEditor", () => {
     expect(await screen.findByText("Validation offline")).toBeInTheDocument();
     expect(save).toBeDisabled();
     await user.paste(" corrected");
+    fireEvent.change(
+      screen.getByRole("textbox", {
+        name: "Explain this change in one sentence",
+      }),
+      { target: { value: "Improve the project context." } },
+    );
     await waitFor(() => expect(save).toBeEnabled());
     mocks.create.mockRejectedValueOnce(new Error("Proposal unavailable"));
     await user.click(save);
-    expect(await screen.findByTestId("entity-prompt-template-proposal-error")).toHaveTextContent("Proposal unavailable");
-    expect(screen.getByRole("textbox", { name: "Template content" })).toHaveTextContent("replacement corrected");
+    expect(
+      await screen.findByTestId("entity-prompt-template-proposal-error"),
+    ).toHaveTextContent("Proposal unavailable");
+    expect(
+      screen.getByRole("textbox", { name: "Template content" }),
+    ).toHaveTextContent("replacement corrected");
     expect(save).toBeEnabled();
   });
-
 });

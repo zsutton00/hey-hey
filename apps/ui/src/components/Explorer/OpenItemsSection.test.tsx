@@ -1175,6 +1175,82 @@ describe("OpenItemsSection", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/unchanged");
   });
 
+  it("Remove Others keeps every selected item when opened on a selected row", async () => {
+    localStorage.setItem(
+      "open-items:v1:project-1",
+      JSON.stringify({
+        version: 1,
+        items: [
+          {
+            entityId: "0f9ad3e4-e837-549a-9683-827ea803ad19",
+            entityType: "task",
+          },
+          {
+            entityId: "ae676ada-3b87-52e0-b285-a0c4c73f0d9b",
+            entityType: "task",
+          },
+          {
+            entityId: "e0e404ec-8813-58eb-9e48-b0359c3a4042",
+            entityType: "task",
+          },
+        ],
+      }),
+    );
+    render(
+      <MemoryRouter initialEntries={["/unchanged"]}>
+        <OpenItemsProvider
+          organizationId="org-1"
+          userId={openItemsTestUserId()}
+          projectId="project-1"
+        >
+          <OpenItemsSection organizationId="org-1" projectId="project-1" />
+          <CanonicalOpenItemsReady />
+        </OpenItemsProvider>
+      </MemoryRouter>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("canonical-open-items-ready")).toHaveAttribute(
+        "data-ready",
+        "true",
+      ),
+    );
+    const row = (id: string) => screen.getByTestId(`open-item-task-${id}`);
+    const interaction = (id: string) =>
+      screen.getByTestId(`open-item-interaction-${id}`);
+    await screen.findByTestId(
+      "open-item-task-0f9ad3e4-e837-549a-9683-827ea803ad19",
+    );
+    await act(async () => {
+      fireEvent.click(
+        within(interaction("0f9ad3e4-e837-549a-9683-827ea803ad19")).getByText(
+          "Select items",
+        ),
+      );
+    });
+    await act(async () => {
+      fireEvent.click(
+        within(row("ae676ada-3b87-52e0-b285-a0c4c73f0d9b")).getByRole("link"),
+      );
+    });
+
+    await act(async () => {
+      fireEvent.click(
+        within(interaction("0f9ad3e4-e837-549a-9683-827ea803ad19")).getByRole(
+          "button",
+          { name: "Remove Others" },
+        ),
+      );
+    });
+
+    expect(row("0f9ad3e4-e837-549a-9683-827ea803ad19")).toBeInTheDocument();
+    expect(row("ae676ada-3b87-52e0-b285-a0c4c73f0d9b")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId(
+        "open-item-task-e0e404ec-8813-58eb-9e48-b0359c3a4042",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
   it("prunes selection through the actual search and section disclosure projection", async () => {
     localStorage.setItem(
       "open-items:v1:project-1",

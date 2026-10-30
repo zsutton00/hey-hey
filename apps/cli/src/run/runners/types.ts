@@ -1,3 +1,4 @@
+import type { PreparedRoleGuidance } from '../../agents/session-role-guidance/session-role-guidance';
 import type { BrowserMcpMount } from '../../agents/browser-tools/browser-mcp-access';
 /**
  * Runner module — the per-Turn dispatch choice.
@@ -75,9 +76,10 @@ export interface RunnerContext {
   /**
    * The resolved prompt text. Non-null; an empty string means "no new user
    * text for this Turn" (legitimate for resume-only continuations and for
-   * subagent handlers that compose their own prompts downstream).
+   * subagent preparation whose prompt is resolved by the launcher).
    */
   resolvedPrompt: string;
+  roleGuidance?: PreparedRoleGuidance;
   /** The raw `InternalRunPromptRequest`. Runners read payload / references from this. */
   input: InternalRunPromptRequest;
   /**
@@ -126,9 +128,7 @@ export interface RunnerContext {
   turnRuntime?: ImplementRuntimeSelection;
   /**
    * Snapshot of the Run's append-only report chain at Turn-construction
-   * time. The runtime `SubAgent` reads this off the runner ctx and
-   * prepends the same prior-report context the provider-session
-   * resolver already injects for non-subagent flows.
+   * time. The launcher supplies this to shared child prompt resolution.
    * Empty when no reports have landed yet on this Run.
    */
   priorReports: ReadonlyArray<Readonly<ReportChainEntry>>;
@@ -158,6 +158,8 @@ export interface RunnerContext {
    * optional only for runner fixtures that do not run procedural handlers.
    */
   handlerDeps?: PromptTypeHandlerDeps;
+  /** Handler context captured before this execution begins. */
+  childPromptContext?: import('../child-agent-launcher').ChildLaunchRequest['promptContext'];
 }
 
 /**

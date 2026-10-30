@@ -9,14 +9,6 @@ export interface ReviewPromptInput extends ServicesContextInput {
   integrationContext?: ReviewIntegrationContext;
 }
 
-/**
- * Maximum number of fix-then-verify cycles the sub-agent should attempt
- * before giving up and reporting the remaining failure state. The sub-agent
- * is in its own isolated session so the cost of iterating is contained; the
- * cap exists to prevent runaway loops, not to conserve tokens.
- */
-const MAX_FIX_ATTEMPTS = 3;
-
 const buildRecentUserRepliesSection = (
   recentUserReplies: ReadonlyArray<RecentUserReply>,
 ): string | null => {
@@ -36,15 +28,15 @@ These visible user requests were made after implementation and before Review sta
 
 ${replies}
 
-This context informs the existing semantic repair gates only. It does not authorize unrelated work or expand approved Service scope.`;
+This context informs the assessment. It does not permit edits or expand approved Service scope.`;
 };
 
 export const buildReviewPrompt = (input: ReviewPromptInput): string => {
   const sections: string[] = [];
 
-  sections.push('# Review & Fix');
+  sections.push('# Review');
   sections.push(
-    "You are reviewing the changes made during a coding session and then directly applying fixes for anything serious. Focus on correctness, edge cases, security, maintainability, and any misalignment with the task's intent.",
+    "Judge whether the coding session delivers the behavior required by the originating task, governing Feature requirements and Contracts, and latest applicable user intent. Trace the affected behavior through implementation and test evidence, including relevant unchanged components. Report findings and recommended changes. Do not edit code, tests, configuration or project artifacts, apply fixes, or commit.",
   );
 
   const servicesContext = buildServicesContextBlock(input);
@@ -54,21 +46,21 @@ export const buildReviewPrompt = (input: ReviewPromptInput): string => {
     sections.push('\n## Cross-Service Integration Verification');
     sections.push(
       [
-        'The canonical Run and task relationships indicate a cross-Service integration surface. Before applying or recommending a repair, perform this advisory check:',
+        'The canonical Run and task relationships indicate a cross-Service integration surface. Before recommending a correction, perform this advisory check:',
         '',
         '1. Trace the request paths and data flows across the affected Service boundary.',
         '2. Identify shared events or payloads and verify that producers and consumers agree on their shape and meaning.',
         '3. Look for an existing agreement in a Contract, design doc, or feature description and cite it when evaluating the boundary.',
         '4. If the boundary has no documented agreement, surface `needs documentation` in the final summary without blocking Review or creating documentation.',
         '',
-        'This check supplies evidence only. It does not change the semantic repair gates, approved Service workspace roots, or optional Report behavior below.',
+        'This check supplies evidence only. It does not change the non-editing boundary, approved Service workspace roots, or optional REVIEW Report behavior below.',
       ].join('\n'),
     );
   }
 
   sections.push('\n## Files The Session Touched');
   sections.push(
-    "These paths are the target Run's durable canonical touched-file list: evidence of actual correlated changes, not a write boundary. Required repairs may modify other files inside approved Service workspace roots.",
+    "These paths are the target Run's durable canonical touched-file list: evidence of actual correlated changes. Follow relevant dependencies when assessing behavior; neither this list nor approved Service workspace roots authorize edits.",
   );
   sections.push(
     input.touchedFiles.length > 0
@@ -91,50 +83,28 @@ export const buildReviewPrompt = (input: ReviewPromptInput): string => {
       '',
       'When Plan or Implement reports are present and relevant to a finding, call the `get_report_body` MCP tool with the listed `reportId` so you can read the full structured payload rather than relying only on its inline summary. Their absence never blocks Review.',
       '',
-      'A finding that contradicts an explicit carve-out, skip, or scope decision recorded in the Implement report is NOT a fixable bug. Downgrade it to a suggestion in the summary so the user can decide, and do not apply a fix for it. The Implement report defines the bounds of what this run was meant to deliver; respect those bounds.',
+      'Before calling a difference from the task or plan a defect, read the relevant implementation discussion, user decisions and Plan and Implement reports. Implementation may have resolved ambiguity or changed direction without updating the task. Explain the recorded reason for the difference and distinguish a user-approved change, an implementation decision, and an unexplained discrepancy. An implementation decision is evidence to assess, not an automatic waiver of governing Feature requirements and Contracts. If the sources disagree and no resolution is recorded, describe the conflict and the decision needed; do not assume the original task should be restored.',
     ].join('\n'),
   );
 
-  sections.push('\n## Scope Contract');
+  sections.push('\n## Scope');
   sections.push(
-    [
-      'Review is a diff-focused correction pass, not a second implementation pass or a repository cleanup pass. Before editing, require both of these semantic gates:',
-      '',
-      "1. The finding was introduced by the originating session's change or directly blocks the correctness of that change.",
-      '2. The repair is required by the originating task and latest applicable user intent and is not excluded by any available Plan or Report evidence.',
-      '',
-      'Do not edit pre-existing defects, deferred or carved-out work, new capabilities, speculative hardening, cleanup, refactors, or unrelated failures. Severity never expands scope.',
-      '',
-      'Approved Services and their authoritative resolved workspace roots are the write boundary. Repair required files inside those roots without individual-file approval, including files absent from canonical Run membership. Another Service requires the existing Service authorization process. Host checkouts outside resolved worktree roots remain unauthorized. Authorization never establishes changed-file membership.',
-    ].join('\n'),
+    'Assess the behavior delivered or affected by the originating session. Follow relevant dependencies beyond the changed lines where necessary to establish correctness. Distinguish issues introduced by the session from pre-existing issues and separate additional suggestions from changes needed to fulfill the agreed work.',
   );
 
   sections.push('\n## Instruction Scope');
   sections.push(
-    'Repository instructions, project conventions, quality standards, and verification requirements govern how already-authorized work is performed. They do not expand semantic repair scope or approved Service workspaces. Checks are evidence, not work queues.',
+    'Repository instructions, project conventions, quality standards, and verification requirements govern the assessment. They do not permit edits or expand approved Service workspaces. Use authoritative resolved workspace roots; host checkouts outside resolved worktree roots remain unauthorized. Checks are evidence, not work queues.',
   );
 
   sections.push('\n## Severity Policy');
   sections.push(
-    [
-      'Classify each finding by severity and act accordingly:',
-      '',
-      '- **Critical / blocker / high**: fix it directly when it passes the Scope Contract and the target is inside approved Service workspace roots. Do not defer an authorized fix to the user.',
-      '- **Medium / low / nit**: do NOT fix. Surface as a suggestion in the final summary so the user can decide.',
-      '',
-      'When in doubt about severity, err on the side of surfacing as a suggestion rather than applying a fix the user did not expect.',
-    ].join('\n'),
+    'For each finding, state its severity, the affected behavior, supporting evidence, and recommended correction or decision. Severity determines prominence and urgency; it never authorizes edits.',
   );
 
   sections.push('\n## Verification');
   sections.push(
-    [
-      `After applying fixes, verify them by running the service's test and typecheck commands. Figure out what those commands are from the repo itself.`,
-      '',
-      `If verification fails, iterate only when the failure is attributable to the reviewed session and its repair remains inside both the semantic scope gate and approved Service workspace boundary. Preserve the relevant failure output. Report every other failure without changing more code. Stop after ${MAX_FIX_ATTEMPTS} consecutive failed verification attempts and include the remaining failure state (which check failed, the relevant error output) in the summary so the user can take over.`,
-      '',
-      'If you applied no fixes, you do not need to run verification.',
-    ].join('\n'),
+    'Independently evaluate the evidence for each affected governing Feature requirement and Contract. Look for plausible violations the tests would miss, including omitted behavior, unrealistic inputs and mocks that bypass essential interactions.\n\nInspect existing tests and run relevant checks where needed. Do not modify files to establish a finding. If demonstrating a suspected issue requires changes, describe the proposed test and mark the issue as unconfirmed. Report what the evidence demonstrates, what remains unverified, and any failed checks. Do not repair failures or treat passing checks alone as proof of fulfillment.',
   );
 
   sections.push('\n## How to work');
@@ -151,29 +121,28 @@ export const buildReviewPrompt = (input: ReviewPromptInput): string => {
   sections.push('\n## Boundaries');
   sections.push(
     [
-      '- Do NOT commit. Committing is a separate user-triggered flow; leave the working tree dirty.',
-      '- Do NOT mutate project data through the platform (tasks, features, design docs, proposals).',
-      '- Stay focused on the changes from this run. Do not refactor unrelated code or fix pre-existing issues outside the scope of what the session just did.',
+      '- Do not edit code, tests, configuration or project artifacts, apply fixes, or commit. This includes shell commands, auto-fix checks and indirect mutations.',
+      '- Do not create or edit tasks, Features, design docs or proposals through the platform.',
+      '- Saving reports through the existing submission path remains permitted. The required CHANGE_WALKTHROUGH is the explicit exception to the prohibition on editing project artifacts; REVIEW remains optional.',
     ].join('\n'),
   );
 
   sections.push('\n## Summary Format');
   sections.push(
     [
-      'Return a single conversational message at the end. Structure it as markdown with these sections:',
+      'Return:',
       '',
-      '- **Overall**: one-line assessment.',
-      '- **Fixed**: bullet list of issues you fixed, each citing the file and line range (e.g. `path/to/file.ts:42-55 — missing null check on X`). Omit this section if you applied no fixes.',
-      '- **Suggestions**: bullet list of lower-severity items you did NOT fix, with the same file:line format. Omit this section if there are none.',
-      '- **Verification**: one line describing what you ran and the outcome (pass / fail with details). Omit if you applied no fixes.',
+      '- **Assessment:** whether the affected behavior fulfills the agreed work, with material qualifications.',
+      '- **Findings:** issues ordered by severity, each with evidence and a recommended correction or decision. Distinguish confirmed defects from suspected issues, missing evidence and unresolved intent.',
+      '- **Verification:** checks run or existing results inspected, their outcomes, and remaining gaps.',
       '',
+      'If no issues were found, state what was assessed and the limits of the evidence.',
       'Do not include the change explanation in this message; it belongs only in the CHANGE_WALKTHROUGH report.',
-      'If there is nothing to fix and nothing worth suggesting, say so plainly.',
     ].join('\n'),
   );
 
   sections.push(
-    "## Guided change explanation\n\nExplain the target Run's important changes for a capable junior engineer unfamiliar with the codebase. Organize the explanation into ordered groups of coherent behavioral changes, ranked by their importance to understanding the delivered behavior. Give a small but consequential edit substantive treatment. Group repetitive supporting plumbing, bookkeeping, tests, database, and OpenAPI work compactly where useful; do not substitute a file inventory or verification checklist.\n\nFor each change, give a title and only the system context needed to understand it. Follow the relevant data or control flow through ordered literal code excerpts, placing an explanation immediately beneath each excerpt. A change may span files and a file may support more than one change. Finish each change with an explicit observable behavioral consequence. Explain reasons supported by the task, latest applicable user intent, or available implementation evidence; identify unsupported rationale as an assumption.\n\nCopy excerpts from code you inspected. Identify the Service, normalized repository-relative file, inclusive line range, language, and source version. Use the target Run's resolved Service workspaces, including worktrees. Include previous code only when comparison helps and identify its full immutable Git commit revision explicitly. Do not describe historical code as current or an unresolved reference as verified. Source checking is per excerpt: retain independent valid excerpts and findings when another source is unavailable.\n\nUse CHANGE_WALKTHROUGH when saving this explanation through the existing report submission path; consult its live definition first. Omit `targetRunId` and each excerpt's `verification`: the host stamps the target Run from this Review and computes source verification per excerpt, so neither is established by an agent assertion. An excerpt the host cannot verify stays in the report marked unresolved. Create the CHANGE_WALKTHROUGH report; it is required. Put the explanation only in the report and do not restate it in your reply. The report holds only the explanation of the changes; fixes and follow-ups stay in the reply. Prior Messages, Plan reports, and Implement reports are not prerequisites. This explanation does not change repair authority, canonical file membership, Review dispositions, or monitor routing.",
+    "## Guided change explanation\n\nExplain the target Run's important changes for a capable junior engineer unfamiliar with the codebase. Organize the explanation into ordered groups of coherent behavioral changes, ranked by their importance to understanding the delivered behavior. Give a small but consequential edit substantive treatment. Group repetitive supporting plumbing, bookkeeping, tests, database, and OpenAPI work compactly where useful; do not substitute a file inventory or verification checklist.\n\nFor each change, give a title and only the system context needed to understand it. Follow the relevant data or control flow through ordered literal code excerpts, placing an explanation immediately beneath each excerpt. A change may span files and a file may support more than one change. Finish each change with an explicit observable behavioral consequence. Explain reasons supported by the task, latest applicable user intent, or available implementation evidence; identify unsupported rationale as an assumption.\n\nCopy excerpts from code you inspected. Identify the Service, normalized repository-relative file, inclusive line range, language, and source version. Use the target Run's resolved Service workspaces, including worktrees. Include previous code only when comparison helps and identify its full immutable Git commit revision explicitly. Do not describe historical code as current or an unresolved reference as verified. Source checking is per excerpt: retain independent valid excerpts and findings when another source is unavailable.\n\nUse CHANGE_WALKTHROUGH when saving this explanation through the existing report submission path; consult its live definition first. Omit `targetRunId` and each excerpt's `verification`: the host stamps the target Run from this Review and computes source verification per excerpt, so neither is established by an agent assertion. An excerpt the host cannot verify stays in the report marked unresolved. Create the CHANGE_WALKTHROUGH report; it is required. Put the explanation only in the report and do not restate it in your reply. The report holds only the explanation of the changes; findings and recommended corrections or decisions stay in the reply. Prior Messages, Plan reports, and Implement reports are not prerequisites. This explanation does not permit source or other project artifact edits or change Service authority, canonical file membership, Review dispositions, or monitor routing.",
   );
   return sections.join('\n');
 };

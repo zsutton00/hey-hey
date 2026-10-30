@@ -9,7 +9,6 @@
 export const PROPOSAL_TOOL_NAMES = {
   CREATE_WORK_ITEM: 'create_work_item',
   EDIT_WORK_ITEM: 'edit_work_item',
-  EDIT_TASKS: 'edit_tasks',
   CREATE_DESIGN_DOC: 'create_design_doc',
   EDIT_DESIGN_DOC: 'edit_design_doc',
   PROPOSE_FUTURE_REVISION: 'propose_future_revision',

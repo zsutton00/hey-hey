@@ -1,3 +1,5 @@
+import { useModalState } from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import { useOpenItemsSelection } from "../../openItemsSelection";
 import { OpenItemsTriageAction } from "./OpenItemsTriageAction";
 import { OpenItemsSyncStatus } from "./OpenItemsSyncStatus";
@@ -64,7 +66,6 @@ import {
   Box,
   Button,
   Collapse,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -98,7 +99,7 @@ import {
   type OpenItemIdentity,
   lineageEntityId,
   selectBulkRemovalTargets,
-  type BulkRemovalScope,
+  selectRemoveOthersTargets,
 } from "../../contexts/openItemsModel";
 import { useOpenItems } from "../../contexts/OpenItemsContext";
 import { buildEntityConversationPath } from "../../pages/AgentSession/entityConversationRoute";
@@ -613,7 +614,8 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
   } = actions;
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [isNoteDialogOpen, setIsNoteDialogOpen] = useState(false);
+  const [isNoteDialogOpen, setIsNoteDialogOpen, isNoteDialogOpenOwnerKey] =
+    useModalState(false);
   const [noteDraft, setNoteDraft] = useState("");
   const closePreviewTimeout = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -747,6 +749,11 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
       }
       openPreviewTimeout.current = setTimeout(() => {
         openPreviewTimeout.current = null;
+        // A scroll under a stationary pointer can skip mouseleave, so confirm
+        // the pointer is still over the row before opening.
+        if (!anchor.matches(":hover")) {
+          return;
+        }
         setAnchorEl(anchor);
       }, OPEN_ITEM_PREVIEW_DELAY_MS);
     },
@@ -769,8 +776,19 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
       clearTimeout(openPreviewTimeout.current);
       openPreviewTimeout.current = null;
     }
+    keepPreviewOpen();
     closePreviewTimeout.current = setTimeout(() => setAnchorEl(null), 120);
-  }, []);
+  }, [keepPreviewOpen]);
+
+  const previewOpen = anchorEl !== null;
+  useEffect(() => {
+    if (!previewOpen) {
+      return;
+    }
+    const handleScroll = () => setAnchorEl(null);
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
+  }, [previewOpen]);
 
   useEffect(
     () => () => {
@@ -794,7 +812,8 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
       onRemoveFromOpen: handleRemoveFromOpen,
       removeOthers: {
         hasTargets: itemCount > 1,
-        onSelect: () => removeOthers(openItemIdentity),
+        onSelect: () =>
+          removeOthers(resolveOpenItemTargets(openItemIdentity, selectedItems)),
       },
       removeAllAbove: {
         hasTargets: index > 0,
@@ -843,6 +862,7 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
       removeAllAbove,
       removeAllBelow,
       removeOthers,
+      selectedItems,
     ],
   );
   const openItemGroupActions = useMemo<OpenItemGroupActions>(
@@ -915,7 +935,7 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
               selected
                 ? alpha(theme.palette.primary.main, active ? 0.25 : 0.2)
                 : active
-                  ? alpha(theme.palette.primary.main, 0.11)
+                  ? alpha(theme.palette.primary.main, 0.25)
                   : "transparent",
             transition: "background-color 0.2s",
             "&:hover": {
@@ -923,7 +943,7 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
                 selected
                   ? alpha(theme.palette.primary.main, active ? 0.29 : 0.25)
                   : active
-                    ? alpha(theme.palette.primary.main, 0.16)
+                    ? alpha(theme.palette.primary.main, 0.3)
                     : "action.hover",
             },
             "&:active": { cursor: "grabbing" },
@@ -1061,6 +1081,7 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
         </Box>
       </OpenItemInteractionComponent>
       <Dialog
+        ownerKey={isNoteDialogOpenOwnerKey}
         open={isNoteDialogOpen}
         onClose={handleCloseNoteDialog}
         fullWidth
@@ -1184,16 +1205,15 @@ export const OpenItemsSection: React.FC<{
   } | null>(null);
   const gateBulkRemoval = useCallback(
     (
-      scope: BulkRemovalScope,
+      targets: readonly OpenItem[],
       run: () => Promise<boolean>,
-      identity?: OpenItemIdentity,
     ): Promise<boolean> => {
-      const count = selectBulkRemovalTargets(items, scope, identity).length;
+      const count = targets.length;
       if (count <= BULK_REMOVAL_CONFIRM_THRESHOLD) return run();
       setPendingBulkRemoval({ count, run });
       return Promise.resolve(false);
     },
-    [items],
+    [],
   );
   const handleConfirmBulkRemoval = useCallback(() => {
     const pending = pendingBulkRemoval;
@@ -1201,23 +1221,29 @@ export const OpenItemsSection: React.FC<{
     void pending?.run();
   }, [pendingBulkRemoval]);
   const gatedRemoveOthers = useCallback(
-    (identity: OpenItemIdentity) =>
-      gateBulkRemoval("others", () => removeOthers(identity), identity),
-    [gateBulkRemoval, removeOthers],
+    (keep: readonly OpenItemIdentity[]) =>
+      gateBulkRemoval(selectRemoveOthersTargets(items, keep), () =>
+        removeOthers(keep),
+      ),
+    [gateBulkRemoval, items, removeOthers],
   );
   const gatedRemoveAllAbove = useCallback(
     (identity: OpenItemIdentity) =>
-      gateBulkRemoval("above", () => removeAllAbove(identity), identity),
-    [gateBulkRemoval, removeAllAbove],
+      gateBulkRemoval(selectBulkRemovalTargets(items, "above", identity), () =>
+        removeAllAbove(identity),
+      ),
+    [gateBulkRemoval, items, removeAllAbove],
   );
   const gatedRemoveAllBelow = useCallback(
     (identity: OpenItemIdentity) =>
-      gateBulkRemoval("below", () => removeAllBelow(identity), identity),
-    [gateBulkRemoval, removeAllBelow],
+      gateBulkRemoval(selectBulkRemovalTargets(items, "below", identity), () =>
+        removeAllBelow(identity),
+      ),
+    [gateBulkRemoval, items, removeAllBelow],
   );
   const gatedRemoveAll = useCallback(
-    () => gateBulkRemoval("all", removeAll),
-    [gateBulkRemoval, removeAll],
+    () => gateBulkRemoval(selectBulkRemovalTargets(items, "all"), removeAll),
+    [gateBulkRemoval, items, removeAll],
   );
   const actions = useMemo<OpenItemRowActions>(
     () => ({

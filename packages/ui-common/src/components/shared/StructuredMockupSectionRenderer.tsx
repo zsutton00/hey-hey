@@ -3,6 +3,7 @@ import { Render } from "@puckeditor/core";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type {
   WorkItemStructuredMockupSectionContent,
+  WorkItemStructuredMockupAnnotationTarget,
   WorkItemTypeSectionDefinition,
 } from "../../api";
 import {
@@ -24,21 +25,32 @@ export interface StructuredMockupSectionRendererProps {
   materializedProposalId?: string;
   organizationId?: string;
   projectId?: string;
+  onCreateAnnotation?: (
+    target: WorkItemStructuredMockupAnnotationTarget,
+  ) => void;
 }
 
 export const StructuredMockupSectionRenderer: React.FC<
   StructuredMockupSectionRendererProps
-> = ({ content, definition, context, materializedProposalId, organizationId, projectId }) => {
+> = ({
+  content,
+  definition,
+  context,
+  materializedProposalId,
+  organizationId,
+  projectId,
+  onCreateAnnotation,
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState<number | null>(null);
   const document = useMemo(
     () => decodeStructuredMockupSectionContent(content),
-    [content]
+    [content],
   );
   const data = useMemo(
     () => (document ? structuredMockupDocumentToPuckData(document) : null),
-    [document]
+    [document],
   );
 
   useEffect(() => {
@@ -48,7 +60,7 @@ export const StructuredMockupSectionRenderer: React.FC<
     update(element.getBoundingClientRect().width);
     if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(([entry]) =>
-      update(entry.contentRect.width)
+      update(entry.contentRect.width),
     );
     observer.observe(element);
     return () => observer.disconnect();
@@ -64,7 +76,7 @@ export const StructuredMockupSectionRenderer: React.FC<
             containerWidth,
           })
         : null,
-    [containerWidth, context, definition, document]
+    [containerWidth, context, definition, document],
   );
 
   if (!document || !data || (containerWidth !== null && !resolvedSize)) {
@@ -91,15 +103,10 @@ export const StructuredMockupSectionRenderer: React.FC<
         data-testid="structured-mockup-static-preview"
         sx={{
           position: "relative",
-          width:
-            context === "page"
-              ? resolvedSize?.width ?? "100%"
-              : "100%",
+          width: context === "page" ? (resolvedSize?.width ?? "100%") : "100%",
           maxWidth:
-            context === "inline"
-              ? resolvedSize?.width ?? "100%"
-              : "none",
-          minWidth: context === "page" ? resolvedSize?.width ?? 0 : 0,
+            context === "inline" ? (resolvedSize?.width ?? "100%") : "none",
+          minWidth: context === "page" ? (resolvedSize?.width ?? 0) : 0,
           height: resolvedSize?.height ?? "auto",
           minHeight: 80,
           overflow: "auto",
@@ -115,13 +122,20 @@ export const StructuredMockupSectionRenderer: React.FC<
           fontFamily: '"Comic Sans MS", cursive',
         }}
       >
-        <ReferencedMockupContext.Provider value={{ organizationId, projectId, ancestors: new Set() }}><Render config={structuredMockupPuckConfig} data={data} /></ReferencedMockupContext.Provider>
+        <ReferencedMockupContext.Provider
+          value={{ organizationId, projectId, ancestors: new Set() }}
+        >
+          <Render config={structuredMockupPuckConfig} data={data} />
+        </ReferencedMockupContext.Provider>
         {materializedProposalId ? (
           <StructuredMockupAnnotationLayer
             document={document}
             materializedProposalId={materializedProposalId}
-            presentationSizeKey={document.sizeKey ?? definition.defaultSizeKey ?? "default"}
+            presentationSizeKey={
+              document.sizeKey ?? definition.defaultSizeKey ?? "default"
+            }
             canvasRef={canvasRef}
+            onCreate={onCreateAnnotation}
           />
         ) : null}
       </Box>

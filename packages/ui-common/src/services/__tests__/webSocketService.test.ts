@@ -45,7 +45,7 @@ vi.mock("socket.io-client", () => ({
 const createMockDebugger = (): WebSocketDebugger =>
   ({
     logEvent: vi.fn(),
-    logCollectionAction: vi.fn(),
+    logQueryInvalidation: vi.fn(),
   }) as unknown as WebSocketDebugger;
 
 const authenticateMockSocket = (): void => {
@@ -79,7 +79,11 @@ describe("WebSocketService", () => {
   beforeEach(() => {
     mockStore = createStore();
     mockDebugger = createMockDebugger();
-    mockHandler = new WebSocketHandler(mockStore, mockDebugger);
+    mockHandler = new WebSocketHandler(
+      mockStore,
+      mockDebugger,
+      new QueryClient(),
+    );
     vi.clearAllMocks();
 
     // Reset mock socket state
@@ -349,22 +353,6 @@ describe("WebSocketService", () => {
     service.subscribe({ projectIds: ["project-1"] });
     expect(joins()).toHaveLength(2);
     service.disconnect();
-  });
-
-  it("should use default handler when none provided", () => {
-    const loggerSpy = vi
-      .spyOn(logger, "warn")
-      .mockImplementation(() => undefined);
-
-    const service = new WebSocketService();
-
-    expect(service).toBeDefined();
-    expect(loggerSpy).toHaveBeenCalledWith(
-      "services_websockets",
-      "[DEPRECATED] Creating WebSocketService without handler. This will be required in next version.",
-    );
-
-    loggerSpy.mockRestore();
   });
 
   it("routes authenticated message updates to the collection immediately, including empty changedFields", () => {
@@ -654,6 +642,46 @@ describe("WebSocketService", () => {
       event("a"),
       event("b"),
     ]);
+  });
+
+  it("subscribes to proposal approvals and forwards them to cache invalidation", () => {
+    const handleEventSpy = vi.spyOn(mockHandler, "handleEvent");
+    const service = new WebSocketService(mockHandler);
+    service.subscribe({ projectIds: ["project-1"] });
+    service.initialize({ userId: "test-user" });
+    mockSocket.connected = true;
+    mockSocket.on.mock.calls.find((call) => call[0] === "authenticated")![1]({
+      status: "success",
+      connectionId: "connection-1",
+      userId: "test-user",
+      projectIds: ["project-1"],
+      conversationIds: [],
+      initiativeIds: [],
+      designDocIds: [],
+    });
+    expect(mockSocket.emit).toHaveBeenCalledWith(
+      "subscribe",
+      expect.objectContaining({
+        eventTypes: expect.arrayContaining([
+          WebSocketSubscriptionRequestEventTypesEnum.ProposalApproved,
+        ]),
+      }),
+    );
+    const event = {
+      type: "proposal.approved",
+      timestamp: "2026-10-01T00:00:00Z",
+      organizationId: "org-1",
+      projectId: "project-1",
+      proposalId: "proposal",
+      targetEntityId: "target",
+      targetEntityType: "TASK",
+      action: "VERSIONED_UPDATE",
+    };
+    mockSocket.on.mock.calls.find(
+      (call) =>
+        call[0] === WebSocketSubscriptionRequestEventTypesEnum.ProposalApproved,
+    )![1](event);
+    expect(handleEventSpy).toHaveBeenCalledWith(event);
   });
 
   it("subscribes to and dispatches proposal group lifecycle events", () => {
@@ -1102,8 +1130,16 @@ describe("WebSocketService", () => {
   it("should allow different services to use different handlers", () => {
     const store1 = createStore();
     const store2 = createStore();
-    const handler1 = new WebSocketHandler(store1, createMockDebugger());
-    const handler2 = new WebSocketHandler(store2, createMockDebugger());
+    const handler1 = new WebSocketHandler(
+      store1,
+      createMockDebugger(),
+      new QueryClient(),
+    );
+    const handler2 = new WebSocketHandler(
+      store2,
+      createMockDebugger(),
+      new QueryClient(),
+    );
 
     const service1 = new WebSocketService(handler1);
     const service2 = new WebSocketService(handler2);

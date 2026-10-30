@@ -3,18 +3,21 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../../hooks/auth/useProjectCapabilities", async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import("../../../hooks/auth/useProjectCapabilities")
-    >();
-  return {
-    ...actual,
-    useProjectCapabilities: vi.fn(() =>
-      actual.projectCapabilitiesForRole("OWNER")
-    ),
-  };
-});
+vi.mock(
+  "../../../hooks/auth/useProjectCapabilities",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("../../../hooks/auth/useProjectCapabilities")
+      >();
+    return {
+      ...actual,
+      useProjectCapabilities: vi.fn(() =>
+        actual.projectCapabilitiesForRole("OWNER"),
+      ),
+    };
+  },
+);
 import {
   AgentEdgeType,
   EntityType,
@@ -131,7 +134,7 @@ const EXERCISED_AXES = [
 
 function makeProposal(
   updates: WorkItemTypeDefinitionDto,
-  targetEntityId = TARGET_ID
+  targetEntityId = TARGET_ID,
 ): ProposalResponseDto & { updates: WorkItemTypeDefinitionDto } {
   return {
     id: "proposal-1",
@@ -154,7 +157,7 @@ afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(useProjectCapabilities).mockReturnValue(
-    projectCapabilitiesForRole(ProjectRole.Owner)
+    projectCapabilitiesForRole(ProjectRole.Owner),
   );
 });
 
@@ -167,11 +170,11 @@ describe("WorkItemTypeCreateRenderer", () => {
           status={{ state: "pending" }}
           onApply={() => {}}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(screen.getByTestId("proposal-header-type")).toHaveClass(
-      "MuiChip-filled"
+      "MuiChip-filled",
     );
   });
 
@@ -182,7 +185,7 @@ describe("WorkItemTypeCreateRenderer", () => {
     // populated; this assertion then fails until EXERCISED_AXES is updated too,
     // surfacing the new axis to whoever extends the renderer.
     expect(new Set(Object.keys(fullDefinition))).toEqual(
-      new Set(EXERCISED_AXES)
+      new Set(EXERCISED_AXES),
     );
   });
 
@@ -195,7 +198,7 @@ describe("WorkItemTypeCreateRenderer", () => {
           status={{ state: "pending" }}
           onApply={() => {}}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const toggle = screen.getByRole("button", {
@@ -214,30 +217,30 @@ describe("WorkItemTypeCreateRenderer", () => {
           status={{ state: "pending" }}
           onApply={() => {}}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     // The shared header carries only identity and Create/type badges; the
     // stable type key remains part of the complete definition below it.
     expect(screen.getByText("Marketing Campaign")).toBeInTheDocument();
     expect(
-      screen.getByTestId("proposal-identity-header")
+      screen.getByTestId("proposal-identity-header"),
     ).not.toHaveTextContent("MARKETING");
     expect(screen.getByTestId("work-item-type-key")).toHaveTextContent(
-      "MARKETING"
+      "MARKETING",
     );
     expect(screen.getByTestId("work-item-type-role")).toHaveTextContent(
-      "work-item"
+      "work-item",
     );
     expect(screen.getByTestId("work-item-type-icon-key")).toHaveTextContent(
-      "Contract"
+      "Contract",
     );
 
     // Description, per-section writing standards, and the type-level
     // create/edit writing standards all render as markdown prose.
     const prose = screen.getAllByTestId("markdown").map((el) => el.textContent);
     expect(prose).toContain(
-      "Captures a marketing campaign and its launch plan."
+      "Captures a marketing campaign and its launch plan.",
     );
     expect(prose).toContain("Describe the target audience precisely.");
     expect(prose).toContain("List the distribution channels.");
@@ -269,10 +272,10 @@ describe("WorkItemTypeCreateRenderer", () => {
     // Child-owned placement declares only allowed parents. FEATURE also appears
     // as an edge target, so assert at least one occurrence.
     expect(
-      screen.getByTestId("work-item-type-allowed-parents")
+      screen.getByTestId("work-item-type-allowed-parents"),
     ).toHaveTextContent("FEATURE");
     expect(
-      screen.queryByTestId("work-item-type-allowed-children")
+      screen.queryByTestId("work-item-type-allowed-children"),
     ).not.toBeInTheDocument();
     expect(screen.getAllByText("FEATURE").length).toBeGreaterThan(0);
 
@@ -302,40 +305,29 @@ describe("WorkItemTypeCreateRenderer", () => {
     expect(screen.queryByText(/Plan Eligible/)).not.toBeInTheDocument();
   });
 
-  it("presents each semantic guidance field with a readable label", () => {
-    const guidance = {
-      overview: "Recognize the campaign outcome.",
-      examples: [{ title: "Launch", guidance: "A public launch." }],
-      contexts: [
-        {
-          focalTypeKeys: ["FEATURE"],
-          guidance: "Relates to a feature launch.",
-          examples: [
-            { title: "Feature campaign", guidance: "Promote a feature." },
-          ],
-        },
-      ],
-    };
+  it("shows each supplied session role in CREATE review", () => {
     render(
       <MemoryRouter>
         <WorkItemTypeCreateRenderer
           proposal={makeProposal({
             ...fullDefinition,
-            agentGuidance: guidance,
+            sessionRoleGuidance: {
+              implementation: "Build advice",
+              research: "Research advice",
+              planning: "Plan advice",
+            },
           })}
           status={{ state: "pending" }}
           onApply={() => {}}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
-    const semantic = screen.getByTestId("work-item-type-semantic-guidance");
-    expect(semantic).toHaveTextContent("Overview");
-    expect(semantic).toHaveTextContent("Examples");
-    expect(semantic).toHaveTextContent("Contextual guidance");
-    expect(semantic).toHaveTextContent("Focal types");
-    expect(semantic).toHaveTextContent("FEATURE");
-    expect(semantic).toHaveTextContent("Promote a feature.");
-    expect(semantic).not.toHaveTextContent("focalTypeKeys");
+    const group = screen.getByTestId("work-item-type-create-role-guidance");
+    expect(group).toHaveTextContent("implementation");
+    expect(group).toHaveTextContent("Build advice");
+    expect(group).toHaveTextContent("Research advice");
+    expect(group).toHaveTextContent("Plan advice");
+    expect(group).not.toHaveTextContent("review");
   });
 
   it("does not crash and shows only the header for a minimal definition", () => {
@@ -354,7 +346,7 @@ describe("WorkItemTypeCreateRenderer", () => {
           status={{ state: "pending" }}
           onApply={() => {}}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(screen.getByText("Minimal Type")).toBeInTheDocument();
@@ -373,7 +365,7 @@ describe("WorkItemTypeCreateRenderer", () => {
           status={{ state: "pending" }}
           onApply={onApply}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     await user.click(screen.getByRole("button", { name: "Create" }));
@@ -391,22 +383,22 @@ describe("WorkItemTypeCreateRenderer", () => {
           status={{ state: "pending" }}
           onApply={onApply}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(screen.getByTestId("proposal-header-action")).toHaveTextContent(
-      "Create"
+      "Create",
     );
     expect(screen.getByTestId("proposal-header-type")).toHaveTextContent(
-      "Work Item Type"
+      "Work Item Type",
     );
     expect(
-      screen.getByTestId("work-item-type-restore-review")
+      screen.getByTestId("work-item-type-restore-review"),
     ).toHaveTextContent("new-work choices");
     expect(screen.getByText("Marketing Campaign")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Restore" })).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Create" })
+      screen.queryByRole("button", { name: "Create" }),
     ).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Restore" }));
@@ -415,7 +407,7 @@ describe("WorkItemTypeCreateRenderer", () => {
 
   it("hides approval for a project MEMBER and shows it to an ARCHITECT", () => {
     vi.mocked(useProjectCapabilities).mockReturnValue(
-      projectCapabilitiesForRole(ProjectRole.Member)
+      projectCapabilitiesForRole(ProjectRole.Member),
     );
     const { unmount } = render(
       <MemoryRouter>
@@ -425,14 +417,14 @@ describe("WorkItemTypeCreateRenderer", () => {
           onApply={vi.fn()}
           onReject={vi.fn()}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     expect(screen.queryByTestId("proposal-approve")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
     unmount();
 
     vi.mocked(useProjectCapabilities).mockReturnValue(
-      projectCapabilitiesForRole(ProjectRole.Architect)
+      projectCapabilitiesForRole(ProjectRole.Architect),
     );
     render(
       <MemoryRouter>
@@ -442,7 +434,7 @@ describe("WorkItemTypeCreateRenderer", () => {
           onApply={vi.fn()}
           onReject={vi.fn()}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     expect(screen.getByTestId("proposal-approve")).toBeInTheDocument();
   });
@@ -454,15 +446,15 @@ describe("WorkItemTypeCreateRenderer", () => {
           proposal={makeProposal(fullDefinition, "legacy-target")}
           status={{ state: "pending" }}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(screen.getByText("Work Item Type")).toBeInTheDocument();
     expect(screen.getByTestId("proposal-header-action")).toHaveTextContent(
-      "Create"
+      "Create",
     );
     expect(
-      screen.queryByTestId("work-item-type-restore-review")
+      screen.queryByTestId("work-item-type-restore-review"),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create" })).toBeInTheDocument();
   });
@@ -479,13 +471,13 @@ describe("WorkItemTypeCreateRenderer", () => {
           onApply={() => {}}
           onReject={onReject}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     await user.click(screen.getByRole("button", { name: "Reject" }));
     await user.type(
       screen.getByLabelText("Reason for rejection"),
-      "Not the right shape"
+      "Not the right shape",
     );
     // The dialog's confirm button is the second "Reject" button.
     const rejectButtons = screen.getAllByRole("button", { name: "Reject" });

@@ -18,6 +18,7 @@ import { SystemMessageData } from './systemMessageData';
 import { UIHints } from './uIHints';
 import { AgentTrigger } from './agentTrigger';
 import { SessionMonitorContinuationCompletion } from './sessionMonitorContinuationCompletion';
+import { ProposalReconciliationSuggestion } from './proposalReconciliationSuggestion';
 import { SessionMonitorMessageState } from './sessionMonitorMessageState';
 
 

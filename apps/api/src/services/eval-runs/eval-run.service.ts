@@ -23,10 +23,13 @@ import {
   WorkflowName,
   type ConversationStartRunRequestDto,
   type CreateReportDto,
+  AgentSessionConfigEntityConversationV1,
+  type EvalConfiguration,
   type EvalAttemptReportPayload,
   type EvalRecordedAttempt,
   type EvalRunCaseInput,
   type EvalRunReportPayload,
+  type EvalResolvedExecution,
   type EvalRunSettings,
   type LaunchEvalRunRequest,
   type ReportDto,
@@ -44,6 +47,10 @@ import { AgentSessionService } from '../agent-session.service';
 import { ReportService } from '../reports/report.service';
 import { WORK_ITEM_TYPE_KEYS } from '../tasks/work-item-type-keys';
 import { toEvalRunCaseInput } from './eval-case-input.mapper';
+import {
+  assertEvaluableRunHandler,
+  resolveEvalExecution,
+} from './eval-case-handlers';
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -182,6 +189,10 @@ export class EvalRunService {
         for (const caseInput of caseInputs) {
           for (const configuration of request.configurations) {
             const summary = `${caseInput.title} on ${configuration.target.model}`;
+            const execution = resolveEvalExecution(
+              caseInput.target,
+              configuration.target.handlerConfig,
+            );
             const target = await this.prepareSession(
               organizationId,
               projectId,
@@ -190,6 +201,9 @@ export class EvalRunService {
                 title: `Eval attempt: ${summary}`,
                 conversationTitle: 'Eval attempt',
               },
+              caseInput.target,
+              configuration,
+              execution,
             );
             preparedSessionIds.push(target.agentSessionId);
             attemptPayloads.push({
@@ -197,6 +211,7 @@ export class EvalRunService {
               summary,
               caseInputId: caseInput.id,
               configuration,
+              execution,
               status: 'QUEUED',
               measurements: [],
               targetSessionId: target.agentSessionId,
@@ -366,8 +381,24 @@ export class EvalRunService {
         agentSessionIds: preparedSessionIds,
         error: error instanceof Error ? error.message : String(error),
       });
-      for (const agentSessionId of preparedSessionIds) {
-        await this.sessions.remove(organizationId, agentSessionId);
+      const cleanup = await Promise.allSettled(
+        preparedSessionIds.map((agentSessionId) =>
+          this.sessions.rollbackEvalLaunchSession(
+            organizationId,
+            agentSessionId,
+          ),
+        ),
+      );
+      if (cleanup.some((result) => result.status === 'rejected')) {
+        throw new AggregateError(
+          [
+            error,
+            ...cleanup.flatMap((result) =>
+              result.status === 'rejected' ? [result.reason] : [],
+            ),
+          ],
+          'Eval launch failed and rollback was incomplete',
+        );
       }
       throw error;
     }
@@ -407,6 +438,7 @@ export class EvalRunService {
   ): CreateReportDto {
     return {
       projectId,
+      ragEnabled: false,
       audience: ReportAudience.ProjectVisible,
       neverExpires: true,
       reportType: payload.reportType,
@@ -418,7 +450,7 @@ export class EvalRunService {
           relation: ReportEntityRelation.Primary,
         },
       ],
-    } as CreateReportDto;
+    } satisfies CreateReportDto;
   }
 
   private async prepareSession(
@@ -426,10 +458,39 @@ export class EvalRunService {
     projectId: ProjectId,
     userId: UserId,
     names: { title: string; conversationTitle: string },
+    focal?: EvalRunCaseInput['target'],
+    configuration?: EvalConfiguration,
+    execution?: EvalResolvedExecution,
   ): Promise<{
     agentSessionId: AgentSessionId;
     conversationId: ConversationId;
   }> {
+    // Project Assistant runs inside its explicitly named consumer interaction.
+    const interaction =
+      execution?.handler === 'project_assistant'
+        ? execution.consumerHandler
+        : execution?.handler;
+    const entityConversation = interaction === 'entity_conversation';
+    const entityType = focal?.focalItemType ?? 'PROJECT';
+    const entityId = focal?.focalItemId ?? projectId;
+    const effort = Object.values(
+      AgentSessionConfigEntityConversationV1.EffortEnum,
+    ).find((value) => value === configuration?.target.reasoningEffort);
+    const projectAssistant =
+      configuration?.target.handlerConfig?.projectAssistant;
+    const config =
+      configuration && entityConversation
+        ? ({
+            type: 'ENTITY_CONVERSATION',
+            version: 'v1',
+            model: configuration.target.model,
+            ...(effort ? { effort } : {}),
+            ...(projectAssistant
+              ? { projectAssistant: { ...projectAssistant } }
+              : {}),
+          } satisfies AgentSessionConfigEntityConversationV1)
+        : undefined;
+
     const session = await this.prisma.db.$transaction((tx) =>
       this.sessions.createInTransaction(
         tx,
@@ -440,24 +501,51 @@ export class EvalRunService {
           status: PrismaAgentSessionStatus.NOT_STARTED,
           sessionDate: new Date(),
           title: names.title.slice(0, 200),
-          type: PrismaAgentSessionType.PROJECT_CONVERSATION,
+          type: entityConversation
+            ? PrismaAgentSessionType.ENTITY_CONVERSATION
+            : PrismaAgentSessionType.PROJECT_CONVERSATION,
+          ...(entityConversation
+            ? {
+                entityType,
+                entityId,
+                provider: configuration?.target.provider,
+                config,
+              }
+            : {}),
         },
         organizationId,
       ),
     );
-    const { conversation } = await this.sessions.createConversationForSession(
-      organizationId,
-      projectId,
-      session.id,
-      {
-        workflowType: WorkflowName.AgentSession,
-        title: names.conversationTitle,
-      },
-    );
-    return {
-      agentSessionId: session.id as AgentSessionId,
-      conversationId: conversation.id as ConversationId,
-    };
+    try {
+      const { conversation } = await this.sessions.createConversationForSession(
+        organizationId,
+        projectId,
+        session.id,
+        {
+          workflowType: entityConversation
+            ? WorkflowName.AgentEntityConversation
+            : WorkflowName.AgentSession,
+          title: names.conversationTitle,
+          ...(entityConversation
+            ? {
+                workflowAboutType: entityType.toLowerCase().replace(/_/g, '-'),
+                workflowAboutId: entityId,
+              }
+            : {}),
+        },
+      );
+      return {
+        agentSessionId: session.id as AgentSessionId,
+        conversationId: conversation.id as ConversationId,
+      };
+    } catch (error) {
+      // This session has not yet reached the caller's cleanup list.
+      await this.sessions.rollbackEvalLaunchSession(
+        organizationId,
+        session.id as AgentSessionId,
+      );
+      throw error;
+    }
   }
 
   private async findRunByCoordinatorSession(
@@ -506,6 +594,7 @@ export class EvalRunService {
           attemptId: child.id,
           caseInput: caseInputs.get(attempt.caseInputId)!,
           configuration: attempt.configuration,
+          execution: attempt.execution!,
           targetSessionId: attempt.targetSessionId!,
           targetConversationId: attempt.targetConversationId!,
         };
@@ -549,6 +638,9 @@ export class EvalRunService {
     }
     if (!request.judgeSetup?.provider || !request.judgeSetup?.model) {
       throw new BadRequestException('judgeSetup requires a provider and model');
+    }
+    for (const configuration of request.configurations) {
+      assertEvaluableRunHandler(configuration.target.handlerConfig);
     }
   }
 

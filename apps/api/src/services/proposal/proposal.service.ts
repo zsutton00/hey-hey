@@ -1,8 +1,20 @@
+import type {
+  ProposalReviewNoteDto,
+  ProposalReviewNoteRecord,
+  ProposalReviewNoteResult,
+} from 'src/generated';
+import { MessageService } from '../message.service';
+import { ProposalReconciliationCandidatePipe } from '../../pipes/proposal-reconciliation-candidate.pipe';
+import { futureGraph, graphChangeSet } from './future-graph';
 import { isEqual } from 'lodash';
-import { projectReconciliationContent } from './proposal-reconciliation-content';
+import {
+  projectReconciliationContent,
+  manualReconciliationPatch,
+} from './proposal-reconciliation-content';
 import {
   parseFutureRevisionMutation,
   readFutureRevision,
+  validateFutureRevision,
 } from './future-revision';
 import {
   materializeFutureRevision,
@@ -37,7 +49,13 @@ import type { Proposal } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { withApiSpan } from 'src/telemetry/api-tracing';
 import { AnyTransactionClient, PrismaService } from 'src/prisma/prisma.service';
-import { OrganizationId, ProjectId, UserId } from 'src/types';
+import {
+  OrganizationId,
+  ProjectId,
+  UserId,
+  MessageId,
+  ConversationId,
+} from 'src/types';
 import {
   PROPOSAL_RESPONSE_RELATIONS_INCLUDE,
   type ProposalWithResponseRelations,
@@ -61,10 +79,7 @@ import {
   WorkItemTypeLifecycleStatus,
   WorkItemTypeRole,
 } from 'src/generated';
-import {
-  currentWritingSessionId,
-  EvalOutputAdmissionService,
-} from '../eval/eval-output-admission.service';
+import { EvalOutputAdmissionService } from '../eval/eval-output-admission.service';
 import { ProposalValidationEngine } from './proposal-validation.engine';
 import {
   assertWorkItemChangeSetStructurallyValid,
@@ -136,7 +151,6 @@ export class ProposalService {
   private readonly logger = new Logger(ProposalService.name);
 
   private static readonly MAX_PAGE_SIZE = 100;
-  private static readonly MAX_BATCH_SIZE = 50;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -150,8 +164,114 @@ export class ProposalService {
     private readonly reconciliation: ProposalReconciliationService,
     private readonly reconciliationGroups: ProposalReconciliationGroupService,
     @Optional()
-    private readonly evalOutputAdmission: EvalOutputAdmissionService = new EvalOutputAdmissionService(),
+    private readonly evalOutputAdmission: EvalOutputAdmissionService = new EvalOutputAdmissionService(
+      workItemTypeRegistry,
+    ),
+    @Optional() private readonly messages?: MessageService,
   ) {}
+
+  async saveReviewNote(
+    id: string,
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    userId: UserId,
+    input: ProposalReviewNoteDto,
+  ): Promise<ProposalReviewNoteResult> {
+    const messages = this.messages;
+    if (!messages) {
+      throw new InternalServerErrorException(
+        'Review note storage is unavailable',
+      );
+    }
+    return this.prisma.db.$transaction(async (tx) => {
+      await tx.$queryRaw(
+        Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`proposal-review-note:${input.noteId}`}, 0))::text AS "lockAcquired"`,
+      );
+      const proposal = await tx.proposal.findFirst({
+        where: {
+          id,
+          organizationId,
+          projectId,
+          action: 'CREATE',
+          targetEntityType: 'TASK',
+          AND: [
+            { updates: { path: ['type'], equals: 'mockup' } },
+            {
+              updates: {
+                path: ['sections'],
+                array_contains: [{ key: input.sectionKey }],
+              },
+            },
+          ],
+        },
+        include: { groupMembership: { include: { group: true } } },
+      });
+      if (!proposal) {
+        throw new NotFoundException(
+          'Proposed screen or reviewed section not found',
+        );
+      }
+      if (!proposal.conversationId) {
+        throw new BadRequestException(
+          'The proposed screen has no authoring conversation',
+        );
+      }
+      const group = proposal.groupMembership?.group;
+      if (
+        !group ||
+        group.status === 'BUILDING' ||
+        group.frozenRevision !== input.frozenRevision
+      ) {
+        throw new ConflictException(
+          'The reviewed frozen revision does not match',
+        );
+      }
+      const record = {
+        proposalId: proposal.id,
+        review: input,
+      } satisfies ProposalReviewNoteRecord;
+      const existing = await tx.message.findUnique({
+        where: { id: input.noteId },
+      });
+      const data = {
+        comment: `Screen review annotation: ${input.note}`,
+        proposalReviewNote: record,
+      };
+      if (existing) {
+        if (
+          existing.conversationId !== proposal.conversationId ||
+          existing.userId !== userId ||
+          !isEqual(existing.data, data)
+        ) {
+          throw new ConflictException(
+            'This review note identity has already been used',
+          );
+        }
+        return { messageId: existing.id };
+      }
+      const message = await messages.addMessageInTransaction(
+        tx,
+        {
+          id: input.noteId as MessageId,
+          type: 'USER',
+          projectId,
+          userId,
+          conversationId: proposal.conversationId as ConversationId,
+          data,
+        },
+        organizationId,
+        'proposal-review-note',
+        { suppressExecutableDelivery: true },
+      );
+      this.logger.log('Saved frozen proposal review annotation', {
+        proposalId: id,
+        groupId: group.id,
+        frozenRevision: input.frozenRevision,
+        messageId: message.id,
+      });
+      return { messageId: message.id };
+    });
+  }
 
   private async assertMayAuthorProposals(
     projectId: ProjectId,
@@ -318,8 +438,7 @@ export class ProposalService {
     // Eval output and reconciliation candidates are never applied on create,
     // so there is nothing to project up front.
     const applyOnCreate =
-      reconciliationProvenance ||
-      (await this.isEvalWriter(organizationId, projectId))
+      reconciliationProvenance || dto.applicationEligible === false
         ? null
         : await this.prepareApplyOnCreate(
             organizationId,
@@ -528,6 +647,40 @@ export class ProposalService {
     return this.reconciliationState(id, organizationId, projectId, true);
   }
 
+  /** Approved links may point at an older revision; recovery always uses the stored future. */
+  async currentReconciliationProposal(
+    proposal: Proposal,
+    tx: AnyTransactionClient = this.prisma.db,
+  ): Promise<Proposal> {
+    if (
+      proposal.action !== 'VERSIONED_UPDATE' ||
+      proposal.status !== 'APPROVED'
+    )
+      return proposal;
+    const mutation = parseFutureRevisionMutation(proposal.updates);
+    const future = await tx.proposalFuture.findFirst({
+      where: {
+        id: mutation.futureId,
+        organizationId: proposal.organizationId,
+        projectId: proposal.projectId,
+      },
+    });
+    if (!future || future.latestProposalId === proposal.id) return proposal;
+    this.logger.debug(
+      `Resolving reconciliation from approved proposal ${proposal.id} to latest future revision ${future.revision}`,
+    );
+    const latest = await tx.proposal.findFirst({
+      where: {
+        id: future.latestProposalId,
+        organizationId: proposal.organizationId,
+        projectId: proposal.projectId,
+      },
+    });
+    if (!latest)
+      throw new ConflictException('The latest reviewed future is unavailable.');
+    return latest;
+  }
+
   async reconciliationState(
     id: string,
     organizationId: OrganizationId,
@@ -543,11 +696,12 @@ export class ProposalService {
       });
       if (!proposal) throw new NotFoundException('Proposal not found');
       if (proposal.action === 'VERSIONED_UPDATE') {
-        const mutation = parseFutureRevisionMutation(proposal.updates);
+        const latest = await this.currentReconciliationProposal(proposal, tx);
+        const mutation = parseFutureRevisionMutation(latest.updates);
         if (mutation.operation === 'REVISE')
           return this.reconciliation.stateForFuture(
             tx,
-            proposal,
+            latest,
             mutation.baseline,
           );
       }
@@ -598,6 +752,83 @@ export class ProposalService {
     return this.reconciliation.state(tx, updated);
   }
 
+  private async publishProposalReviewChanged(
+    tx: AnyTransactionClient,
+    proposal: Proposal,
+  ): Promise<void> {
+    if (!this.messages) return;
+    const references: Array<{ messageId: string }> =
+      await tx.messageProposalReference.findMany({
+        where: { proposalId: proposal.id },
+        select: { messageId: true },
+      });
+    const ids = [
+      ...new Set([
+        ...references.map((ref) => ref.messageId),
+        ...(proposal.messageId ? [proposal.messageId] : []),
+      ]),
+    ];
+    for (const id of ids) {
+      const message = await tx.message.update({
+        where: { id },
+        data: { contentUpdatedAt: new Date() },
+      });
+      await this.messages.publishMessageUpdatedEvent(tx, {
+        messageId: id as MessageId,
+        conversationId: message.conversationId as ConversationId,
+        organizationId: proposal.organizationId as OrganizationId,
+        projectId: proposal.projectId as ProjectId,
+        update: {
+          data: message.data as import('src/generated').SystemMessageData,
+        },
+      });
+    }
+  }
+
+  private async publishSuggestionDecisions(
+    tx: AnyTransactionClient,
+    proposal: Proposal,
+  ): Promise<void> {
+    if (!this.messages) return;
+    const state = await this.reconciliation.stateForFuture(
+      tx,
+      proposal,
+      (() => {
+        const mutation = parseFutureRevisionMutation(proposal.updates);
+        if (mutation.operation !== 'REVISE')
+          throw new ConflictException(
+            'Cancelled future has no suggestion basis.',
+          );
+        return mutation.baseline;
+      })(),
+    );
+    for (const suggestion of state.suggestions ?? []) {
+      if (!suggestion.messageId || suggestion.status === 'PENDING') continue;
+      const message = await tx.message.findUniqueOrThrow({
+        where: { id: suggestion.messageId },
+      });
+      const data = {
+        type: 'AGENT',
+        response: 'Suggested reconciliation',
+        proposalSuggestion: suggestion,
+      } satisfies import('src/generated').SystemMessageData;
+      await tx.message.update({
+        where: { id: message.id },
+        data: {
+          data: data as unknown as Prisma.InputJsonValue,
+          contentUpdatedAt: new Date(),
+        },
+      });
+      await this.messages.publishMessageUpdatedEvent(tx, {
+        messageId: message.id as MessageId,
+        conversationId: message.conversationId as ConversationId,
+        organizationId: proposal.organizationId as OrganizationId,
+        projectId: proposal.projectId as ProjectId,
+        update: { data },
+      });
+    }
+  }
+
   async reconcile(
     id: string,
     organizationId: OrganizationId,
@@ -605,12 +836,62 @@ export class ProposalService {
     user: AuthenticatedUser,
     input: import('src/generated').CreateProposalReconciliationCandidate,
     requestorContext: StampedCreateProposalDto['requestorContext'],
+    agentSessionId?: string,
   ): Promise<import('src/generated').ProposalReconciliationState> {
-    const original = await this.prisma.db.proposal.findFirst({
+    if ('suggestionId' in input) {
+      const suggestion =
+        await this.prisma.db.proposalReconciliationSuggestion.findFirst({
+          where: { id: input.suggestionId, proposalId: id },
+        });
+      const owner = await this.prisma.db.proposal.findFirst({
+        where: { id, organizationId, projectId },
+      });
+      if (!suggestion || !owner)
+        throw new NotFoundException('Suggestion not found');
+      if (suggestion.legacyProposalId)
+        throw new ConflictException(
+          'This suggestion is retired and kept only in history.',
+        );
+      if (agentSessionId)
+        throw new BadRequestException('Suggestion decisions require a user.');
+      if (input.method === 'REJECT_SUGGESTION') {
+        await this.prisma.db.$transaction(async (tx) => {
+          await tx.$queryRaw`SELECT id FROM proposals WHERE id = ${id} FOR UPDATE`;
+          await tx.proposalReconciliationSuggestion.updateMany({
+            where: { id: suggestion.id, status: 'PENDING' },
+            data: { status: 'REJECTED' },
+          });
+          await this.publishSuggestionDecisions(tx, owner);
+        });
+        return this.reconciliationState(id, organizationId, projectId);
+      }
+      const candidate = new ProposalReconciliationCandidatePipe().transform(
+        suggestion.request,
+      );
+      if (candidate.method !== 'AGENT_FIX')
+        throw new ConflictException(
+          'The saved suggestion is not an agent candidate.',
+        );
+      return this.reconcileFuture(
+        owner,
+        await this.reconciliationState(id, organizationId, projectId),
+        organizationId,
+        projectId,
+        user,
+        candidate,
+        requestorContext,
+        suggestion.id,
+      );
+    }
+    const found = await this.prisma.db.proposal.findFirst({
       where: { id, organizationId, projectId },
       include: { groupMembership: true },
     });
-    if (!original) throw new NotFoundException('Proposal not found');
+    if (!found) throw new NotFoundException('Proposal not found');
+    const original = {
+      ...(await this.currentReconciliationProposal(found)),
+      groupMembership: found.groupMembership,
+    };
     const state =
       input.method === 'MERGE' &&
       original.action === 'UPDATE' &&
@@ -623,6 +904,144 @@ export class ProposalService {
       !original.groupMembership
     )
       return state;
+    if (
+      input.method === 'AGENT_FIX' &&
+      original.action === 'VERSIONED_UPDATE'
+    ) {
+      if (!agentSessionId)
+        throw new BadRequestException(
+          'An authorized refiner session is required.',
+        );
+      const session = await this.prisma.db.agentSession.findFirst({
+        where: {
+          id: agentSessionId,
+          organizationId,
+          projectId,
+          userId: user.userId,
+          entityId: id,
+          entityType: 'PROPOSAL',
+          type: 'PROPOSAL_REFINING',
+        },
+      });
+      if (!session?.conversationId || !this.messages)
+        throw new BadRequestException(
+          'The refiner conversation is unavailable.',
+        );
+      const conversationId = session.conversationId as ConversationId;
+      await this.prisma.db.$transaction(async (tx) => {
+        const selectedMutation = parseFutureRevisionMutation(original.updates);
+        await tx.$queryRaw`SELECT id FROM proposal_futures WHERE id = ${selectedMutation.futureId} AND organization_id = ${organizationId} AND project_id = ${projectId} FOR UPDATE`;
+
+        await tx.$queryRaw`SELECT id FROM proposals WHERE id = ${original.id} FOR UPDATE`;
+        const current = await tx.proposal.findUniqueOrThrow({
+          where: { id: original.id },
+        });
+        const mutation = parseFutureRevisionMutation(current.updates);
+        if (mutation.operation !== 'REVISE')
+          throw new ConflictException(
+            'Cancelled futures cannot receive suggestions.',
+          );
+        const latest = await this.reconciliation.stateForFuture(
+          tx,
+          current,
+          mutation.baseline,
+        );
+        if (
+          !input.expectedCandidateRevisionId ||
+          input.expectedCandidateRevisionId !== latest.candidateRevisionId
+        )
+          throw new ConflictException(
+            'The proposal changed. Prepare a new suggestion.',
+          );
+        if (latest.futureRevision !== input.expectedFutureRevision)
+          throw new ConflictException(
+            'The future changed. Prepare a new suggestion.',
+          );
+        if (
+          current.targetEntityType !== 'TASK' &&
+          current.targetEntityType !== 'DESIGN_DOC'
+        )
+          throw new BadRequestException(
+            'A future requires a task or design document.',
+          );
+        this.reconciliation.assertFutureReviewedBasisCurrent(
+          input.expectedCurrentBases,
+          latest.currentBases,
+          current.targetEntityType,
+        );
+        const content = await this.reconciliation.currentFutureContent({
+          organizationId,
+          projectId,
+          targetEntityType: current.targetEntityType,
+          targetEntityId: current.targetEntityId,
+        });
+        const candidate = parseFutureRevisionMutation({
+          ...mutation,
+          expectedRevision: latest.futureRevision,
+          baseline: {
+            kind: 'LIVE',
+            revision: latest.currentBases[0]!.version,
+            content,
+          },
+          result: input.proposedResult,
+        });
+        await validateFutureRevision(
+          tx,
+          this.workItemTypeRegistry,
+          {
+            targetEntityId: current.targetEntityId,
+            targetEntityType: current.targetEntityType,
+            updates: candidate,
+          },
+          organizationId,
+          projectId,
+        );
+        await tx.proposalReconciliationSuggestion.updateMany({
+          where: { proposalId: current.id, agentSessionId, status: 'PENDING' },
+          data: { status: 'SUPERSEDED' },
+        });
+        await this.publishSuggestionDecisions(tx, current);
+        const suggestion = await tx.proposalReconciliationSuggestion.create({
+          data: {
+            proposalId: current.id,
+            candidateRevisionId: input.expectedCandidateRevisionId,
+            agentSessionId,
+            request: input as unknown as Prisma.InputJsonValue,
+          },
+        });
+        const message = await this.messages!.addMessageInTransaction(
+          tx,
+          {
+            conversationId,
+            projectId,
+            userId: user.userId,
+            type: 'SYSTEM',
+            data: {
+              type: 'AGENT',
+              response:
+                'Review this suggested reconciliation. Accepting replaces proposal content and clears approvals; live content stays unchanged.',
+              proposalSuggestion: {
+                id: suggestion.id,
+                proposalId: current.id,
+                organizationId,
+                projectId,
+                status: 'PENDING',
+                candidateRevisionId: suggestion.candidateRevisionId,
+                proposedResult: input.proposedResult,
+                createdAt: suggestion.createdAt.toISOString(),
+              },
+            },
+          },
+          organizationId,
+          'proposal-reconciliation-suggestion',
+        );
+        await tx.proposalReconciliationSuggestion.update({
+          where: { id: suggestion.id },
+          data: { messageId: message.id },
+        });
+      });
+      return this.reconciliationState(original.id, organizationId, projectId);
+    }
     if (original.action === 'VERSIONED_UPDATE')
       return this.reconcileFuture(
         original,
@@ -650,7 +1069,14 @@ export class ProposalService {
         state.currentBases,
         id,
       );
-      updates = input.proposedResult!;
+      updates =
+        input.method === 'MANUAL'
+          ? manualReconciliationPatch(
+              state.currentBases[0]!.content,
+              input.proposedResult!,
+              original.targetEntityType,
+            )
+          : input.proposedResult!;
     }
     const provenance: ReconciliationProvenance = {
       source: input.method,
@@ -780,11 +1206,18 @@ export class ProposalService {
     organizationId: OrganizationId,
     projectId: ProjectId,
     user: AuthenticatedUser,
-    input: import('src/generated').CreateProposalReconciliationCandidate,
+    input: Exclude<
+      import('src/generated').CreateProposalReconciliationCandidate,
+      import('src/generated').ProposalReconciliationSuggestionDecision
+    >,
     requestorContext: StampedCreateProposalDto['requestorContext'],
+    suggestionId?: string,
   ): Promise<import('src/generated').ProposalReconciliationState> {
-    if (input.method === 'MERGE')
-      return { ...state, status: 'AGENT_FIX_REQUIRED' };
+    if (state.status === 'NOT_APPLICABLE')
+      throw new ConflictException(
+        'This future is no longer available for reconciliation.',
+      );
+
     if (
       original.targetEntityType !== 'TASK' &&
       original.targetEntityType !== 'DESIGN_DOC'
@@ -792,24 +1225,80 @@ export class ProposalService {
       throw new BadRequestException(
         'Future reconciliation requires a task or design document target.',
       );
+    this.logger.debug(
+      `Preparing ${input.method} future reconciliation for proposal ${original.id}`,
+    );
     const authoredMutation = parseFutureRevisionMutation(original.updates);
     if (authoredMutation.operation !== 'REVISE')
       throw new BadRequestException('Cancelled futures cannot be reconciled.');
-    const expectedCurrentBases = input.expectedCurrentBases!;
+    const expectedCurrentBases =
+      input.method === 'MERGE'
+        ? state.currentBases
+        : input.expectedCurrentBases!;
+    const expectedFutureRevision =
+      input.method === 'MERGE'
+        ? state.futureRevision
+        : input.expectedFutureRevision;
+    const expectedCandidateRevisionId =
+      input.method === 'MERGE'
+        ? state.candidateRevisionId
+        : input.expectedCandidateRevisionId;
     this.reconciliation.assertFutureReviewedBasisCurrent(
       expectedCurrentBases,
       state.currentBases,
       original.targetEntityType,
     );
-    const future = await this.prisma.db.$transaction((tx) =>
-      readFutureRevision(
-        tx,
-        this.workItemTypeRegistry,
-        authoredMutation.futureId,
-        organizationId,
-        projectId,
-      ),
-    );
+    const storedFuture = await this.prisma.db.proposalFuture.findFirst({
+      where: { id: authoredMutation.futureId, organizationId, projectId },
+    });
+    if (
+      !storedFuture &&
+      (original.status !== 'DRAFT' || authoredMutation.expectedRevision !== 0)
+    )
+      throw new ConflictException('The reviewed future is unavailable.');
+    const future = storedFuture
+      ? await this.prisma.db.$transaction((tx) =>
+          readFutureRevision(
+            tx,
+            this.workItemTypeRegistry,
+            authoredMutation.futureId,
+            organizationId,
+            projectId,
+          ),
+        )
+      : {
+          id: authoredMutation.futureId,
+          revision: 0,
+          outcome: 'STAGED',
+          latestProposalId: original.id,
+          dependencies: authoredMutation.dependencies,
+        };
+    if (expectedFutureRevision !== future.revision) {
+      this.logger.warn(
+        `Rejected stale future reconciliation for ${future.id}: expected revision ${expectedFutureRevision}, current revision ${future.revision}`,
+      );
+      throw new ConflictException(
+        'The future revision changed. Refresh before reconciling.',
+      );
+    }
+    if (future.outcome !== 'STAGED')
+      throw new ConflictException('Only unapplied futures can be reconciled.');
+    const sourceMutation = parseFutureRevisionMutation(original.updates);
+    if (
+      original.status === 'APPROVED' &&
+      future.latestProposalId !== original.id
+    )
+      throw new ConflictException(
+        'The approved future changed. Refresh before reconciling.',
+      );
+    if (
+      sourceMutation.operation === 'REVISE' &&
+      original.status !== 'APPROVED' &&
+      sourceMutation.expectedRevision !== future.revision
+    )
+      throw new ConflictException(
+        'The future revision changed. Refresh before reconciling.',
+      );
     const currentContent = await this.reconciliation.currentFutureContent({
       organizationId,
       projectId,
@@ -830,58 +1319,114 @@ export class ProposalService {
         revision: currentBasis.version,
         content: currentContent,
       },
-      result: input.proposedResult!,
-      dependencies: future.dependencies,
+      result:
+        input.method === 'MERGE'
+          ? this.reconciliation.mergedFutureResult(
+              original,
+              state,
+              currentContent,
+            )
+          : input.proposedResult!,
+      dependencies: authoredMutation.dependencies,
     });
+    if (updates.operation !== 'REVISE')
+      throw new BadRequestException('Reconciliation must revise a future.');
+    {
+      const before = futureGraph(updates.baseline.content);
+      const after = futureGraph(updates.result);
+      if (before && after)
+        updates.graphChangeSet = graphChangeSet(before, after);
+    }
     const provenance: ReconciliationProvenance = {
       source: input.method,
       previousRevisionId: state.candidateRevisionId ?? null,
       expectedBases: state.currentBases,
     };
-    const replacement = await this.create(
-      organizationId,
-      projectId,
-      user.userId,
-      {
-        type: original.type,
-        action: 'VERSIONED_UPDATE',
-        targetEntityId: original.targetEntityId,
-        targetEntityType: original.targetEntityType,
-        title: original.title,
-        eli5: original.eli5 ?? original.title ?? 'Reconcile future revision',
-        updates,
-        requestorContext,
-        ...(original.conversationId
-          ? { conversationId: original.conversationId }
-          : {}),
-        influences: [
-          {
-            entityType: 'PROPOSAL',
-            entityId: original.id,
-            entityTitle: original.title,
-            reasonType: 'derived',
-            reasoning:
-              'Reconciles the complete future result against current content for fresh review.',
+    return this.prisma.db.$transaction(async (tx) => {
+      // Match Apply's lock order: future, proposal, then authoritative target.
+      await tx.$queryRaw`SELECT id FROM proposal_futures WHERE id = ${future.id} AND organization_id = ${organizationId} AND project_id = ${projectId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM proposals WHERE id = ${original.id} AND organization_id = ${organizationId} AND project_id = ${projectId} FOR UPDATE`;
+      if (suggestionId) {
+        const suggestion = await tx.proposalReconciliationSuggestion.findFirst({
+          where: {
+            id: suggestionId,
+            proposalId: original.id,
+            status: 'PENDING',
           },
-        ],
-      },
-      provenance,
-    );
-    await this.prisma.db.proposalReconciliationReplacement.create({
-      data: {
-        proposalId: original.id,
-        replacementProposalId: replacement.id,
-        sourceState: { updatedAt: original.updatedAt.toISOString() },
-      },
-    });
-    return {
-      ...(await this.reconciliationState(
-        replacement.id,
+        });
+        if (!suggestion)
+          throw new ConflictException('This suggestion is no longer pending.');
+      }
+      const current = await tx.proposal.findFirst({
+        where: { id: original.id, organizationId, projectId },
+        include: { groupMembership: true },
+      });
+      if (!current || current.status === 'REJECTED' || current.groupMembership)
+        throw new ConflictException(
+          'This proposal is no longer available for standalone reconciliation.',
+        );
+      const currentMutation = parseFutureRevisionMutation(current.updates);
+      if (currentMutation.operation !== 'REVISE')
+        throw new ConflictException('Cancelled futures cannot be reconciled.');
+      const latest = await this.reconciliation.stateForFuture(
+        tx,
+        current,
+        currentMutation.baseline,
+      );
+      if (
+        !expectedCandidateRevisionId ||
+        expectedCandidateRevisionId !== latest.candidateRevisionId
+      )
+        throw new ConflictException(
+          'The proposal changed. Your edits have not been saved; review the current proposal.',
+        );
+      if (latest.futureRevision !== expectedFutureRevision)
+        throw new ConflictException(
+          'The reviewed future changed. Your edits have not been saved.',
+        );
+      this.reconciliation.assertFutureReviewedBasisCurrent(
+        expectedCurrentBases,
+        latest.currentBases,
+        original.targetEntityType as 'TASK' | 'DESIGN_DOC',
+      );
+      updates.dependencies = currentMutation.dependencies;
+      await validateFutureRevision(
+        tx,
+        this.workItemTypeRegistry,
+        {
+          targetEntityId: current.targetEntityId,
+          targetEntityType: current.targetEntityType,
+          updates,
+        },
         organizationId,
         projectId,
-      )),
-      replacementProposalId: replacement.id,
-    };
+      );
+      const updated = await tx.proposal.update({
+        where: { id: current.id },
+        data: {
+          updates: updates as unknown as Prisma.InputJsonValue,
+          status: 'DRAFT',
+        },
+      });
+      // captureAuthoring retires votes before appending the new content version;
+      // the database retains their attribution against the preceding version.
+      await this.reconciliation.captureAuthoring(tx, updated, provenance);
+      if (suggestionId)
+        await tx.proposalReconciliationSuggestion.update({
+          where: { id: suggestionId },
+          data: { status: 'ACCEPTED' },
+        });
+      await tx.proposalReconciliationSuggestion.updateMany({
+        where: { proposalId: current.id, status: 'PENDING' },
+        data: { status: 'OUT_OF_DATE' },
+      });
+      await this.publishSuggestionDecisions(tx, updated);
+      await this.publishProposalReviewChanged(tx, updated);
+      this.logger.log(
+        `Updated reconciliation content on proposal ${current.id}; fresh approvals required`,
+      );
+      return this.reconciliation.stateForFuture(tx, updated, updates.baseline);
+    });
   }
 
   async findOne(
@@ -1025,6 +1570,7 @@ export class ProposalService {
 
     return {
       data: await mapProposalResponses(this.prisma.db, data, projectPolicy, {
+        reconciliation: this.reconciliation,
         omitUnresolvableTargets: true,
         workItemTypeRegistry: this.workItemTypeRegistry,
       }),
@@ -1455,268 +2001,6 @@ export class ProposalService {
       proposals: [dto],
       context: { organizationId, projectId, requestor },
     });
-  }
-
-  async createBatch(
-    organizationId: OrganizationId,
-    projectId: ProjectId,
-    userId: UserId,
-    dtos: StampedCreateProposalDto[],
-  ): Promise<TypedProposalResponse[]> {
-    if (dtos.length === 0) {
-      throw new BadRequestException('At least one proposal is required');
-    }
-    if (dtos.length > ProposalService.MAX_BATCH_SIZE) {
-      throw new BadRequestException(
-        `Batch size ${dtos.length} exceeds maximum of ${ProposalService.MAX_BATCH_SIZE}`,
-      );
-    }
-    await this.assertMayAuthorProposals(projectId, userId, dtos);
-
-    const projectPolicy =
-      await this.projectApprovalPolicyService.resolve(projectId);
-    const applyOnCreateByItem: Array<ApplyOnCreatePreparation | null> = [];
-    const evalWriter = await this.isEvalWriter(organizationId, projectId);
-    for (const dto of dtos) {
-      applyOnCreateByItem.push(
-        evalWriter
-          ? null
-          : await this.prepareApplyOnCreate(
-              organizationId,
-              projectId,
-              userId,
-              dto,
-              projectPolicy,
-            ),
-      );
-    }
-
-    const immediatelyMaterializedEdges: MaterializedProposalEdge[] = [];
-    let results: Array<{
-      proposal: ProposalWithResponseRelations;
-      materializableEdges: MaterializableEdge[];
-      runPostCommit: PostCommitRunner;
-      genericChangeSetReady: boolean;
-      responseRequiredApprovals?: number;
-      immediatelyMaterializedEdges?: MaterializedProposalEdge[];
-    }>;
-    try {
-      results = await this.prisma.db.$transaction(async (tx) => {
-        const prepared: Array<{
-          dto: StampedCreateProposalDto;
-          title: string | null;
-          applyOnCreate: ApplyOnCreatePreparation | null;
-        }> = [];
-        const stampedInputs: StampedCreateProposalDto[] = [];
-
-        for (const dto of dtos) {
-          stampedInputs.push(await this.applyOriginInfluence(tx, dto));
-        }
-        const admission =
-          await this.validationEngine.assertAuthoringCandidatesValid({
-            proposals: stampedInputs,
-            context: { organizationId, projectId, db: tx },
-          });
-        for (const stampedInput of stampedInputs) {
-          this.assertProposalContextSource(stampedInput);
-          this.assertProposalTitleForCreate(stampedInput);
-          this.assertSupersedeInvariant(stampedInput);
-          assertWorkflowProposalLinksStructurallyValid(stampedInput);
-          assertWorkItemChangeSetStructurallyValid(stampedInput);
-          assertNoRawTracksDeclaration(stampedInput);
-          if (stampedInput.influences !== undefined) {
-            this.validateInfluenceInputs(stampedInput.influences);
-          }
-        }
-        const project = await tx.project.findFirst({
-          where: { id: projectId, organizationId },
-        });
-        if (!project) {
-          throw new NotFoundException('Project not found');
-        }
-        if (admission.candidates.length !== dtos.length) {
-          throw new InternalServerErrorException(
-            `Proposal admission returned ${admission.candidates.length} candidates for ${dtos.length} inputs`,
-          );
-        }
-        const metadata = admission.metadata;
-        for (const [index, admitted] of admission.candidates.entries()) {
-          const stampedDto = admitted.candidate;
-          // Admitted candidates carry no input key; the length check above
-          // pins admission to one candidate per input, in input order.
-          const applyOnCreate = applyOnCreateByItem[index] ?? null;
-          if (
-            stampedDto.action !== 'CREATE' &&
-            stampedDto.targetEntityType !== 'WORK_ITEM_TYPE' &&
-            stampedDto.targetEntityType !== 'ENTITY_PROMPT_TEMPLATE'
-          ) {
-            await this.validateTargetEntity(
-              stampedDto.targetEntityId,
-              stampedDto.targetEntityType,
-              organizationId,
-              projectId,
-              tx,
-              metadata,
-            );
-          }
-          await this.validationEngine.assertTaskMutationAuthoringValid(
-            admitted,
-            organizationId,
-            projectId,
-            tx,
-            { validatePlanStageTopology: false },
-          );
-
-          const preparedDto = await this.prepareTaskMutationRequirements(
-            stampedDto,
-            organizationId,
-            projectId,
-            tx,
-            applyOnCreate
-              ? replayMintedIds(applyOnCreate.mintedIds)
-              : undefined,
-          );
-          const snapshottedDto = await this.snapshotEntityTitles(
-            tx,
-            organizationId,
-            preparedDto,
-            metadata,
-          );
-
-          const title = await resolveProposalTitle({
-            db: tx,
-            organizationId,
-            action: snapshottedDto.action,
-            targetEntityType: snapshottedDto.targetEntityType,
-            targetEntityId: snapshottedDto.targetEntityId,
-            callerTitle: snapshottedDto.title,
-            metadata,
-          });
-
-          prepared.push({
-            applyOnCreate,
-            dto: {
-              ...snapshottedDto,
-              requestorContext: stampedDto.requestorContext,
-              eli5: stampedDto.eli5,
-            },
-            title,
-          });
-        }
-
-        await this.validationEngine.assertPlanStageProposalTopologyValid(
-          prepared.map(({ dto }) => ({ proposal: dto })),
-          organizationId,
-          projectId,
-        );
-
-        const items: Array<{
-          proposal: ProposalWithResponseRelations;
-          materializableEdges: MaterializableEdge[];
-          runPostCommit: PostCommitRunner;
-          genericChangeSetReady: boolean;
-          responseRequiredApprovals?: number;
-          immediatelyMaterializedEdges?: MaterializedProposalEdge[];
-        }> = [];
-        for (const { dto, title, applyOnCreate } of prepared) {
-          const { stamp: evalStamp, data: evalData } =
-            await this.admitEvalProposal(tx, organizationId, projectId, dto);
-          const proposal = await tx.proposal.create({
-            data: {
-              ...this.buildCreateData(
-                organizationId,
-                projectId,
-                userId,
-                dto,
-                title,
-                await this.snapshotTargetLastAppliedProposalId(tx, dto),
-              ),
-              ...evalData,
-            },
-            include: PROPOSAL_RESPONSE_RELATIONS_INCLUDE,
-          });
-
-          await this.reconciliation.captureAuthoring(tx, proposal);
-          const applied = evalStamp.applicationEligible
-            ? await this.maybeApplyOnCreate(
-                tx,
-                proposal,
-                organizationId,
-                projectId,
-                dto,
-                projectPolicy,
-                applyOnCreate,
-                (edge) => immediatelyMaterializedEdges.push(edge),
-              )
-            : null;
-          if (applied?.immediatelyMaterializedEdges) {
-            immediatelyMaterializedEdges.push(
-              ...applied.immediatelyMaterializedEdges.filter(
-                (edge) =>
-                  !immediatelyMaterializedEdges.some(
-                    (created) => created.edgeId === edge.edgeId,
-                  ),
-              ),
-            );
-          }
-          items.push(
-            applied ?? {
-              proposal,
-              materializableEdges: [],
-              runPostCommit: NOOP_POST_COMMIT,
-              genericChangeSetReady: false,
-            },
-          );
-        }
-
-        return items;
-      }, PROPOSAL_ENACTMENT_TRANSACTION_OPTIONS);
-    } catch (error) {
-      await this.pendingEdgeService.rollbackMaterializedEdges(
-        organizationId,
-        projectId,
-        immediatelyMaterializedEdges,
-        'Rolling back proposal-declared SUPERSEDES edge because batch proposal creation failed.',
-      );
-      throw error;
-    }
-
-    for (const item of results) {
-      if (item.materializableEdges.length > 0) {
-        await this.pendingEdgeService.materializeEdges(
-          organizationId,
-          projectId,
-          item.materializableEdges,
-          item.proposal.conversationId,
-        );
-      }
-      await item.runPostCommit();
-      if (item.genericChangeSetReady) {
-        const materialized =
-          await this.approvalService.materializeGenericWorkItemChangeSet({
-            proposalId: item.proposal.id,
-            organizationId,
-            projectId,
-          });
-        item.proposal = materialized.proposal;
-      }
-    }
-
-    this.logger.log('Batch proposals created', {
-      count: results.length,
-      organizationId,
-      projectId,
-    });
-
-    return Promise.all(
-      results.map((r) =>
-        this.toResponseDto(
-          r.proposal,
-          projectPolicy,
-          r.responseRequiredApprovals,
-        ),
-      ),
-    );
   }
 
   /**
@@ -2257,21 +2541,8 @@ export class ProposalService {
     return this.evalOutputAdmission.resolveProposal(tx, {
       organizationId,
       projectId,
-      writingSessionId: currentWritingSessionId(),
       proposal,
     });
-  }
-
-  private async isEvalWriter(
-    organizationId: OrganizationId,
-    projectId: ProjectId,
-  ): Promise<boolean> {
-    const admission = await this.evalOutputAdmission.resolve(this.prisma.db, {
-      organizationId,
-      projectId,
-      writingSessionId: currentWritingSessionId(),
-    });
-    return admission.isEvalOutput;
   }
 
   private buildCreateData(
@@ -2340,6 +2611,7 @@ export class ProposalService {
   ): Promise<TypedProposalResponse> {
     return mapProposalResponse(this.prisma.db, proposal, projectPolicy, {
       requiredApprovals,
+      reconciliation: this.reconciliation,
       workItemTypeRegistry: this.workItemTypeRegistry,
     });
   }

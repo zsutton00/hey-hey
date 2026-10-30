@@ -1,3 +1,4 @@
+import { hashControllerAction } from '../../../generated/controller-action-contract';
 import {
   ControllerAuthorizationCadence as PrismaControllerAuthorizationCadence,
   ExecutionGrantScope as PrismaExecutionGrantScope,
@@ -85,7 +86,7 @@ const authorization = (
   grantDescriptorHash: 'b'.repeat(64),
   actionCategory: action.actionCategory,
   actionType: action.actionType,
-  actionPayloadHash: sha256(canonicalizeJcs(action)),
+  actionPayloadHash: hashControllerAction(action),
   targetKind: action.targetKind,
   targetId: action.targetId,
   agentSessionId: null,
@@ -139,6 +140,11 @@ const harness = () => {
     service: new ExecutionGrantService(
       { db } as unknown as PrismaService,
       browserBindingService as never,
+      {
+        resolveDirectInputs: jest
+          .fn()
+          .mockImplementation(async ({ action }) => action),
+      } as never,
     ),
   };
 };
@@ -259,6 +265,156 @@ describe('ExecutionGrantService', () => {
       }),
     );
   });
+
+  it('accepts matching read inputs and rejects changed inputs with the same fresh evidence before grant creation', async () => {
+    const { db, service } = harness();
+    const inputs = {
+      kind: 'CLI_READ' as const,
+      body: {
+        requestId: ids.request,
+        agentSessionId: ids.session,
+        operation: 'run.changed_files.detail' as const,
+        runId: ids.session,
+        file: {
+          serviceId: ids.monitor,
+          repoPath: '/workspace',
+          filePath: 'approved.ts',
+        },
+      },
+    };
+    const action: HostActionPreparation = {
+      requestId: ids.request,
+      actionCategory: HostActionCategory.CliRead,
+      actionType: HostAffectingActionType.CliRead,
+      targetKind: 'AGENT_SESSION',
+      targetId: ids.session,
+      inputs,
+    };
+    db.executionAuthorization.findUnique.mockResolvedValue(
+      authorization(action),
+    );
+    db.executionGrant.create.mockImplementation(async ({ data }: any) => ({
+      id: 'grant-id',
+      ...data,
+    }));
+    const params = {
+      authorization: freshAuthorization,
+      organizationId: ids.organization,
+      projectId: ids.project,
+      userId: ids.user,
+      controllerBindingSecret: ids.bindingSecret,
+      machineId: ids.machine,
+      actionCategory: HostActionCategory.CliRead,
+      actionType: HostAffectingActionType.CliRead,
+      targetKind: 'AGENT_SESSION' as const,
+      agentSessionId: ids.session as never,
+      conversationId: ids.conversation,
+    };
+    await expect(
+      service.assertAgentSessionAuthorized({ ...params, inputs }),
+    ).resolves.toMatchObject({ action });
+    db.executionGrant.create.mockClear();
+    await expect(
+      service.assertAgentSessionAuthorized({
+        ...params,
+        inputs: {
+          ...inputs,
+          body: {
+            ...inputs.body,
+            file: { ...inputs.body.file, filePath: 'changed.ts' },
+          },
+        },
+      }),
+    ).rejects.toBeInstanceOf(ExecutionGrantAdmissionDeniedException);
+    expect(db.executionGrant.create).not.toHaveBeenCalled();
+  });
+
+  it.each(['Please start', ''])(
+    'accepts startup %j and rejects altered task context under the same exact-action approval',
+    async (userMessage) => {
+      const { db, service } = harness();
+      const inputs = {
+        kind: 'START_RUN' as const,
+        payload: {
+          agentSessionId: ids.session,
+          workflowName: 'feature-sync' as const,
+          model: 'gpt-5',
+          provider: 'codex' as const,
+          payload: { promptType: 'workflow_kickoff' as const, userMessage },
+          contextMetadata: {
+            capturedAt: new Date().toISOString(),
+            organizationId: ids.organization,
+            projectId: ids.project,
+            agentSessionId: ids.session,
+            userComments: [],
+            fileReferences: { resolved: [], unresolved: [] },
+            task: {
+              id: ids.monitor,
+              name: 'Repair startup',
+              type: 'BUG',
+              status: 'BACKLOG' as const,
+              source: 'user' as const,
+              organizationId: ids.organization,
+              projectId: ids.project,
+              initiativeId: null,
+              parentTaskId: null,
+              archivedAt: null,
+              designDocCount: null,
+              codingSessionCount: null,
+              agentSessionCount: null,
+              sections: [
+                {
+                  id: ids.monitor,
+                  key: 'description',
+                  order: 0,
+                  materializedMarkdown: 'Retain context',
+                  materializedProposalId: '',
+                },
+              ],
+            },
+          },
+        },
+      };
+      const action: HostActionPreparation = {
+        requestId: ids.request,
+        actionCategory: HostActionCategory.Conversation,
+        actionType: HostAffectingActionType.ConversationTrigger,
+        targetKind: 'AGENT_SESSION',
+        targetId: ids.session,
+        inputs,
+      };
+      db.executionAuthorization.findUnique.mockResolvedValue(
+        authorization(action),
+      );
+      db.executionGrant.create.mockImplementation(async ({ data }: any) => ({
+        id: 'grant-id',
+        ...data,
+      }));
+      const params = {
+        authorization: freshAuthorization,
+        organizationId: ids.organization,
+        projectId: ids.project,
+        userId: ids.user,
+        controllerBindingSecret: ids.bindingSecret,
+        machineId: ids.machine,
+        actionCategory: HostActionCategory.Conversation,
+        actionType: HostAffectingActionType.ConversationTrigger,
+        targetKind: 'AGENT_SESSION' as const,
+        agentSessionId: ids.session as never,
+        conversationId: ids.conversation,
+      };
+      await expect(
+        service.assertAgentSessionAuthorized({ ...params, inputs }),
+      ).resolves.toMatchObject({ action });
+      db.executionGrant.create.mockClear();
+      const altered = structuredClone(inputs);
+      altered.payload.contextMetadata.task.name = 'Changed after approval';
+      await expect(
+        service.assertAgentSessionAuthorized({ ...params, inputs: altered }),
+      ).rejects.toBeInstanceOf(ExecutionGrantAdmissionDeniedException);
+      expect(db.executionGrant.create).not.toHaveBeenCalled();
+    },
+  );
 
   it('constructs reusable Agent Session activation only after the server grant exists', async () => {
     const { db, service } = harness();
@@ -636,12 +792,23 @@ describe('ExecutionGrantService', () => {
   it('derives a Task Monitor grant from current selection, policy, revision, and exact action', async () => {
     const { db, service } = harness();
     const updatedAt = new Date('2026-08-13T12:00:00.000Z');
+    const command = {
+      cause: 'START',
+      launchConfig: {
+        taskId: 'd0000000-0000-4000-8000-00000000000d',
+        method: 'quick',
+        provider: 'codex',
+        model: 'gpt-5.6',
+        reasoningEffort: 'high',
+      },
+    } as const;
     const action: HostActionPreparation = {
       requestId: ids.request,
       actionCategory: HostActionCategory.TaskMonitor,
       actionType: HostAffectingActionType.TaskMonitorStart,
       targetKind: 'TASK_MONITOR',
       targetId: ids.monitor,
+      inputs: { kind: 'TASK_MONITOR', command },
     };
     db.executionAuthorization.findUnique.mockResolvedValue(
       authorization(action, {
@@ -679,16 +846,7 @@ describe('ExecutionGrantService', () => {
       monitorId: ids.monitor,
       machineId: ids.machine,
       requestId: ids.request,
-      command: {
-        cause: 'START',
-        launchConfig: {
-          taskId: 'd0000000-0000-4000-8000-00000000000d',
-          method: 'quick',
-          provider: 'codex',
-          model: 'gpt-5.6',
-          reasoningEffort: 'high',
-        },
-      },
+      command,
     });
 
     expect(result.machineId).toBe(ids.machine);

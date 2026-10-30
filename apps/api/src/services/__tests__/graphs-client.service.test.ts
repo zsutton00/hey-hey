@@ -8,6 +8,48 @@ import {
 import { GraphsClientService } from '../graphs-client.service';
 
 describe('GraphsClientService projection deletion', () => {
+  it('counts the typed feature connections with the scoped service token', async () => {
+    const request = {
+      featureIds: [
+        '128754cc-10ca-4ff3-9fe5-3e6ae4b41fc3',
+        '6a0f1d2e-3b4c-4d5e-8f60-718293a4b5c6',
+      ],
+    };
+    const response = { connectedCount: 1 };
+    const queries = {
+      checkFeatureProjectConnection: jest
+        .fn()
+        .mockReturnValue(of({ data: response })),
+    };
+    const service = new GraphsClientService(
+      queries as never,
+      {} as never,
+      {} as never,
+    );
+    await expect(
+      service.checkFeatureProjectConnection(
+        'org' as never,
+        'project' as never,
+        request,
+        'scoped-token',
+      ),
+    ).resolves.toEqual(response);
+    expect(queries.checkFeatureProjectConnection).toHaveBeenCalledWith(
+      'org',
+      'project',
+      request,
+      {
+        config: {
+          headers: {
+            Authorization: 'Bearer scoped-token',
+            'X-API-Auth': 'Bearer scoped-token',
+            'Content-Type': 'application/json',
+          },
+        },
+      },
+    );
+  });
+
   it('reads generated incident groups with authentication and without traversal', async () => {
     const request: import('src/generated/graphs').IncidentEdgesRequest = {
       seedEntityIds: ['123e4567-e89b-42d3-a456-426614174099'],

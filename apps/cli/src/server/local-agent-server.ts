@@ -104,11 +104,11 @@ export class LocalAgentServerBootstrap {
       infrastructure.logger.child({ component: 'task-monitor.launch-failure' }),
     );
     const agentRuntime = new AgentApplicationRuntime({
+      runStore: infrastructure.runStore,
       oauthClient: infrastructure.oauthClient,
       apiBaseUrl: infrastructure.normalizedApiBaseUrl,
       logger: infrastructure.logger.child({ component: 'agents' }),
-      isJevParentFeatureFilterEnabled: () =>
-        new MachineOptionsStore().isJevParentFeatureFilterEnabled(),
+      isJevEnabled: () => new MachineOptionsStore().isJevEnabled(),
       taskMonitorManagedTurnRuntime,
     });
     infrastructure.logger.debug('local.bootstrap.agent_runtime.constructed');
@@ -295,6 +295,10 @@ export class LocalAgentServerBootstrap {
       machineActions: createMachineActions(infrastructure),
     });
     const router = new LocalAgentRouter({
+      toolCalls: {
+        sessionActivity: runRuntime.sessionActivitySource,
+        isRemoteToolCallViewingEnabled: runRuntime.isRemoteToolCallViewingEnabled,
+      },
       allowedOrigins: [resolvePairingWebOrigin()],
       keyPairStore: infrastructure.keyPairStore,
       logger: infrastructure.logger,

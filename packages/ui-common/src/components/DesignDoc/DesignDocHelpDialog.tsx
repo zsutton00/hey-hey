@@ -1,6 +1,6 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import React, { useState } from "react";
 import {
-  Dialog,
   DialogTitle,
   DialogContent,
   IconButton,
@@ -56,7 +56,7 @@ export const DesignDocHelpDialog: React.FC<DesignDocHelpDialogProps> = ({
 
   const handleTabChange = (
     _event: React.SyntheticEvent,
-    newValue: number
+    newValue: number,
   ): void => {
     setCurrentTab(newValue);
   };
@@ -77,6 +77,16 @@ export const DesignDocHelpDialog: React.FC<DesignDocHelpDialogProps> = ({
       PaperProps={{
         sx: { minHeight: "60vh" },
       }}
+      closeControl={
+        <IconButton
+          edge="end"
+          onClick={onClose}
+          aria-label={t("common.close")}
+          size="small"
+        >
+          <CloseIcon />
+        </IconButton>
+      }
     >
       <DialogTitle>
         <Box
@@ -92,14 +102,6 @@ export const DesignDocHelpDialog: React.FC<DesignDocHelpDialogProps> = ({
               {t("designDoc.help.dialog.title")}
             </Typography>
           </Box>
-          <IconButton
-            edge="end"
-            onClick={onClose}
-            aria-label={t("common.close")}
-            size="small"
-          >
-            <CloseIcon />
-          </IconButton>
         </Box>
       </DialogTitle>
 

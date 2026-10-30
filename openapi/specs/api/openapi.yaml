@@ -148,23 +148,23 @@ paths:
             schema:
               $ref: ../schemas/project-reports.yaml#/CreateProjectReportRequestDto
       responses:
-        '202':
+        "202":
           description: Authorized result
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
+                  - $ref: "#/components/schemas/ApiResponse"
                   - type: object
                     required: [data]
                     properties:
                       data:
-                        $ref: '#/components/schemas/ProjectReportRequestDto'
-        '400':
+                        $ref: "#/components/schemas/ProjectReportRequestDto"
+        "400":
           description: Malformed input or empty included population
-        '403':
+        "403":
           description: Scope is not authorized
-        '409':
+        "409":
           description: Idempotency conflict or stale execution attempt
   /organizations/{organizationId}/projects/{projectId}/project-report-requests/preview:
     post:
@@ -194,23 +194,23 @@ paths:
             schema:
               $ref: ../schemas/project-reports.yaml#/ProjectReportPreviewRequestDto
       responses:
-        '200':
+        "200":
           description: Authorized result
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
+                  - $ref: "#/components/schemas/ApiResponse"
                   - type: object
                     required: [data]
                     properties:
                       data:
-                        $ref: '#/components/schemas/ProjectReportPreviewDto'
-        '400':
+                        $ref: "#/components/schemas/ProjectReportPreviewDto"
+        "400":
           description: Malformed input or empty included population
-        '403':
+        "403":
           description: Scope is not authorized
-        '409':
+        "409":
           description: Idempotency conflict or stale execution attempt
   /organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId}:
     get:
@@ -238,23 +238,23 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Authorized result
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
+                  - $ref: "#/components/schemas/ApiResponse"
                   - type: object
                     required: [data]
                     properties:
                       data:
-                        $ref: '#/components/schemas/ProjectReportRequestDto'
-        '400':
+                        $ref: "#/components/schemas/ProjectReportRequestDto"
+        "400":
           description: Malformed input or empty included population
-        '403':
+        "403":
           description: Scope is not authorized
-        '409':
+        "409":
           description: Idempotency conflict or stale execution attempt
   /organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId}/retry:
     post:
@@ -290,23 +290,23 @@ paths:
             schema:
               $ref: ../schemas/project-reports.yaml#/RetryProjectReportRequestDto
       responses:
-        '202':
+        "202":
           description: Authorized result
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
+                  - $ref: "#/components/schemas/ApiResponse"
                   - type: object
                     required: [data]
                     properties:
                       data:
-                        $ref: '#/components/schemas/ProjectReportRequestDto'
-        '400':
+                        $ref: "#/components/schemas/ProjectReportRequestDto"
+        "400":
           description: Malformed input or empty included population
-        '403':
+        "403":
           description: Scope is not authorized
-        '409':
+        "409":
           description: Idempotency conflict or stale execution attempt
   /organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId}/activity:
     get:
@@ -355,23 +355,23 @@ paths:
             minimum: 0
             default: 0
       responses:
-        '200':
+        "200":
           description: Authorized result
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
+                  - $ref: "#/components/schemas/ApiResponse"
                   - type: object
                     required: [data]
                     properties:
                       data:
-                        $ref: '#/components/schemas/ProjectReportActivityPageDto'
-        '400':
+                        $ref: "#/components/schemas/ProjectReportActivityPageDto"
+        "400":
           description: Malformed input or empty included population
-        '403':
+        "403":
           description: Scope is not authorized
-        '409':
+        "409":
           description: Idempotency conflict or stale execution attempt
   /organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId}/context:
     get:
@@ -418,21 +418,21 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Authorized current-state context
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
+                  - $ref: "#/components/schemas/ApiResponse"
                   - type: object
                     required: [data]
                     properties:
                       data:
-                        $ref: '#/components/schemas/ProjectReportContextPageDto'
-        '403':
+                        $ref: "#/components/schemas/ProjectReportContextPageDto"
+        "403":
           description: Scope is not authorized
-        '409':
+        "409":
           description: Stale execution attempt or excluded primary subject
   /organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId}/context:batch:
     post:
@@ -475,25 +475,25 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ProjectReportContextBatchRequestDto'
+              $ref: "#/components/schemas/ProjectReportContextBatchRequestDto"
       responses:
-        '200':
+        "200":
           description: Authorized current-state context and placement, one item per requested subject in request order
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
+                  - $ref: "#/components/schemas/ApiResponse"
                   - type: object
                     required: [data]
                     properties:
                       data:
-                        $ref: '#/components/schemas/ProjectReportContextBatchResponseDto'
-        '400':
+                        $ref: "#/components/schemas/ProjectReportContextBatchResponseDto"
+        "400":
           description: The request must contain 1–100 unique subjects
-        '403':
+        "403":
           description: Scope is not authorized
-        '409':
+        "409":
           description: Stale execution attempt, or a subject that is excluded or not included in the request
   # =============================================
   # Authentication Routes
@@ -505,21 +505,21 @@ paths:
       summary: Read the explicit account organization default
       description: Requires a valid browser access session. Saving requires the exact confirmed organization, current membership and entitlement. Switching and renewal never modify this preference.
       responses:
-        '200':
+        "200":
           description: Account preference
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
+                  - $ref: "#/components/schemas/ApiResponse"
                   - type: object
                     required: [data]
                     properties:
                       data:
-                        $ref: '#/components/schemas/AccountDefaultOrganizationDto'
-        '401':
+                        $ref: "#/components/schemas/AccountDefaultOrganizationDto"
+        "401":
           description: Missing, invalid or expired browser session
-        '403':
+        "403":
           description: Organization does not match confirmed choice or current access is denied
     put:
       operationId: setAccountDefaultOrganization
@@ -531,23 +531,23 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SetAccountDefaultOrganizationDto'
+              $ref: "#/components/schemas/SetAccountDefaultOrganizationDto"
       responses:
-        '200':
+        "200":
           description: Account preference
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
+                  - $ref: "#/components/schemas/ApiResponse"
                   - type: object
                     required: [data]
                     properties:
                       data:
-                        $ref: '#/components/schemas/AccountDefaultOrganizationDto'
-        '401':
+                        $ref: "#/components/schemas/AccountDefaultOrganizationDto"
+        "401":
           description: Missing, invalid or expired browser session
-        '403':
+        "403":
           description: Organization does not match confirmed choice or current access is denied
 
   /auth/login:
@@ -665,7 +665,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
-
 
   /auth/refresh:
     post:
@@ -1574,16 +1573,21 @@ paths:
     post:
       operationId: provisionDemoSandbox
       tags: [DemoSandboxes]
-      summary: Provision a demo sandbox, or return this browser's existing one
+      summary: Start provisioning a demo sandbox, or return this browser's existing one
       description: >-
         Public. A browser whose binding cookie maps to an unexpired ACTIVE
-        sandbox is signed back in to it with resumed=true, even when the demo is
-        switched off or the program is at capacity. Otherwise admission is
-        checked in order: switch, capacity, per-address limit, bot check. The response is
-        returned, and session and binding cookies are set, only after the cloned
-        project is connected in the graph. A failed or timed-out attempt is
-        discarded through irreversible final deletion and reported as
-        PROVISIONING_FAILED.
+        sandbox is signed back in to it (state ACTIVE, resumed=true), even when
+        the demo is switched off or the program is at capacity. A browser whose
+        binding maps to a sandbox still being set up gets that setup's progress
+        back (state PROVISIONING) and no second sandbox is reserved. Otherwise
+        admission is checked in order: switch, capacity, per-address limit, bot
+        check. On admission a PROVISIONING sandbox is reserved, the binding
+        cookie is set, and the response returns at once with 202 while setup
+        continues in the background. No session is issued here: the browser is
+        signed in by POST /demo-sandboxes/resume once every copied feature is
+        connected in the graph and the sandbox is activated. A failed or
+        timed-out setup is discarded through irreversible final deletion and
+        reported by resume as FAILED.
       security: []
       requestBody:
         required: true
@@ -1593,7 +1597,7 @@ paths:
               $ref: "#/components/schemas/ProvisionDemoSandboxDto"
       responses:
         "200":
-          description: The visitor's sandbox; the caller is signed in as its demo user.
+          description: This browser's existing sandbox (ACTIVE, caller signed in) or its setup progress (PROVISIONING).
           content:
             application/json:
               schema:
@@ -1603,7 +1607,19 @@ paths:
                     required: [data]
                     properties:
                       data:
-                        $ref: "#/components/schemas/DemoSandboxResponseDto"
+                        $ref: "#/components/schemas/DemoSandboxAdmissionDto"
+        "202":
+          description: A new sandbox was reserved and is being set up (state PROVISIONING); the binding cookie is set.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/DemoSandboxAdmissionDto"
         "400":
           description: Invalid request, or the bot check failed (code BOT_CHECK_FAILED).
           content:
@@ -1623,7 +1639,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/DemoSandboxUnavailableDto"
         "503":
-          description: The demo is switched off, the program is at capacity, or provisioning failed (codes DISABLED, AT_CAPACITY, PROVISIONING_FAILED).
+          description: The demo is switched off or the program is at capacity (codes DISABLED, AT_CAPACITY).
           content:
             application/json:
               schema:
@@ -1655,17 +1671,20 @@ paths:
     post:
       operationId: resumeDemoSandbox
       tags: [DemoSandboxes]
-      summary: Return a browser to its unexpired demo sandbox
+      summary: Return a browser to its demo sandbox or report its setup
       description: >-
-        Public, no body. If the binding cookie maps to an unexpired ACTIVE
-        sandbox, signs the browser in as its demo user and returns it with
-        resumed=true, creating nothing. Otherwise responds 404 with the state
-        EXPIRED or NONE, so a returning browser can skip the terms screen
-        without holding a bot-check proof.
+        Public, no body; read only through the binding cookie. If the binding
+        maps to an unexpired ACTIVE sandbox, signs the browser in as its demo
+        user and returns state ACTIVE with resumed=true, creating nothing. If
+        its sandbox is still being set up, returns state PROVISIONING with the
+        stage and the connected and total copied feature counts, without a
+        session. If its setup failed, returns state FAILED. Otherwise responds
+        404 with the state EXPIRED or NONE, so a returning browser can skip the
+        terms screen without holding a bot-check proof.
       security: []
       responses:
         "200":
-          description: The browser's sandbox; the caller is signed in as its demo user.
+          description: The browser's sandbox (ACTIVE, caller signed in), its setup progress (PROVISIONING), or a failed setup (FAILED).
           content:
             application/json:
               schema:
@@ -1675,7 +1694,7 @@ paths:
                     required: [data]
                     properties:
                       data:
-                        $ref: "#/components/schemas/DemoSandboxResponseDto"
+                        $ref: "#/components/schemas/DemoSandboxAdmissionDto"
         "404":
           description: This browser has no unexpired sandbox.
           content:
@@ -1730,6 +1749,37 @@ paths:
                         $ref: "#/components/schemas/PlatformAdminAccessDto"
         "401":
           description: Authentication required.
+
+  /admin/organizations/{organizationId}/projects/{projectId}/hints:
+    get:
+      operationId: getAdminProjectHints
+      tags: [DebugAdmin]
+      summary: List live graph Hints for platform admins
+      description: Read-only project listing. Returns no hints when the deployment Hints switch is off. Separate from agent connected-item retrieval and legacy implementation hints.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: projectId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Live project hints with connections and strengths.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "../schemas/hints.yaml#/ListProjectHintsResponse"
+        "403":
+          description: Admin access required.
 
   /admin/projects/{projectId}/implementation-hints:
     get:
@@ -4763,6 +4813,11 @@ paths:
                   description: >
                     Required for `CONDITIONAL` flow edges, optional for `LOOP`
                     flow edges, and omitted for `STANDARD` and meta edges.
+                actionLabel:
+                  allOf:
+                    - $ref: "../schemas/agent-edges.yaml#/WorkflowEdgeActionLabel"
+                  nullable: true
+                  description: Optional plain-language action that triggers this flow transition.
                 metadata:
                   type: object
                   additionalProperties: true
@@ -4942,6 +4997,11 @@ paths:
                     Required when the resulting edge type is `CONDITIONAL`,
                     optional for `LOOP`, and omitted for `STANDARD` and meta
                     edges.
+                actionLabel:
+                  allOf:
+                    - $ref: "../schemas/agent-edges.yaml#/WorkflowEdgeActionLabel"
+                  nullable: true
+                  description: Optional plain-language action that triggers this flow transition; set null to clear it.
                 metadata:
                   type: object
                   additionalProperties: true
@@ -6040,7 +6100,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
 
-
   /organizations/{organizationId}/projects/{projectId}/work-items/allowed-statuses:
     parameters:
       - name: organizationId
@@ -6448,21 +6507,21 @@ paths:
       tags: [WorkItemTypes]
       description: |
         Project-authorized purpose-scoped read from one effective project snapshot.
-        Omitted purpose defaults to semantic: return the existing compact semantic
-        guide with only matching focal contexts in declared order. Explicit maintenance
-        returns type identity and available type-owned maintenance advice only;
-        focalTypeKey does not select maintenance contexts. A complete project override
-        wins even when it omits advice. Never synthesize advice from other fields.
+        Purpose is required. Maintenance returns type identity and available
+        type-owned maintenance advice only. Role requires an explicit sessionRole
+        query parameter (no mode-settings default) and returns identity, selected
+        role and optional advice. A complete project override wins even when it
+        omits advice. Never synthesize advice from other fields.
       parameters:
-        - name: focalTypeKey
+        - name: sessionRole
           in: query
           required: false
+          description: Required when purpose is role. No default is applied.
           schema:
-            type: string
-            minLength: 1
+            $ref: "#/components/schemas/SessionRole"
         - name: purpose
           in: query
-          required: false
+          required: true
           schema:
             $ref: "#/components/schemas/WorkItemTypeGuidancePurpose"
       responses:
@@ -6477,8 +6536,8 @@ paths:
                     properties:
                       data:
                         oneOf:
-                          - $ref: "#/components/schemas/WorkItemTypeGuidanceDto"
                           - $ref: "#/components/schemas/WorkItemTypeMaintenanceGuidanceDto"
+                          - $ref: "#/components/schemas/WorkItemTypeRoleGuidanceDto"
         "400":
           description: Invalid query.
         "401":
@@ -6486,7 +6545,7 @@ paths:
         "403":
           description: Organization access denied.
         "404":
-          description: Project inaccessible, requested or focal type unknown or archived, or semantic guide unavailable.
+          description: Project inaccessible, or requested type unknown or archived.
   /organizations/{organizationId}/projects/{projectId}/work-item-types/guidance/batch:
     parameters:
       - name: organizationId
@@ -6509,11 +6568,10 @@ paths:
       tags: [WorkItemTypes]
       description: |
         Project-authorized batch read of 1–10 distinct type keys from one
-        effective project snapshot. Every result uses the same optional purpose
-        and focal type key as the single-type read and appears in request order.
-        Omitted purpose defaults to semantic. An unknown requested or focal key
-        fails clearly. Complete project overrides remain authoritative, including
-        when they omit guidance. The existing single-type operation is unchanged.
+        effective project snapshot. Every result uses the same required purpose
+        as the single-type read and appears in request order. An unknown requested
+        key fails clearly. Complete project overrides remain authoritative,
+        including when they omit guidance.
       requestBody:
         required: true
         content:
@@ -6539,7 +6597,7 @@ paths:
         "403":
           description: Organization access denied.
         "404":
-          description: Project inaccessible, a requested or focal type unknown or archived, or semantic guidance unavailable.
+          description: Project inaccessible, or a requested type unknown or archived.
   /organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}:
     parameters:
       - name: organizationId
@@ -6640,6 +6698,12 @@ paths:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "404":
           description: Work-item type not found
+        "409":
+          description: Reviewed type content changed or is unavailable; reconcile and review before retrying. The response preserves bounded field diagnostics and correlation information.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProposalApprovalFailureErrorResponse"
     delete:
       summary: Submit a work-item type archive or confirmed cascade deletion
       description: |
@@ -18554,21 +18618,35 @@ paths:
       security:
         - MachineCredentialAuth: []
       parameters:
-        - {name: organizationId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: projectId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {
+            name: organizationId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: projectId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/AgentInteractionAdmissionRequest'}
+            schema:
+              { $ref: "#/components/schemas/AgentInteractionAdmissionRequest" }
       responses:
-        '200':
+        "200":
           description: Admitted or idempotently replayed interaction
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/AgentInteractionAdmissionResponse'}
-        '403': {description: Source or target is not authorized}
-        '409': {description: Stale revision or conflicting identity}
+              schema:
+                {
+                  $ref: "#/components/schemas/AgentInteractionAdmissionResponse",
+                }
+        "403": { description: Source or target is not authorized }
+        "409": { description: Stale revision or conflicting identity }
 
   /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/subagent-interactions:
     post:
@@ -18579,22 +18657,43 @@ paths:
       security:
         - BearerAuth: []
       parameters:
-        - {name: organizationId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: projectId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: agentSessionId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {
+            name: organizationId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: projectId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: agentSessionId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/SubagentInteractionAdmissionRequest'}
+            schema:
+              {
+                $ref: "#/components/schemas/SubagentInteractionAdmissionRequest",
+              }
       responses:
-        '200':
+        "200":
           description: Admitted or idempotently replayed interaction
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/AgentInteractionAdmissionResponse'}
-        '403': {description: User does not own the source Agent Session}
-        '409': {description: Stale revision or conflicting identity}
+              schema:
+                {
+                  $ref: "#/components/schemas/AgentInteractionAdmissionResponse",
+                }
+        "403": { description: User does not own the source Agent Session }
+        "409": { description: Stale revision or conflicting identity }
 
   /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/session-message-interactions:
     post:
@@ -18604,23 +18703,44 @@ paths:
       security:
         - BearerAuth: []
       parameters:
-        - {name: organizationId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: projectId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: agentSessionId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {
+            name: organizationId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: projectId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: agentSessionId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/SessionMessageInteractionAdmissionRequest'}
+            schema:
+              {
+                $ref: "#/components/schemas/SessionMessageInteractionAdmissionRequest",
+              }
       responses:
-        '200':
+        "200":
           description: Admitted or idempotently replayed interaction
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/AgentInteractionAdmissionResponse'}
-        '400': {description: Invalid command or target mention}
-        '403': {description: Source or target is not authorized}
-        '409': {description: Conflicting identity}
+              schema:
+                {
+                  $ref: "#/components/schemas/AgentInteractionAdmissionResponse",
+                }
+        "400": { description: Invalid command or target mention }
+        "403": { description: Source or target is not authorized }
+        "409": { description: Conflicting identity }
 
   /session-message-targets:
     get:
@@ -18630,11 +18750,11 @@ paths:
       security:
         - MachineCredentialAuth: []
       responses:
-        '200':
+        "200":
           description: Ordered session-message heads
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/SessionMessageTargetList'}
+              schema: { $ref: "#/components/schemas/SessionMessageTargetList" }
 
   /organizations/{organizationId}/projects/{projectId}/agent-interactions/{interactionId}:
     get:
@@ -18644,16 +18764,31 @@ paths:
       security:
         - BearerAuth: []
       parameters:
-        - {name: organizationId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: projectId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: interactionId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {
+            name: organizationId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: projectId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: interactionId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
       responses:
-        '200':
+        "200":
           description: The current interaction and ordered attempts
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/AgentInteraction'}
-        '404': {description: Interaction not found for the user}
+              schema: { $ref: "#/components/schemas/AgentInteraction" }
+        "404": { description: Interaction not found for the user }
 
   /organizations/{organizationId}/projects/{projectId}/agent-interactions/{interactionId}/cancel:
     post:
@@ -18663,22 +18798,40 @@ paths:
       security:
         - BearerAuth: []
       parameters:
-        - {name: organizationId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: projectId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: interactionId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {
+            name: organizationId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: projectId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: interactionId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/SubagentCancellationRequest'}
+            schema: { $ref: "#/components/schemas/SubagentCancellationRequest" }
       responses:
-        '200':
+        "200":
           description: Cancellation applied or already terminal
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/AgentInteractionSettlementReceipt'}
-        '403': {description: User does not own the source Agent Session}
-        '409': {description: Interaction revision changed}
+              schema:
+                {
+                  $ref: "#/components/schemas/AgentInteractionSettlementReceipt",
+                }
+        "403": { description: User does not own the source Agent Session }
+        "409": { description: Interaction revision changed }
 
   /organizations/{organizationId}/projects/{projectId}/subagent-dispatches/claim:
     post:
@@ -18688,14 +18841,25 @@ paths:
       security:
         - MachineCredentialAuth: []
       parameters:
-        - {name: organizationId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: projectId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {
+            name: organizationId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: projectId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
       responses:
-        '200':
+        "200":
           description: Accepted child dispatch or no pending work
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/SubagentDispatchClaimResponse'}
+              schema:
+                { $ref: "#/components/schemas/SubagentDispatchClaimResponse" }
 
   /subagent-dispatches/scopes:
     get:
@@ -18705,11 +18869,12 @@ paths:
       security:
         - MachineCredentialAuth: []
       responses:
-        '200':
+        "200":
           description: Project scopes with pending dispatches or foreground waits
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/SubagentDispatchScopesResponse'}
+              schema:
+                { $ref: "#/components/schemas/SubagentDispatchScopesResponse" }
 
   /organizations/{organizationId}/projects/{projectId}/subagent-dispatches/{effectId}/heartbeat:
     post:
@@ -18719,20 +18884,39 @@ paths:
       security:
         - MachineCredentialAuth: []
       parameters:
-        - {name: organizationId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: projectId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: effectId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {
+            name: organizationId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: projectId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: effectId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/SubagentDispatchHeartbeatRequest'}
+            schema:
+              { $ref: "#/components/schemas/SubagentDispatchHeartbeatRequest" }
       responses:
-        '200':
+        "200":
           description: Lease renewed or stale claim ignored
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/AgentInteractionSettlementReceipt'}
+              schema:
+                {
+                  $ref: "#/components/schemas/AgentInteractionSettlementReceipt",
+                }
 
   /organizations/{organizationId}/projects/{projectId}/subagent-dispatches/{effectId}/settlement:
     post:
@@ -18742,20 +18926,38 @@ paths:
       security:
         - MachineCredentialAuth: []
       parameters:
-        - {name: organizationId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: projectId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: effectId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {
+            name: organizationId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: projectId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: effectId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/SubagentSettledAttempt'}
+            schema: { $ref: "#/components/schemas/SubagentSettledAttempt" }
       responses:
-        '200':
+        "200":
           description: Matching outcome stored once, or stale evidence ignored
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/AgentInteractionSettlementReceipt'}
+              schema:
+                {
+                  $ref: "#/components/schemas/AgentInteractionSettlementReceipt",
+                }
 
   /organizations/{organizationId}/projects/{projectId}/agent-interactions/{interactionId}/settled-turns:
     post:
@@ -18765,22 +18967,40 @@ paths:
       security:
         - MachineCredentialAuth: []
       parameters:
-        - {name: organizationId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: projectId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: interactionId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {
+            name: organizationId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: projectId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: interactionId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/AgentInteractionSettledTurn'}
+            schema: { $ref: "#/components/schemas/AgentInteractionSettledTurn" }
       responses:
-        '200':
+        "200":
           description: Matching settlement accepted, or stale evidence ignored
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/AgentInteractionSettlementReceipt'}
-        '400': {description: Incomplete settlement evidence}
-        '403': {description: Machine does not own target session}
+              schema:
+                {
+                  $ref: "#/components/schemas/AgentInteractionSettlementReceipt",
+                }
+        "400": { description: Incomplete settlement evidence }
+        "403": { description: Machine does not own target session }
 
   /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/turn-admissions/head:claim:
     post:
@@ -18790,21 +19010,37 @@ paths:
       security:
         - MachineCredentialAuth: []
       parameters:
-        - {name: organizationId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: projectId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: agentSessionId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {
+            name: organizationId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: projectId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: agentSessionId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/TurnAdmissionClaimRequest'}
+            schema: { $ref: "#/components/schemas/TurnAdmissionClaimRequest" }
       responses:
-        '200':
+        "200":
           description: Existing occupied head, newly occupied head, or empty queue
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/TurnAdmissionClaimResponse'}
-        '403': {description: Machine does not own the Agent Session}
+              schema:
+                { $ref: "#/components/schemas/TurnAdmissionClaimResponse" }
+        "403": { description: Machine does not own the Agent Session }
 
   /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/turn-admissions/{admissionId}/settled-turns:
     post:
@@ -18814,23 +19050,46 @@ paths:
       security:
         - MachineCredentialAuth: []
       parameters:
-        - {name: organizationId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: projectId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: agentSessionId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: admissionId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {
+            name: organizationId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: projectId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: agentSessionId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: admissionId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/TurnAdmissionSettledTurn'}
+            schema: { $ref: "#/components/schemas/TurnAdmissionSettledTurn" }
       responses:
-        '200':
+        "200":
           description: Matching settlement accepted, or stale evidence ignored
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/AgentInteractionSettlementReceipt'}
-        '400': {description: Incomplete settled-Turn evidence}
-        '403': {description: Machine does not own the Agent Session}
+              schema:
+                {
+                  $ref: "#/components/schemas/AgentInteractionSettlementReceipt",
+                }
+        "400": { description: Incomplete settled-Turn evidence }
+        "403": { description: Machine does not own the Agent Session }
 
   /organizations/{organizationId}/projects/{projectId}/agent-sessions:
     parameters:
@@ -19262,6 +19521,64 @@ paths:
                         $ref: "#/components/schemas/PaginatedAgentSessionResponseDto"
         "400":
           description: Malformed query or cursor, including a cursor used with different filters.
+        "401":
+          description: Unauthorized
+
+  /organizations/{organizationId}/projects/{projectId}/agent-sessions/routing:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Organization ID
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+    get:
+      operationId: getAgentSessionRouting
+      summary: Find the session that routes machine-hosted reads
+      description: >-
+        Returns the single most recently active session owned by the user that
+        is bound to one of the given machines, without loading the session list.
+      tags: [AgentSessions]
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: machineIds
+          in: query
+          required: true
+          description: Ready machine IDs a routing session may be bound to (repeat query param or comma-separated values).
+          schema:
+            type: array
+            items:
+              type: string
+              format: uuid
+          style: form
+          explode: true
+      responses:
+        "200":
+          description: The routing session, or null agentSessionId when none exists.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AgentSessionRoutingDto"
+        "400":
+          description: Invalid query
         "401":
           description: Unauthorized
 
@@ -21286,7 +21603,7 @@ paths:
         - name: completionDependencyId
           in: query
           description: Return the latest approved proposal of each future whose persisted completion dependencies include this work item, independent of group membership.
-          schema: {type: string, format: uuid}
+          schema: { type: string, format: uuid }
         - name: targetEntityId
           in: query
           required: false
@@ -21380,15 +21697,75 @@ paths:
         "404":
           description: Project not found
 
+  /organizations/{organizationId}/projects/{projectId}/proposals/futures/ready:
+    get:
+      operationId: listProjectReadyFutures
+      tags: [Proposals]
+      summary: List approved staged project futures with ready implementation work, including baseline drift
+      parameters:
+        - {
+            name: organizationId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: projectId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: limit,
+            in: query,
+            schema: { type: integer, minimum: 1, maximum: 100, default: 20 },
+          }
+        - {
+            name: offset,
+            in: query,
+            schema: { type: integer, minimum: 0, default: 0 },
+          }
+      responses:
+        "200":
+          description: Distinct qualifying futures, filtered before pagination; applicability is a snapshot and never authorizes Apply
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "../schemas/future-revisions.yaml#/ProjectReadyFuturesPage"
+        "400": { description: Invalid pagination }
+        "401": { description: Unauthorized }
+        "403": { description: Project read access denied }
+
   /organizations/{organizationId}/projects/{projectId}/proposals/futures:
     get:
       operationId: listProposalFutureOffers
       tags: [Proposals]
       summary: List unapplied futures that depend on a work item, with current-user readiness
       parameters:
-        - {name: organizationId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: projectId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: dependencyTaskId, in: query, required: true, schema: {type: string, format: uuid}}
+        - {
+            name: organizationId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: projectId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: dependencyTaskId,
+            in: query,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
       responses:
         "200":
           description: Staged futures linked to the work item
@@ -21403,17 +21780,32 @@ paths:
                         type: array
                         items:
                           $ref: "../schemas/future-revisions.yaml#/FutureApplicationOffer"
-        "400": {description: Invalid request}
-        "401": {description: Unauthorized}
+        "400": { description: Invalid request }
+        "401": { description: Unauthorized }
   /organizations/{organizationId}/projects/{projectId}/proposals/futures/{futureId}/applicability:
     get:
       operationId: getProposalFutureApplicability
       tags: [Proposals]
       summary: Check current-user future application readiness without applying
       parameters:
-        - {name: organizationId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: projectId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: futureId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {
+            name: organizationId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: projectId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: futureId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
       responses:
         "200":
           description: Current application gates
@@ -21426,17 +21818,32 @@ paths:
                     properties:
                       data:
                         $ref: "../schemas/future-revisions.yaml#/FutureApplicability"
-        "404": {description: Future not found in this project}
-        "401": {description: Unauthorized}
+        "404": { description: Future not found in this project }
+        "401": { description: Unauthorized }
   /organizations/{organizationId}/projects/{projectId}/proposals/futures/{futureId}/apply:
     post:
       operationId: applyProposalFuture
       tags: [Proposals]
       summary: Apply an approved future after checking current readiness
       parameters:
-        - {name: organizationId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: projectId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: futureId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {
+            name: organizationId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: projectId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: futureId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
       requestBody:
         required: true
         content:
@@ -21455,10 +21862,13 @@ paths:
                     properties:
                       data:
                         $ref: "../schemas/future-revisions.yaml#/FutureApplyResponse"
-        "400": {description: Invalid request}
-        "403": {description: Application permission or existing approvals insufficient}
-        "404": {description: Future not found in this project}
-        "409": {description: Concurrent change; refresh and retry}
+        "400": { description: Invalid request }
+        "403":
+          {
+            description: Application permission or existing approvals insufficient,
+          }
+        "404": { description: Future not found in this project }
+        "409": { description: Concurrent change; refresh and retry }
   /organizations/{organizationId}/projects/{projectId}/proposals/futures/{futureId}:
     get:
       operationId: getProposalFuture
@@ -21466,9 +21876,24 @@ paths:
       summary: Read one explicitly selected complete reviewed future
       description: Returns one independent persisted future including reviewed history. Ordinary entity reads remain live. Does not merge futures or apply content.
       parameters:
-        - {name: organizationId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: projectId, in: path, required: true, schema: {type: string, format: uuid}}
-        - {name: futureId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {
+            name: organizationId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: projectId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: futureId,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
       responses:
         "200":
           description: Complete reviewed future
@@ -21960,12 +22385,12 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
+                  - $ref: "#/components/schemas/ApiResponse"
                   - type: object
                     required: [data]
                     properties:
                       data:
-                        $ref: '#/components/schemas/ProposalReconciliationState'
+                        $ref: "#/components/schemas/ProposalReconciliationState"
     post:
       operationId: createProposalReconciliationCandidate
       tags: [Proposals]
@@ -21975,7 +22400,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateProposalReconciliationCandidate'
+              $ref: "#/components/schemas/CreateProposalReconciliationCandidate"
       responses:
         "200":
           description: Candidate for review or conflicts requiring Agent fix
@@ -21983,12 +22408,12 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
+                  - $ref: "#/components/schemas/ApiResponse"
                   - type: object
                     required: [data]
                     properties:
                       data:
-                        $ref: '#/components/schemas/ProposalReconciliationState'
+                        $ref: "#/components/schemas/ProposalReconciliationState"
         "409":
           description: Current content changed while preparing the candidate
 
@@ -22021,12 +22446,12 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
+                  - $ref: "#/components/schemas/ApiResponse"
                   - type: object
                     required: [data]
                     properties:
                       data:
-                        $ref: '#/components/schemas/ProposalAgentFixRequest'
+                        $ref: "#/components/schemas/ProposalAgentFixRequest"
         "404":
           description: Proposal not found
         "409":
@@ -22152,6 +22577,55 @@ paths:
           description: Proposal not found
         "409":
           description: User already voted on this proposal
+
+  /organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/review-notes:
+    parameters:
+      - {
+          name: organizationId,
+          in: path,
+          required: true,
+          schema: { type: string, format: uuid },
+        }
+      - {
+          name: projectId,
+          in: path,
+          required: true,
+          schema: { type: string, format: uuid },
+        }
+      - {
+          name: proposalId,
+          in: path,
+          required: true,
+          schema: { type: string, format: uuid },
+        }
+    post:
+      operationId: saveProposalReviewNote
+      tags: [Proposals]
+      summary: Save a frozen screen review annotation without starting a revision
+      description: Saves a human annotation in the authoring conversation, bound to the exact frozen proposal revision and section. Repeated saves with the same note identity and content are idempotent. Neither proposal content nor review decisions change and no executable input is emitted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProposalReviewNoteDto"
+      responses:
+        "200":
+          description: Note saved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ProposalReviewNoteResult"
+        "400":
+          { description: Invalid annotation or missing authoring conversation }
+        "404": { description: Proposal not found }
+        "409":
+          { description: Frozen revision changed or note identity already used }
 
   /analytics/events:
     post:
@@ -23740,6 +24214,14 @@ components:
       $ref: "../schemas/demo-sandboxes.yaml#/DemoSandboxResponseDto"
     DemoSandboxUnavailableCode:
       $ref: "../schemas/demo-sandboxes.yaml#/DemoSandboxUnavailableCode"
+    DemoSandboxSetupStage:
+      $ref: "../schemas/demo-sandboxes.yaml#/DemoSandboxSetupStage"
+    DemoSandboxSetupProgressDto:
+      $ref: "../schemas/demo-sandboxes.yaml#/DemoSandboxSetupProgressDto"
+    DemoSandboxAdmissionState:
+      $ref: "../schemas/demo-sandboxes.yaml#/DemoSandboxAdmissionState"
+    DemoSandboxAdmissionDto:
+      $ref: "../schemas/demo-sandboxes.yaml#/DemoSandboxAdmissionDto"
     DemoSandboxUnavailableDto:
       $ref: "../schemas/demo-sandboxes.yaml#/DemoSandboxUnavailableDto"
     DemoSandboxResumeState:
@@ -24100,6 +24582,8 @@ components:
       $ref: "../schemas/coding-sessions.yaml#/ResolveWorkItemCoordinatorAgentSessionDto"
     ResolveWorkItemCoordinatorAgentSessionResponseDto:
       $ref: "../schemas/coding-sessions.yaml#/ResolveWorkItemCoordinatorAgentSessionResponseDto"
+    AgentSessionRoutingDto:
+      $ref: "../schemas/coding-sessions.yaml#/AgentSessionRoutingDto"
     UpdateAgentSessionDto:
       $ref: "../schemas/coding-sessions.yaml#/UpdateAgentSessionDto"
     GrantAgentSessionServicesDto:
@@ -24126,6 +24610,8 @@ components:
       $ref: "../schemas/coding-sessions.yaml#/AgentSessionConfigV2"
     ProjectModeFiles:
       $ref: "../schemas/work-items.yaml#/ProjectModeFiles"
+    SessionRole:
+      $ref: "../schemas/work-items.yaml#/SessionRole"
     ProjectModeSettings:
       $ref: "../schemas/work-items.yaml#/ProjectModeSettings"
     ProjectModeProjectAssistantSetting:
@@ -24202,6 +24688,12 @@ components:
       $ref: "../schemas/proposals.yaml#/ProposalGroupMembership"
     ProposalGroupMemberSnapshot:
       $ref: "../schemas/proposals.yaml#/ProposalGroupMemberSnapshot"
+    ProposalReviewNoteDto:
+      $ref: "../schemas/proposals.yaml#/ProposalReviewNoteDto"
+    ProposalReviewNoteRecord:
+      $ref: "../schemas/proposals.yaml#/ProposalReviewNoteRecord"
+    ProposalReviewNoteResult:
+      $ref: "../schemas/proposals.yaml#/ProposalReviewNoteResult"
     ProposalGroupSnapshot:
       $ref: "../schemas/proposals.yaml#/ProposalGroupSnapshot"
     StartProposalGroupRequest:
@@ -24278,6 +24770,18 @@ components:
       $ref: "../schemas/entity-context.yaml#/FullEntityContextDto"
     EntityContentDto:
       $ref: "../schemas/entity-context.yaml#/EntityContentDto"
+    ConversationContextDto:
+      $ref: "../schemas/entity-context.yaml#/ConversationContextDto"
+    ConversationAboutDto:
+      $ref: "../schemas/entity-context.yaml#/ConversationAboutDto"
+    ConversationContextSessionDto:
+      $ref: "../schemas/entity-context.yaml#/ConversationContextSessionDto"
+    ConversationContextProposalDto:
+      $ref: "../schemas/entity-context.yaml#/ConversationContextProposalDto"
+    ConversationContextReportDto:
+      $ref: "../schemas/entity-context.yaml#/ConversationContextReportDto"
+    ConversationContextMessageDto:
+      $ref: "../schemas/entity-context.yaml#/ConversationContextMessageDto"
     PlanContextDto:
       $ref: "../schemas/entity-context.yaml#/PlanContextDto"
     PlanContextEntryDto:
@@ -26644,9 +27148,10 @@ components:
           description: >-
             Exact active credential selected by the server for this browser and
             machine. Selection may use a valid browser identity after its prior
-            authorization window expires. When no identity exists, the server
-            returns the sole active credential only when selection is
-            unambiguous; otherwise null.
+            authorization window expires. When no proven browser binding exists,
+            returns null; account-wide credential inventory does not recover
+            browser enrollment. Multiple proven credentials return null and
+            AMBIGUOUS eligibility until explicitly selected.
         bindings:
           type: array
           nullable: true
@@ -26843,6 +27348,8 @@ components:
       $ref: "../schemas/conversations.yaml#/ExternalAgentActionSchemas"
     WorkflowReviewAction:
       $ref: "../schemas/conversations.yaml#/WorkflowReviewAction"
+    CodingPlanEmissionInput:
+      $ref: "../schemas/conversations.yaml#/CodingPlanEmissionInput"
     CodingPlanReviewDiscrepancyFeedbackEntry:
       $ref: "../schemas/conversations.yaml#/CodingPlanReviewDiscrepancyFeedbackEntry"
     CodingPlanReviewStepFeedbackEntry:
@@ -27907,16 +28414,12 @@ components:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemIconKey"
     WorkItemColorKey:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemColorKey"
-    WorkItemTypeGuidanceExample:
-      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeGuidanceExample"
-    WorkItemTypeGuidanceContext:
-      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeGuidanceContext"
-    WorkItemTypeAgentGuidance:
-      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeAgentGuidance"
-    WorkItemTypeGuidanceDto:
-      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeGuidanceDto"
     WorkItemTypeGuidancePurpose:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeGuidancePurpose"
+    WorkItemTypeSessionRoleGuidance:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeSessionRoleGuidance"
+    WorkItemTypeRoleGuidanceDto:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeRoleGuidanceDto"
     WorkItemTypeMaintenanceGuidanceDto:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeMaintenanceGuidanceDto"
     WorkItemTypeGuidanceBatchRequestDto:
@@ -30146,9 +30649,6 @@ components:
         - $ref: "../schemas/events.yaml#/components/schemas/ConversationEvents"
         - $ref: "../schemas/events.yaml#/components/schemas/TaskEvents"
         - $ref: "../schemas/events.yaml#/components/schemas/HelpEvents"
-
-
-
 
         - $ref: "../schemas/events.yaml#/components/schemas/LLMEvents"
         - $ref: "../schemas/events.yaml#/components/schemas/AgentEvents"

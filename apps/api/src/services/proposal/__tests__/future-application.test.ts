@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { ProposalApprovalService } from '../proposal-approval.service';
 import { DEFAULT_PROJECT_APPROVAL_POLICY } from '../project-approval-policy.service';
@@ -125,6 +126,9 @@ describe('manual future application', () => {
       dependencies: [],
     };
     db = {
+      proposalReconciliationRevision: {
+        findFirst: jest.fn(async () => ({ id: 'authored', bases: [] })),
+      },
       $queryRaw: jest.fn(),
       proposalFuture: {
         findFirst: jest.fn(async ({ where }: any) =>
@@ -191,7 +195,7 @@ describe('manual future application', () => {
     });
     groupInvalidation = jest.fn().mockResolvedValue(undefined);
     service = Object.assign(Object.create(ProposalApprovalService.prototype), {
-      logger: { log: jest.fn(), warn: jest.fn() },
+      logger: { log: jest.fn(), warn: jest.fn(), debug: jest.fn() },
       prisma: { db },
       workItemTypeRegistry: registry,
       reconciliation,
@@ -217,6 +221,213 @@ describe('manual future application', () => {
       userId as any,
       request,
     );
+  function graphScenario() {
+    const nodeId = randomUUID();
+    const graph = {
+      valid: true,
+      projectedRoot: {
+        identity: { refType: 'existing', id: targetId },
+        label: state.target.name,
+        name: state.target.name,
+        type: 'DIAGRAM',
+        sections: [],
+        deleted: false,
+      },
+      children: [
+        {
+          identity: { refType: 'existing', id: nodeId },
+          label: 'Element',
+          name: 'Element',
+          type: 'DIAGRAM_ELEMENT',
+          parent: { refType: 'existing', id: targetId },
+          sections: [],
+          deleted: false,
+        },
+      ],
+      sections: [],
+      incidentRelationships: [],
+      identityLabels: {},
+      issues: [],
+      warnings: [],
+    };
+    state.future.baseline.content.graph = structuredClone(graph);
+    state.future.result.graph = structuredClone(graph);
+    state.future.result.graph.projectedRoot.name = state.future.result.name;
+    state.future.result.graph.children[0]!.name = 'Reviewed element';
+    const adapter = (reconciliation as any).adapter;
+    adapter.readFutureGraph = jest.fn(async () => graph);
+    db.proposalGroupMember = { findUnique: jest.fn().mockResolvedValue(null) };
+    db.workItemChangeSetMaterialization = {
+      findUnique: jest.fn(async () => state.intent ?? null),
+    };
+    const materializer = {
+      projectPreparation: jest.fn(async ({ request }) => ({
+        operationSet: request,
+        validationRevision: 'graph-validation',
+        snapshots: { target: state.future.result.graph },
+      })),
+      enqueuePreparedIntent: jest.fn(async (_tx, input) => {
+        state.intent = { id: randomUUID(), status: 'PREPARED', ...input };
+      }),
+      materializeApprovedChangeSet: jest.fn(async () => {
+        state.future.outcome = 'APPLIED';
+        state.future.appliedRevision = state.future.revision;
+        state.target.name = state.future.result.name;
+        return { enacted: true };
+      }),
+    };
+    Object.assign(service, { workItemChangeSetMaterializer: materializer });
+    return { graph, materializer };
+  }
+
+  it('routes an explicitly applied reviewed graph through the durable generic intent, preserving the non-live approval', async () => {
+    const { materializer } = graphScenario();
+    expect(state.future.outcome).toBe('STAGED');
+    const response = await apply();
+    expect(response.status).toBe('APPLIED');
+    expect(response.future.outcome).toBe('APPLIED');
+    expect(materializer.enqueuePreparedIntent).toHaveBeenCalledWith(
+      db,
+      expect.objectContaining({
+        proposalId,
+        futureApplication: expect.objectContaining({
+          futureId,
+          revision: 1,
+          refinementIds: [],
+        }),
+      }),
+    );
+    expect(
+      materializer.projectPreparation.mock.calls[0]![0].request.operations,
+    ).toContainEqual(
+      expect.objectContaining({
+        op: 'workItem.update',
+        name: 'Reviewed element',
+      }),
+    );
+    expect(enact).not.toHaveBeenCalled();
+    expect(state.proposal.action).toBe('VERSIONED_UPDATE');
+  });
+
+  it('blocks graph application when linked work is incomplete without creating an intent', async () => {
+    const { materializer } = graphScenario();
+    dependent();
+    state.work.status = 'ACTIVE';
+    expect(await apply()).toMatchObject({
+      status: 'BLOCKED',
+      blocker: 'COMPLETION_INCOMPLETE',
+    });
+    expect(materializer.enqueuePreparedIntent).not.toHaveBeenCalled();
+    expect(materializer.materializeApprovedChangeSet).not.toHaveBeenCalled();
+    expect(state.future.outcome).toBe('STAGED');
+  });
+
+  it('detects element-only drift even when the Diagram root and its sections did not change', async () => {
+    const { graph, materializer } = graphScenario();
+    graph.children[0]!.name = 'Concurrent live edit';
+    expect(await apply()).toMatchObject({
+      status: 'BLOCKED',
+      blocker: 'BASELINE_CHANGED',
+    });
+    expect(materializer.enqueuePreparedIntent).not.toHaveBeenCalled();
+    expect(materializer.materializeApprovedChangeSet).not.toHaveBeenCalled();
+  });
+
+  function partlyAppliedGraph() {
+    const scenario = graphScenario();
+    const metadata = { kind: 'PROCESS', level: 'OVERVIEW' };
+    // Stored reviewed result: structured sections as JSON text, unset layout as ''.
+    state.future.result.graph.projectedRoot.sections = [
+      { key: 'diagramMetadata', content: JSON.stringify(metadata) },
+      { key: 'graphLayout', content: '' },
+      { key: 'graphLayoutPreference', content: '' },
+    ];
+    state.future.result.graph.children[0]!.sections = [
+      { key: 'description', content: 'Reviewed element text' },
+    ];
+    // The interrupted Apply already wrote every reviewed value to the live graph.
+    const live = scenario.graph as any;
+    live.projectedRoot.name = state.future.result.name;
+    live.projectedRoot.sections = [
+      { key: 'diagramMetadata', content: metadata },
+      { key: 'graphLayout', content: null },
+    ];
+    live.children[0].name = 'Reviewed element';
+    live.children[0].sections = [
+      { key: 'description', content: 'Reviewed element text' },
+    ];
+    state.target.name = state.future.result.name;
+    state.intent = {
+      id: randomUUID(),
+      status: 'APPLYING',
+      workItemIdMappings: {},
+      relationshipIdMappings: {},
+    };
+    return scenario;
+  }
+
+  it('treats a live graph already equal to the reviewed result as applicable and resumes publication without reconciliation', async () => {
+    const { materializer } = partlyAppliedGraph();
+    expect(
+      await futureBaselineBlocker(db, state.future, reconciliation),
+    ).toBeUndefined();
+    const response = await apply();
+    expect(response).toMatchObject({
+      status: 'APPLIED',
+      future: { outcome: 'APPLIED' },
+    });
+    expect(materializer.enqueuePreparedIntent).not.toHaveBeenCalled();
+    expect(materializer.materializeApprovedChangeSet).toHaveBeenCalledTimes(1);
+  });
+
+  it('applies a live graph already equal to the reviewed result when no stored intent exists', async () => {
+    const { materializer } = partlyAppliedGraph();
+    delete state.intent;
+    expect(await apply()).toMatchObject({
+      status: 'APPLIED',
+      future: { outcome: 'APPLIED' },
+    });
+    expect(materializer.enqueuePreparedIntent).toHaveBeenCalledTimes(1);
+    expect(materializer.materializeApprovedChangeSet).toHaveBeenCalledTimes(1);
+  });
+
+  it('lists a live graph already equal to the reviewed result as ready to apply', async () => {
+    partlyAppliedGraph();
+    dependent();
+    state.proposal.title = 'Reviewed knowledge';
+    expect(await readyList()()).toMatchObject({
+      items: [{ futureId, applicability: { canApply: true, blockers: [] } }],
+    });
+  });
+
+  it('still reports drift when live content differs from both the baseline and the reviewed result', async () => {
+    const { graph } = partlyAppliedGraph();
+    (graph.children[0] as any).sections = [
+      { key: 'description', content: 'Someone else rewrote this' },
+    ];
+    expect(await futureBaselineBlocker(db, state.future, reconciliation)).toBe(
+      'BASELINE_CHANGED',
+    );
+  });
+
+  it('leaves a failed graph application staged and resumes its stored intent on explicit retry', async () => {
+    const { materializer } = graphScenario();
+    materializer.materializeApprovedChangeSet.mockRejectedValueOnce(
+      new Error('Graph unavailable'),
+    );
+    await expect(apply()).rejects.toThrow('Graph unavailable');
+    expect(state.future.outcome).toBe('STAGED');
+    expect(state.target.name).toBe('Current');
+    const intent = state.intent;
+    expect(await apply()).toMatchObject({
+      status: 'APPLIED',
+      future: { outcome: 'APPLIED' },
+    });
+    expect(state.intent).toBe(intent);
+    expect(materializer.enqueuePreparedIntent).toHaveBeenCalledTimes(1);
+    expect(materializer.projectPreparation).toHaveBeenCalledTimes(1);
+  });
+
   function pending() {
     state.refinements.push({
       id: randomUUID(),
@@ -413,7 +624,9 @@ describe('manual future application', () => {
       state.proposal,
       organizationId,
       projectId,
-      { reviewedFuture: expect.objectContaining({ id: futureId }) },
+      expect.objectContaining({
+        reviewedFuture: expect.objectContaining({ id: futureId }),
+      }),
     );
     expect(state.proposal.approvalRecords).toEqual([
       { userId, type: 'APPROVAL' },
@@ -533,6 +746,155 @@ describe('manual future application', () => {
     );
     expect(reopened?.applicability.blockers).toContain('COMPLETION_INCOMPLETE');
   });
+  function readyList(candidates = [state.future]) {
+    db.proposalFuture.findMany = jest.fn(async () =>
+      candidates.filter((f) => f.outcome === 'STAGED'),
+    );
+    db.proposal.findMany.mockImplementation(async ({ where }: any) =>
+      where.status === 'APPROVED'
+        ? [state.proposal].filter((p) => p.status === 'APPROVED')
+        : state.refinements,
+    );
+    db.task.findMany.mockImplementation(async () => [
+      state.target,
+      ...(state.work ? [state.work] : []),
+    ]);
+    db.designDoc.findMany = jest.fn(async () => []);
+    return (limit = 10, offset = 0) =>
+      service.listProjectReadyFutures(
+        organizationId as any,
+        projectId as any,
+        userId as any,
+        limit,
+        offset,
+      );
+  }
+
+  it('lists project-ready futures with fresh work state and keeps drift for review', async () => {
+    dependent();
+    state.proposal.title = 'Reviewed knowledge';
+    state.work.status = 'VERIFYING';
+    const list = readyList();
+    expect(await list()).toMatchObject({
+      total: 1,
+      items: [{ futureId, targetName: 'Current', targetType: 'FEATURE' }],
+    });
+    state.target.name = 'Changed baseline';
+    expect(await list()).toMatchObject({
+      total: 1,
+      items: [
+        { applicability: { canApply: false, blockers: ['BASELINE_CHANGED'] } },
+      ],
+    });
+    state.work.status = 'ACTIVE';
+    expect(await apply()).toMatchObject({ blocker: 'COMPLETION_INCOMPLETE' });
+    expect(await list()).toMatchObject({ total: 0, items: [] });
+    expect(enact).not.toHaveBeenCalled();
+    state.work.status = 'VERIFYING';
+    state.future.outcome = 'APPLIED';
+    expect(await list()).toMatchObject({ total: 0 });
+    expect(db.proposalFuture.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { organizationId, projectId, outcome: 'STAGED' },
+      }),
+    );
+  });
+
+  it('isolates an unreadable future while keeping healthy futures reachable', async () => {
+    state.proposal.title = 'Healthy change';
+    const list = readyList([
+      { ...state.future, id: randomUUID(), targetEntityId: randomUUID() },
+      state.future,
+    ]);
+    expect(await list()).toMatchObject({
+      unavailableCount: 1,
+      total: 1,
+      items: [{ futureId }],
+    });
+    expect(enact).not.toHaveBeenCalled();
+  });
+
+  it('filters blocked candidates before pagination and routes the latest refinement to grouped review', async () => {
+    state.proposal.title = 'Refined change';
+    state.proposal.groupMembership = {
+      groupId: randomUUID(),
+      requiredApprovals: 1,
+    };
+    state.work.status = 'ACTIVE';
+    const candidates = [
+      {
+        ...state.future,
+        id: randomUUID(),
+        dependencies: [{ targetEntityId: workId }],
+      },
+      { ...state.future, id: randomUUID(), revision: 2 },
+      { ...state.future, id: randomUUID(), revision: 2 },
+    ];
+    const list = readyList(candidates);
+    expect(await list(1, 1)).toMatchObject({
+      total: 2,
+      limit: 1,
+      offset: 1,
+      items: [
+        {
+          futureId: candidates[2].id,
+          proposalId,
+          reviewGroupId: state.proposal.groupMembership.groupId,
+          applicability: { revision: 2 },
+        },
+      ],
+    });
+  });
+
+  it('uses fixed batch reads for 100 futures and reconciles only the requested page', async () => {
+    dependent();
+    state.proposal.title = 'Reviewed knowledge';
+    const candidates = Array.from({ length: 100 }, () => ({
+      ...state.future,
+      id: randomUUID(),
+    }));
+    const list = readyList(candidates);
+    const baseline = jest.spyOn(reconciliation, 'decision');
+    expect(await list(10, 50)).toMatchObject({
+      total: 100,
+      items: candidates.slice(50, 60).map((f) => ({ futureId: f.id })),
+    });
+    expect(db.proposalFuture.findMany).toHaveBeenCalledTimes(1);
+    expect(db.proposal.findMany).toHaveBeenCalledTimes(1);
+    expect(db.task.findMany).toHaveBeenCalledTimes(1);
+    expect(db.designDoc.findMany).toHaveBeenCalledTimes(1);
+    expect(db.projectMember.findMany).toHaveBeenCalledTimes(1);
+    expect(db.proposal.findFirst).not.toHaveBeenCalled();
+    expect(db.proposalFuture.findFirst).not.toHaveBeenCalled();
+    expect(
+      baseline.mock.calls.filter(([input]) => input.kind === 'future'),
+    ).toHaveLength(10);
+    // Each displayed live baseline uses one canonical-content read.
+    expect(db.task.findFirst).toHaveBeenCalledTimes(10);
+    jest.clearAllMocks();
+    await list(10, 100);
+    expect(baseline).not.toHaveBeenCalled();
+  });
+
+  it('filters insufficient approvals before pagination and retains permission blockers for review', async () => {
+    state.proposal.title = 'Reviewed knowledge';
+    const list = readyList();
+    state.proposal.groupMembership = {
+      groupId: randomUUID(),
+      requiredApprovals: 2,
+    };
+    expect(await list()).toMatchObject({ total: 0, items: [] });
+    expect(db.task.findFirst).not.toHaveBeenCalled();
+    state.proposal.groupMembership.requiredApprovals = 1;
+    state.members = [{ userId: otherUserId }];
+    expect(await list()).toMatchObject({
+      total: 1,
+      items: [
+        { applicability: { canApply: false, blockers: ['PERMISSION_DENIED'] } },
+      ],
+    });
+  });
+
   it('requires explicit Plan completion', async () => {
     dependent();
     state.work.type = 'PLAN';
@@ -546,6 +908,133 @@ describe('manual future application', () => {
     state.work = null;
     expect(await apply()).toMatchObject({ blocker: 'COMPLETION_INCOMPLETE' });
   });
+  it.each(['clean', 'overlap'] as const)(
+    'requires explicit reconciliation after five later approvals: %s',
+    async (kind) => {
+      registry.getSectionDefinitions.mockReturnValue([
+        {
+          key: 'requirements',
+          kind: 'json',
+          schemaRef: '#/components/schemas/FeatureRequirementsSection',
+        },
+      ]);
+      const record = (id: string, statement: string) => ({
+        id,
+        statement,
+        designedBy: [],
+        fulfilledBy: [],
+        contracts: [],
+      });
+      const first = record(randomUUID(), 'First requirement');
+      const second = record(randomUUID(), 'Second requirement');
+      const added = record(randomUUID(), 'Added requirement');
+      const section = (records: (typeof first)[]) => ({
+        id: randomUUID(),
+        materializedProposalId: proposalId,
+        key: 'requirements',
+        order: 0,
+        materializedMarkdown: JSON.stringify({ records }),
+      });
+      state.future.result.name = 'Current';
+      state.future.baseline.content.sections = [section([first, second])];
+      state.future.result.sections = [
+        section([first, { ...second, statement: 'Proposed second' }, added]),
+      ];
+      state.target.sections = [
+        section([
+          { ...first, statement: 'Live first' },
+          kind === 'overlap' ? { ...second, statement: 'Live second' } : second,
+        ]),
+      ];
+      const approvals = structuredClone(state.proposal.approvalRecords);
+      const adapter = new ProposalReconciliationAdapterService(
+        registry,
+        {} as any,
+      );
+      const originalBasis = {
+        entityType: 'TASK',
+        entityId: targetId,
+        version: 'written',
+        content: adapter.futureContentBasis(
+          'TASK',
+          state.future.baseline.content,
+          projectId,
+        ),
+      };
+      db.workItemChangeSetMaterialization = {
+        findUnique: jest.fn().mockResolvedValue(null),
+      };
+      db.proposalGroupMember = {
+        findUnique: jest.fn().mockResolvedValue(null),
+      };
+      db.proposalReconciliationReplacement = {
+        findFirst: jest.fn().mockResolvedValue(null),
+      };
+      db.proposalReconciliationSuggestion = {
+        findMany: jest.fn().mockResolvedValue([]),
+      };
+      db.proposalReconciliationRevision = {
+        findFirst: jest.fn().mockResolvedValue({
+          bases: [originalBasis],
+          source: 'AUTHORING',
+          id: 'authored',
+        }),
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: randomUUID(),
+            proposalId,
+            previousRevisionId: null,
+            source: 'AUTHORING',
+            bases: [originalBasis],
+            proposedResult: state.future.result,
+            intent: 'Change the second requirement',
+            createdAt: timestamp,
+          },
+        ]),
+      };
+      state.proposal.createdAt = timestamp;
+      db.proposal.findMany.mockResolvedValue(
+        Array.from({ length: 5 }, (_, index) => ({
+          id: randomUUID(),
+          title: 'Intervening approval',
+          updates: { name: 'Current' },
+          updatedAt: new Date(timestamp.getTime() + index + 1),
+          approvalRecords: [],
+          reconciliationRevisions: [],
+        })),
+      );
+      Object.assign((reconciliation as any).adapter, {
+        currentFutureContent: async () => state.target,
+      });
+      const review = await reconciliation.stateForFuture(
+        db,
+        state.proposal,
+        state.future.baseline,
+      );
+      expect(review.status).toBe('RECONCILIATION_REQUIRED');
+      expect(review.interveningProposals).toHaveLength(5);
+      expect(review.revisions[0]!.bases).toEqual([originalBasis]);
+      expect(review.revisions[0]!.proposedResult).toEqual(state.future.result);
+      expect(review.overlaps.length > 0).toBe(kind === 'overlap');
+      expect(
+        await service.getFutureApplicability(
+          futureId,
+          organizationId as any,
+          projectId as any,
+          userId as any,
+        ),
+      ).toMatchObject({ canApply: false, blockers: ['BASELINE_CHANGED'] });
+      await expect(
+        reconciliation.assertApplicable(db, state.proposal),
+      ).rejects.toThrow(ConflictException);
+      expect(await apply()).toMatchObject({
+        status: 'BLOCKED',
+        blocker: 'BASELINE_CHANGED',
+      });
+      expect(enact).not.toHaveBeenCalled();
+      expect(state.proposal.approvalRecords).toEqual(approvals);
+    },
+  );
   it('returns the current reviewed revision when the selected revision changed', async () => {
     state.future.revision = 2;
     expect(await apply()).toMatchObject({
@@ -561,7 +1050,7 @@ describe('manual future application', () => {
     expect(enact).not.toHaveBeenCalled();
   });
   it.each(['scalar', 'section', 'section order'])(
-    'blocks changed baseline %s content without accepting acknowledgement',
+    'requires reconciliation for baseline %s changes but ignores section order',
     async (kind) => {
       if (kind === 'scalar') state.target.name = 'Concurrent edit';
       if (kind === 'section')
@@ -578,8 +1067,12 @@ describe('manual future application', () => {
           expectedRevision: 1,
           confirmation: { revision: 1, refinements: [] },
         }),
-      ).toMatchObject({ blocker: 'BASELINE_CHANGED' });
-      expect(enact).not.toHaveBeenCalled();
+      ).toMatchObject(
+        kind !== 'section order'
+          ? { blocker: 'BASELINE_CHANGED' }
+          : { status: 'APPLIED' },
+      );
+      expect(enact).toHaveBeenCalledTimes(kind !== 'section order' ? 0 : 1);
     },
   );
   it('requires an applied selected parent baseline', async () => {
@@ -590,6 +1083,28 @@ describe('manual future application', () => {
       revision: '1',
     };
     expect(await apply()).toMatchObject({ blocker: 'BASELINE_UNAVAILABLE' });
+  });
+  it('accepts an applied selected parent whose content is still current', async () => {
+    const parentId = randomUUID();
+    state.future.baseline = {
+      ...state.future.baseline,
+      kind: 'FUTURE',
+      futureId: parentId,
+      revision: '1',
+    };
+    const findFuture = db.proposalFuture.findFirst.getMockImplementation();
+    db.proposalFuture.findFirst.mockImplementation((input: any) =>
+      input.where.id === parentId
+        ? { outcome: 'APPLIED', appliedRevision: 1 }
+        : findFuture(input),
+    );
+    expect(await apply()).toMatchObject({ status: 'APPLIED' });
+    expect(enact).toHaveBeenCalledTimes(1);
+  });
+  it('blocks application when the authored reconciliation revision is unavailable', async () => {
+    db.proposalReconciliationRevision.findFirst.mockResolvedValue(null);
+    expect(await apply()).toMatchObject({ blocker: 'BASELINE_UNAVAILABLE' });
+    expect(enact).not.toHaveBeenCalled();
   });
   it('checks design-document baselines and applies their reviewed result', async () => {
     const content = {
@@ -866,6 +1381,52 @@ describe('manual future application', () => {
       ),
     ).toBe(false);
   });
+  it('passes scoped pagination to Proposals and rejects schema-invalid page bounds', async () => {
+    const boundary = {
+      listProjectReadyFutures: jest.fn().mockResolvedValue({
+        items: [],
+        total: 0,
+        limit: 20,
+        offset: 0,
+        unavailableCount: 0,
+      }),
+    };
+    const controller = new ProposalController(
+      {} as any,
+      boundary as any,
+      {} as never,
+    );
+    await controller.listProjectReadyFutures(
+      organizationId as any,
+      projectId as any,
+      { userId } as any,
+      20,
+      0,
+    );
+    expect(boundary.listProjectReadyFutures).toHaveBeenCalledWith(
+      organizationId,
+      projectId,
+      userId,
+      20,
+      0,
+    );
+    for (const [limit, offset] of [
+      [0, 0],
+      [101, 0],
+      [20, -1],
+    ]) {
+      await expect(
+        controller.listProjectReadyFutures(
+          organizationId as any,
+          projectId as any,
+          { userId } as any,
+          limit!,
+          offset!,
+        ),
+      ).rejects.toThrow('Invalid pagination');
+    }
+    expect(boundary.listProjectReadyFutures).toHaveBeenCalledTimes(1);
+  });
   it('validates the HTTP boundary from OpenAPI and delegates the parsed request', async () => {
     expect(parseFutureApplyRequest({ expectedRevision: 1 })).toEqual({
       expectedRevision: 1,
@@ -880,7 +1441,11 @@ describe('manual future application', () => {
     const boundary = {
       applyFuture: jest.fn().mockResolvedValue({ status: 'APPLIED' }),
     };
-    const controller = new ProposalController({} as any, boundary as any);
+    const controller = new ProposalController(
+      {} as any,
+      boundary as any,
+      {} as never,
+    );
     await controller.applyFuture(
       organizationId as any,
       projectId as any,

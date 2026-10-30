@@ -16,6 +16,7 @@ import { FutureDesignDocChanges } from './futureDesignDocChanges';
 import { FeatureTag } from './featureTag';
 import { TaskPriority } from './taskPriority';
 import { FutureDesignDocSectionChange } from './futureDesignDocSectionChange';
+import { WorkItemChangeSetOperation } from './workItemChangeSetOperation';
 import { DesignDocParentEntityType } from './designDocParentEntityType';
 import { FeatureRequirementOperation } from './featureRequirementOperation';
 import { FutureWorkItemChanges } from './futureWorkItemChanges';
@@ -30,6 +31,10 @@ export interface FutureRevisionChangeChanges {
     assigneeId?: string | null;
     parentTaskId?: string | null;
     sections?: Array<FutureDesignDocSectionChange>;
+    /**
+     * Generic graph edits within the target root, its children and incident relationships. The root cannot be deleted or change type or status. Applied to the selected non-live graph, including during refinement.
+     */
+    operations?: Array<WorkItemChangeSetOperation>;
     requirementOps?: Array<FeatureRequirementOperation>;
     template?: DesignDocTemplate;
     tags?: Array<string>;
