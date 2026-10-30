@@ -24,6 +24,7 @@ const CONTRIBUTION_FIELD_TYPES = new Set(["implementation_readiness"]);
 const EXCLUSIVE_FIELD_TYPES = new Set([
   "textarea",
   "agent-reply-textarea",
+  "repository_feature_enrichment_reply",
   "currency",
   "priority",
   "text",

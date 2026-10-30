@@ -2,6 +2,9 @@ import {
   LocalPromptType,
   type RepositoryFeatureEnrichmentRequest,
 } from '../../shared/agent-bridge-contract/generated/api';
+import { ExtendedUIFieldType, SystemMessageDataTypeEnum } from '../../shared/api/generated/api';
+import type { UpdateMessageDto } from '../../shared/api';
+import type { AssistantCompleteEvent } from '../../run/types';
 import { createAgentBridgeRuntimeValidator } from '../../shared/agent-bridge-contract/runtime-schema-validator';
 import type { AgenticSession } from '../../session/types';
 import {
@@ -93,6 +96,28 @@ export class RepositoryFeatureEnrichmentHandler implements UserLaunchablePromptT
   buildPrompt(payload: RepositoryFeatureEnrichmentPromptPayload): string {
     if (!('analysis' in payload)) throw new Error('Enrichment conversation was not prepared.');
     return buildRepositoryFeatureEnrichmentPrompt(payload);
+  }
+
+  /** Gives every enrichment message its own reply field; the import workflow cannot take replies. */
+  transformCompletionOutput(event: AssistantCompleteEvent): UpdateMessageDto {
+    return {
+      data: {
+        type: SystemMessageDataTypeEnum.Agent,
+        response: event.summary,
+        detectedIntent: 'agent_response',
+        intentConfidence: 1,
+        uiElements: [
+          {
+            id: 'repository-feature-enrichment-reply',
+            type: ExtendedUIFieldType.RepositoryFeatureEnrichmentReply,
+            label: 'Your answer',
+            placeholder: 'Answer the questions above, or tell me what to change...',
+            required: true,
+            submitText: 'Send',
+          },
+        ],
+      },
+    };
   }
 
   buildStartingMessage = (): string => 'Exploring the intent and requirements of your Features...';

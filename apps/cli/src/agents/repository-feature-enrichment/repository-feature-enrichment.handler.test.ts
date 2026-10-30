@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { AssistantCompleteEvent } from '../../run/types';
 import type { AgenticSession } from '../../session/types';
 import type { PromptTypeHandlerDeps } from '../prompt-type-handler';
 import { resolveMcpToolNames } from '../mcp-server-config';
@@ -66,5 +67,26 @@ describe('Feature intent conversation handler', () => {
     await expect(handler.prepare({ ...run, services: [] }, request, deps)).rejects.toThrow(
       'launch workspace',
     );
+  });
+
+  it('attaches a required Send reply field to each agent message without changing the response', () => {
+    const output = handler.transformCompletionOutput({
+      kind: 'assistant_complete',
+      summary: '1. What is this Feature for?',
+    } as AssistantCompleteEvent);
+
+    expect(output.data).toMatchObject({
+      response: '1. What is this Feature for?',
+      detectedIntent: 'agent_response',
+      intentConfidence: 1,
+      uiElements: [
+        {
+          type: 'repository_feature_enrichment_reply',
+          required: true,
+          submitText: 'Send',
+        },
+      ],
+    });
+    expect(output.data).toHaveProperty('uiElements.length', 1);
   });
 });

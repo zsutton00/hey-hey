@@ -4475,6 +4475,7 @@ UIElement:
       text_input: "#/TextInputElement"
       textarea: "#/TextareaElement"
       agent-reply-textarea: "#/AgentReplyTextareaElement"
+      repository_feature_enrichment_reply: "#/RepositoryFeatureEnrichmentReplyElement"
       select: "#/SelectElement"
       multiple-choice: "#/MultipleChoiceElement"
       checkbox: "#/CheckboxElement"
@@ -4661,6 +4662,23 @@ AgentReplyTextareaElement:
           type: boolean
           default: true
   x-discriminator-value: agent-reply-textarea
+
+RepositoryFeatureEnrichmentReplyElement:
+  description: |
+    A free-text reply field on a Repository Import enrichment message. The
+    import workflow has already completed, so the reply is submitted as an
+    ordinary conversation message to the retained enrichment handler and never
+    through the Repository Import reply API.
+  allOf:
+    - $ref: "#/UIElement"
+    - type: object
+      required:
+        - submitText
+      properties:
+        submitText:
+          type: string
+          description: The text shown on the Send button.
+  x-discriminator-value: repository_feature_enrichment_reply
 
 SelectElement:
   allOf:

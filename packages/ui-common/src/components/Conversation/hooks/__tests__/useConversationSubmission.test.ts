@@ -23,7 +23,7 @@ type RetryWithBackoffFn = ReturnType<
 >["retryWithBackoff"];
 
 const mockRetryWithBackoff = vi.hoisted(() =>
-  vi.fn()
+  vi.fn(),
 ) as MockedFunction<RetryWithBackoffFn>;
 const mockPersistMessage = vi.hoisted(() => vi.fn());
 const mockSubmitWorkflowAnswer = vi.hoisted(() => vi.fn());
@@ -42,7 +42,7 @@ vi.mock(
   "../../../../data/hooks/submitControllerAuthorizedWorkflowAnswer",
   () => ({
     submitControllerAuthorizedWorkflowAnswer: mockSubmitWorkflowAnswer,
-  })
+  }),
 );
 vi.mock("../../../../data/hooks/useConversationMessages", () => ({
   useConversationMessages: mockUseConversationMessages,
@@ -101,7 +101,7 @@ describe("useConversationSubmission", () => {
     vi.clearAllMocks();
     mockUseConversationMessages.mockReturnValue({ data: [], orderedData: [] });
     mockPersistMessage.mockImplementation((message) =>
-      mockApiClient.postMessage({ postMessageRequest: message })
+      mockApiClient.postMessage({ postMessageRequest: message }),
     );
 
     // Mock useConversationEvents
@@ -138,7 +138,7 @@ describe("useConversationSubmission", () => {
 
   it("should initialize with default state", () => {
     const { result } = renderHook(() =>
-      useConversationSubmission(defaultProps)
+      useConversationSubmission(defaultProps),
     );
 
     expect(result.current.isSubmitting).toBe(false);
@@ -155,11 +155,11 @@ describe("useConversationSubmission", () => {
     expect(mockOn).toHaveBeenCalledTimes(2);
     expect(mockOn).toHaveBeenCalledWith(
       "version-conflict",
-      expect.any(Function)
+      expect.any(Function),
     );
     expect(mockOn).toHaveBeenCalledWith(
       "retry-requested",
-      expect.any(Function)
+      expect.any(Function),
     );
   });
 
@@ -167,7 +167,7 @@ describe("useConversationSubmission", () => {
     mockApiClient.postMessage.mockResolvedValueOnce({ id: "msg-1" } as any);
 
     const { result } = renderHook(() =>
-      useConversationSubmission(defaultProps)
+      useConversationSubmission(defaultProps),
     );
 
     await act(async () => {
@@ -180,7 +180,7 @@ describe("useConversationSubmission", () => {
       "parent-id",
       mockConversation,
       "project-1",
-      undefined
+      undefined,
     );
     expect(mockRetryWithBackoff).toHaveBeenCalled();
     expect(mockPersistMessage).toHaveBeenCalledWith(expect.any(Object));
@@ -208,7 +208,7 @@ describe("useConversationSubmission", () => {
   it("routes a feature-owned structured submission without nested authorization", async () => {
     const onDirectTrigger = vi.fn().mockResolvedValue(undefined);
     const { result } = renderHook(() =>
-      useConversationSubmission({ ...defaultProps, onDirectTrigger })
+      useConversationSubmission({ ...defaultProps, onDirectTrigger }),
     );
 
     await act(async () => {
@@ -219,7 +219,7 @@ describe("useConversationSubmission", () => {
       expect.objectContaining({
         conversationId: "conv-1",
         parentMessageId: "parent-id",
-      })
+      }),
     );
     expect(mockPersistMessage).not.toHaveBeenCalled();
     expect(mockApiClient.postMessage).not.toHaveBeenCalled();
@@ -247,7 +247,7 @@ describe("useConversationSubmission", () => {
         ...defaultProps,
         activeConversation: onboardingConversation,
         onSubmitOnboardingReply,
-      })
+      }),
     );
 
     await act(async () => {
@@ -290,7 +290,7 @@ describe("useConversationSubmission", () => {
     } as any;
     const setMessages = (
       tree: readonly unknown[],
-      ordered: readonly unknown[]
+      ordered: readonly unknown[],
     ) => {
       mockUseConversationMessages.mockReturnValue({
         data: tree,
@@ -308,7 +308,7 @@ describe("useConversationSubmission", () => {
           activeConversation: onboardingConversation,
           onSubmitOnboardingReply,
           onConversationUpdated,
-        })
+        }),
       );
 
       await act(async () => {
@@ -340,7 +340,7 @@ describe("useConversationSubmission", () => {
           ...defaultProps,
           activeConversation: onboardingConversation,
           onSubmitOnboardingReply: vi.fn().mockResolvedValue(undefined),
-        })
+        }),
       );
 
       await act(async () => {
@@ -365,7 +365,7 @@ describe("useConversationSubmission", () => {
       const answered = { ...settled, responses: [persistedReply] };
       setMessages(
         [answered, processing],
-        [answered, persistedReply, processing]
+        [answered, persistedReply, processing],
       );
       rerender();
       expect(result.current.isSubmitting).toBe(false);
@@ -380,7 +380,7 @@ describe("useConversationSubmission", () => {
       };
       const { result, rerender } = renderHook(
         (p: typeof props) => useConversationSubmission(p),
-        { initialProps: props }
+        { initialProps: props },
       );
 
       await act(async () => {
@@ -405,7 +405,7 @@ describe("useConversationSubmission", () => {
           ...defaultProps,
           activeConversation: onboardingConversation,
           onSubmitOnboardingReply,
-        })
+        }),
       );
 
       await act(async () => {
@@ -414,7 +414,7 @@ describe("useConversationSubmission", () => {
 
       expect(result.current.isSubmitting).toBe(false);
       expect(mockEmit).toHaveBeenCalledWith(
-        expect.objectContaining({ type: "submission-error" })
+        expect.objectContaining({ type: "submission-error" }),
       );
     });
   });
@@ -434,7 +434,7 @@ describe("useConversationSubmission", () => {
         ...defaultProps,
         activeConversation: repositoryImportConversation,
         onSubmitRepositoryImportReply,
-      })
+      }),
     );
 
     await act(async () => {
@@ -448,6 +448,78 @@ describe("useConversationSubmission", () => {
     });
     expect(mockPersistMessage).not.toHaveBeenCalled();
     expect(mockSubmitWorkflowAnswer).not.toHaveBeenCalled();
+  });
+
+  describe("repository import enrichment reply", () => {
+    const enrichmentConversation: ConversationResponseDto = {
+      ...mockConversation,
+      workflowId: "workflow-1",
+      workflowName: "repository-import",
+    };
+    const enrichmentQuestion = {
+      id: "parent-id",
+      type: MessageType.System,
+      data: {
+        uiElements: [
+          {
+            id: "reply",
+            type: "repository_feature_enrichment_reply",
+            submitText: "Send",
+          },
+        ],
+      },
+      responses: [],
+    };
+
+    beforeEach(() => {
+      mockUseConversationMessages.mockReturnValue({
+        data: [enrichmentQuestion],
+        orderedData: [enrichmentQuestion],
+      });
+    });
+
+    it("sends the answer as an ordinary message the CLI reads as userMessage, not as an import reply", async () => {
+      const onSubmitRepositoryImportReply = vi.fn();
+      const onDirectTrigger = vi.fn().mockResolvedValue(undefined);
+      const { result } = renderHook(() =>
+        useConversationSubmission({
+          ...defaultProps,
+          activeConversation: enrichmentConversation,
+          onSubmitRepositoryImportReply,
+          onDirectTrigger,
+        }),
+      );
+
+      await act(async () => {
+        await result.current.handleNext(
+          { "repository-feature-enrichment-reply": "  It powers billing.  " },
+          "parent-id",
+        );
+      });
+
+      expect(onSubmitRepositoryImportReply).not.toHaveBeenCalled();
+      expect(onDirectTrigger).toHaveBeenCalledTimes(1);
+      expect(
+        mockCreateVersionAwareUserMessage.mock.calls[0]?.[0],
+      ).toMatchObject({ agentInput: { userMessage: "It powers billing." } });
+    });
+
+    it("unlocks immediately when the answer is rejected", async () => {
+      const onDirectTrigger = vi.fn().mockRejectedValue(new Error("rejected"));
+      const { result } = renderHook(() =>
+        useConversationSubmission({
+          ...defaultProps,
+          activeConversation: enrichmentConversation,
+          onDirectTrigger,
+        }),
+      );
+
+      await act(async () => {
+        await result.current.handleNext({ reply: "answer" }, "parent-id");
+      });
+
+      expect(result.current.isSubmitting).toBe(false);
+    });
   });
 
   it("fails closed when onboarding has no reply owner", async () => {
@@ -465,7 +537,7 @@ describe("useConversationSubmission", () => {
         ...defaultProps,
         activeConversation: onboardingConversation,
         onDirectTrigger,
-      })
+      }),
     );
 
     await act(async () => {
@@ -487,7 +559,7 @@ describe("useConversationSubmission", () => {
       },
     });
     expect(mockEmit).not.toHaveBeenCalledWith(
-      expect.objectContaining({ type: "submission-success" })
+      expect.objectContaining({ type: "submission-success" }),
     );
   });
 
@@ -507,7 +579,7 @@ describe("useConversationSubmission", () => {
         ...defaultProps,
         activeConversation: onboardingConversation,
         onSubmitOnboardingReply,
-      })
+      }),
     );
 
     await act(async () => {
@@ -520,7 +592,7 @@ describe("useConversationSubmission", () => {
       payload: { error, data: answers, parentMessageId: "parent-id" },
     });
     expect(mockEmit).not.toHaveBeenCalledWith(
-      expect.objectContaining({ type: "submission-success" })
+      expect.objectContaining({ type: "submission-success" }),
     );
   });
 
@@ -546,7 +618,7 @@ describe("useConversationSubmission", () => {
         ...defaultProps,
         activeConversation: workflowConversation,
         agentSessionId: "agent-session-1",
-      })
+      }),
     );
 
     const data = {
@@ -612,18 +684,18 @@ describe("useConversationSubmission", () => {
       useConversationSubmission({
         ...defaultProps,
         activeConversation: workflowConversation,
-      })
+      }),
     );
 
     await act(async () => {
       await result.current.handleNext(
         { review: { action: "DONE", payload: {} } },
-        "review-system-message"
+        "review-system-message",
       );
     });
 
     expect(mockSubmitWorkflowAnswer).toHaveBeenCalledWith(
-      expect.objectContaining({ nodeId: "latest-system-node" })
+      expect.objectContaining({ nodeId: "latest-system-node" }),
     );
   });
 
@@ -644,7 +716,7 @@ describe("useConversationSubmission", () => {
       useConversationSubmission({
         ...defaultProps,
         activeConversation: workflowConversation,
-      })
+      }),
     );
 
     await act(async () => {
@@ -657,7 +729,7 @@ describe("useConversationSubmission", () => {
       expect.objectContaining({
         action: "REFINE",
         payload: { feedback: "2" },
-      })
+      }),
     );
   });
 
@@ -671,15 +743,15 @@ describe("useConversationSubmission", () => {
       useConversationSubmission({
         ...defaultProps,
         activeConversation: workflowConversation,
-      })
+      }),
     );
 
     await act(async () => {
       await expect(
         result.current.handleNext(
           { plan: { decision: "approve" } },
-          "review-system-message"
-        )
+          "review-system-message",
+        ),
       ).rejects.toThrow(/explicit action and object payload/i);
     });
 
@@ -694,25 +766,25 @@ describe("useConversationSubmission", () => {
       workflowName: "feature-sync",
     };
     mockSubmitWorkflowAnswer.mockRejectedValueOnce(
-      new Error("Unknown workflow action")
+      new Error("Unknown workflow action"),
     );
     const { result } = renderHook(() =>
       useConversationSubmission({
         ...defaultProps,
         activeConversation: workflowConversation,
-      })
+      }),
     );
 
     await act(async () => {
       await result.current.handleNext(
         { review: { action: "UNKNOWN", payload: {} } },
         "review-system-message",
-        { nodeId: "feature-sync-review" }
+        { nodeId: "feature-sync-review" },
       );
     });
 
     expect(mockSubmitWorkflowAnswer).toHaveBeenCalledWith(
-      expect.objectContaining({ action: "UNKNOWN", payload: {} })
+      expect.objectContaining({ action: "UNKNOWN", payload: {} }),
     );
     expect(mockPersistMessage).not.toHaveBeenCalled();
   });
@@ -748,7 +820,7 @@ describe("useConversationSubmission", () => {
         ...defaultProps,
         activeConversation: workflowConversation,
         onDirectTrigger,
-      })
+      }),
     );
 
     await act(async () => {
@@ -760,10 +832,10 @@ describe("useConversationSubmission", () => {
       "parent-id",
       workflowConversation,
       "project-1",
-      undefined
+      undefined,
     );
     expect(onDirectTrigger).toHaveBeenCalledWith(
-      expect.objectContaining({ data: workflowAwareData })
+      expect.objectContaining({ data: workflowAwareData }),
     );
     expect(mockSubmitWorkflowAnswer).not.toHaveBeenCalled();
     expect(mockPersistMessage).not.toHaveBeenCalled();
@@ -787,7 +859,7 @@ describe("useConversationSubmission", () => {
         activeConversation: workflowConversation,
         onPersistMessage: undefined,
         onDirectTrigger: undefined,
-      })
+      }),
     );
 
     await act(async () => {
@@ -805,7 +877,7 @@ describe("useConversationSubmission", () => {
       },
     });
     expect(mockEmit).not.toHaveBeenCalledWith(
-      expect.objectContaining({ type: "submission-success" })
+      expect.objectContaining({ type: "submission-success" }),
     );
     expect(mockSubmitWorkflowAnswer).not.toHaveBeenCalled();
     expect(result.current.isSubmitting).toBe(false);
@@ -832,14 +904,14 @@ describe("useConversationSubmission", () => {
       useConversationSubmission({
         ...defaultProps,
         activeConversation: workflowConversation,
-      })
+      }),
     );
 
     await act(async () => {
       await result.current.handleNext(
         { plan: { action: "APPROVED", payload: {} } },
         "parent-id",
-        { nodeId: "review-step" }
+        { nodeId: "review-step" },
       );
     });
 
@@ -880,7 +952,7 @@ describe("useConversationSubmission", () => {
     mockRetryWithBackoff.mockRejectedValueOnce(versionError);
 
     const { result } = renderHook(() =>
-      useConversationSubmission(defaultProps)
+      useConversationSubmission(defaultProps),
     );
 
     await act(async () => {
@@ -903,7 +975,7 @@ describe("useConversationSubmission", () => {
     mockRetryWithBackoff.mockRejectedValueOnce(error);
 
     const { result } = renderHook(() =>
-      useConversationSubmission(defaultProps)
+      useConversationSubmission(defaultProps),
     );
 
     await act(async () => {
@@ -924,7 +996,7 @@ describe("useConversationSubmission", () => {
     mockApiClient.postMessage.mockResolvedValueOnce({ id: "ack-msg" } as any);
 
     const { result } = renderHook(() =>
-      useConversationSubmission(defaultProps)
+      useConversationSubmission(defaultProps),
     );
 
     await act(async () => {
@@ -941,7 +1013,7 @@ describe("useConversationSubmission", () => {
           status: MessageStatus.Completed,
           parentMessageId: "message-id",
         }),
-      })
+      }),
     );
     expect(mockEmit).toHaveBeenCalledWith({
       type: "analysis-acknowledged",
@@ -954,7 +1026,7 @@ describe("useConversationSubmission", () => {
     mockApiClient.postMessage.mockRejectedValueOnce(error);
 
     const { result } = renderHook(() =>
-      useConversationSubmission(defaultProps)
+      useConversationSubmission(defaultProps),
     );
 
     await act(async () => {
@@ -1002,7 +1074,7 @@ describe("useConversationSubmission", () => {
     });
 
     const { result } = renderHook(() =>
-      useConversationSubmission(defaultProps)
+      useConversationSubmission(defaultProps),
     );
 
     // Simulate version conflict event
@@ -1061,7 +1133,7 @@ describe("useConversationSubmission", () => {
       "retry-parent-id",
       mockConversation,
       "project-1",
-      undefined
+      undefined,
     );
   });
 });

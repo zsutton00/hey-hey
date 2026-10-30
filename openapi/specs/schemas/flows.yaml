@@ -30,6 +30,7 @@ ExtendedUIFieldType:
       agent-request-review-file-scope,
       agent_question,
       agent-reply-textarea,
+      repository_feature_enrichment_reply,
       task_stub,
       task_priority,
       coding_prompt,

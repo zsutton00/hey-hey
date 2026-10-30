@@ -70,6 +70,7 @@ import { PlanGenerationJourneyReviewField } from "./PlanGenerationJourneyReviewF
 import { PlanGenerationVisualPreviewField } from "./PlanGenerationVisualPreviewField";
 import { PlanGenerationVisualPreviewApproveAction } from "./PlanGenerationVisualPreviewApproveAction";
 import { PlanGenerationStageReviewField } from "./PlanGenerationStageReviewField";
+import { RepositoryFeatureEnrichmentReplyField } from "./RepositoryFeatureEnrichmentReplyField";
 import { PlanGenerationStageReviewReadyAction } from "./PlanGenerationStageReviewReadyAction";
 import { PlanShapingFeatureSyncReviewField } from "./PlanShapingFeatureSyncReviewField";
 import { PlanGenerationStepReviewField } from "./PlanGenerationStepReviewField";
@@ -740,6 +741,12 @@ export const FIELD_REGISTRY: Record<string, FieldRegistryEntry> = {
     Component: TextareaField as unknown as React.FC<FieldComponentProps>,
     getHasContent: hasTextareaValue,
     proposalsPlacement: "above-element",
+  },
+  repository_feature_enrichment_reply: {
+    ...getFieldResponseMetadata("repository_feature_enrichment_reply"),
+    Component:
+      RepositoryFeatureEnrichmentReplyField as unknown as React.FC<FieldComponentProps>,
+    getHasContent: hasStringValue,
   },
   currency: {
     ...getFieldResponseMetadata("currency"),

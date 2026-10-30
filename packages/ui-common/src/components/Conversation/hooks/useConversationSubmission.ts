@@ -10,6 +10,7 @@ import type {
   UserMessageDataWorkflowDefined,
 } from "../../../api";
 import {
+  ExtendedUIFieldType,
   MessageType,
   MessageStatus,
   UserMessageDataWorkflowDefinedPromptTypeEnum,
@@ -44,7 +45,7 @@ export interface RepositoryImportReplySubmission {
 }
 
 const getLatestSystemNodeId = (
-  orderedMessages: readonly MessageResponseDto[]
+  orderedMessages: readonly MessageResponseDto[],
 ): string | null => {
   for (let index = orderedMessages.length - 1; index >= 0; index -= 1) {
     const message = orderedMessages[index];
@@ -71,7 +72,7 @@ const LEGACY_REPOSITORY_IMPORT_NODE_IDS = new Set([
 
 const findMessageById = (
   messages: readonly MessageResponseDto[],
-  messageId: string
+  messageId: string,
 ): MessageResponseDto | undefined => {
   for (const message of messages) {
     if (message.id === messageId) return message;
@@ -81,10 +82,29 @@ const findMessageById = (
   return undefined;
 };
 
+/**
+ * The import workflow has finished by the time enrichment questions appear, so
+ * answers to them are ordinary messages for the retained CLI handler, never
+ * workflow replies.
+ */
+const isEnrichmentReplyParent = (
+  messages: readonly MessageResponseDto[],
+  parentMessageId: string,
+): boolean => {
+  const parent = findMessageById(messages, parentMessageId);
+  return (
+    parent?.type === MessageType.System &&
+    parent.data.uiElements?.some(
+      (element) =>
+        element.type === ExtendedUIFieldType.RepositoryFeatureEnrichmentReply,
+    ) === true
+  );
+};
+
 const isLegacyRepositoryImportReply = (
   conversation: ConversationResponseDto,
   messages: readonly MessageResponseDto[],
-  parentMessageId: string
+  parentMessageId: string,
 ): boolean => {
   if (conversation.workflowName !== "onboarding") return false;
   const parent = findMessageById(messages, parentMessageId);
@@ -114,7 +134,7 @@ const isLegacyRepositoryImportReply = (
 const hasObservedProgress = (
   parentMessageId: string,
   conversation: ConversationResponseDto,
-  messages: readonly MessageResponseDto[]
+  messages: readonly MessageResponseDto[],
 ): boolean => {
   if (conversation.status === "FAILED") return true;
   const parent = findMessageById(messages, parentMessageId);
@@ -124,7 +144,7 @@ const hasObservedProgress = (
 
 const addWorkflowFollowupInput = (
   data: Record<string, FormValue>,
-  userMessage: string
+  userMessage: string,
 ): Record<string, FormValue> => {
   const agentInput = {
     promptType: UserMessageDataWorkflowDefinedPromptTypeEnum.WorkflowDefined,
@@ -141,10 +161,10 @@ interface UseConversationSubmissionProps {
   onDirectTrigger?: (message: CreateUserMessage) => Promise<void>;
   onPersistMessage?: (message: CreateUserMessage) => Promise<void>;
   onSubmitOnboardingReply?: (
-    submission: OnboardingReplySubmission
+    submission: OnboardingReplySubmission,
   ) => Promise<void>;
   onSubmitRepositoryImportReply?: (
-    submission: RepositoryImportReplySubmission
+    submission: RepositoryImportReplySubmission,
   ) => Promise<void>;
   onConversationUpdated?: () => Promise<void>;
 }
@@ -155,7 +175,7 @@ interface UseConversationSubmissionReturn {
   handleNext: (
     data: Record<string, FormValue>,
     parentMessageId: string,
-    options?: SecondaryActionSubmitOptions
+    options?: SecondaryActionSubmitOptions,
   ) => Promise<void>;
   handleRetrySuccess: () => Promise<void>;
   handleAnalysisAcknowledged: (messageId: string) => Promise<void>;
@@ -181,9 +201,9 @@ export const useConversationSubmission = ({
   onConversationUpdated,
 }: UseConversationSubmissionProps): UseConversationSubmissionReturn => {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [awaitingProgress, setAwaitingParentMessageId] = useState<string | null>(
-    null
-  );
+  const [awaitingProgress, setAwaitingParentMessageId] = useState<
+    string | null
+  >(null);
   const [versionConflictDialog, setVersionConflictDialog] =
     useState<VersionConflictDialogState | null>(null);
 
@@ -197,7 +217,7 @@ export const useConversationSubmission = ({
     {
       refetchOnMount: false,
       refetchOnStale: false,
-    }
+    },
   );
 
   const isAwaitingProgress =
@@ -205,11 +225,12 @@ export const useConversationSubmission = ({
     !hasObservedProgress(
       awaitingProgress,
       activeConversation,
-      conversationMessages.data
+      conversationMessages.data,
     );
 
   useEffect(() => {
-    if (awaitingProgress && !isAwaitingProgress) setAwaitingParentMessageId(null);
+    if (awaitingProgress && !isAwaitingProgress)
+      setAwaitingParentMessageId(null);
   }, [awaitingProgress, isAwaitingProgress]);
 
   // Handle version conflicts with dialog
@@ -218,7 +239,7 @@ export const useConversationSubmission = ({
       error: VersionConflictError,
       originalFormData: Record<string, FormValue>,
       parentMessageId: string,
-      options?: SecondaryActionSubmitOptions
+      options?: SecondaryActionSubmitOptions,
     ) => {
       logVersionInfo("Handling version conflict in ConversationViewer", {
         conversationId: activeConversation.id,
@@ -251,7 +272,7 @@ export const useConversationSubmission = ({
         },
       });
     },
-    [activeConversation.id, emit]
+    [activeConversation.id, emit],
   );
 
   // Enhanced handle form submission with version checking
@@ -259,7 +280,7 @@ export const useConversationSubmission = ({
     async (
       data: Record<string, FormValue>,
       parentMessageId: string,
-      options?: SecondaryActionSubmitOptions
+      options?: SecondaryActionSubmitOptions,
     ) => {
       if (!activeConversation || !project) {
         console.error("Missing required data for message submission");
@@ -269,14 +290,20 @@ export const useConversationSubmission = ({
       const isLegacyRepositoryImport = isLegacyRepositoryImportReply(
         activeConversation,
         conversationMessages.data,
-        parentMessageId
+        parentMessageId,
+      );
+      const isEnrichmentReply = isEnrichmentReplyParent(
+        conversationMessages.data,
+        parentMessageId,
       );
       const isRepositoryImportConversation =
-        activeConversation.workflowName === "repository-import" ||
-        isLegacyRepositoryImport;
+        !isEnrichmentReply &&
+        (activeConversation.workflowName === "repository-import" ||
+          isLegacyRepositoryImport);
       const isOnboardingConversation =
         activeConversation.workflowName === "onboarding" &&
-        !isLegacyRepositoryImport;
+        !isLegacyRepositoryImport &&
+        !isEnrichmentReply;
       const workflowSubmission =
         !isOnboardingConversation &&
         !isRepositoryImportConversation &&
@@ -294,7 +321,7 @@ export const useConversationSubmission = ({
         parentMessageId,
         activeConversation,
         project.id,
-        options?.handler as CreateUserMessage["handler"] | undefined
+        options?.handler as CreateUserMessage["handler"] | undefined,
       );
 
       setIsSubmitting(true);
@@ -308,7 +335,7 @@ export const useConversationSubmission = ({
         if (isOnboardingConversation) {
           if (!onSubmitOnboardingReply) {
             throw new Error(
-              "This onboarding conversation has no reply submission owner."
+              "This onboarding conversation has no reply submission owner.",
             );
           }
 
@@ -319,7 +346,7 @@ export const useConversationSubmission = ({
         } else if (isRepositoryImportConversation) {
           if (!onSubmitRepositoryImportReply) {
             throw new Error(
-              "This repository import has no reply submission owner."
+              "This repository import has no reply submission owner.",
             );
           }
           await onSubmitRepositoryImportReply({
@@ -334,12 +361,12 @@ export const useConversationSubmission = ({
             async () => {
               if (!workflowAnswerOperationId) {
                 throw new Error(
-                  "The workflow answer is missing its operation identity."
+                  "The workflow answer is missing its operation identity.",
                 );
               }
               if (!agentSessionId) {
                 throw new Error(
-                  "Agent session is required before submitting a workflow answer."
+                  "Agent session is required before submitting a workflow answer.",
                 );
               }
               const nodeId =
@@ -347,7 +374,7 @@ export const useConversationSubmission = ({
                 getLatestSystemNodeId(conversationMessages.orderedData);
               if (!nodeId) {
                 throw new Error(
-                  "The workflow answer is missing the source message nodeId."
+                  "The workflow answer is missing the source message nodeId.",
                 );
               }
               await submitControllerAuthorizedWorkflowAnswer({
@@ -364,7 +391,7 @@ export const useConversationSubmission = ({
               });
             },
             { maxRetries: 3, baseDelay: 1000, maxDelay: 5000 },
-            `workflow-answer-${activeConversation.id}`
+            `workflow-answer-${activeConversation.id}`,
           );
         } else {
           if (onDirectTrigger) {
@@ -389,11 +416,11 @@ export const useConversationSubmission = ({
                   }
                 },
               },
-              `message-persistence-${activeConversation.id}`
+              `message-persistence-${activeConversation.id}`,
             );
           } else {
             throw new Error(
-              "This conversation has no message submission owner."
+              "This conversation has no message submission owner.",
             );
           }
         }
@@ -413,6 +440,13 @@ export const useConversationSubmission = ({
         });
       } catch (error) {
         if (isVersionConflictError(error)) {
+          // The conflict dialog owns the retry; the form must not stay locked
+          // behind a message that was never accepted.
+          emit({
+            type: "submission-error",
+            payload: { error, data, parentMessageId },
+          });
+
           // Emit version conflict event instead of direct function call
           emit({
             type: "version-conflict",
@@ -452,7 +486,7 @@ export const useConversationSubmission = ({
       retryWithBackoff,
       conversationMessages.data,
       conversationMessages.orderedData,
-    ]
+    ],
   );
 
   // Handle analysis acknowledgment
@@ -479,7 +513,7 @@ export const useConversationSubmission = ({
         if (activeConversation.workflowName === "onboarding") {
           if (!onSubmitOnboardingReply) {
             throw new Error(
-              "This onboarding conversation has no reply submission owner."
+              "This onboarding conversation has no reply submission owner.",
             );
           }
 
@@ -529,7 +563,7 @@ export const useConversationSubmission = ({
       onPersistMessage,
       onSubmitOnboardingReply,
       emit,
-    ]
+    ],
   );
 
   // Handle retry success after system message retry
@@ -553,7 +587,7 @@ export const useConversationSubmission = ({
           event.payload.error,
           event.payload.originalFormData,
           event.payload.parentMessageId,
-          event.payload.options
+          event.payload.options,
         );
       }
     });
@@ -563,7 +597,7 @@ export const useConversationSubmission = ({
         await handleNext(
           event.payload.data,
           event.payload.parentId,
-          event.payload.options
+          event.payload.options,
         );
       }
     });
