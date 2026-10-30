@@ -615,12 +615,14 @@ ProposalOutOfDateStatus:
     - NOT_APPLICABLE
     - CURRENT
     - OUT_OF_DATE
+    - UNKNOWN
   description: >
-    API-owned comparison state for the proposal target. UPDATE and DELETE
-    proposals targeting TASK are CURRENT when the captured and current
-    last-applied proposal markers are equal, including when both are null,
-    and OUT_OF_DATE when they differ. CREATE and non-TASK targets are
-    NOT_APPLICABLE.
+    API-owned content comparison for pending TASK UPDATE and DELETE proposals
+    and unapplied future revisions. CURRENT means the reviewed basis matches
+    current content; OUT_OF_DATE means it differs. UNKNOWN means the reviewed
+    basis or current content is unavailable. Unsupported proposal kinds and
+    terminal proposals are NOT_APPLICABLE. This flag does not grant approval
+    or application eligibility.
 
 ProposalResponseDto:
   type: object

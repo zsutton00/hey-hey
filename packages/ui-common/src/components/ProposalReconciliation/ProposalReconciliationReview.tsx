@@ -14,34 +14,22 @@ import {
   Alert,
   Box,
   Button,
-  Chip,
   CircularProgress,
-  Link,
-  Paper,
   Stack,
   Stepper,
   Step,
   StepLabel,
   Typography,
 } from "@mui/material";
-import { format, formatDistanceToNow } from "date-fns";
 import {
   ProposalStatus,
   type ProposalResponseDto,
   type ProposalAgentFixRequest,
-  type ProposalReconciliationIntervening,
-  type ProposalReconciliationOverlap,
   type ProposalReconciliationState,
 } from "../../api";
 import { proposalsClient } from "../../clients/serviceClients";
 import { usePathService } from "../../contexts/PathServiceContext";
 import type { ProposalApprovalRequest } from "../ProposalDispatchers/types";
-import { ReconciliationFieldComparison } from "./ReconciliationFieldComparison";
-import {
-  reconciliationFieldLabel,
-  type ReconciliationPresentation,
-} from "./reconciliationPresentation";
-import { useWorkItemTypes } from "../../data/hooks/useWorkItemTypes";
 import { subscribeProposalReconciliation } from "./reconciliationInvalidation";
 import { useInvalidateProposalReview } from "../../data/hooks/useInvalidateProposalReview";
 import { isFutureProposal } from "../ProposalDispatchers/futureAsUpdate";
@@ -65,241 +53,6 @@ export const ProposalReconciliationContext = createContext<{
   staged: boolean;
   submit: () => void;
 } | null>(null);
-
-const OUT_OF_DATE_STATUSES = new Set<ProposalReconciliationState["status"]>([
-  "RECONCILIATION_REQUIRED",
-  "AGENT_FIX_REQUIRED",
-  "READY_FOR_REVIEW",
-]);
-
-const ago = (iso: string) =>
-  formatDistanceToNow(new Date(iso), { addSuffix: true });
-
-type Resolve = { onEdit: () => void; onAgentFix: () => void; busy: boolean };
-
-function OutOfDateHeadsUp({ state }: { state: ProposalReconciliationState }) {
-  const count = state.interveningProposals.length;
-  const written = state.writtenAt ? `Written ${ago(state.writtenAt)}` : null;
-  return (
-    <Alert severity="info" data-testid="proposal-reconciliation-heads-up">
-      {count > 0 ? (
-        <>
-          {written ? `${written} · ` : null}
-          {count} {count === 1 ? "change was" : "changes were"} approved on this
-          item since. Check they don&apos;t change whether this should still go
-          ahead.
-        </>
-      ) : (
-        <>
-          {written ? `${written}. ` : null}No other changes were approved on
-          this item since, but its content no longer matches what this proposal
-          was written against.
-        </>
-      )}
-      {state.status === "READY_FOR_REVIEW"
-        ? " Review the merged result, including whether added requirements still belong."
-        : null}
-    </Alert>
-  );
-}
-
-function OverlapComparison({
-  overlap,
-  resolve,
-  presentation,
-  future,
-}: {
-  presentation: ReconciliationPresentation;
-  future: boolean;
-  overlap: ProposalReconciliationOverlap;
-  resolve: Resolve;
-}) {
-  return (
-    <Stack spacing={1} data-testid="proposal-reconciliation-overlap">
-      <Typography variant="subtitle2">
-        Resolve overlap: {reconciliationFieldLabel(overlap.path, presentation)}
-      </Typography>
-      <ReconciliationFieldComparison
-        labels={{
-          before: "Current",
-          after: future ? "Previously approved future" : "This proposal",
-        }}
-        path={overlap.path}
-        before={overlap.currentValue}
-        after={overlap.proposedValue}
-        presentation={presentation}
-      />
-      <Stack direction="row" spacing={1}>
-        <Button
-          size="small"
-          data-testid="proposal-reconciliation-edit-by-hand"
-          onClick={resolve.onEdit}
-        >
-          Edit by hand
-        </Button>
-        <Button
-          size="small"
-          data-testid="proposal-reconciliation-agent-fix"
-          disabled={resolve.busy}
-          onClick={resolve.onAgentFix}
-        >
-          Agent fix
-        </Button>
-      </Stack>
-    </Stack>
-  );
-}
-
-function InterveningEntry({
-  entry,
-  proposalHref,
-  presentation,
-}: {
-  presentation: ReconciliationPresentation;
-  entry: ProposalReconciliationIntervening;
-  proposalHref: string;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <Paper
-      variant="outlined"
-      sx={{
-        p: 1.5,
-        bgcolor: "background.paper",
-      }}
-      data-testid="proposal-reconciliation-intervening"
-    >
-      <Stack spacing={1}>
-        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-          <Link href={proposalHref} variant="body2" fontWeight={600}>
-            {entry.title}
-          </Link>
-          {entry.overlappingPaths.map((path) => (
-            <Chip
-              key={path}
-              size="small"
-              color="warning"
-              label={`Overlaps: ${reconciliationFieldLabel(path, presentation)}`}
-            />
-          ))}
-        </Stack>
-        <Typography variant="caption" color="text.secondary">
-          Approved{entry.approvedByName ? ` by ${entry.approvedByName}` : ""} ·{" "}
-          {format(new Date(entry.approvedAt), "MMM d, yyyy · p")}
-        </Typography>
-        {entry.changes.length ? (
-          <Box>
-            <Button
-              size="small"
-              data-testid="proposal-reconciliation-history-toggle"
-              aria-expanded={expanded}
-              onClick={() => setExpanded(!expanded)}
-            >
-              {expanded ? "Hide its changes" : "Show its changes"}
-            </Button>
-            {expanded ? (
-              <Typography variant="caption" color="text.secondary">
-                What this approved change changed at the time.
-              </Typography>
-            ) : null}
-            {expanded
-              ? entry.changes.map((change) => (
-                  <Stack
-                    key={change.path}
-                    spacing={0.5}
-                    sx={{ mt: 1 }}
-                    data-testid="proposal-reconciliation-intervening-diff"
-                  >
-                    <Typography variant="caption" color="text.secondary">
-                      {reconciliationFieldLabel(change.path, presentation)}
-                    </Typography>
-                    <ReconciliationFieldComparison
-                      labels={{
-                        before: "Before this change",
-                        after: "After this change",
-                      }}
-                      path={change.path}
-                      before={change.before}
-                      after={change.after}
-                      presentation={presentation}
-                    />
-                  </Stack>
-                ))
-              : null}
-          </Box>
-        ) : null}
-      </Stack>
-    </Paper>
-  );
-}
-
-function ChangedSinceList({
-  state,
-  proposal,
-  resolve,
-  historyOnly = false,
-}: {
-  historyOnly?: boolean;
-  state: ProposalReconciliationState;
-  proposal: ProposalResponseDto;
-  resolve: Resolve;
-}) {
-  const paths = usePathService();
-  const registry = useWorkItemTypes(proposal.organizationId, {
-    projectId: proposal.projectId,
-  });
-  const typeKey = state.currentBases.find(
-    (basis) => basis.entityId === proposal.targetEntityId,
-  )?.content.type;
-  const definition = registry.workItemTypes.find(
-    (item) => item.definition.key === typeKey,
-  )?.definition;
-  const presentation: ReconciliationPresentation =
-    proposal.targetEntityType === "DESIGN_DOC"
-      ? { kind: "design-doc" }
-      : { kind: "work-item", definition };
-  const future = proposal.action === "VERSIONED_UPDATE";
-  if (!state.interveningProposals.length && !state.overlaps.length) return null;
-  return (
-    <Stack
-      spacing={1}
-      sx={{ p: 1.5, bgcolor: "action.hover", borderRadius: 1 }}
-      data-testid="proposal-reconciliation-changed-since"
-    >
-      {!historyOnly &&
-        state.overlaps.map((overlap) => (
-          <Paper key={overlap.path} variant="outlined" sx={{ p: 1.5 }}>
-            <OverlapComparison
-              overlap={overlap}
-              resolve={resolve}
-              presentation={presentation}
-              future={future}
-            />
-          </Paper>
-        ))}
-      <Typography variant="subtitle2">
-        {historyOnly
-          ? "Approval history"
-          : future
-            ? "What’s changed since the baseline"
-            : "What’s changed since this was written"}
-      </Typography>
-      {[...state.interveningProposals]
-        .sort((a, b) => a.approvedAt.localeCompare(b.approvedAt))
-        .map((entry) => (
-          <InterveningEntry
-            key={entry.proposalId}
-            entry={entry}
-            presentation={presentation}
-            proposalHref={paths.proposal({
-              projectId: proposal.projectId,
-              proposalId: entry.proposalId,
-            })}
-          />
-        ))}
-    </Stack>
-  );
-}
 
 /**
  * Out-of-date review shared by standalone, grouped and future proposal surfaces.
@@ -342,7 +95,6 @@ function PendingProposalReconciliationReview({
   const [agentFixOpen, setAgentFixOpen] = useState(false);
   const [agentRequest, setAgentRequest] =
     useState<ProposalAgentFixRequest | null>(null);
-  const [wasResolving, setWasResolving] = useState(false);
   const [manualState, setManualState] =
     useState<ProposalReconciliationState | null>(null);
   const [state, setState] = useState<ProposalReconciliationState | null>(null);
@@ -368,17 +120,6 @@ function PendingProposalReconciliationReview({
       if (requestSequence.current === sequence) {
         const next = response.data.data;
         setState(next);
-        if (
-          next.revisions.some(
-            (revision) =>
-              revision.source === "MANUAL" || revision.source === "AGENT_FIX",
-          ) ||
-          next.overlaps.length ||
-          next.status === "AGENT_FIX_REQUIRED" ||
-          (proposal.action === "VERSIONED_UPDATE" &&
-            next.status === "RECONCILIATION_REQUIRED")
-        )
-          setWasResolving(true);
       }
     } catch (caught) {
       if (requestSequence.current === sequence)
@@ -408,8 +149,9 @@ function PendingProposalReconciliationReview({
   const requiresReconciliation =
     state?.status === "RECONCILIATION_REQUIRED" ||
     state?.status === "AGENT_FIX_REQUIRED";
-  const hasOverlaps = !!state?.overlaps.length;
-  const staged = !grouped && wasResolving;
+  const staged =
+    !grouped &&
+    (requiresReconciliation || state?.status === "READY_FOR_REVIEW");
   const reviewOutcome = async () => {
     await invalidateReview(proposal.organizationId, proposal.projectId);
     await refresh();
@@ -425,7 +167,6 @@ function PendingProposalReconciliationReview({
     !!error ||
     busy ||
     requiresReconciliation ||
-    hasOverlaps ||
     missingCandidate ||
     (usesReplacement &&
       (!!state.replacementProposalId || !!state.replacementGroupId));
@@ -447,6 +188,7 @@ function PendingProposalReconciliationReview({
           createProposalReconciliationCandidate: { method: "MERGE" },
         });
       setState(response.data.data);
+      void invalidateReview(proposal.organizationId, proposal.projectId);
     } catch (caught) {
       await refresh();
       setError(
@@ -458,10 +200,8 @@ function PendingProposalReconciliationReview({
       setBusy(false);
     }
   };
-  const outOfDate = !!state && OUT_OF_DATE_STATUSES.has(state.status);
-  const threeWay =
-    !grouped && !!state && staged && (requiresReconciliation || hasOverlaps);
-  const resolve: Resolve = {
+  const threeWay = !!state && requiresReconciliation;
+  const resolve = {
     onEdit: () => setManualState(state),
     onAgentFix: () => setAgentFixOpen(true),
     busy,
@@ -481,12 +221,6 @@ function PendingProposalReconciliationReview({
           Fresh approvals are required. Live content is unchanged.
         </Alert>
       )}
-      {!manualState &&
-      outOfDate &&
-      !threeWay &&
-      (requiresReconciliation || !staged) ? (
-        <OutOfDateHeadsUp state={state} />
-      ) : null}
       {!manualState && staged ? (
         <Stepper
           activeStep={approvalDisabled ? 0 : 1}
@@ -568,19 +302,10 @@ function PendingProposalReconciliationReview({
                   {error}
                 </Alert>
               ) : null}
-              {outOfDate && !threeWay && !staged ? (
-                <>
-                  <ChangedSinceList
-                    state={state}
-                    proposal={proposal}
-                    resolve={resolve}
-                  />
-                </>
-              ) : null}
               {threeWay ? (
                 <ThreeWayReview proposal={proposal} state={state} />
               ) : null}
-              {requiresReconciliation && (threeWay || !hasOverlaps) ? (
+              {requiresReconciliation ? (
                 <Stack spacing={1}>
                   {state.status === "AGENT_FIX_REQUIRED" ? (
                     <Typography variant="body2" color="text.secondary">
@@ -589,11 +314,15 @@ function PendingProposalReconciliationReview({
                     </Typography>
                   ) : null}
                   <Stack direction="row" spacing={1}>
-                    {grouped ? (
+                    {grouped || proposal.action === "VERSIONED_UPDATE" ? (
                       <Button
                         variant="contained"
                         data-testid="proposal-reconciliation-merge"
-                        disabled={busy || state.status === "AGENT_FIX_REQUIRED"}
+                        disabled={
+                          busy ||
+                          state.status === "AGENT_FIX_REQUIRED" ||
+                          state.overlaps.length > 0
+                        }
                         onClick={() => void merge()}
                       >
                         Merge with current content
@@ -650,7 +379,7 @@ function PendingProposalReconciliationReview({
                   Review replacement group
                 </Button>
               ) : null}
-              {state?.status === "READY_FOR_REVIEW" && !staged ? (
+              {state?.status === "READY_FOR_REVIEW" ? (
                 <Typography
                   variant="subtitle2"
                   data-testid="proposal-reconciliation-merged-result"
@@ -660,11 +389,7 @@ function PendingProposalReconciliationReview({
                     : "Merged result compared with current content"}
                 </Typography>
               ) : null}
-              {threeWay ? (
-                proposal.action === "VERSIONED_UPDATE" ? null : (
-                  comparison
-                )
-              ) : (
+              {threeWay ? null : (
                 <DiffLabelsContext.Provider
                   value={
                     staged

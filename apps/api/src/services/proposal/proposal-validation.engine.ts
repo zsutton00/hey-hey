@@ -1,3 +1,5 @@
+import { ProposalReconciliationService } from './proposal-reconciliation.service';
+import { Inject } from '@nestjs/common';
 import { sectionContent } from './future-application';
 import { rootChildrenView } from './work-item-change-set-projector.service';
 import { isEqual } from 'lodash';
@@ -5,7 +7,6 @@ import {
   assertFutureGraphBoundary,
   futureGraph,
   graphChangeSet,
-  graphContentBasis,
 } from './future-graph';
 import type { ProjectModeSettings } from '../../generated';
 import {
@@ -1373,6 +1374,8 @@ export function assertWorkflowProposalLinksStructurallyValid(
 
 @Injectable()
 export class ProposalValidationEngine {
+  @Inject(ProposalReconciliationService)
+  private readonly reconciliation!: ProposalReconciliationService;
   private readonly logger = new Logger(ProposalValidationEngine.name);
   private readonly taskSectionSchemaValidators: TaskSectionSchemaValidatorRegistry;
 
@@ -3588,7 +3591,11 @@ export class ProposalValidationEngine {
     });
     if (
       !projected.valid ||
-      !isEqual(graphContentBasis(projected), graphContentBasis(after))
+      this.reconciliation.decision({
+        kind: 'graph',
+        reviewed: after,
+        current: projected,
+      }).kind !== 'NOT_REQUIRED'
     )
       throw new BadRequestException({
         message:

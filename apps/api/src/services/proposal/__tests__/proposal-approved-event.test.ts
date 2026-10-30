@@ -1,3 +1,4 @@
+import { ProposalReconciliationAdapterService } from '../proposal-reconciliation-adapter.service';
 import { ProposalReconciliationService } from '../proposal-reconciliation.service';
 import { ProposalReconciliationGroupService } from '../proposal-reconciliation-group.service';
 import { mockProposalAdmission } from './mock-proposal-admission';
@@ -54,12 +55,19 @@ describe('ProposalService proposal.approved event', () => {
     (mockPrisma.db as any).proposal = {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
-      findMany: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
       count: jest.fn(),
     };
+    Object.assign(mockPrisma.db, {
+      proposalGroupMember: { findUnique: jest.fn(async () => null) },
+      workItemChangeSetMaterialization: {
+        findUnique: jest.fn(async () => null),
+      },
+      proposalReconciliationRevision: { findMany: jest.fn(async () => []) },
+    });
     (mockPrisma.db as any).projectMember = {
       findMany: jest.fn().mockResolvedValue([{ userId: approvingUserId }]),
     };
@@ -67,6 +75,9 @@ describe('ProposalService proposal.approved event', () => {
     (mockPrisma.db as any).task = {
       findMany: jest.fn().mockResolvedValue([]),
       findFirst: jest.fn().mockResolvedValue({
+        updatedAt: new Date(),
+        sections: [],
+        serviceRelations: [],
         type: 'STANDARD',
         parentTaskId: null,
         initiativeId: null,
@@ -84,7 +95,16 @@ describe('ProposalService proposal.approved event', () => {
         },
         {
           provide: ProposalReconciliationService,
-          useValue: { captureAuthoring: jest.fn() },
+          useFactory: (registry: WorkItemTypeRegistryService) => {
+            const owner = new ProposalReconciliationService(
+              new ProposalReconciliationAdapterService(registry, {} as never),
+              {} as never,
+              () => 'test',
+            );
+            jest.spyOn(owner, 'captureAuthoring').mockResolvedValue();
+            return owner;
+          },
+          inject: [WorkItemTypeRegistryService],
         },
         { provide: ProposalReconciliationGroupService, useValue: {} },
         ProposalService,

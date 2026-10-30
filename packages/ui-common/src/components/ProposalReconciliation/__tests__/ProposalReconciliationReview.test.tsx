@@ -235,7 +235,7 @@ describe("complete reconciliation review", () => {
         screen.getByTestId("proposal-reconciliation-agent-fix"),
       ).toBeVisible(),
     );
-    expect(screen.getByText("Approve displayed revision")).toBeDisabled();
+    expect(screen.queryByText("Approve displayed revision")).toBeNull();
     expect(apply).not.toHaveBeenCalled();
   });
   it("shows a clean result on load without Merge or a replacement link", async () => {
@@ -292,7 +292,7 @@ describe("complete reconciliation review", () => {
     mount({ ...ready, status: "AGENT_FIX_REQUIRED" });
     await screen.findByTestId("proposal-reconciliation-agent-fix");
     expect(screen.queryByTestId("proposal-reconciliation-merge")).toBeNull();
-    expect(screen.getByText("Approve displayed revision")).toBeDisabled();
+    expect(screen.queryByText("Approve displayed revision")).toBeNull();
   });
   it("warns that Agent fix starts a session instead of linking to the proposal page", async () => {
     const apply = mount({ ...ready, status: "AGENT_FIX_REQUIRED" });
@@ -307,7 +307,7 @@ describe("complete reconciliation review", () => {
     );
     fireEvent.click(screen.getByText("Cancel"));
     expect(screen.queryByTestId("proposal-agent-fix-confirm")).toBeNull();
-    expect(screen.getByText("Approve displayed revision")).toBeDisabled();
+    expect(screen.queryByText("Approve displayed revision")).toBeNull();
     expect(apply).not.toHaveBeenCalled();
   });
 });
@@ -324,32 +324,32 @@ const intervening = {
 };
 
 describe("out-of-date review", () => {
-  it("lists what changed since the proposal was written and expands each change's own diff", async () => {
+  it("shows the three-way review for disjoint drift without a changed-since list", async () => {
     mount({
       ...ready,
       status: "RECONCILIATION_REQUIRED",
-      interveningProposals: [intervening],
+      interveningProposals: Array.from({ length: 5 }, (_, index) => ({
+        ...intervening,
+        proposalId: `approval-${index}`,
+      })),
     });
     expect(
-      await screen.findByTestId("proposal-reconciliation-heads-up"),
-    ).toHaveTextContent("1 change was approved on this item since");
+      await screen.findByTestId("proposal-three-way-review"),
+    ).toBeVisible();
+    expect(screen.queryByTestId("proposal-reconciliation-heads-up")).toBeNull();
     expect(
-      screen.getByTestId("proposal-reconciliation-changed-since"),
-    ).toHaveTextContent("Change the dessert");
-    expect(screen.getByText(/Approved by Zac/)).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Show its changes"));
-    expect(
-      screen.getByTestId("proposal-reconciliation-intervening-diff"),
-    ).toHaveTextContent("Sorbet");
-    expect(screen.queryByTestId("proposal-reconciliation-merge")).toBeNull();
-    expect(screen.getByText("Approve displayed revision")).toBeDisabled();
+      screen.queryByTestId("proposal-reconciliation-changed-since"),
+    ).toBeNull();
+    expect(screen.queryByText("Approve displayed revision")).toBeNull();
   });
 
-  it("says when no other changes were approved since", async () => {
-    mount({ ...ready, status: "RECONCILIATION_REQUIRED" });
-    expect(
-      await screen.findByTestId("proposal-reconciliation-heads-up"),
-    ).toHaveTextContent("No other changes were approved on this item since");
+  it("shows only the proposed change when reconciliation is not required", async () => {
+    mount({ ...ready, interveningProposals: [intervening] });
+    await waitFor(() =>
+      expect(screen.getByText("Approve displayed revision")).toBeEnabled(),
+    );
+    expect(screen.queryByTestId("proposal-three-way-review")).toBeNull();
+    expect(screen.queryByTestId("proposal-reconciliation-heads-up")).toBeNull();
     expect(
       screen.queryByTestId("proposal-reconciliation-changed-since"),
     ).toBeNull();
@@ -393,7 +393,7 @@ describe("out-of-date review", () => {
     expect(
       screen.queryByTestId("proposal-reconciliation-merged-result"),
     ).toBeNull();
-    expect(screen.getByText("Approve displayed revision")).toBeDisabled();
+    expect(screen.queryByText("Approve displayed revision")).toBeNull();
   });
 
   it("shows no out-of-date review on an approved proposal", async () => {
@@ -506,6 +506,49 @@ describe("approved future recovery", () => {
     expect(screen.queryByTestId("proposal-suggestion-review")).toBeNull();
     expect(screen.queryByTestId("proposal-suggestion-accept")).toBeNull();
     expect(screen.queryByTestId("proposal-suggestion-reject")).toBeNull();
+  });
+  it("merges disjoint future changes explicitly before returning to review", async () => {
+    vi.mocked(proposalsClient.getProposalReconciliation).mockResolvedValue({
+      data: {
+        data: { ...ready, status: "RECONCILIATION_REQUIRED", overlaps: [] },
+      },
+    } as never);
+    vi.mocked(
+      proposalsClient.createProposalReconciliationCandidate,
+    ).mockResolvedValue({ data: { data: ready } } as never);
+    render(
+      <ProposalReconciliationReview
+        proposal={
+          {
+            ...proposal,
+            action: "VERSIONED_UPDATE",
+            status: "APPROVED",
+            reviewedFuture: { outcome: "STAGED" },
+          } as ProposalResponseDto
+        }
+        onApply={vi.fn()}
+      >
+        <span>Saved comparison</span>
+      </ProposalReconciliationReview>,
+    );
+    expect(
+      await screen.findByTestId("proposal-three-way-review"),
+    ).toBeVisible();
+    const merge = screen.getByTestId("proposal-reconciliation-merge");
+    expect(merge).toBeEnabled();
+    fireEvent.click(merge);
+    await waitFor(() =>
+      expect(
+        proposalsClient.createProposalReconciliationCandidate,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          createProposalReconciliationCandidate: { method: "MERGE" },
+        }),
+      ),
+    );
+    expect(await screen.findByText("Saved comparison")).toBeVisible();
+    expect(screen.queryByTestId("proposal-three-way-review")).toBeNull();
+    expect(screen.queryByTestId("proposal-reconciliation-heads-up")).toBeNull();
   });
   it("exposes manual resolution after earlier approval and submits the displayed bases and future revision", async () => {
     const future = {
@@ -703,11 +746,11 @@ it("shows only conflicting requirements as decisions", async () => {
   expect(screen.queryByText("What’s changed since the baseline")).toBeNull();
   expect(cells[1]).toHaveTextContent(first.statement);
   expect(cells[2]).toHaveTextContent(intended.statement);
-  expect(screen.getByText("Approve displayed revision")).toBeDisabled();
+  expect(screen.queryByText("Approve displayed revision")).toBeNull();
   expect(apply).not.toHaveBeenCalled();
 });
 
-it("keeps Design Doc history readable without treating it as a registered work item", async () => {
+it("uses three-way Design Doc review without a separate changed-since list", async () => {
   vi.mocked(proposalsClient.getProposalReconciliation).mockResolvedValue({
     data: {
       data: {
@@ -727,19 +770,10 @@ it("keeps Design Doc history readable without treating it as a registered work i
       <Approve />
     </ProposalReconciliationReview>,
   );
-  fireEvent.click(
-    await screen.findByTestId("proposal-reconciliation-history-toggle"),
-  );
-  const history = screen.getByTestId(
-    "proposal-reconciliation-intervening-diff",
-  );
-  expect(history).toHaveTextContent("Description");
-  expect(history).toHaveTextContent("Cake");
-  expect(history).toHaveTextContent("Sorbet");
-  expect(history).not.toHaveTextContent("sections.description");
+  expect(await screen.findByTestId("proposal-three-way-review")).toBeVisible();
   expect(
-    history.querySelector('[data-testid="diff-renderer-split-view"]'),
-  ).toBeVisible();
+    screen.queryByTestId("proposal-reconciliation-changed-since"),
+  ).toBeNull();
 });
 
 describe("same-page staged recovery", () => {
@@ -780,7 +814,7 @@ describe("same-page staged recovery", () => {
       expect(screen.getByTestId("proposal-three-way-review")).toHaveTextContent(
         "Current name",
       );
-      expect(screen.getByText("Approve displayed revision")).toBeDisabled();
+      expect(screen.queryByText("Approve displayed revision")).toBeNull();
       expect(
         within(screen.getByTestId("proposal-reconciliation-stages")).getByText(
           "Resolve conflict",
@@ -813,7 +847,7 @@ describe("same-page staged recovery", () => {
         act(() => invalidateProposalReconciliation(proposal.id));
         await screen.findByTestId("proposal-three-way-review");
       }
-      expect(screen.getByText("Approve displayed revision")).toBeDisabled();
+      expect(screen.queryByText("Approve displayed revision")).toBeNull();
       expect(apply).not.toHaveBeenCalled();
     },
   );
@@ -999,7 +1033,7 @@ describe("same-page staged recovery", () => {
       "Future name",
     );
     expect(screen.getByTestId("proposal-reconciliation-stages")).toBeVisible();
-    expect(screen.getByText("Approve displayed revision")).toBeDisabled();
+    expect(screen.queryByText("Approve displayed revision")).toBeNull();
     fireEvent.click(screen.getByTestId("proposal-reconciliation-edit-by-hand"));
     expect(
       screen.getByRole("button", { name: "Keep proposal" }),

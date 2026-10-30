@@ -1,3 +1,4 @@
+import { ProposalReconciliationService } from '../proposal-reconciliation.service';
 import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
@@ -179,6 +180,15 @@ function makeCascadeDeleteWorkItemTypeDto(
   };
 }
 
+const reconciliationProvider = {
+  provide: ProposalReconciliationService,
+  useValue: new ProposalReconciliationService(
+    {} as never,
+    {} as never,
+    () => 'test',
+  ),
+};
+
 describe('ProposalValidationEngine', () => {
   let engine: ProposalValidationEngine;
   let mockPrisma: ReturnType<typeof mockPrismaWithValidationSession>;
@@ -197,6 +207,7 @@ describe('ProposalValidationEngine', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProposalValidationEngine,
+        reconciliationProvider,
         { provide: PrismaService, useValue: mockPrisma },
         {
           provide: WorkItemTypeRegistryService,
@@ -3880,6 +3891,7 @@ describe('ProposalValidationEngine', () => {
         const module = await Test.createTestingModule({
           providers: [
             ProposalValidationEngine,
+            reconciliationProvider,
             WorkItemParentageValidator,
             { provide: PrismaService, useValue: mockPrisma },
             { provide: WorkItemTypeRegistryService, useValue: registry },
@@ -4033,6 +4045,7 @@ describe('ProposalValidationEngine', () => {
         const module = await Test.createTestingModule({
           providers: [
             ProposalValidationEngine,
+            reconciliationProvider,
             WorkItemParentageValidator,
             { provide: PrismaService, useValue: mockPrisma },
             { provide: WorkItemTypeRegistryService, useValue: registry },
@@ -4382,6 +4395,7 @@ describe('ProposalValidationEngine', () => {
         const module: TestingModule = await Test.createTestingModule({
           providers: [
             ProposalValidationEngine,
+            reconciliationProvider,
             WorkItemParentageValidator,
             { provide: PrismaService, useValue: mockPrisma },
             {
@@ -4462,6 +4476,7 @@ describe('ProposalValidationEngine', () => {
         const module: TestingModule = await Test.createTestingModule({
           providers: [
             ProposalValidationEngine,
+            reconciliationProvider,
             WorkItemParentageValidator,
             { provide: PrismaService, useValue: mockPrisma },
             { provide: WorkItemTypeRegistryService, useValue: registry },
@@ -4623,6 +4638,7 @@ describe('ProposalValidationEngine', () => {
         const module: TestingModule = await Test.createTestingModule({
           providers: [
             ProposalValidationEngine,
+            reconciliationProvider,
             WorkItemParentageValidator,
             { provide: PrismaService, useValue: mockPrisma },
             { provide: WorkItemTypeRegistryService, useValue: registry },
@@ -5520,6 +5536,7 @@ describe('ProposalValidationEngine', () => {
           await Test.createTestingModule({
             providers: [
               ProposalValidationEngine,
+              reconciliationProvider,
               WorkItemParentageValidator,
               { provide: PrismaService, useValue: mockPrisma },
               {
@@ -5572,6 +5589,7 @@ describe('ProposalValidationEngine', () => {
           await Test.createTestingModule({
             providers: [
               ProposalValidationEngine,
+              reconciliationProvider,
               WorkItemParentageValidator,
               { provide: PrismaService, useValue: mockPrisma },
               {
@@ -5653,6 +5671,7 @@ describe('ProposalValidationEngine', () => {
           await Test.createTestingModule({
             providers: [
               ProposalValidationEngine,
+              reconciliationProvider,
               WorkItemParentageValidator,
               { provide: PrismaService, useValue: mockPrisma },
               {
@@ -5797,6 +5816,7 @@ describe('ProposalValidationEngine', () => {
         const customModule = await Test.createTestingModule({
           providers: [
             ProposalValidationEngine,
+            reconciliationProvider,
             WorkItemParentageValidator,
             { provide: PrismaService, useValue: mockPrisma },
             {
@@ -5835,6 +5855,7 @@ describe('ProposalValidationEngine', () => {
         const customModule = await Test.createTestingModule({
           providers: [
             ProposalValidationEngine,
+            reconciliationProvider,
             WorkItemParentageValidator,
             { provide: PrismaService, useValue: mockPrisma },
             {
@@ -5901,6 +5922,7 @@ describe('ProposalValidationEngine', () => {
         const archivedModule = await Test.createTestingModule({
           providers: [
             ProposalValidationEngine,
+            reconciliationProvider,
             WorkItemParentageValidator,
             { provide: PrismaService, useValue: mockPrisma },
             {
@@ -6095,6 +6117,7 @@ describe('ProposalValidationEngine', () => {
           await Test.createTestingModule({
             providers: [
               ProposalValidationEngine,
+              reconciliationProvider,
               WorkItemParentageValidator,
               { provide: PrismaService, useValue: mockPrisma },
               {
@@ -6162,6 +6185,7 @@ describe('ProposalValidationEngine', () => {
         const customModule = await Test.createTestingModule({
           providers: [
             ProposalValidationEngine,
+            reconciliationProvider,
             WorkItemParentageValidator,
             { provide: PrismaService, useValue: mockPrisma },
             { provide: WorkItemTypeRegistryService, useValue: customRegistry },

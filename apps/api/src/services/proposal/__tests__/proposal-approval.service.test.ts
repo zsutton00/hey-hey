@@ -1,3 +1,4 @@
+import { ProposalReconciliationAdapterService } from '../proposal-reconciliation-adapter.service';
 import { createWarmWorkItemTypeRegistryWithCustomTypes } from '../../../../test/setup/work-item-type-registry.fixture';
 import { WorkItemParentageValidator } from '../../tasks/work-item-parentage-validator.service';
 import { WorkItemChangeSetProjectorService } from '../work-item-change-set-projector.service';
@@ -4010,40 +4011,115 @@ describe('ProposalApprovalService', () => {
       ).not.toHaveBeenCalled();
     });
 
-    it('rejects a stale FEATURE requirements baseline before approval', async () => {
-      const draft = makeStoredProposal({
-        action: 'UPDATE',
-        updatedAt: new Date('2026-03-18T00:00:00Z'),
-        updates: {
-          root: { refType: 'existing', id: testIds.task },
-          operations: [
+    it.each(['ordinary', 'graph'] as const)(
+      'blocks %s requirement approval before recording a vote when reviewed content changed',
+      async (shape) => {
+        const reviewedRequirements = {
+          records: [{ id: 'requirement', statement: 'Reviewed promise' }],
+        };
+        const draft = makeStoredProposal({
+          action: 'UPDATE',
+          updates:
+            shape === 'ordinary'
+              ? {
+                  sections: [
+                    { key: 'requirements', content: reviewedRequirements },
+                  ],
+                }
+              : {
+                  root: { refType: 'existing', id: testIds.task },
+                  operations: [
+                    {
+                      op: 'section.replace',
+                      ref: { refType: 'existing', id: testIds.task },
+                      key: 'requirements',
+                      content: reviewedRequirements,
+                    },
+                  ],
+                },
+        });
+        setupForApproval(draft, {
+          taskLookup: {
+            id: testIds.task,
+            type: 'FEATURE',
+            name: 'Feature',
+            updatedAt: new Date(),
+            serviceRelations: [],
+            sections: [
+              {
+                id: 'section',
+                key: 'requirements',
+                order: 0,
+                updatedAt: new Date(),
+                updates: [],
+                crdtSnapshotSeq: 0,
+                materializedMarkdown: JSON.stringify({
+                  records: [
+                    { id: 'requirement', statement: 'Changed promise' },
+                  ],
+                }),
+              },
+            ],
+          },
+        });
+        txMock.proposalGroupMember.findUnique = jest
+          .fn()
+          .mockResolvedValue(null);
+        txMock.proposalReconciliationRevision = {
+          findFirst: jest.fn().mockResolvedValue({
+            id: 'reviewed',
+            source: 'AUTHORING',
+            bases: [
+              {
+                entityType: 'TASK',
+                entityId: testIds.task,
+                version: 'authoring',
+                content: {
+                  name: 'Feature',
+                  sections: { requirements: reviewedRequirements },
+                },
+              },
+            ],
+          }),
+        };
+        const owner = new ProposalReconciliationService(
+          new ProposalReconciliationAdapterService(
             {
-              op: 'section.replace',
-              ref: { refType: 'existing', id: testIds.task },
-              key: 'requirements',
-              content: { records: [] },
-            },
-          ],
-        },
-      });
-      setupForApproval(draft);
-      txMock.taskSection.findMany.mockResolvedValue([
-        {
-          taskId: testIds.task,
-          updatedAt: new Date('2026-03-18T00:01:00Z'),
-        },
-      ]);
-
-      await expect(
-        service.approve(
-          proposalId,
-          testIds.organization,
-          testIds.project,
-          approvingUserId,
-        ),
-      ).rejects.toThrow(ConflictException);
-      expect(txMock.proposalApprovalRecord.create).not.toHaveBeenCalled();
-    });
+              ...mockWorkItemTypeRegistry,
+              getSectionDefinition: () => ({
+                key: 'requirements',
+                kind: 'json',
+              }),
+            } as never,
+            {} as never,
+          ),
+          {} as never,
+          () => 'test',
+        );
+        Object.assign(service, { reconciliation: owner });
+        await expect(
+          service.approve(
+            proposalId,
+            testIds.organization,
+            testIds.project,
+            approvingUserId,
+          ),
+        ).rejects.toMatchObject({
+          response: {
+            issues: expect.arrayContaining([
+              expect.objectContaining({
+                code: 'PROPOSAL_RECONCILIATION_REQUIRED',
+              }),
+            ]),
+          },
+        });
+        expect(txMock.proposalApprovalRecord.create).not.toHaveBeenCalled();
+        expect(txMock.proposal.update).not.toHaveBeenCalled();
+        expect(
+          mockWorkItemChangeSetMaterializer.enqueuePreparedIntent,
+        ).not.toHaveBeenCalled();
+      },
+    );
 
     it('records approval and completes the selected generic enactment before returning', async () => {
       const draft = makeStoredProposal({

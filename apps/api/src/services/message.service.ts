@@ -1,3 +1,4 @@
+import { ProposalReconciliationService } from './proposal/proposal-reconciliation.service';
 import {
   TIMELINE_MESSAGE_WHERE,
   timelineCreatedAt,
@@ -204,6 +205,9 @@ export type AddMessageInTransactionOptions = {
 
 @Injectable()
 export class MessageService {
+  @Inject(ProposalReconciliationService)
+  private readonly reconciliation!: ProposalReconciliationService;
+
   private readonly logger = ContextAwareLogger.createServiceLogger(
     MessageService.name,
   );
@@ -349,7 +353,10 @@ export class MessageService {
       this.prisma.db,
       proposals,
       projectPolicies,
-      { workItemTypeRegistry: this.workItemTypeRegistry },
+      {
+        workItemTypeRegistry: this.workItemTypeRegistry,
+        reconciliation: this.reconciliation,
+      },
     );
     const proposalDtosById = new Map<string, ProposalResponseDto>(
       proposalDtos.map((proposal) => [proposal.id, proposal]),

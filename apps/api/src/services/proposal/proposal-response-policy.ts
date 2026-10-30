@@ -1,6 +1,7 @@
+import type { ProposalReconciliationService } from './proposal-reconciliation.service';
 import { readProposalDependencyPresentation } from './future-dependency-presentation';
 import { Logger, NotFoundException } from '@nestjs/common';
-import type { Proposal } from '@prisma/client';
+import type { Proposal, ProposalFuture } from '@prisma/client';
 import type { ProposalOutOfDateStatus } from 'src/generated';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId } from 'src/types';
@@ -23,6 +24,7 @@ import {
 import {
   futureRevisionReferenceKey,
   readFutureRevisions,
+  parseFutureRevisionMutation,
 } from './future-revision';
 import type { WorkItemTypeRegistryService } from '../tasks/work-item-type-registry.service';
 
@@ -42,131 +44,92 @@ type ProposalPolicyFields = Pick<
 > &
   Pick<ProposalWithApprovals, 'groupMembership'>;
 
-type ProposalOutOfDatePolicyFields = Pick<
-  Proposal,
-  | 'action'
-  | 'id'
-  | 'organizationId'
-  | 'projectId'
-  | 'targetEntityId'
-  | 'targetEntityType'
-  | 'targetLastAppliedProposalId'
->;
-
-function isOutOfDateApplicable(
-  proposal: Pick<Proposal, 'action' | 'targetEntityType'>,
-): boolean {
-  return (
-    proposal.targetEntityType === 'TASK' &&
-    (proposal.action === 'UPDATE' || proposal.action === 'DELETE')
-  );
-}
-
-export function deriveProposalOutOfDateStatus(
-  proposal: Pick<
-    Proposal,
-    'action' | 'targetEntityType' | 'targetLastAppliedProposalId'
-  >,
-  currentLastAppliedProposalId: string | null,
-): ProposalOutOfDateStatus {
-  if (!isOutOfDateApplicable(proposal)) {
-    return 'NOT_APPLICABLE';
-  }
-  return proposal.targetLastAppliedProposalId === currentLastAppliedProposalId
-    ? 'CURRENT'
-    : 'OUT_OF_DATE';
-}
-
 export async function resolveProposalOutOfDateStatuses(
   tx: AnyTransactionClient,
-  proposals: readonly ProposalOutOfDatePolicyFields[],
+  proposals: readonly Proposal[],
+  reconciliation: ProposalReconciliationService,
 ): Promise<ReadonlyMap<string, ProposalOutOfDateStatus>> {
   const statuses = new Map<string, ProposalOutOfDateStatus>();
-  const applicableByScope = new Map<string, ProposalOutOfDatePolicyFields[]>();
-
-  for (const proposal of proposals) {
-    if (!isOutOfDateApplicable(proposal)) {
+  const applicable = proposals.filter((proposal) => {
+    const supported =
+      (proposal.targetEntityType === 'TASK' &&
+        (proposal.action === 'UPDATE' || proposal.action === 'DELETE')) ||
+      (proposal.action === 'VERSIONED_UPDATE' &&
+        (proposal.targetEntityType === 'TASK' ||
+          proposal.targetEntityType === 'DESIGN_DOC'));
+    const terminal =
+      proposal.status === 'REJECTED' ||
+      (proposal.status === 'APPROVED' &&
+        proposal.action !== 'VERSIONED_UPDATE');
+    if (!supported || terminal) {
       statuses.set(proposal.id, 'NOT_APPLICABLE');
-      continue;
+      return false;
     }
-
-    const scope = `${proposal.organizationId}:${proposal.projectId}`;
-    applicableByScope.set(scope, [
-      ...(applicableByScope.get(scope) ?? []),
-      proposal,
-    ]);
+    return true;
+  });
+  const approvedFutures = applicable.filter(
+    (proposal) =>
+      proposal.action === 'VERSIONED_UPDATE' && proposal.status === 'APPROVED',
+  );
+  if (approvedFutures.length) {
+    const futures: Pick<ProposalFuture, 'latestProposalId' | 'outcome'>[] =
+      await tx.proposalFuture.findMany({
+        where: {
+          OR: approvedFutures.map((proposal) => ({
+            latestProposalId: proposal.id,
+            organizationId: proposal.organizationId,
+            projectId: proposal.projectId,
+          })),
+        },
+        select: { latestProposalId: true, outcome: true },
+      });
+    const outcomes = new Map(
+      futures.map((future) => [future.latestProposalId, future.outcome]),
+    );
+    for (const proposal of approvedFutures) {
+      const outcome = outcomes.get(proposal.id);
+      if (!outcome) {
+        statuses.set(proposal.id, 'UNKNOWN');
+      } else if (outcome !== 'STAGED') {
+        statuses.set(proposal.id, 'NOT_APPLICABLE');
+      }
+    }
   }
 
-  const scopedStatuses = await Promise.all(
-    [...applicableByScope.values()].map(async (scopedProposals) => {
-      const firstProposal = scopedProposals[0];
-      if (!firstProposal) return [];
-
-      const tasks: Array<{
-        id: string;
-        lastAppliedProposalId: string | null;
-      }> = await tx.task.findMany({
-        where: {
-          id: {
-            in: [
-              ...new Set(
-                scopedProposals.map((proposal) => proposal.targetEntityId),
-              ),
-            ],
-          },
-          organizationId: firstProposal.organizationId,
-          projectId: firstProposal.projectId,
-        },
-        select: { id: true, lastAppliedProposalId: true },
-      });
-      const taskById = new Map(
-        tasks.map((task) => [task.id, task.lastAppliedProposalId]),
-      );
-
-      return scopedProposals.map((proposal) => {
-        const currentLastAppliedProposalId = taskById.get(
-          proposal.targetEntityId,
-        );
-        if (currentLastAppliedProposalId === undefined) {
-          throw new Error(
-            `Proposal target task ${proposal.targetEntityId} disappeared while mapping response`,
-          );
-        }
-        return [
-          proposal.id,
-          deriveProposalOutOfDateStatus(proposal, currentLastAppliedProposalId),
-        ] as const;
-      });
-    }),
+  for (const proposal of applicable) {
+    if (
+      !statuses.has(proposal.id) &&
+      proposal.action === 'VERSIONED_UPDATE' &&
+      parseFutureRevisionMutation(proposal.updates).operation !== 'REVISE'
+    ) {
+      statuses.set(proposal.id, 'NOT_APPLICABLE');
+    }
+  }
+  const decisions = await reconciliation.decisionsForProposals(
+    tx,
+    applicable.filter((proposal) => !statuses.has(proposal.id)),
   );
-
-  for (const scopedStatus of scopedStatuses.flat()) {
-    statuses.set(scopedStatus[0], scopedStatus[1]);
+  for (const [id, decision] of decisions) {
+    statuses.set(
+      id,
+      decision.kind === 'BLOCKED'
+        ? 'UNKNOWN'
+        : decision.kind === 'REQUIRED'
+          ? 'OUT_OF_DATE'
+          : 'CURRENT',
+    );
   }
   return statuses;
 }
 
 async function resolveProposalOutOfDateStatus(
   tx: AnyTransactionClient,
-  proposal: ProposalOutOfDatePolicyFields,
+  proposal: Proposal,
+  reconciliation: ProposalReconciliationService,
 ): Promise<ProposalOutOfDateStatus> {
-  if (!isOutOfDateApplicable(proposal)) {
-    return 'NOT_APPLICABLE';
-  }
-  const task = await tx.task.findFirst({
-    where: {
-      id: proposal.targetEntityId,
-      organizationId: proposal.organizationId,
-      projectId: proposal.projectId,
-    },
-    select: { lastAppliedProposalId: true },
-  });
-  if (!task) {
-    throw new Error(
-      `Proposal target task ${proposal.targetEntityId} disappeared while mapping response`,
-    );
-  }
-  return deriveProposalOutOfDateStatus(proposal, task.lastAppliedProposalId);
+  return (
+    await resolveProposalOutOfDateStatuses(tx, [proposal], reconciliation)
+  ).get(proposal.id)!;
 }
 
 export function deriveProposalSourceContext(
@@ -382,9 +345,10 @@ export async function mapProposalResponse(
   proposal: ProposalWithApprovals,
   projectPolicy: ProjectApprovalPolicy,
   options: {
+    reconciliation: ProposalReconciliationService;
     requiredApprovals?: number;
     workItemTypeRegistry?: WorkItemTypeRegistryService;
-  } = {},
+  },
 ): Promise<TypedProposalResponse> {
   const proposalWithApprovals =
     proposal.approvalRecords !== undefined &&
@@ -431,6 +395,7 @@ export async function mapProposalResponse(
   const outOfDateStatus = await resolveProposalOutOfDateStatus(
     tx,
     proposalWithApprovals,
+    options.reconciliation,
   );
   const dependencyPresentation = await readProposalDependencyPresentation(tx, [
     proposalWithApprovals,
@@ -451,9 +416,10 @@ export async function mapProposalResponses(
     | ProjectApprovalPolicy
     | ReadonlyMap<string, ProjectApprovalPolicy>,
   options: {
+    reconciliation: ProposalReconciliationService;
     omitUnresolvableTargets?: boolean;
     workItemTypeRegistry?: WorkItemTypeRegistryService;
-  } = {},
+  },
 ): Promise<TypedProposalResponse[]> {
   const missingApprovalIds = proposals
     .filter((proposal) => proposal.approvalRecords === undefined)
@@ -531,7 +497,7 @@ export async function mapProposalResponses(
   );
   const outOfDateStatuses = await Promise.all(
     resolvableProposals.map((proposal) =>
-      resolveProposalOutOfDateStatus(tx, proposal),
+      resolveProposalOutOfDateStatus(tx, proposal, options.reconciliation),
     ),
   );
 

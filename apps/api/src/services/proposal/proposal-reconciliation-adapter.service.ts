@@ -484,6 +484,25 @@ export class ProposalReconciliationAdapterService {
         include: taskInclude,
       });
     if (!task) throw new NotFoundException('Proposal target no longer exists.');
+    return this.taskContent(task);
+  }
+
+  async tasks(
+    tx: AnyTransactionClient,
+    scope: Pick<Proposal, 'organizationId' | 'projectId'>,
+    ids: string[],
+  ): Promise<Map<string, ProposalReconciliationBasis>> {
+    const tasks: Prisma.TaskGetPayload<{ include: typeof taskInclude }>[] =
+      await tx.task.findMany({
+        where: { ...scope, id: { in: ids } },
+        include: taskInclude,
+      });
+    return new Map(tasks.map((task) => [task.id, this.taskContent(task)]));
+  }
+
+  private taskContent(
+    task: Prisma.TaskGetPayload<{ include: typeof taskInclude }>,
+  ): ProposalReconciliationBasis {
     const sections = Object.fromEntries(
       task.sections.map((section) => {
         const definition = this.registry.getSectionDefinition(
@@ -504,7 +523,7 @@ export class ProposalReconciliationAdapterService {
     );
     return {
       entityType: 'TASK',
-      entityId: id,
+      entityId: task.id,
       version: [
         task.updatedAt.toISOString(),
         ...task.sections.map(

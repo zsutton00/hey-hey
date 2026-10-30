@@ -1,3 +1,4 @@
+import { ProposalReconciliationService } from '../proposal-reconciliation.service';
 import { WorkItemTypeRegistryService } from '../../tasks/work-item-type-registry.service';
 import { TaskSectionSchemaValidatorRegistry } from '../../tasks/task-section-schema-validator.registry';
 import { of, throwError, defer } from 'rxjs';
@@ -4434,6 +4435,7 @@ describe('WorkItemChangeSetMaterializerService', () => {
 
 function reconciliationStub(completedEffects = new Set<string>()) {
   return {
+    decision: ProposalReconciliationService.prototype.decision,
     guardTaskEffect: jest.fn(
       async (
         _tx: unknown,

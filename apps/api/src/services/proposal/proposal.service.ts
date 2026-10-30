@@ -1217,8 +1217,7 @@ export class ProposalService {
       throw new ConflictException(
         'This future is no longer available for reconciliation.',
       );
-    if (input.method === 'MERGE')
-      return { ...state, status: 'AGENT_FIX_REQUIRED' };
+
     if (
       original.targetEntityType !== 'TASK' &&
       original.targetEntityType !== 'DESIGN_DOC'
@@ -1232,7 +1231,18 @@ export class ProposalService {
     const authoredMutation = parseFutureRevisionMutation(original.updates);
     if (authoredMutation.operation !== 'REVISE')
       throw new BadRequestException('Cancelled futures cannot be reconciled.');
-    const expectedCurrentBases = input.expectedCurrentBases!;
+    const expectedCurrentBases =
+      input.method === 'MERGE'
+        ? state.currentBases
+        : input.expectedCurrentBases!;
+    const expectedFutureRevision =
+      input.method === 'MERGE'
+        ? state.futureRevision
+        : input.expectedFutureRevision;
+    const expectedCandidateRevisionId =
+      input.method === 'MERGE'
+        ? state.candidateRevisionId
+        : input.expectedCandidateRevisionId;
     this.reconciliation.assertFutureReviewedBasisCurrent(
       expectedCurrentBases,
       state.currentBases,
@@ -1263,9 +1273,9 @@ export class ProposalService {
           latestProposalId: original.id,
           dependencies: authoredMutation.dependencies,
         };
-    if (input.expectedFutureRevision !== future.revision) {
+    if (expectedFutureRevision !== future.revision) {
       this.logger.warn(
-        `Rejected stale future reconciliation for ${future.id}: expected revision ${input.expectedFutureRevision}, current revision ${future.revision}`,
+        `Rejected stale future reconciliation for ${future.id}: expected revision ${expectedFutureRevision}, current revision ${future.revision}`,
       );
       throw new ConflictException(
         'The future revision changed. Refresh before reconciling.',
@@ -1309,7 +1319,14 @@ export class ProposalService {
         revision: currentBasis.version,
         content: currentContent,
       },
-      result: input.proposedResult!,
+      result:
+        input.method === 'MERGE'
+          ? this.reconciliation.mergedFutureResult(
+              original,
+              state,
+              currentContent,
+            )
+          : input.proposedResult!,
       dependencies: authoredMutation.dependencies,
     });
     if (updates.operation !== 'REVISE')
@@ -1357,13 +1374,13 @@ export class ProposalService {
         currentMutation.baseline,
       );
       if (
-        !input.expectedCandidateRevisionId ||
-        input.expectedCandidateRevisionId !== latest.candidateRevisionId
+        !expectedCandidateRevisionId ||
+        expectedCandidateRevisionId !== latest.candidateRevisionId
       )
         throw new ConflictException(
           'The proposal changed. Your edits have not been saved; review the current proposal.',
         );
-      if (latest.futureRevision !== input.expectedFutureRevision)
+      if (latest.futureRevision !== expectedFutureRevision)
         throw new ConflictException(
           'The reviewed future changed. Your edits have not been saved.',
         );
@@ -1553,6 +1570,7 @@ export class ProposalService {
 
     return {
       data: await mapProposalResponses(this.prisma.db, data, projectPolicy, {
+        reconciliation: this.reconciliation,
         omitUnresolvableTargets: true,
         workItemTypeRegistry: this.workItemTypeRegistry,
       }),
@@ -2593,6 +2611,7 @@ export class ProposalService {
   ): Promise<TypedProposalResponse> {
     return mapProposalResponse(this.prisma.db, proposal, projectPolicy, {
       requiredApprovals,
+      reconciliation: this.reconciliation,
       workItemTypeRegistry: this.workItemTypeRegistry,
     });
   }

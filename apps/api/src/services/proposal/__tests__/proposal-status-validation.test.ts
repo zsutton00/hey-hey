@@ -1,3 +1,4 @@
+import { ProposalReconciliationService } from '../proposal-reconciliation.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import type { CreateProposalDto } from '../../../generated';
 import { WorkStatus } from '../../../generated/model/workStatus';
@@ -38,6 +39,14 @@ async function buildEngine(registry: WorkItemTypeRegistryService): Promise<{
   const module: TestingModule = await Test.createTestingModule({
     providers: [
       ProposalValidationEngine,
+      {
+        provide: ProposalReconciliationService,
+        useValue: new ProposalReconciliationService(
+          {} as never,
+          {} as never,
+          () => 'test',
+        ),
+      },
       { provide: PrismaService, useValue: prisma },
       { provide: WorkItemTypeRegistryService, useValue: registry },
       WorkItemParentageValidator,

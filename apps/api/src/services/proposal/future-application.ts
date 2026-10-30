@@ -1,4 +1,3 @@
-import { futureGraph, remapGraphProjection } from './future-graph';
 import { BadRequestException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import Ajv from 'ajv';
@@ -113,105 +112,19 @@ export async function futureBaselineBlocker(
     Partial<Pick<FutureRevisionResponse, 'result' | 'latestProposalId'>>,
   reconciliation: ProposalReconciliationService,
 ): Promise<FutureApplyResponse['blocker'] | undefined> {
-  let baseline = future.baseline;
-  let resultGraph = future.result && futureGraph(future.result);
-  if (future.baseline.kind === 'FUTURE') {
-    const parent = await db.proposalFuture.findFirst({
-      where: {
-        id: future.baseline.futureId,
-        organizationId: future.organizationId,
-        projectId: future.projectId,
-        targetEntityId: future.targetEntityId,
-        targetEntityType: future.targetEntityType,
-      },
-    });
-    if (
-      !parent ||
-      parent.outcome !== 'APPLIED' ||
-      String(parent.appliedRevision) !== future.baseline.revision
-    )
-      return 'BASELINE_UNAVAILABLE';
-    const graph = futureGraph(baseline.content);
-    if (graph && 'type' in baseline.content) {
-      const intent = await db.workItemChangeSetMaterialization.findUnique({
-        where: { proposalId: parent.latestProposalId },
-      });
-      if (!intent || intent.status !== 'PUBLISHED')
-        return 'BASELINE_UNAVAILABLE';
-      baseline = {
-        ...baseline,
-        content: {
-          ...baseline.content,
-          graph: remapGraphProjection(
-            graph,
-            intent.workItemIdMappings as Record<string, string>,
-            intent.relationshipIdMappings as Record<string, string>,
-          ),
-        },
-      };
-      if (resultGraph)
-        resultGraph = remapGraphProjection(
-          resultGraph,
-          intent.workItemIdMappings as Record<string, string>,
-          intent.relationshipIdMappings as Record<string, string>,
-          true,
-        );
-    }
-  }
-  if (resultGraph && future.latestProposalId) {
-    // An interrupted Apply may already have created the result's new graph items.
-    const own = await db.workItemChangeSetMaterialization.findUnique({
-      where: { proposalId: future.latestProposalId },
-    });
-    if (own)
-      resultGraph = remapGraphProjection(
-        resultGraph,
-        own.workItemIdMappings as Record<string, string>,
-        own.relationshipIdMappings as Record<string, string>,
-        true,
-      );
-  }
-  const result =
-    future.result && resultGraph && 'type' in future.result
-      ? { ...future.result, graph: resultGraph }
-      : future.result;
-  const where = {
-    id: future.targetEntityId,
-    organizationId: future.organizationId,
-    projectId: future.projectId,
-  };
-  const target =
-    future.targetEntityType === 'TASK'
-      ? await db.task.findFirst({
-          where,
-          select: { id: true, archivedAt: true },
-        })
-      : await db.designDoc.findFirst({
-          where,
-          select: { id: true, archivedAt: true },
-        });
-  if (!target || target.archivedAt) return 'BASELINE_UNAVAILABLE';
-  const changed = await reconciliation.futureBaselineChanged(
-    db,
-    future,
-    baseline,
-    result,
-  );
-  if (!changed) {
-    return undefined;
-  }
-  if (result && !futureGraph(result)) {
-    const merged = await reconciliation.mergeFutureForApplication(
-      db,
-      future,
-      baseline,
-      result,
-    );
-    if (merged.kind === 'MERGED') {
-      return undefined;
-    }
-  }
-  return 'BASELINE_CHANGED';
+  const decision = await reconciliation.decision({
+    kind: 'future',
+    proposalId: future.latestProposalId,
+    tx: db,
+    target: future,
+    baseline: future.baseline,
+    result: future.result,
+  });
+  return decision.kind === 'NOT_REQUIRED'
+    ? undefined
+    : decision.kind === 'BLOCKED'
+      ? 'BASELINE_UNAVAILABLE'
+      : 'BASELINE_CHANGED';
 }
 
 /** Adapt the reviewed result to the existing generated target update contract. */

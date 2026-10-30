@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { ProposalApprovalService } from '../proposal-approval.service';
 import { DEFAULT_PROJECT_APPROVAL_POLICY } from '../project-approval-policy.service';
@@ -125,6 +126,9 @@ describe('manual future application', () => {
       dependencies: [],
     };
     db = {
+      proposalReconciliationRevision: {
+        findFirst: jest.fn(async () => ({ id: 'authored', bases: [] })),
+      },
       $queryRaw: jest.fn(),
       proposalFuture: {
         findFirst: jest.fn(async ({ where }: any) =>
@@ -850,7 +854,7 @@ describe('manual future application', () => {
       id: randomUUID(),
     }));
     const list = readyList(candidates);
-    const baseline = jest.spyOn(reconciliation, 'futureBaselineChanged');
+    const baseline = jest.spyOn(reconciliation, 'decision');
     expect(await list(10, 50)).toMatchObject({
       total: 100,
       items: candidates.slice(50, 60).map((f) => ({ futureId: f.id })),
@@ -862,9 +866,11 @@ describe('manual future application', () => {
     expect(db.projectMember.findMany).toHaveBeenCalledTimes(1);
     expect(db.proposal.findFirst).not.toHaveBeenCalled();
     expect(db.proposalFuture.findFirst).not.toHaveBeenCalled();
-    expect(baseline).toHaveBeenCalledTimes(10);
-    // Each displayed live baseline uses one availability and one canonical-content read.
-    expect(db.task.findFirst).toHaveBeenCalledTimes(20);
+    expect(
+      baseline.mock.calls.filter(([input]) => input.kind === 'future'),
+    ).toHaveLength(10);
+    // Each displayed live baseline uses one canonical-content read.
+    expect(db.task.findFirst).toHaveBeenCalledTimes(10);
     jest.clearAllMocks();
     await list(10, 100);
     expect(baseline).not.toHaveBeenCalled();
@@ -903,7 +909,7 @@ describe('manual future application', () => {
     expect(await apply()).toMatchObject({ blocker: 'COMPLETION_INCOMPLETE' });
   });
   it.each(['clean', 'overlap'] as const)(
-    'rechecks requirement changes at Apply: %s',
+    'requires explicit reconciliation after five later approvals: %s',
     async (kind) => {
       registry.getSectionDefinitions.mockReturnValue([
         {
@@ -935,7 +941,10 @@ describe('manual future application', () => {
         section([first, { ...second, statement: 'Proposed second' }, added]),
       ];
       state.target.sections = [
-        section([{ ...first, statement: 'Live first' }, second]),
+        section([
+          { ...first, statement: 'Live first' },
+          kind === 'overlap' ? { ...second, statement: 'Live second' } : second,
+        ]),
       ];
       const approvals = structuredClone(state.proposal.approvalRecords);
       const adapter = new ProposalReconciliationAdapterService(
@@ -965,6 +974,11 @@ describe('manual future application', () => {
         findMany: jest.fn().mockResolvedValue([]),
       };
       db.proposalReconciliationRevision = {
+        findFirst: jest.fn().mockResolvedValue({
+          bases: [originalBasis],
+          source: 'AUTHORING',
+          id: 'authored',
+        }),
         findMany: jest.fn().mockResolvedValue([
           {
             id: randomUUID(),
@@ -979,23 +993,29 @@ describe('manual future application', () => {
         ]),
       };
       state.proposal.createdAt = timestamp;
+      db.proposal.findMany.mockResolvedValue(
+        Array.from({ length: 5 }, (_, index) => ({
+          id: randomUUID(),
+          title: 'Intervening approval',
+          updates: { name: 'Current' },
+          updatedAt: new Date(timestamp.getTime() + index + 1),
+          approvalRecords: [],
+          reconciliationRevisions: [],
+        })),
+      );
+      Object.assign((reconciliation as any).adapter, {
+        currentFutureContent: async () => state.target,
+      });
       const review = await reconciliation.stateForFuture(
         db,
         state.proposal,
         state.future.baseline,
       );
-      expect(review).toMatchObject({
-        status: 'READY_FOR_REVIEW',
-        overlaps: [],
-        conflictingPaths: [],
-      });
-      expect(
-        review.revisions[0]!.proposedResult.sections.requirements.records,
-      ).toEqual([
-        { ...first, statement: 'Live first' },
-        { ...second, statement: 'Proposed second' },
-        added,
-      ]);
+      expect(review.status).toBe('RECONCILIATION_REQUIRED');
+      expect(review.interveningProposals).toHaveLength(5);
+      expect(review.revisions[0]!.bases).toEqual([originalBasis]);
+      expect(review.revisions[0]!.proposedResult).toEqual(state.future.result);
+      expect(review.overlaps.length > 0).toBe(kind === 'overlap');
       expect(
         await service.getFutureApplicability(
           futureId,
@@ -1003,47 +1023,15 @@ describe('manual future application', () => {
           projectId as any,
           userId as any,
         ),
-      ).toMatchObject({ canApply: true });
-      // More drift after review must be merged against the target held at Apply.
-      const liveSecond =
-        kind === 'overlap'
-          ? { ...second, statement: 'Conflicting second' }
-          : second;
-      state.target.sections = [
-        section([{ ...first, statement: 'Newest first' }, liveSecond]),
-      ];
-      enact.mockImplementationOnce(
-        async (_tx, _proposal, _org, _project, options) => {
-          const updates = options.mergedFutureUpdates;
-          state.target.name = updates.name;
-          for (const update of updates.sections) {
-            state.target.sections = [section(update.content.records)];
-          }
-          return {
-            proposal: state.proposal,
-            materializableEdges: [],
-            runPostCommit: jest.fn(),
-          };
-        },
-      );
-      const response = await apply();
-      if (kind === 'overlap') {
-        expect(response).toMatchObject({
-          status: 'BLOCKED',
-          blocker: 'BASELINE_CHANGED',
-        });
-        expect(enact).not.toHaveBeenCalled();
-      } else {
-        expect(response.status).toBe('APPLIED');
-        expect(
-          JSON.parse(state.target.sections[0].materializedMarkdown).records,
-        ).toEqual([
-          { ...first, statement: 'Newest first' },
-          { ...second, statement: 'Proposed second' },
-          added,
-        ]);
-        expect(state.future.latestProposalId).toBe(proposalId);
-      }
+      ).toMatchObject({ canApply: false, blockers: ['BASELINE_CHANGED'] });
+      await expect(
+        reconciliation.assertApplicable(db, state.proposal),
+      ).rejects.toThrow(ConflictException);
+      expect(await apply()).toMatchObject({
+        status: 'BLOCKED',
+        blocker: 'BASELINE_CHANGED',
+      });
+      expect(enact).not.toHaveBeenCalled();
       expect(state.proposal.approvalRecords).toEqual(approvals);
     },
   );
@@ -1062,7 +1050,7 @@ describe('manual future application', () => {
     expect(enact).not.toHaveBeenCalled();
   });
   it.each(['scalar', 'section', 'section order'])(
-    're-merges independent baseline %s changes and blocks an overlap',
+    'requires reconciliation for baseline %s changes but ignores section order',
     async (kind) => {
       if (kind === 'scalar') state.target.name = 'Concurrent edit';
       if (kind === 'section')
@@ -1080,11 +1068,11 @@ describe('manual future application', () => {
           confirmation: { revision: 1, refinements: [] },
         }),
       ).toMatchObject(
-        kind === 'scalar'
+        kind !== 'section order'
           ? { blocker: 'BASELINE_CHANGED' }
           : { status: 'APPLIED' },
       );
-      expect(enact).toHaveBeenCalledTimes(kind === 'scalar' ? 0 : 1);
+      expect(enact).toHaveBeenCalledTimes(kind !== 'section order' ? 0 : 1);
     },
   );
   it('requires an applied selected parent baseline', async () => {
@@ -1095,6 +1083,28 @@ describe('manual future application', () => {
       revision: '1',
     };
     expect(await apply()).toMatchObject({ blocker: 'BASELINE_UNAVAILABLE' });
+  });
+  it('accepts an applied selected parent whose content is still current', async () => {
+    const parentId = randomUUID();
+    state.future.baseline = {
+      ...state.future.baseline,
+      kind: 'FUTURE',
+      futureId: parentId,
+      revision: '1',
+    };
+    const findFuture = db.proposalFuture.findFirst.getMockImplementation();
+    db.proposalFuture.findFirst.mockImplementation((input: any) =>
+      input.where.id === parentId
+        ? { outcome: 'APPLIED', appliedRevision: 1 }
+        : findFuture(input),
+    );
+    expect(await apply()).toMatchObject({ status: 'APPLIED' });
+    expect(enact).toHaveBeenCalledTimes(1);
+  });
+  it('blocks application when the authored reconciliation revision is unavailable', async () => {
+    db.proposalReconciliationRevision.findFirst.mockResolvedValue(null);
+    expect(await apply()).toMatchObject({ blocker: 'BASELINE_UNAVAILABLE' });
+    expect(enact).not.toHaveBeenCalled();
   });
   it('checks design-document baselines and applies their reviewed result', async () => {
     const content = {

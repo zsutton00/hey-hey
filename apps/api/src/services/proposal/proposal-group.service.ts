@@ -1,3 +1,5 @@
+import { Inject } from '@nestjs/common';
+import { ProposalReconciliationService } from './proposal-reconciliation.service';
 import { readProposalDependencyPresentation } from './future-dependency-presentation';
 import {
   Injectable,
@@ -44,6 +46,9 @@ export type ProposalGroupWithSnapshot = Prisma.ProposalGroupGetPayload<{
 
 @Injectable()
 export class ProposalGroupService {
+  @Inject(ProposalReconciliationService)
+  private readonly reconciliation!: ProposalReconciliationService;
+
   private readonly logger = new Logger(ProposalGroupService.name);
 
   constructor(
@@ -175,6 +180,7 @@ export class ProposalGroupService {
     const outOfDateStatuses = await resolveProposalOutOfDateStatuses(
       db,
       group.members.map((member) => member.proposal),
+      this.reconciliation,
     );
     const memberById = new Map(
       group.members.map((member) => [member.id, member]),

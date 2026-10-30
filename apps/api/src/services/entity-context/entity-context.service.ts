@@ -1,3 +1,5 @@
+import { Inject } from '@nestjs/common';
+import { ProposalReconciliationService } from '../proposal/proposal-reconciliation.service';
 import { PlanDependenciesService } from '../plan/plan-dependencies.service';
 import { orderPlanStages } from '../plan/order-plan-stages';
 import {
@@ -408,6 +410,9 @@ function withCreatingProposal(
 
 @Injectable()
 export class EntityContextService {
+  @Inject(ProposalReconciliationService)
+  private readonly reconciliation!: ProposalReconciliationService;
+
   private readonly logger = new Logger(EntityContextService.name);
 
   constructor(
@@ -476,7 +481,10 @@ export class EntityContextService {
             this.prisma.db,
             proposalsToMap,
             projectPolicies,
-            { workItemTypeRegistry: this.workItemTypeRegistry },
+            {
+              workItemTypeRegistry: this.workItemTypeRegistry,
+              reconciliation: this.reconciliation,
+            },
           )
         : undefined;
 

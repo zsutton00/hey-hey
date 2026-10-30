@@ -1,9 +1,7 @@
 import type { FutureGraphApplication } from './future-graph';
 import { ModuleRef } from '@nestjs/core';
 import { ProposalGroupDecisionService } from './proposal-group-decision.service';
-import { isEqual } from 'lodash';
 import {
-  graphContentBasis,
   remapGraphProjection,
   serializableGraphProjection,
 } from './future-graph';
@@ -3561,7 +3559,13 @@ export class WorkItemChangeSetMaterializerService {
         mappings.workItems,
         mappings.relationships,
       );
-      if (!isEqual(graphContentBasis(current), graphContentBasis(expected)))
+      if (
+        this.reconciliation.decision({
+          kind: 'graph',
+          reviewed: expected,
+          current,
+        }).kind !== 'NOT_REQUIRED'
+      )
         throw new ConflictException(
           'Materialized future graph does not match its complete reviewed result; publication remains pending.',
         );

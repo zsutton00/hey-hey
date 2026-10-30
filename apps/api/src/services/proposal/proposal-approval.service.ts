@@ -4,7 +4,6 @@ import { readProjectReadyCandidates } from './project-ready-futures';
 import {
   futureGraph,
   graphChangeSet,
-  graphContentBasis,
   remapGraphProjection,
 } from './future-graph';
 import { assertApprovedEvalCaseHandlers } from 'src/services/eval-runs/eval-case-handlers';
@@ -136,7 +135,6 @@ import {
 import { evaluatePermissions } from './permission-evaluation';
 import { resolvePermissionEvaluationContext } from './permission-evaluation-context';
 import {
-  deriveProposalOutOfDateStatus,
   deriveProposalSourceContext,
   mapProposalResponse,
   resolveProjectApprovalPolicies,
@@ -831,10 +829,11 @@ export class ProposalApprovalService {
           if (preparedGraph) {
             if (
               !preparedGraph.snapshots.target.valid ||
-              !isEqual(
-                graphContentBasis(preparedGraph.snapshots.target),
-                graphContentBasis(graph),
-              )
+              this.reconciliation.decision({
+                kind: 'graph',
+                reviewed: graph,
+                current: preparedGraph.snapshots.target,
+              }).kind !== 'NOT_REQUIRED'
             )
               return blocked('BASELINE_CHANGED');
             await this.workItemChangeSetMaterializer.enqueuePreparedIntent(tx, {
@@ -1344,7 +1343,6 @@ export class ProposalApprovalService {
           proposal,
           genericChangeSetRequest,
           prepared?.snapshots.target ?? null,
-          tx,
         );
 
         const contextInput = {
@@ -2709,13 +2707,10 @@ export class ProposalApprovalService {
     proposal: Proposal,
     changeSet: WorkItemChangeSetValidationRequest | null,
     projection: ProjectedWorkItemChangeSetResponse | null,
-    db: AnyTransactionClient,
   ): Promise<void> {
     if (!changeSet || !projection) {
-      await this.assertFeatureRequirementBaseline(proposal, undefined, db);
       return;
     }
-    await this.assertFeatureRequirementBaseline(proposal, changeSet, db);
     if (
       projection.projectedRoot.type === WORK_ITEM_TYPE_KEYS.EvalCase &&
       !projection.projectedRoot.deleted
@@ -2773,91 +2768,6 @@ export class ProposalApprovalService {
         );
       }
     }
-  }
-
-  /**
-   * A prepared requirements replacement is a review snapshot, not a patch to
-   * whatever collection happens to exist at approval time. The section's
-   * updatedAt is therefore the live baseline marker: if it moved after the
-   * proposal was last written, approval must fail before any vote or enqueue
-   * is persisted. Proposal updates refresh updatedAt, so an edited proposal
-   * establishes a new baseline without rebasing the reviewed collection.
-   */
-  private async assertFeatureRequirementBaseline(
-    proposal: Proposal,
-    request: WorkItemChangeSetValidationRequest | undefined,
-    db: AnyTransactionClient,
-  ): Promise<void> {
-    const taskIds = [
-      ...new Set(
-        request
-          ? request.operations.flatMap((operation) => {
-              if (
-                (operation.op !== 'section.replace' &&
-                  operation.op !== 'section.clear') ||
-                operation.key !== 'requirements' ||
-                operation.ref.refType !== 'existing'
-              ) {
-                return [];
-              }
-              return [operation.ref.id];
-            })
-          : this.hasOrdinaryFeatureRequirementUpdate(proposal)
-            ? [proposal.targetEntityId]
-            : [],
-      ),
-    ];
-    if (taskIds.length === 0) return;
-
-    if (typeof db.$queryRaw === 'function') {
-      await db.$queryRaw(
-        Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${proposal.organizationId}:${proposal.projectId}`}, 0))::text AS "lockAcquired"`,
-      );
-    }
-    const sections = await db.taskSection.findMany({
-      where: { taskId: { in: taskIds }, key: 'requirements' },
-      select: { taskId: true, updatedAt: true },
-    });
-    const changed = sections.find(
-      (section: { taskId: string; updatedAt: Date }) =>
-        section.updatedAt > proposal.updatedAt,
-    );
-    if (!changed) return;
-
-    this.logger.warn('Rejected stale FEATURE requirements baseline', {
-      proposalId: proposal.id,
-      taskId: changed.taskId,
-      proposalUpdatedAt: proposal.updatedAt,
-      sectionUpdatedAt: changed.updatedAt,
-    });
-    throw new ConflictException(
-      'FEATURE requirements changed after this proposal was prepared; review the current collection and resubmit.',
-    );
-  }
-
-  private hasOrdinaryFeatureRequirementUpdate(proposal: Proposal): boolean {
-    if (
-      proposal.targetEntityType !== 'TASK' ||
-      proposal.action !== 'UPDATE' ||
-      proposal.updates === null ||
-      typeof proposal.updates !== 'object' ||
-      Array.isArray(proposal.updates)
-    ) {
-      return false;
-    }
-    const updates = proposal.updates as Record<string, unknown>;
-    if (Object.prototype.hasOwnProperty.call(updates, 'requirementOps')) {
-      return true;
-    }
-    return (
-      Array.isArray(updates.sections) &&
-      updates.sections.some(
-        (section) =>
-          section !== null &&
-          typeof section === 'object' &&
-          (section as { key?: unknown }).key === 'requirements',
-      )
-    );
   }
 
   private isWorkItemChangeSetValidationRequest(
@@ -4760,6 +4670,7 @@ export class ProposalApprovalService {
     projectPolicy: ProjectApprovalPolicy,
   ): Promise<TypedProposalResponse> {
     return mapProposalResponse(this.prisma.db, proposal, projectPolicy, {
+      reconciliation: this.reconciliation,
       workItemTypeRegistry: this.workItemTypeRegistry,
     });
   }

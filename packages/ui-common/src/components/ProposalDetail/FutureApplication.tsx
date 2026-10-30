@@ -127,7 +127,6 @@ export function FutureApplication({
   const applied =
     response?.status === "APPLIED" || future.outcome === "APPLIED";
   const ready =
-    !reconciliation?.approvalDisabled &&
     applicability.data?.canApply &&
     applicability.data.revision === future.revision;
   const stepped = approveStep !== undefined;
