@@ -1,5 +1,6 @@
 import { useModalState } from "../Modals/useModalState";
 import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
+import MenuBookOutlinedIcon from "@mui/icons-material/MenuBookOutlined";
 import OndemandVideoOutlinedIcon from "@mui/icons-material/OndemandVideoOutlined";
 import {
   Alert,
@@ -14,12 +15,16 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import React, { Fragment, useId, useRef } from "react";
 import { Link as RouterLink } from "react-router-dom";
 
 import { HeyheyPairTerminalDemo } from "../Activity/HeyheyPairTerminalDemo";
 import { InstallAgentBridgeTerminalDemo } from "../Activity/InstallAgentBridgeTerminalDemo";
 import { WorksWithStrip } from "../Activity/WorksWithStrip";
+import { useProjectContext } from "../../contexts";
+import { useWorkItemTypeByKey } from "../../data/hooks/useWorkItemTypes";
+import { EntityIcon } from "../Entity/EntityIcon";
 import { useOptionalHelp } from "./HelpContext";
 import type { HelpScenarioDisplayEntry } from "./helpContentTypes";
 import type { ProjectFeatureNextStepKind } from "../../api";
@@ -75,6 +80,25 @@ const renderSummary = (
   return scenario.summary;
 };
 
+const renderTitle = (
+  title: string,
+  emphasis: string | undefined,
+): React.ReactNode => {
+  if (!emphasis) {
+    return title;
+  }
+  const [before, ...rest] = title.split(emphasis);
+  return (
+    <>
+      {before}
+      <Box component="span" sx={{ color: "primary.main", fontStyle: "italic" }}>
+        {emphasis}
+      </Box>
+      {rest.join(emphasis)}
+    </>
+  );
+};
+
 const renderCheckpointSlot = (
   slot: HelpScenarioCheckpointSlot,
 ): React.ReactNode => {
@@ -103,7 +127,7 @@ const renderCta = (
       <Stack spacing={1}>
         <Button
           data-testid="help-scenario-action"
-          variant="outlined"
+          variant="contained"
           size="small"
           sx={{ alignSelf: "flex-start" }}
           disabled={!action || action.status !== "ready"}
@@ -149,8 +173,9 @@ const renderCta = (
   return (
     <Button
       {...linkDestination(href)}
-      variant="outlined"
+      variant="contained"
       size="small"
+      startIcon={cta.icon === "guide" ? <MenuBookOutlinedIcon /> : undefined}
       sx={{ alignSelf: "flex-start" }}
     >
       {cta.label}
@@ -171,6 +196,51 @@ const NEXT_STEP_KIND_COLOR: Record<
   TASKS: "primary",
   MOCKUPS: "secondary",
   DIAGRAM: "success",
+};
+
+const FEATURE_TYPE_KEY = "FEATURE";
+
+const RegistryFeatureIcon: React.FC<{
+  organizationId: string;
+  projectId: string;
+}> = ({ organizationId, projectId }) => {
+  const featureType = useWorkItemTypeByKey(
+    organizationId,
+    projectId,
+    FEATURE_TYPE_KEY,
+  );
+  const definition = featureType.workItemTypeDefinition;
+  if (!definition) {
+    return null;
+  }
+  return (
+    <EntityIcon
+      entityType={FEATURE_TYPE_KEY}
+      workItemIcon={{
+        typeKey: FEATURE_TYPE_KEY,
+        definition,
+        effectiveSource: featureType.workItemTypeSummary?.effectiveSource,
+      }}
+      round
+      size={24}
+      aria-hidden
+      data-testid="help-feature-icon"
+    />
+  );
+};
+
+/** Shows the registry-defined Feature icon; nothing until it can resolve. */
+const FeatureRowIcon: React.FC = () => {
+  const project = useProjectContext();
+  if (!project) {
+    return null;
+  }
+  return (
+    <RegistryFeatureIcon
+      organizationId={project.organizationId}
+      projectId={project.projectId}
+    />
+  );
 };
 
 const FeatureOverviewList: React.FC<{
@@ -219,10 +289,12 @@ const FeatureOverviewList: React.FC<{
                 border: 1,
                 borderColor: "divider",
                 borderRadius: 2,
+                bgcolor: (theme) => alpha(theme.palette.primary.main, 0.04),
               }}
             >
               <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Stack direction="row" spacing={1} alignItems="center">
+                  <FeatureRowIcon />
                   <Link
                     {...linkDestination(feature.href)}
                     underline="hover"
@@ -368,7 +440,7 @@ export const HelpScenarioCard: React.FC<HelpScenarioCardProps> = ({
         {...(titleComponent ? { component: titleComponent } : {})}
         sx={{ fontWeight: 600 }}
       >
-        {scenario.title}
+        {renderTitle(scenario.title, scenario.titleEmphasis)}
       </Typography>
       {scenario.summary || scenario.templatedCopy ? (
         <Typography variant="body1" color="text.secondary" component="div">
@@ -388,12 +460,25 @@ export const HelpScenarioCard: React.FC<HelpScenarioCardProps> = ({
         </Box>
       ) : null}
       {scenario.instructions && scenario.instructions.length > 0 ? (
-        <Box component="ul" sx={{ my: 0, pl: 3 }}>
-          {scenario.instructions.map((instruction, index) => (
-            <Typography component="li" variant="body2" key={index}>
-              {instruction}
-            </Typography>
-          ))}
+        <Box
+          data-testid="help-scenario-tip"
+          sx={{
+            px: 2,
+            py: 1,
+            borderRadius: 1,
+            bgcolor: "action.hover",
+          }}
+        >
+          <Typography variant="overline" color="text.secondary">
+            Tip
+          </Typography>
+          <Box component="ul" sx={{ my: 0, pl: 3 }}>
+            {scenario.instructions.map((instruction, index) => (
+              <Typography component="li" variant="body2" key={index}>
+                {instruction}
+              </Typography>
+            ))}
+          </Box>
         </Box>
       ) : null}
       {hasDemo ? (
@@ -459,8 +544,8 @@ export const HelpScenarioCard: React.FC<HelpScenarioCardProps> = ({
         sx={{
           width: 32,
           height: 32,
-          bgcolor: "action.selected",
-          color: "text.primary",
+          bgcolor: "primary.main",
+          color: "primary.contrastText",
           fontSize: "0.95rem",
           fontWeight: 600,
         }}

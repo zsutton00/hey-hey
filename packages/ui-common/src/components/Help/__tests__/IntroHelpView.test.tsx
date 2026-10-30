@@ -96,15 +96,13 @@ describe("IntroHelpView", () => {
       );
 
       expect(
-        screen.getByRole("link", { name: "Read Your First Project" }),
+        screen.getByRole("link", { name: "Open guide →" }),
       ).toHaveAttribute(
         "href",
         "/projects/project-1?tab=help&helpSubTab=first-project",
       );
       expect(buildHref).toHaveBeenCalledWith("read-first-project");
-      await user.click(
-        screen.getByRole("link", { name: "Read Your First Project" }),
-      );
+      await user.click(screen.getByRole("link", { name: "Open guide →" }));
       expect(screen.getByText("Your First Project guide")).toBeInTheDocument();
       expect(screen.queryByTestId("intro-help-view")).not.toBeInTheDocument();
     },
@@ -143,7 +141,7 @@ describe("IntroHelpView", () => {
       "Install Agent Bridge",
       "Bring in your first service",
       "Discover your feature map",
-      "Read Your First Project",
+      "Read the Your First Project guide",
     ]);
     expect(screen.getByText("Bring in your first service")).toBeInTheDocument();
     expect(screen.getByText("Discover your feature map")).toBeInTheDocument();
@@ -163,7 +161,7 @@ describe("IntroHelpView", () => {
     ).toEqual([
       "Install Agent Bridge",
       "Your features are ready",
-      "Read Your First Project",
+      "Read the Your First Project guide",
     ]);
   });
 
@@ -229,7 +227,7 @@ describe("IntroHelpView", () => {
       ).toEqual([
         "Install Agent Bridge",
         "Your features are ready",
-        "Read Your First Project",
+        "Read the Your First Project guide",
       ]);
       expect(screen.queryByText("Where to start")).toBeNull();
       expect(

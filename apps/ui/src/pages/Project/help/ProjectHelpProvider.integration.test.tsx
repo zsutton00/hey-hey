@@ -215,7 +215,7 @@ describe.each(["help", "daily"] as const)(
             ).toBeInTheDocument();
           } else {
             expect(
-              screen.getByRole("link", { name: "Read Your First Project" }),
+              screen.getByRole("link", { name: "Open guide →" }),
             ).toHaveAttribute(
               "href",
               "/projects/project?tab=help&helpSubTab=first-project",
