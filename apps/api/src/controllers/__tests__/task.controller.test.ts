@@ -74,6 +74,7 @@ describe('TaskController', () => {
 
   beforeEach(async () => {
     mockTaskService = TestUtils.createMockTaskService();
+    mockTaskService.findMutationResultByOrganization = jest.fn();
     mockProposalService = { create: jest.fn() };
     mockGoalTracksService = {
       attachToGoal: jest.fn(),
@@ -1488,7 +1489,7 @@ describe('TaskController', () => {
         mockProposalService.create.mockResolvedValue(
           buildProposalResponse({ status: 'APPROVED' as ProposalStatus }),
         );
-        mockTaskService.findOneByOrganization.mockResolvedValue(
+        mockTaskService.findMutationResultByOrganization.mockResolvedValue(
           TestUtils.createMockTaskResponseDto({
             type: 'GOAL',
             dueDate: dueDate ?? null,
@@ -1508,6 +1509,24 @@ describe('TaskController', () => {
         else expect(proposal.updates.dueDate).toBe(dueDate);
       },
     );
+
+    it('returns APPLIED with the archived task after an approved archive', async () => {
+      const task = TestUtils.createMockTaskResponseDto({ status: 'ARCHIVED' });
+      mockProposalService.create.mockResolvedValue(buildProposalResponse());
+      mockTaskService.findOneByOrganization.mockResolvedValue(null);
+      mockTaskService.findMutationResultByOrganization.mockResolvedValue(task);
+
+      await expect(
+        controller.update(
+          testIds.task,
+          testIds.project,
+          { status: 'ARCHIVED' },
+          testIds.organization,
+          buildAuthUser(),
+          buildFakeRequest(),
+        ),
+      ).resolves.toEqual({ status: 'APPLIED', task });
+    });
 
     it('returns APPLIED with updated task when proposal auto-applies (non-top-level task, user source)', async () => {
       const sectionsInput = TestUtils.createMockTaskSectionInputs({
@@ -1532,7 +1551,9 @@ describe('TaskController', () => {
       mockProposalService.create.mockResolvedValue(
         buildProposalResponse({ status: 'APPROVED' as ProposalStatus }),
       );
-      mockTaskService.findOneByOrganization.mockResolvedValue(updatedTask);
+      mockTaskService.findMutationResultByOrganization.mockResolvedValue(
+        updatedTask,
+      );
 
       const result = await controller.update(
         testIds.task,
@@ -1577,7 +1598,9 @@ describe('TaskController', () => {
       mockProposalService.create.mockResolvedValue(
         buildProposalResponse({ status: 'APPROVED' as ProposalStatus }),
       );
-      mockTaskService.findOneByOrganization.mockResolvedValue(updatedTask);
+      mockTaskService.findMutationResultByOrganization.mockResolvedValue(
+        updatedTask,
+      );
 
       const result = await controller.update(
         testIds.task,
@@ -1603,7 +1626,9 @@ describe('TaskController', () => {
       mockProposalService.create.mockResolvedValue(
         buildProposalResponse({ status: 'APPROVED' as ProposalStatus }),
       );
-      mockTaskService.findOneByOrganization.mockResolvedValue(updatedGoal);
+      mockTaskService.findMutationResultByOrganization.mockResolvedValue(
+        updatedGoal,
+      );
 
       const result = await controller.update(
         testIds.task,
@@ -1651,7 +1676,7 @@ describe('TaskController', () => {
       mockProposalService.create.mockResolvedValue(
         buildProposalResponse({ status: 'APPROVED' as ProposalStatus }),
       );
-      mockTaskService.findOneByOrganization.mockResolvedValue(
+      mockTaskService.findMutationResultByOrganization.mockResolvedValue(
         TestUtils.createMockTaskResponseDto({ id: testIds.task, dueDate }),
       );
 
@@ -1675,7 +1700,7 @@ describe('TaskController', () => {
       mockProposalService.create.mockResolvedValue(
         buildProposalResponse({ status: 'APPROVED' as ProposalStatus }),
       );
-      mockTaskService.findOneByOrganization.mockResolvedValue(
+      mockTaskService.findMutationResultByOrganization.mockResolvedValue(
         TestUtils.createMockTaskResponseDto({ id: testIds.task, dueDate }),
       );
 
@@ -1712,7 +1737,9 @@ describe('TaskController', () => {
       });
 
       mockProposalService.create.mockResolvedValue(pendingProposal);
-      mockTaskService.findOneByOrganization.mockResolvedValue(unchangedTask);
+      mockTaskService.findMutationResultByOrganization.mockResolvedValue(
+        unchangedTask,
+      );
 
       const result = await controller.update(
         testIds.task,
@@ -1740,7 +1767,7 @@ describe('TaskController', () => {
       mockProposalService.create.mockResolvedValue(
         buildProposalResponse({ status: 'APPROVED' as ProposalStatus }),
       );
-      mockTaskService.findOneByOrganization.mockResolvedValue(
+      mockTaskService.findMutationResultByOrganization.mockResolvedValue(
         TestUtils.createMockTaskResponseDto({ id: testIds.task }),
       );
 
@@ -1776,7 +1803,7 @@ describe('TaskController', () => {
       mockProposalService.create.mockResolvedValue(
         buildProposalResponse({ status: 'APPROVED' as ProposalStatus }),
       );
-      mockTaskService.findOneByOrganization.mockResolvedValue(null);
+      mockTaskService.findMutationResultByOrganization.mockResolvedValue(null);
 
       await expect(
         controller.update(
@@ -1796,7 +1823,7 @@ describe('TaskController', () => {
       mockProposalService.create.mockResolvedValue(
         buildProposalResponse({ status: 'APPROVED' as ProposalStatus }),
       );
-      mockTaskService.findOneByOrganization.mockResolvedValue(
+      mockTaskService.findMutationResultByOrganization.mockResolvedValue(
         TestUtils.createMockTaskResponseDto({ id: testIds.task }),
       );
 
@@ -1830,7 +1857,7 @@ describe('TaskController', () => {
       mockProposalService.create.mockResolvedValue(
         buildProposalResponse({ status: 'APPROVED' as ProposalStatus }),
       );
-      mockTaskService.findOneByOrganization.mockResolvedValue(
+      mockTaskService.findMutationResultByOrganization.mockResolvedValue(
         TestUtils.createMockTaskResponseDto({ id: testIds.task }),
       );
 
@@ -1866,7 +1893,7 @@ describe('TaskController', () => {
       mockProposalService.create.mockResolvedValue(
         buildProposalResponse({ status: 'APPROVED' as ProposalStatus }),
       );
-      mockTaskService.findOneByOrganization.mockResolvedValue(
+      mockTaskService.findMutationResultByOrganization.mockResolvedValue(
         TestUtils.createMockTaskResponseDto({ id: testIds.task }),
       );
 

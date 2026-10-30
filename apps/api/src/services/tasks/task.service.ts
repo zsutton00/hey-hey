@@ -4120,6 +4120,29 @@ export class TaskService {
     return this.prisma.db.task.findFirst(findFirstArgs as any);
   }
 
+  /** Read a mutation result, including a task archived by that mutation. */
+  async findMutationResultByOrganization(
+    organizationId: OrganizationId,
+    taskId: TaskId,
+  ): Promise<TaskResponseDto | null> {
+    const task = await this.prisma.db.task.findFirst({
+      where: { id: taskId, organizationId },
+    });
+    if (!task) {
+      return null;
+    }
+
+    const [response] = await this.mapTasksWithChildCounts(
+      [task],
+      organizationId,
+      task.initiativeId as InitiativeId,
+      undefined,
+      undefined,
+      ALL_DECLARED_SECTIONS,
+    );
+    return response ?? null;
+  }
+
   async findOneByOrganization(
     organizationId: OrganizationId,
     taskId: TaskId,
