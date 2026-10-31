@@ -28,3 +28,7 @@ tower = { version = "0.5", features = ["util"] }
 lto = "thin"
 strip = true
 
+# Stripping build-time macro libraries corrupts them with the macOS 27 linker.
+[profile.release.build-override]
+strip = false
+

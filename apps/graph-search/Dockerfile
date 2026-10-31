@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 COPY --from=build /app/target/release/hey-hey-graph-search /usr/local/bin/hey-hey-graph-search
 USER 65532:65532
 ENV GRAPH_SEARCH_BIND=0.0.0.0:8090
+ENV SEARCH_EMBEDDING_MODEL_DIR=/models/snowflake-arctic-embed-s
 EXPOSE 8090
 HEALTHCHECK --interval=10s --timeout=6s --start-period=10s --retries=3 \
     CMD curl --fail --silent http://127.0.0.1:8090/healthz || exit 1
