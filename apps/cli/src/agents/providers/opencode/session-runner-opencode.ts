@@ -1,3 +1,4 @@
+import type { TokenUsage } from '../../../session/types';
 import type { RunAttachmentContent } from '../../../agent-runtime/index';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { buildBrowserToolsMcpConfig, BROWSER_ALLOWED_TOOLS } from '../../browser-tools/mcp-config';
@@ -7,7 +8,7 @@ import {
   getOpencodeModelRef,
   OPENCODE_DEFAULT_MODEL_ID,
   type OpencodeModelRef,
-} from '../../../../../../packages/ui-common/src/components/AgentSession/capabilityCatalog';
+} from '../../../shared/runtime/components/AgentSession/capabilityCatalog';
 import type { RepoMappingStore } from '../../../repo/index';
 import type { RunStore } from '../../../run-store/run-store';
 import {
@@ -63,6 +64,7 @@ import {
 import type { LocalAgentEndpoint } from '../../../server/local-base-url';
 import type { SubmissionToolRegistry } from '../../submission-tools/registry';
 import { buildSubmissionToolsMcpConfig } from '../../submission-tools/mcp-config';
+import { READ_EVIDENCE_SHARD_TOOL_NAME } from '../../submission-tools/read-evidence-shard-tool';
 import { buildPlatformMcpProxyMcpConfig } from '../../platform-mcp-proxy/mcp-config';
 import type { PlatformMcpProxyMount } from '../../platform-mcp-proxy/turn-proxy';
 import { buildPlatformSystemPrompt } from '../../prompts/common';
@@ -155,9 +157,13 @@ export const resolveOpenCodeRepositoryResearchTools = (
 export const resolveOpenCodeProjectReportTools = (
   hasCreateReportSubmission: boolean,
   hasPlatformReads: boolean,
+  hasEvidenceReads: boolean,
 ): Readonly<Record<string, boolean>> => ({
   '*': false,
   ...(hasCreateReportSubmission ? { [`${SUBMISSION_TOOLS_MCP_NAME}_create_report`]: true } : {}),
+  ...(hasEvidenceReads
+    ? { [`${SUBMISSION_TOOLS_MCP_NAME}_${READ_EVIDENCE_SHARD_TOOL_NAME}`]: true }
+    : {}),
   ...(hasPlatformReads
     ? Object.fromEntries(
         PROJECT_REPORT_MCP_TOOLS.map((toolName) => [`${MCP_SERVER_NAME}_${toolName}`, true]),
@@ -1027,6 +1033,7 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
     };
 
     let pendingUsageWrite = Promise.resolve();
+    let latestTokenUsage: TokenUsage | null = null;
     const handleAssistantMessageUpdated = (info: OpencodeMessageInfo): void => {
       if (info.role !== 'assistant' || !info.tokens) return;
       const snapshot = this.contextSnapshotFromInfo(info);
@@ -1037,19 +1044,16 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
       const cacheReadInputTokens = info.tokens.cache.read;
       const cacheCreationInputTokens = info.tokens.cache.write;
 
-      // Use setRunTokenUsage so cumulative totals (assistant message carries
-      // running totals across the run, not per-turn deltas) overwrite the
-      // session record. Mirrors the Claude runner's `result` handling.
+      latestTokenUsage = {
+        inputTokens,
+        outputTokens,
+        cacheReadInputTokens,
+        cacheCreationInputTokens,
+        cacheAvailability: 'reported',
+      };
+      const usage = latestTokenUsage;
       pendingUsageWrite = pendingUsageWrite
-        .then(() =>
-          this.runStore.setRunTokenUsage(agenticSessionId, {
-            inputTokens,
-            outputTokens,
-            cacheCreationInputTokens,
-            cacheReadInputTokens,
-            cacheAvailability: 'reported',
-          }),
-        )
+        .then(() => this.runStore.setRunTokenUsage(agenticSessionId, usage, false))
         .then(() => undefined)
         .catch((err: unknown) => {
           requestContext.log(
@@ -1486,6 +1490,18 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
           bufferedAssistantText = '';
         }
         await pendingUsageWrite;
+        if (latestTokenUsage) {
+          await this.runStore
+            .setRunTokenUsage(agenticSessionId, latestTokenUsage)
+            .catch((error: unknown) => {
+              requestContext.log(
+                this.logger,
+                'warn',
+                'local.runner.opencode.token-usage.persist-failed',
+                { runId, error },
+              );
+            });
+        }
         onTerminal();
       }
     };
@@ -1906,13 +1922,16 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
       };
       const reportRegistration = this.submissionToolRegistry.getByRunId(session.agentic_session_id);
       const activeReportSubmissionTools = reportRegistration?.activeToolNames;
-      const hasCreateReportSubmission = Boolean(
-        reportRegistration?.tools.some(
-          (tool) =>
-            tool.name === 'create_report' &&
-            (!activeReportSubmissionTools || activeReportSubmissionTools.includes('create_report')),
-        ),
-      );
+      const hasActiveSubmissionTool = (name: string): boolean =>
+        Boolean(
+          reportRegistration?.tools.some(
+            (tool) =>
+              tool.name === name &&
+              (!activeReportSubmissionTools || activeReportSubmissionTools.includes(name)),
+          ),
+        );
+      const hasCreateReportSubmission = hasActiveSubmissionTool('create_report');
+      const hasEvidenceReadSubmission = hasActiveSubmissionTool(READ_EVIDENCE_SHARD_TOOL_NAME);
       const hasProjectReportPlatformReads =
         mcpToolUseCase === 'project_report' &&
         Boolean((platformMcpProxyMount && this.localAgentEndpoint.get()) || this.oauthClient);
@@ -1922,6 +1941,7 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
           ? resolveOpenCodeProjectReportTools(
               hasCreateReportSubmission,
               hasProjectReportPlatformReads,
+              hasEvidenceReadSubmission,
             )
           : repositoryResearch
             ? resolveOpenCodeRepositoryResearchTools(repositoryResearch.delegation)

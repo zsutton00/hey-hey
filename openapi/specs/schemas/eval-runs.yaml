@@ -245,7 +245,15 @@ EvalRunCaseInput:
 EvalRecordedAttempt:
   type: object
   description: One case x configuration attempt as recorded for the coordinator.
-  required: [attemptId, caseInput, configuration, execution, targetSessionId, targetConversationId]
+  required:
+    [
+      attemptId,
+      caseInput,
+      configuration,
+      execution,
+      targetSessionId,
+      targetConversationId,
+    ]
   properties:
     attemptId:
       type: string
@@ -299,9 +307,18 @@ EvalMeasurement:
       type: integer
       minimum: 0
     inputTokens:
+      description: Fresh uncached input tokens; excludes cache reads.
       type: integer
       minimum: 0
     outputTokens:
+      type: integer
+      minimum: 0
+    cacheReadInputTokens:
+      description: Input tokens read from cache; absent when unreported.
+      type: integer
+      minimum: 0
+    cacheCreationInputTokens:
+      description: Input tokens written to cache; absent when unreported.
       type: integer
       minimum: 0
     toolCalls:

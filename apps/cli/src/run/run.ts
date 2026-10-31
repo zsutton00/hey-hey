@@ -1,3 +1,4 @@
+import { readRestrictionFor } from '../shared/api/read-restriction';
 import { isAxiosError } from 'axios';
 import type { FailureReason } from './failure-message';
 import { isInertSubmissionToolAllowed } from './inert-execution-policy';
@@ -131,7 +132,6 @@ import type {
   SendMessageOptions,
 } from '../shared/agent-bridge-contract/contract';
 import { LocalPromptType } from '../shared/agent-bridge-contract/generated/api';
-import { ImplementRuntimeOwner } from '../agents/implement/implement-runtime-owner';
 import type { RunEntityReference } from '../shared/agent-bridge-contract/generated/api';
 import { resolvePromptText } from '../shared/agent-bridge-contract/contract';
 import { LocalAgentApiError } from '../shared/agent-bridge-contract/errors';
@@ -871,7 +871,6 @@ export class Run {
   private readonly browserTabNotices: BrowserTabNoticeDelivery | undefined;
   private readonly runStore: RunStore;
   private readonly implementationReadinessOwner: ImplementationReadinessOwner;
-  private readonly implementRuntimeOwner: ImplementRuntimeOwner;
   private readonly repoStore: RepoMappingStore;
   private readonly poster: MessagePoster;
   private readonly submissionActionPoster: SubmissionActionPoster;
@@ -912,7 +911,7 @@ export class Run {
   private readonly projectModeBundleMaterializer: ProjectModeBundleMaterializer;
   private readonly ownsProjectModeBundleMaterializer: boolean;
   private workspaceWriteBoundary: RunWorkspaceWriteBoundary | null = null;
-  private repositorySnapshotDirectory: Promise<string> | null = null;
+  private runEvidenceDirectory: Promise<string> | null = null;
 
   private readonly dispatcher: EventDispatcher;
 
@@ -932,7 +931,6 @@ export class Run {
     this.browserAnnotations = collaborators.browserAnnotations;
     this.browserTabNotices = collaborators.browserTabNotices;
     this.runStore = collaborators.runStore;
-    this.implementRuntimeOwner = new ImplementRuntimeOwner(this.runStore);
     this.implementationReadinessOwner = new ImplementationReadinessOwner(
       this.runStore,
       collaborators.logger,
@@ -941,7 +939,10 @@ export class Run {
     this.poster = args.session.inert ? collaborators.poster.inertSibling() : collaborators.poster;
     this.submissionActionPoster = new SubmissionActionPoster(this.poster);
     this.broadcaster = collaborators.broadcaster;
-    this.handlerDeps = collaborators.handlerDeps;
+    this.handlerDeps = {
+      ...collaborators.handlerDeps,
+      readRestriction: readRestrictionFor({ inert: args.session.inert }),
+    };
     this.sessionRoleGuidance = new SessionRoleGuidance(
       { ...this.handlerDeps, logger: collaborators.logger },
       this.runStore,
@@ -4764,6 +4765,9 @@ export class Run {
           state: 'settled',
           outcome: turn.terminalOutcome,
         });
+        if (turn.handler.promptType === LocalPromptType.ProjectAssistant) {
+          await this.handlerDeps.evalAttemptExecution?.recordResearchUsage(this.runId);
+        }
       } catch (error) {
         this.logger.error('local.run.latest_turn.save_failed', {
           runId: this.runId,
@@ -5270,9 +5274,15 @@ export class Run {
       );
     }
 
-    const runtimeSession = await this.implementRuntimeOwner.apply(session, input);
+    // A trigger that carries a runtime choice saves the complete choice on the Run;
+    // a trigger that carries none (such as a reply) uses what is saved.
+    const triggerRuntime = handler.resolveRuntime?.(input.payload);
     let providerSwitched = false;
-    if (runtimeSession !== session) {
+    if (triggerRuntime) {
+      const runtimeSession = await this.runStore.updateRunRuntime(
+        session.agentic_session_id,
+        triggerRuntime,
+      );
       this.refreshSessionFields(runtimeSession);
       session = this.session;
       providerSwitched = this.switchProvider(session.provider as Run['provider']);
@@ -5365,12 +5375,12 @@ export class Run {
     // worktree.
     const workspaceStartedAt = performance.now();
     const projectModeBundleDirectory = await this.resolveProjectModeBundleDirectory(session);
-    const repositorySnapshotDirectory = handler.repositorySnapshots
-      ? await this.resolveRepositorySnapshotDirectory()
+    const runEvidenceDirectory = handler.runEvidenceDirectory
+      ? await this.resolveRunEvidenceDirectory()
       : null;
     let turnWorkspace = await this.resolveTurnWorkspace(session, input.promptType, isFirstTurn, [
       ...(projectModeBundleDirectory ? [projectModeBundleDirectory] : []),
-      ...(repositorySnapshotDirectory ? [repositorySnapshotDirectory] : []),
+      ...(runEvidenceDirectory ? [runEvidenceDirectory] : []),
     ]);
     session = this.session;
     const admission = this.inputAdmissionFor(input);
@@ -5404,6 +5414,13 @@ export class Run {
               entry.reportType !== 'CODING_RESEARCH',
           );
 
+    // A handler with a run evidence directory starts children in `prepare`, and
+    // those children read their evidence through Run-registered tools, so the
+    // registration must exist before `prepare` runs.
+    if (handler.runEvidenceDirectory) {
+      this.registerSubmissionTools(handler, turnId, input.awaitingUserReview === true);
+    }
+
     const resolvePromptStartedAt = performance.now();
     const resolvedPromptData = await resolvePrompt({
       handler,
@@ -5436,7 +5453,7 @@ export class Run {
         ? { implementationReadinessClarification: readinessClarification }
         : {}),
       ...(projectModeBundleDirectory ? { projectModeBundleDirectory } : {}),
-      ...(repositorySnapshotDirectory ? { repositorySnapshotDirectory } : {}),
+      ...(runEvidenceDirectory ? { runEvidenceDirectory } : {}),
       ...(providerSessionDecisionPreview
         ? { providerSessionDecision: providerSessionDecisionPreview }
         : {}),
@@ -5598,8 +5615,6 @@ export class Run {
       tools: platformMcpCatalog.shortNames,
     });
 
-    const providerExecution = handler.resolveProviderExecution?.(preparedPayload ?? input.payload);
-
     // Handler.id is the stable identity of the logical agent that owns the
     // Run's provider transcript. Resume only when persisted ownership matches
     // the incoming handler. A different id rotates exactly once; promptType
@@ -5756,8 +5771,7 @@ export class Run {
     // A per-Turn runtime selection is the user's exact choice for this Turn: unset fields are
     // not filled from the Run, whose stored runtime stays as it was.
     const turnRuntime = input.turnRuntime;
-    const effectiveModel =
-      turnRuntime?.model ?? providerExecution?.model ?? resolvedTurnEffective.model;
+    const effectiveModel = turnRuntime?.model ?? resolvedTurnEffective.model;
     const effectiveReasoningEffort = turnRuntime
       ? (turnRuntime.reasoningEffort ?? null)
       : resolvedTurnEffective.reasoningEffort;
@@ -5767,7 +5781,6 @@ export class Run {
       promptType: handler.promptType,
       runnerKind: handler.runnerKind,
       provider: this.provider,
-      executionProvider: turnRuntime?.provider ?? providerExecution?.provider ?? this.provider,
       sessionModel: session.model ?? null,
       effectiveModel,
       sessionReasoningEffort: session.reasoningEffort ?? null,
@@ -5797,7 +5810,6 @@ export class Run {
           ? { workspaceWriteBoundary: turnWorkspace.workspaceWriteBoundary }
           : {}),
         effectiveModel,
-        ...(providerExecution ? { executionProvider: providerExecution.provider } : {}),
         effectiveReasoningEffort,
         ...(turnRuntime ? { turnRuntime } : {}),
         priorReports,
@@ -6151,11 +6163,11 @@ export class Run {
    * read-only directory so the write boundary identity stays stable.
    */
   /** One directory per Run so the workspace boundary's read-only roots stay stable across turns. */
-  private async resolveRepositorySnapshotDirectory(): Promise<string> {
-    this.repositorySnapshotDirectory ??= fs
-      .mkdtemp(path.join(os.tmpdir(), 'heyhey-repository-snapshots-'))
+  private async resolveRunEvidenceDirectory(): Promise<string> {
+    this.runEvidenceDirectory ??= fs
+      .mkdtemp(path.join(os.tmpdir(), 'heyhey-run-evidence-'))
       .then((directory) => fs.realpath(directory));
-    return this.repositorySnapshotDirectory;
+    return this.runEvidenceDirectory;
   }
 
   private async resolveProjectModeBundleDirectory(session: AgenticSession): Promise<string | null> {
@@ -6557,14 +6569,14 @@ export class Run {
         }),
       );
     }
-    const repositorySnapshotDirectory = this.repositorySnapshotDirectory;
-    this.repositorySnapshotDirectory = null;
-    if (repositorySnapshotDirectory) {
+    const runEvidenceDirectory = this.runEvidenceDirectory;
+    this.runEvidenceDirectory = null;
+    if (runEvidenceDirectory) {
       void runnerDisposePromise
-        .then(() => repositorySnapshotDirectory)
+        .then(() => runEvidenceDirectory)
         .then((directory) => fs.rm(directory, { recursive: true, force: true }))
         .catch((error: unknown) => {
-          this.logger.warn('local.run.cleanup.repository_snapshot_dispose_failed', {
+          this.logger.warn('local.run.cleanup.run_evidence_dispose_failed', {
             runId: this.runId,
             error,
           });

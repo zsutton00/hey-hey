@@ -287,12 +287,12 @@ describe('RunStore', () => {
         state: 'settled',
         outcome: 'COMPLETED',
       });
-      await store.updateRunTokenUsage('run-1', { inputTokens: 0, outputTokens: 0 });
+      await store.setRunTokenUsage('run-1', { inputTokens: 0, outputTokens: 0 });
       const metadataPath = await runFamilyMemberPath(tempRoot, 'run-1', 'metadata');
       const before = await fs.readFile(metadataPath, 'utf8');
       expect(await reopened.getRunResult('run-1')).toEqual({
         assistantCompleted: true,
-        usage: { inputTokens: 0, outputTokens: 0, cacheAvailability: 'unsupported' },
+        usage: {},
       });
       expect(await fs.readFile(metadataPath, 'utf8')).toBe(before);
     },
@@ -2141,7 +2141,7 @@ describe('RunStore', () => {
     });
   });
 
-  it('preserves unavailable final usage and reported cache zeros across reopening', async () => {
+  it('preserves telemetry nulls without using them as finished provider measurements', async () => {
     const run = await store.createRun(createTaskInput());
     await store.setRunTokenUsage(run.agentic_session_id, {
       inputTokens: null,
@@ -2151,11 +2151,7 @@ describe('RunStore', () => {
       cacheAvailability: 'partial',
     });
     const reopened = new RunStore({ paths: createTempPaths(tempRoot) });
-    expect((await reopened.getRunResult(run.agentic_session_id))?.usage).toEqual({
-      outputTokens: 7,
-      cacheReadInputTokens: 0,
-      cacheAvailability: 'partial',
-    });
+    expect((await reopened.getRunResult(run.agentic_session_id))?.usage).toEqual({});
     expect((await reopened.getRunMetadata(run.agentic_session_id))?.tokenUsage).toEqual({
       inputTokens: null,
       outputTokens: 7,
@@ -2167,10 +2163,25 @@ describe('RunStore', () => {
       inputTokens: 50,
       outputTokens: 3,
     });
-    expect((await reopened.getRunResult(run.agentic_session_id))?.usage).toEqual({
-      outputTokens: 10,
+    expect((await reopened.getRunResult(run.agentic_session_id))?.usage).toEqual({});
+  });
+
+  it('never substitutes live or previous-turn counts for final provider usage', async () => {
+    const run = await store.createRun(createTaskInput());
+    const id = run.agentic_session_id;
+    await store.setRunTokenUsage(id, { inputTokens: 500000, outputTokens: 100 }, false);
+    const reopened = new RunStore({ paths: createTempPaths(tempRoot) });
+    expect((await reopened.getRunResult(id))?.usage).toEqual({});
+    await store.setRunTokenUsage(id, {
+      inputTokens: 120,
+      outputTokens: 8,
+      cacheReadInputTokens: 500000,
       cacheAvailability: 'partial',
     });
+    expect((await reopened.getRunResult(id))?.usage).toEqual({});
+    await store.updateRunLatestTurn(id, { turnId: 'next', state: 'running' });
+    await store.updateRunLatestTurn(id, { turnId: 'next', state: 'settled', outcome: 'COMPLETED' });
+    expect((await reopened.getRunResult(id))?.usage).toEqual({});
   });
 
   describe('updateRunTokenUsage', () => {

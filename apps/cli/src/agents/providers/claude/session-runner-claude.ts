@@ -1492,7 +1492,13 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
 
               // Drain the final usage write before settlement.
               pendingUsageWrite = pendingUsageWrite
-                .then(() => this.runStore.setRunTokenUsage(session.agentic_session_id, usage))
+                .then(() =>
+                  this.runStore.setRunTokenUsage(
+                    session.agentic_session_id,
+                    usage,
+                    !holdResultForBackgroundTasks,
+                  ),
+                )
                 .then(() => undefined)
                 .catch((err: unknown) => {
                   requestContext.log(

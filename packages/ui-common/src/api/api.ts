@@ -32739,7 +32739,7 @@ export interface EvalMeasurement {
      */
     'elapsedMs'?: number;
     /**
-     * 
+     * Fresh uncached input tokens; excludes cache reads.
      * @type {number}
      * @memberof EvalMeasurement
      */
@@ -32750,6 +32750,18 @@ export interface EvalMeasurement {
      * @memberof EvalMeasurement
      */
     'outputTokens'?: number;
+    /**
+     * Input tokens read from cache; absent when unreported.
+     * @type {number}
+     * @memberof EvalMeasurement
+     */
+    'cacheReadInputTokens'?: number;
+    /**
+     * Input tokens written to cache; absent when unreported.
+     * @type {number}
+     * @memberof EvalMeasurement
+     */
+    'cacheCreationInputTokens'?: number;
     /**
      * 
      * @type {number}
@@ -74489,6 +74501,20 @@ export interface ReadAgentSessionCliState200Response {
     'path'?: string;
 }
 /**
+ * Read restriction a trusted CLI Run attaches to its platform requests in the `X-Read-Restriction` header. The API derives which records the request can discover and read from this value alone; callers cannot supply the excluded types themselves. * `EVAL_TARGET` — an evaluated attempt. Eval and Eval Case work items and   Eval Run, Eval Attempt and Eval Human Review reports are absent from every   search, list and read. * `EVAL_JUDGE` — the judge of an attempt. Only the grading reports are   absent; the judge receives its case and rubric in its own payload.  Absent means an ordinary, unrestricted read.
+ * @export
+ * @enum {string}
+ */
+
+export const ReadRestriction = {
+    EvalTarget: 'EVAL_TARGET',
+    EvalJudge: 'EVAL_JUDGE'
+} as const;
+
+export type ReadRestriction = typeof ReadRestriction[keyof typeof ReadRestriction];
+
+
+/**
  * Entity context whose implementation readiness was checked.
  * @export
  * @enum {string}
@@ -98970,6 +98996,12 @@ export interface UnifiedEmbeddingsSearchFilters {
      */
     'taskTypes'?: Array<string>;
     /**
+     * Task types removed by the embeddings service inside the retrieval query, before limits, offsets and totals. Combines with `taskTypes` by intersection: an excluded type is never returned even when requested.
+     * @type {Array<string>}
+     * @memberof UnifiedEmbeddingsSearchFilters
+     */
+    'excludeTaskTypes'?: Array<string>;
+    /**
      * 
      * @type {string}
      * @memberof UnifiedEmbeddingsSearchFilters
@@ -99155,6 +99187,18 @@ export interface UnifiedGraphSearchFilters {
      * @memberof UnifiedGraphSearchFilters
      */
     'taskTypes'?: Array<string>;
+    /**
+     * Task types the graph service removes from results and traversal paths inside the query. Wins over `taskTypes`.
+     * @type {Array<string>}
+     * @memberof UnifiedGraphSearchFilters
+     */
+    'excludeTaskTypes'?: Array<string>;
+    /**
+     * Report types the graph service removes from results and traversal paths inside the query.
+     * @type {Array<ReportType>}
+     * @memberof UnifiedGraphSearchFilters
+     */
+    'excludeReportTypes'?: Array<ReportType>;
     /**
      * 
      * @type {UnifiedSearchCommonFiltersDateRange}
@@ -99542,6 +99586,18 @@ export interface UnifiedSearchCommonFilters {
      * @memberof UnifiedSearchCommonFilters
      */
     'taskTypes'?: Array<string>;
+    /**
+     * Task types removed from every search lane inside the retrieval query, before limits, offsets and totals. An excluded type is never returned, even when `taskTypes` requests it. Non-TASK entities are unaffected.
+     * @type {Array<string>}
+     * @memberof UnifiedSearchCommonFilters
+     */
+    'excludeTaskTypes'?: Array<string>;
+    /**
+     * Report types removed from graph results and traversal paths inside the retrieval query, before limits, offsets and totals. Other entity types and report types are unaffected.
+     * @type {Array<ReportType>}
+     * @memberof UnifiedSearchCommonFilters
+     */
+    'excludeReportTypes'?: Array<ReportType>;
     /**
      * Canonical statuses to apply across graph and embeddings searches.
      * @type {Array<string>}

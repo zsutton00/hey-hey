@@ -2609,7 +2609,8 @@ components:
         outputTokens:
           type: integer
           minimum: 0
-          description: Cumulative output tokens produced.
+          nullable: true
+          description: Cumulative output tokens produced, or null when unavailable.
         cacheCreationInputTokens:
           type: integer
           minimum: 0

@@ -274,6 +274,7 @@ const extractSessionRecords = (
 
 export const createCcusageSessionJsonReader = (
   resolveLauncher: () => string = resolveCcusageLauncher,
+  usageOnly = false,
 ): CcusageSessionJsonReader => {
   const codexInput = new CodexCostInput();
   return async (providerId, since, scope) => {
@@ -306,6 +307,7 @@ export const createCcusageSessionJsonReader = (
             providerId,
             'session',
             '--json',
+            ...(usageOnly ? ['--offline'] : []),
             ...(!restricted && since ? ['--since', since, '--timezone', 'UTC'] : []),
           ],
           {
@@ -325,6 +327,9 @@ export const createCcusageSessionJsonReader = (
         throw runtimeError;
       }
     };
+    if (usageOnly) {
+      return execute(env, false);
+    }
     return providerId === 'codex' && scope?.sessionIds.length
       ? codexInput.read(scope.sessionIds, env, execute, scope.logger)
       : execute(env, false);

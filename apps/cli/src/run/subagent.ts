@@ -1,3 +1,5 @@
+import { readRestrictionFor } from '../shared/api/read-restriction';
+import type { TokenUsage } from '../session/types';
 import { randomUUID } from 'node:crypto';
 import { TurnPlatformMcpProxy } from '../agents/platform-mcp-proxy/turn-proxy';
 import { childPlatformMcpProxies } from '../agents/platform-mcp-proxy/child-proxy-registry';
@@ -42,7 +44,10 @@ import type {
 import { buildMcpServerConfig, resolveHintPromptAccess } from '../agents/mcp-server-config';
 import { buildPlatformSystemPrompt } from '../agents/prompts/common';
 import type { SessionStartContext } from '../agents/prompts/session-start-context';
-import { loadProviderEventNormalizationConfig } from '../agents/providers/provider-event-normalization';
+import {
+  loadProviderEventNormalizationConfig,
+  normalizeClaudeResultUsage,
+} from '../agents/providers/provider-event-normalization';
 import { resolveAgentProviderId } from '../agents/providers/provider-config';
 import { mapCodexEvent } from '../agents/providers/codex/codex-event-mapper';
 import {
@@ -355,60 +360,45 @@ export interface SubAgentUsage {
   toolCalls?: number;
 }
 
-/**
- * Accumulates the provider's own usage evidence for one child. Claude repeats a
- * message's usage on streamed copies, so totals are kept per message id; Codex
- * reports cumulative thread totals and does not report tool calls here.
- */
+/** Final provider usage is the only source of child token totals. */
 class ChildUsageMeter {
-  private readonly claudeMessages = new Map<string, { input: number; output: number }>();
+  private providerUsage: TokenUsage | null = null;
   private readonly claudeToolUseIds = new Set<string>();
-  private codexTotals: { input: number; output: number } | null = null;
+  private observedClaudeTools = false;
 
   public recordClaudeAssistant(event: ClaudeCodeSdkEvent): void {
     const message = event['message'];
-    if (!isRecord(message) || typeof message['id'] !== 'string') return;
-    const content = message['content'];
-    if (Array.isArray(content)) {
-      for (const block of content) {
-        if (isRecord(block) && block['type'] === 'tool_use' && typeof block['id'] === 'string') {
-          this.claudeToolUseIds.add(block['id']);
-        }
+    if (!isRecord(message) || !Array.isArray(message['content'])) return;
+    this.observedClaudeTools = true;
+    for (const block of message['content']) {
+      if (isRecord(block) && block['type'] === 'tool_use' && typeof block['id'] === 'string') {
+        this.claudeToolUseIds.add(block['id']);
       }
     }
-    if (!isRecord(message['usage'])) return;
-    const usage = message['usage'];
-    const previous = this.claudeMessages.get(message['id']);
-    const input =
-      readTokenCount(usage, 'input_tokens') +
-      readTokenCount(usage, 'cache_creation_input_tokens') +
-      readTokenCount(usage, 'cache_read_input_tokens');
-    const output = readTokenCount(usage, 'output_tokens');
-    this.claudeMessages.set(message['id'], {
-      input: Math.max(previous?.input ?? 0, input),
-      output: Math.max(previous?.output ?? 0, output),
-    });
   }
 
-  public recordCodexTotals(usage: CodexSdkTokenUsage): void {
-    this.codexTotals = {
-      input: (usage.inputTokens ?? 0) + (usage.cacheReadInputTokens ?? 0),
-      output: usage.outputTokens,
-    };
+  public recordFinalUsage(usage: TokenUsage): void {
+    this.providerUsage = usage;
   }
 
   public read(): SubAgentUsage {
-    if (this.codexTotals) {
-      return { inputTokens: this.codexTotals.input, outputTokens: this.codexTotals.output };
-    }
-    if (this.claudeMessages.size === 0) return {};
-    let inputTokens = 0;
-    let outputTokens = 0;
-    for (const totals of this.claudeMessages.values()) {
-      inputTokens += totals.input;
-      outputTokens += totals.output;
-    }
-    return { inputTokens, outputTokens, toolCalls: this.claudeToolUseIds.size };
+    const usage = this.providerUsage;
+    return {
+      ...(usage
+        ? {
+            ...(usage.inputTokens !== null ? { inputTokens: usage.inputTokens } : {}),
+            ...(usage.outputTokens !== null ? { outputTokens: usage.outputTokens } : {}),
+            ...(usage.cacheReadInputTokens !== null
+              ? { cacheReadInputTokens: usage.cacheReadInputTokens }
+              : {}),
+            ...(usage.cacheCreationInputTokens !== null
+              ? { cacheCreationInputTokens: usage.cacheCreationInputTokens }
+              : {}),
+            cacheAvailability: usage.cacheAvailability,
+          }
+        : {}),
+      ...(this.observedClaudeTools ? { toolCalls: this.claudeToolUseIds.size } : {}),
+    };
   }
 }
 
@@ -579,6 +569,7 @@ export class SubAgent {
     }
     const mcpContext = {
       inert: session.inert === true,
+      readRestriction: readRestrictionFor({ inert: session.inert }) ?? handler.readRestriction,
       ...(session.contextMetadata?.projectId
         ? { projectId: session.contextMetadata.projectId }
         : {}),
@@ -661,19 +652,22 @@ export class SubAgent {
       cliBaseUrl &&
       runRegistration.tools.length > 0
     ) {
+      const childTools = config.submissionToolNames
+        ? runRegistration.tools.filter((tool) => config.submissionToolNames?.includes(tool.name))
+        : runRegistration.tools;
       const submissionConfig = buildSubmissionToolsMcpConfig({
         token: runRegistration.token,
         cliBaseUrl,
         tools: session.inert
-          ? runRegistration.tools.filter((tool) => isInertSubmissionToolAllowed(tool.name))
-          : runRegistration.tools,
+          ? childTools.filter((tool) => isInertSubmissionToolAllowed(tool.name))
+          : childTools,
       });
       mcpServers = { ...mcpServers, [submissionConfig.serverName]: submissionConfig.serverEntry };
       submissionAllowedTools = submissionConfig.allowedTools;
       requestContext.log(logger, 'info', 'local.subagent.submission_tools.attached', {
         runId,
         adapterId: config.adapterId,
-        toolCount: runRegistration.tools.length,
+        toolCount: childTools.length,
         allowedTools: submissionConfig.allowedTools,
       });
     } else {
@@ -858,6 +852,8 @@ export class SubAgent {
     client.onEvent((event: ClaudeCodeSdkEvent) => {
       const eventType = typeof event['type'] === 'string' ? event['type'] : 'unknown';
       if (eventType === 'assistant') this.usageMeter.recordClaudeAssistant(event);
+      if (eventType === 'result')
+        this.usageMeter.recordFinalUsage(normalizeClaudeResultUsage(event['usage']));
       if (budgetGuard && eventType === 'assistant') {
         const usage = readClaudeMessageUsage(event);
         if (usage) {
@@ -1229,6 +1225,7 @@ export class SubAgent {
         : baseCodexConfig;
     const allowedMcpToolNames = new Set([...allowedMcpTools, ...submissionAllowedTools]);
     const client = new CodexSdkClient();
+    let latestTokenUsage: CodexSdkTokenUsage | null = null;
     const normalizationConfig = loadProviderEventNormalizationConfig();
     let bufferedAssistantText = '';
     let lastAssistantText = '';
@@ -1479,10 +1476,12 @@ export class SubAgent {
 
     // Codex reports cumulative thread totals, so each update replaces the last.
     client.onTokenUsage((usage) => {
-      this.usageMeter.recordCodexTotals(usage);
-      budgetGuard?.record(
-        (usage.inputTokens ?? 0) + (usage.cacheReadInputTokens ?? 0) + usage.outputTokens,
-      );
+      latestTokenUsage = usage;
+      if (usage.inputTokens !== null && usage.outputTokens !== null) {
+        budgetGuard?.record(
+          usage.inputTokens + (usage.cacheReadInputTokens ?? 0) + usage.outputTokens,
+        );
+      }
     });
 
     client.onServerRequest((request: CodexSdkServerRequest) => {
@@ -1577,6 +1576,9 @@ export class SubAgent {
         },
         signal ? { signal } : undefined,
       );
+      if (latestTokenUsage) {
+        this.usageMeter.recordFinalUsage(latestTokenUsage);
+      }
     } catch (error) {
       if (!budgetGuard?.isExhausted) {
         requestContext.log(logger, 'error', 'local.subagent.codex.failed', {

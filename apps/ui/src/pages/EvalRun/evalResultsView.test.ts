@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { EvalAttemptReport, EvalRunReport } from "@hey-hey/ui-common/data";
 
-import { caseRow, groupCasesBySetup, rowMeasure } from "./evalResultsView";
+import {
+  caseRow,
+  groupCasesBySetup,
+  rowMeasure,
+  measuredTokens,
+} from "./evalResultsView";
 
 const setupA = {
   id: "a",
@@ -65,18 +70,18 @@ const handler = (extra: Record<string, unknown>) => ({
 describe("rowMeasure", () => {
   const read = (entry: { toolCalls?: number } | undefined) => entry?.toolCalls;
 
-  it("adds preparation and handler work", () => {
+  it("ignores legacy preparation when measuring the tested agent", () => {
     const a = attempt("x", setupA, "case-1", {
       measurements: [prep({ toolCalls: 5 }), handler({ toolCalls: 12 })],
     });
-    expect(rowMeasure(a, read)).toEqual({ value: 17, partial: false });
+    expect(rowMeasure(a, read)).toEqual({ value: 12, partial: false });
   });
 
-  it("marks a total built from one scope as part reported", () => {
+  it("does not substitute legacy preparation for missing handler work", () => {
     const a = attempt("x", setupA, "case-1", {
       measurements: [prep({ toolCalls: 5 })],
     });
-    expect(rowMeasure(a, read)).toEqual({ value: 5, partial: true });
+    expect(rowMeasure(a, read)).toEqual({ value: null, partial: false });
   });
 
   it("reads null, never 0, when neither scope reported", () => {
@@ -152,23 +157,28 @@ describe("caseRow", () => {
     );
     expect(row.errored).toBe(true);
     expect(row.recognition).toBe("pending");
-    expect(row.elapsedMs).toEqual({ value: 22_000, partial: true });
-    expect(row.tokens).toEqual({ value: 5_000, partial: true });
+    expect(row.elapsedMs).toEqual({ value: null, partial: false });
+    expect(row.tokens).toEqual({ value: null, partial: false });
     expect(row.toolCalls.value).toBeNull();
   });
 
-  it("splits the work into preparing context and the handler", () => {
+  it("shows a separate research agent only when it actually prepares the tested agent", () => {
     const row = caseRow(
       "p1",
       run,
       attempt("x", setupA, "case-1", {
+        execution: {
+          handler: "entity_conversation",
+          projectAssistantPrepares: true,
+          assessedOutput: "HANDLER_REPLY",
+        },
         measurements: [
           prep({ elapsedMs: 41_000, inputTokens: 15_000, outputTokens: 5_000 }),
           handler({ elapsedMs: 160_000, toolCalls: 12 }),
         ],
       }),
     );
-    expect(row.breakdown).toEqual([
+    expect(row.breakdown).toMatchObject([
       {
         scope: "TARGET_PREPARATION",
         elapsedMs: 41_000,
@@ -195,5 +205,41 @@ describe("groupCasesBySetup", () => {
     expect(groups.map((group) => group.configuration.id)).toEqual(["b", "a"]);
     expect(groups[0].rows.map((row) => row.attemptId)).toEqual(["b1"]);
     expect(groups[1].rows.map((row) => row.attemptId)).toEqual(["a1", "a2"]);
+  });
+});
+
+describe("fresh input headline", () => {
+  it("requires both measured halves and preserves reported zero", () => {
+    expect(
+      measuredTokens({ scope: "TARGET_HANDLER", outputTokens: 8 }),
+    ).toBeUndefined();
+    expect(
+      measuredTokens({
+        scope: "TARGET_HANDLER",
+        inputTokens: 0,
+        outputTokens: 0,
+      }),
+    ).toBe(0);
+  });
+
+  it("excludes preparation, judging and cache reads from the attempt headline", () => {
+    const own = attempt("x", setupA, "case-1", {
+      measurements: [
+        prep({ inputTokens: 500, outputTokens: 20 }),
+        handler({
+          inputTokens: 100,
+          outputTokens: 8,
+          cacheReadInputTokens: 500000,
+          cacheCreationInputTokens: 0,
+        }),
+        { scope: "JUDGE", inputTokens: 50, outputTokens: 10 },
+      ],
+    });
+    const row = caseRow("p1", run, own);
+    expect(row.tokens).toEqual({ value: 108, partial: false });
+    expect(row.breakdown[0]).toMatchObject({
+      cacheReadInputTokens: 500000,
+      cacheCreationInputTokens: 0,
+    });
   });
 });

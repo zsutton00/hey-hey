@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { RunAttachmentContent } from '../../../../../packages/ui-common/src/utils/run-attachment-format';
+import type { RunAttachmentContent } from '../../shared/runtime/utils/run-attachment-format';
 import { spawn, type ChildProcess } from 'node:child_process';
 import type { ToolExecutionHookLaunch } from '../tool-execution-hooks';
 import { createInterface, type Interface as ReadlineInterface } from 'node:readline';
@@ -8,7 +8,7 @@ import type { ContextData } from './controlRequestSchemas';
 
 export type CodexSdkTokenUsage = {
   inputTokens: number | null;
-  outputTokens: number;
+  outputTokens: number | null;
   cacheCreationInputTokens: null;
   cacheReadInputTokens: number | null;
   cacheAvailability: 'partial' | 'unsupported';
@@ -905,28 +905,24 @@ export class CodexSdkClient {
     const activeContextTotal = last?.['totalTokens'];
     const window = tokenUsage?.['modelContextWindow'];
 
-    if (total) {
-      const outputTokens = readNonNegativeInteger(total['outputTokens']);
-      const reportedInputTokens = readNonNegativeInteger(total['inputTokens']);
-      const cacheReadInputTokens = readNonNegativeInteger(total['cachedInputTokens']);
-      const hasContradictoryInputTotals =
-        reportedInputTokens !== null &&
-        cacheReadInputTokens !== null &&
-        cacheReadInputTokens > reportedInputTokens;
-      const usableCacheReadInputTokens = hasContradictoryInputTotals ? null : cacheReadInputTokens;
-      if (outputTokens !== null) {
-        this.tokenUsageHandler?.({
-          inputTokens:
-            reportedInputTokens !== null && usableCacheReadInputTokens !== null
-              ? reportedInputTokens - usableCacheReadInputTokens
-              : null,
-          outputTokens,
-          cacheCreationInputTokens: null,
-          cacheReadInputTokens: usableCacheReadInputTokens,
-          cacheAvailability: usableCacheReadInputTokens === null ? 'unsupported' : 'partial',
-        });
-      }
-    }
+    const outputTokens = readNonNegativeInteger(total?.['outputTokens']);
+    const reportedInputTokens = readNonNegativeInteger(total?.['inputTokens']);
+    const cacheReadInputTokens = readNonNegativeInteger(total?.['cachedInputTokens']);
+    const hasContradictoryInputTotals =
+      reportedInputTokens !== null &&
+      cacheReadInputTokens !== null &&
+      cacheReadInputTokens > reportedInputTokens;
+    const usableCacheReadInputTokens = hasContradictoryInputTotals ? null : cacheReadInputTokens;
+    this.tokenUsageHandler?.({
+      inputTokens:
+        reportedInputTokens !== null && usableCacheReadInputTokens !== null
+          ? reportedInputTokens - usableCacheReadInputTokens
+          : null,
+      outputTokens,
+      cacheCreationInputTokens: null,
+      cacheReadInputTokens: usableCacheReadInputTokens,
+      cacheAvailability: usableCacheReadInputTokens === null ? 'unsupported' : 'partial',
+    });
 
     const contextTotal = readNonNegativeInteger(activeContextTotal);
     if (contextTotal === null) return;

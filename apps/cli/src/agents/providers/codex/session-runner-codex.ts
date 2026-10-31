@@ -1,3 +1,4 @@
+import type { TokenUsage } from '../../../session/types';
 import { CODEX_MCP_ONLY_FEATURE_OVERRIDES } from './mcp-only-features';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { withoutCodexInputEcho } from './codex-input-echo';
@@ -948,6 +949,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
     let persistQueue = Promise.resolve();
     let runCompleted = false;
     let pendingUsageWrite = Promise.resolve();
+    let latestTokenUsage: TokenUsage | null = null;
 
     const enqueueAgentOutputPersist = (input: {
       runId: string;
@@ -1381,17 +1383,9 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
       };
 
       this.client.onTokenUsage((usage) => {
+        latestTokenUsage = usage;
         pendingUsageWrite = pendingUsageWrite
-          .then(() =>
-            this.runStore.setRunTokenUsage(session.agentic_session_id, {
-              inputTokens: usage.inputTokens,
-              outputTokens: usage.outputTokens,
-              ...(usage.cacheReadInputTokens === null
-                ? {}
-                : { cacheReadInputTokens: usage.cacheReadInputTokens }),
-              cacheAvailability: usage.cacheAvailability,
-            }),
-          )
+          .then(() => this.runStore.setRunTokenUsage(session.agentic_session_id, usage, false))
           .then(() => undefined)
           .catch((error: unknown) => {
             this.logger.warn('local.runner.codex.token-usage.persist-failed', { runId, error });
@@ -2148,6 +2142,13 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
       this.client.onEvent(null);
       this.client.onTokenUsage(null);
       await pendingUsageWrite;
+      if (latestTokenUsage) {
+        await this.runStore
+          .setRunTokenUsage(session.agentic_session_id, latestTokenUsage)
+          .catch((error: unknown) => {
+            this.logger.warn('local.runner.codex.token-usage.persist-failed', { runId, error });
+          });
+      }
       this.client.onServerRequest(null);
       this.emitLocalStatus('');
       process.stdout.write('\n');

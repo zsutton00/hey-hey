@@ -31,7 +31,6 @@ import {
   runOverhead,
   type AveragedMeasure,
   type OverheadMeasures,
-  type ScopedMeasures,
   type SetupComparison,
   type SummedMeasure,
 } from "./evalResultsView";
@@ -60,18 +59,15 @@ const useMeasureFormatter = (): ((
   };
 };
 
-const ScopedCell: React.FC<{
-  measures: ScopedMeasures;
+const MeasureCell: React.FC<{
+  measures: AveragedMeasure;
   format: Format;
   testId: string;
 }> = ({ measures, format, testId }) => {
   const formatMeasure = useMeasureFormatter();
   return (
     <TableCell data-testid={testId}>
-      {`${formatMeasure(measures.preparation, format)} / ${formatMeasure(
-        measures.handler,
-        format,
-      )}`}
+      {formatMeasure(measures, format)}
     </TableCell>
   );
 };
@@ -109,17 +105,17 @@ const ComparisonRow: React.FC<{ comparison: SetupComparison }> = ({
           ? notReported
           : `${checks.passed} / ${checks.total}`}
       </TableCell>
-      <ScopedCell
+      <MeasureCell
         measures={comparison.elapsedMs}
         format={formatElapsed}
         testId={`${testId}-elapsed`}
       />
-      <ScopedCell
+      <MeasureCell
         measures={comparison.tokens}
         format={formatTokenCount}
         testId={`${testId}-tokens`}
       />
-      <ScopedCell
+      <MeasureCell
         measures={comparison.toolCalls}
         format={formatCount}
         testId={`${testId}-tool-calls`}

@@ -1,3 +1,5 @@
+import { SessionTokenUsageReader } from '../../provider-usage/session-token-usage';
+import type { TokenUsage } from '../../session/types';
 import { WorkflowAboutReader } from '../submission-tools/search-messages-proxy';
 import type { MessagePosterApiClient } from '../../run/types';
 import { createPromptTypeHandlerTestDeps } from '../prompt-type-handler.test-support';
@@ -44,9 +46,47 @@ afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
+const nativeReports = new WeakMap<RunStore, Map<string, unknown>>();
+let nativeSessionSequence = 0;
+const recordProviderUsage = async (
+  store: RunStore,
+  runId: string,
+  usage: Partial<TokenUsage>,
+): Promise<void> => {
+  const sessionId = `native-session-${String(++nativeSessionSequence)}`;
+  const reports = nativeReports.get(store);
+  if (!reports) {
+    throw new Error('Native report fixture is missing.');
+  }
+  reports.set(sessionId, {
+    sessionId,
+    ...(usage.inputTokens != null ? { inputTokens: usage.inputTokens } : {}),
+    ...(usage.outputTokens != null ? { outputTokens: usage.outputTokens } : {}),
+    ...(usage.cacheReadInputTokens != null ? { cacheReadTokens: usage.cacheReadInputTokens } : {}),
+    ...(usage.cacheCreationInputTokens != null
+      ? { cacheCreationTokens: usage.cacheCreationInputTokens }
+      : {}),
+  });
+  await store.updateRunProviderIdentity(runId, {
+    providerSessionId: sessionId,
+    providerSessionAgentId:
+      (await store.getRunMetadata(runId))?.startedPromptTypes?.at(-1) ?? 'agent_search',
+  });
+  // Live telemetry may disagree; it only supplies the budget monitor.
+  await store.setRunTokenUsage(runId, {
+    ...usage,
+    inputTokens: usage.inputTokens ?? null,
+    outputTokens: usage.outputTokens ?? null,
+  });
+};
+
 const storeAt = (baseDir: string): RunStore => {
   const runsDir = path.join(baseDir, 'runs');
-  return new RunStore({
+  const reports = new Map<string, unknown>();
+  const store = new RunStore({
+    sessionTokenUsageReader: new SessionTokenUsageReader(() =>
+      Promise.resolve(JSON.stringify({ sessions: [...reports.values()] })),
+    ),
     paths: {
       baseDir,
       runsDir,
@@ -54,6 +94,8 @@ const storeAt = (baseDir: string): RunStore => {
       preferencesPath: path.join(baseDir, 'preferences.json'),
     },
   });
+  nativeReports.set(store, reports);
+  return store;
 };
 
 const makeHarness = async () => {
@@ -65,7 +107,13 @@ const makeHarness = async () => {
   tempDirs.push(baseDir);
   const runStore = storeAt(baseDir);
   await runStore.initialize();
-  const runPrompt = vi.fn(() =>
+  const runPrompt = vi.fn<
+    (...args: unknown[]) => Promise<{
+      providerSessionId: string | null;
+      providerConversationId: string | null;
+      errorCount: number;
+    }>
+  >(() =>
     Promise.resolve({ providerSessionId: null, providerConversationId: null, errorCount: 0 }),
   );
   const projectModeBundleMaterializer = new ProjectModeBundleMaterializer();
@@ -84,7 +132,17 @@ const makeHarness = async () => {
       dataDir: baseDir,
     }),
     runStore,
-    sessionRunner: { runPrompt, resumeSession: runPrompt },
+    sessionRunner: {
+      runPrompt: async (...args) => {
+        const result = await runPrompt(...args);
+        return {
+          ...result,
+          providerSessionId:
+            (await runStore.getRunMetadata(AGENT_SESSION_ID))?.provider_session_id ?? null,
+        };
+      },
+      resumeSession: runPrompt,
+    },
     oauthClient: createTestOAuthClient({
       getAccessToken: vi.fn(() => Promise.resolve({ success: true as const, data: 'test-token' })),
     }),
@@ -215,8 +273,7 @@ describe('eval attempts through ordinary Runs', () => {
       const result = await execution.execute(coordinator, attempt(handler), {
         signal: new AbortController().signal,
       });
-      expect(result.preparationMeasurements?.[0]?.scope).toBe('TARGET_PREPARATION');
-      expect(result.preparationMeasurements?.[0]?.elapsedMs).toBeGreaterThanOrEqual(0);
+      expect(result.researchMeasurements).toBeUndefined();
       expect(runPrompt).toHaveBeenCalledOnce();
       expect(JSON.stringify(runPrompt.mock.calls)).not.toContain('SECRET-');
       expect(wiring.runRegistry.get(AGENT_SESSION_ID)?.session).toMatchObject({
@@ -266,6 +323,66 @@ describe('eval attempts through ordinary Runs', () => {
       expect(research).toContain('queued for the "entity_conversation" handler');
       expect(research).toContain('> Review this item.');
       expect(answer).not.toContain('queued for the "entity_conversation" handler');
+    });
+
+    it.each([true, false])('preserves research before handoff (reported=%s)', async (reported) => {
+      const { runPrompt, runStore, execution } = await makeHarness();
+      runPrompt.mockImplementationOnce(async () => {
+        const turn = (await runStore.getRunMetadata(AGENT_SESSION_ID))!.latestTurn!;
+        await runStore.appendRunGatherTrace(AGENT_SESSION_ID, {
+          runId: AGENT_SESSION_ID,
+          turnId: turn.turnId,
+          focal: { id: ENTITY.entityId, type: 'TASK', title: 'Review' },
+          ask: 'Review',
+          caps: { maxSearches: 1, maxResultsPerSearch: 1, hops: [] },
+          steps: [
+            {
+              kind: 'search-keep',
+              read: [],
+              judged: [],
+              failures: [],
+              usage: { requests: 1, inputTokens: 10, outputTokens: 2 },
+              ms: 1,
+            },
+          ],
+          expansionFailures: [],
+          returned: [],
+        });
+        if (reported) {
+          await recordProviderUsage(runStore, AGENT_SESSION_ID, {
+            inputTokens: 100,
+            outputTokens: 20,
+            cacheReadInputTokens: 5000,
+            cacheCreationInputTokens: null,
+            cacheAvailability: 'partial',
+          });
+        }
+        return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+      });
+      runPrompt.mockImplementationOnce(async () => {
+        await recordProviderUsage(runStore, AGENT_SESSION_ID, {
+          inputTokens: 300,
+          outputTokens: 40,
+          cacheReadInputTokens: 9000,
+          cacheCreationInputTokens: null,
+          cacheAvailability: 'partial',
+        });
+        return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+      });
+      const result = await execution.execute(
+        coordinator,
+        attempt('entity_conversation', { projectAssistantPrepares: true }),
+        { signal: new AbortController().signal },
+      );
+      expect(runPrompt).toHaveBeenCalledTimes(2);
+      expect(result.usage).toMatchObject({
+        inputTokens: 300,
+        outputTokens: 40,
+        cacheReadInputTokens: 9000,
+      });
+      const preparation = result.researchMeasurements?.[0];
+      expect(preparation?.inputTokens).toBe(reported ? 100 : undefined);
+      expect(preparation?.outputTokens).toBe(reported ? 20 : undefined);
     });
 
     it('runs the chosen handler without Project Assistant when preparation is off', async () => {
@@ -362,7 +479,7 @@ describe('eval attempts through ordinary Runs', () => {
   it('preserves measured usage when a final total exceeds the token limit', async () => {
     const { service, runStore, runPrompt } = await makeHarness();
     runPrompt.mockImplementationOnce(async () => {
-      await runStore.updateRunTokenUsage(AGENT_SESSION_ID, { inputTokens: 11, outputTokens: 2 });
+      await recordProviderUsage(runStore, AGENT_SESSION_ID, { inputTokens: 11, outputTokens: 2 });
       return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
     });
     const execution = new EvalAttemptExecution(NOOP_LOGGER);
@@ -418,7 +535,7 @@ describe('eval startup and execution cancellation', () => {
       });
       runPrompt.mockImplementationOnce(async (...args: unknown[]) => {
         const input = args[0] as import('../providers/session-runner').RunPromptArgs;
-        await runStore.updateRunTokenUsage(AGENT_SESSION_ID, { inputTokens: 11, outputTokens: 2 });
+        await recordProviderUsage(runStore, AGENT_SESSION_ID, { inputTokens: 11, outputTokens: 2 });
         for (const providerSessionId of ['attempt-first', 'attempt-rotated']) {
           await runStore.appendRunProviderSessionHistory(AGENT_SESSION_ID, {
             providerSessionId,
@@ -470,7 +587,7 @@ it.each(['USER', 'TOKEN_LIMIT'] as const)(
     const { runStore, runPrompt, execution } = await makeHarness();
     const controller = new AbortController();
     runPrompt.mockImplementationOnce(async () => {
-      await runStore.updateRunTokenUsage(AGENT_SESSION_ID, { inputTokens: 11, outputTokens: 2 });
+      await recordProviderUsage(runStore, AGENT_SESSION_ID, { inputTokens: 11, outputTokens: 2 });
       if (firstReason === 'USER') {
         controller.abort();
       }
@@ -513,14 +630,103 @@ it.each(['USER', 'TOKEN_LIMIT'] as const)(
 );
 
 describe('settled eval usage evidence', () => {
-  it.each(['claude', 'codex', 'opencode'] as const)(
+  it('reads standalone research usage after its active provider identity is discarded', async () => {
+    const h = await makeHarness();
+    h.runPrompt.mockImplementationOnce(async () => {
+      const turn = (await h.runStore.getRunMetadata(AGENT_SESSION_ID))?.latestTurn;
+      if (!turn) {
+        throw new Error('The research turn must be running.');
+      }
+      await h.runStore.appendRunGatherTrace(AGENT_SESSION_ID, {
+        runId: AGENT_SESSION_ID,
+        turnId: turn.turnId,
+        focal: { id: ENTITY.entityId, type: 'TASK', title: 'Review' },
+        ask: 'Review',
+        caps: { maxSearches: 1, maxResultsPerSearch: 1, hops: [] },
+        steps: [
+          {
+            kind: 'search-keep',
+            read: [],
+            judged: [],
+            failures: [],
+            usage: { requests: 20, inputTokens: 350704, outputTokens: 39774 },
+            ms: 33000,
+          },
+        ],
+        expansionFailures: [],
+        returned: [],
+      });
+      await recordProviderUsage(h.runStore, AGENT_SESSION_ID, {
+        inputTokens: 120,
+        outputTokens: 8,
+        cacheReadInputTokens: 500000,
+      });
+      await h.runStore.appendRunMemo(AGENT_SESSION_ID, {
+        source: 'project_assistant',
+        content: 'Saved research.',
+        writtenAt: new Date().toISOString(),
+      });
+      return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+    });
+    const result = await h.execution.execute(coordinator, attempt('project_assistant'), {
+      signal: new AbortController().signal,
+    });
+    expect((await h.runStore.getRunMetadata(AGENT_SESSION_ID))?.provider_session_id).toBeNull();
+    expect(result.researchMeasurements?.[0]?.inputTokens).toBeUndefined();
+    expect(result.researchMeasurements?.[0]?.outputTokens).toBeUndefined();
+    expect(result.usage).toMatchObject({
+      inputTokens: 120,
+      outputTokens: 8,
+      cacheReadInputTokens: 500000,
+    });
+  });
+
+  it.each([true, false])(
+    'uses the same native source with research preparation=%s',
+    async (prepares) => {
+      const h = await makeHarness();
+      if (prepares) {
+        h.runPrompt.mockImplementationOnce(async () => {
+          await recordProviderUsage(h.runStore, AGENT_SESSION_ID, {
+            inputTokens: 30,
+            outputTokens: 3,
+          });
+          return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+        });
+      }
+      h.runPrompt.mockImplementationOnce(async () => {
+        await recordProviderUsage(h.runStore, AGENT_SESSION_ID, {
+          inputTokens: 120,
+          outputTokens: 8,
+          cacheReadInputTokens: 500000,
+        });
+        await h.runStore.setRunTokenUsage(AGENT_SESSION_ID, {
+          inputTokens: prepares ? 14000 : 400000,
+          outputTokens: 1,
+        });
+        return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+      });
+      const result = await h.execution.execute(
+        coordinator,
+        attempt('entity_conversation', { projectAssistantPrepares: prepares }),
+        { signal: new AbortController().signal },
+      );
+      expect(result.usage).toMatchObject({
+        inputTokens: 120,
+        outputTokens: 8,
+        cacheReadInputTokens: 500000,
+      });
+    },
+  );
+
+  it.each(['claude', 'codex'] as const)(
     'keeps %s fresh and cached input separate after settlement',
     async (provider) => {
       const h = await makeHarness();
       const recorded = attempt('agent_search');
       recorded.configuration.target.provider = provider;
       h.runPrompt.mockImplementationOnce(async () => {
-        await h.runStore.setRunTokenUsage(recorded.targetSessionId, {
+        await recordProviderUsage(h.runStore, recorded.targetSessionId, {
           inputTokens: 120,
           outputTokens: 8,
           cacheReadInputTokens: 500000,
@@ -591,7 +797,7 @@ describe('settled eval usage evidence', () => {
   it('retains output when fresh input is unavailable', async () => {
     const h = await makeHarness();
     h.runPrompt.mockImplementationOnce(async () => {
-      await h.runStore.setRunTokenUsage(AGENT_SESSION_ID, {
+      await recordProviderUsage(h.runStore, AGENT_SESSION_ID, {
         inputTokens: null,
         outputTokens: 8,
         cacheReadInputTokens: 500000,

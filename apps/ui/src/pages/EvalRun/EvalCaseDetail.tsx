@@ -349,6 +349,41 @@ const WorkBreakdown: React.FC<{ rows: WorkBreakdownRow[] }> = ({ rows }) => {
             </TableCell>
             <TableCell>
               {formatOrNotReported(row.tokens, formatTokenCount, notReported)}
+              {row.tokens === null &&
+                (row.inputTokens !== null || row.outputTokens !== null) && (
+                  <Typography variant="caption" display="block">
+                    {t("eval.results.usage.partial", {
+                      input: formatOrNotReported(
+                        row.inputTokens,
+                        formatTokenCount,
+                        notReported,
+                      ),
+                      output: formatOrNotReported(
+                        row.outputTokens,
+                        formatTokenCount,
+                        notReported,
+                      ),
+                    })}
+                  </Typography>
+                )}
+              <Typography variant="caption" display="block">
+                {t("eval.results.usage.cacheRead", {
+                  value: formatOrNotReported(
+                    row.cacheReadInputTokens,
+                    formatTokenCount,
+                    notReported,
+                  ),
+                })}
+              </Typography>
+              <Typography variant="caption" display="block">
+                {t("eval.results.usage.cacheCreation", {
+                  value: formatOrNotReported(
+                    row.cacheCreationInputTokens,
+                    formatTokenCount,
+                    notReported,
+                  ),
+                })}
+              </Typography>
             </TableCell>
             <TableCell>
               {formatOrNotReported(

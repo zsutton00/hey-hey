@@ -241,6 +241,8 @@ const attempts = [
         elapsedMs: 400_000,
         inputTokens: 100_000,
         outputTokens: 12_000,
+        cacheReadInputTokens: 500_000,
+        cacheCreationInputTokens: 0,
         toolCalls: 35,
       },
       {
@@ -288,10 +290,10 @@ const attempts = [
   ),
 ];
 
-const givenRun = (report: EvalRunReport): void => {
+const givenRun = (report: EvalRunReport, records = attempts): void => {
   mockUseEvalRun.mockReturnValue({
     data: report,
-    attempts,
+    attempts: records,
     error: null,
     isLoading: false,
     isFetched: true,
@@ -328,7 +330,7 @@ describe("EvalResultsPage", () => {
     mockSaveReview.mockResolvedValue({ id: "review-1" });
   });
 
-  it("compares setups with preparation and handler work kept apart", () => {
+  it("compares only the tested agent, ignoring legacy preparation", () => {
     render(<EvalResultsPage />);
     expect(
       screen.getByTestId("eval-results-setup-opus-high-recognition"),
@@ -341,22 +343,22 @@ describe("EvalResultsPage", () => {
     ).toHaveTextContent("1 / 2");
     expect(
       screen.getByTestId("eval-results-setup-opus-high-elapsed"),
-    ).toHaveTextContent("1m 00s / 6m 40s");
+    ).toHaveTextContent("6m 40s");
     expect(
       screen.getByTestId("eval-results-setup-opus-high-tokens"),
-    ).toHaveTextContent("38k / 112k");
+    ).toHaveTextContent("112k");
     expect(
       screen.getByTestId("eval-results-setup-opus-high-tool-calls"),
-    ).toHaveTextContent("6 / 35");
+    ).toHaveTextContent("35");
   });
 
   it("shows anything not measured as not reported, never 0", () => {
     render(<EvalResultsPage />);
     const tokens = screen.getByTestId("eval-results-setup-sonnet-tokens");
-    expect(tokens).toHaveTextContent("31k / eval.results.notReported");
+    expect(tokens).toHaveTextContent("eval.results.notReported");
     expect(
       screen.getByTestId("eval-results-setup-sonnet-tool-calls"),
-    ).toHaveTextContent("eval.results.notReported / eval.results.notReported");
+    ).toHaveTextContent("eval.results.notReported");
     expect(
       screen.getByTestId("eval-results-setup-sonnet-quality"),
     ).toHaveTextContent("eval.results.notReported");
@@ -556,7 +558,7 @@ describe("EvalResultsPage", () => {
       ).toHaveTextContent("Unrelated change that needs no mockup update");
     });
 
-    it("shows each row's own figures with preparation and handler work combined", () => {
+    it("shows the handler headline separately from preparation and cache", () => {
       render(<EvalResultsPage />);
       expect(
         screen.getByTestId("eval-case-recognition-opus-attempt"),
@@ -569,13 +571,20 @@ describe("EvalResultsPage", () => {
       ).toHaveTextContent("1 / 2");
       expect(
         screen.getByTestId("eval-case-elapsed-opus-attempt"),
-      ).toHaveTextContent("7m 40s");
+      ).toHaveTextContent("6m 40s");
       expect(
         screen.getByTestId("eval-case-tokens-opus-attempt"),
-      ).toHaveTextContent("150k");
+      ).toHaveTextContent("112k");
+      const row = screen.getByTestId("eval-case-row-opus-attempt");
+      expect(within(row).getByTestId("eval-case-cache-read")).toHaveTextContent(
+        "500k",
+      );
+      expect(
+        within(row).getByTestId("eval-case-cache-creation"),
+      ).toHaveTextContent('"value":"0"');
       expect(
         screen.getByTestId("eval-case-tool-calls-opus-attempt"),
-      ).toHaveTextContent("41");
+      ).toHaveTextContent("35");
     });
 
     it("marks part-reported figures and shows the rest as not reported, never 0", () => {
@@ -583,7 +592,7 @@ describe("EvalResultsPage", () => {
       // Sonnet reported preparation only.
       expect(
         screen.getByTestId("eval-case-tokens-sonnet-attempt"),
-      ).toHaveTextContent("eval.results.cases.partial");
+      ).toHaveTextContent("eval.results.notReported");
       expect(
         screen.getByTestId("eval-case-tool-calls-sonnet-attempt"),
       ).toHaveTextContent("eval.results.notReported");
@@ -596,6 +605,8 @@ describe("EvalResultsPage", () => {
       expect(
         screen.getByTestId("eval-case-elapsed-codex-unstarted"),
       ).toHaveTextContent("eval.results.notReported");
+      expand("sonnet-attempt");
+      expect(screen.queryByTestId("eval-work-TARGET_PREPARATION")).toBeNull();
     });
 
     it("keeps what an errored case measured before it stopped", () => {
@@ -608,10 +619,12 @@ describe("EvalResultsPage", () => {
       ).toBeNull();
       expect(
         screen.getByTestId("eval-case-elapsed-codex-errored"),
-      ).toHaveTextContent("22s");
+      ).toHaveTextContent("eval.results.notReported");
       expect(
         screen.getByTestId("eval-case-tokens-codex-errored"),
-      ).toHaveTextContent("6k");
+      ).toHaveTextContent("eval.results.notReported");
+      expand("codex-errored");
+      expect(screen.queryByTestId("eval-work-TARGET_PREPARATION")).toBeNull();
       expect(
         screen.getByTestId("eval-case-tool-calls-codex-errored"),
       ).toHaveTextContent("eval.results.notReported");
@@ -669,12 +682,28 @@ describe("EvalResultsPage", () => {
       );
     });
 
-    it("breaks the work into preparing context and the handler's own work", () => {
+    it("keeps a separately executed research agent distinguishable", () => {
+      givenRun(run(), [
+        attempt("opus-attempt", opusHigh, {
+          ...attempts[0]?.payload,
+          execution: {
+            handler: "entity_conversation",
+            projectAssistantPrepares: true,
+            assessedOutput: "HANDLER_REPLY",
+          },
+        }),
+      ]);
       render(<EvalResultsPage />);
       expand("opus-attempt");
       expect(
         screen.getByTestId("eval-work-TARGET_PREPARATION"),
-      ).toHaveTextContent(/1m 00s.*38k.*6/);
+      ).toHaveTextContent(/38k/);
+    });
+
+    it("removes generic preparation from the details even on historical reports", () => {
+      render(<EvalResultsPage />);
+      expand("opus-attempt");
+      expect(screen.queryByTestId("eval-work-TARGET_PREPARATION")).toBeNull();
       expect(screen.getByTestId("eval-work-TARGET_HANDLER")).toHaveTextContent(
         /6m 40s.*112k.*35/,
       );

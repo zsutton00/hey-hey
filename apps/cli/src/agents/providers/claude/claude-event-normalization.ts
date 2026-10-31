@@ -32,7 +32,7 @@ const resultUsageSchema = z.object({
   cache_creation_input_tokens: tokenCount,
 });
 
-function claudeResultUsage(raw: unknown): TokenUsage {
+export function normalizeClaudeResultUsage(raw: unknown): TokenUsage {
   const parsed = resultUsageSchema.safeParse(raw);
   const usage = parsed.success ? parsed.data : resultUsageSchema.parse({});
   const cacheReadInputTokens = usage.cache_read_input_tokens;
@@ -746,7 +746,7 @@ export const normalizeProviderEventPayload = (
     payload,
     facts,
     ...(input.eventType === 'result'
-      ? { tokenUsage: claudeResultUsage(input.rawEvent['usage']) }
+      ? { tokenUsage: normalizeClaudeResultUsage(input.rawEvent['usage']) }
       : {}),
     diagnostics: {
       validationMode: config.validationMode,

@@ -38,18 +38,17 @@ const measurement = (
   attempt.payload.measurements.find((entry) => entry.scope === scope);
 
 /**
- * Tokens one scope used, or undefined when the provider reported neither
- * input nor output. A missing half is not read as 0 for the other half.
+ * Fresh input plus output, unavailable unless both halves were measured.
  */
 export const measuredTokens = (
   entry: EvalMeasurement | undefined,
 ): number | undefined => {
   if (!entry) return undefined;
   const { inputTokens, outputTokens } = entry;
-  if (inputTokens === undefined && outputTokens === undefined) {
+  if (inputTokens === undefined || outputTokens === undefined) {
     return undefined;
   }
-  return (inputTokens ?? 0) + (outputTokens ?? 0);
+  return inputTokens + outputTokens;
 };
 
 /**
@@ -76,27 +75,16 @@ const average = (values: (number | undefined)[]): AveragedMeasure => {
   };
 };
 
-/** Preparation and handler work, kept apart and never summed together. */
-export interface ScopedMeasures {
-  preparation: AveragedMeasure;
-  handler: AveragedMeasure;
-}
-
-const scoped = (
+/** Setup comparisons measure the tested agent only. */
+const handlerAverage = (
   attempts: EvalAttemptReport[],
   read: (entry: EvalMeasurement | undefined) => number | undefined,
-): ScopedMeasures => ({
-  preparation: average(
-    attempts.map((attempt) =>
-      read(measurement(attempt, EvalMeasurementScope.TargetPreparation)),
-    ),
-  ),
-  handler: average(
+): AveragedMeasure =>
+  average(
     attempts.map((attempt) =>
       read(measurement(attempt, EvalMeasurementScope.TargetHandler)),
     ),
-  ),
-});
+  );
 
 export interface SetupComparison {
   configuration: EvalConfiguration;
@@ -107,9 +95,9 @@ export interface SetupComparison {
   /** Mean of every scored quality dimension; null when none was scored. */
   quality: number | null;
   checks: { passed: number; total: number };
-  elapsedMs: ScopedMeasures;
-  tokens: ScopedMeasures;
-  toolCalls: ScopedMeasures;
+  elapsedMs: AveragedMeasure;
+  tokens: AveragedMeasure;
+  toolCalls: AveragedMeasure;
 }
 
 export const compareSetup = (
@@ -150,9 +138,9 @@ export const compareSetup = (
       passed: checkResults.filter((result) => result.passed).length,
       total: checkResults.length,
     },
-    elapsedMs: scoped(own, (entry) => entry?.elapsedMs),
-    tokens: scoped(own, measuredTokens),
-    toolCalls: scoped(own, (entry) => entry?.toolCalls),
+    elapsedMs: handlerAverage(own, (entry) => entry?.elapsedMs),
+    tokens: handlerAverage(own, measuredTokens),
+    toolCalls: handlerAverage(own, (entry) => entry?.toolCalls),
   };
 };
 
@@ -226,12 +214,7 @@ export const checkDescriptions = (
   );
 };
 
-/**
- * One figure for a case row: the preparation and handler work that produced
- * the tested result. `partial` marks a total built from only one scope that
- * reported; `value` is null when neither did, which shows as "not reported".
- * This is the one place a row's total is defined.
- */
+/** A case row reports the tested agent only; absent measurements stay absent. */
 export interface RowMeasure {
   value: number | null;
   partial: boolean;
@@ -241,18 +224,19 @@ export const rowMeasure = (
   attempt: EvalAttemptReport,
   read: (entry: EvalMeasurement | undefined) => number | undefined,
 ): RowMeasure => {
-  const parts = [
-    read(measurement(attempt, EvalMeasurementScope.TargetPreparation)),
-    read(measurement(attempt, EvalMeasurementScope.TargetHandler)),
-  ].filter((value): value is number => value !== undefined);
   return {
-    value: parts.length === 0 ? null : parts.reduce((a, b) => a + b, 0),
-    partial: parts.length === 1,
+    value:
+      read(measurement(attempt, EvalMeasurementScope.TargetHandler)) ?? null,
+    partial: false,
   };
 };
 
-/** Preparing context and the handler's own work for one attempt, apart. */
+/** A separately executed research agent and the tested agent, kept apart. */
 export interface WorkBreakdownRow {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cacheReadInputTokens: number | null;
+  cacheCreationInputTokens: number | null;
   scope: EvalMeasurementScope;
   elapsedMs: number | null;
   tokens: number | null;
@@ -268,6 +252,10 @@ const breakdownRow = (
     scope,
     elapsedMs: entry?.elapsedMs ?? null,
     tokens: measuredTokens(entry) ?? null,
+    inputTokens: entry?.inputTokens ?? null,
+    outputTokens: entry?.outputTokens ?? null,
+    cacheReadInputTokens: entry?.cacheReadInputTokens ?? null,
+    cacheCreationInputTokens: entry?.cacheCreationInputTokens ?? null,
     toolCalls: entry?.toolCalls ?? null,
   };
 };
@@ -335,10 +323,18 @@ export const caseRow = (
         }
       : null,
     elapsedMs: rowMeasure(attempt, (entry) => entry?.elapsedMs),
-    tokens: rowMeasure(attempt, measuredTokens),
+    tokens: {
+      value:
+        measuredTokens(
+          measurement(attempt, EvalMeasurementScope.TargetHandler),
+        ) ?? null,
+      partial: false,
+    },
     toolCalls: rowMeasure(attempt, (entry) => entry?.toolCalls),
     breakdown: [
-      breakdownRow(attempt, EvalMeasurementScope.TargetPreparation),
+      ...(attempt.payload.execution?.projectAssistantPrepares
+        ? [breakdownRow(attempt, EvalMeasurementScope.TargetPreparation)]
+        : []),
       breakdownRow(attempt, EvalMeasurementScope.TargetHandler),
     ],
     sessionHref: sessionId

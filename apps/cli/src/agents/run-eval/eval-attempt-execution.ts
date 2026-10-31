@@ -4,6 +4,7 @@ import {
   EvalAssessedOutput,
   EvalTargetHandlerKey,
   type EvalRecordedAttempt,
+  type EvalMeasurement,
 } from '../../shared/api/generated/api';
 import type { AgenticSession } from '../../session/types';
 import type { LocalAgentService } from '../../server/local-agent-service';
@@ -27,6 +28,24 @@ export class EvalAttemptExecution {
     if (measurement) {
       measurement.elapsedMs += elapsedMs;
       measurement.observations += 1;
+    }
+  }
+
+  private readonly researchUsage = new Map<string, EvalMeasurement>();
+
+  public async recordResearchUsage(runId: string): Promise<void> {
+    if (!this.preparation.has(runId) || !this.store) {
+      return;
+    }
+    try {
+      const result = await this.store.getRunResult(runId);
+      this.researchUsage.set(runId, {
+        scope: 'TARGET_PREPARATION',
+        ...result?.usage,
+      });
+    } catch (error) {
+      this.logger.warn('run_eval.attempt.research_usage_read_failed', { runId, error });
+      this.researchUsage.set(runId, { scope: 'TARGET_PREPARATION' });
     }
   }
 
@@ -170,12 +189,6 @@ export class EvalAttemptExecution {
       await monitoring;
       await check();
       const metadata = await store.getRunMetadata(attempt.targetSessionId);
-      this.logger.info('run_eval.attempt.usage_read', {
-        runId: attempt.targetSessionId,
-        provider: setting.provider,
-        model: setting.model,
-        usage: metadata?.tokenUsage ?? null,
-      });
       const result = await store.getRunResult(attempt.targetSessionId).catch((error: unknown) => {
         this.logger.warn('run_eval.attempt.usage_read_failed', {
           runId: attempt.targetSessionId,
@@ -185,6 +198,17 @@ export class EvalAttemptExecution {
           'The finished Run result could not be read; token measurements are unavailable for this attempt.',
           { cause: error },
         );
+      });
+      this.logger.info('run_eval.attempt.usage_read', {
+        runId: attempt.targetSessionId,
+        provider: setting.provider,
+        model: setting.model,
+        providerSessionId:
+          metadata?.latestTurn?.state === 'settled'
+            ? metadata.latestTurn.providerSession?.sessionId
+            : null,
+        source: 'native_session_record',
+        usage: result?.usage ?? null,
       });
       const stopped = isStopped();
       if (
@@ -205,34 +229,38 @@ export class EvalAttemptExecution {
       ) {
         throw new Error('Project Assistant research ended without saving a research report.');
       }
-      const gathering = metadata?.gatherTraces?.flatMap((trace) =>
-        trace.steps.flatMap((step) => ('usage' in step ? [step.usage] : [])),
-      );
-      const preparationUsage = gathering?.length
-        ? gathering.reduce(
-            (total, usage) => ({
-              inputTokens: total.inputTokens + usage.inputTokens,
-              outputTokens: total.outputTokens + usage.outputTokens,
-            }),
-            { inputTokens: 0, outputTokens: 0 },
-          )
+      // Only native agent-session measurements belong in agent token accounting.
+      // Jev service request counters remain on their gather traces.
+      const research = execution.projectAssistantPrepares
+        ? this.researchUsage.get(attempt.targetSessionId)
         : undefined;
+      const preparationUsage: Partial<EvalMeasurement> = {};
+      for (const field of [
+        'inputTokens',
+        'outputTokens',
+        'cacheReadInputTokens',
+        'cacheCreationInputTokens',
+      ] as const) {
+        const value = research?.[field];
+        if (value !== undefined) {
+          preparationUsage[field] = value;
+        }
+      }
       return {
         assistantCompleted: completed,
         ...(completed && assessedText !== undefined ? { outputText: assessedText } : {}),
         usage: result?.usage ?? {},
-        ...(preparation.observations > 0
+        ...(execution.projectAssistantPrepares
           ? {
-              preparationMeasurements: [
+              researchMeasurements: [
                 {
                   scope: 'TARGET_PREPARATION' as const,
-                  elapsedMs: preparation.elapsedMs,
                   ...preparationUsage,
                 },
               ],
-              handlerElapsedMs: Math.max(0, Date.now() - startedAt - preparation.elapsedMs),
             }
           : {}),
+        handlerElapsedMs: Math.max(0, Date.now() - startedAt - preparation.elapsedMs),
         budgetExhausted,
       };
     } finally {
@@ -241,6 +269,7 @@ export class EvalAttemptExecution {
         stopped: options.signal.aborted || budgetExhausted,
       });
       this.preparation.delete(attempt.targetSessionId);
+      this.researchUsage.delete(attempt.targetSessionId);
       clearInterval(timer);
       options.signal.removeEventListener('abort', onAbort);
       await monitoring;

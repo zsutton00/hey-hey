@@ -1,3 +1,4 @@
+import type { SessionTokenUsageReader } from '../provider-usage/session-token-usage';
 import type {
   AgenticSession,
   AgenticSessionEvent,
@@ -14,6 +15,7 @@ export interface RunStorePaths {
 }
 
 export interface RunStoreOptions {
+  sessionTokenUsageReader?: SessionTokenUsageReader;
   paths?: RunStorePaths;
   now?: () => Date;
   randomId?: () => string;

@@ -54,6 +54,9 @@ export const EvalCaseRow: React.FC<EvalCaseRowProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const notReported = t("eval.results.notReported");
   const title = row.title ?? t("eval.results.cases.unknownCase");
+  const handlerUsage = row.breakdown.find(
+    (entry) => entry.scope === "TARGET_HANDLER",
+  );
 
   useEffect(() => {
     if (selected) containerRef.current?.scrollIntoView?.({ block: "nearest" });
@@ -173,6 +176,38 @@ export const EvalCaseRow: React.FC<EvalCaseRowProps> = ({
           data-testid={`eval-case-tokens-${row.attemptId}`}
         >
           {formatMeasure(row.tokens, formatTokenCount)}
+          <Typography
+            component="span"
+            variant="caption"
+            display="block"
+            data-testid="eval-case-cache-read"
+          >
+            {t("eval.results.usage.cacheRead", {
+              value: formatMeasure(
+                {
+                  value: handlerUsage?.cacheReadInputTokens ?? null,
+                  partial: false,
+                },
+                formatTokenCount,
+              ),
+            })}
+          </Typography>
+          <Typography
+            component="span"
+            variant="caption"
+            display="block"
+            data-testid="eval-case-cache-creation"
+          >
+            {t("eval.results.usage.cacheCreation", {
+              value: formatMeasure(
+                {
+                  value: handlerUsage?.cacheCreationInputTokens ?? null,
+                  partial: false,
+                },
+                formatTokenCount,
+              ),
+            })}
+          </Typography>
         </Typography>
         <Typography
           variant="body2"

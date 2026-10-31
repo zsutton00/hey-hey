@@ -21,8 +21,19 @@ import { EvalMeasurementScope } from './evalMeasurementScope';
 export interface EvalMeasurement { 
     scope: EvalMeasurementScope;
     elapsedMs?: number;
+    /**
+     * Fresh uncached input tokens; excludes cache reads.
+     */
     inputTokens?: number;
     outputTokens?: number;
+    /**
+     * Input tokens read from cache; absent when unreported.
+     */
+    cacheReadInputTokens?: number;
+    /**
+     * Input tokens written to cache; absent when unreported.
+     */
+    cacheCreationInputTokens?: number;
     toolCalls?: number;
     cost?: EvalCostMeasurement;
 }

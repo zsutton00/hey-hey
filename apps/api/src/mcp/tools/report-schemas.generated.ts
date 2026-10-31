@@ -1056,10 +1056,24 @@ export const REPORT_SCHEMAS = {
                     minimum: 0,
                   },
                   inputTokens: {
+                    description:
+                      'Fresh uncached input tokens; excludes cache reads.',
                     type: 'integer',
                     minimum: 0,
                   },
                   outputTokens: {
+                    type: 'integer',
+                    minimum: 0,
+                  },
+                  cacheReadInputTokens: {
+                    description:
+                      'Input tokens read from cache; absent when unreported.',
+                    type: 'integer',
+                    minimum: 0,
+                  },
+                  cacheCreationInputTokens: {
+                    description:
+                      'Input tokens written to cache; absent when unreported.',
                     type: 'integer',
                     minimum: 0,
                   },
@@ -1738,10 +1752,24 @@ export const REPORT_SCHEMAS = {
                       minimum: 0,
                     },
                     inputTokens: {
+                      description:
+                        'Fresh uncached input tokens; excludes cache reads.',
                       type: 'integer',
                       minimum: 0,
                     },
                     outputTokens: {
+                      type: 'integer',
+                      minimum: 0,
+                    },
+                    cacheReadInputTokens: {
+                      description:
+                        'Input tokens read from cache; absent when unreported.',
+                      type: 'integer',
+                      minimum: 0,
+                    },
+                    cacheCreationInputTokens: {
+                      description:
+                        'Input tokens written to cache; absent when unreported.',
                       type: 'integer',
                       minimum: 0,
                     },

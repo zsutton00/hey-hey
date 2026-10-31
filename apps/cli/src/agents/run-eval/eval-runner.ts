@@ -9,7 +9,7 @@ import type { SubAgentUsage } from '../../run/subagent';
 
 /** What one target child produced. */
 export interface EvalTargetResult {
-  preparationMeasurements?: EvalMeasurement[];
+  researchMeasurements?: EvalMeasurement[];
   handlerElapsedMs?: number;
   assistantCompleted: boolean;
   outputText?: string;
@@ -161,7 +161,7 @@ export const runEvalAttempts = async (
         }
         return;
       }
-      measurements.push(...(target.preparationMeasurements ?? []));
+      measurements.push(...(target.researchMeasurements ?? []));
       measurements.push(
         toMeasurement(
           'TARGET_HANDLER',

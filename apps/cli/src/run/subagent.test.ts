@@ -1,5 +1,10 @@
 import { evalJudgeHandler, parseEvalJudgeOutput } from '../agents/run-eval/eval-judge.handler';
 import type { EvalRunCaseInput } from '../shared/api/generated/api';
+import {
+  childPlatformMcpProxies,
+  type ChildPlatformMcpProxy,
+} from '../agents/platform-mcp-proxy/child-proxy-registry';
+import { PlatformMcpForwarder } from '../agents/platform-mcp-proxy/forwarder';
 import { ChildAgentLauncher, type ChildAgentLauncherDependencies } from './child-agent-launcher';
 import {
   createPromptTypeHandlerTestDeps,
@@ -328,7 +333,8 @@ describe('SubAgent — unified runtime contract', () => {
       expect(
         parseEvalJudgeOutput(result.outputText!, caseInput, 'now').recognition.recognized,
       ).toBe(true);
-      expect(result.usage).toEqual({});
+      expect(result.usage).not.toHaveProperty('inputTokens');
+      expect(result.usage).not.toHaveProperty('outputTokens');
       const config = (
         provider === 'claude' ? startSessionMock : codexStartSessionMock
       ).mock.calls.at(-1)![0];
@@ -341,47 +347,60 @@ describe('SubAgent — unified runtime contract', () => {
     ['codex', 'judge-thread'],
     ['claude', 'pending_judge'],
     ['codex', 'pending_judge'],
-  ] as const)('retains only real %s judge identity when the client aborts (%s)', async (provider, id) => {
-    const onProviderSessionId = vi.fn(async () => {});
-    if (provider === 'claude') {
-      startSessionMock.mockImplementationOnce(async (config) => {
-        claudeGetSessionIdMock.mockReturnValue(id);
-        claudeEmitters.get(config)!({ type: 'system', subtype: 'init', session_id: id });
-        // Claude's abort handler disconnects and clears its identity before rejecting.
-        claudeGetSessionIdMock.mockReturnValue(null);
-        throw new Error('Aborted');
-      });
-    } else {
-      codexStartSessionMock.mockImplementationOnce(async (config) => {
-        codexGetSessionIdMock.mockReturnValue(id);
-        codexEmitters.get(config)!({ method: 'thread/started', params: { thread: { id } } });
-        codexGetSessionIdMock.mockReturnValue(null);
-        throw new Error('Aborted');
-      });
-    }
-    const child = makeSubAgent({
-      session: makeSession({ provider }),
-      handler: evalJudgeHandler,
-      config: evalJudgeHandler.childConfig!,
-      payload: {
-        caseInput: {
-          id: 'case', evalCaseId: 'case', title: 'Evidence case',
-          target: { targetHandler: 'entity_conversation', situation: 'Situation', initiatingRequest: 'Request' },
-          grading: { checks: [], rubric: [] },
+  ] as const)(
+    'retains only real %s judge identity when the client aborts (%s)',
+    async (provider, id) => {
+      const onProviderSessionId = vi.fn(async () => {});
+      if (provider === 'claude') {
+        startSessionMock.mockImplementationOnce(async (config) => {
+          claudeGetSessionIdMock.mockReturnValue(id);
+          claudeEmitters.get(config)!({ type: 'system', subtype: 'init', session_id: id });
+          // Claude's abort handler disconnects and clears its identity before rejecting.
+          claudeGetSessionIdMock.mockReturnValue(null);
+          throw new Error('Aborted');
+        });
+      } else {
+        codexStartSessionMock.mockImplementationOnce(async (config) => {
+          codexGetSessionIdMock.mockReturnValue(id);
+          codexEmitters.get(config)!({ method: 'thread/started', params: { thread: { id } } });
+          codexGetSessionIdMock.mockReturnValue(null);
+          throw new Error('Aborted');
+        });
+      }
+      const child = makeSubAgent({
+        session: makeSession({ provider }),
+        handler: evalJudgeHandler,
+        config: evalJudgeHandler.childConfig!,
+        payload: {
+          caseInput: {
+            id: 'case',
+            evalCaseId: 'case',
+            title: 'Evidence case',
+            target: {
+              targetHandler: 'entity_conversation',
+              situation: 'Situation',
+              initiatingRequest: 'Request',
+            },
+            grading: { checks: [], rubric: [] },
+          },
+          outputText: 'Recorded answer',
         },
-        outputText: 'Recorded answer',
-      },
-      touchedFiles: [], priorReports: [], cwd: '/repo',
-      oauthClient: makeOauth(), logger: makeLogger(), onAgentOutput: () => {},
-      onProviderSessionId,
-    });
-    await expect(child.execute()).rejects.toThrow('Aborted');
-    if (id.startsWith('pending_')) {
-      expect(onProviderSessionId).not.toHaveBeenCalled();
-    } else {
-      expect(onProviderSessionId).toHaveBeenCalledExactlyOnceWith(id);
-    }
-  });
+        touchedFiles: [],
+        priorReports: [],
+        cwd: '/repo',
+        oauthClient: makeOauth(),
+        logger: makeLogger(),
+        onAgentOutput: () => {},
+        onProviderSessionId,
+      });
+      await expect(child.execute()).rejects.toThrow('Aborted');
+      if (id.startsWith('pending_')) {
+        expect(onProviderSessionId).not.toHaveBeenCalled();
+      } else {
+        expect(onProviderSessionId).toHaveBeenCalledExactlyOnceWith(id);
+      }
+    },
+  );
 
   it('refuses inert built-in execution before a handler policy can allow it', async () => {
     const runStore = createPromptTypeHandlerTestRunStore();
@@ -436,6 +455,85 @@ describe('SubAgent — unified runtime contract', () => {
     });
     expect(decision).toMatchObject({ behavior: 'deny' });
     expect(decidePermission).not.toHaveBeenCalled();
+  });
+
+  it('sends a nested child’s platform reads under its evaluated attempt’s restriction', async () => {
+    const runStore = createPromptTypeHandlerTestRunStore();
+    await runStore.initialize();
+    const endpoint = new LocalAgentEndpoint();
+    endpoint.set('http://127.0.0.1:3849');
+    const registered: ChildPlatformMcpProxy[] = [];
+    const register = childPlatformMcpProxies.register.bind(childPlatformMcpProxies);
+    vi.spyOn(childPlatformMcpProxies, 'register').mockImplementation((proxy) => {
+      registered.push(proxy);
+      return register(proxy);
+    });
+    const handler: UserLaunchablePromptTypeHandler<TestPayload> = {
+      id: 'commit',
+      promptType: 'commit',
+      service: 'required',
+      launchEntity: 'none',
+      implementationReadiness: 'none',
+      runnerKind: 'subagent',
+      providerSessionCountsForContext: false,
+      reports: [],
+      buildPrompt: () => 'Look around.',
+      addUserMessage: defaultAddUserMessage,
+      subagentConfig: {
+        mcpAllowedTools: ['get_context'],
+        builtinAllowedTools: [],
+        adapterId: 'restriction-test',
+      },
+    };
+    const upstream = vi.fn<typeof fetch>(() =>
+      Promise.resolve(Response.json({ jsonrpc: '2.0', id: 1, result: { content: [] } })),
+    );
+    startSessionMock.mockImplementationOnce(async () => {
+      const [proxy] = registered;
+      if (!proxy) {
+        throw new Error('Expected the child to register a platform proxy');
+      }
+      await proxy.handleJsonRpc(
+        {
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: { name: 'get_context', arguments: {} },
+        },
+        new PlatformMcpForwarder({
+          oauthClient: makeOauth(),
+          logger: makeLogger(),
+          fetchImpl: upstream,
+        }),
+      );
+      return undefined;
+    });
+    const launcher = new ChildAgentLauncher({
+      runStore,
+      handlerDeps: createPromptTypeHandlerTestDeps(),
+      promptTypeRegistry: new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES),
+      repoStore: createTestRepoMappingStore(),
+      oauthClient: makeOauth(),
+      submissionToolRegistry: new SubmissionToolRegistry(),
+      localAgentEndpoint: endpoint,
+      logger: makeLogger(),
+    });
+
+    await launcher.launch({
+      parentSession: makeSession({ inert: true }),
+      handler,
+      payload: { userMessage: 'Look around' },
+      prepared: true,
+      signal: new AbortController().signal,
+      workspace: { cwd: '/repo' },
+    });
+
+    // The child can read the platform only through the proxy it inherited, and that proxy
+    // carries the attempt's restriction on every call.
+    expect(upstream).toHaveBeenCalledOnce();
+    expect(Reflect.get(upstream.mock.calls[0]?.[1]?.headers ?? {}, 'X-Read-Restriction')).toBe(
+      'EVAL_TARGET',
+    );
   });
 
   beforeEach(() => {
@@ -1791,6 +1889,38 @@ describe('SubAgent — unified runtime contract', () => {
       await expect(launch('codex', 400)).resolves.toMatchObject({ budgetExhausted: true });
     });
 
+    it('uses Claude final totals and never falls back to assistant usage', async () => {
+      startSessionMock.mockImplementationOnce(async () => {
+        const emit = onEventMock.mock.calls.at(-1)?.[0] as (event: unknown) => void;
+        emit(assistant('one', 'In progress.', 500000, 1));
+        emit(assistant('one', 'In progress.', 500000, 1));
+        emit({
+          type: 'result',
+          usage: {
+            input_tokens: 120,
+            output_tokens: 8,
+            cache_read_input_tokens: 500000,
+            cache_creation_input_tokens: 0,
+          },
+        });
+      });
+      const measured = await launch('claude');
+      expect(measured.usage).toMatchObject({
+        inputTokens: 120,
+        outputTokens: 8,
+        cacheReadInputTokens: 500000,
+        cacheCreationInputTokens: 0,
+      });
+      startSessionMock.mockImplementationOnce(async () => {
+        const emit = onEventMock.mock.calls.at(-1)?.[0] as (event: unknown) => void;
+        emit(assistant('one', 'In progress.', 500000, 1));
+        emit({ type: 'result' });
+      });
+      const unavailable = await launch('claude');
+      expect(unavailable.usage).not.toHaveProperty('inputTokens');
+      expect(unavailable.usage).not.toHaveProperty('outputTokens');
+    });
+
     it('measures usage without stopping the child when there is no budget', async () => {
       startSessionMock.mockImplementationOnce(async () => {
         throw new Error('provider failed');
@@ -1799,11 +1929,17 @@ describe('SubAgent — unified runtime contract', () => {
       codexStartSessionMock.mockImplementationOnce(async (...args: unknown[]) => {
         const signal = (args[1] as { signal?: AbortSignal } | undefined)?.signal;
         const report = codexOnTokenUsageMock.mock.calls[0]?.[0] as (usage: unknown) => void;
-        report({ inputTokens: 1_000_000, cacheReadInputTokens: 0, outputTokens: 50 });
+        report({
+          inputTokens: 120,
+          cacheReadInputTokens: 500000,
+          cacheCreationInputTokens: null,
+          outputTokens: 8,
+          cacheAvailability: 'partial',
+        });
         expect(signal?.aborted ?? false).toBe(false);
       });
       await expect(launch('codex')).resolves.toMatchObject({
-        usage: { inputTokens: 1_000_000, outputTokens: 50 },
+        usage: { inputTokens: 120, outputTokens: 8, cacheReadInputTokens: 500000 },
       });
     });
   });

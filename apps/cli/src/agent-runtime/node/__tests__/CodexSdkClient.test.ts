@@ -1380,7 +1380,7 @@ setInterval(() => {}, 60_000);
       const client = new CodexSdkClient();
       const tokenUsages: Array<{
         inputTokens: number | null;
-        outputTokens: number;
+        outputTokens: number | null;
         cacheCreationInputTokens: null;
         cacheReadInputTokens: number | null;
         cacheAvailability: 'partial' | 'unsupported';
@@ -1472,8 +1472,10 @@ setInterval(() => {}, 60_000);
         })}\n`,
       );
       for (const total of [
+        { inputTokens: 100, cachedInputTokens: 25, outputTokens: 5 },
         { inputTokens: 100, cachedInputTokens: 25 },
         { inputTokens: 10, cachedInputTokens: 20, outputTokens: 5 },
+        undefined,
       ]) {
         fakeStdout.push(
           `${JSON.stringify({
@@ -1499,8 +1501,29 @@ setInterval(() => {}, 60_000);
 
       expect(tokenUsages).toEqual([
         {
+          inputTokens: 75,
+          outputTokens: 5,
+          cacheCreationInputTokens: null,
+          cacheReadInputTokens: 25,
+          cacheAvailability: 'partial',
+        },
+        {
+          inputTokens: 75,
+          outputTokens: null,
+          cacheCreationInputTokens: null,
+          cacheReadInputTokens: 25,
+          cacheAvailability: 'partial',
+        },
+        {
           inputTokens: null,
           outputTokens: 5,
+          cacheCreationInputTokens: null,
+          cacheReadInputTokens: null,
+          cacheAvailability: 'unsupported',
+        },
+        {
+          inputTokens: null,
+          outputTokens: null,
           cacheCreationInputTokens: null,
           cacheReadInputTokens: null,
           cacheAvailability: 'unsupported',

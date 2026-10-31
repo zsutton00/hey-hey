@@ -182,9 +182,17 @@ interface AgenticSessionBase {
   reasoningEffort?: LocalReasoningEffort;
   fastMode?: boolean;
   tokenUsage?: TokenUsage;
+  /** Only final provider totals may be exposed as finished-session usage. */
+  tokenUsageFinalized?: boolean;
   latestTurn?:
     | { turnId: string; state: 'running' }
-    | { turnId: string; state: 'settled'; outcome: 'COMPLETED' | 'FAILED' | 'ABORTED' };
+    | {
+        turnId: string;
+        state: 'settled';
+        outcome: 'COMPLETED' | 'FAILED' | 'ABORTED';
+        /** Exact native session that produced this result, retained after discard. */
+        providerSession?: { provider: string; sessionId: string | null };
+      };
   /** Last committed final answer; retained when provider carryover is consumed. */
   finalAssistantMessage?: {
     turnId: string;

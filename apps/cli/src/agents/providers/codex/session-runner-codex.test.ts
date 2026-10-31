@@ -555,11 +555,12 @@ describe('session-runner-codex', () => {
       session: makeSession({ provider_session_id: 'pending_abc' }),
       prompt: 'Measure usage.',
     });
-    expect(persist.mock.calls.map(([, total]) => total)).toEqual([
-      { inputTokens: null, outputTokens: 3, cacheAvailability: 'unsupported' },
-      { inputTokens: 10, outputTokens: 3, cacheAvailability: 'unsupported' },
-      { inputTokens: 20, outputTokens: 7, cacheAvailability: 'unsupported' },
-    ]);
+    expect(
+      persist.mock.calls.some(
+        ([, total]) => total.inputTokens === null && total.outputTokens === 3,
+      ),
+    ).toBe(true);
+    expect(persist.mock.calls.at(-1)?.[1]).toMatchObject({ inputTokens: 20, outputTokens: 7 });
     await runner.dispose();
     await vi.waitFor(async () => {
       expect((await runStore.getRunResult(makeSession().agentic_session_id))?.usage).toMatchObject({

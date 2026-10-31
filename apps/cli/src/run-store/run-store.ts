@@ -1,3 +1,4 @@
+import { SessionTokenUsageReader } from '../provider-usage/session-token-usage';
 import type { SubAgentResult } from '../run/subagent';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
@@ -224,6 +225,9 @@ const parseRunMetadata = (text: string): AgenticSession => {
   if (legacyPlanRunEntitySchema.safeParse(parsed['entity']).success) {
     throw new RunMetadataMigrationRequiredError();
   }
+  if (parsed['tokenUsageFinalized'] !== undefined) {
+    z.boolean().parse(parsed['tokenUsageFinalized']);
+  }
   if (parsed['latestTurn'] !== undefined) {
     z.discriminatedUnion('state', [
       z.object({ turnId: z.string(), state: z.literal('running') }),
@@ -231,6 +235,9 @@ const parseRunMetadata = (text: string): AgenticSession => {
         turnId: z.string(),
         state: z.literal('settled'),
         outcome: z.enum(['COMPLETED', 'FAILED', 'ABORTED']),
+        providerSession: z
+          .object({ provider: z.string(), sessionId: z.string().nullable() })
+          .optional(),
       }),
     ]).parse(parsed['latestTurn']);
   }
@@ -422,7 +429,10 @@ export class RunStore {
   private index: RunIndex | null = null;
   private readonly incompatibleRuns = new Map<string, RunFamilyCompatibilityError>();
 
+  private readonly sessionTokenUsageReader: SessionTokenUsageReader;
+
   public constructor(private readonly options: RunStoreOptions = {}) {
+    this.sessionTokenUsageReader = options.sessionTokenUsageReader ?? new SessionTokenUsageReader();
     this.paths = options.paths ?? resolveRunStorePaths();
     this.now = options.now ?? (() => new Date());
     this.randomId = options.randomId ?? (() => crypto.randomUUID());
@@ -981,11 +991,6 @@ export class RunStore {
       return null;
     }
 
-    if (this.unavailableUsageRuns.has(runId)) {
-      throw new Error(
-        'Final token usage could not be saved; token measurements are unavailable for this attempt.',
-      );
-    }
     const bytes = await this.readCompatibleMember(runId, 'toolUsage');
     const tools = bytes ? z.array(z.json()).parse(JSON.parse(new TextDecoder().decode(bytes))) : [];
     const latest = run.latestTurn;
@@ -997,22 +1002,11 @@ export class RunStore {
         ? { outputText: answer.text }
         : {}),
       usage: {
-        ...(run.tokenUsage
-          ? {
-              ...(run.tokenUsage.inputTokens != null
-                ? { inputTokens: run.tokenUsage.inputTokens }
-                : {}),
-              ...(run.tokenUsage.outputTokens != null
-                ? { outputTokens: run.tokenUsage.outputTokens }
-                : {}),
-              ...(run.tokenUsage.cacheReadInputTokens != null
-                ? { cacheReadInputTokens: run.tokenUsage.cacheReadInputTokens }
-                : {}),
-              ...(run.tokenUsage.cacheCreationInputTokens != null
-                ? { cacheCreationInputTokens: run.tokenUsage.cacheCreationInputTokens }
-                : {}),
-              cacheAvailability: run.tokenUsage.cacheAvailability,
-            }
+        ...(latest?.state === 'settled' && latest.providerSession
+          ? await this.sessionTokenUsageReader.read(
+              latest.providerSession.provider,
+              latest.providerSession.sessionId,
+            )
           : {}),
         ...(tools.length > 0 ? { toolCalls: tools.length } : {}),
       },
@@ -1028,7 +1022,19 @@ export class RunStore {
       if (!run) {
         throw new SessionValidationError(`Unknown agentic session: ${runId}`);
       }
-      run.latestTurn = latestTurn;
+      run.latestTurn =
+        latestTurn.state === 'settled'
+          ? {
+              ...latestTurn,
+              providerSession: {
+                provider: run.provider,
+                sessionId: run.provider_session_id ?? null,
+              },
+            }
+          : latestTurn;
+      if (latestTurn.state === 'running') {
+        run.tokenUsageFinalized = false;
+      }
       run.updatedAt = this.now().toISOString();
       await writeRunMetadata(this.runFamilies, run);
       return run;
@@ -1434,7 +1440,8 @@ export class RunStore {
     });
   }
 
-  public updateRunImplementRuntime(
+  /** Saves the complete runtime a trigger selected; later Turns without one use it. */
+  public updateRunRuntime(
     runId: string,
     runtime: import('../shared/api/generated/api').ImplementRuntimeSelection,
   ): Promise<AgenticSession> {
@@ -1769,6 +1776,7 @@ export class RunStore {
             : existing.cacheReadInputTokens + delta.cacheReadInputTokens,
         cacheAvailability: delta.cacheAvailability ?? existing.cacheAvailability ?? 'unsupported',
       };
+      run.tokenUsageFinalized = false;
       run.updatedAt = this.now().toISOString();
       await writeRunMetadata(this.runFamilies, run);
       return run;
@@ -1784,6 +1792,7 @@ export class RunStore {
       cacheReadInputTokens?: number | null;
       cacheAvailability?: LocalTokenUsage['cacheAvailability'];
     },
+    finalized = true,
   ): Promise<AgenticSession> {
     return this.withMetadataLock(runId, async () => {
       const run = await readRunMetadata(this.runFamilies, runId);
@@ -1797,6 +1806,7 @@ export class RunStore {
         cacheReadInputTokens: total.cacheReadInputTokens ?? null,
         cacheAvailability: total.cacheAvailability ?? 'unsupported',
       };
+      run.tokenUsageFinalized = finalized;
       run.updatedAt = this.now().toISOString();
       await writeRunMetadata(this.runFamilies, run);
       this.unavailableUsageRuns.delete(runId);
