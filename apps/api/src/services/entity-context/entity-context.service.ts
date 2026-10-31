@@ -1816,7 +1816,7 @@ export class EntityContextService {
   /**
    * Returns undated GOAL-typed tasks and dated Goals inside a fixed
    * look-ahead window for a user. "Active" means: not archived, status not
-   * in COMPLETED / CANCELLED / ARCHIVED, and no date or dueDate between now and
+   * in effective FINISHED statuses / ARCHIVED, and no date or dueDate between now and
    * `now + windowDays`.
    *
    * Audience is derived per goal from the goal_memberships join: zero
@@ -1855,8 +1855,10 @@ export class EntityContextService {
         archivedAt: null,
         status: {
           notIn: [
-            WorkStatus.Completed,
-            WorkStatus.Cancelled,
+            ...(this.workItemTypeRegistry
+              .getRulesForProject(WORK_ITEM_TYPE_KEYS.Goal, projectId)
+              ?.statuses.filter((status) => status.meaning === 'FINISHED')
+              .map((status) => status.name) ?? []),
             WorkStatus.Archived,
           ],
         },

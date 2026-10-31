@@ -1,6 +1,5 @@
 import {
   EntityType,
-  WorkStatus,
   type GoalTrackedWorkSummary,
   type TrackedEntitySnapshot,
 } from "../api";
@@ -23,7 +22,7 @@ export interface GoalStatusChipDescriptor {
 }
 
 export const goalStatusChipDescriptor = (
-  status: GoalDerivedStatus
+  status: GoalDerivedStatus,
 ): GoalStatusChipDescriptor => {
   switch (status) {
     case GoalDerivedStatus.Done:
@@ -54,27 +53,40 @@ export interface DeriveGoalStatusInput {
 }
 
 const isPastDue = (isoDate: string | null | undefined, now: Date): boolean => {
-  if (!isoDate) return false;
+  if (!isoDate) {
+    return false;
+  }
   const parsed = Date.parse(isoDate);
-  if (Number.isNaN(parsed)) return false;
+  if (Number.isNaN(parsed)) {
+    return false;
+  }
   return parsed < now.getTime();
 };
 
 export const deriveGoalStatus = (
   input: DeriveGoalStatusInput,
-  now: Date = new Date()
+  now: Date = new Date(),
 ): GoalDerivedStatus => {
   const tracked = input.trackedEntities ?? [];
 
   if (
     tracked.length > 0 &&
-    tracked.every((entity) => entity.status === WorkStatus.Completed)
+    tracked.every(
+      (entity) =>
+        entity.statusMeaning === "FINISHED" &&
+        entity.completionBehavior !== "CANCELLED",
+    )
   ) {
     return GoalDerivedStatus.Done;
   }
 
   for (const entity of tracked) {
-    if (entity.status === WorkStatus.Completed) continue;
+    if (
+      entity.statusMeaning === "FINISHED" &&
+      entity.completionBehavior !== "CANCELLED"
+    ) {
+      continue;
+    }
 
     const effectiveDueDate = entity.dueDate ?? input.dueDate ?? null;
     if (isPastDue(effectiveDueDate, now)) {
@@ -83,7 +95,8 @@ export const deriveGoalStatus = (
 
     if (
       entity.targetEntityType === EntityType.Task &&
-      entity.status === WorkStatus.Cancelled
+      entity.statusMeaning === "FINISHED" &&
+      entity.completionBehavior === "CANCELLED"
     ) {
       return GoalDerivedStatus.AtRisk;
     }
@@ -104,7 +117,7 @@ export interface DeriveGoalStatusFromSummaryInput {
  */
 export const deriveGoalStatusFromSummary = (
   input: DeriveGoalStatusFromSummaryInput,
-  now: Date = new Date()
+  now: Date = new Date(),
 ): GoalDerivedStatus => {
   const summary = input.trackedWorkSummary;
 

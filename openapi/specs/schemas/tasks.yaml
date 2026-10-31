@@ -426,7 +426,7 @@ FeatureRequirementRecord:
       description: Canonical requirement statement.
     group:
       type: string
-      pattern: '^[A-Za-z0-9](?:[A-Za-z0-9 -]*[A-Za-z0-9])?$'
+      pattern: "^[A-Za-z0-9](?:[A-Za-z0-9 -]*[A-Za-z0-9])?$"
       description: Explicit feature-local grouping label using alphanumeric characters, spaces, and hyphens; omitted when absent.
     designedBy:
       type: array
@@ -456,7 +456,7 @@ FeatureRequirementInput:
       description: Requirement statement text.
     group:
       type: string
-      pattern: '^[A-Za-z0-9](?:[A-Za-z0-9 -]*[A-Za-z0-9])?$'
+      pattern: "^[A-Za-z0-9](?:[A-Za-z0-9 -]*[A-Za-z0-9])?$"
       description: Explicit feature-local grouping label using alphanumeric characters, spaces, and hyphens; omit when absent.
     designedBy:
       type: array
@@ -510,7 +510,7 @@ FeatureRequirementUpdateOperation:
       description: Replacement statement; changing it preserves the durable ID.
     group:
       type: string
-      pattern: '^[A-Za-z0-9](?:[A-Za-z0-9 -]*[A-Za-z0-9])?$'
+      pattern: "^[A-Za-z0-9](?:[A-Za-z0-9 -]*[A-Za-z0-9])?$"
       nullable: true
       description: Omit to preserve the group, provide an alphanumeric label using spaces or hyphens to set or rename it, or provide null to clear it.
     designedBy:
@@ -590,9 +590,15 @@ TrackedEntitySnapshot:
       type: string
       description: Display title for the tracked entity.
     status:
-      $ref: "common.yaml#/WorkStatus"
+      $ref: "common.yaml#/WorkItemStatus"
       nullable: true
       description: Current work status, when the target type carries one.
+    statusMeaning:
+      $ref: "work-item-type-definition.yaml#/WorkItemStatusMeaning"
+      description: Effective ordinary status meaning; absent when the stored status is unresolved.
+    completionBehavior:
+      $ref: "work-item-type-definition.yaml#/WorkItemStatusCompletionBehavior"
+      description: Effective migrated compatibility behavior; never inferred from a name.
     dueDate:
       type: string
       format: date-time
@@ -626,11 +632,11 @@ GoalTrackedWorkSummary:
     completedCount:
       type: integer
       minimum: 0
-      description: Number of tracked targets in COMPLETED status.
+      description: Number of finished tracked targets without cancellation compatibility behavior.
     cancelledCount:
       type: integer
       minimum: 0
-      description: Number of tracked targets in CANCELLED status.
+      description: Number of finished tracked targets with cancellation compatibility behavior.
     pastDueCount:
       type: integer
       minimum: 0
@@ -689,7 +695,7 @@ TaskResponseDto:
       format: uuid
       description: The ID of the initiative this task is part of.
     status:
-      $ref: "common.yaml#/WorkStatus"
+      $ref: "common.yaml#/WorkItemStatus"
     source:
       $ref: "#/TaskSource"
     priority:
@@ -842,7 +848,6 @@ TaskHierarchyResponseDto:
       items:
         $ref: "#/TaskResponseDto"
 
-
 WorkflowProposalStepInput:
   type: object
   description: >
@@ -865,7 +870,7 @@ WorkflowProposalStepInput:
       items:
         $ref: "#/TaskSectionInput"
     status:
-      $ref: "common.yaml#/WorkStatus"
+      $ref: "common.yaml#/WorkItemStatus"
       default: "BACKLOG"
     source:
       $ref: "#/TaskSource"
@@ -1036,7 +1041,7 @@ CreateTaskDto:
       format: uuid
       description: The ID of the initiative this task belongs to.
     status:
-      $ref: "common.yaml#/WorkStatus"
+      $ref: "common.yaml#/WorkItemStatus"
       default: "BACKLOG"
     source:
       $ref: "#/TaskSource"
@@ -1136,7 +1141,7 @@ CreateFeatureDto:
       format: uuid
       description: The ID of the initiative this feature belongs to.
     status:
-      $ref: "common.yaml#/WorkStatus"
+      $ref: "common.yaml#/WorkItemStatus"
       default: "BACKLOG"
     source:
       $ref: "#/TaskSource"
@@ -1186,7 +1191,7 @@ CreateGoalDto:
       format: uuid
       description: The ID of the initiative this goal belongs to.
     status:
-      $ref: "common.yaml#/WorkStatus"
+      $ref: "common.yaml#/WorkItemStatus"
       default: "BACKLOG"
     source:
       $ref: "#/TaskSource"
@@ -1225,7 +1230,7 @@ UpdateTaskDto:
       format: uuid
       description: The new initiative ID for the task.
     status:
-      $ref: "common.yaml#/WorkStatus"
+      $ref: "common.yaml#/WorkItemStatus"
     priority:
       $ref: "#/TaskPriority"
     dueDate:
@@ -1528,9 +1533,9 @@ TaskAllowedStatusEntry:
       $ref: "#/TaskType"
     allowedStatuses:
       type: array
-      description: Every WorkStatus value valid for this task type.
+      description: Every status value an item of this task type may hold — its ordinary statuses, ARCHIVED, and SUPERSEDED when eligible.
       items:
-        $ref: "common.yaml#/WorkStatus"
+        $ref: "common.yaml#/WorkItemStatus"
 
 TaskAllowedStatusesResponseDto:
   type: object

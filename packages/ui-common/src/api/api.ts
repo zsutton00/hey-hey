@@ -536,7 +536,7 @@ export const ActiveControllerAuthorizationGrantDtoOutcomeEnum = {
 export type ActiveControllerAuthorizationGrantDtoOutcomeEnum = typeof ActiveControllerAuthorizationGrantDtoOutcomeEnum[keyof typeof ActiveControllerAuthorizationGrantDtoOutcomeEnum];
 
 /**
- * A goal returned by the active-goals endpoint: a GOAL-typed task that is not done (status not in COMPLETED/CANCELLED/ARCHIVED), not archived, and is undated or whose dueDate falls inside the requested look-ahead window. Carries just enough for a dashboard or sidebar surface to render the goal without a follow-up lookup. 
+ * A goal returned by the active-goals endpoint: a GOAL-typed task that has no effective FINISHED meaning and is not ARCHIVED, not archived, and is undated or whose dueDate falls inside the requested look-ahead window. Carries just enough for a dashboard or sidebar surface to render the goal without a follow-up lookup. 
  * @export
  * @interface ActiveGoalDto
  */
@@ -45063,13 +45063,13 @@ export interface GoalTrackedWorkSummary {
      */
     'totalCount': number;
     /**
-     * Number of tracked targets in COMPLETED status.
+     * Number of finished tracked targets without cancellation compatibility behavior.
      * @type {number}
      * @memberof GoalTrackedWorkSummary
      */
     'completedCount': number;
     /**
-     * Number of tracked targets in CANCELLED status.
+     * Number of finished tracked targets with cancellation compatibility behavior.
      * @type {number}
      * @memberof GoalTrackedWorkSummary
      */
@@ -97100,6 +97100,18 @@ export interface TrackedEntitySnapshot {
      * @memberof TrackedEntitySnapshot
      */
     'status'?: string;
+    /**
+     * 
+     * @type {WorkItemStatusMeaning}
+     * @memberof TrackedEntitySnapshot
+     */
+    'statusMeaning'?: WorkItemStatusMeaning;
+    /**
+     * 
+     * @type {WorkItemStatusCompletionBehavior}
+     * @memberof TrackedEntitySnapshot
+     */
+    'completionBehavior'?: WorkItemStatusCompletionBehavior;
     /**
      * Target completion date, when the target type carries one.
      * @type {string}

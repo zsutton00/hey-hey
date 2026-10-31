@@ -4057,6 +4057,17 @@ export const controllerActionRuntimeSchema = {
             },
           ],
         },
+        statusMeaning: {
+          description:
+            'Effective ordinary status meaning; absent when the stored status is unresolved.',
+          type: 'string',
+          enum: ['NOT_STARTED', 'IN_PROGRESS', 'UNFINISHED', 'FINISHED'],
+        },
+        completionBehavior: {
+          description: 'Effective migrated compatibility behavior; never inferred from a name.',
+          type: 'string',
+          enum: ['COMPLETED', 'CANCELLED'],
+        },
         dueDate: {
           type: ['string', 'null'],
           format: 'date-time',
@@ -4662,12 +4673,14 @@ export const controllerActionRuntimeSchema = {
                 completedCount: {
                   type: 'integer',
                   minimum: 0,
-                  description: 'Number of tracked targets in COMPLETED status.',
+                  description:
+                    'Number of finished tracked targets without cancellation compatibility behavior.',
                 },
                 cancelledCount: {
                   type: 'integer',
                   minimum: 0,
-                  description: 'Number of tracked targets in CANCELLED status.',
+                  description:
+                    'Number of finished tracked targets with cancellation compatibility behavior.',
                 },
                 pastDueCount: {
                   type: 'integer',

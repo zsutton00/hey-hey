@@ -676,6 +676,8 @@ export * from './VerifyImpactedEntityReference';
 export * from './WorkItemConfigKind';
 export * from './WorkItemConfigV1';
 export * from './WorkItemSection';
+export * from './WorkItemStatusCompletionBehavior';
+export * from './WorkItemStatusMeaning';
 export * from './WorkTrackerConnectionCompletion';
 export * from './WorkTrackerImportCompletion';
 export * from './WorkTrackerImportRequest';

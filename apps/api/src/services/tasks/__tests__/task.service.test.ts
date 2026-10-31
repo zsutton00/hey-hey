@@ -527,6 +527,7 @@ describe('TaskService', () => {
           { name: 'Testing', meaning: 'IN_PROGRESS' },
           { name: 'Made', meaning: 'FINISHED' },
           { name: 'Rejected', meaning: 'FINISHED' },
+          { name: 'CANCELLED', meaning: 'FINISHED' },
         ],
       },
       {
@@ -2515,7 +2516,14 @@ describe('TaskService', () => {
           organizationId: testIds.organization,
           archivedAt: null,
         },
-        select: { id: true, name: true, status: true, dueDate: true },
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          projectId: true,
+          status: true,
+          dueDate: true,
+        },
       });
       expect(result.get(testIds.task)).toEqual(
         result.get('11111111-1111-4111-8111-111111111111'),
@@ -2529,6 +2537,8 @@ describe('TaskService', () => {
         {
           targetEntityId: shared,
           targetEntityType: 'TASK',
+          statusMeaning: undefined,
+          completionBehavior: undefined,
           title: 'Shared work',
           status: 'ACTIVE',
           dueDate: null,
@@ -2544,7 +2554,41 @@ describe('TaskService', () => {
         id: string,
         status: TaskResponseDto['status'],
         dueDate: Date | null = null,
-      ) => ({ id, name: id, status, dueDate });
+      ) => ({
+        id,
+        name: id,
+        type: 'STANDARD',
+        projectId: testIds.project,
+        status,
+        dueDate,
+      });
+
+      it.each([
+        ['recipe', 'Made', 1],
+        ['recipe', 'Rejected', 1],
+        ['recipe', 'CANCELLED', 1],
+        ['recipe', 'COMPLETED', 0],
+        ['mockup', 'ACTIVE', 0],
+        ['STANDARD', 'BLOCKED', 0],
+        ['STANDARD', 'ON_HOLD', 0],
+      ])(
+        'uses effective meanings for %s / %s',
+        (type, status, completedCount) => {
+          const rows = [{ ...row('work', status), type }];
+          const summary = service['toTrackedWorkSummary'](rows, now);
+          expect(summary).toEqual({
+            totalCount: 1,
+            completedCount,
+            cancelledCount: 0,
+            pastDueCount: 0,
+            openUndatedCount: 1 - completedCount,
+          });
+          expect(
+            service['toTrackedSnapshots'](rows)[0]?.statusMeaning ===
+              'FINISHED',
+          ).toBe(completedCount === 1);
+        },
+      );
 
       it('returns zero counts for a goal without tracked work', () => {
         expect(service['toTrackedWorkSummary']([], now)).toEqual({
@@ -2611,7 +2655,14 @@ describe('TaskService', () => {
       } satisfies SearchResponse);
       // The batched read filters archivedAt: null, so archived rows never return.
       (mockPrismaService.db.task.findMany as jest.Mock).mockResolvedValueOnce([
-        { id: resolved, name: 'Resolved', status: 'COMPLETED', dueDate: null },
+        {
+          id: resolved,
+          name: 'Resolved',
+          type: 'STANDARD',
+          projectId: testIds.project,
+          status: 'COMPLETED',
+          dueDate: null,
+        },
       ]);
       const rows = await service['loadTrackedTaskRowsByGoal'](
         testIds.organization,
@@ -2705,6 +2756,8 @@ describe('TaskService', () => {
           {
             targetEntityId: trackedRow.id,
             targetEntityType: 'TASK',
+            statusMeaning: undefined,
+            completionBehavior: undefined,
             title: 'Tracked work item',
             status: 'ACTIVE',
             dueDate: null,
@@ -2774,6 +2827,8 @@ describe('TaskService', () => {
             {
               id: trackedId,
               name: 'Tracked work item',
+              type: 'STANDARD',
+              projectId: testIds.project,
               status: 'COMPLETED',
               dueDate: null,
             },
@@ -2965,7 +3020,7 @@ describe('TaskService', () => {
       });
 
       expect(mockPrismaService.db.task.groupBy).toHaveBeenCalledWith({
-        by: ['parentTaskId', 'status'],
+        by: ['parentTaskId', 'status', 'type', 'projectId'],
         where: {
           organizationId: testIds.organization,
           initiativeId: testIds.initiative,
@@ -4778,6 +4833,8 @@ describe('TaskService', () => {
       (mockPrismaService.db.task.groupBy as jest.Mock).mockResolvedValue([
         {
           parentTaskId: mockTaskData.id,
+          type: 'STANDARD',
+          projectId: testIds.project,
           status: 'COMPLETED',
           _count: { _all: 1 },
         },
@@ -4965,6 +5022,8 @@ describe('TaskService', () => {
         expect.objectContaining({
           targetEntityId: targetTaskId,
           targetEntityType: 'TASK',
+          statusMeaning: undefined,
+          completionBehavior: undefined,
           title: 'Tracked feature',
         }),
       );
@@ -4972,6 +5031,8 @@ describe('TaskService', () => {
         expect.objectContaining({
           targetEntityId: targetPlanId,
           targetEntityType: 'TASK',
+          statusMeaning: undefined,
+          completionBehavior: undefined,
           title: 'Tracked plan',
         }),
       );
@@ -8605,6 +8666,8 @@ describe('TaskService', () => {
           {
             targetEntityId: trackedTaskId,
             targetEntityType: 'TASK',
+            statusMeaning: undefined,
+            completionBehavior: undefined,
             title: 'Tracked work item',
             status: 'ACTIVE',
             dueDate: null,

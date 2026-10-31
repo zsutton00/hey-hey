@@ -8802,13 +8802,13 @@ export interface GoalTrackedWorkSummary {
      */
     'totalCount': number;
     /**
-     * Number of tracked targets in COMPLETED status.
+     * Number of finished tracked targets without cancellation compatibility behavior.
      * @type {number}
      * @memberof GoalTrackedWorkSummary
      */
     'completedCount': number;
     /**
-     * Number of tracked targets in CANCELLED status.
+     * Number of finished tracked targets with cancellation compatibility behavior.
      * @type {number}
      * @memberof GoalTrackedWorkSummary
      */
@@ -23964,6 +23964,18 @@ export interface TrackedEntitySnapshot {
      */
     'status'?: string;
     /**
+     *
+     * @type {WorkItemStatusMeaning}
+     * @memberof TrackedEntitySnapshot
+     */
+    'statusMeaning'?: WorkItemStatusMeaning;
+    /**
+     *
+     * @type {WorkItemStatusCompletionBehavior}
+     * @memberof TrackedEntitySnapshot
+     */
+    'completionBehavior'?: WorkItemStatusCompletionBehavior;
+    /**
      * Target completion date, when the target type carries one.
      * @type {string}
      * @memberof TrackedEntitySnapshot
@@ -24343,6 +24355,36 @@ export interface WorkItemSection {
      */
     'order': number;
 }
+/**
+ * Legacy completion semantics a FINISHED status carries: COMPLETED counts toward Goal completion and emits completion events; CANCELLED ends work without counting as done. Absent for statuses with neither behavior.
+ * @export
+ * @enum {string}
+ */
+
+export const WorkItemStatusCompletionBehavior = {
+    Completed: 'COMPLETED',
+    Cancelled: 'CANCELLED'
+} as const;
+
+export type WorkItemStatusCompletionBehavior = typeof WorkItemStatusCompletionBehavior[keyof typeof WorkItemStatusCompletionBehavior];
+
+
+/**
+ * What an ordinary status means for progress: NOT_STARTED work has not begun, IN_PROGRESS work is underway, FINISHED work needs no further effort. UNFINISHED preserves an unfinished state whose start state is unspecified (for example legacy Blocked and On Hold). Goal progress and active filters read this, never the status name.
+ * @export
+ * @enum {string}
+ */
+
+export const WorkItemStatusMeaning = {
+    NotStarted: 'NOT_STARTED',
+    InProgress: 'IN_PROGRESS',
+    Unfinished: 'UNFINISHED',
+    Finished: 'FINISHED'
+} as const;
+
+export type WorkItemStatusMeaning = typeof WorkItemStatusMeaning[keyof typeof WorkItemStatusMeaning];
+
+
 /**
  * Runtime tool reachability. CLI code owns connection instructions.
  * @export

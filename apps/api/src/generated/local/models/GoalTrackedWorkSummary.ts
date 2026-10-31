@@ -21,11 +21,11 @@ export class GoalTrackedWorkSummary {
    */
   'totalCount': number;
   /**
-   * Number of tracked targets in COMPLETED status.
+   * Number of finished tracked targets without cancellation compatibility behavior.
    */
   'completedCount': number;
   /**
-   * Number of tracked targets in CANCELLED status.
+   * Number of finished tracked targets with cancellation compatibility behavior.
    */
   'cancelledCount': number;
   /**
