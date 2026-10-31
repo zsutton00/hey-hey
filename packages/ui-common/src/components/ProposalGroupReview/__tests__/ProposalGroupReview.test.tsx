@@ -632,13 +632,13 @@ describe("ProposalGroupReview", () => {
     expect(
       within(review).queryByRole("button", { name: /layout|fullscreen|zoom/i }),
     ).not.toBeInTheDocument();
-    const saved = within(review).getByTestId("journey-saved-screen-review");
     expect(
-      within(saved).queryByTestId("proposal-group-member-approve"),
+      within(review).getByRole("button", { name: "View Saved cart full size" }),
+    ).toBeInTheDocument();
+    expect(within(review).queryByText(/saved screen/i)).not.toBeInTheDocument();
+    expect(
+      within(review).queryByRole("link", { name: /open/i }),
     ).not.toBeInTheDocument();
-    expect(
-      within(saved).getByRole("link", { name: "Open saved screen Saved cart" }),
-    ).toHaveAttribute("href", "/tasks/saved-screen");
     const proposed = within(review).getAllByTestId(
       "journey-proposed-screen-review",
     );
@@ -709,7 +709,7 @@ describe("ProposalGroupReview", () => {
       screen.queryByTestId("journey-review-send-feedback"),
     ).not.toBeInTheDocument();
     expect(
-      within(review).getByTestId("journey-saved-screen-review"),
+      within(review).getByRole("button", { name: /View .* full size/ }),
     ).toBeInTheDocument();
     expect(within(review).getByText("Payment declined")).toBeInTheDocument();
     const flatCards = screen.getAllByTestId("proposal-group-member-review");
@@ -1044,7 +1044,7 @@ describe("ProposalGroupReview", () => {
       screen.queryByTestId("proposal-group-graph-preview"),
     ).not.toBeInTheDocument();
     expect(
-      within(review).getByTestId("journey-saved-screen-review"),
+      within(review).getByRole("button", { name: /View .* full size/ }),
     ).toBeInTheDocument();
   });
 

@@ -13,7 +13,9 @@ import type { ProposalGroupSnapshot } from "../../api";
 import { useWorkItemTypeByKey } from "../../data/hooks/useWorkItemTypes";
 import { resolveProposalWorkItemSections } from "../ProposalDispatchers/workItemProposalSections";
 import { HtmlCssSectionRenderer } from "../shared/HtmlCssSectionRenderer";
+import { HtmlCssSectionThumbnail } from "../shared/HtmlCssSectionThumbnail";
 import { StructuredMockupSectionRenderer } from "../shared/StructuredMockupSectionRenderer";
+import { StructuredMockupSectionThumbnail } from "../shared/StructuredMockupSectionThumbnail";
 import { FunctionalDialog } from "../Modals/FunctionalDialog";
 import { useModalState } from "../Modals/useModalState";
 import { MockupBrowserPencil } from "../shared/MockupBrowserPencil";
@@ -24,6 +26,9 @@ import {
 } from "../../utils/workItemSections";
 import { MarkdownRenderer } from "../shared/MarkdownRenderer";
 
+/** Grid column width; screens are laid out at their declared size and scaled to it. */
+export const JOURNEY_SCREEN_WIDTH = 600;
+
 export const JourneyScreen: React.FC<{
   name: string;
   source:
@@ -31,7 +36,7 @@ export const JourneyScreen: React.FC<{
     | Omit<Extract<MockupPageSource, { kind: "proposal" }>, "sectionKey">;
   sections: readonly { key: string; materializedMarkdown: unknown }[];
   group: Pick<ProposalGroupSnapshot, "organizationId" | "projectId">;
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }> = ({ name, source, sections, group, children }) => {
   const [open, setOpen, ownerKey] = useModalState(false);
   const registry = useWorkItemTypeByKey(
@@ -53,14 +58,34 @@ export const JourneyScreen: React.FC<{
   const description = sections.find(
     ({ key }) => key === "purpose" || key === "description",
   )?.materializedMarkdown;
-  const renderSections = (context: "inline" | "page") =>
+  const renderThumbnails = () =>
+    visualSections.map((section) =>
+      section.kind === "html/css" ? (
+        <HtmlCssSectionThumbnail
+          key={section.key}
+          content={section.proposedValue}
+          definition={section.definition}
+          width={JOURNEY_SCREEN_WIDTH}
+        />
+      ) : (
+        <StructuredMockupSectionThumbnail
+          key={section.key}
+          content={section.proposedValue}
+          definition={section.definition}
+          width={JOURNEY_SCREEN_WIDTH}
+          organizationId={group.organizationId}
+          projectId={group.projectId}
+        />
+      ),
+    );
+  const renderFullSize = () =>
     visualSections.map((section) =>
       section.kind === "html/css" ? (
         <HtmlCssSectionRenderer
           key={section.key}
           content={section.proposedValue}
           definition={section.definition}
-          context={context}
+          context="page"
           organizationId={group.organizationId}
           projectId={group.projectId}
         />
@@ -69,7 +94,7 @@ export const JourneyScreen: React.FC<{
           key={section.key}
           content={section.proposedValue}
           definition={section.definition}
-          context={context}
+          context="page"
           organizationId={group.organizationId}
           projectId={group.projectId}
         />
@@ -89,7 +114,7 @@ export const JourneyScreen: React.FC<{
       >
         <Box inert sx={{ pointerEvents: "none" }}>
           {visualSections.length ? (
-            renderSections("inline")
+            renderThumbnails()
           ) : (
             <Alert severity="info">Screen preview unavailable</Alert>
           )}
@@ -140,7 +165,7 @@ export const JourneyScreen: React.FC<{
           <Button onClick={() => setOpen(false)}>Close</Button>
         </DialogTitle>
         <DialogContent data-testid="journey-screen-full-size">
-          {renderSections("page")}
+          {renderFullSize()}
         </DialogContent>
       </FunctionalDialog>
       <Typography variant="subtitle2">{name}</Typography>

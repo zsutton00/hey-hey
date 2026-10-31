@@ -1,8 +1,7 @@
 import React from "react";
-import { Alert, Button, Chip, Stack, Typography } from "@mui/material";
+import { Alert, Stack, Typography } from "@mui/material";
 import type { ProposalGroupSnapshot } from "../../api";
 import { useWorkItem } from "../../data/hooks/useWorkItem";
-import { usePathService } from "../../contexts/PathServiceContext";
 import { JourneyScreen } from "./JourneyScreen";
 
 export const SavedJourneyScreen: React.FC<{
@@ -13,7 +12,6 @@ export const SavedJourneyScreen: React.FC<{
   const read = useWorkItem(group.organizationId, "task", id, {
     projectId: group.projectId,
   });
-  const paths = usePathService();
   if (read.isLoading) {
     return <Alert severity="info">Loading saved screen…</Alert>;
   }
@@ -39,20 +37,6 @@ export const SavedJourneyScreen: React.FC<{
       source={{ kind: "workItem", workItemId: id }}
       sections={read.workItem.sections ?? []}
       group={group}
-    >
-      <Stack
-        data-testid="journey-saved-screen-review"
-        data-work-item-id={id}
-        spacing={1}
-      >
-        <Chip label="Accepted · saved screen" color="success" size="small" />
-        <Button
-          href={paths.task({ projectId: group.projectId, taskId: id })}
-          aria-label={`Open saved screen ${read.workItem.name}`}
-        >
-          Open screen
-        </Button>
-      </Stack>
-    </JourneyScreen>
+    />
   );
 };
