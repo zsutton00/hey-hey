@@ -67,7 +67,16 @@ export interface ProposalGroupMemberReviewProps {
   onReject: (proposalId: string, reason: string) => Promise<unknown>;
   isDeciding: boolean;
   content?: React.ReactNode;
+  /** True for the Diagram member that links a UX flow journey's screens. */
+  journeyFlow: boolean;
 }
+
+const JOURNEY_FLOW_TITLE_PREFIX = "UX flow · links the screens above";
+const JOURNEY_FLOW_TYPE_LABEL = "UX flow";
+const JOURNEY_FLOW_DECISION_LABELS = {
+  approve: "Approve flow",
+  reject: "Reject flow",
+};
 
 const formatTimestamp = (value: string): string =>
   new Date(value).toLocaleString();
@@ -104,6 +113,7 @@ const MemberHeader: React.FC<{
   contentExpanded: boolean;
   onToggleContent: () => void;
   canToggleContent: boolean;
+  journeyFlow: boolean;
 }> = ({
   member,
   organizationId,
@@ -111,6 +121,7 @@ const MemberHeader: React.FC<{
   contentExpanded,
   onToggleContent,
   canToggleContent,
+  journeyFlow,
 }) => {
   const proposal = member.proposal;
   const pathService = usePathService();
@@ -137,7 +148,13 @@ const MemberHeader: React.FC<{
     isTaskProposal && workItemLoading
       ? { kind: "loading" as const }
       : typePresentation;
-  const headerTypePresentation = resolvedTypePresentation;
+  const headerTypePresentation =
+    journeyFlow && resolvedTypePresentation.kind === "available"
+      ? { ...resolvedTypePresentation, label: JOURNEY_FLOW_TYPE_LABEL }
+      : resolvedTypePresentation;
+  const displayTitle = journeyFlow
+    ? `${JOURNEY_FLOW_TITLE_PREFIX} — ${getProposalDisplayTitle(proposal)}`
+    : getProposalDisplayTitle(proposal);
   const href = isTaskProposal
     ? resolvedTaskType === "FEATURE"
       ? pathService.feature({ projectId, featureId: proposal.targetEntityId })
@@ -159,7 +176,7 @@ const MemberHeader: React.FC<{
   return (
     <ProposalTitle
       proposal={proposal}
-      resolvedTargetName={getProposalDisplayTitle(proposal)}
+      resolvedTargetName={displayTitle}
       typePresentation={headerTypePresentation}
       target={
         targetExists
@@ -394,6 +411,7 @@ export const MemberDecisionControls: React.FC<{
   onApprove: (proposalId: string) => Promise<unknown>;
   onReject: (proposalId: string, reason: string) => Promise<unknown>;
   isDeciding: boolean;
+  labels?: { approve: string; reject: string };
 }> = ({
   member,
   decision,
@@ -401,6 +419,7 @@ export const MemberDecisionControls: React.FC<{
   onApprove,
   onReject,
   isDeciding,
+  labels = { approve: "Approve", reject: "Reject" },
 }) => {
   const reconciliation = React.useContext(ProposalReconciliationContext);
   const [rejectDialogOpen, setRejectDialogOpen, rejectDialogOpenOwnerKey] =
@@ -451,7 +470,7 @@ export const MemberDecisionControls: React.FC<{
           data-selected={decision === "approved"}
           aria-pressed={decision === "approved"}
         >
-          Approve
+          {labels.approve}
         </Button>
         <Button
           size="small"
@@ -463,7 +482,7 @@ export const MemberDecisionControls: React.FC<{
           data-selected={decision === "rejected"}
           aria-pressed={decision === "rejected"}
         >
-          Reject
+          {labels.reject}
         </Button>
       </Stack>
       <Dialog
@@ -521,6 +540,7 @@ const ProposalGroupMemberReviewContent: React.FC<
   onApprove,
   onReject,
   isDeciding,
+  journeyFlow,
 }) => {
   const { user } = useAuth();
   const allProposals = useMemo(
@@ -560,6 +580,7 @@ const ProposalGroupMemberReviewContent: React.FC<
           contentExpanded={contentExpanded}
           onToggleContent={() => setContentExpanded((expanded) => !expanded)}
           canToggleContent={acceptedUpdate}
+          journeyFlow={journeyFlow}
         />
         <MemberState member={member} members={members} />
         <Divider />
@@ -596,6 +617,7 @@ const ProposalGroupMemberReviewContent: React.FC<
           onApprove={onApprove}
           onReject={onReject}
           isDeciding={isDeciding}
+          labels={journeyFlow ? JOURNEY_FLOW_DECISION_LABELS : undefined}
         />
       </Stack>
     </Paper>

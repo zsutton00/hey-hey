@@ -716,6 +716,23 @@ describe("ProposalGroupReview", () => {
     expect(flatCards.map((card) => card.dataset.memberId)).toEqual([
       "journey-member",
     ]);
+    const flowCard = flatCards[0];
+    expect(within(flowCard).getByText(/links the screens above/)).toBeVisible();
+    expect(
+      within(flowCard).getByTestId("proposal-group-member-type"),
+    ).toHaveTextContent("UX flow");
+    expect(
+      within(flowCard).getByTestId("proposal-group-member-approve"),
+    ).toHaveTextContent("Approve flow");
+    expect(
+      within(flowCard).getByTestId("proposal-group-member-reject"),
+    ).toHaveTextContent("Reject flow");
+    expect(
+      within(paymentControls).getByTestId("proposal-group-member-approve"),
+    ).toHaveTextContent(/^Approve$/);
+    expect(
+      within(declinedControls).getByTestId("proposal-group-member-reject"),
+    ).toHaveTextContent(/^Reject$/);
     cleanup();
     renderedGroup = {
       ...renderedGroup,

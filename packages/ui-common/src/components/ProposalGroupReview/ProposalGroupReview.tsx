@@ -339,6 +339,9 @@ export const ProposalGroupReviewView: React.FC<
               key={member.memberId}
               member={member}
               members={proposalGroup.members}
+              journeyFlow={journeys.some(
+                ({ memberId }) => memberId === member.memberId,
+              )}
               content={
                 journeys.some(({ memberId }) => memberId === member.memberId) &&
                 isWorkItemGraphProposal(member.proposal) ? (
