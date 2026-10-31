@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
-import type { EvalAutomatedAssessment, EvalRunCaseInput } from '../../shared/api/generated/api';
+import {
+  ReadRestriction,
+  type EvalAutomatedAssessment,
+  type EvalRunCaseInput,
+} from '../../shared/api/generated/api';
 import type { PromptTypeHandler } from '../prompt-type-handler';
 
 export const EVAL_JUDGE_HANDLER_ID = 'eval_judge';
@@ -96,6 +100,8 @@ export const evalJudgeHandler: PromptTypeHandler<EvalJudgePayload> = {
   reports: [],
   replaceProviderSystemPrompt: true,
   omitServiceContextNote: true,
+  // The judge gets its case and rubric in its payload and must never read live grading reports.
+  readRestriction: ReadRestriction.EvalJudge,
   childConfig: {
     adapterId: 'eval-judge-subagent',
     mcpAllowedTools: [],

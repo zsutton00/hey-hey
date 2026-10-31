@@ -28,6 +28,7 @@ import { LifecycleService } from 'src/generated/graphs/api/lifecycle.service';
 import { QueriesService } from 'src/generated/graphs/api/queries.service';
 import { OrganizationId, ProjectId } from 'src/types';
 import { errorToLoggable } from 'src/utils/logging.util';
+import { GraphReadScope } from 'src/read-restriction/graph-read-scope';
 
 @Injectable()
 export class GraphsClientService {
@@ -38,6 +39,7 @@ export class GraphsClientService {
     private readonly queriesService: QueriesService,
     private readonly lifecycleService: LifecycleService,
     private readonly hintsService: HintsService,
+    private readonly readScope: GraphReadScope,
   ) {}
 
   private userAuthConfig(userToken: string) {
@@ -193,7 +195,7 @@ export class GraphsClientService {
     if (!response.structuredRead) {
       throw new Error('Graph returned no structured read response');
     }
-    return response.structuredRead;
+    return this.readScope.scopeStructuredRead(response.structuredRead);
   }
 
   async searchGraph(
@@ -208,15 +210,20 @@ export class GraphsClientService {
 
     try {
       const response = await firstValueFrom<AxiosResponse<SearchResponse>>(
-        this.queriesService.traverseGraph(organizationId, projectId, request, {
-          config: {
-            headers: {
-              Authorization: `Bearer ${userToken}`,
-              'X-API-Auth': `Bearer ${userToken}`,
-              'Content-Type': 'application/json',
+        this.queriesService.traverseGraph(
+          organizationId,
+          projectId,
+          this.readScope.scopeSearch(request),
+          {
+            config: {
+              headers: {
+                Authorization: `Bearer ${userToken}`,
+                'X-API-Auth': `Bearer ${userToken}`,
+                'Content-Type': 'application/json',
+              },
             },
           },
-        }),
+        ),
       );
 
       return response.data;
@@ -282,7 +289,7 @@ export class GraphsClientService {
         },
       ),
     );
-    return response.data;
+    return this.readScope.scopeIncidentEdges(response.data);
   }
 
   async getTopologyGraph(
@@ -350,7 +357,7 @@ export class GraphsClientService {
         ),
       );
 
-      return response.data;
+      return await this.readScope.scopeNeighborhood(response.data);
     } catch (error) {
       this.logger.error('Failed to fetch entity neighborhood', {
         error: errorToLoggable(error),

@@ -6,6 +6,7 @@
  * prompt without its Implementation section. Nothing here falls back: a failed plan, gather, trace write or oversize result throws.
  */
 
+import type { ReadRestriction } from '../../shared/api/generated/api';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -44,6 +45,8 @@ export const GATHERED_CONTEXT_MAX_CHARS = 200_000;
 export interface ContextSearchProject {
   organizationId: string;
   projectId: string;
+  /** The Run's read restriction, carried into every search and read the gather makes. */
+  readRestriction?: ReadRestriction | undefined;
 }
 
 /** What the application provides for gathering; defined only with a Jev key. */
@@ -130,36 +133,58 @@ const summarize = (result: GatherResult): Record<string, unknown> => ({
 
 const PLAN_LOG_CHARS = 4000;
 
+/** Times the model is asked for a valid plan, including the first ask. */
+const MAX_PLAN_ATTEMPTS = 3;
+
 const describeFailure = (error: unknown): string =>
   error instanceof Error ? (error.stack ?? error.message) : String(error);
+
+/** `promptOnce` keeps no conversation, so the retry carries the rejected answer and why it was rejected. */
+const buildPlanRetryPrompt = (planPrompt: string, answer: string, error: unknown): string =>
+  [
+    planPrompt,
+    `## Your previous answer was rejected\n\n${answer}`,
+    `## Why\n\n${error instanceof Error ? error.message : String(error)}`,
+    'Answer again with only the corrected JSON object.',
+  ].join('\n\n');
 
 /** Plans, runs and records the searches, and returns the section of kept entities for the prompt. */
 export const gatherProjectContext = async (args: GatherProjectContextArgs): Promise<string> => {
   const { deps, handlerDeps, runId, turnId, project, focalRef, focal, ask, promptContext, signal } =
     args;
 
-  const answer = await handlerDeps.promptOnce({
-    prompt: buildSearchPlanPrompt(promptContext, focal, ask),
-    // No endPhase: the state holds through the gather until the session's first event.
-    startPhase: 'gathering_context',
-  });
-  handlerDeps.logger.info('project_assistant.context_gathering.plan_received', {
-    runId,
-    turnId,
-    chars: answer.length,
-    answer: answer.slice(0, PLAN_LOG_CHARS),
-  });
-  let submission: ReturnType<typeof submitContextSearchesSchema.parse>;
-  try {
-    submission = submitContextSearchesSchema.parse(JSON.parse(answer));
-  } catch (error) {
-    handlerDeps.logger.error('project_assistant.context_gathering.plan_invalid', {
+  const planPrompt = buildSearchPlanPrompt(promptContext, focal, ask);
+  let submission: ReturnType<typeof submitContextSearchesSchema.parse> | undefined;
+  let prompt = planPrompt;
+  for (let attempt = 1; submission === undefined; attempt++) {
+    const answer = await handlerDeps.promptOnce({
+      prompt,
+      // No endPhase: the state holds through the gather until the session's first event.
+      startPhase: 'gathering_context',
+    });
+    handlerDeps.logger.info('project_assistant.context_gathering.plan_received', {
       runId,
       turnId,
-      error: describeFailure(error),
+      attempt,
+      chars: answer.length,
       answer: answer.slice(0, PLAN_LOG_CHARS),
     });
-    throw error;
+    try {
+      submission = submitContextSearchesSchema.parse(JSON.parse(answer));
+    } catch (error) {
+      const failure = describeFailure(error);
+      handlerDeps.logger.error('project_assistant.context_gathering.plan_invalid', {
+        runId,
+        turnId,
+        attempt,
+        error: failure,
+        answer: answer.slice(0, PLAN_LOG_CHARS),
+      });
+      if (attempt >= MAX_PLAN_ATTEMPTS) {
+        throw error;
+      }
+      prompt = buildPlanRetryPrompt(planPrompt, answer, error);
+    }
   }
   handlerDeps.logger.info('project_assistant.context_gathering.gather_started', {
     runId,

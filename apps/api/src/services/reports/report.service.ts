@@ -1,3 +1,4 @@
+import { restrictReportWhere } from 'src/read-restriction/read-policy';
 import { validateChangeWalkthroughPayload } from './change-walkthrough-payload.validation';
 import { validateCodingResearchPayload } from './coding-research-payload.validation';
 import { validateProjectReportPayload } from './project-report-payload.validation';
@@ -544,7 +545,7 @@ export class ReportService {
     });
 
     const reports = await this.prisma.db.report.findMany({
-      where: {
+      where: restrictReportWhere({
         organizationId,
         ...(filters.accessibleProjectIds
           ? {
@@ -600,7 +601,7 @@ export class ReportService {
                 },
               }
             : {}),
-      },
+      }),
       include: {
         reportEntities: {
           orderBy: { createdAt: 'asc' },
@@ -632,7 +633,7 @@ export class ReportService {
     });
 
     const reports = await this.prisma.db.report.findMany({
-      where: {
+      where: restrictReportWhere({
         organizationId,
         audience: {
           in: USER_VISIBLE_PERSISTED_REPORT_AUDIENCES,
@@ -643,7 +644,7 @@ export class ReportService {
             entityId: { in: uniqueIds },
           },
         },
-      },
+      }),
       include: {
         reportEntities: {
           orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
@@ -701,14 +702,14 @@ export class ReportService {
     });
 
     const reports = await this.prisma.db.report.findMany({
-      where: {
+      where: restrictReportWhere({
         organizationId,
         ragEnabled: true,
         ...(reportType ? { reportType: reportType as PrismaReportType } : {}),
         reportEntities: {
           some: { entityId },
         },
-      },
+      }),
       select: {
         id: true,
         reportType: true,
@@ -1611,10 +1612,10 @@ export class ReportService {
     reportId: string,
   ): Promise<ReportDto> {
     const report = await this.prisma.db.report.findFirst({
-      where: {
+      where: restrictReportWhere({
         id: reportId,
         organizationId,
-      },
+      }),
       include: {
         reportEntities: {
           orderBy: { createdAt: 'asc' },

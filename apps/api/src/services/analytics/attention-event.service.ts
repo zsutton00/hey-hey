@@ -1,4 +1,5 @@
 import { ProjectAccessService } from '../../auth/services/project-access.service';
+import { ReadVisibilityService } from 'src/read-restriction/read-visibility.service';
 import {
   BadRequestException,
   Injectable,
@@ -63,6 +64,8 @@ export interface GetAttentionEventsResponseData {
 export class AttentionEventService {
   private readonly logger = new Logger(AttentionEventService.name);
 
+  private readonly visibility: ReadVisibilityService;
+
   // 5 minute window for merging focus sessions
   private static readonly FOCUS_SESSION_WINDOW_MS = 5 * 60 * 1000;
   private static readonly MAX_EVENTS_PER_BATCH = 100;
@@ -76,7 +79,9 @@ export class AttentionEventService {
     private readonly designDocService: DesignDocService,
     private readonly conversationService: ConversationService,
     private readonly agentSessionService: AgentSessionService,
-  ) {}
+  ) {
+    this.visibility = new ReadVisibilityService(prisma);
+  }
 
   async recordAttentionEvents(
     user: AuthenticatedUser,
@@ -248,7 +253,7 @@ export class AttentionEventService {
         where: whereClause,
       });
 
-      const mappedEvents: AttentionEventWithEntity[] = events.map((e) => ({
+      const allEvents: AttentionEventWithEntity[] = events.map((e) => ({
         id: e.id,
         entityType: this.normalizeEntityTypeOrThrow(e.entityType),
         entityId: e.entityId,
@@ -258,6 +263,10 @@ export class AttentionEventService {
         focusEnd: e.focusEnd.toISOString(),
         durationMs: e.durationMs,
       }));
+      const mappedEvents = await this.visibility.filterVisible(
+        allEvents,
+        (event) => ({ entityType: event.entityType, entityId: event.entityId }),
+      );
 
       const sortedEvents = this.sortAttentionEvents(
         mappedEvents,

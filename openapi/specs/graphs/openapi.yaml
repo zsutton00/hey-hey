@@ -2135,6 +2135,23 @@ components:
           description: >-
             Task type filter applied when entityTypes includes TASK.
             Only task nodes whose type property matches are returned.
+        excludeTaskTypes:
+          type: array
+          items:
+            $ref: "../schemas/tasks.yaml#/TaskType"
+          description: >-
+            Task types removed from results, relationships and traversal paths.
+            Applied in the query before paging and totals. A path that passes
+            through an excluded task is dropped, so excluded content and
+            identities never appear as a hop. Wins over taskTypes.
+        excludeReportTypes:
+          type: array
+          items:
+            $ref: "../schemas/reports.yaml#/ReportType"
+          description: >-
+            Report types removed from results, relationships and traversal
+            paths. Applied in the query before paging and totals, with the same
+            path rule as excludeTaskTypes.
         tags:
           type: array
           items:

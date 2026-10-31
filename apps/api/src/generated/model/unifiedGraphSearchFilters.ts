@@ -14,6 +14,7 @@
 import { EntityType } from './entityType';
 import { UnifiedSearchCommonFiltersDateRange } from './unifiedSearchCommonFiltersDateRange';
 import { UnifiedSearchCommonFiltersUpdatedAtRange } from './unifiedSearchCommonFiltersUpdatedAtRange';
+import { ReportType } from './reportType';
 
 
 export interface UnifiedGraphSearchFilters { 
@@ -27,6 +28,14 @@ export interface UnifiedGraphSearchFilters {
      * Task type filter forwarded to the graph service. When provided, only task nodes whose type matches are returned.
      */
     taskTypes?: Array<string>;
+    /**
+     * Task types the graph service removes from results and traversal paths inside the query. Wins over `taskTypes`.
+     */
+    excludeTaskTypes?: Array<string>;
+    /**
+     * Report types the graph service removes from results and traversal paths inside the query.
+     */
+    excludeReportTypes?: Array<ReportType>;
     dateRange?: UnifiedSearchCommonFiltersDateRange;
     updatedAtRange?: UnifiedSearchCommonFiltersUpdatedAtRange;
 }

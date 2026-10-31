@@ -6,6 +6,7 @@ startApiTracing();
 
 import { assertDeploymentEnvironmentConfigured } from './load-environment';
 import { NestFactory, Reflector } from '@nestjs/core';
+import { readRestrictionMiddleware } from './read-restriction/read-restriction.middleware';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 
@@ -90,6 +91,9 @@ async function bootstrap() {
 
   // Enable response compression
   app.use(compression());
+
+  // Every read below this point serves the restriction a trusted CLI Run attached to the request.
+  app.use(readRestrictionMiddleware);
 
   // Keep Nest's authoritative raw-body capture and ordinary URL-encoded
   // parsing. The JSON limit fits a 1,000,000-byte image section once base64

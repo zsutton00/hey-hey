@@ -24337,6 +24337,8 @@ components:
       $ref: "../schemas/topology.yaml#/TopologySummaryCategory"
     EntityType:
       $ref: "../schemas/common.yaml#/EntityType"
+    ReadRestriction:
+      $ref: "../schemas/common.yaml#/ReadRestriction"
     EntityStarDto:
       $ref: "../schemas/stars.yaml#/EntityStarDto"
     TopologySubfacetStatus:

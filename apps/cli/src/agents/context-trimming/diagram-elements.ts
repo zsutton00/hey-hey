@@ -1,3 +1,4 @@
+import { restrictedConfiguration } from '../../shared/api/read-restriction';
 import {
   Configuration,
   TaskSortBy,
@@ -23,10 +24,12 @@ interface DiagramElementsRequest {
  */
 export const readDiagramElements = async (
   request: DiagramElementsRequest,
-  deps: Pick<PromptTypeHandlerDeps, 'auth' | 'apiBaseUrl'>,
+  deps: Pick<PromptTypeHandlerDeps, 'auth' | 'apiBaseUrl' | 'readRestriction'>,
 ): Promise<DiagramElementText[]> => {
   const accessToken = await deps.auth.getAccessToken();
-  const client = new TasksApi(new Configuration({ accessToken, basePath: deps.apiBaseUrl }));
+  const client = new TasksApi(
+    restrictedConfiguration({ accessToken, basePath: deps.apiBaseUrl }, deps.readRestriction),
+  );
   const response = await client.organizationsOrganizationIdProjectsProjectIdTasksGet({
     organizationId: request.organizationId,
     projectId: request.projectId,

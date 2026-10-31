@@ -12,6 +12,7 @@ import { LocalPromptType } from '../shared/agent-bridge-contract/generated/api';
 import type { LocalCreateRunRequest } from '../shared/agent-bridge-contract/runtime-types';
 import { createRunArgsFromSession } from '../run/run-activation';
 import { buildRunMcpSessionContext } from '../run/run';
+import { buildMcpHeaders } from '../agents/mcp-server-config';
 import { MessagePoster } from '../run/message-poster';
 import { NOOP_LOGGER } from './logger';
 /** @vitest-environment node */
@@ -154,6 +155,10 @@ describe('ordinary inert Run creation', () => {
       throw new Error('Created Run is missing');
     }
     expect(buildRunMcpSessionContext(stored).inert).toBe(true);
+    // A Run restored from its stored record is restricted without being told again.
+    expect(buildMcpHeaders('token', buildRunMcpSessionContext(stored))['X-Read-Restriction']).toBe(
+      'EVAL_TARGET',
+    );
     expect(runPrompt).toHaveBeenCalledWith(expect.objectContaining({ readOnlyFilesystem: true }));
     const restored = createTestRunRegistryWiring({ runStore }).runRegistry.create(
       createRunArgsFromSession(stored),
@@ -376,19 +381,27 @@ describe('ordinary Run output boundaries', () => {
           },
         },
       } as never);
-      vi.spyOn(EntityContextApi.prototype, 'getEntityContext').mockResolvedValue({
-        data: {
-          success: true,
+      const startupContextHeaders: unknown[] = [];
+      vi.spyOn(EntityContextApi.prototype, 'getEntityContext').mockImplementation(function (
+        this: EntityContextApi,
+      ) {
+        startupContextHeaders.push(
+          Reflect.get(Reflect.get(this, 'configuration') ?? {}, 'baseOptions')?.headers,
+        );
+        return Promise.resolve({
           data: {
-            entityId: ENTITY.entityId,
-            entityType: 'TASK',
-            taskType: 'STANDARD',
-            displayName: 'Evidence task',
-            createdAt: '2026-10-01T00:00:00.000Z',
-            content: { sections: {} },
+            success: true,
+            data: {
+              entityId: ENTITY.entityId,
+              entityType: 'TASK',
+              taskType: 'STANDARD',
+              displayName: 'Evidence task',
+              createdAt: '2026-10-01T00:00:00.000Z',
+              content: { sections: {} },
+            },
           },
-        },
-      } as never);
+        } as never);
+      });
       const startupPromptInput = new AgentStartupPromptInput({
         auth,
         apiBaseUrl: 'https://api.test',
@@ -663,6 +676,15 @@ describe('ordinary Run output boundaries', () => {
       }
       await wiring.runRegistry.get(AGENT_SESSION_ID)?.awaitIdle();
       expect(errors.mock.calls).toEqual([]);
+      // Every platform read the Run makes for the model carries the Run's own restriction.
+      const restriction = inert ? 'EVAL_TARGET' : undefined;
+      expect(startupContextHeaders.length).toBeGreaterThan(0);
+      for (const headers of startupContextHeaders) {
+        expect(Reflect.get(headers ?? {}, 'X-Read-Restriction')).toBe(restriction);
+      }
+      for (const [, init] of upstream.mock.calls) {
+        expect(Reflect.get(init?.headers ?? {}, 'X-Read-Restriction')).toBe(restriction);
+      }
       expect(provider.start).toHaveBeenCalledOnce();
       await expect(provider.start.mock.results[0]?.value).resolves.toBeUndefined();
       await vi.waitFor(() => expect(postMessage).toHaveBeenCalled());

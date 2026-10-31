@@ -162,7 +162,12 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
     const nearestParentFeature =
       loaded && organizationId && projectId
         ? await loadNearestParentFeatureSection(
-            { organizationId, projectId, context: loaded.context },
+            {
+              organizationId,
+              projectId,
+              context: loaded.context,
+              readRestriction: deps.readRestriction,
+            },
             deps,
             parentRequirements && !contextGathering
               ? { settings: parentRequirements, loaded }
@@ -205,7 +210,7 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
           handlerDeps: deps,
           runId: run.agentic_session_id,
           turnId,
-          project: { organizationId, projectId },
+          project: { organizationId, projectId, readRestriction: deps.readRestriction },
           focalRef: { id: focalEntity.entityId, kind: focalEntity.entityType.toLowerCase() },
           focal,
           ask,

@@ -1,5 +1,6 @@
+import { restrictedConfiguration } from '../../shared/api/read-restriction';
 import { z } from 'zod/v4';
-import { Configuration, EntityType, SearchApi } from '../../shared/api/generated';
+import { EntityType, SearchApi } from '../../shared/api/generated';
 import type { LiveReaderDeps, TitledRef } from '../traversal';
 
 /**
@@ -14,7 +15,7 @@ export const plannedSearchSchema = z.object({
     .min(1)
     .optional()
     .describe(
-      'Entity types to search; omit to search every type. Features, Contracts, Decisions, bugs and every other work item are TASK.',
+      'Entity types to search; omit to search every type. Features, Plans, Contracts, Decisions, bugs and every other work item are TASK.',
     ),
   taskTypes: z
     .array(z.string().trim().min(1))
@@ -84,7 +85,9 @@ export const refsFromSearchResponse = (response: unknown): TitledRef[] =>
 export const createLiveSearchExecutor = (deps: LiveReaderDeps): SearchExecutor => ({
   search: async ({ query, types, taskTypes }, signal) => {
     const accessToken = await deps.auth.getAccessToken();
-    const api = new SearchApi(new Configuration({ accessToken, basePath: deps.apiBaseUrl }));
+    const api = new SearchApi(
+      restrictedConfiguration({ accessToken, basePath: deps.apiBaseUrl }, deps.readRestriction),
+    );
     const common = { ...(types ? { types } : {}), ...(taskTypes ? { taskTypes } : {}) };
     const response = await api.unifiedSearch(
       {

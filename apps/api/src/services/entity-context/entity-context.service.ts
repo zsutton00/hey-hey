@@ -1,3 +1,5 @@
+import { restrictTaskWhere } from 'src/read-restriction/read-policy';
+import { ReadVisibilityService } from 'src/read-restriction/read-visibility.service';
 import { Inject } from '@nestjs/common';
 import { ProposalReconciliationService } from '../proposal/proposal-reconciliation.service';
 import { PlanDependenciesService } from '../plan/plan-dependencies.service';
@@ -413,6 +415,8 @@ export class EntityContextService {
   @Inject(ProposalReconciliationService)
   private readonly reconciliation!: ProposalReconciliationService;
 
+  private readonly visibility: ReadVisibilityService;
+
   private readonly logger = new Logger(EntityContextService.name);
 
   constructor(
@@ -423,7 +427,9 @@ export class EntityContextService {
     private readonly taskService: TaskService,
     @Optional()
     private readonly projectApprovalPolicyService: ProjectApprovalPolicyService = new ProjectApprovalPolicyService(),
-  ) {}
+  ) {
+    this.visibility = new ReadVisibilityService(prisma);
+  }
 
   async getEntityContext(
     organizationId: OrganizationId,
@@ -437,11 +443,18 @@ export class EntityContextService {
     const includeMcpTools = includeFlags?.includeAvailableMcpTools !== false;
     const proposalDetail = includeFlags?.proposalDetail ?? 'summary';
 
-    const [rawProposals, entityMeta, creatingProposal] = await Promise.all([
+    // A protected focal entity answers exactly like one that does not exist.
+    await this.visibility.assertVisible(entityType, entityId);
+    const visibleProposalTargetIds = await this.visibility.filterVisible(
+      proposalTargetEntityIds,
+      (targetId) => ({ entityType: EntityTypeEnum.Task, entityId: targetId }),
+    );
+
+    const [allProposals, entityMeta, creatingProposal] = await Promise.all([
       includeProposals
         ? this.findProposalsByEntities(
             organizationId,
-            proposalTargetEntityIds,
+            visibleProposalTargetIds,
             proposalDetail === 'summary'
               ? DEFAULT_PROPOSAL_QUERY_COUNT
               : FULL_PROPOSAL_QUERY_COUNT,
@@ -453,6 +466,8 @@ export class EntityContextService {
       this.findCreatingProposal(organizationId, entityId),
     ]);
 
+    const rawProposals =
+      await this.visibility.filterVisibleProposals(allProposals);
     const { createdAt, displayName, taskType } = entityMeta;
 
     const nonCreateProposals = rawProposals.filter(
@@ -688,7 +703,13 @@ export class EntityContextService {
       result.planContext = planContext;
     }
     if (wantRelatedEntities) {
-      result.relatedEntities = auxiliary.relatedEntities ?? [];
+      result.relatedEntities = await this.visibility.filterVisible(
+        auxiliary.relatedEntities ?? [],
+        (related) => ({
+          entityType: related.entityType,
+          entityId: related.entityId,
+        }),
+      );
       result.agentSessions = auxiliary.agentSessions ?? [];
     }
     if (wantHierarchy) {
@@ -1315,6 +1336,8 @@ export class EntityContextService {
       taskId,
     });
 
+    await this.visibility.assertVisible(EntityTypeEnum.Task, taskId);
+
     type AncestorRow = {
       id: string;
       name: string;
@@ -1511,14 +1534,14 @@ export class EntityContextService {
     });
 
     const features = await this.prisma.db.task.findMany({
-      where: {
+      where: restrictTaskWhere({
         organizationId,
         projectId,
         type: {
           in: this.workItemTypeRegistry.getHierarchyNodeTypes(projectId),
         },
         archivedAt: null,
-      },
+      }),
       select: { id: true, name: true, parentTaskId: true, tag: true },
     });
 
@@ -1639,12 +1662,12 @@ export class EntityContextService {
       this.workItemTypeRegistry.getHierarchyNodeTypes(projectId);
     const [features, childCountRows] = await Promise.all([
       this.prisma.db.task.findMany({
-        where: {
+        where: restrictTaskWhere({
           organizationId,
           projectId,
           type: { in: hierarchyNodeTypes },
           archivedAt: null,
-        },
+        }),
         select: {
           id: true,
           name: true,
@@ -1655,13 +1678,13 @@ export class EntityContextService {
       }),
       this.prisma.db.task.groupBy({
         by: ['parentTaskId'],
-        where: {
+        where: restrictTaskWhere({
           organizationId,
           projectId,
           type: { notIn: hierarchyNodeTypes },
           archivedAt: null,
           parentTaskId: { not: null },
-        },
+        }),
         _count: { _all: true },
       }),
     ]);

@@ -1,7 +1,8 @@
+import type { ReadRestriction } from '../../shared/api/generated/api';
+import { restrictedConfiguration } from '../../shared/api/read-restriction';
 import { isAxiosError } from 'axios';
 
 import {
-  Configuration,
   TasksApi,
   type FullEntityContextDto,
   type MaterializedWorkItemSection,
@@ -26,6 +27,8 @@ export interface NearestParentFeatureRequest {
   organizationId: string;
   projectId: string;
   context: FullEntityContextDto;
+  /** The Run's read restriction, carried into the parent reads. */
+  readRestriction?: ReadRestriction | undefined;
 }
 
 /** Project Assistant cannot run without its parent feature; the Run must stop visibly. */
@@ -53,10 +56,12 @@ const readParentTask = async (
   request: NearestParentFeatureRequest,
   parent: 'feature' | 'plan',
   taskId: string,
-  deps: Pick<PromptTypeHandlerDeps, 'auth' | 'apiBaseUrl' | 'logger'>,
+  deps: Pick<PromptTypeHandlerDeps, 'auth' | 'apiBaseUrl' | 'logger' | 'readRestriction'>,
 ): Promise<TaskResponseDto | undefined> => {
   const accessToken = await deps.auth.getAccessToken();
-  const client = new TasksApi(new Configuration({ accessToken, basePath: deps.apiBaseUrl }));
+  const client = new TasksApi(
+    restrictedConfiguration({ accessToken, basePath: deps.apiBaseUrl }, deps.readRestriction),
+  );
   try {
     const response = await client.organizationsOrganizationIdProjectsProjectIdTasksTaskIdGet({
       organizationId: request.organizationId,
@@ -86,7 +91,7 @@ const readParentTask = async (
  */
 export const readParentPlan = async (
   request: NearestParentFeatureRequest,
-  deps: Pick<PromptTypeHandlerDeps, 'auth' | 'apiBaseUrl' | 'logger'>,
+  deps: Pick<PromptTypeHandlerDeps, 'auth' | 'apiBaseUrl' | 'logger' | 'readRestriction'>,
 ): Promise<(TaskResponseDto & { sections: MaterializedWorkItemSection[] }) | null> => {
   const planId = request.context.planContext?.parentPlan?.id;
   if (!planId) return null;
@@ -108,7 +113,7 @@ export const readParentPlan = async (
 /** Null when the focal entity has no parent feature. */
 export const readNearestParentFeature = async (
   request: NearestParentFeatureRequest,
-  deps: Pick<PromptTypeHandlerDeps, 'auth' | 'apiBaseUrl' | 'logger'>,
+  deps: Pick<PromptTypeHandlerDeps, 'auth' | 'apiBaseUrl' | 'logger' | 'readRestriction'>,
 ): Promise<(TaskResponseDto & { sections: MaterializedWorkItemSection[] }) | null> => {
   const featureId = findNearestParentFeatureId(request.context);
   if (featureId === null) {
@@ -153,7 +158,7 @@ export interface ParentFeatureFilterInput {
 
 export const loadNearestParentFeatureSection = async (
   request: NearestParentFeatureRequest,
-  deps: Pick<PromptTypeHandlerDeps, 'auth' | 'apiBaseUrl' | 'logger'>,
+  deps: Pick<PromptTypeHandlerDeps, 'auth' | 'apiBaseUrl' | 'logger' | 'readRestriction'>,
   filter?: ParentFeatureFilterInput,
 ): Promise<string | null> => {
   const feature = await readNearestParentFeature(request, deps);

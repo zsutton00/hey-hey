@@ -5,7 +5,7 @@ import {
   type ProjectAssistantReportEntityRef,
   type RecentProjectAssistantReportDeps,
 } from '../recent-report-context';
-import type { CodingResearchUpdate } from '../../../shared/api/generated/api';
+import { ReadRestriction, type CodingResearchUpdate } from '../../../shared/api/generated/api';
 
 const NOW = new Date('2026-06-30T12:00:00.000Z');
 
@@ -128,6 +128,46 @@ describe('fetchRecentProjectAssistantReportContext', () => {
     expect(result).toContain('Align the task with the report payload.');
     expect(result).toContain('does not prove the report is fresh');
   });
+
+  it.each([
+    {
+      name: 'an evaluated attempt',
+      restriction: ReadRestriction.EvalTarget,
+      expected: 'EVAL_TARGET',
+    },
+    { name: 'an ordinary session', restriction: undefined, expected: undefined },
+  ])(
+    'reuses prior reports as $name, with the report, context and edge reads restricted',
+    async ({ restriction, expected }) => {
+      const fetchImpl = createFetch(
+        {
+          'task-1': [
+            codingResearchReport({
+              createdAt: '2026-06-30T09:00:00.000Z',
+              entities: [{ entityType: 'TASK', entityId: 'task-1' }],
+              summary: 'Task summary.',
+              analysis: 'Task analysis.',
+            }),
+          ],
+        },
+        { stale: true },
+      );
+
+      await fetchRecentProjectAssistantReportContext(
+        makeDeps(fetchImpl, restriction ? { readRestriction: restriction } : {}),
+        [{ entityType: 'TASK', entityId: 'task-1' }],
+      );
+
+      const calls = vi.mocked(fetchImpl).mock.calls;
+      const paths = calls.map(([input]) => new URL(String(input)).pathname);
+      expect(paths.some((path) => path.endsWith('/reports'))).toBe(true);
+      expect(paths.some((path) => path.includes('/context'))).toBe(true);
+      expect(paths.some((path) => path.endsWith('/agent-edges'))).toBe(true);
+      for (const [, init] of calls) {
+        expect(Reflect.get(init?.headers ?? {}, 'X-Read-Restriction')).toBe(expected);
+      }
+    },
+  );
 
   it('asks only for reusable reports so eval output is never offered as prior research', async () => {
     const fetchImpl = createFetch({ 'task-1': [] });

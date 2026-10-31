@@ -13,6 +13,7 @@ import { EntityType } from './entityType';
 import { SearchFiltersDateRange } from './searchFiltersDateRange';
 import { FeatureTag } from './featureTag';
 import { SearchFiltersUpdatedAtRange } from './searchFiltersUpdatedAtRange';
+import { ReportType } from './reportType';
 
 export interface SearchFilters {
   entityTypes?: Array<EntityType>;
@@ -25,6 +26,14 @@ export interface SearchFilters {
    * Task type filter applied when entityTypes includes TASK. Only task nodes whose type property matches are returned.
    */
   taskTypes?: Array<string>;
+  /**
+   * Task types removed from results, relationships and traversal paths. Applied in the query before paging and totals. A path that passes through an excluded task is dropped, so excluded content and identities never appear as a hop. Wins over taskTypes.
+   */
+  excludeTaskTypes?: Array<string>;
+  /**
+   * Report types removed from results, relationships and traversal paths. Applied in the query before paging and totals, with the same path rule as excludeTaskTypes.
+   */
+  excludeReportTypes?: Array<ReportType>;
   /**
    * Feature tag filter applied to FEATURE-typed task nodes. When provided, task nodes whose `tag` property matches one of the given values are kept; non-task nodes pass through unaffected.
    */

@@ -1,3 +1,4 @@
+import { restrictedConfiguration } from '../../shared/api/read-restriction';
 import { z } from 'zod';
 import {
   EntityContextApi,
@@ -7,7 +8,6 @@ import {
   WorkItemTypesApi,
   TasksApi,
 } from '../../shared/api/generated/api';
-import { Configuration } from '../../shared/api/generated/configuration';
 import type {
   FullEntityContextDto,
   WorkItemTypeDefinitionDto,
@@ -74,7 +74,10 @@ export interface PreparedRoleGuidance {
 export class SessionRoleGuidance {
   private state: GuidanceState | null = null;
   constructor(
-    private readonly deps: Pick<PromptTypeHandlerDeps, 'auth' | 'apiBaseUrl' | 'logger'>,
+    private readonly deps: Pick<
+      PromptTypeHandlerDeps,
+      'auth' | 'apiBaseUrl' | 'logger' | 'readRestriction'
+    >,
     private readonly store?: RunStore,
   ) {}
 
@@ -183,11 +186,14 @@ export class SessionRoleGuidance {
       if (!organizationId || !projectId)
         throw new Error('Role guidance requires project and organization scope');
       const token = await this.deps.auth.getAccessToken();
-      const config = new Configuration({
-        accessToken: token,
-        basePath: this.deps.apiBaseUrl,
-        baseOptions: { timeout: 15000 },
-      });
+      const config = restrictedConfiguration(
+        {
+          accessToken: token,
+          basePath: this.deps.apiBaseUrl,
+          baseOptions: { timeout: 15000 },
+        },
+        this.deps.readRestriction,
+      );
       const contexts = new EntityContextApi(config);
       const proposals = new ProposalsApi(config);
       const types = new WorkItemTypesApi(config);

@@ -16,6 +16,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import { ReadPolicyContext } from 'src/read-restriction/read-policy';
+import type { ReportType } from 'src/generated/model/reportType';
 import { AxiosError } from 'axios';
 import {
   EmbeddingMetadata,
@@ -1995,11 +1997,15 @@ export class UnifiedSearchService {
     const resolvedTaskTypes = taskTypes
       ?.map((t) => this.toGraphTaskType(t))
       .filter((t): t is string => !!t);
+    const excludeTaskTypes = this.resolveExcludedTaskTypes(request);
+    const excludeReportTypes = this.resolveExcludedReportTypes(request);
     const hasGraphFilters =
       !!graphFilters ||
       !!resolvedEntityTypes?.length ||
       !!graphStatuses?.length ||
       !!resolvedTaskTypes?.length ||
+      !!excludeTaskTypes.length ||
+      !!excludeReportTypes.length ||
       !!graphDateRange?.from ||
       !!graphDateRange?.to ||
       !!graphUpdatedAtRange?.from ||
@@ -2016,6 +2022,12 @@ export class UnifiedSearchService {
             labels: graphFilters?.labels,
             statuses: graphStatuses,
             taskTypes: resolvedTaskTypes,
+            excludeTaskTypes: excludeTaskTypes.length
+              ? excludeTaskTypes
+              : undefined,
+            excludeReportTypes: excludeReportTypes.length
+              ? excludeReportTypes
+              : undefined,
             dateRange: graphDateRange,
             updatedAtRange: graphUpdatedAtRange,
           }
@@ -2063,6 +2075,10 @@ export class UnifiedSearchService {
             labels: sortByString(request.filters.labels),
             statuses: sortByString(request.filters.statuses),
             taskTypes: sortByString(request.filters.taskTypes),
+            excludeTaskTypes: sortByString(request.filters.excludeTaskTypes),
+            excludeReportTypes: sortByString(
+              request.filters.excludeReportTypes,
+            ),
           }
         : undefined,
       scoring: request.scoring
@@ -2454,6 +2470,7 @@ export class UnifiedSearchService {
     const commonUpdatedAtRange = request.common?.updatedAtRange;
     const statuses = this.resolveEmbeddingsStatuses(request);
     const taskTypes = this.resolveUnifiedEmbeddingsTaskTypes(request);
+    const excludeTaskTypes = this.resolveExcludedTaskTypes(request);
 
     if (
       !baseFilters &&
@@ -2461,7 +2478,8 @@ export class UnifiedSearchService {
       !commonDateRange &&
       !commonUpdatedAtRange &&
       !statuses?.length &&
-      !taskTypes?.length
+      !taskTypes?.length &&
+      !excludeTaskTypes.length
     ) {
       return undefined;
     }
@@ -2497,6 +2515,10 @@ export class UnifiedSearchService {
       mergedFilters.taskTypes = taskTypes;
     }
 
+    if (excludeTaskTypes.length) {
+      mergedFilters.excludeTaskTypes = excludeTaskTypes;
+    }
+
     return mergedFilters;
   }
 
@@ -2509,6 +2531,7 @@ export class UnifiedSearchService {
     const commonUpdatedAtRange = request.common?.updatedAtRange;
     const statuses = this.resolveEmbeddingsStatuses(request);
     const taskTypes = this.resolveEmbeddingsTaskTypes(request);
+    const excludeTaskTypes = this.resolveExcludedTaskTypes(request);
 
     if (
       !baseFilters &&
@@ -2516,7 +2539,8 @@ export class UnifiedSearchService {
       !commonDateRange &&
       !commonUpdatedAtRange &&
       !statuses?.length &&
-      !taskTypes?.length
+      !taskTypes?.length &&
+      !excludeTaskTypes.length
     ) {
       return undefined;
     }
@@ -2565,7 +2589,40 @@ export class UnifiedSearchService {
       mergedFilters.taskTypes = taskTypes;
     }
 
+    if (excludeTaskTypes.length) {
+      mergedFilters.excludeTaskTypes = excludeTaskTypes;
+    }
+
     return mergedFilters;
+  }
+
+  /**
+   * Task types removed from every lane of this search. The execution's read policy always
+   * applies; whatever a caller adds only narrows further, and a requested type cannot lift it.
+   */
+  private resolveExcludedTaskTypes(
+    request: UnifiedSearchRequest,
+  ): WorkItemTypeKey[] {
+    return [
+      ...new Set([
+        ...ReadPolicyContext.current().excludedTaskTypes,
+        ...(request.common?.excludeTaskTypes ?? []),
+        ...(request.graph?.filters?.excludeTaskTypes ?? []),
+        ...(request.embeddings?.filters?.excludeTaskTypes ?? []),
+      ]),
+    ].map((type) => this.toCanonicalSearchTaskType(type));
+  }
+
+  private resolveExcludedReportTypes(
+    request: UnifiedSearchRequest,
+  ): ReportType[] {
+    return [
+      ...new Set([
+        ...ReadPolicyContext.current().excludedReportTypes,
+        ...(request.common?.excludeReportTypes ?? []),
+        ...(request.graph?.filters?.excludeReportTypes ?? []),
+      ]),
+    ];
   }
 
   private resolveUnifiedEmbeddingsTaskTypes(

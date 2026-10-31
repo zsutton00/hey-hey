@@ -1,3 +1,8 @@
+import { ReadRestriction } from 'src/generated';
+import {
+  ReadPolicyContext,
+  readPolicyFor,
+} from 'src/read-restriction/read-policy';
 import {
   BadRequestException,
   ConflictException,
@@ -4782,6 +4787,76 @@ describe('TaskService', () => {
       await expect(
         service.findPersistedByOrganization(testIds.organization, testIds.task),
       ).resolves.toBeNull();
+    });
+  });
+
+  describe('under a read restriction', () => {
+    const asEvaluatedAttempt = <T>(read: () => T): T =>
+      ReadPolicyContext.run(readPolicyFor(ReadRestriction.EvalTarget), read);
+    const protectedTypes = { type: { notIn: ['EVAL', 'EVAL_CASE'] } };
+
+    it('looks a protected item up by id with the same query that finds nothing for a missing one', async () => {
+      (mockPrismaService.db.task.findFirst as jest.Mock).mockResolvedValue(
+        null,
+      );
+
+      const result = await asEvaluatedAttempt(() =>
+        service.findOne(testIds.organization, testIds.task),
+      );
+
+      expect(result).toBeNull();
+      expect(mockPrismaService.db.task.findFirst).toHaveBeenCalledWith({
+        where: {
+          AND: [
+            {
+              id: testIds.task,
+              organizationId: testIds.organization,
+              archivedAt: null,
+              status: { not: WorkStatus.ARCHIVED },
+            },
+            protectedTypes,
+          ],
+        },
+      });
+    });
+
+    it('keeps protected types out of reference lists and their counts', async () => {
+      (mockPrismaService.db.task.count as jest.Mock).mockResolvedValue(0);
+      (mockPrismaService.db.task.findMany as jest.Mock).mockResolvedValue([]);
+
+      await asEvaluatedAttempt(() =>
+        service.findReferences(
+          testIds.organization,
+          testIds.project,
+          'EVAL_CASE',
+          1,
+          10,
+        ),
+      );
+
+      const [{ where }] = (mockPrismaService.db.task.count as jest.Mock).mock
+        .calls[0];
+      expect(where.AND[1]).toEqual(protectedTypes);
+      expect(mockPrismaService.db.task.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where }),
+      );
+    });
+
+    it('leaves the lookup untouched for an ordinary session', async () => {
+      (mockPrismaService.db.task.findFirst as jest.Mock).mockResolvedValue(
+        null,
+      );
+
+      await service.findOne(testIds.organization, testIds.task);
+
+      expect(mockPrismaService.db.task.findFirst).toHaveBeenCalledWith({
+        where: {
+          id: testIds.task,
+          organizationId: testIds.organization,
+          archivedAt: null,
+          status: { not: WorkStatus.ARCHIVED },
+        },
+      });
     });
   });
 

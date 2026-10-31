@@ -1394,6 +1394,15 @@ components:
           description: >-
             Task type filter. When provided, only task documents whose taskType
             metadata matches are returned.
+        excludeTaskTypes:
+          type: array
+          items:
+            type: string
+          description: >-
+            Task types removed inside the query, before hits, offsets and
+            totals. Never narrows which document schemas are searched; only task
+            documents carry a taskType, and documents of other schemas are
+            unaffected. Wins over taskTypes.
         created_after:
           oneOf:
             - type: string

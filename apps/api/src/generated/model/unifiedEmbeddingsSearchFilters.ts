@@ -56,6 +56,10 @@ export interface UnifiedEmbeddingsSearchFilters {
      * Task type filter forwarded to the embeddings service.
      */
     taskTypes?: Array<string>;
+    /**
+     * Task types removed by the embeddings service inside the retrieval query, before limits, offsets and totals. Combines with `taskTypes` by intersection: an excluded type is never returned even when requested.
+     */
+    excludeTaskTypes?: Array<string>;
     created_after?: string;
     created_before?: string;
     updated_after?: string;

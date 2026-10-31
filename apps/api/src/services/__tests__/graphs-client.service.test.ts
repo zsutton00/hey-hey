@@ -7,6 +7,14 @@ import {
 } from 'src/generated/graphs';
 import { GraphsClientService } from '../graphs-client.service';
 
+/** An unrestricted read: the scope returns every request and response as it found them. */
+const passThroughReadScope = {
+  scopeSearch: (request: unknown) => request,
+  scopeIncidentEdges: (response: unknown) => Promise.resolve(response),
+  scopeNeighborhood: (response: unknown) => Promise.resolve(response),
+  scopeStructuredRead: (response: unknown) => Promise.resolve(response),
+};
+
 describe('GraphsClientService projection deletion', () => {
   it('counts the typed feature connections with the scoped service token', async () => {
     const request = {
@@ -25,6 +33,7 @@ describe('GraphsClientService projection deletion', () => {
       queries as never,
       {} as never,
       {} as never,
+      passThroughReadScope as never,
     );
     await expect(
       service.checkFeatureProjectConnection(
@@ -73,6 +82,7 @@ describe('GraphsClientService projection deletion', () => {
       queries as never,
       {} as never,
       {} as never,
+      passThroughReadScope as never,
     );
     await expect(
       service.readIncidentEdges(
@@ -133,6 +143,7 @@ describe('GraphsClientService projection deletion', () => {
       queries as never,
       {} as never,
       {} as never,
+      passThroughReadScope as never,
     );
     await expect(
       service.readStructuredGraph(
@@ -193,6 +204,7 @@ describe('GraphsClientService projection deletion', () => {
       {} as never,
       lifecycleService as never,
       {} as never,
+      passThroughReadScope as never,
     );
 
     await expect(

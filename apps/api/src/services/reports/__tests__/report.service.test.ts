@@ -1,3 +1,8 @@
+import { ReadRestriction } from 'src/generated';
+import {
+  ReadPolicyContext,
+  readPolicyFor,
+} from 'src/read-restriction/read-policy';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import {
   CreateReportDto,
@@ -1918,6 +1923,66 @@ describe('ReportService', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
 
       expect(prisma.db.report.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('under a read restriction', () => {
+    const asEvaluatedAttempt = <T>(read: () => T): T =>
+      ReadPolicyContext.run(readPolicyFor(ReadRestriction.EvalTarget), read);
+    const hiddenReports = {
+      reportType: { notIn: ['EVAL_RUN', 'EVAL_ATTEMPT', 'EVAL_HUMAN_REVIEW'] },
+    };
+
+    it('answers a direct read of a grading report like a report that does not exist', async () => {
+      (prisma.db.report.findFirst as jest.Mock).mockResolvedValue(null);
+
+      await expect(
+        asEvaluatedAttempt(() =>
+          service.findOne('org-1' as any, 'attempt-report'),
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(prisma.db.report.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            AND: [
+              { id: 'attempt-report', organizationId: 'org-1' },
+              hiddenReports,
+            ],
+          },
+        }),
+      );
+    });
+
+    it('lists reports without the grading types, whatever types the caller asked for', async () => {
+      (prisma.db.report.findMany as jest.Mock).mockResolvedValue([]);
+
+      await asEvaluatedAttempt(() =>
+        service.findAll('org-1' as any, {
+          reportTypes: [ReportType.EvalAttempt],
+        }),
+      );
+
+      const { where } = (prisma.db.report.findMany as jest.Mock).mock
+        .calls[0]![0];
+      expect(where.AND[0].reportType).toEqual({ in: [ReportType.EvalAttempt] });
+      expect(where.AND[1]).toEqual(hiddenReports);
+    });
+
+    it('lists the judge’s reports without live grading reports, and ordinary callers all reports', async () => {
+      (prisma.db.report.findMany as jest.Mock).mockResolvedValue([]);
+
+      await ReadPolicyContext.run(
+        readPolicyFor(ReadRestriction.EvalJudge),
+        () => service.findAll('org-1' as any),
+      );
+      await service.findAll('org-1' as any);
+
+      const [judge, ordinary] = (
+        prisma.db.report.findMany as jest.Mock
+      ).mock.calls.map(([args]) => args.where);
+      expect(judge.AND[1]).toEqual(hiddenReports);
+      expect(ordinary.AND).toBeUndefined();
     });
   });
 

@@ -19,6 +19,7 @@
  */
 import { Injectable } from '@nestjs/common';
 import { diceSimilarity } from '../../utils/string-similarity.util';
+import { ReadPolicyContext } from '../../read-restriction/read-policy';
 
 interface CacheEntry<T = unknown> {
   queryText: string;
@@ -42,10 +43,15 @@ export class SearchCacheService {
    * Sorts keys and normalizes query text to ensure consistent matching.
    */
   generateKey(params: Record<string, unknown>): string {
-    const sorted = Object.keys(params)
+    // A result found under one read policy must never answer a caller under another.
+    const scoped: Record<string, unknown> = {
+      ...params,
+      readPolicy: ReadPolicyContext.current().scope,
+    };
+    const sorted = Object.keys(scoped)
       .sort()
       .reduce<Record<string, unknown>>((acc, key) => {
-        let value = params[key];
+        let value = scoped[key];
         if (value === undefined || value === null) return acc;
         if (key === 'query' && typeof value === 'string') {
           value = value.toLowerCase().trim();

@@ -1,6 +1,10 @@
+import type { ReadRestriction } from '../shared/api/generated/api';
 import type { EvalAttemptExecution } from './run-eval/eval-attempt-execution';
 import { projectModeSettingsJsonSchema } from '../generated/project-mode-contract.schema';
-import type { SessionRole } from '../shared/agent-bridge-contract/generated/api';
+import type {
+  ImplementRuntimeSelection,
+  SessionRole,
+} from '../shared/agent-bridge-contract/generated/api';
 import type { LocalPromptType } from '../shared/agent-bridge-contract/generated';
 import type { AgenticSession } from '../session/types';
 import type { AgentProviderId } from './providers/provider-config';
@@ -119,10 +123,12 @@ export interface PromptTypeHandlerContext {
   /** Runtime-materialized captured MODE bundle, admitted as read-only provider context. */
   projectModeBundleDirectory?: string;
   /**
-   * Run-owned temporary directory admitted as read-only provider context for
-   * handlers declaring `repositorySnapshots`. The Run deletes it when it ends.
+   * Run-owned, owner-only temporary directory for handlers declaring
+   * `runEvidenceDirectory`. Repository-bound Runs also admit it as read-only
+   * provider context; service-free Runs keep it host-only. The Run deletes it
+   * when it ends.
    */
-  repositorySnapshotDirectory?: string;
+  runEvidenceDirectory?: string;
 }
 
 export interface PromptTypeHandlerDeps {
@@ -132,6 +138,11 @@ export interface PromptTypeHandlerDeps {
   fetchImpl: typeof fetch;
   auth: SubmissionToolAuth;
   apiBaseUrl: string;
+  /**
+   * Read restriction of the Run these deps belong to; every platform read a handler or its
+   * preparation makes for the model carries it. Set by the Run from its persisted inertness.
+   */
+  readRestriction?: ReadRestriction | undefined;
   logger: ServerLogger;
   /** Typed terminal-result handoff for the read-only Task Monitor coordinator. */
   taskMonitorDecisionStore: TaskMonitorDecisionStore;
@@ -233,11 +244,6 @@ export interface OnCompleteDeps {
 export interface PrepareResult<TPayload> {
   payload: TPayload;
   sessionContext?: Record<string, unknown>;
-}
-
-export interface ProviderExecutionSelection {
-  provider: string;
-  model: string;
 }
 
 export interface ResolveAdditionalAllowedToolsArgs<TPayload> {
@@ -367,6 +373,12 @@ type SubagentPermissionDecider = (
 export interface SubagentConfig {
   /** Exclude Run-registered mutation tools for a bounded collaboration child. */
   submissionTools?: 'run-registered' | 'none';
+  /**
+   * With `submissionTools: 'run-registered'`, mount only these Run-registered
+   * tools. Lets a child use a Run-owned tool without inheriting the Run's
+   * submission tools, such as `create_report`.
+   */
+  submissionToolNames?: readonly string[];
   /** Provider sandbox ceiling for a capability that must not write files. */
   codexSandboxMode?: 'read-only' | 'workspace-write';
   /**
@@ -633,11 +645,12 @@ export interface PromptTypeHandler<TPayload> {
   defaultReasoningEffort?: LocalReasoningEffort;
 
   /**
-   * Handler-owned executor selection for a provider-session Turn. Use this
-   * only when the trigger payload carries an authoritative provider/model
-   * choice that must not inherit the surrounding Run configuration.
+   * The complete runtime (provider, model, reasoning effort, Fast mode) this
+   * trigger's raw payload carries, or undefined when it carries none, such as
+   * a reply. The Run saves a returned runtime and every later Turn without one
+   * uses what is saved. Asked on every Turn, before the payload is prepared.
    */
-  resolveProviderExecution?(payload: TPayload): ProviderExecutionSelection;
+  resolveRuntime?(payload: TPayload): ImplementRuntimeSelection | undefined;
 
   prepare?(
     run: AgenticSession,
@@ -730,13 +743,19 @@ export interface PromptTypeHandler<TPayload> {
    * providers freeze the posture at session start.
    */
   readOnlyFilesystem?: boolean;
+  /**
+   * The read restriction this handler's own platform reads run under when its session is not
+   * already restricted. An inert session is always restricted as an evaluated attempt.
+   */
+  readRestriction?: ReadRestriction;
 
   /**
    * When true, the Run creates a temporary directory before the workspace
-   * boundary is fixed, admits it as a read-only root, passes it to `prepare`
-   * as `ctx.repositorySnapshotDirectory`, and deletes it when the Run ends.
+   * boundary is fixed, passes it to `prepare` as `ctx.runEvidenceDirectory`,
+   * and deletes it when the Run ends. A repository-bound Run also admits it as
+   * a read-only root; a service-free Run does not expose it to the provider.
    */
-  repositorySnapshots?: boolean;
+  runEvidenceDirectory?: boolean;
 
   /** Requests a provider-native, read-only repository research surface. */
   repositoryResearch?: RepositoryResearchCapability;

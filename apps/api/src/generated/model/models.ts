@@ -2072,6 +2072,7 @@ export * from './queueJobStatus';
 export * from './queueName';
 export * from './reactivateOrganizationAccountResponse';
 export * from './readAgentSessionCliState200Response';
+export * from './readRestriction';
 export * from './readinessFocalEntityType';
 export * from './reasoningEffort';
 export * from './receivePaymentProviderWebhook202Response';

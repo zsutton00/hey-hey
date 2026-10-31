@@ -1,3 +1,4 @@
+import type { ReadRestriction } from '../shared/api/generated/api';
 import { z } from 'zod';
 import {
   EntityPromptTemplatesApiFactory,
@@ -48,6 +49,8 @@ export interface AgentStartupPromptInputRequest {
   runEntity: RunEntityReference;
   organizationId: string;
   projectId: string;
+  /** The Run's read restriction, carried into the startup context's platform reads. */
+  readRestriction?: ReadRestriction | undefined;
 }
 
 export interface AgentStartupPromptTemplateProvenance {
@@ -312,6 +315,7 @@ export class AgentStartupPromptInput {
         runEntity: request.runEntity,
         organizationId: request.organizationId,
         projectId: request.projectId,
+        readRestriction: request.readRestriction,
       });
     } catch {
       this.logger.error('agent_startup_prompt_input.entity_context_failed', {

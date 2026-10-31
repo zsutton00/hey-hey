@@ -1,3 +1,4 @@
+import { ReadVisibilityService } from 'src/read-restriction/read-visibility.service';
 import type {
   ProposalReviewNoteDto,
   ProposalReviewNoteRecord,
@@ -150,6 +151,8 @@ function replayMintedIds(ids: readonly string[]): () => string {
 export class ProposalService {
   private readonly logger = new Logger(ProposalService.name);
 
+  private readonly visibility: ReadVisibilityService;
+
   private static readonly MAX_PAGE_SIZE = 100;
 
   constructor(
@@ -168,7 +171,9 @@ export class ProposalService {
       workItemTypeRegistry,
     ),
     @Optional() private readonly messages?: MessageService,
-  ) {}
+  ) {
+    this.visibility = new ReadVisibilityService(prisma);
+  }
 
   async saveReviewNote(
     id: string,
@@ -1454,6 +1459,13 @@ export class ProposalService {
     });
 
     if (!proposal || proposal.groupMembership?.group.status === 'BUILDING') {
+      throw new NotFoundException('Proposal not found');
+    }
+
+    const [visibleProposal] = await this.visibility.filterVisibleProposals([
+      proposal,
+    ]);
+    if (!visibleProposal) {
       throw new NotFoundException('Proposal not found');
     }
 

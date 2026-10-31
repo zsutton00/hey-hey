@@ -22,7 +22,10 @@ const TRIMMED_PROMPT_TYPES: ReadonlySet<string> = new Set([
 
 const userMessageSchema = z.object({ userMessage: z.string() });
 
-type TrimmingDeps = Pick<PromptTypeHandlerDeps, 'auth' | 'apiBaseUrl' | 'logger'>;
+type TrimmingDeps = Pick<
+  PromptTypeHandlerDeps,
+  'auth' | 'apiBaseUrl' | 'logger' | 'readRestriction'
+>;
 
 /** The feature directly above the focal, else the plan it belongs to, else none. */
 const resolveParent = async (
@@ -57,6 +60,7 @@ export const resolveFocal = async (
             organizationId: entity.organizationId,
             projectId: entity.projectId,
             context: loaded.context,
+            readRestriction: deps.readRestriction,
           },
           deps,
         ),

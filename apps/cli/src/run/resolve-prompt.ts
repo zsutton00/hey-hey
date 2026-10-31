@@ -126,7 +126,7 @@ export interface ResolvePromptArgs {
   /** Pending readiness finding when Run routed this Turn as its clarification. */
   implementationReadinessClarification?: PromptTypeHandlerContext['implementationReadinessClarification'];
   projectModeBundleDirectory?: string;
-  repositorySnapshotDirectory?: string;
+  runEvidenceDirectory?: string;
   /**
    * Optional Run-owned provider-session decision. When absent, resolution
    * makes no mint/resume decision and does not deliver retained memos.
@@ -249,9 +249,7 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
     ...(args.projectModeBundleDirectory
       ? { projectModeBundleDirectory: args.projectModeBundleDirectory }
       : {}),
-    ...(args.repositorySnapshotDirectory
-      ? { repositorySnapshotDirectory: args.repositorySnapshotDirectory }
-      : {}),
+    ...(args.runEvidenceDirectory ? { runEvidenceDirectory: args.runEvidenceDirectory } : {}),
   };
 
   const launchable = isUserLaunchable(handler) ? handler : null;
@@ -301,6 +299,7 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
         runEntity: entity,
         organizationId,
         projectId,
+        readRestriction: handlerDeps.readRestriction,
       };
       loadedStartupPromptInputThisTurn = true;
       startupPromptInput = runState.startupPromptTemplate

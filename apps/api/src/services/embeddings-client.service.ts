@@ -25,6 +25,10 @@ import { GetDebugEntity200Response } from 'src/generated/embeddings/model/getDeb
 import { OrganizationId, ProjectId } from 'src/types';
 import { errorToLoggable } from 'src/utils/logging.util';
 import { ApiKeyService } from './api-key.service';
+import {
+  assertSearchCanCarryReadPolicy,
+  scopeEmbeddingsRequest,
+} from 'src/read-restriction/embeddings-read-scope';
 
 @Injectable()
 export class EmbeddingsClientService {
@@ -132,7 +136,7 @@ export class EmbeddingsClientService {
         this.searchService.searchEmbeddingsOrgPost(
           organizationId,
           projectId,
-          request,
+          scopeEmbeddingsRequest(request),
           {
             config: this.extendRequestConfig(requestConfig, {
               headers: {
@@ -178,6 +182,7 @@ export class EmbeddingsClientService {
     if (!params.projectId) {
       throw new Error('Embeddings search requires a projectId');
     }
+    assertSearchCanCarryReadPolicy();
 
     try {
       this.logger.debug(`Searching embeddings with params: ${params.q}`);
@@ -246,6 +251,7 @@ export class EmbeddingsClientService {
     if (!params.projectId) {
       throw new Error('Embeddings search requires a projectId');
     }
+    assertSearchCanCarryReadPolicy();
     try {
       this.logger.debug(
         `Searching embeddings with user token for query: ${params.q}`,
@@ -340,7 +346,7 @@ export class EmbeddingsClientService {
         this.searchService.searchEmbeddingsOrgPost(
           organizationId,
           projectId,
-          request,
+          scopeEmbeddingsRequest(request),
           {
             config: {
               headers: {

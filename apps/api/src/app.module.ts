@@ -201,9 +201,11 @@ import { ProjectReportRequestController } from './controllers/project-report-req
 import { ProjectReportLaunchService } from './services/project-reports/project-report-launch.service';
 import { MetricsModule } from './core/metrics/metrics.module';
 import { TypeSafeJevModule } from './services/typesafe-jev/typesafe-jev.module';
+import { ReadRestrictionModule } from './read-restriction/read-restriction.module';
 
 @Module({
   imports: [
+    ReadRestrictionModule,
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env.local', '.env'],

@@ -111,6 +111,7 @@ const readRecords = async (
     runEntity: { entityType: RunEntityType.Task, entityId: parentId },
     organizationId: request.organizationId,
     projectId: request.projectId,
+    readRestriction: request.readRestriction,
   });
   const parsed = recordsSchema.safeParse(loaded.context.content?.requirementsSection?.records);
   if (!parsed.success) throw new ParentRequirementsUnfiltered('requirements_malformed');
