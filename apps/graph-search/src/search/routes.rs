@@ -1,13 +1,50 @@
-use axum::{Router, http::StatusCode};
+use crate::auth::{AuthenticatedRouter, Authenticator, Policy, Surface};
+use axum::{
+    Router,
+    http::StatusCode,
+    routing::{get, post},
+};
 
-use super::config::SearchConfig;
+pub fn router(enabled: bool, auth: Authenticator) -> Router {
+    if !enabled {
+        return Router::new();
+    }
+    AuthenticatedRouter::new(auth, Surface::Search)
+        .route(
+            "/orgs/{organizationId}/projection-deletion",
+            post(pending),
+            Policy::Deletion(Surface::Search),
+        )
+        .route("/embeddings", post(pending), Policy::EmbeddingWrite)
+        .route("/embeddings/search", get(pending), Policy::Read)
+        .route("/embeddings/search", post(pending), Policy::Read)
+        .route(
+            "/orgs/{organizationId}/projects/{projectId}/embeddings/search/structured",
+            post(pending),
+            Policy::Read,
+        )
+        .route(
+            "/orgs/{organizationId}/projects/{projectId}/embeddings/search",
+            get(pending),
+            Policy::Read,
+        )
+        .route(
+            "/orgs/{organizationId}/projects/{projectId}/embeddings/search",
+            post(pending),
+            Policy::Read,
+        )
+        .route(
+            "/orgs/{organizationId}/projects/{projectId}/embeddings/search/batch",
+            post(pending),
+            Policy::Read,
+        )
+        .route("/stats", get(pending), Policy::Read)
+        .route("/health", get(pending), Policy::Read)
+        .route("/debug", get(pending), Policy::Read)
+        .route("/debug/entity", get(pending), Policy::Read)
+        .finish()
+}
 
-pub fn router(config: SearchConfig) -> Router {
-    Router::new().fallback(move || async move {
-        if config.enabled {
-            StatusCode::NOT_IMPLEMENTED
-        } else {
-            StatusCode::NOT_FOUND
-        }
-    })
+async fn pending() -> StatusCode {
+    StatusCode::NOT_IMPLEMENTED
 }

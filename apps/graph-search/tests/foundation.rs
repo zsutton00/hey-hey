@@ -1,3 +1,4 @@
+mod common;
 use axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -51,6 +52,9 @@ fn invalid_environment_settings_fail_with_the_setting_name() {
         ("GRAPH_SEARCH_MAX_CONNECTIONS", "101"),
         ("GRAPH_ENABLED", "yes"),
         ("SEARCH_ENABLED", ""),
+        ("SEARCH_EMBEDDING_DIMENSION", "0"),
+        ("SEARCH_EMBEDDING_MAX_BATCH", "0"),
+        ("SEARCH_EMBEDDING_MAX_BATCH", "9"),
     ] {
         let error = config(&[("GRAPH_SEARCH_DATABASE_URL", URL), (key, value)])
             .err()
@@ -71,12 +75,12 @@ async fn surfaces_are_independent_and_readiness_detects_an_unavailable_database(
         .unwrap();
         let pool = PgPoolOptions::new().connect_lazy_with(config.database.clone());
         pool.close().await;
-        let app = server::router(&config, pool);
+        let app = server::router(&config, pool, common::auth());
         for (path, expected) in [
             (
                 "/api/nodes",
                 if graph {
-                    StatusCode::NOT_IMPLEMENTED
+                    StatusCode::UNAUTHORIZED
                 } else {
                     StatusCode::NOT_FOUND
                 },
@@ -84,7 +88,7 @@ async fn surfaces_are_independent_and_readiness_detects_an_unavailable_database(
             (
                 "/embeddings/search",
                 if search {
-                    StatusCode::NOT_IMPLEMENTED
+                    StatusCode::UNAUTHORIZED
                 } else {
                     StatusCode::NOT_FOUND
                 },

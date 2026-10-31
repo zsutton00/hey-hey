@@ -1,8 +1,9 @@
+mod common;
 use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use hey_hey_graph_search::{config::Config, database::connect_and_migrate, server};
+use hey_hey_graph_search::{config::Config, database::connect_and_migrate, search, server};
 use tower::ServiceExt;
 
 #[tokio::test]
@@ -26,8 +27,8 @@ async fn startup_migrates_restarts_and_refuses_flyway() -> anyhow::Result<()> {
     let migrations: i64 = sqlx::query_scalar("SELECT count(*) FROM _sqlx_migrations WHERE success")
         .fetch_one(&pool)
         .await?;
-    assert_eq!(migrations, 1);
-    let response = server::router(&config, pool.clone())
+    assert_eq!(migrations, 2);
+    let response = server::router(&config, pool.clone(), common::auth())
         .oneshot(Request::builder().uri("/healthz").body(Body::empty())?)
         .await?;
     assert_eq!(response.status(), StatusCode::OK);
@@ -54,5 +55,45 @@ async fn startup_migrates_restarts_and_refuses_flyway() -> anyhow::Result<()> {
             .contains("Flyway")
     );
     restarted.close().await;
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires a disposable PostgreSQL 17 database; see README"]
+async fn startup_refuses_a_database_encoded_with_a_different_model() -> anyhow::Result<()> {
+    let url = std::env::var("GRAPH_SEARCH_TEST_DATABASE_URL")?;
+    let config_with = |dimension: &'static str| {
+        let url = url.clone();
+        Config::from_lookup(move |key| {
+            Ok(match key {
+                "GRAPH_SEARCH_DATABASE_URL" => Some(url.clone()),
+                "SEARCH_EMBEDDING_DIMENSION" => Some(dimension.to_owned()),
+                _ => None,
+            })
+        })
+    };
+    let recorded = config_with("384")?;
+    let pool = connect_and_migrate(&recorded).await?;
+    sqlx::query("DELETE FROM search.embedding_model")
+        .execute(&pool)
+        .await?;
+
+    search::model_record::verify(&pool, &recorded.search.encoder).await?;
+    search::model_record::verify(&pool, &recorded.search.encoder).await?;
+    let changed = config_with("768")?;
+    let rejected = search::model_record::verify(&pool, &changed.search.encoder).await;
+
+    sqlx::query("DELETE FROM search.embedding_model")
+        .execute(&pool)
+        .await?;
+    pool.close().await;
+    let message = rejected
+        .expect_err("a different dimension must be refused")
+        .to_string();
+    assert!(message.contains("re-encoded"), "{message}");
+    assert!(
+        message.contains("384") && message.contains("768"),
+        "{message}"
+    );
     Ok(())
 }

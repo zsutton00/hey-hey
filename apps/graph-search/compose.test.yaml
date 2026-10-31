@@ -1,5 +1,9 @@
 # Disposable test fixture only. Normal runs reuse the existing PostgreSQL server.
 services:
+  jwks:
+    image: nginx:1.28-alpine
+    volumes:
+      - ./tests/fixtures/jwks.json:/usr/share/nginx/html/jwks.json:ro
   database:
     image: pgvector/pgvector:0.8.7-pg17-trixie
     environment:
