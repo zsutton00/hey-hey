@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkStatus } from "../../../api";
 
 vi.mock("../../../data/hooks", () => ({
-  useTaskAllowedStatuses: vi.fn(),
+  useWorkItemTypeByKey: vi.fn(),
 }));
 
 vi.mock("../../WorkItem/SupersedeTaskDialog", () => ({
@@ -13,17 +13,17 @@ vi.mock("../../WorkItem/SupersedeTaskDialog", () => ({
     open ? <div data-testid="supersede-dialog" /> : null,
 }));
 
-import { useTaskAllowedStatuses } from "../../../data/hooks";
+import { useWorkItemTypeByKey } from "../../../data/hooks";
+import { statusDefinition } from "../../../test/statusDefinitionFixture";
 import { WorkItemStatusSelector } from "../WorkItemStatusSelector";
 
-const mockedUseTaskAllowedStatuses = vi.mocked(useTaskAllowedStatuses);
+const mockedUseWorkItemTypeByKey = vi.mocked(useWorkItemTypeByKey);
 
 const mockAllowedStatuses = (statuses: TaskResponseDto["status"][]): void => {
-  mockedUseTaskAllowedStatuses.mockReturnValue({
+  mockedUseWorkItemTypeByKey.mockReturnValue({
     isLoading: false,
-    error: null,
-    getAllowedStatuses: () => statuses,
-  });
+    workItemTypeDefinition: statusDefinition(statuses),
+  } as never);
 };
 
 const STANDARD_ALLOWED: TaskResponseDto["status"][] = [
@@ -184,4 +184,44 @@ it("keeps ordinary task BACKLOG labeled Backlog", () => {
   );
   expect(screen.getByText("Backlog")).toBeInTheDocument();
   expect(screen.queryByText("Draft")).not.toBeInTheDocument();
+});
+
+describe("WorkItemStatusSelector — custom type vocabulary", () => {
+  it("offers the type's own statuses in its order, plus Archived, with exact custom names", async () => {
+    mockedUseWorkItemTypeByKey.mockReturnValue({
+      isLoading: false,
+      workItemTypeDefinition: {
+        key: "RECIPE",
+        name: "Recipe",
+        statuses: [
+          { name: "Idea", meaning: "NOT_STARTED" },
+          { name: "Made", meaning: "FINISHED" },
+          { name: "Rejected", meaning: "FINISHED" },
+        ],
+        capabilities: { supportsSupersession: true },
+      },
+    } as never);
+    render(
+      <WorkItemStatusSelector
+        value="Testing"
+        onChange={vi.fn()}
+        organizationId="org-1"
+        projectId="project-1"
+        taskId="task-1"
+        taskType="RECIPE"
+      />,
+    );
+
+    expect(screen.getByText("Testing")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("combobox"));
+
+    const options = screen.getAllByRole("option").map((o) => o.textContent);
+    expect(options).toEqual([
+      "Idea",
+      "Made",
+      "Rejected",
+      "Archived",
+      "Superseded",
+    ]);
+  });
 });

@@ -2,6 +2,7 @@ import type { TaskResponseDto } from "../../api/api";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import type { WorkItemStatusFilterOption } from "../../utils/workItemStatusVocabulary";
 import { KEYS } from "../../i18n/keys";
 import { EntityFilters, type FilterConfig } from "./EntityFilters";
 
@@ -10,6 +11,8 @@ interface WorkItemEntityFiltersProps {
   onSearchChange: (value: string) => void;
   statusFilter: TaskResponseDto["status"] | "";
   onStatusFilterChange: (value: TaskResponseDto["status"] | "") => void;
+  /** Status choices drawn from the types of the items being filtered. */
+  statusOptions: WorkItemStatusFilterOption[];
   sortBy: string;
   onSortByChange: (value: string) => void;
 }
@@ -27,6 +30,7 @@ interface WorkItemEntityFiltersProps {
  *   onSearchChange={setSearchTerm}
  *   statusFilter={statusFilter}
  *   onStatusFilterChange={setStatusFilter}
+ *   statusOptions={statusOptions}
  *   sortBy={sortBy}
  *   onSortByChange={setSortBy}
  * />
@@ -37,6 +41,7 @@ export const WorkItemEntityFilters: React.FC<WorkItemEntityFiltersProps> = ({
   onSearchChange,
   statusFilter,
   onStatusFilterChange,
+  statusOptions,
   sortBy,
   onSortByChange,
 }) => {
@@ -54,40 +59,7 @@ export const WorkItemEntityFilters: React.FC<WorkItemEntityFiltersProps> = ({
       type: "select",
       key: "status",
       label: t(KEYS.initiatives.filters.status),
-      options: [
-        {
-          value: "REFINING_DESCRIPTION",
-          label: "Refining Description",
-        },
-        {
-          value: "REFINING_DETAILS",
-          label: "Refining Details",
-        },
-        {
-          value: "REFINING_ACCEPTANCE_CRITERIA",
-          label: "Refining Acceptance Criteria",
-        },
-        {
-          value: "ACTIVE",
-          label: "Active",
-        },
-        {
-          value: "ON_HOLD",
-          label: "On Hold",
-        },
-        {
-          value: "COMPLETED",
-          label: "Completed",
-        },
-        {
-          value: "CANCELLED",
-          label: "Cancelled",
-        },
-        {
-          value: "SUPERSEDED",
-          label: "Superseded",
-        },
-      ],
+      options: statusOptions,
     },
   ];
 

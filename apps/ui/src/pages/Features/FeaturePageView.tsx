@@ -1,5 +1,6 @@
 import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import type { PlanWorkItem } from "@hey-hey/ui-common/data";
+import { useWorkItemStatusVocabularies } from "@hey-hey/ui-common/data";
 import { CreateFeaturePlanButton } from "../../components/Plans/CreateFeaturePlanButton";
 import {
   Box,
@@ -355,11 +356,17 @@ export const FeaturePageView: React.FC<FeaturePageViewProps> = ({
     [onTitleChange, task.name],
   );
 
+  const { definitions, statusOptions } = useWorkItemStatusVocabularies(
+    organizationId,
+    projectId,
+    children,
+  );
   const locallyFilteredChildren = useFilteredWorkItems<TaskResponseDto>(
     children,
     childSearchTerm,
     childStatusFilter,
     childSortBy,
+    definitions,
   );
   const visibleChildren = isStandardTaskTab
     ? children.filter((child) =>
@@ -833,6 +840,7 @@ export const FeaturePageView: React.FC<FeaturePageViewProps> = ({
                             onSearchChange={setChildSearchTerm}
                             statusFilter={childStatusFilter}
                             onStatusFilterChange={setChildStatusFilter}
+                            statusOptions={statusOptions}
                             sortBy={childSortBy}
                             onSortByChange={setChildSortBy}
                           />

@@ -18,6 +18,10 @@ import type { PlanWorkItem } from "../../data/plans/canonicalPlan";
 import type { WorkItemResponseDto } from "../../data/collections/workItems";
 import { getPathService, type PathService } from "../../services";
 import { formatStatus } from "../../utils/statusUtils";
+import {
+  getWorkItemStatusLabel,
+  isRetainedRemovedStatus,
+} from "../../utils/workItemStatusVocabulary";
 import { getWorkItemSectionContent } from "../../utils/workItemSections";
 import { getWorkItemCounts, type CountGroup } from "../WorkItem/utils";
 import type { EntityDependency, EntityListItemProps } from "./EntityListItem";
@@ -188,9 +192,16 @@ const resolveTaskStatus = (
     return task.status;
   }
 
-  return options.workItemTypeDefinition?.statuses.length
-    ? task.status
-    : undefined;
+  const definition = options.workItemTypeDefinition;
+  if (!definition?.statuses.length) {
+    return undefined;
+  }
+
+  const label = getWorkItemStatusLabel(task.status, definition);
+
+  return isRetainedRemovedStatus(task.status, definition)
+    ? `${label} · Needs a new status`
+    : label;
 };
 
 /**

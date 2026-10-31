@@ -1,7 +1,9 @@
 import type { TaskResponseDto } from "../../api/api";
 import { getWorkItemTypeStatusNames } from "../../utils/statusUtils";
 import type { WorkItemTypeDefinitionDto } from "../../api";
-import { getStatusLabel } from "../../utils/statusUtils";
+import { getWorkItemStatusLabel } from "../../utils/workItemStatusVocabulary";
+
+export const ALL_STATUSES_TAB_ID = "__all__";
 
 export interface EntityCollectionStatusTab {
   id: string;
@@ -20,19 +22,34 @@ export const entityCollectionQueryKeyPrefix = (
   typeKey: string,
 ) => ["work-item-reference-page", organizationId, projectId, typeKey] as const;
 
+/** Legacy types list their ACTIVE lifecycle first; custom types keep their configured order. */
+const LEGACY_LEADING_STATUS = "ACTIVE";
+
 export const buildDefaultStatusTabs = (
   typeDefinition: WorkItemTypeDefinitionDto | undefined,
 ): EntityCollectionStatusTab[] => {
-  const statuses = typeDefinition
-    ? getWorkItemTypeStatusNames(typeDefinition)
-    : [];
-  const orderedStatuses = statuses.includes("ACTIVE")
-    ? ["ACTIVE" as const, ...statuses.filter((status) => status !== "ACTIVE")]
+  if (!typeDefinition) {
+    return [];
+  }
+
+  const statuses = getWorkItemTypeStatusNames(typeDefinition);
+  const orderedStatuses = statuses.includes(LEGACY_LEADING_STATUS)
+    ? [
+        LEGACY_LEADING_STATUS,
+        ...statuses.filter((status) => status !== LEGACY_LEADING_STATUS),
+      ]
     : statuses;
 
-  return orderedStatuses.map((status) => ({
+  const statusTabs = orderedStatuses.map((status) => ({
     id: status,
-    label: getStatusLabel(status),
+    label: getWorkItemStatusLabel(status, typeDefinition),
     statuses: [status],
   }));
+
+  // Items keeping a status the type no longer defines match no status tab, so
+  // the unfiltered view is what keeps them discoverable.
+  return [
+    ...statusTabs,
+    { id: ALL_STATUSES_TAB_ID, label: "All", statuses: [] },
+  ];
 };

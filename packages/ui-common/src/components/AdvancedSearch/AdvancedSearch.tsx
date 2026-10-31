@@ -32,13 +32,13 @@ import { navigateToEntity } from "../WebUtils/navigateToEntity";
 import {
   AgentSessionType,
   EntityType,
-  WorkStatus,
   WorkItemTypeLifecycleStatus,
   type AgentSessionDto,
 } from "../../api";
 import { useCreateAgentSession } from "../../data/hooks/useCreateAgentSession";
 import { toOpenApiProjectId } from "../../clients/contractIdentifierAdapters";
 import { useWorkItemTypes } from "../../data/hooks/useWorkItemTypes";
+import { buildWorkItemStatusFilterOptions } from "../../utils/workItemStatusVocabulary";
 import { EntitySearchChat } from "../AgentSession/EntitySearchChat";
 import { RuntimeModelSelector } from "../AgentSession/RuntimeModelSelector";
 import { resolveAgentBridgeRecoveryState } from "../AgentSession/agentBridgeRecoveryState";
@@ -97,22 +97,6 @@ function decomposeFilterValues(values: string[]): {
     taskTypes: taskTypes.length > 0 ? taskTypes : undefined,
   };
 }
-
-const STATUS_OPTIONS = [
-  { value: WorkStatus.Backlog, label: "Backlog" },
-  { value: WorkStatus.Active, label: "Active" },
-  { value: WorkStatus.OnHold, label: "On Hold" },
-  { value: WorkStatus.Completed, label: "Completed" },
-  { value: WorkStatus.Cancelled, label: "Cancelled" },
-  { value: WorkStatus.Verifying, label: "Verifying" },
-  { value: WorkStatus.Generated, label: "Generated" },
-  { value: WorkStatus.RefiningDescription, label: "Refining Description" },
-  { value: WorkStatus.RefiningDetails, label: "Refining Details" },
-  {
-    value: WorkStatus.RefiningAcceptanceCriteria,
-    label: "Refining Acceptance Criteria",
-  },
-];
 
 const formatMultiSelectSummary = (
   selected: string[],
@@ -220,6 +204,14 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
     projectId,
     status: WorkItemTypeLifecycleStatus.Active,
   });
+
+  const statusOptions = useMemo(
+    () =>
+      buildWorkItemStatusFilterOptions({
+        definitions: workItemTypes.map(({ definition }) => definition),
+      }),
+    [workItemTypes],
+  );
 
   const activeTaskFilterValues = useMemo(
     () =>
@@ -779,10 +771,10 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
                   }}
                   input={<OutlinedInput label="Status" />}
                   renderValue={(selected: string[]) =>
-                    formatMultiSelectSummary(selected, STATUS_OPTIONS)
+                    formatMultiSelectSummary(selected, statusOptions)
                   }
                 >
-                  {STATUS_OPTIONS.map((option) => (
+                  {statusOptions.map((option) => (
                     <MenuItem key={option.value} value={option.value}>
                       {option.label}
                     </MenuItem>

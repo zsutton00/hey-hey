@@ -400,6 +400,7 @@ export {
   useAllowedParentEntityTypes,
   useCanParentEntityType,
   useTrackingTargetWorkItemTypes,
+  useWorkItemStatusVocabularies,
   useWorkItemTypeByKey,
   useWorkItemTypeRelationshipIndex,
   useWorkItemTypes,

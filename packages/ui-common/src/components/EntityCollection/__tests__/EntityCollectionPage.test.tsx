@@ -168,10 +168,15 @@ describe("EntityCollectionPage", () => {
       "In progress",
       "Completed",
       "Cancelled",
+      "Archived",
+      "All",
     ]);
     expect(tabs[0]).toHaveAttribute("aria-selected", "true");
-    expect(screen.queryByRole("tab", { name: "All" })).not.toBeInTheDocument();
     expect(lastReferenceInput().statuses).toEqual(["ACTIVE"]);
+
+    // The unfiltered view keeps items with a removed status reachable.
+    fireEvent.click(screen.getByRole("tab", { name: "All" }));
+    expect(lastReferenceInput().statuses).toBeUndefined();
 
     fireEvent.click(screen.getByRole("tab", { name: "Completed" }));
 
