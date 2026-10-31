@@ -242,6 +242,41 @@ beforeEach(() => {
 });
 
 describe("Diagram Element Mockup screen cards", () => {
+  it.each(["proposal", "saved"])(
+    "renders %s UX flows as readable journeys of existing Mockups",
+    async (surface) => {
+      respondWith({ [MOCKUP_ID]: mockupItem(MOCKUP_ID) });
+      const projection = buildProjection([
+        element("cart", "Cart", { entityType: "TASK", entityId: MOCKUP_ID }),
+      ]);
+      projection.projectedRoot.sections = [
+        {
+          key: "diagramMetadata",
+          content: { kind: "UX_FLOW", level: "OVERVIEW" },
+        },
+      ];
+      const graphData = projectWorkItemGraphForWorkflowSurface(projection, {
+        organizationId: ORG,
+        projectId: PROJECT,
+      });
+      render(
+        <WorkflowGraphSurface
+          {...(surface === "proposal"
+            ? { projection, organizationId: ORG, projectId: PROJECT }
+            : { graphData })}
+        />,
+        { wrapper: Wrapper },
+      );
+      expect(
+        await screen.findByTestId("journey-screen-preview"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "View Cart screen full size" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByTestId("workflow-inline-step")).toBeNull();
+    },
+  );
+
   it("shows the canonical Mockup screen in the card body with the name below it", async () => {
     respondWith({ [MOCKUP_ID]: mockupItem(MOCKUP_ID) });
     renderSurface(

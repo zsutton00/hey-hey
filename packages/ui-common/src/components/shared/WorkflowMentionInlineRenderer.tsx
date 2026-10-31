@@ -1,3 +1,5 @@
+import { JourneyCanvas } from "../ProposalGroupReview/JourneyCanvas";
+import { SavedJourneyScreen } from "../ProposalGroupReview/SavedJourneyScreen";
 import { useModalState } from "../Modals/useModalState";
 import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
@@ -7304,6 +7306,44 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
       : hasWorkflowIdentity(hydratedGraphData.workflow))
   ) {
     return <WorkflowGraphUnavailable />;
+  }
+  if (
+    mode === "view" &&
+    getDiagramMetadata(hydratedGraphData.workflow)?.kind === "UX_FLOW"
+  ) {
+    const scope = {
+      organizationId: hydratedGraphData.workflow.organizationId,
+      projectId: hydratedGraphData.workflow.projectId,
+    };
+    const positions = projection
+      ? projection.effectiveLayout.nodes.map(
+          ({ node, position }) =>
+            [workItemIdentityKey(node), position] as const,
+        )
+      : (hydratedGraphData.layout?.nodes ?? []).flatMap(({ node, position }) =>
+          node.kind === "persistedWorkItem"
+            ? [[node.workItemId, position] as const]
+            : [],
+        );
+    return (
+      <JourneyCanvas
+        steps={hydratedGraphData.steps}
+        edges={hydratedGraphData.edges}
+        savedPositions={new Map(positions)}
+        renderScreen={(step) => {
+          const reference = getDiagramElementMetadata(step)?.canonicalReference;
+          return reference?.entityType === "TASK" ? (
+            <SavedJourneyScreen
+              id={reference.entityId}
+              name={step.name}
+              group={scope}
+            />
+          ) : (
+            <Alert severity="info">Screen unavailable</Alert>
+          );
+        }}
+      />
+    );
   }
   const workflowHref = projection
     ? undefined

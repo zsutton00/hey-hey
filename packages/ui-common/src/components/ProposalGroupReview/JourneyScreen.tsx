@@ -30,7 +30,7 @@ export const JourneyScreen: React.FC<{
     | Extract<MockupPageSource, { kind: "workItem" }>
     | Omit<Extract<MockupPageSource, { kind: "proposal" }>, "sectionKey">;
   sections: readonly { key: string; materializedMarkdown: unknown }[];
-  group: ProposalGroupSnapshot;
+  group: Pick<ProposalGroupSnapshot, "organizationId" | "projectId">;
   children: React.ReactNode;
 }> = ({ name, source, sections, group, children }) => {
   const [open, setOpen, ownerKey] = useModalState(false);
