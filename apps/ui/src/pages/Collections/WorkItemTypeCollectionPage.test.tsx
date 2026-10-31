@@ -154,15 +154,15 @@ describe("WorkItemTypeCollectionPage", () => {
     expect(screen.getByRole("heading", { name: "Bugs" })).toBeInTheDocument();
   });
 
-  it("shows the type's declared statuses with In Progress first and no All tab", () => {
+  it("shows the type's declared statuses with In Progress first and an unfiltered All tab last", () => {
     renderPage();
 
     const labels = screen
       .getAllByTestId("entity-collection-status-tab")
       .map((tab) => tab.textContent);
     expect(labels[0]).toBe("In progress");
-    expect(labels).toHaveLength(customDefinition.statuses.length + 1);
-    expect(labels).not.toContain("All");
+    expect(labels).toHaveLength(customDefinition.statuses.length + 2);
+    expect(labels.at(-1)).toBe("All");
   });
 
   it("gives the collection search a type-specific placeholder", () => {

@@ -27,11 +27,7 @@ import type { Priority, ServiceDto } from "../../api";
 import { WorkStatus as WorkStatusEnum } from "../../api";
 import { FEATURE_TASK_TYPE } from "../../constants/taskTypes";
 import { useAuth } from "../../contexts/AuthContext";
-import {
-  useServices,
-  useTaskAllowedStatuses,
-  useUsers,
-} from "../../data/hooks";
+import { useServices, useUsers, useWorkItemTypeByKey } from "../../data/hooks";
 import {
   getPriorityColor,
   getPriorityLabel,
@@ -39,6 +35,10 @@ import {
   getStatusLabel,
 } from "../../utils/statusUtils";
 import { isMachineManagedStatus } from "../../utils/workItemUtils";
+import {
+  getWorkItemStatusChoices,
+  getWorkItemStatusLabel,
+} from "../../utils/workItemStatusVocabulary";
 import { SupersedeTaskDialog } from "./SupersedeTaskDialog";
 import type { WorkItemMetadataFields } from "./WorkItemMetadata";
 
@@ -131,8 +131,8 @@ export const StatusActionCompact: React.FC<StatusActionCompactProps> = ({
     projectId,
     enabled: servicesEnabled,
   });
-  const { getAllowedStatuses, isLoading: statusesLoading } =
-    useTaskAllowedStatuses({ organizationId, projectId });
+  const { workItemTypeDefinition: definition, isLoading: statusesLoading } =
+    useWorkItemTypeByKey(organizationId, projectId, taskType);
 
   const members = useMemo(
     () =>
@@ -163,22 +163,26 @@ export const StatusActionCompact: React.FC<StatusActionCompactProps> = ({
   const closeMenu = useCallback(() => setOpenMenu(null), []);
 
   const isFeature = taskType === FEATURE_TASK_TYPE;
-  // The backend per-type set is the source of truth for status validity; the
+  // The type's effective definition owns the choices and their order; the
   // picker still drops system-managed generating/refining states (a user never
-  // picks those) and only offers SUPERSEDED when there is a task to supersede.
+  // picks those) and only offers SUPERSEDED when the type supports it and
+  // there is a task to supersede.
   const statuses = useMemo(
     () =>
-      getAllowedStatuses(taskType).filter(
-        (s) =>
-          !isMachineManagedStatus(s) &&
-          (s !== WorkStatusEnum.Superseded || Boolean(taskId)),
-      ),
-    [getAllowedStatuses, taskType, taskId],
+      definition
+        ? [
+            ...getWorkItemStatusChoices(definition),
+            ...(definition.capabilities?.supportsSupersession && taskId
+              ? [WorkStatusEnum.Superseded]
+              : []),
+          ].filter((s) => !isMachineManagedStatus(s))
+        : [],
+    [definition, taskId],
   );
   const resolveStatusLabel = useCallback(
     (s: TaskResponseDto["status"]) =>
-      isFeature ? featureStatusLabel(s) : getStatusLabel(s),
-    [isFeature],
+      isFeature ? featureStatusLabel(s) : getWorkItemStatusLabel(s, definition),
+    [isFeature, definition],
   );
 
   const currentStatusLabel = status ? resolveStatusLabel(status) : null;

@@ -13,12 +13,16 @@ import {
 import type { SelectChangeEvent } from "@mui/material";
 import { WorkStatus } from "../../api";
 import { FEATURE_TASK_TYPE } from "../../constants/taskTypes";
-import { useTaskAllowedStatuses } from "../../data/hooks";
+import { useWorkItemTypeByKey } from "../../data/hooks";
 import {
   getStatusLabel,
   getStatusColorMapping,
   getPlanStatusLabel,
 } from "../../utils/statusUtils";
+import {
+  getWorkItemStatusChoices,
+  getWorkItemStatusLabel,
+} from "../../utils/workItemStatusVocabulary";
 import { isMachineManagedStatus } from "../../utils/workItemUtils";
 import { SupersedeTaskDialog } from "../WorkItem/SupersedeTaskDialog";
 
@@ -70,10 +74,8 @@ export const WorkItemStatusSelector: React.FC<WorkItemStatusSelectorProps> = ({
     setSupersedeDialogOpen,
     supersedeDialogOpenOwnerKey,
   ] = useModalState(false);
-  const { getAllowedStatuses, isLoading } = useTaskAllowedStatuses({
-    organizationId,
-    projectId,
-  });
+  const { workItemTypeDefinition: definition, isLoading } =
+    useWorkItemTypeByKey(organizationId, projectId, taskType);
 
   const handleChange = (
     event: SelectChangeEvent<TaskResponseDto["status"]>,
@@ -88,21 +90,29 @@ export const WorkItemStatusSelector: React.FC<WorkItemStatusSelectorProps> = ({
     onChange(next);
   };
 
-  // The backend per-type set is the source of truth for status validity; the
+  // The type's effective definition owns the choices and their order; the
   // picker still drops system-managed generating/refining states (a user never
-  // picks those) and only offers SUPERSEDED when there is a task to supersede.
-  const allowedStatuses = getAllowedStatuses(taskType).filter(
-    (status) =>
-      !isMachineManagedStatus(status) &&
-      (status !== WorkStatus.Superseded || Boolean(taskId)),
-  );
+  // picks those) and only offers SUPERSEDED when the type supports it and
+  // there is a task to supersede.
+  const allowedStatuses = definition
+    ? [
+        ...getWorkItemStatusChoices(definition),
+        ...(definition.capabilities?.supportsSupersession && taskId
+          ? [WorkStatus.Superseded]
+          : []),
+      ].filter((status) => !isMachineManagedStatus(status))
+    : [];
   const isFeature = taskType === FEATURE_TASK_TYPE;
-  const resolveLabel = (status: TaskResponseDto["status"]) =>
-    isFeature
-      ? getFeatureStatusLabel(status)
-      : taskType === "PLAN"
-        ? getPlanStatusLabel(status)
-        : getStatusLabel(status);
+  const resolveLabel = (status: TaskResponseDto["status"]) => {
+    if (isFeature) {
+      return getFeatureStatusLabel(status);
+    }
+    if (taskType === "PLAN") {
+      return getPlanStatusLabel(status);
+    }
+
+    return getWorkItemStatusLabel(status, definition);
+  };
 
   return (
     <>

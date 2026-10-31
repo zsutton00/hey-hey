@@ -27,6 +27,19 @@ describe("WorkItemEntityFilters", () => {
     onSearchChange: mockOnSearchChange,
     statusFilter: "" as TaskResponseDto["status"] | "",
     onStatusFilterChange: mockOnStatusFilterChange,
+    statusOptions: [
+      { value: "REFINING_DESCRIPTION", label: "Refining Description" },
+      { value: "REFINING_DETAILS", label: "Refining Details" },
+      {
+        value: "REFINING_ACCEPTANCE_CRITERIA",
+        label: "Refining Acceptance Criteria",
+      },
+      { value: "ACTIVE", label: "Active" },
+      { value: "ON_HOLD", label: "On Hold" },
+      { value: "COMPLETED", label: "Completed" },
+      { value: "CANCELLED", label: "Cancelled" },
+      { value: "Testing", label: "Testing" },
+    ],
     sortBy: "created-desc",
     onSortByChange: mockOnSortByChange,
   };
@@ -111,6 +124,7 @@ describe("WorkItemEntityFilters", () => {
     expect(await screen.findByText("On Hold")).toBeInTheDocument();
     expect(await screen.findByText("Completed")).toBeInTheDocument();
     expect(await screen.findByText("Cancelled")).toBeInTheDocument();
+    expect(await screen.findByText("Testing")).toBeInTheDocument();
   });
 
   it("should display current sort value", () => {

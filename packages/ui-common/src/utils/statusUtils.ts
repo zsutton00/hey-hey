@@ -141,10 +141,17 @@ export const getPriorityColor = (
   }
 };
 
+const PLATFORM_STATUS_PATTERN = /^[A-Z][A-Z0-9_]*$/;
+
 /**
- * Format a status string for display (replace underscores with spaces and capitalize)
+ * Format a platform status (UPPER_SNAKE) for display. Any other status is a
+ * custom name and is shown exactly as saved.
  */
 export const formatStatus = (status: string): string => {
+  if (!PLATFORM_STATUS_PATTERN.test(status)) {
+    return status;
+  }
+
   return status
     .toLowerCase()
     .replace(/_/g, " ")

@@ -10,7 +10,7 @@ import { StatusActionCompact } from "../StatusActionCompact";
 vi.mock("../../../data/hooks", () => ({
   useUsers: vi.fn(),
   useServices: vi.fn(),
-  useTaskAllowedStatuses: vi.fn(),
+  useWorkItemTypeByKey: vi.fn(),
 }));
 
 vi.mock("../../../contexts/AuthContext", () => ({
@@ -38,13 +38,14 @@ vi.mock("@mui/x-date-pickers/DateCalendar", () => ({
 import { useAuth } from "../../../contexts/AuthContext";
 import {
   useServices,
-  useTaskAllowedStatuses,
   useUsers,
+  useWorkItemTypeByKey,
 } from "../../../data/hooks";
+import { statusDefinition } from "../../../test/statusDefinitionFixture";
 
 const mockedUseUsers = vi.mocked(useUsers);
 const mockedUseServices = vi.mocked(useServices);
-const mockedUseTaskAllowedStatuses = vi.mocked(useTaskAllowedStatuses);
+const mockedUseWorkItemTypeByKey = vi.mocked(useWorkItemTypeByKey);
 const mockedUseAuth = vi.mocked(useAuth);
 
 const COMPACT_ALLOWED_STATUSES: TaskResponseDto["status"][] = [
@@ -187,11 +188,10 @@ describe("StatusActionCompact", () => {
       logout: vi.fn(),
       toggleDevAdminMode: vi.fn(),
     } as never);
-    mockedUseTaskAllowedStatuses.mockReturnValue({
+    mockedUseWorkItemTypeByKey.mockReturnValue({
       isLoading: false,
-      error: null,
-      getAllowedStatuses: () => COMPACT_ALLOWED_STATUSES,
-    });
+      workItemTypeDefinition: statusDefinition(COMPACT_ALLOWED_STATUSES),
+    } as never);
   });
 
   it("renders four icon buttons with non-empty aria-labels", () => {
@@ -246,17 +246,16 @@ describe("StatusActionCompact", () => {
 
   it("hides system-managed generating/refining statuses returned by the backend", async () => {
     const user = userEvent.setup();
-    mockedUseTaskAllowedStatuses.mockReturnValue({
+    mockedUseWorkItemTypeByKey.mockReturnValue({
       isLoading: false,
-      error: null,
-      getAllowedStatuses: () => [
+      workItemTypeDefinition: statusDefinition([
         WorkStatus.Generated,
         WorkStatus.RefiningDetails,
         WorkStatus.GeneratingAll,
         WorkStatus.Backlog,
         WorkStatus.Active,
-      ],
-    });
+      ]),
+    } as never);
     renderCompact();
 
     await user.click(screen.getByTestId("status-action-compact-status"));

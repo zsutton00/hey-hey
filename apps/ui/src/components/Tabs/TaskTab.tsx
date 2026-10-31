@@ -15,7 +15,10 @@ import {
   useUserIdentity,
   WorkItemEntityFilters,
 } from "@hey-hey/ui-common";
-import { useDeleteTask } from "@hey-hey/ui-common/data";
+import {
+  useDeleteTask,
+  useWorkItemStatusVocabularies,
+} from "@hey-hey/ui-common/data";
 import { TabContainer } from "./TabContainer";
 
 interface TaskTabProps {
@@ -84,11 +87,17 @@ export const TaskTab: React.FC<TaskTabProps> = ({
     [deleteTask],
   );
 
+  const { definitions, statusOptions } = useWorkItemStatusVocabularies(
+    organizationId,
+    projectId,
+    tasks,
+  );
   const filteredTasks = useFilteredWorkItems<WorkItemResponseDto>(
     tasks,
     searchTerm,
     statusFilter,
     sortBy,
+    definitions,
   );
   const visibleTasks = enableFilters ? filteredTasks : tasks;
 
@@ -131,6 +140,7 @@ export const TaskTab: React.FC<TaskTabProps> = ({
           onSearchChange={setSearchTerm}
           statusFilter={statusFilter}
           onStatusFilterChange={setStatusFilter}
+          statusOptions={statusOptions}
           sortBy={sortBy}
           onSortByChange={setSortBy}
         />

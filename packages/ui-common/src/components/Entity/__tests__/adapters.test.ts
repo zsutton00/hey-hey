@@ -108,7 +108,19 @@ describe("Entity Adapters", () => {
         typeKey: "BUG",
         definition: statusBearingDefinition,
       });
-      expect(result.status).toBe(WorkStatus.Active);
+      expect(result.status).toBe("In progress");
+    });
+
+    it("shows a removed status by its saved name with a warning", () => {
+      const result = taskAdapter.toEntityListItemProps(
+        { ...mockTask, status: "Testing" },
+        {
+          showEntityKind: true,
+          workItemTypeDefinition: statusBearingDefinition,
+        },
+      );
+
+      expect(result.status).toBe("Testing · Needs a new status");
     });
 
     it("withholds status for a registry type without lifecycle statuses", () => {

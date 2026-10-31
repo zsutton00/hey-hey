@@ -1,4 +1,8 @@
 import {
+  buildWorkItemStatusFilterOptions,
+  type WorkItemStatusFilterOption,
+} from "../../utils/workItemStatusVocabulary";
+import {
   useQuery as useTanStackQuery,
   useQueryClient,
 } from "@tanstack/react-query";
@@ -12,10 +16,7 @@ import {
   workItemTypeByKeyQueryOptions,
   workItemTypeCatalogQueryOptions,
 } from "../collections/workItemTypes";
-import {
-  dataLayerQueryPolicy,
-  shouldRetryOnMount,
-} from "../query/queryPolicy";
+import { dataLayerQueryPolicy, shouldRetryOnMount } from "../query/queryPolicy";
 import { useCollectionQueryState } from "../query/useCollectionQueryState";
 import {
   resolveMentionWorkItemTypeAlias,
@@ -37,14 +38,12 @@ import {
   type WorkItemTypeRelationshipIndex,
 } from "../workItemTypeRelationshipIndex";
 
-export interface UseWorkItemTypesOptions
-  extends CollectionHookOptions<WorkItemTypeSummaryDto> {
+export interface UseWorkItemTypesOptions extends CollectionHookOptions<WorkItemTypeSummaryDto> {
   projectId?: string;
   status?: WorkItemTypeLifecycleStatus;
 }
 
-export interface UseWorkItemTypesReturn
-  extends DataCollectionHookReturn<WorkItemTypeSummaryDto> {
+export interface UseWorkItemTypesReturn extends DataCollectionHookReturn<WorkItemTypeSummaryDto> {
   workItemTypes: WorkItemTypeSummaryDto[];
 }
 
@@ -58,7 +57,7 @@ const NO_WORK_ITEM_TYPES: WorkItemTypeSummaryDto[] = [];
  */
 export function useWorkItemTypes(
   organizationId: string | undefined,
-  options: UseWorkItemTypesOptions = {}
+  options: UseWorkItemTypesOptions = {},
 ): UseWorkItemTypesReturn {
   const {
     projectId,
@@ -75,15 +74,15 @@ export function useWorkItemTypes(
     () =>
       workItemTypeCatalogQueryOptions(
         organizationId || DISABLED_SCOPE,
-        projectId || DISABLED_SCOPE
+        projectId || DISABLED_SCOPE,
       ),
-    [organizationId, projectId]
+    [organizationId, projectId],
   );
   const staleTime = staleTimeMs ?? dataLayerQueryPolicy.staleTime;
   const select = useCallback(
     (workItemTypes: WorkItemTypeSummaryDto[]) =>
       filterWorkItemTypes(workItemTypes, { status }),
-    [status]
+    [status],
   );
 
   const result = useTanStackQuery({
@@ -91,17 +90,21 @@ export function useWorkItemTypes(
     enabled: isEnabled,
     staleTime,
     retryOnMount: shouldRetryOnMount(
-      isEnabled ? queryClient.getQueryState(catalogOptions.queryKey) : undefined,
-      staleTime
+      isEnabled
+        ? queryClient.getQueryState(catalogOptions.queryKey)
+        : undefined,
+      staleTime,
     ),
     ...(refetchOnMount ? { refetchOnMount: "always" as const } : {}),
-    ...(refetchOnWindowFocus ? { refetchOnWindowFocus: "always" as const } : {}),
+    ...(refetchOnWindowFocus
+      ? { refetchOnWindowFocus: "always" as const }
+      : {}),
     select,
   });
   const queryState = useCollectionQueryState(
     result,
     catalogOptions.queryKey,
-    isEnabled
+    isEnabled,
   );
 
   const workItemTypes = result.data ?? NO_WORK_ITEM_TYPES;
@@ -113,8 +116,7 @@ export function useWorkItemTypes(
   };
 }
 
-export interface UseWorkItemTypeRelationshipIndexReturn
-  extends UseWorkItemTypesReturn {
+export interface UseWorkItemTypeRelationshipIndexReturn extends UseWorkItemTypesReturn {
   relationshipIndex: WorkItemTypeRelationshipIndex | undefined;
 }
 
@@ -125,7 +127,7 @@ export interface UseWorkItemTypeRelationshipIndexReturn
  */
 export function useWorkItemTypeRelationshipIndex(
   organizationId: string | undefined,
-  projectId: string | undefined
+  projectId: string | undefined,
 ): UseWorkItemTypeRelationshipIndexReturn {
   const workItemTypes = useWorkItemTypes(organizationId, { projectId });
   const relationshipIndex = useMemo(
@@ -133,66 +135,60 @@ export function useWorkItemTypeRelationshipIndex(
       workItemTypes.isReady
         ? buildWorkItemTypeRelationshipIndex(workItemTypes.workItemTypes)
         : undefined,
-    [workItemTypes.isReady, workItemTypes.workItemTypes]
+    [workItemTypes.isReady, workItemTypes.workItemTypes],
   );
 
   return { ...workItemTypes, relationshipIndex };
 }
 
-export interface UseAllowedChildWorkItemTypesReturn
-  extends UseWorkItemTypeRelationshipIndexReturn {
+export interface UseAllowedChildWorkItemTypesReturn extends UseWorkItemTypeRelationshipIndexReturn {
   allowedChildTypes: readonly string[] | undefined;
 }
 
 export function useAllowedChildWorkItemTypes(
   organizationId: string | undefined,
   projectId: string | undefined,
-  parentType: string
+  parentType: string,
 ): UseAllowedChildWorkItemTypesReturn {
   const relationship = useWorkItemTypeRelationshipIndex(
     organizationId,
-    projectId
+    projectId,
   );
   const allowedChildTypes = useMemo(
     () =>
       selectAllowedChildWorkItemTypes(
         relationship.relationshipIndex,
-        parentType
+        parentType,
       ),
-    [relationship.relationshipIndex, parentType]
+    [relationship.relationshipIndex, parentType],
   );
 
   return { ...relationship, allowedChildTypes };
 }
 
-export interface UseAllowedParentEntityTypesReturn
-  extends UseWorkItemTypeRelationshipIndexReturn {
+export interface UseAllowedParentEntityTypesReturn extends UseWorkItemTypeRelationshipIndexReturn {
   allowedParentEntityTypes: readonly EntityType[] | undefined;
 }
 
 export function useAllowedParentEntityTypes(
   organizationId: string | undefined,
   projectId: string | undefined,
-  childType: string
+  childType: string,
 ): UseAllowedParentEntityTypesReturn {
   const relationship = useWorkItemTypeRelationshipIndex(
     organizationId,
-    projectId
+    projectId,
   );
   const allowedParentEntityTypes = useMemo(
     () =>
-      selectAllowedParentEntityTypes(
-        relationship.relationshipIndex,
-        childType
-      ),
-    [relationship.relationshipIndex, childType]
+      selectAllowedParentEntityTypes(relationship.relationshipIndex, childType),
+    [relationship.relationshipIndex, childType],
   );
 
   return { ...relationship, allowedParentEntityTypes };
 }
 
-export interface UseCanParentEntityTypeReturn
-  extends UseWorkItemTypeRelationshipIndexReturn {
+export interface UseCanParentEntityTypeReturn extends UseWorkItemTypeRelationshipIndexReturn {
   canParent: boolean | undefined;
 }
 
@@ -200,53 +196,51 @@ export function useCanParentEntityType(
   organizationId: string | undefined,
   projectId: string | undefined,
   parentEntityType: EntityType,
-  childType: string
+  childType: string,
 ): UseCanParentEntityTypeReturn {
   const relationship = useWorkItemTypeRelationshipIndex(
     organizationId,
-    projectId
+    projectId,
   );
   const canParent = useMemo(
     () =>
       selectCanParentEntityType(
         relationship.relationshipIndex,
         parentEntityType,
-        childType
+        childType,
       ),
-    [relationship.relationshipIndex, parentEntityType, childType]
+    [relationship.relationshipIndex, parentEntityType, childType],
   );
 
   return { ...relationship, canParent };
 }
 
-export interface UseTrackingTargetWorkItemTypesReturn
-  extends UseWorkItemTypeRelationshipIndexReturn {
+export interface UseTrackingTargetWorkItemTypesReturn extends UseWorkItemTypeRelationshipIndexReturn {
   trackingTargetTaskTypes: readonly string[] | undefined;
 }
 
 export function useTrackingTargetWorkItemTypes(
   organizationId: string | undefined,
   projectId: string | undefined,
-  sourceTaskType: string
+  sourceTaskType: string,
 ): UseTrackingTargetWorkItemTypesReturn {
   const relationship = useWorkItemTypeRelationshipIndex(
     organizationId,
-    projectId
+    projectId,
   );
   const trackingTargetTaskTypes = useMemo(
     () =>
       selectTrackingTargetTaskTypes(
         relationship.relationshipIndex,
-        sourceTaskType
+        sourceTaskType,
       ),
-    [relationship.relationshipIndex, sourceTaskType]
+    [relationship.relationshipIndex, sourceTaskType],
   );
 
   return { ...relationship, trackingTargetTaskTypes };
 }
 
-export interface UseWorkItemTypeTrackingEligibilityReturn
-  extends UseWorkItemTypeRelationshipIndexReturn {
+export interface UseWorkItemTypeTrackingEligibilityReturn extends UseWorkItemTypeRelationshipIndexReturn {
   isAllowed: boolean | undefined;
 }
 
@@ -255,11 +249,11 @@ export function useWorkItemTypeTrackingEligibility(
   projectId: string | undefined,
   targetTaskType: string | undefined,
   sourceEntityType: EntityType,
-  sourceTaskType?: string
+  sourceTaskType?: string,
 ): UseWorkItemTypeTrackingEligibilityReturn {
   const relationship = useWorkItemTypeRelationshipIndex(
     organizationId,
-    projectId
+    projectId,
   );
   const isAllowed = useMemo(
     () =>
@@ -268,7 +262,7 @@ export function useWorkItemTypeTrackingEligibility(
             relationship.relationshipIndex,
             targetTaskType,
             sourceEntityType,
-            sourceTaskType
+            sourceTaskType,
           )
         : relationship.relationshipIndex
           ? false
@@ -278,7 +272,7 @@ export function useWorkItemTypeTrackingEligibility(
       sourceEntityType,
       sourceTaskType,
       targetTaskType,
-    ]
+    ],
   );
 
   return { ...relationship, isAllowed };
@@ -313,7 +307,7 @@ export interface UseMentionWorkItemTypeKeyReturn {
 export function useMentionWorkItemTypeKey(
   organizationId: string | undefined,
   projectId: string | undefined,
-  mentionKind: string | undefined
+  mentionKind: string | undefined,
 ): UseMentionWorkItemTypeKeyReturn {
   const alias = mentionKind
     ? resolveMentionWorkItemTypeAlias(mentionKind)
@@ -323,8 +317,9 @@ export function useMentionWorkItemTypeKey(
     enabled: !!mentionKind && !alias,
   });
   const registeredKeys = useMemo(
-    () => catalog.workItemTypes.map((workItemType) => workItemType.definition.key),
-    [catalog.workItemTypes]
+    () =>
+      catalog.workItemTypes.map((workItemType) => workItemType.definition.key),
+    [catalog.workItemTypes],
   );
 
   if (!mentionKind) return { typeKey: undefined, isResolved: false };
@@ -344,7 +339,7 @@ export function useMentionWorkItemTypeKey(
 export function useWorkItemTypeByKey(
   organizationId: string | undefined,
   projectId: string | undefined,
-  typeKey: string | undefined
+  typeKey: string | undefined,
 ): UseWorkItemTypeByKeyReturn {
   const queryClient = useQueryClient();
   const isEnabled = !!organizationId && !!projectId && !!typeKey;
@@ -354,22 +349,22 @@ export function useWorkItemTypeByKey(
         queryClient,
         organizationId || DISABLED_SCOPE,
         projectId || DISABLED_SCOPE,
-        typeKey || DISABLED_SCOPE
+        typeKey || DISABLED_SCOPE,
       ),
-    [queryClient, organizationId, projectId, typeKey]
+    [queryClient, organizationId, projectId, typeKey],
   );
 
   const result = useTanStackQuery({
     ...byKeyOptions,
     enabled: isEnabled,
     retryOnMount: shouldRetryOnMount(
-      isEnabled ? queryClient.getQueryState(byKeyOptions.queryKey) : undefined
+      isEnabled ? queryClient.getQueryState(byKeyOptions.queryKey) : undefined,
     ),
   });
   const queryState = useCollectionQueryState(
     result,
     byKeyOptions.queryKey,
-    isEnabled
+    isEnabled,
   );
 
   const workItemTypeSummary = result.data ?? undefined;
@@ -379,4 +374,44 @@ export function useWorkItemTypeByKey(
     workItemTypeSummary,
     workItemTypeDefinition: workItemTypeSummary?.definition,
   };
+}
+
+export interface UseWorkItemStatusVocabulariesReturn {
+  /** Each type's effective definition by type key; empty until the catalog loads. */
+  definitions: ReadonlyMap<string, WorkItemTypeDefinitionDto>;
+  /** Status filter choices for the given items, from their own types. */
+  statusOptions: WorkItemStatusFilterOption[];
+}
+
+/**
+ * Status vocabularies for surfaces that show items of several types. Each
+ * type keeps its own names and order; nothing is merged across types.
+ */
+export function useWorkItemStatusVocabularies(
+  organizationId: string | undefined,
+  projectId: string | undefined,
+  items: readonly { type?: string | null; status?: string | null }[],
+): UseWorkItemStatusVocabulariesReturn {
+  const catalog = useWorkItemTypes(organizationId, { projectId });
+  const definitions = useMemo(
+    () =>
+      new Map(
+        catalog.workItemTypes.map(({ definition }) => [
+          definition.key,
+          definition,
+        ]),
+      ),
+    [catalog.workItemTypes],
+  );
+  const statusOptions = useMemo(
+    () =>
+      buildWorkItemStatusFilterOptions({
+        definitions: [...definitions.values()],
+        items,
+        scopeByType: true,
+      }),
+    [definitions, items],
+  );
+
+  return { definitions, statusOptions };
 }

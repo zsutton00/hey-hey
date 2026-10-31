@@ -41,6 +41,7 @@ import {
   type UseTaskGenerationCapsuleActionResult,
 } from "@hey-hey/ui-common/components";
 import { TrackingProvider } from "@hey-hey/ui-common/context";
+import { useWorkItemStatusVocabularies } from "@hey-hey/ui-common/data";
 import { createNavigationLineageEntry, type Stable } from "@hey-hey/ui-common";
 import { WebPathService } from "@hey-hey/ui-common/services";
 import AddIcon from "@mui/icons-material/Add";
@@ -305,11 +306,17 @@ export const TaskPageView: React.FC<TaskPageViewProps> = ({
   >("");
   const [childSortBy, setChildSortBy] = useState("status");
 
+  const { definitions, statusOptions } = useWorkItemStatusVocabularies(
+    organizationId,
+    projectId,
+    children,
+  );
   const visibleChildren = useFilteredWorkItems<TaskResponseDto>(
     children,
     childSearchTerm,
     childStatusFilter,
     childSortBy,
+    definitions,
   );
 
   const activeChildTypeName = getWorkItemTypeDisplayName(
@@ -700,6 +707,7 @@ export const TaskPageView: React.FC<TaskPageViewProps> = ({
                           onSearchChange={setChildSearchTerm}
                           statusFilter={childStatusFilter}
                           onStatusFilterChange={setChildStatusFilter}
+                          statusOptions={statusOptions}
                           sortBy={childSortBy}
                           onSortByChange={setChildSortBy}
                         />

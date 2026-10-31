@@ -63,7 +63,12 @@ vi.mock("@hey-hey/ui-common", () => ({
   }),
 }));
 
-vi.mock("@hey-hey/ui-common/data", () => ({}));
+vi.mock("@hey-hey/ui-common/data", () => ({
+  useWorkItemStatusVocabularies: () => ({
+    definitions: new Map(),
+    statusOptions: [],
+  }),
+}));
 vi.mock("../../components/Plans/CreateFeaturePlanButton", () => ({
   CreateFeaturePlanButton: ({ featureId }: { featureId: string }) => (
     <button data-feature-id={featureId}>Create Plan</button>

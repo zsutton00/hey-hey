@@ -75,3 +75,14 @@ export type { HighlightedToken } from "./highlightLine";
 export * from "./openItemSelection";
 
 export { getErrorMessage } from "./errorUtils";
+export {
+  buildWorkItemStatusFilterOptions,
+  matchesWorkItemStatusFilter,
+  getWorkItemStatusChoices,
+  getWorkItemStatusLabel,
+  getWorkItemStatusOrder,
+  isReservedWorkItemStatus,
+  isRetainedRemovedStatus,
+  type WorkItemStatusFilterOption,
+  type WorkItemStatusVocabulary,
+} from "./workItemStatusVocabulary";

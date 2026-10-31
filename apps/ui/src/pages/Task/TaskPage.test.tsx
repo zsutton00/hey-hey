@@ -270,6 +270,10 @@ let mockWorkItemTypesFetched = true;
 let mockVisibleChildren: TaskResponseDto[] = [];
 
 vi.mock("@hey-hey/ui-common/data", () => ({
+  useWorkItemStatusVocabularies: () => ({
+    definitions: new Map(),
+    statusOptions: [],
+  }),
   usePlatformAdminAccess: () => ({
     isPlatformAdmin: mockIsPlatformAdmin,
     isResolved: true,
