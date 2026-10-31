@@ -222,6 +222,8 @@ type TaskWithCountsAndInitiative = TaskWithCountsAndRelations & {
 type TrackedTaskRow = {
   id: string;
   name: string;
+  type: string;
+  projectId: string;
   status: TaskResponseDto['status'];
   dueDate: Date | null;
 };
@@ -246,29 +248,6 @@ type ChildCounts = {
   inProgress: number;
   backlog: number;
 };
-
-const BACKLOG_STATUSES = new Set<TaskResponseDto['status']>([
-  WorkStatus.Generated,
-  WorkStatus.Backlog,
-  WorkStatus.GeneratingDescription,
-  WorkStatus.RefiningDescription,
-  WorkStatus.RefiningDetails,
-  WorkStatus.RefiningAcceptanceCriteria,
-  WorkStatus.GeneratingDetails,
-  WorkStatus.GeneratingDescriptionAndDetails,
-  WorkStatus.GeneratingAcceptanceCriteria,
-  WorkStatus.GeneratingAll,
-  WorkStatus.OnHold,
-]);
-
-const IN_PROGRESS_STATUSES = new Set<TaskResponseDto['status']>([
-  WorkStatus.Active,
-]);
-
-const DONE_STATUSES = new Set<TaskResponseDto['status']>([
-  WorkStatus.Completed,
-  WorkStatus.Cancelled,
-]);
 
 const INCIDENT_AGENT_EDGE_TYPES = new Set<string>(Object.values(AgentEdgeType));
 const TRAVERSAL_ONLY_INCIDENT_EDGE_TYPES = new Set<RelationshipType>([
@@ -1632,7 +1611,7 @@ export class TaskService {
     }
 
     const grouped = await this.prisma.db.task.groupBy({
-      by: ['parentTaskId', 'status'],
+      by: ['parentTaskId', 'status', 'type', 'projectId'],
       where: restrictTaskWhere(where),
       _count: {
         _all: true,
@@ -1654,12 +1633,13 @@ export class TaskService {
 
       counts.total += row._count._all;
 
-      if (DONE_STATUSES.has(row.status)) {
+      const meaning = this.workItemTypeRegistry
+        .getRulesForProject(row.type, row.projectId)
+        ?.statuses.find((status) => status.name === row.status)?.meaning;
+      if (meaning === 'FINISHED') {
         counts.done += row._count._all;
-      } else if (IN_PROGRESS_STATUSES.has(row.status)) {
+      } else if (meaning === 'IN_PROGRESS') {
         counts.inProgress += row._count._all;
-      } else if (BACKLOG_STATUSES.has(row.status)) {
-        counts.backlog += row._count._all;
       } else {
         // Unknown statuses default to backlog bucket
         counts.backlog += row._count._all;
@@ -2159,7 +2139,14 @@ export class TaskService {
         organizationId,
         archivedAt: null,
       },
-      select: { id: true, name: true, status: true, dueDate: true },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        projectId: true,
+        status: true,
+        dueDate: true,
+      },
     });
 
     const taskById = new Map(tasks.map((t) => [t.id, t]));
@@ -2190,13 +2177,21 @@ export class TaskService {
   }
 
   private toTrackedSnapshots(rows: TrackedTaskRow[]): TrackedEntitySnapshot[] {
-    return rows.map((row) => ({
-      targetEntityId: row.id,
-      targetEntityType: 'TASK',
-      title: row.name,
-      status: row.status,
-      dueDate: row.dueDate ? row.dueDate.toISOString() : null,
-    }));
+    return rows.map((row) => {
+      const status = this.workItemTypeRegistry
+        .getRulesForProject(row.type, row.projectId)
+        ?.statuses.find((status) => status.name === row.status);
+
+      return {
+        targetEntityId: row.id,
+        targetEntityType: 'TASK',
+        title: row.name,
+        status: row.status,
+        statusMeaning: status?.meaning,
+        completionBehavior: status?.completionBehavior,
+        dueDate: row.dueDate ? row.dueDate.toISOString() : null,
+      };
+    });
   }
 
   /**
@@ -2218,11 +2213,20 @@ export class TaskService {
     };
     const nowMs = now.getTime();
     for (const row of rows) {
-      if (row.status === WorkStatus.Completed) {
+      const status = this.workItemTypeRegistry
+        .getRulesForProject(row.type, row.projectId)
+        ?.statuses.find((status) => status.name === row.status);
+      if (
+        status?.meaning === 'FINISHED' &&
+        status.completionBehavior !== 'CANCELLED'
+      ) {
         summary.completedCount += 1;
         continue;
       }
-      if (row.status === WorkStatus.Cancelled) {
+      if (
+        status?.meaning === 'FINISHED' &&
+        status.completionBehavior === 'CANCELLED'
+      ) {
         summary.cancelledCount += 1;
         continue;
       }
