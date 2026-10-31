@@ -1,8 +1,12 @@
 import type { OAuthClient } from '../auth/index';
 import { extractOrganizationIdFromToken } from '../auth/index';
+import type { ReadRestriction } from '../shared/api/generated/api';
+import { readRestrictionFor, readRestrictionHeaders } from '../shared/api/read-restriction';
 
 export interface McpSessionContext {
   readonly inert?: boolean;
+  /** Overrides what `inert` implies, for executions restricted without being inert (the judge). */
+  readonly readRestriction?: ReadRestriction | undefined;
   projectId?: string | undefined;
   conversationId?: string | undefined;
   planId?: string | undefined;
@@ -383,6 +387,12 @@ export const buildMcpHeaders = (
   if (context.agentSessionId) {
     headers['X-Agent-Session-ID'] = context.agentSessionId;
   }
+
+  // The Run's own restriction rides every call; the model cannot supply or clear it.
+  Object.assign(
+    headers,
+    readRestrictionHeaders(context.readRestriction ?? readRestrictionFor({ inert: context.inert })),
+  );
 
   return headers;
 };

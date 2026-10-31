@@ -234,6 +234,10 @@ export const implementHandler: UserLaunchablePromptTypeHandler<LocalImplementPro
   mcpToolUseCase: 'coding',
   submissionTools: [reportChangedFilesTool, requestAgentSessionServiceScopeTool],
 
+  resolveRuntime(payload) {
+    return payload.runtime;
+  },
+
   async prepare(
     run: AgenticSession,
     payload: LocalImplementPromptPayload,
