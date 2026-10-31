@@ -293,6 +293,33 @@ describe('GetToolGuidanceToolsProvider', () => {
     );
   });
 
+  it('tells edits to revise a pending proposal via update_proposal, not creates', async () => {
+    const ctx = { headers: { 'x-project-id': PROJECT_ID } } as any;
+    const workItem = (toolName: string) =>
+      provider.getToolGuidance(
+        {
+          toolName,
+          workItemType: 'BUG',
+          authoringRootProof: AUTHORING_ROOT_PROOF,
+        },
+        {} as any,
+        ctx,
+      );
+    const designDocEdit = await provider.getToolGuidance(
+      { toolName: 'edit_design_doc' },
+      {} as any,
+      {} as any,
+    );
+
+    expect(getText(await workItem('edit_work_item'))).toContain(
+      'update_proposal',
+    );
+    expect(getText(designDocEdit)).toContain('update_proposal');
+    expect(getText(await workItem('create_work_item'))).not.toContain(
+      'update_proposal',
+    );
+  });
+
   describe('plan and design-doc resolved-direction guidance', () => {
     async function getEditGuidance(): Promise<string> {
       const result = await provider.getToolGuidance(
