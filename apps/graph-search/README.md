@@ -2,8 +2,9 @@
 
 The Rust foundation for a PostgreSQL graph/search backend. One process owns
 separate `graph` and `search` modules and a dedicated logical database on the
-existing PostgreSQL server. The search module includes the text encoder; graph
-traversal, search queries, authentication and event ingestion are follow-on work.
+existing PostgreSQL server. The search module includes the text encoder and the
+search operations (see [Search](#search)); graph traversal and event ingestion
+are follow-on work.
 This shell is not ready to replace the existing backends.
 
 ## Build from a clean checkout
@@ -196,6 +197,77 @@ GRAPH_SEARCH_TEST_MODEL_DIR=models/snowflake-arctic-embed-s pnpm test:model
 On macOS, building needs the macOS 15 SDK (Xcode 16 or current Command Line
 Tools): the ONNX Runtime build for Apple Silicon references CoreML classes
 missing from older SDKs, although the encoder only uses the CPU.
+
+## Search
+
+The search group answers the operations of `openapi/specs/embeddings/openapi.yaml`:
+create embedding, search (GET and POST, unscoped and organization/project-scoped),
+structured search, batch search, organization projection deletion, stats and
+health. The two debug operations are not served (they answer 501).
+
+Each searchable unit (a whole document, or a 200-word chunk of one) is a row in
+`search.unit` holding its text, title, metadata, a weighted full-text column,
+trigram indexes on title and text, and one `halfvec` vector from the encoder.
+Writing a document replaces all of its units in one transaction. Searches always
+filter by organization, and by project when one is given, before scoring:
+
+- **Text:** PostgreSQL full-text rank over title and text (any query word counts,
+  not all), plus trigram similarity on title and text for near-spellings.
+- **Meaning:** cosine similarity between the query vector and each unit's vector,
+  by an exact scan of the filtered units. There is no approximate vector index;
+  add one only if measuring a real project shows the scan is too slow, and record
+  that measurement here.
+- **Hybrid** (the default) combines them as 0.7 × meaning + 0.3 × text (text
+  normalized to the best text hit), adds any per-type boosts and the optional
+  recency boost, then applies the threshold relative to the top hit, the offset
+  and the result limit.
+
+Query vectors carry Arctic Embed's query prefix; stored text does not.
+
+Projection deletion records an immutable tombstone, deletes the organization's
+units and verifies none remain, in one transaction. Identical retries succeed; a
+different identity gets 409 with the retained one. After deletion, writes for
+that organization are refused with 409.
+
+The search queries currently use unchecked SQLx calls because they were written
+without a reachable database. Convert them to checked macros and regenerate
+`.sqlx/` as described in [Build from a clean checkout](#build-from-a-clean-checkout).
+
+### What callers lose compared with the deployed search (for review)
+
+> **Status: awaiting user review.** This list is not a claim of parity; it is
+> what is known to differ from the deployed Vespa path today.
+
+- **Scores and ordering differ.** Similarity values come from a different model
+  and a different blend of signals, so the same query can return the same items
+  in another order, with other scores, and a threshold can keep a different set.
+- **No token-level match positions.** Each unit has one vector, not one per token,
+  so `matchSpans` is never returned and per-token max-sim ranking is gone.
+- **Long documents are judged by their opening.** The encoder reads at most 512
+  tokens per unit. `level: "chunk"` splits text into 200-word units, but
+  `level: "document"` units are matched by meaning on their beginning only (text
+  matching still covers the whole unit).
+- **Fuzzy matching is trigram-based.** Typo tolerance comes from trigram
+  similarity on title and text, and `title_fuzzy` matches the title only.
+  Results for misspelled or partial words will differ from the deployed path.
+- **No Vespa ranking profiles or phrase boosts.** Structured search requires every
+  `must` term as a phrase and ranks `should` terms and `phrases` by full-text
+  rank; there is no weak-AND or separate phrase-proximity boost.
+- **Stats report fewer figures.** `total_vocabulary_size` is not reported, and
+  `embedding_method` is the model name. Stats and health count only the caller's
+  organization.
+- **Embedding requests need tenant metadata.** `metadata` with `id`,
+  `organizationId` and `type` is required, because units are stored and replaced
+  per organization and document (not checked against the deployed service's
+  behaviour). Metadata is checked for its required fields only; unknown
+  fields are stored rather than rejected.
+- **Unspecified GET parameters.** The API's search client also sends
+  `statuses` and `initiativeId`, which are honoured as filters; `parentTaskId`
+  is ignored.
+- **Type filters match either type.** `type`, `entityType` and their aliases
+  match the canonical type (`task`, `design_doc`, …) or the work-item type key,
+  case-insensitively; `taskTypes` and `excludeTaskTypes` match the key exactly.
+- **Debug operations** (`/debug`, `/debug/entity`) are not available.
 
 ## Integration verification
 

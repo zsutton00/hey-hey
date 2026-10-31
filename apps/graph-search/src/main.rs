@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use axum::Extension;
 use hey_hey_graph_search::{config::Config, database, search, server};
 use tracing_subscriber::EnvFilter;
 
@@ -19,21 +20,26 @@ async fn main() -> Result<()> {
     let config = Config::from_env()?;
     let auth = hey_hey_graph_search::auth::Authenticator::from_env().await?;
     // Load the model before touching the database so a missing file fails fast.
-    // Search routes take the encoder once they serve documents and queries.
-    let _encoder = config
+    let encoder = config
         .search
         .enabled
         .then(|| search::encoder::Encoder::load(&config.search.encoder))
         .transpose()?;
     let pool = database::connect_and_migrate(&config).await?;
-    if config.search.enabled {
+    let mut app = server::router(&config, pool.clone(), auth);
+    if let Some(encoder) = encoder {
         search::model_record::verify(&pool, &config.search.encoder).await?;
+        app = app.layer(Extension(search::routes::SearchState {
+            pool: pool.clone(),
+            encoder,
+            model: config.search.encoder.model.clone(),
+        }));
     }
     let listener = tokio::net::TcpListener::bind(config.bind)
         .await
         .context("Cannot bind GRAPH_SEARCH_BIND; choose an available address and port")?;
-    tracing::info!(address = %listener.local_addr()?, "graph/search foundation ready");
-    axum::serve(listener, server::router(&config, pool.clone(), auth))
+    tracing::info!(address = %listener.local_addr()?, "graph/search ready");
+    axum::serve(listener, app)
         .with_graceful_shutdown(shutdown())
         .await?;
     pool.close().await;

@@ -8,7 +8,7 @@
     "type-check": "cargo check --locked --all-targets",
     "lint": "cargo fmt --all --check && cargo clippy --locked --all-targets -- -D warnings",
     "test": "cargo test --locked",
-    "test:database": "cargo test --locked --test database -- --ignored --test-threads=1",
+    "test:database": "cargo test --locked --test database --test search -- --ignored --test-threads=1",
     "test:model": "cargo test --locked --test encoder -- --ignored",
     "check": "pnpm lint && pnpm type-check && pnpm test",
     "test:container": "bash scripts/test-container.sh"

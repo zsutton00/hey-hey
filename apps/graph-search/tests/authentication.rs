@@ -22,6 +22,10 @@ fn app() -> axum::Router {
     let pool = PgPoolOptions::new().connect_lazy_with(config.database.clone());
     server::router(&config, pool, common::auth())
 }
+/// Authentication and authorization passed; the operation itself answered.
+fn authorized(status: StatusCode) -> bool {
+    !matches!(status, StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN)
+}
 fn user() -> Value {
     json!({"sub":"user", "currentOrgId":"28f52f56-080e-40b6-a81b-2d98bc6e5f30", "project_ids":["7693af38-9441-45c5-932e-c7dcbd509b82"], "orgMemberships":[{"orgId":"28f52f56-080e-40b6-a81b-2d98bc6e5f30", "role":"OWNER"}], "exp":now()+300})
 }
@@ -153,10 +157,8 @@ async fn api_user_shape_is_accepted_without_issuer_or_audience_and_tenancy_is_en
         "/embeddings/search",
         "/api/organizations/28f52f56-080e-40b6-a81b-2d98bc6e5f30/projects/7693af38-9441-45c5-932e-c7dcbd509b82/topology",
     ] {
-        assert_eq!(
-            request("GET", path, Some(&token), Value::Null).await,
-            StatusCode::NOT_IMPLEMENTED
-        );
+        let status = request("GET", path, Some(&token), Value::Null).await;
+        assert!(authorized(status), "{path}: {status}");
     }
     for path in [
         "/api/organizations/fc97bf36-99e8-427e-99ab-6d24ea2c2410/projects/7693af38-9441-45c5-932e-c7dcbd509b82/topology",
@@ -181,6 +183,63 @@ async fn api_user_shape_is_accepted_without_issuer_or_audience_and_tenancy_is_en
     );
 }
 #[tokio::test]
+async fn debug_operations_accept_only_the_embeddings_debug_credential() {
+    let debug = |scopes: Value, aud: Value| {
+        let mut claims =
+            json!({"sub":"system:embeddings-debug:admin", "scopes":scopes, "exp":now()+300});
+        if !aud.is_null() {
+            claims["aud"] = aud;
+        }
+        token(&claims)
+    };
+    let mut admin_user = user();
+    admin_user["scopes"] = json!(["read", "write", "admin"]);
+    admin_user["isDevAdmin"] = json!(true);
+    let rejected = [
+        None,
+        Some(token(&user())),
+        Some(token(&admin_user)),
+        Some(debug(json!(["embeddings:debug:read"]), Value::Null)),
+        Some(debug(
+            json!(["embeddings:debug:read"]),
+            json!("graph-service"),
+        )),
+        Some(debug(
+            json!(["embeddings:debug:read", "read"]),
+            json!("embeddings-service"),
+        )),
+        Some(debug(
+            json!(["organization:projection:delete"]),
+            json!("embeddings-service"),
+        )),
+    ];
+    for path in ["/debug", "/debug/entity?type=task&id=t-1"] {
+        for credential in &rejected {
+            let status = request("GET", path, credential.as_deref(), Value::Null).await;
+            let expected = if credential.is_none() {
+                StatusCode::UNAUTHORIZED
+            } else {
+                StatusCode::FORBIDDEN
+            };
+            assert_eq!(status, expected, "{path}");
+        }
+        let accepted = debug(
+            json!(["embeddings:debug:read"]),
+            json!("embeddings-service"),
+        );
+        assert_eq!(
+            request("GET", path, Some(&accepted), Value::Null).await,
+            StatusCode::NOT_IMPLEMENTED,
+            "{path}"
+        );
+        // The debug credential is not an ordinary read credential.
+        assert_eq!(
+            request("GET", "/embeddings/search", Some(&accepted), Value::Null).await,
+            StatusCode::FORBIDDEN
+        );
+    }
+}
+#[tokio::test]
 async fn deletion_credentials_are_bound_to_surface_scope_organization_marker_and_expiry() {
     for (path, audience, other) in [
         (
@@ -196,10 +255,8 @@ async fn deletion_credentials_are_bound_to_surface_scope_organization_marker_and
     ] {
         let claims = json!({"sub":"system:projection-deletion", "organizationId":"28f52f56-080e-40b6-a81b-2d98bc6e5f30", "currentOrgId":"28f52f56-080e-40b6-a81b-2d98bc6e5f30", "markerId":"66064483-8ce7-4a7f-8d1c-7e9ccde8ec74", "scopes":["organization:projection:delete"], "aud":audience,"exp":now()+300});
         let body = json!({"organizationId":"28f52f56-080e-40b6-a81b-2d98bc6e5f30","markerId":"66064483-8ce7-4a7f-8d1c-7e9ccde8ec74"});
-        assert_eq!(
-            request("POST", path, Some(&token(&claims)), body.clone()).await,
-            StatusCode::NOT_IMPLEMENTED
-        );
+        let status = request("POST", path, Some(&token(&claims)), body.clone()).await;
+        assert!(authorized(status), "{path}: {status}");
         for (field, value) in [
             ("aud", json!(other)),
             ("aud", json!([audience, other])),
@@ -373,10 +430,9 @@ async fn read_only_membership_cannot_write_and_cross_org_roles_do_not_grant_writ
         .unwrap()
         .push(json!({"orgId":"fc97bf36-99e8-427e-99ab-6d24ea2c2410","role":"OWNER"}));
     let token = token(&claims);
-    assert_eq!(
-        request("GET", "/embeddings/search", Some(&token), Value::Null).await,
-        StatusCode::NOT_IMPLEMENTED
-    );
+    assert!(authorized(
+        request("GET", "/embeddings/search", Some(&token), Value::Null).await
+    ));
     assert_eq!(
         request(
             "POST",
@@ -421,10 +477,9 @@ async fn review_embedding_writes_authorize_the_metadata_tenant() {
             "projectId":"7693af38-9441-45c5-932e-c7dcbd509b82"
         }
     });
-    assert_eq!(
-        request("POST", "/embeddings", Some(&token), body.clone()).await,
-        StatusCode::NOT_IMPLEMENTED
-    );
+    assert!(authorized(
+        request("POST", "/embeddings", Some(&token), body.clone()).await
+    ));
     for field in ["organizationId", "projectId"] {
         let mut forbidden = body.clone();
         forbidden["metadata"][field] = json!("fc97bf36-99e8-427e-99ab-6d24ea2c2410");

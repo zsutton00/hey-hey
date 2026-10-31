@@ -56,7 +56,7 @@ jobs:
         run: |
           cargo clean -p hey-hey-graph-search
           cargo check --locked --all-targets
-          cargo test --locked --test database -- --ignored --test-threads=1
+          cargo test --locked --test database --test search -- --ignored --test-threads=1
       - name: Build and smoke-test runtime image
         run: |
           docker build -f Dockerfile -t heyhey-graph-search:local ../..

@@ -27,7 +27,7 @@ async fn startup_migrates_restarts_and_refuses_flyway() -> anyhow::Result<()> {
     let migrations: i64 = sqlx::query_scalar("SELECT count(*) FROM _sqlx_migrations WHERE success")
         .fetch_one(&pool)
         .await?;
-    assert_eq!(migrations, 2);
+    assert_eq!(migrations, 3);
     let response = server::router(&config, pool.clone(), common::auth())
         .oneshot(Request::builder().uri("/healthz").body(Body::empty())?)
         .await?;
