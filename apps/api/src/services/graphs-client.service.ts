@@ -122,6 +122,22 @@ export class GraphsClientService {
     return response.data;
   }
 
+  async retireHint(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    hintId: string,
+    userToken: string,
+  ): Promise<void> {
+    await firstValueFrom(
+      this.hintsService.retireHint(
+        organizationId,
+        projectId,
+        hintId,
+        this.userAuthConfig(userToken),
+      ),
+    );
+  }
+
   async findHintsByConnectedItems(
     organizationId: OrganizationId,
     projectId: ProjectId,

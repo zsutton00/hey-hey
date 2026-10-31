@@ -37,6 +37,7 @@ function setup() {
     createHint: jest.fn(),
     addHintConnection: jest.fn(),
     getHint: jest.fn(),
+    retireHint: jest.fn(),
     findHintsByConnectedItems: jest.fn(),
   };
   const resourceAccess = {
@@ -168,6 +169,29 @@ describe('HintService', () => {
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(graphsClient.addHintConnection).not.toHaveBeenCalled();
+  });
+
+  it('retires a hint whose connected items are all visible', async () => {
+    const { service, graphsClient } = setup();
+    graphsClient.getHint.mockResolvedValue(makeHint('h1', [visibleTask]));
+    await service.retireHint(requestor, 'h1');
+    expect(graphsClient.retireHint).toHaveBeenCalledWith(
+      requestor.organizationId,
+      requestor.projectId,
+      'h1',
+      requestor.token,
+    );
+  });
+
+  it('refuses to retire a hint connected to an item the caller cannot see', async () => {
+    const { service, graphsClient } = setup();
+    graphsClient.getHint.mockResolvedValue(
+      makeHint('h1', [visibleTask, hiddenTask]),
+    );
+    await expect(service.retireHint(requestor, 'h1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(graphsClient.retireHint).not.toHaveBeenCalled();
   });
 
   it('lets graph errors surface', async () => {

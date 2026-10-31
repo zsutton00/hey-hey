@@ -160,6 +160,35 @@ export class HintService {
     return toHintView(hint);
   }
 
+  async retireHint(requestor: HintRequestor, hintId: string): Promise<void> {
+    this.logger.log('Retiring hint', {
+      projectId: requestor.projectId,
+      hintId,
+    });
+    await this.assertProjectAccess(requestor);
+    const existing = await this.graphsClient.getHint(
+      requestor.organizationId,
+      requestor.projectId,
+      hintId,
+      requestor.token,
+    );
+    // A caller may only retire a hint it could have read.
+    await this.assertVisible(
+      requestor,
+      existing.connections.map((c) => ({
+        id: c.targetNodeId,
+        entityType: c.targetEntityType,
+      })),
+    );
+    await this.graphsClient.retireHint(
+      requestor.organizationId,
+      requestor.projectId,
+      hintId,
+      requestor.token,
+    );
+    this.logger.log('Retired hint', { projectId: requestor.projectId, hintId });
+  }
+
   async findHintsForItems(
     requestor: HintRequestor,
     itemIds: string[],

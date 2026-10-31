@@ -274,7 +274,11 @@ export const PROJECT_REPORT_SECTION_MCP_TOOLS: readonly string[] = PROJECT_REPOR
  * Hint tools, offered to the sessions in `HINT_USE_CASES`. The API omits them entirely when its
  * deployment-wide hints switch is off.
  */
-export const HINT_WRITE_MCP_TOOLS: readonly string[] = ['create_hint', 'add_hint_connection'];
+export const HINT_WRITE_MCP_TOOLS: readonly string[] = [
+  'create_hint',
+  'add_hint_connection',
+  'delete_hint',
+];
 export const HINT_READ_MCP_TOOLS: readonly string[] = ['get_hints_for_items'];
 
 /**

@@ -537,6 +537,8 @@ Record a hint with \`create_hint\`:
 - In a conversation, when the user gives direction or a correction that is not requirement-worthy, write the hint without asking. Always write one when the user is emphatic about a correction or repeats it.
 - At the end of coding work, write hints for gotchas that neither the code nor the task makes obvious.
 
+Delete a hint with \`delete_hint\` when it is wrong, duplicated or no longer applies; leave one that was merely not useful to you.
+
 Write the direction itself ("Feature names are never used as identity; use Feature IDs"), never how it was said. Connect the hint to what it is relevant to, typically the focused item and its owning feature. In a project with established requirements, raise input that contradicts them with the user instead of recording it.`;
 
 /**
