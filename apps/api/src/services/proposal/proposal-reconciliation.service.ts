@@ -1957,13 +1957,9 @@ export class ProposalReconciliationService {
       where: { materializationId, entityType: 'TASK' },
       orderBy: { entityId: 'asc' },
     });
-    for (const receipt of receipts) {
-      this.assertReviewedBasisCurrent(
-        [receipt.basis as unknown as ProposalReconciliationBasis],
-        [await this.adapter.task(tx, proposal, receipt.entityId, true)],
-        proposal.id,
-      );
-    }
+    // Receipts prove committed effects, not a lease on the resulting content.
+    // Unfinished operations compare their reviewed basis in guardTaskEffect;
+    // publication must preserve edits made after a successful write.
     await writeMarker(
       receipts.map(({ entityId }: { entityId: string }) => entityId),
     );

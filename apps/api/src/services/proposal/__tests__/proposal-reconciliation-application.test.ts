@@ -690,7 +690,7 @@ describe('reviewed reconciliation application', () => {
     }
   });
 
-  it('lets a retried effect proceed after a version-only bump and publishes only written tasks', async () => {
+  it('publishes committed effects after a later user edit and marks only written tasks', async () => {
     const f = fixture();
     await f.owner.guardTaskEffect(
       f.tx,
@@ -703,7 +703,10 @@ describe('reviewed reconciliation application', () => {
         f.change({ ...original.content, name: 'Renamed' }, 'second');
       },
     );
-    f.change(structuredClone(f.getCurrent().content), 'child-approved-bump');
+    f.change(
+      { ...f.getCurrent().content, name: 'Later user edit' },
+      'user-edit',
+    );
     const writeMarker = jest.fn(async () => undefined);
     await f.owner.publishTaskEffects(
       f.tx,
@@ -712,6 +715,7 @@ describe('reviewed reconciliation application', () => {
       writeMarker,
     );
     expect(writeMarker).toHaveBeenCalledWith(['target']);
+    expect(f.getCurrent().content.name).toBe('Later user edit');
   });
 });
 
