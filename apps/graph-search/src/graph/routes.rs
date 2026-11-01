@@ -25,9 +25,9 @@ pub fn router(enabled: bool, auth: Authenticator) -> Router {
         return Router::new();
     }
     AuthenticatedRouter::new(auth, Surface::Graph)
-        .route("/organizations/{organizationId}/projects/{projectId}/template-graph", get(pending), Policy::Template)
-        .route("/organizations/{organizationId}/projects/{projectId}/template-graph", put(pending), Policy::Template)
-        .route("/organizations/{organizationId}/projection-deletion", post(pending), Policy::Deletion(Surface::Graph))
+        .route("/organizations/{organizationId}/projects/{projectId}/template-graph", get(template_snapshot), Policy::Template)
+        .route("/organizations/{organizationId}/projects/{projectId}/template-graph", put(template_apply), Policy::Template)
+        .route("/organizations/{organizationId}/projection-deletion", post(delete_projection), Policy::Deletion(Surface::Graph))
         .route("/nodes", post(pending), Policy::User)
         .route("/nodes", get(pending), Policy::User)
         .route("/nodes/{nodeId}", get(pending), Policy::User)
@@ -44,23 +44,23 @@ pub fn router(enabled: bool, auth: Authenticator) -> Router {
         .route("/organizations/{organizationId}/projects/{projectId}/entity-neighborhood", post(neighborhood), Policy::User)
         .route("/organizations/{organizationId}/projects/{projectId}/topology", get(topology), Policy::User)
         .route("/organizations/{organizationId}/projects/{projectId}/entities/{entityId}/provenance", get(provenance), Policy::User)
-        .route("/organizations/{organizationId}/projects/{projectId}/agent-edges", post(pending), Policy::User)
-        .route("/organizations/{organizationId}/projects/{projectId}/agent-edges", get(pending), Policy::User)
-        .route("/organizations/{organizationId}/projects/{projectId}/agent-edges/batch", post(pending), Policy::User)
-        .route("/organizations/{organizationId}/projects/{projectId}/agent-edges/incident-query", post(pending), Policy::User)
-        .route("/organizations/{organizationId}/projects/{projectId}/agent-edges/incident-delete", post(pending), Policy::User)
-        .route("/organizations/{organizationId}/projects/{projectId}/agent-edges/{agentEdgeId}", get(pending), Policy::User)
-        .route("/organizations/{organizationId}/projects/{projectId}/agent-edges/{agentEdgeId}", patch(pending), Policy::User)
-        .route("/organizations/{organizationId}/projects/{projectId}/agent-edges/{agentEdgeId}", delete(pending), Policy::User)
-        .route("/organizations/{organizationId}/projects/{projectId}/hints", get(pending), Policy::User)
-        .route("/organizations/{organizationId}/projects/{projectId}/hints", post(pending), Policy::User)
-        .route("/organizations/{organizationId}/projects/{projectId}/hints/connected-items-query", post(pending), Policy::User)
-        .route("/organizations/{organizationId}/projects/{projectId}/hints/{hintId}", get(pending), Policy::User)
-        .route("/organizations/{organizationId}/projects/{projectId}/hints/{hintId}", patch(pending), Policy::User)
-        .route("/organizations/{organizationId}/projects/{projectId}/hints/{hintId}", delete(pending), Policy::User)
-        .route("/organizations/{organizationId}/projects/{projectId}/hints/{hintId}/connections", post(pending), Policy::User)
-        .route("/organizations/{organizationId}/projects/{projectId}/hints/{hintId}/connections/{connectionId}", patch(pending), Policy::User)
-        .route("/organizations/{organizationId}/projects/{projectId}/hints/{hintId}/connections/{connectionId}", delete(pending), Policy::User)
+        .route("/organizations/{organizationId}/projects/{projectId}/agent-edges", post(super::agent_edges::create), Policy::User)
+        .route("/organizations/{organizationId}/projects/{projectId}/agent-edges", get(super::agent_edges::list), Policy::User)
+        .route("/organizations/{organizationId}/projects/{projectId}/agent-edges/batch", post(super::agent_edges::batch), Policy::User)
+        .route("/organizations/{organizationId}/projects/{projectId}/agent-edges/incident-query", post(super::agent_edges::incident), Policy::User)
+        .route("/organizations/{organizationId}/projects/{projectId}/agent-edges/incident-delete", post(super::agent_edges::delete_incident), Policy::User)
+        .route("/organizations/{organizationId}/projects/{projectId}/agent-edges/{agentEdgeId}", get(super::agent_edges::get), Policy::User)
+        .route("/organizations/{organizationId}/projects/{projectId}/agent-edges/{agentEdgeId}", patch(super::agent_edges::update), Policy::User)
+        .route("/organizations/{organizationId}/projects/{projectId}/agent-edges/{agentEdgeId}", delete(super::agent_edges::delete), Policy::User)
+        .route("/organizations/{organizationId}/projects/{projectId}/hints", get(super::hints::list), Policy::User)
+        .route("/organizations/{organizationId}/projects/{projectId}/hints", post(super::hints::create), Policy::User)
+        .route("/organizations/{organizationId}/projects/{projectId}/hints/connected-items-query", post(super::hints::query), Policy::User)
+        .route("/organizations/{organizationId}/projects/{projectId}/hints/{hintId}", get(super::hints::get), Policy::User)
+        .route("/organizations/{organizationId}/projects/{projectId}/hints/{hintId}", patch(super::hints::update), Policy::User)
+        .route("/organizations/{organizationId}/projects/{projectId}/hints/{hintId}", delete(super::hints::retire), Policy::User)
+        .route("/organizations/{organizationId}/projects/{projectId}/hints/{hintId}/connections", post(super::hints::add), Policy::User)
+        .route("/organizations/{organizationId}/projects/{projectId}/hints/{hintId}/connections/{connectionId}", patch(super::hints::strength), Policy::User)
+        .route("/organizations/{organizationId}/projects/{projectId}/hints/{hintId}/connections/{connectionId}", delete(super::hints::remove), Policy::User)
         .route("/admin/backup", post(pending), Policy::User)
         .finish()
 }
@@ -69,7 +69,7 @@ async fn pending() -> StatusCode {
     StatusCode::NOT_IMPLEMENTED
 }
 
-struct Failure(StatusCode, String);
+pub(super) struct Failure(pub(super) StatusCode, pub(super) String);
 impl IntoResponse for Failure {
     fn into_response(self) -> Response {
         (self.0, Json(json!({"error":self.1}))).into_response()
@@ -84,10 +84,10 @@ impl From<anyhow::Error> for Failure {
         )
     }
 }
-fn invalid(message: impl Into<String>) -> Failure {
+pub(super) fn invalid(message: impl Into<String>) -> Failure {
     Failure(StatusCode::BAD_REQUEST, message.into())
 }
-fn scope(org: String, project: String) -> Result<Scope, Failure> {
+pub(super) fn scope(org: String, project: String) -> Result<Scope, Failure> {
     if !validation::uuid(&org) || !validation::uuid(&project) {
         return Err(invalid("Invalid organization or project identifier"));
     }
@@ -190,4 +190,59 @@ async fn create_batch(
         status,
         Json(batch::create(&pool, &principal, request).await?),
     ))
+}
+
+async fn delete_projection(
+    Extension(pool): Extension<PgPool>,
+    bytes: axum::body::Bytes,
+) -> Response {
+    use crate::search::wire::ProjectionDeletionCommand;
+    let identity =
+        match serde_json::from_slice::<ProjectionDeletionCommand>(&bytes)
+            .map_err(|e| e.to_string())
+            .and_then(|command| {
+                command
+                    .validate()
+                    .map_err(|e| format!("{} {}", e.field, e.message))
+            }) {
+            Ok(identity) => identity,
+            Err(message) => return (
+                StatusCode::BAD_REQUEST,
+                Json(
+                    json!({"errorCode":"PROJECTION_DELETION_VALIDATION_FAILED","message":message}),
+                ),
+            )
+                .into_response(),
+        };
+    match super::lifecycle::delete(&pool, &identity).await {
+        Ok(super::lifecycle::Outcome::Deleted) => {
+            let mut result = identity.to_json();
+            result["tombstoneRecorded"] = json!(true);
+            result["contentVerificationCompleted"] = json!(true);
+            Json(result).into_response()
+        }
+        Ok(super::lifecycle::Outcome::Conflict(retained)) => (StatusCode::CONFLICT, Json(json!({"errorCode":"PROJECTION_DELETION_IDENTITY_CONFLICT","message":"A different deletion identity is already retained for this organization","retainedIdentity":retained}))).into_response(),
+        Err(error) => {
+            tracing::error!(error=%error,"Graph projection deletion failed");
+            (StatusCode::SERVICE_UNAVAILABLE, Json(json!({"errorCode":"PROJECTION_DELETION_RETRYABLE_FAILURE","message":"Projection deletion failed; retry the same command","retryable":true}))).into_response()
+        }
+    }
+}
+
+async fn template_snapshot(
+    Extension(pool): Extension<PgPool>,
+    Path((org, project)): Path<(String, String)>,
+) -> Result<Json<TemplateGraphSnapshot>, Failure> {
+    Ok(Json(
+        super::template::snapshot(&pool, &scope(org, project)?).await?,
+    ))
+}
+async fn template_apply(
+    Extension(pool): Extension<PgPool>,
+    Path((org, project)): Path<(String, String)>,
+    Json(value): Json<Value>,
+) -> Result<StatusCode, Failure> {
+    let command = validation::decode("TemplateGraphCopyCommand", value).map_err(invalid)?;
+    super::template::apply(&pool, &scope(org, project)?, command).await?;
+    Ok(StatusCode::NO_CONTENT)
 }

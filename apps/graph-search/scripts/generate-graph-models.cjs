@@ -19,9 +19,25 @@ function resolve(s, file) {
       .split("/")
       .reduce((v, k) => v[k], doc(file));
   }
+  if (s.allOf) {
+    const [base, baseFile] = resolve(s.allOf[0], file);
+    return [{ ...base, ...s, allOf: undefined }, baseFile];
+  }
   return [s, file];
 }
 const names = [
+  "CreateAgentEdgeDto",
+  "UpdateAgentEdgeDto",
+  "BatchCreateAgentEdgesRequest",
+  "FindIncidentAgentEdgesRequest",
+  "DeleteIncidentAgentEdgesRequest",
+  "CreateHintDto",
+  "UpdateHintTextDto",
+  "HintConnectionInput",
+  "SetHintConnectionStrengthDto",
+  "FindHintsByConnectedItemsRequest",
+  "TemplateGraphCopyCommand",
+  "TemplateGraphSnapshot",
   "SearchRequest",
   "EntityNeighborhoodRequest",
   "IncidentEdgesRequest",
@@ -33,6 +49,10 @@ let output =
 const done = new Set();
 const snake = (s) => s.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase();
 function ty(s, file, name) {
+  if (s.allOf) {
+    const [resolved, resolvedFile] = resolve(s, file);
+    return ty(resolved, resolvedFile, name);
+  }
   if (s.$ref) {
     const n = s.$ref.split("/").pop();
     let [r, f] = resolve(s, file);
@@ -73,7 +93,13 @@ function emit(name, s, file) {
   output += `#[derive(Clone, Debug, Default, Deserialize, Serialize)]\n${s.additionalProperties === false ? "#[serde(deny_unknown_fields)]\n" : ""}pub struct ${name} {\n${body}}\n`;
 }
 for (const name of names) {
-  emit(name, doc(source).components.schemas[name], source);
+  const [s, file] = resolve(
+    doc(source).components.schemas[name] || {
+      $ref: "../schemas/hints.yaml#/" + name,
+    },
+    source,
+  );
+  emit(name, s, file);
 }
 
 function schema(s, file) {
@@ -89,6 +115,9 @@ function schema(s, file) {
     "maxItems",
     "additionalProperties",
     "format",
+    "nullable",
+    "minLength",
+    "maxLength",
   ]) {
     if (s[key] !== undefined) {
       result[key] = s[key];
@@ -105,7 +134,15 @@ function schema(s, file) {
   return result;
 }
 const schemas = Object.fromEntries(
-  names.map((n) => [n, schema(doc(source).components.schemas[n], source)]),
+  names.map((n) => [
+    n,
+    schema(
+      doc(source).components.schemas[n] || {
+        $ref: "../schemas/hints.yaml#/" + n,
+      },
+      source,
+    ),
+  ]),
 );
 output += `pub const REQUEST_SCHEMAS: &str = r###"${JSON.stringify(schemas)}"###;\n`;
 const entityTypes = resolve(
@@ -113,6 +150,11 @@ const entityTypes = resolve(
   source,
 )[0].enum;
 output += `pub const ENTITY_TYPES: &[&str] = &${JSON.stringify(entityTypes)};\n`;
+const edgeTypes = resolve(
+  { $ref: "../schemas/agent-edges.yaml#/AgentEdgeType" },
+  source,
+)[0].enum;
+output += `pub const AGENT_EDGE_TYPES: &[&str] = &${JSON.stringify(edgeTypes)};\n`;
 const formatted = require("child_process").spawnSync(
   "rustfmt",
   ["--edition", "2024"],

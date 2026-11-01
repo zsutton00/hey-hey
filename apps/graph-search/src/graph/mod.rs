@@ -7,3 +7,11 @@ mod queries;
 mod scoring;
 pub mod store;
 mod validation;
+
+pub mod lifecycle;
+
+mod template;
+
+mod agent_edges;
+mod hints;
+mod native;

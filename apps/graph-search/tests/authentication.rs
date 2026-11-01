@@ -299,16 +299,15 @@ async fn deletion_credentials_are_bound_to_surface_scope_organization_marker_and
 async fn template_credentials_remain_separate_and_bound_to_target() {
     let claims = json!({"sub":"system:template-copy:28f52f56-080e-40b6-a81b-2d98bc6e5f30", "organizationId":"28f52f56-080e-40b6-a81b-2d98bc6e5f30", "projectId":"7693af38-9441-45c5-932e-c7dcbd509b82", "scopes":["project:template:copy"], "aud":"graph-service", "exp":now()+300});
     for method in ["GET", "PUT"] {
-        assert_eq!(
-            request(
-                method,
-                "/api/organizations/28f52f56-080e-40b6-a81b-2d98bc6e5f30/projects/7693af38-9441-45c5-932e-c7dcbd509b82/template-graph",
-                Some(&token(&claims)),
-                Value::Null
-            )
-            .await,
-            StatusCode::NOT_IMPLEMENTED
-        );
+        let status = request(
+            method,
+            "/api/organizations/28f52f56-080e-40b6-a81b-2d98bc6e5f30/projects/7693af38-9441-45c5-932e-c7dcbd509b82/template-graph",
+            Some(&token(&claims)),
+            Value::Null,
+        ).await;
+        // This fixture has no live database; assert the authentication boundary only.
+        assert_ne!(status, StatusCode::UNAUTHORIZED);
+        assert_ne!(status, StatusCode::FORBIDDEN);
         assert_eq!(
             request(
                 method,

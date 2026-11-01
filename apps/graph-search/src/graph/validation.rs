@@ -22,6 +22,9 @@ pub fn uuid(value: &str) -> bool {
         })
 }
 fn validate(schema: &Value, value: &Value, path: &str) -> Result<(), String> {
+    if value.is_null() && schema["nullable"] == true {
+        return Ok(());
+    }
     let fail = || format!("Invalid {path}");
     if let Some(values) = schema["enum"].as_array()
         && !values.contains(value)
@@ -63,6 +66,12 @@ fn validate(schema: &Value, value: &Value, path: &str) -> Result<(), String> {
         }
         Some("string") => {
             let text = value.as_str().ok_or_else(fail)?;
+            let length = text.chars().count() as u64;
+            if schema["minLength"].as_u64().is_some_and(|n| length < n)
+                || schema["maxLength"].as_u64().is_some_and(|n| length > n)
+            {
+                return Err(fail());
+            }
             match schema["format"].as_str() {
                 Some("uuid") if !uuid(text) => return Err(fail()),
                 Some("date-time") if OffsetDateTime::parse(text, &Rfc3339).is_err() => {

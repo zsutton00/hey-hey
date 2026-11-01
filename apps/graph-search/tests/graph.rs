@@ -642,3 +642,593 @@ fn find_plan_node<'a>(plan: &'a Value, node_type: &str) -> Option<&'a Value> {
         .iter()
         .find_map(|child| find_plan_node(child, node_type))
 }
+
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn projection_deletion_is_durable_scoped_and_fences_writes() -> anyhow::Result<()> {
+    let f = Fixture::new(9100).await?;
+    let scope = Scope {
+        organization: id(9100),
+        project: id(9101),
+    };
+    let foreign = Scope {
+        organization: id(9102),
+        project: id(9101),
+    };
+    sqlx::query("DELETE FROM graph.projection_deletion WHERE organization_id=$1")
+        .bind(&scope.organization)
+        .execute(&f.pool)
+        .await?;
+    let node = Node {
+        id: id(9103),
+        entity_type: "TASK".into(),
+        project_scoped: true,
+        labels: vec!["Task".into()],
+        properties: json!({"name":"fixture"}),
+        stub: false,
+        deleted: false,
+        created_at: None,
+        updated_at: None,
+    };
+    store::upsert_node(&f.pool, &scope, &node).await?;
+    store::upsert_node(&f.pool, &foreign, &node).await?;
+    sqlx::query("INSERT INTO graph.agent_edge_deletion (organization_id,project_id,id,deleted_basis) VALUES ($1,$2,$3,now()) ON CONFLICT DO NOTHING")
+        .bind(&scope.organization).bind(&scope.project).bind(&node.id).execute(&f.pool).await?;
+    let command = json!({"organizationId":scope.organization,"markerId":id(9104),
+        "irreversibleClosureAt":"2026-10-31T00:00:00Z","deletionDeadline":"2026-11-30T00:00:00Z"});
+    let path = format!(
+        "/api/organizations/{}/projection-deletion",
+        scope.organization
+    );
+    let token = |audience: &str| {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let mut header = Header::new(Algorithm::RS256);
+        header.kid = Some("test-key".into());
+        encode(
+            &header,
+            &json!({"sub":"system","aud":audience,"scopes":["organization:projection:delete"],
+            "organizationId":scope.organization,"markerId":id(9104),"exp":now+300}),
+            &EncodingKey::from_rsa_pem(include_bytes!("fixtures/signing.pem")).unwrap(),
+        )
+        .unwrap()
+    };
+    let graph_token = token("graph-service");
+    let search_token = token("embeddings-service");
+    assert_eq!(
+        f.call("POST", &path, &search_token, command.clone())
+            .await
+            .0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        store::nodes(&f.pool, &scope, std::slice::from_ref(&node.id))
+            .await?
+            .len(),
+        1
+    );
+    let (status, result) = f.call("POST", &path, &graph_token, command.clone()).await;
+    assert_eq!(status, StatusCode::OK, "{result}");
+    assert_eq!(result["tombstoneRecorded"], true);
+    assert_eq!(result["contentVerificationCompleted"], true);
+    let receipts: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM graph.agent_edge_deletion WHERE organization_id=$1",
+    )
+    .bind(&scope.organization)
+    .fetch_one(&f.pool)
+    .await?;
+    assert_eq!(receipts, 0);
+
+    assert!(
+        store::nodes(&f.pool, &scope, std::slice::from_ref(&node.id))
+            .await?
+            .is_empty()
+    );
+    assert_eq!(
+        store::nodes(&f.pool, &foreign, std::slice::from_ref(&node.id))
+            .await?
+            .len(),
+        1
+    );
+    assert!(store::upsert_node(&f.pool, &scope, &node).await.is_err());
+    assert_eq!(
+        f.call("POST", &path, &graph_token, command.clone()).await.0,
+        StatusCode::OK
+    );
+    let mut equivalent = command.clone();
+    equivalent["irreversibleClosureAt"] = json!("2026-10-30T17:00:00-07:00");
+    assert_eq!(
+        f.call("POST", &path, &graph_token, equivalent).await.0,
+        StatusCode::OK
+    );
+    let mut conflict = command;
+    conflict["deletionDeadline"] = json!("2026-12-01T00:00:00Z");
+    assert_eq!(
+        f.call("POST", &path, &graph_token, conflict).await.0,
+        StatusCode::CONFLICT
+    );
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn template_copy_receipt_preserves_later_edits() -> anyhow::Result<()> {
+    let f = Fixture::new(9200).await?;
+    sqlx::query(
+        "DELETE FROM graph.template_copy_receipt WHERE organization_id=$1 AND project_id=$2",
+    )
+    .bind(&f.scope.organization)
+    .bind(&f.scope.project)
+    .execute(&f.pool)
+    .await?;
+    let mut header = Header::new(Algorithm::RS256);
+    header.kid = Some("test-key".into());
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_secs();
+    let token = encode(
+        &header,
+        &json!({"sub":format!("system:template-copy:{}",f.scope.organization),"aud":"graph-service",
+        "scopes":["project:template:copy"],"organizationId":f.scope.organization,"projectId":f.scope.project,"exp":now+300}),
+        &EncodingKey::from_rsa_pem(include_bytes!("fixtures/signing.pem"))?,
+    )?;
+    let path = format!(
+        "/api/organizations/{}/projects/{}/template-graph",
+        f.scope.organization, f.scope.project
+    );
+    let mut command = json!({"id":id(9201),"snapshot":{"nodes":[{"id":id(9202),"label":"Task"},{"id":id(9203),"label":"Task"}],"edges":[{
+        "id":id(9204),"type":"RELATED_TO","sourceNodeId":id(9202),"targetNodeId":id(9203),"properties":{"source":"agent","reasoning":"original"},
+        "createdAt":"2026-10-31T00:00:00Z","updatedAt":"2026-10-31T00:00:00Z"}]}});
+    let mut legacy = command["snapshot"]["edges"][0].clone();
+    legacy["id"] = json!(id(9205));
+    legacy["type"] = json!("AGENT_LINKED");
+    legacy["properties"] = json!({"reasoning":"legacy relationship"});
+    command["snapshot"]["edges"]
+        .as_array_mut()
+        .unwrap()
+        .push(legacy);
+    let (status, body) = f.call("PUT", &path, &token, command.clone()).await;
+    assert_eq!(status, StatusCode::NO_CONTENT, "{body}");
+    let (status, snapshot) = f.call("GET", &path, &token, Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(snapshot["nodes"].as_array().unwrap().len(), 2);
+    assert!(
+        snapshot["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|e| e["type"] == "AGENT_LINKED")
+    );
+    assert_eq!(snapshot["edges"][0]["properties"]["reasoning"], "original");
+    sqlx::query("UPDATE graph.edge SET properties=properties || '{\"reasoning\":\"later edit\"}'::jsonb WHERE organization_id=$1 AND project_id=$2")
+        .bind(&f.scope.organization).bind(&f.scope.project).execute(&f.pool).await?;
+    assert_eq!(
+        f.call("PUT", &path, &token, command.clone()).await.0,
+        StatusCode::NO_CONTENT
+    );
+    let (_, snapshot) = f.call("GET", &path, &token, Value::Null).await;
+    assert_eq!(
+        snapshot["edges"][0]["properties"]["reasoning"],
+        "later edit"
+    );
+    let mut conflict = command;
+    conflict["snapshot"]["edges"][0]["properties"]["reasoning"] = json!("conflicting copy");
+    assert_eq!(
+        f.call("PUT", &path, &token, conflict).await.0,
+        StatusCode::CONFLICT
+    );
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn authored_edges_preserve_identity_incidence_and_tenant_boundaries() -> anyhow::Result<()> {
+    let f = Fixture::new(9100).await?;
+    let token = f.token(&f.scope.organization, vec![]);
+    let base = format!(
+        "/api/organizations/{}/projects/{}/agent-edges",
+        f.scope.organization, f.scope.project
+    );
+    let edge = json!({"id":id(9101),"sourceNodeId":id(9102),"sourceEntityType":"TASK","targetNodeId":id(9103),"targetEntityType":"DESIGN_DOC","type":"DEPENDS_ON","reasoning":"Required design","createdBySessionId":id(9104),"metadata":{"reviewed":true}});
+    let mut invalid = edge.clone();
+    invalid.as_object_mut().unwrap().remove("sourceEntityType");
+    assert_eq!(
+        f.call("POST", &base, &token, invalid).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    invalid = edge.clone();
+    invalid["sourceEntityType"] = json!("USER");
+    assert_eq!(
+        f.call("POST", &base, &token, invalid).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    let (status, first) = f.call("POST", &base, &token, edge.clone()).await;
+    assert_eq!(status, StatusCode::CREATED, "{first}");
+    assert_eq!(first["metadata"], edge["metadata"]);
+    let (status, retry) = f.call("POST", &base, &token, edge.clone()).await;
+    assert_eq!(status, StatusCode::CREATED, "{retry}");
+    assert_eq!(first, retry);
+    let mut conflict = edge.clone();
+    conflict["reasoning"] = json!("Different promise");
+    assert_eq!(
+        f.call("POST", &base, &token, conflict).await.0,
+        StatusCode::CONFLICT
+    );
+    let mut reverse = edge.clone();
+    reverse["id"] = json!(id(9105));
+    reverse["sourceNodeId"] = json!(id(9103));
+    reverse["sourceEntityType"] = json!("DESIGN_DOC");
+    reverse["targetNodeId"] = json!(id(9102));
+    reverse["targetEntityType"] = json!("TASK");
+    let batch = json!({"edges":[edge,reverse]});
+    for _ in 0..2 {
+        let (status, result) = f
+            .call("POST", &format!("{base}/batch"), &token, batch.clone())
+            .await;
+        assert_eq!(status, StatusCode::OK, "{result}");
+        assert!(
+            result["results"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|r| r["success"] == true),
+            "{result}"
+        );
+    }
+    let (status, list) = f
+        .call("GET", &format!("{base}?size=1&page=1"), &token, Value::Null)
+        .await;
+    assert_eq!(status, StatusCode::OK, "{list}");
+    assert_eq!(list["content"].as_array().unwrap().len(), 1);
+    assert_eq!(list["page"]["totalElements"], 2);
+    let query = json!({"nodeIds":[id(9102)],"types":["DEPENDS_ON"]});
+    let (status, incident) = f
+        .call("POST", &format!("{base}/incident-query"), &token, query)
+        .await;
+    assert_eq!(status, StatusCode::OK, "{incident}");
+    assert_eq!(incident.as_array().unwrap().len(), 2);
+    // Same edge identities in a different project cannot leak or be deleted.
+    let other = Fixture::new(9150).await?;
+    let other_base = format!(
+        "/api/organizations/{}/projects/{}/agent-edges",
+        other.scope.organization, other.scope.project
+    );
+    assert_eq!(
+        other
+            .call("POST", &other_base, &token, batch["edges"][0].clone())
+            .await
+            .0,
+        StatusCode::CREATED
+    );
+    let denied = f.token(&id(9999), vec![]);
+    assert_eq!(
+        f.call("GET", &format!("{base}/{}", id(9101)), &denied, Value::Null)
+            .await
+            .0,
+        StatusCode::FORBIDDEN
+    );
+    let patch = json!({"lastModifiedBySessionId":id(9104),"targetNodeId":id(9106),"targetEntityType":"SERVICE","metadata":null});
+    let path = format!("{base}/{}", id(9101));
+    let (status, updated) = f.call("PATCH", &path, &token, patch.clone()).await;
+    assert_eq!(status, StatusCode::OK, "{updated}");
+    assert_eq!(updated["targetEntityType"], "SERVICE");
+    assert!(updated["metadata"].is_null());
+    assert_eq!(
+        f.call(
+            "PATCH",
+            &format!("{path}?expectedUpdatedAt=2000-01-01T00:00:00Z"),
+            &token,
+            patch
+        )
+        .await
+        .0,
+        StatusCode::CONFLICT
+    );
+    let (status, result) = f
+        .call(
+            "POST",
+            &format!("{base}/incident-delete"),
+            &token,
+            json!({"nodeIds":[id(9102)]}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{result}");
+    assert_eq!(result["deletedEdgeCount"], 2);
+    assert_eq!(
+        f.call("GET", &path, &token, Value::Null).await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        other
+            .call(
+                "GET",
+                &format!("{other_base}/{}", id(9101)),
+                &token,
+                Value::Null
+            )
+            .await
+            .0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        f.call("DELETE", &path, &token, Value::Null).await.0,
+        StatusCode::NO_CONTENT
+    );
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn hints_keep_weighted_connections_separate_from_origin_and_retire() -> anyhow::Result<()> {
+    let f = Fixture::new(9300).await?;
+    let token = f.token(&f.scope.organization, vec![]);
+    let base = format!(
+        "/api/organizations/{}/projects/{}/hints",
+        f.scope.organization, f.scope.project
+    );
+    let request = json!({"text":"Read the governing design","origin":{"entityType":"MESSAGE","entityId":id(9301)},"connections":[{"targetNodeId":id(9302),"targetEntityType":"TASK","strength":2.5}]});
+    let mut invalid = request.clone();
+    invalid["connections"] = json!([]);
+    assert_eq!(
+        f.call("POST", &base, &token, invalid).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    invalid = request.clone();
+    invalid["connections"][0]["strength"] = json!(-1);
+    assert_eq!(
+        f.call("POST", &base, &token, invalid).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    invalid = request.clone();
+    invalid["text"] = json!("   ");
+    assert_eq!(
+        f.call("POST", &base, &token, invalid).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    let (status, hint) = f.call("POST", &base, &token, request.clone()).await;
+    assert_eq!(status, StatusCode::CREATED, "{hint}");
+    let path = format!("{base}/{}", hint["id"].as_str().unwrap());
+    let connection = format!(
+        "{path}/connections/{}",
+        hint["connections"][0]["id"].as_str().unwrap()
+    );
+    assert_eq!(hint["connections"][0]["strength"], 2.5);
+    for (target, count) in [(9301, 0), (9302, 1)] {
+        let (status, result) = f
+            .call(
+                "POST",
+                &format!("{base}/connected-items-query"),
+                &token,
+                json!({"nodeIds":[id(target)]}),
+            )
+            .await;
+        assert_eq!(status, StatusCode::OK, "{result}");
+        assert_eq!(result["hints"].as_array().unwrap().len(), count);
+    }
+    let (_, result) = f.call("GET", &base, &token, Value::Null).await;
+    assert_eq!(result["hints"].as_array().unwrap().len(), 1);
+    let (status, result) = f
+        .call("PATCH", &path, &token, json!({"text":"Updated guidance"}))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{result}");
+    assert_eq!(result["text"], "Updated guidance");
+    let (status, result) = f
+        .call("PATCH", &connection, &token, json!({"strength":0}))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{result}");
+    assert_eq!(result["connections"][0]["strength"], 0.0);
+    assert_eq!(
+        f.call(
+            "POST",
+            &format!("{path}/connections"),
+            &token,
+            request["connections"][0].clone()
+        )
+        .await
+        .0,
+        StatusCode::CONFLICT
+    );
+    // A HINT target must already be live in this exact project.
+    assert_eq!(
+        f.call(
+            "POST",
+            &format!("{path}/connections"),
+            &token,
+            json!({"targetNodeId":id(9399),"targetEntityType":"HINT","strength":1})
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    let add = json!({"targetNodeId":id(9303),"targetEntityType":"SERVICE","strength":100});
+    let (status, result) = f
+        .call("POST", &format!("{path}/connections"), &token, add)
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{result}");
+    assert_eq!(result["connections"].as_array().unwrap().len(), 2);
+    let added = result["connections"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["targetNodeId"] == id(9303))
+        .unwrap();
+    let (_, result) = f
+        .call(
+            "DELETE",
+            &format!("{path}/connections/{}", added["id"].as_str().unwrap()),
+            &token,
+            Value::Null,
+        )
+        .await;
+    assert_eq!(result["hintRetired"], false);
+    let other = Fixture::new(9400).await?;
+    let other_path = path.replace(&f.scope.project, &other.scope.project);
+    assert_eq!(
+        other.call("GET", &other_path, &token, Value::Null).await.0,
+        StatusCode::NOT_FOUND
+    );
+    let (status, result) = f.call("DELETE", &connection, &token, Value::Null).await;
+    assert_eq!(status, StatusCode::OK, "{result}");
+    assert_eq!(result["hintRetired"], true);
+    assert!(!result["hint"]["retiredAt"].is_null());
+    let (_, result) = f.call("GET", &base, &token, Value::Null).await;
+    assert_eq!(result["hints"], json!([]));
+    assert_eq!(
+        f.call("PATCH", &path, &token, json!({"text":"Cannot revive"}))
+            .await
+            .0,
+        StatusCode::CONFLICT
+    );
+    assert_eq!(
+        f.call("DELETE", &path, &token, Value::Null).await.0,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        f.call("GET", &path, &token, Value::Null).await.0,
+        StatusCode::OK
+    );
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn incident_cleanup_preserves_system_provenance_in_both_directions() -> anyhow::Result<()> {
+    let f = Fixture::new(9500).await?;
+    let token = f.token(&f.scope.organization, vec![]);
+    let base = format!(
+        "/api/organizations/{}/projects/{}/agent-edges",
+        f.scope.organization, f.scope.project
+    );
+    for node in 9501..=9505 {
+        f.node(node, "TASK", json!({})).await;
+    }
+    let mut protected = Vec::new();
+    for (source, target, system) in [
+        (9501, 9502, false),
+        (9503, 9501, false),
+        (9501, 9504, true),
+        (9505, 9501, true),
+    ] {
+        if system {
+            let (status,result)=f.call("POST","/api/relationships/batch",&token,json!({"relationships":[{"fromArtifactId":id(source),"toArtifactId":id(target),"type":"DERIVES_FROM"}]})).await;
+            assert_eq!(status, StatusCode::CREATED, "{result}");
+            protected.push(result["created"][0].as_str().unwrap().to_owned());
+        } else {
+            f.edge(
+                source,
+                target,
+                "DERIVES_FROM",
+                json!({"source":"agent","reasoning":"authored"}),
+            )
+            .await;
+        }
+    }
+    let (status, result) = f
+        .call(
+            "POST",
+            &format!("{base}/incident-delete"),
+            &token,
+            json!({"nodeIds":[id(9501)]}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{result}");
+    assert_eq!(result["deletedEdgeCount"], 2);
+    let (_, remaining) = f
+        .call(
+            "POST",
+            &format!("{base}/incident-query"),
+            &token,
+            json!({"nodeIds":[id(9501)],"types":["DERIVES_FROM"]}),
+        )
+        .await;
+    let remaining = remaining.as_array().unwrap();
+    assert_eq!(remaining.len(), 2);
+    assert!(
+        protected
+            .iter()
+            .all(|id| remaining.iter().any(|edge| edge["id"] == *id))
+    );
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn reviewed_edge_deletion_retains_its_basis_for_retries() -> anyhow::Result<()> {
+    let f = Fixture::new(9600).await?;
+    let token = f.token(&f.scope.organization, vec![]);
+    let base = format!(
+        "/api/organizations/{}/projects/{}/agent-edges",
+        f.scope.organization, f.scope.project
+    );
+    let request = json!({"id":id(9601),"sourceNodeId":id(9602),"sourceEntityType":"TASK","targetNodeId":id(9603),"targetEntityType":"TASK","type":"RELATED_TO","reasoning":"reviewed"});
+    let (status, edge) = f.call("POST", &base, &token, request.clone()).await;
+    assert_eq!(status, StatusCode::CREATED, "{edge}");
+    let path = format!("{base}/{}", id(9601));
+    let old = format!("{path}?expectedUpdatedAt=2000-01-01T00:00:00Z");
+    assert_eq!(
+        f.call("DELETE", &old, &token, Value::Null).await.0,
+        StatusCode::CONFLICT
+    );
+    let query =
+        serde_urlencoded::to_string([("expectedUpdatedAt", edge["updatedAt"].as_str().unwrap())])?;
+    let checked = format!("{path}?{query}");
+    for _ in 0..2 {
+        let (status, result) = f.call("DELETE", &checked, &token, Value::Null).await;
+        assert_eq!(status, StatusCode::NO_CONTENT, "{result}");
+    }
+    assert_eq!(
+        f.call("GET", &path, &token, Value::Null).await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        f.call("DELETE", &old, &token, Value::Null).await.0,
+        StatusCode::CONFLICT
+    );
+    assert_eq!(
+        f.call(
+            "DELETE",
+            &format!("{base}/{}?{query}", id(9699)),
+            &token,
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::CONFLICT
+    );
+    let other = Fixture::new(9650).await?;
+    let other_path = checked.replace(&f.scope.project, &other.scope.project);
+    assert_eq!(
+        other
+            .call("DELETE", &other_path, &token, Value::Null)
+            .await
+            .0,
+        StatusCode::CONFLICT
+    );
+    // Recreating the identity invalidates the old receipt, including after incident cleanup.
+    assert_eq!(
+        f.call("POST", &base, &token, request).await.0,
+        StatusCode::CREATED
+    );
+    assert_eq!(
+        f.call("DELETE", &checked, &token, Value::Null).await.0,
+        StatusCode::CONFLICT
+    );
+    assert_eq!(
+        f.call(
+            "POST",
+            &format!("{base}/incident-delete"),
+            &token,
+            json!({"nodeIds":[id(9602)]})
+        )
+        .await
+        .0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        f.call("DELETE", &checked, &token, Value::Null).await.0,
+        StatusCode::CONFLICT
+    );
+    Ok(())
+}
