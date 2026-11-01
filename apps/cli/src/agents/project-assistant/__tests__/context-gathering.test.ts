@@ -56,8 +56,11 @@ const focal: Focal = {
 };
 
 /** Read check keeps every entity. */
-const fakeJev = (drop = false, fail = false) => ({
+const fakeJev = (drop = false, fail = false, reject = false) => ({
   evaluate: (input: JevInput): Promise<JevResult> => {
+    if (reject) {
+      return Promise.reject(new Error('cancelled'));
+    }
     if (fail) {
       return Promise.resolve({
         ok: false,
@@ -100,6 +103,7 @@ describe('gatherProjectContext', () => {
       answer?: string | Error;
       text?: string;
       jevFails?: boolean;
+      jevRejects?: boolean;
       matched?: boolean;
       drop?: boolean;
     } = {},
@@ -121,7 +125,7 @@ describe('gatherProjectContext', () => {
     const snapshot = makeSnapshot(options.text);
     const deps: ContextGatheringDeps = {
       jev: {
-        client: fakeJev(options.drop, options.jevFails),
+        client: fakeJev(options.drop, options.jevFails, options.jevRejects),
         model: 'm',
         wording: DEFAULT_WORDING,
       },
@@ -210,6 +214,54 @@ describe('gatherProjectContext', () => {
       'project_assistant.context_gathered',
       expect.objectContaining({ counts: expect.objectContaining({ search: expect.anything() }) }),
     );
+  });
+
+  it('saves every Jev request and answer beside the trace, outside the logger', async () => {
+    const { run, info } = setup();
+
+    await run();
+
+    const calls = JSON.parse(
+      await readFile(path.join(dir, 'run-1.turn-1.jev-requests.json'), 'utf8'),
+    ) as { input: { model: string; state: unknown; questions: unknown[] }; result: unknown }[];
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls[0]?.input).toEqual(
+      expect.objectContaining({
+        model: 'm',
+        state: expect.anything(),
+        questions: expect.anything(),
+      }),
+    );
+    expect(calls[0]?.result).toBeDefined();
+    expect(JSON.stringify(info.mock.calls)).not.toContain('"questions"');
+  });
+
+  it('still saves the Jev requests made when the run stops on the size limit', async () => {
+    const { run } = setup({ text: 'x'.repeat(GATHERED_CONTEXT_MAX_CHARS) });
+    await expect(run()).rejects.toThrow();
+    const calls = JSON.parse(
+      await readFile(path.join(dir, 'run-1.turn-1.jev-requests.json'), 'utf8'),
+    ) as unknown[];
+    expect(calls.length).toBeGreaterThan(0);
+  });
+
+  it('records a failed Jev request with its failure', async () => {
+    const { run } = setup({ jevFails: true });
+    await run();
+    const calls = JSON.parse(
+      await readFile(path.join(dir, 'run-1.turn-1.jev-requests.json'), 'utf8'),
+    ) as { result: { ok: boolean } }[];
+    expect(calls.some((call) => call.result.ok === false)).toBe(true);
+  });
+
+  it('records a rejected Jev request as a failure before the run fails', async () => {
+    const { run } = setup({ jevRejects: true });
+    await expect(run()).rejects.toThrow();
+    const calls = JSON.parse(
+      await readFile(path.join(dir, 'run-1.turn-1.jev-requests.json'), 'utf8'),
+    ) as { result: { ok: boolean } }[];
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.result.ok).toBe(false);
   });
 
   it('hands over labelled paragraphs while the same canonical identity remains fully readable', async () => {

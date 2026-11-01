@@ -7,7 +7,7 @@
  */
 
 import type { ReadRestriction } from '../../shared/api/generated/api';
-import { writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import {
@@ -29,6 +29,7 @@ import type {
   WalkJev,
 } from '../../jev/traversal';
 import type { PromptTypeHandlerDeps } from '../prompt-type-handler';
+import { recordJevCalls } from './parent-requirements-attempt-log';
 
 /** First hop wide, second hop narrower and only for entities worth reading. */
 export const CONTEXT_SEARCH_HOP_LIMITS: readonly LevelLimit[] = [
@@ -148,8 +149,37 @@ const buildPlanRetryPrompt = (planPrompt: string, answer: string, error: unknown
     'Answer again with only the corrected JSON object.',
   ].join('\n\n');
 
-/** Plans, runs and records the searches, and returns the section of kept entities for the prompt. */
+/**
+ * Plans, runs and records the searches, and returns the section of kept entities for the prompt.
+ * Every Jev request the run makes is saved beside the trace, whether the run succeeds or throws.
+ */
 export const gatherProjectContext = async (args: GatherProjectContextArgs): Promise<string> => {
+  const recorder = recordJevCalls(args.deps.jev.client);
+  try {
+    return await gatherWithJev({
+      ...args,
+      deps: { ...args.deps, jev: { ...args.deps.jev, client: recorder.evaluator } },
+    });
+  } finally {
+    if (recorder.calls.length > 0) {
+      // Local file only: request content must never reach the structured logger.
+      const file = path.join(
+        args.deps.traceLogDir,
+        `${args.runId}.${args.turnId}.jev-requests.json`,
+      );
+      await mkdir(args.deps.traceLogDir, { recursive: true });
+      await writeFile(file, `${JSON.stringify(recorder.calls, null, 2)}\n`, 'utf8');
+      args.handlerDeps.logger.info('project_assistant.context_gathering.jev_requests_saved', {
+        runId: args.runId,
+        turnId: args.turnId,
+        file,
+        requests: recorder.calls.length,
+      });
+    }
+  }
+};
+
+const gatherWithJev = async (args: GatherProjectContextArgs): Promise<string> => {
   const { deps, handlerDeps, runId, turnId, project, focalRef, focal, ask, promptContext, signal } =
     args;
 
