@@ -56,6 +56,13 @@ describe('shared completion prompt composition', () => {
         expect(prompt).not.toContain('featureUpdateSyncCheck');
       }
     });
+    it('raises governing Mockups and Diagrams in impactedEntities, not background ones', () => {
+      for (const prompt of [noFeatureSync, afterFeatureSync]) {
+        expect(prompt).toContain('governing Mockup or Diagram');
+        expect(prompt).toContain('`impactedEntities`');
+        expect(prompt).toContain('only as background, history or exploration does not trigger');
+      }
+    });
     it('renders only the variant that matches whether Feature Sync ran on the Run', () => {
       expect(afterFeatureSync).toContain('Feature Sync ran in this session');
       expect(afterFeatureSync).not.toContain('Feature Sync did not run');
