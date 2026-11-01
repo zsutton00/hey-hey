@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT DISTINCT to_jsonb(e)::text AS \"data!\"\n      FROM unnest($3::text[]) seed\n      JOIN graph.node a ON a.organization_id=$1 AND a.project_id=$2 AND a.id=seed AND a.project_scoped AND NOT a.deleted\n      CROSS JOIN LATERAL (\n        SELECT * FROM graph.edge WHERE organization_id=$1 AND project_id=$2 AND source_id=a.id AND relationship_type=ANY($4)\n        UNION\n        SELECT * FROM graph.edge WHERE organization_id=$1 AND project_id=$2 AND target_id=a.id AND relationship_type=ANY($4)\n      ) e\n      JOIN graph.node b ON b.organization_id=$1 AND b.project_id=$2\n        AND b.id=CASE WHEN e.source_id=a.id THEN e.target_id ELSE e.source_id END\n      WHERE b.project_scoped AND NOT b.deleted AND NOT b.stub AND b.created_at IS NOT NULL AND b.updated_at IS NOT NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "data!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": ["Text", "Text", "TextArray", "TextArray"]
+    },
+    "nullable": [null]
+  },
+  "hash": "81802a0cbc76a5e747dd6c223cc51d78eebc336fe87e2fbc9c5acb229206aaaf"
+}

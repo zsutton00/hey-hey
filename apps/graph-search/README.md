@@ -3,9 +3,9 @@
 The Rust foundation for a PostgreSQL graph/search backend. One process owns
 separate `graph` and `search` modules and a dedicated logical database on the
 existing PostgreSQL server. The search module includes the text encoder and the
-search operations (see [Search](#search)); graph traversal and event ingestion
-are follow-on work.
-This shell is not ready to replace the existing backends.
+search operations (see [Search](#search)). The graph module serves the core queries
+and batch relationship creation. Event ingestion and the remaining graph write
+surfaces are follow-on work; this app is not yet a complete backend replacement.
 
 ## Build from a clean checkout
 
@@ -340,7 +340,8 @@ Each method in both route groups declares its policy through `AuthenticatedRoute
 Verified `Principal` context is placed in request extensions. Future store-backed handlers
 must use this identity and `authorize_tenant` when resolving resource IDs to tenancy;
 a token cannot by itself establish the owner of an opaque node or relationship ID.
-The data handlers still return 501 after authorization; this change does not implement stores.
+Core graph and search handlers use PostgreSQL. The remaining graph handlers
+retain their authenticated 501 responses.
 `/healthz` remains public process readiness.
 
 Embedding writes authorize `metadata.organizationId` and `metadata.projectId` at the
@@ -352,3 +353,56 @@ Graph authentication rejections use the Graph response format: ordinary errors c
 `timestamp`, `status`, `error`, and `path`; projection-deletion errors also contain the
 published `message`. Search rejections retain the Python-style `detail` body. Error paths
 exclude query parameters, and Graph paths preserve the `/api` prefix.
+
+## Core graph surface
+
+The `/api` route group serves traversal (rich ranked, compact ranked, grouped
+identities and structured reads), incident edges, entity neighborhoods, topology,
+provenance, feature/project connections and batch relationship creation. Generic
+node CRUD, generic relationship CRUD and admin backup remain 501 placeholders,
+as in Java. Agent-edge CRUD, hints, templates, projection deletion and event
+consumption remain separate work.
+
+Node and edge keys, foreign keys and adjacency indexes include organization and
+project. `Node.project_scoped` records canonical project membership separately
+from the storage partition: organization-wide User/Project records must set it
+false. Those records cannot become project-scoped seeds or endpoints merely by
+being present in a partition. Project nodes still support the dedicated
+feature/project connection check. Edge retry keys belong to the writing operation;
+distinct authored edges can share endpoints and relationship types. Deleting a
+node cascades to its incident edges. Event ingestion should use this store rather
+than introduce a public node-write API.
+
+The legacy batch route resolves endpoint IDs within the credential's current
+organization and allowed projects. Both endpoints must resolve to exactly one
+common project. Missing, foreign or ambiguous endpoints produce an item failure.
+Repeated batch writes preserve the existing edge and report a duplicate, matching
+the Java response behavior. Scoped traversal never follows edges through another
+tenant. User nodes cannot be intermediate bridges, including Users also supplied
+as other seeds. Identity groups retain requested seed order and duplicates,
+including empty groups, and bypass ranking, pagination and payload hydration.
+
+Graph request models and boundary validation constraints are generated from the
+existing OpenAPI source without changing it:
+
+```sh
+pnpm --filter @hey-hey/graph-search generate:graph-contracts
+```
+
+The package check verifies these generated files. Storage queries are checked by
+SQLx and their offline metadata is committed. Tests populate the internal store
+and exercise authenticated HTTP responses; they do not claim event-consumer or
+both-backend compatibility coverage. Run the core tests against a disposable
+PostgreSQL 17 database (no encoder/model files are needed):
+
+```sh
+cd apps/graph-search
+GRAPH_SEARCH_TEST_DATABASE_URL=postgres://graph_search:local_graph_search@localhost:55437/heyhey_graph_search \
+  cargo test --locked --test graph -- --ignored --test-threads=1
+```
+
+Fixtures cover scoped reads/writes, duplicate and concurrent writes, metadata,
+node replacement/deletion, traversal policies, ranking, projections, neighborhood
+depth/pivots, topology and provenance. The large-project case verifies complete
+identity groups and fixed incident selection, and inspects the adjacency query
+plan in the presence of unrelated-tenant volume.

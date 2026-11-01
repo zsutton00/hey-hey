@@ -8,8 +8,11 @@ pub fn router(config: &Config, pool: PgPool, auth: crate::auth::Authenticator) -
     // /healthz is process readiness, not the embeddings spec's /health operation.
     let health = Router::new()
         .route("/healthz", get(health::ready))
-        .with_state(pool);
+        .with_state(pool.clone());
     search::routes::router(config.search.enabled, auth.clone())
-        .nest("/api", graph::routes::router(config.graph.enabled, auth))
+        .nest(
+            "/api",
+            graph::routes::router(config.graph.enabled, auth).layer(axum::Extension(pool)),
+        )
         .merge(health)
 }

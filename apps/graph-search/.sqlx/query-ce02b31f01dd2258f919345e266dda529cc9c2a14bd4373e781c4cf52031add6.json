@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO graph.edge (organization_id,project_id,source_id,target_id,relationship_type,properties,created_at,deduplication_key)\n          SELECT $1,$2,a.id,b.id,$5,$6::text::jsonb,COALESCE($7::text::timestamptz,now()),$3||':'||$4||':'||$5\n          FROM graph.node a JOIN graph.node b ON b.organization_id=$1 AND b.project_id=$2 AND b.id=$4 AND NOT b.deleted\n          WHERE a.organization_id=$1 AND a.project_id=$2 AND a.id=$3 AND NOT a.deleted\n          AND NOT EXISTS (SELECT 1 FROM graph.edge existing WHERE existing.organization_id=$1 AND existing.project_id=$2 AND existing.source_id=$3 AND existing.target_id=$4 AND existing.relationship_type=$5)\n          ON CONFLICT (organization_id,project_id,deduplication_key) DO NOTHING RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": ["Text", "Text", "Text", "Text", "Text", "Text", "Text"]
+    },
+    "nullable": [false]
+  },
+  "hash": "ce02b31f01dd2258f919345e266dda529cc9c2a14bd4373e781c4cf52031add6"
+}
