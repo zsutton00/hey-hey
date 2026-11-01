@@ -1,0 +1,12 @@
+{
+  "organizationId": "00000000-0000-4000-8000-000000000001",
+  "projectId": "00000000-0000-4000-8000-000000000002",
+  "name": "test2",
+  "summaryText": "Updated design doc summary from content_changed e2e validation.",
+  "template": "BRAINSTORM",
+  "status": "REFINING_CONTENT",
+  "tags": [],
+  "createdAt": 1769745278742,
+  "updatedAt": 1769904132999,
+  "textFeatures": "test2\n\nUpdated design doc summary from content_changed e2e validation.\n\ncontent\n\nUpdated markdown content from designdoc.contentchanged e2e validation."
+}

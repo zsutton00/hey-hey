@@ -16,13 +16,24 @@ pub const ORGANIZATION_CLOSED: &str = "organization.closed";
 
 /// The event types the consumer subscribes to: the ones the deployed
 /// Embeddings service handles that this store can represent.
-pub const SUBSCRIBED: [&str; 6] = [
+pub const SUBSCRIBED: [&str; 17] = [
     TASK_CREATED,
     TASK_UPDATED,
     TASK_CONTENT_CHANGED,
     TASK_STATUS_CHANGED,
     TASK_ARCHIVED,
     ORGANIZATION_CLOSED,
+    "design_doc.created",
+    "design_doc.updated",
+    "design_doc.content_changed",
+    "design_doc.archived",
+    "design_doc.restored",
+    "service.created",
+    "service.updated",
+    "service.archived",
+    "implementation_hint.created",
+    "implementation_hint.updated",
+    "implementation_hint.deleted",
 ];
 
 /// The event inside an envelope. The API publishes `{"event": {...}}` with

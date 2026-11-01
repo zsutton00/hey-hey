@@ -607,13 +607,20 @@ impl EmbeddingRequest {
 
         let type_requirements: &[&'static str] = match kind.as_str() {
             "task" => &["taskType", "name"],
-            "initiative" | "design_doc" => &["name"],
+            "initiative" | "design_doc" | "service" => &["name"],
+            "implementation_hint" => &[
+                "projectId",
+                "serviceId",
+                "featureName",
+                "description",
+                "sourceType",
+            ],
             "message" => &["conversationId"],
             "artifact" => &["artifactType"],
             _ => {
                 return Err(invalid(
                     "metadata",
-                    "metadata.type must be message, initiative, task, design_doc or artifact",
+                    "metadata.type must be message, initiative, task, design_doc, artifact, service or implementation_hint",
                 ));
             }
         };

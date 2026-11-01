@@ -423,3 +423,120 @@ fn uuid_like() -> String {
             .as_nanos()
     )
 }
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL and downloaded model"]
+async fn knowledge_lifecycles_replace_preserve_remove_and_restore() -> anyhow::Result<()> {
+    let (ingest, search, _pool) = setup().await?;
+    for (family, key, removal) in [
+        ("design_doc", "designDoc", "archived"),
+        ("service", "service", "archived"),
+        ("implementation_hint", "implementationHint", "deleted"),
+    ] {
+        let mut snapshot = json!({"id": TASK, "organizationId": ORG,
+            "name": "Quasar manual", "summary": "quasar", "description": "quasar",
+            "status": "READY", "serviceId": CHILD, "featureName": "Quasar manual",
+            "sourceType": "USER", "agentSessionId": OTHER_TASK,
+            "createdAt": "2026-11-01T09:00:00Z", "updatedAt": "2026-11-01T10:00:00Z",
+            "sections": [section("details", 0, "quasar sectiononlynebula") ]});
+        let make = |action: &str, snapshot: Value| {
+            let kind = format!("{family}.{action}");
+            let mut payload = context(&kind);
+            if action == "deleted" {
+                payload["implementationHintId"] = json!(TASK);
+            } else {
+                payload[key] = snapshot;
+            }
+            envelope(&kind, TASK, payload)
+        };
+        ingest.handle(&make("created", snapshot.clone())).await?;
+        ingest.handle(&make("created", snapshot.clone())).await?;
+        assert_eq!(search.find("quasar").await, [TASK]);
+        if family != "design_doc" {
+            let hits = search
+                .hits(
+                    json!({"query": "quasar", "search_type": "keyword", "similarity_threshold": 0}),
+                )
+                .await;
+            let metadata = hits[0]["metadata"].clone();
+            for valid in [false, true] {
+                let mut metadata = metadata.clone();
+                if !valid {
+                    metadata
+                        .as_object_mut()
+                        .unwrap()
+                        .remove(if family == "service" {
+                            "name"
+                        } else {
+                            "serviceId"
+                        });
+                }
+                let request = Request::builder().method("POST").uri("/embeddings")
+                    .header("Authorization", format!("Bearer {}", search.token))
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(json!({"text": "quasar sectiononlynebula", "metadata": metadata, "level": "document"}).to_string()))?;
+                let response = search.router.clone().oneshot(request).await?;
+                assert_eq!(
+                    response.status(),
+                    if valid {
+                        StatusCode::CREATED
+                    } else {
+                        StatusCode::BAD_REQUEST
+                    }
+                );
+                assert_eq!(search.find("quasar").await, [TASK]);
+            }
+        }
+        let mut invalid = snapshot.clone();
+        invalid["id"] = json!(CHILD);
+        assert!(ingest.handle(&make("updated", invalid)).await.is_err());
+        assert_eq!(search.find("quasar").await, [TASK]);
+        if family == "design_doc" {
+            // A missing or null full snapshot must never replace indexed sections.
+            for action in ["created", "content_changed", "restored"] {
+                for sections in [None, Some(Value::Null)] {
+                    let mut invalid = snapshot.clone();
+                    invalid.as_object_mut().unwrap().remove("sections");
+                    if let Some(sections) = sections {
+                        invalid["sections"] = sections;
+                    }
+                    let result = ingest.handle(&make(action, invalid)).await;
+                    assert!(matches!(result, Err(IngestError::Rejected(_))));
+                    assert_eq!(search.find("quasar").await, [TASK]);
+                    assert_eq!(search.find("sectiononlynebula").await, [TASK]);
+                }
+            }
+            let mut metadata_only = snapshot.clone();
+            metadata_only.as_object_mut().unwrap().remove("sections");
+            ingest.handle(&make("updated", metadata_only)).await?;
+            assert_eq!(search.find("sectiononlynebula").await, [TASK]);
+        }
+        snapshot["name"] = json!("Pulsar manual");
+        snapshot["featureName"] = json!("Pulsar manual");
+        snapshot["summary"] = json!("pulsar");
+        snapshot["description"] = json!("pulsar");
+        snapshot["sections"] = json!([section("details", 0, "pulsar")]);
+        ingest.handle(&make("updated", snapshot.clone())).await?;
+        if family == "design_doc" {
+            assert_eq!(search.find("quasar").await, [TASK]);
+            ingest
+                .handle(&make("content_changed", snapshot.clone()))
+                .await?;
+        }
+        assert!(search.find("quasar").await.is_empty());
+        assert_eq!(search.find("pulsar").await, [TASK]);
+        ingest.handle(&make(removal, snapshot.clone())).await?;
+        ingest.handle(&make(removal, snapshot.clone())).await?;
+        assert!(search.find("pulsar").await.is_empty());
+        if family == "design_doc" {
+            ingest.handle(&make("restored", snapshot.clone())).await?;
+            assert_eq!(search.find("pulsar").await, [TASK]);
+            let mut cleared = snapshot.clone();
+            cleared["sections"] = json!([]);
+            ingest.handle(&make("content_changed", cleared)).await?;
+            assert!(search.find("details").await.is_empty());
+            ingest.handle(&make(removal, snapshot)).await?;
+        }
+    }
+    Ok(())
+}

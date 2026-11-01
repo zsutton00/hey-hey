@@ -530,3 +530,26 @@ A rejected, failed or panicking event is logged by identity and does not stop th
 lane, HTTP server or other consumer. Redis Pub/Sub retains no history: events
 published while disconnected, including a slow subscriber being disconnected,
 are lost. Reconnection does not replay them. No replay or rebuild is provided.
+
+Project knowledge events also consumed by search:
+
+- `design_doc.created`, `design_doc.updated`, `design_doc.content_changed`,
+  `design_doc.archived`, `design_doc.restored`.
+- `service.created`, `service.updated`, `service.archived`.
+- `implementation_hint.created`, `implementation_hint.updated`,
+  `implementation_hint.deleted`.
+
+Design-doc text contains its name, summary, and ordered section keys and content,
+with Markdown removed. Metadata-only updates preserve indexed text. Restore
+regenerates content. Archive removes the document and projected conversations
+about it and their messages. Service text includes description, technology,
+repository details and tags. Hint text includes feature, description, hint and
+file paths. Service and hint types are also accepted by the HTTP write boundary;
+hints require projectId, serviceId, featureName, description and sourceType.
+
+Deletion physically removes local units rather than retaining Vespa soft-deleted
+records. Restore regenerates a document from its full API snapshot. Child cleanup
+uses locally projected conversation identities; no child-deletion events are
+published by this consumer. API ownership, bounded encoding, per-item ordering,
+failure isolation and the no-replay/no-rebuild limitation remain unchanged.
+Deprecated initiative, summary and subfacet event families remain excluded.

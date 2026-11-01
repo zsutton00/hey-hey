@@ -12,6 +12,7 @@ pub mod consumer;
 pub mod error;
 pub mod event;
 mod html_css;
+mod knowledge;
 mod organization;
 mod requirements;
 mod task;
@@ -71,7 +72,7 @@ impl Ingest {
             event::TASK_UPDATED => task::updated(self, Event::parse(event)?).await,
             event::TASK_STATUS_CHANGED => task::status_changed(self, Event::parse(event)?).await,
             event::TASK_ARCHIVED => task::archived(self, Event::parse(event)?).await,
-            _ => unreachable!("subscribed event types are all handled"),
+            _ => knowledge::handle(self, kind, event).await,
         }
     }
 
