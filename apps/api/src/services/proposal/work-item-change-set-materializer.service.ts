@@ -1,10 +1,7 @@
 import type { FutureGraphApplication } from './future-graph';
 import { ModuleRef } from '@nestjs/core';
 import { ProposalGroupDecisionService } from './proposal-group-decision.service';
-import {
-  remapGraphProjection,
-  serializableGraphProjection,
-} from './future-graph';
+import { serializableGraphProjection } from './future-graph';
 import {
   readFutureRevision,
   parseFutureRevisionMutation,
@@ -1703,19 +1700,29 @@ export class WorkItemChangeSetMaterializerService {
           indexedOperations[cursor]!.operation.op === 'relationship.create'
         ) {
           const candidate = indexedOperations[cursor]!;
+          const checkpoint = this.requireCheckpoint(
+            prepared,
+            candidate.index,
+            validationRevision,
+          );
+          if (
+            checkpoint.status === WorkItemChangeSetCheckpointStatus.COMPLETED
+          ) {
+            cursor += 1;
+            continue;
+          }
           relationshipCreates.push({
             operation: candidate.operation as Extract<
               WorkItemChangeSetOperation,
               { op: 'relationship.create' }
             >,
             index: candidate.index,
-            checkpoint: this.requireCheckpoint(
-              prepared,
-              candidate.index,
-              validationRevision,
-            ),
+            checkpoint,
           });
           cursor += 1;
+        }
+        if (relationshipCreates.length === 0) {
+          continue;
         }
         await this.applyRelationshipCreateBatch(
           params,
@@ -2201,6 +2208,9 @@ export class WorkItemChangeSetMaterializerService {
     claimToken: string,
     effectiveParentIds?: ReadonlyMap<string, string | null>,
   ): Promise<void> {
+    if (checkpoint.status === WorkItemChangeSetCheckpointStatus.COMPLETED) {
+      return;
+    }
     const startedAt = performance.now();
     const phaseMs: Partial<
       Record<
@@ -2253,6 +2263,21 @@ export class WorkItemChangeSetMaterializerService {
             operation.op === 'relationship.delete',
           );
         }
+        if (!operation.op.startsWith('relationship.')) {
+          await measure('proposal.change_set.checkpoint.mutation', () =>
+            this.applyOperation(
+              params,
+              prepared.id,
+              operation,
+              mappings,
+              checkpoint.operationIndex,
+              claimToken,
+              effectiveParentIds,
+            ),
+          );
+          outcome = 'completed';
+          return;
+        }
         alreadySatisfied = await measure(
           'proposal.change_set.checkpoint.precheck',
           () => this.verifyOperationPostcondition(params, operation, mappings),
@@ -2264,11 +2289,7 @@ export class WorkItemChangeSetMaterializerService {
           operationKind: operation.op,
           alreadySatisfied,
         });
-        if (
-          !alreadySatisfied ||
-          !operation.op.startsWith('relationship.') ||
-          operation.op === 'relationship.delete'
-        ) {
+        if (!alreadySatisfied || operation.op === 'relationship.delete') {
           await measure('proposal.change_set.checkpoint.mutation', () =>
             this.applyOperation(
               params,
@@ -2557,7 +2578,7 @@ export class WorkItemChangeSetMaterializerService {
           'The application claim expired before the guarded write.',
         );
       }
-      return this.reconciliation.guardTaskEffect(
+      const result = await this.reconciliation.guardTaskEffect(
         tx,
         intent.proposal,
         materializationId,
@@ -2566,6 +2587,20 @@ export class WorkItemChangeSetMaterializerService {
         operation.op === 'workItem.create',
         () => write(tx),
       );
+      await tx.workItemChangeSetMaterializationCheckpoint.update({
+        where: {
+          materializationId_operationIndex: {
+            materializationId,
+            operationIndex,
+          },
+        },
+        data: {
+          status: WorkItemChangeSetCheckpointStatus.COMPLETED,
+          completedAt: new Date(),
+          lastError: null,
+        },
+      });
+      return result;
     });
   }
 
@@ -3511,6 +3546,11 @@ export class WorkItemChangeSetMaterializerService {
       mappings,
     );
     for (const [operationIndex, operation] of request.operations.entries()) {
+      // Database effects and completion evidence commit together. A later
+      // user edit does not invalidate the successful application of that write.
+      if (!operation.op.startsWith('relationship.')) {
+        continue;
+      }
       const satisfied =
         operation.op === 'relationship.create'
           ? this.createdRelationshipMatches(
@@ -3544,31 +3584,6 @@ export class WorkItemChangeSetMaterializerService {
       throw new BadRequestException(
         'Cannot publish generic change set because its requirement citation edges do not match the stored plan.',
       );
-    }
-
-    if (
-      (intent.targetProjection as unknown as StoredProjection).futureApplication
-    ) {
-      const current = await this.projector.rehydrateCurrentProjection({
-        organizationId: params.organizationId,
-        projectId: params.projectId,
-        rootWorkItemId: intent.rootWorkItemId!,
-      });
-      const expected = remapGraphProjection(
-        (intent.targetProjection as unknown as StoredProjection).projection,
-        mappings.workItems,
-        mappings.relationships,
-      );
-      if (
-        this.reconciliation.decision({
-          kind: 'graph',
-          reviewed: expected,
-          current,
-        }).kind !== 'NOT_REQUIRED'
-      )
-        throw new ConflictException(
-          'Materialized future graph does not match its complete reviewed result; publication remains pending.',
-        );
     }
 
     return this.prisma.db.$transaction(async (tx) => {
@@ -4052,8 +4067,11 @@ export class WorkItemChangeSetMaterializerService {
         },
       });
       if (owned.count === 0) return;
-      await tx.workItemChangeSetMaterializationCheckpoint.update({
-        where: { id: checkpointId },
+      await tx.workItemChangeSetMaterializationCheckpoint.updateMany({
+        where: {
+          id: checkpointId,
+          status: { not: WorkItemChangeSetCheckpointStatus.COMPLETED },
+        },
         data: {
           status: WorkItemChangeSetCheckpointStatus.FAILED,
           lastError: persistedError,
