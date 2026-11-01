@@ -965,7 +965,9 @@ export class PlatformWebSocketManager {
         reconnection: false,
         // ws keeps native zlib deflate/inflate contexts per connection; over days
         // that fragments into the untagged ~100 KB VM regions that grow while idle.
-        perMessageDeflate: false,
+        perMessageDeflate: {
+          threshold: Infinity,
+        },
         extraHeaders: {
           Cookie: `accessToken=${encodeURIComponent(tokenResult.data)}`,
         },
