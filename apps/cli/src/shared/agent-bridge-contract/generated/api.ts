@@ -24323,7 +24323,7 @@ export interface VerifyFeaturePromptPayload {
  */
 export interface VerifyImpactedEntityReference {
     /**
-     * Entity type of a possibly impacted entity (any type, e.g. FEATURE, TASK, DESIGN_DOC, CONTRACT, MOCKUP, DIAGRAM, DECISION).
+     * Mention type of a possibly impacted entity, exactly as written in its `@[type:id|title]` mention (e.g. feature, task, plan, contract, mockup, diagram, decision, or a custom work-item type key).
      * @type {string}
      * @memberof VerifyImpactedEntityReference
      */
@@ -24334,6 +24334,12 @@ export interface VerifyImpactedEntityReference {
      * @memberof VerifyImpactedEntityReference
      */
     'entityId': string;
+    /**
+     * Human-readable title shown on the mention. Always supplied for new references; references saved before the field existed omit it and render by id.
+     * @type {string}
+     * @memberof VerifyImpactedEntityReference
+     */
+    'title'?: string;
 }
 /**
  * Explicit launch-configuration kind accepted by a work-item type. The registry policy uses this closed vocabulary; eligibility is never inferred from the work-item type key or role.
