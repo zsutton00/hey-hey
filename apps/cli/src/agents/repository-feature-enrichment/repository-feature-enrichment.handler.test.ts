@@ -14,7 +14,17 @@ const run = {
 const deps = { logger: { info: vi.fn() } } as unknown as PromptTypeHandlerDeps;
 
 describe('Feature intent conversation handler', () => {
-  it('continues ordinary replies in the same handler and provider session', async () => {
+  it('carries the complete accepted runtime on the handoff and none on a reply', () => {
+    expect(handler.resolveRuntime(request)).toEqual({
+      provider: request.provider,
+      model: request.resolvedFrontierModel,
+      reasoningEffort: request.reasoningEffort,
+      fastMode: request.fastMode,
+    });
+    expect(handler.resolveRuntime({ userMessage: 'My answer' })).toBeUndefined();
+  });
+
+  it('restores the saved handoff for ordinary replies', async () => {
     const started = await handler.prepare(run, request, deps);
     const restored = JSON.parse(
       JSON.stringify({ ...run, sessionContext: started.sessionContext }),
@@ -28,10 +38,6 @@ describe('Feature intent conversation handler', () => {
       expect(prepared.payload).toMatchObject({
         materializedFeatureIds: request.materializedFeatureIds,
         userMessage: `Clarification ${reply}`,
-      });
-      expect(handler.resolveProviderExecution(prepared.payload)).toEqual({
-        provider: request.provider,
-        model: request.resolvedFrontierModel,
       });
       expect(handler.addUserMessage(prepared.payload)).toContain(`Clarification ${reply}`);
       expect(handler.buildPrompt(prepared.payload)).toContain('The import workflow is finished');

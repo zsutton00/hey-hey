@@ -17,6 +17,7 @@ import {
   type PromptTypeHandlerDeps,
   type UserLaunchablePromptTypeHandler,
 } from '../prompt-type-handler';
+import { runtimeFromHandoff } from '../handoff-runtime';
 import { buildRepositoryFeatureEnrichmentPrompt } from './repository-feature-enrichment-prompt';
 import type { RepositoryFeatureEnrichmentPromptPayload } from './types';
 
@@ -88,9 +89,13 @@ export class RepositoryFeatureEnrichmentHandler implements UserLaunchablePromptT
     };
   }
 
-  resolveProviderExecution(payload: RepositoryFeatureEnrichmentPromptPayload) {
-    if (!('analysis' in payload)) throw new Error('Enrichment conversation was not prepared.');
-    return { provider: payload.provider, model: payload.resolvedFrontierModel };
+  /** Only the handoff carries a runtime; a reply carries none and keeps the saved one. */
+  resolveRuntime(payload: RepositoryFeatureEnrichmentPromptPayload) {
+    if (!('analysis' in payload)) {
+      return undefined;
+    }
+
+    return runtimeFromHandoff(payload);
   }
 
   buildPrompt(payload: RepositoryFeatureEnrichmentPromptPayload): string {

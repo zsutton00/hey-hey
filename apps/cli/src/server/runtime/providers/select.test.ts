@@ -3,7 +3,7 @@
 import {
   installCapabilityCatalog,
   resetCapabilityCatalogForTests,
-} from '../../../../../../packages/ui-common/src/components/AgentSession/capabilityCatalog';
+} from '../../../shared/runtime/components/AgentSession/capabilityCatalog';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
   AgentRunResult,
@@ -189,135 +189,6 @@ describe('SessionRunnerFacade — ToolRuleStore ownership', () => {
     expect(claudeState.createdRunnerDependencies[0]).not.toHaveProperty('executionRecorder');
   });
 
-  it('uses an authoritative turn provider and replaces a cached surrounding-run runner', () => {
-    resetState();
-    const facade = buildFacade();
-    const run = buildRun({ provider: 'opencode' });
-
-    facade.forRun(run);
-    facade.forRun(run, 'openai');
-    facade.forRun(run, 'claude');
-
-    expect(opencodeState.createdRunnerDependencies).toHaveLength(1);
-    expect(codexState.createdRunnerDependencies).toHaveLength(1);
-    expect(claudeState.createdRunnerDependencies).toHaveLength(1);
-    expect(run.setRunner).toHaveBeenCalledTimes(3);
-  });
-
-  it('shares one concrete store across cached provider runners and resume-context runners', async () => {
-    resetState();
-    const facade = buildFacade();
-
-    const opencodeRun = buildRun({ runId: 'opencode-run', provider: 'opencode' });
-    const claudeRun = buildRun({ runId: 'claude-run', provider: 'claude' });
-    const codexRun = buildRun({ runId: 'codex-run', provider: 'codex' });
-    facade.forRun(opencodeRun);
-    facade.forRun(claudeRun);
-    facade.forRun(codexRun);
-    await facade.readContextUsageByResume(stubSession({ provider: 'claude' }));
-
-    expect(opencodeState.createdRunnerDependencies).toHaveLength(1);
-    expect(claudeState.createdRunnerDependencies).toHaveLength(2);
-    expect(codexState.createdRunnerDependencies).toHaveLength(1);
-    const sharedStore = opencodeState.createdRunnerDependencies[0]?.toolRuleStore;
-    expect(sharedStore).toBeInstanceOf(ToolRuleStore);
-    expect(claudeState.createdRunnerDependencies[0]?.toolRuleStore).toBe(sharedStore);
-    expect(claudeState.createdRunnerDependencies[1]?.toolRuleStore).toBe(sharedStore);
-
-    const opencodeDependencies = opencodeState.createdRunnerDependencies[0]!;
-    const claudeDependencies = claudeState.createdRunnerDependencies[0]!;
-    const codexDependencies = codexState.createdRunnerDependencies[0]!;
-    expect(opencodeDependencies.runStore).toBeInstanceOf(RunStore);
-    expect(opencodeDependencies.repoStore).toBeInstanceOf(RepoMappingStore);
-    expect(claudeDependencies.runStore).toBe(opencodeDependencies.runStore);
-    expect(codexDependencies.runStore).toBe(opencodeDependencies.runStore);
-    expect(claudeDependencies.repoStore).toBe(opencodeDependencies.repoStore);
-    expect(codexDependencies.repoStore).toBe(opencodeDependencies.repoStore);
-    expect(opencodeDependencies.agentOutputOwner).toBe(opencodeRun);
-    expect(claudeDependencies.agentOutputOwner).toBe(claudeRun);
-    expect(codexDependencies.agentOutputOwner).toBe(codexRun);
-    expect(opencodeDependencies.agentOutputOwner).toBeInstanceOf(Run);
-  });
-});
-
-describe('SessionRunnerFacade — evicted Run lifecycle', () => {
-  it('forgets the runner whose output callbacks belong to the evicted Run', async () => {
-    resetState();
-    const firstRun = buildRun();
-    const replacementRun = buildRun();
-    const facade = new SessionRunnerFacade({
-      capabilityCatalog: SETTLED_CATALOG_AVAILABILITY,
-      runStore: new RunStore(),
-      repoStore: createTestRepoMappingStore(),
-      oauthClient: new OAuthClient(),
-      localAgentEndpoint: new LocalAgentEndpoint(),
-      submissionToolRegistry: new SubmissionToolRegistry(),
-      logger: NOOP_LOGGER,
-      agentSessionReader: createTestAgentSessionReader(async () => null),
-      toolRuleStore: new ToolRuleStore(),
-    });
-
-    await facade.resumeSession(firstRun, buildResumeArgs({ skipPermissions: false }));
-    const firstRunner = opencodeState.createdRunners[0];
-    expect(firstRun.setRunner).toHaveBeenCalledWith(firstRunner);
-
-    facade.forgetRun('agent-session-1');
-    await facade.resumeSession(replacementRun, buildResumeArgs({ skipPermissions: false }));
-
-    expect(opencodeState.createdRunners).toHaveLength(2);
-    expect(opencodeState.createdRunners[1]).not.toBe(firstRunner);
-    expect(replacementRun.setRunner).toHaveBeenCalledWith(opencodeState.createdRunners[1]);
-  });
-});
-
-describe('SessionRunnerFacade — model catalog', () => {
-  afterEach(() => resetCapabilityCatalogForTests());
-
-  const installOpencodeCatalog = (): void =>
-    installCapabilityCatalog([
-      {
-        provider: 'opencode',
-        models: [
-          {
-            id: 'opencode-go/glm-5.3',
-            label: 'GLM-5.3',
-            efforts: [],
-            opencodeModelRef: { providerID: 'opencode-go', modelID: 'glm-5.3' },
-          },
-        ],
-      },
-    ]);
-
-  it('launches a model the provider reported', async () => {
-    resetState();
-    installOpencodeCatalog();
-
-    await buildFacade().runPrompt(buildRun(), buildRunArgs({ model: 'opencode-go/glm-5.3' }));
-
-    expect(opencodeState.runPromptCalls).toBe(1);
-  });
-
-  it('leaves a model the catalog does not list to the provider to judge', async () => {
-    resetState();
-    installOpencodeCatalog();
-
-    await buildFacade().runPrompt(buildRun(), buildRunArgs({ model: 'glm-9' }));
-
-    expect(opencodeState.lastRunPromptArgs).toMatchObject({ model: 'glm-9' });
-  });
-
-  it('resumes a session whose saved model is no longer reported', async () => {
-    resetState();
-    installOpencodeCatalog();
-
-    await buildFacade().resumeSession(
-      buildRun(),
-      buildResumeArgs({ session: stubSession({ model: 'glm-9' }) }),
-    );
-
-    expect(opencodeState.resumeCalls).toBe(1);
-  });
-
   it('launches the first model the provider reported when none is named', async () => {
     resetState();
     installCapabilityCatalog([
@@ -330,7 +201,7 @@ describe('SessionRunnerFacade — model catalog', () => {
       },
     ]);
 
-    await buildFacade().runPrompt(buildRun(), buildRunArgs(), 'claude');
+    await buildFacade().runPrompt(buildRun({ provider: 'claude' }), buildRunArgs());
 
     expect(claudeState.lastRunPromptArgs).toMatchObject({ model: 'claude-opus-5-5' });
   });
@@ -341,7 +212,7 @@ describe('SessionRunnerFacade — model catalog', () => {
       { provider: 'claude', models: [], notice: 'Claude could not report its models: down' },
     ]);
 
-    await buildFacade().runPrompt(buildRun(), buildRunArgs(), 'claude');
+    await buildFacade().runPrompt(buildRun({ provider: 'claude' }), buildRunArgs());
 
     expect(claudeState.lastRunPromptArgs?.model ?? null).toBeNull();
   });

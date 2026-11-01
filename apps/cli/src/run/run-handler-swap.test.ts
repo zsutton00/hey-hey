@@ -18,6 +18,7 @@ import type { RunnerContext } from './runners/types';
 import type { Runner } from '../turn/turn';
 import type { AgentSessionRunner } from '../agents/providers/session-runner';
 import { codingFreeformHandler, freeFormHandler } from '../agents/coding-conversation';
+import { implementHandler } from '../agents/implement/implement.handler';
 import { proposalRefinerHandler } from '../agents/proposal-refiner/proposal-refiner.handler';
 
 // Two stub handlers — Run.resolveTurnInputs looks up the handler keyed off
@@ -84,7 +85,9 @@ const getHandler = (promptType: string | undefined): PromptTypeHandler<unknown> 
   if (promptType === 'debug') return missingIdHandler;
   if (promptType === 'commit') return subagentHandler;
   if (promptType === 'coding_freeform') return handlerA;
-  if (promptType === 'implement') return { ...handlerA, id: 'implement', promptType: 'implement' };
+  if (promptType === 'implement') {
+    return implementHandler as PromptTypeHandler<unknown>;
+  }
   if (promptType === 'project_mode') {
     return { ...handlerA, id: 'project_mode', promptType: 'project_mode' };
   }
@@ -215,7 +218,7 @@ describe('Run implement provider switch', () => {
       captured.push(ctx);
       return { run: async () => {} };
     });
-    vi.spyOn(collaborators.runStore, 'updateRunImplementRuntime').mockResolvedValue(
+    vi.spyOn(collaborators.runStore, 'updateRunRuntime').mockResolvedValue(
       makeSession({
         provider: 'codex',
         model: 'gpt-6.1-sol',

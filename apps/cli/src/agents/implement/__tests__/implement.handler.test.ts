@@ -272,9 +272,7 @@ describe('implementHandler', () => {
       );
       expect(fetchImpl).not.toHaveBeenCalled();
       const prompt = implementHandler.buildPrompt(result.payload);
-      expect(prompt).toContain(
-        `treat a listed discrepancy as a blocker`,
-      );
+      expect(prompt).toContain(`treat a listed discrepancy as a blocker`);
       expect(prompt).toContain(
         `\n\n${approvedVersion.markdown}\n\n## Supporting planning discussion\nFirst reply`,
       );

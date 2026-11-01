@@ -20,6 +20,7 @@ import type {
   PromptTypeHandlerDeps,
   PromptTypeHandlerContext,
 } from '../prompt-type-handler';
+import { runtimeFromHandoff } from '../handoff-runtime';
 import { buildWorkTrackerConnectPrompt } from '../prompts/work-tracker-connect';
 import { buildWorkTrackerImportPrompt } from '../prompts/work-tracker-import';
 import { buildWorkTrackerConnectionInstructions } from './connection-instructions';
@@ -56,8 +57,8 @@ class WorkTrackerImportHandler implements PromptTypeHandler<WorkTrackerImportReq
         : 'work-tracker-import';
   }
 
-  resolveProviderExecution(payload: WorkTrackerImportRequest) {
-    return { provider: payload.provider, model: payload.resolvedFrontierModel };
+  resolveRuntime(payload: WorkTrackerImportRequest) {
+    return runtimeFromHandoff(payload);
   }
 
   async prepare(

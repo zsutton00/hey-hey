@@ -77,9 +77,11 @@ describe('work tracker import', () => {
           deps,
         ),
       ).resolves.toEqual({ payload });
-      expect(handler.resolveProviderExecution(payload)).toEqual({
+      expect(handler.resolveRuntime(payload)).toEqual({
         provider: 'codex',
         model: 'selected-model',
+        reasoningEffort: 'high',
+        fastMode: true,
       });
     }
   });

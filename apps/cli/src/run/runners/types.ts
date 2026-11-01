@@ -112,8 +112,6 @@ export interface RunnerContext {
    * `current_agent` broadcast advertises.
    */
   effectiveModel: string | null;
-  /** Provider runner selected authoritatively for this Turn. */
-  executionProvider?: string;
   /**
    * Effective reasoning effort for this Turn. Resolved by
    * `resolveTurnEffective` (handler-pinned default → session.reasoningEffort

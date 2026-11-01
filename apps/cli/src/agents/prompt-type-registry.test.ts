@@ -4,7 +4,6 @@ import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from './prompt-type-registry.t
 import { LocalPromptType } from '../shared/agent-bridge-contract/generated';
 import { dailySessionHandler } from './daily-session/daily-session.handler';
 import type { RepositoryGroundingRequest } from '../shared/agent-bridge-contract/generated';
-import { resolveSelectedProviderId } from '../server/runtime/providers/select';
 import { freeFormHandler } from './coding-conversation';
 import { EVAL_CONSUMER_HANDLER_IDS } from './run-eval/eval-targets';
 
@@ -178,10 +177,14 @@ describe('prompt-type-registry', () => {
         },
       } satisfies RepositoryGroundingRequest;
 
-      const selection = registry.get(trigger.promptType)?.resolveProviderExecution?.(trigger);
+      const runtime = registry.get(trigger.promptType)?.resolveRuntime?.(trigger);
 
-      expect(selection).toEqual({ provider, model: resolvedFrontierModel });
-      expect(resolveSelectedProviderId(selection?.provider ?? '')).toBe(expectedRunner);
+      expect(runtime).toEqual({
+        provider: expectedRunner,
+        model: resolvedFrontierModel,
+        reasoningEffort: 'high',
+        fastMode: provider === 'codex',
+      });
     },
   );
 
@@ -228,7 +231,8 @@ describe('prompt-type-registry', () => {
 
   it('resolves child-only handlers for the child launcher without making them dispatchable', () => {
     const section = registry.getChildHandler('project_report_section');
-    expect(section?.childConfig?.submissionTools).toBe('none');
+    expect(section?.childConfig?.submissionTools).toBe('run-registered');
+    expect(section?.childConfig?.submissionToolNames).toEqual(['read_evidence_shard']);
     expect(registry.list()).not.toContain(section);
     expect(registry.getById('project_report_section')).toBeUndefined();
     expect(registry.getChildHandler('research')).toBe(registry.getById('research'));

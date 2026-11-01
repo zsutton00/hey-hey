@@ -32,7 +32,7 @@ import type { AgenticSession } from '../../../session/types';
 import type { LocalContextData } from '../../../shared/agent-bridge-contract/contract';
 import type { AgentSkillCatalog } from '../../../agents/providers/agent-skills';
 import type { UsageData } from '../../../agent-runtime/index';
-import { listModels } from '../../../../../../packages/ui-common/src/components/AgentSession/capabilityCatalog';
+import { listModels } from '../../../shared/runtime/components/AgentSession/capabilityCatalog';
 import type { LocalAgentEndpoint } from '../../local-base-url';
 import type { ServerLogger } from '../../logger';
 import type { AgentSessionReader } from '../../monitors/agent-session-reader';
@@ -55,18 +55,6 @@ export interface SessionRunnerFacadeDependencies {
   capabilityCatalog: Pick<CatalogAvailability, 'settled'>;
 }
 
-/** Strict mapping for accepted feature-level provider names. */
-export const resolveSelectedProviderId = (provider: string): AgentProviderId => {
-  const normalized = provider.trim().toLowerCase();
-  if (normalized === 'claude') return 'claude';
-  if (normalized === 'codex' || normalized === 'openai') return 'codex';
-  if (normalized === 'opencode') return 'opencode';
-  throw new AgentSessionRunnerError(
-    'NOT_SUPPORTED',
-    `Provider ${provider} is not supported for repository analysis.`,
-  );
-};
-
 /**
  * A launch uses exactly the model it names; the provider judges a model this
  * machine's catalog does not list. A launch that names none uses the first model
@@ -84,11 +72,9 @@ export class SessionRunnerFacade {
 
   public constructor(private readonly dependencies: SessionRunnerFacadeDependencies) {}
 
-  public forRun(run: Run, selectedProvider?: string): AgentSessionRunner {
+  public forRun(run: Run): AgentSessionRunner {
     const existing = this.runners.get(run.runId);
-    const providerId = selectedProvider
-      ? resolveSelectedProviderId(selectedProvider)
-      : resolveAgentProviderId(run.provider);
+    const providerId = resolveAgentProviderId(run.provider);
     if (existing?.providerId === providerId) return existing.runner;
 
     // Execution-evidence snapshots are disabled: provider hooks must not scan
@@ -221,18 +207,13 @@ export class SessionRunnerFacade {
   public async runPrompt(
     run: Run,
     args: RunPromptArgs,
-    selectedProvider?: string,
   ): Promise<Awaited<ReturnType<AgentSessionRunner['runPrompt']>>> {
-    const runner = this.forRun(run, selectedProvider);
+    const runner = this.forRun(run);
     const named = args.model ?? args.session.model;
     let launch = args;
     if (!named) {
       await this.dependencies.capabilityCatalog.settled();
-      const model = firstReportedModel(
-        selectedProvider
-          ? resolveSelectedProviderId(selectedProvider)
-          : resolveAgentProviderId(run.provider),
-      );
+      const model = firstReportedModel(resolveAgentProviderId(run.provider));
       if (model) launch = { ...args, model };
     }
     if (launch.skipPermissions !== undefined) {
@@ -249,9 +230,8 @@ export class SessionRunnerFacade {
   public async resumeSession(
     run: Run,
     args: ResumeArgs,
-    selectedProvider?: string,
   ): Promise<Awaited<ReturnType<AgentSessionRunner['resumeSession']>>> {
-    const runner = this.forRun(run, selectedProvider);
+    const runner = this.forRun(run);
     if (args.skipPermissions !== undefined) {
       run.setTaskMonitorAutomationAuthorization(false);
       return runner.resumeSession(args);

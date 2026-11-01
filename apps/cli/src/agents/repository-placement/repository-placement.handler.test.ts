@@ -47,10 +47,11 @@ describe('repository placement handler', () => {
     });
   });
 
-  it('preserves the accepted provider and model selection', () => {
-    expect(repositoryPlacementHandler.resolveProviderExecution?.(payload)).toEqual({
+  it('preserves the accepted runtime selection', () => {
+    expect(repositoryPlacementHandler.resolveRuntime?.(payload)).toEqual({
       provider: 'codex',
       model: 'gpt-5.6-sol',
+      reasoningEffort: 'high',
     });
   });
 

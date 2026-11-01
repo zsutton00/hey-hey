@@ -13,8 +13,8 @@ import type {
   PrepareResult,
   PromptTypeHandler,
   PromptTypeHandlerDeps,
-  ProviderExecutionSelection,
 } from '../prompt-type-handler';
+import { runtimeFromHandoff } from '../handoff-runtime';
 import { AgentSessionRunnerError } from '../providers/session-runner';
 import { buildRepositoryPlacementPrompt } from './repository-placement-prompt';
 import { parseRepositoryPlacementCompletionFromText } from './response-parser';
@@ -66,11 +66,11 @@ export const repositoryPlacementHandler: PromptTypeHandler<RepositoryPlacementPr
   omitServiceContextNote: true,
   reports: [],
 
-  resolveProviderExecution(payload): ProviderExecutionSelection {
+  resolveRuntime(payload) {
     if (!payload.provider.trim() || !payload.resolvedFrontierModel.trim()) {
       throw new Error('Repository placement requires the accepted provider and model.');
     }
-    return { provider: payload.provider, model: payload.resolvedFrontierModel };
+    return runtimeFromHandoff(payload);
   },
 
   async prepare(

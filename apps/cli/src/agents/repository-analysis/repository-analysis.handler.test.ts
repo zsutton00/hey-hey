@@ -159,12 +159,17 @@ describe('repository-grounding handler', () => {
     'carries the accepted %s provider and frontier model to runner selection',
     (provider, resolvedFrontierModel) => {
       expect(
-        repositoryAnalysisHandler.resolveProviderExecution?.({
+        repositoryAnalysisHandler.resolveRuntime?.({
           ...payload,
           provider,
           resolvedFrontierModel,
         }),
-      ).toEqual({ provider, model: resolvedFrontierModel });
+      ).toEqual({
+        provider,
+        model: resolvedFrontierModel,
+        reasoningEffort: 'high',
+        fastMode: false,
+      });
     },
   );
 
