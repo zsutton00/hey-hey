@@ -1712,7 +1712,7 @@ describe('session-runner-opencode parity', () => {
     await runPromise;
 
     await vi.waitFor(async () => {
-      expect((await runStore.getRunResult('agentic-1'))?.usage).toMatchObject({
+      expect((await runStore.getRunMetadata('agentic-1'))?.tokenUsage).toMatchObject({
         inputTokens: 100,
         outputTokens: 50,
       });

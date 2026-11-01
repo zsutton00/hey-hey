@@ -79,6 +79,7 @@ vi.mock('../agent-runtime/index', async () => {
       onEvent(handler: ((event: Record<string, unknown>) => void) | null) {
         this.handler = handler;
       }
+      getSessionId = vi.fn().mockReturnValue(REVIEWER_SESSION);
       onPermissionRequest(handler: typeof reviewerSdk.permission) {
         reviewerSdk.permission = handler;
       }

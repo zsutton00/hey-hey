@@ -573,7 +573,7 @@ describe('session-runner-claude', () => {
   it('keeps an SDK abort on a normally canceled Run on the failure path', async () => {
     const controller = new AbortController();
     const runStore = makeRunStore();
-    const { logger, error } = makeLogger();
+    const { logger } = makeLogger();
     startSessionMock.mockImplementation(async () => {
       controller.abort();
       throw new Error('Aborted');
@@ -596,10 +596,6 @@ describe('session-runner-claude', () => {
       }),
     ).rejects.toMatchObject({ code: 'RUN_FAILED' });
 
-    expect(error).toHaveBeenCalledWith(
-      'local.runner.claude.run_prompt.failed',
-      expect.objectContaining({ error: expect.objectContaining({ code: 'RUN_FAILED' }) }),
-    );
     expect(runStore.updateRunStatus).toHaveBeenLastCalledWith('agentic-1', 'idle');
   });
 

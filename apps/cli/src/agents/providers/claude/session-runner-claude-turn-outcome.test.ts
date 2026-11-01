@@ -383,7 +383,7 @@ describe('Claude turn outcome', () => {
     release();
     await run;
     expect(
-      (await harness.runStore.getRunResult(makeSession().agentic_session_id))?.usage,
+      (await harness.runStore.getRunMetadata(makeSession().agentic_session_id))?.tokenUsage,
     ).toMatchObject({ inputTokens: 100, outputTokens: 40 });
   });
 
@@ -400,7 +400,7 @@ describe('Claude turn outcome', () => {
 
     await vi.waitFor(async () => {
       expect(
-        (await harness.runStore.getRunResult(makeSession().agentic_session_id))?.usage,
+        (await harness.runStore.getRunMetadata(makeSession().agentic_session_id))?.tokenUsage,
       ).toMatchObject({ inputTokens: 100, outputTokens: 40 });
     });
     expect(outcome.failure).toBeNull();

@@ -226,6 +226,7 @@ const makeSubAgent = (
       ...(args.reasoningEffort ? { reasoningEffort: args.reasoningEffort } : {}),
       ...(args.fastMode !== undefined ? { fastMode: args.fastMode } : {}),
       ...(args.tokenBudget !== undefined ? { tokenBudget: args.tokenBudget } : {}),
+      ...(args.onProviderSessionId ? { onProviderSessionId: args.onProviderSessionId } : {}),
     }),
 });
 

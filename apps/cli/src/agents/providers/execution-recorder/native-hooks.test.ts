@@ -212,6 +212,19 @@ describe.each(['codex', 'claude'] as const)('installed %s native hook smoke', (p
             path.join(home, 'hooks.json'),
             JSON.stringify({ hooks: toolExecutionHookSettings('codex', capture!.command) }),
           );
+          // Make the fixture the app-server's own provider, not only a per-thread override.
+          await fs.writeFile(
+            path.join(home, 'config.toml'),
+            [
+              'model_provider = "fixture"',
+              '[model_providers.fixture]',
+              'name = "fixture"',
+              `base_url = "${baseUrl}/v1"`,
+              'wire_api = "responses"',
+              'requires_openai_auth = false',
+              '',
+            ].join('\n'),
+          );
           await fs.writeFile(
             wrapper,
             `const {spawn}=require('node:child_process');const child=spawn('codex',['--dangerously-bypass-hook-trust','app-server'],{stdio:'inherit',env:{...process.env,CODEX_HOME:${JSON.stringify(home)}}});process.on('SIGTERM',()=>child.kill('SIGTERM'));child.on('exit',code=>process.exit(code??1));`,

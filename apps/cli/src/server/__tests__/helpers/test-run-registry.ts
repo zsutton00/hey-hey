@@ -183,7 +183,7 @@ const createStubRepoStore = (): RepoMappingStore => createTestRepoMappingStore()
 const createStubHandlerDeps = (): PromptTypeHandlerDeps =>
   createPromptTypeHandlerTestDeps({
     runStore: createStubRunStore(),
-    fetchImpl: (async () => new Response()) as unknown as typeof fetch,
+    fetchImpl: (async () => new Response(JSON.stringify({ data: [] }))) as unknown as typeof fetch,
     apiBaseUrl: 'http://stub',
     logger: NOOP_LOGGER,
   });

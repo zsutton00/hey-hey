@@ -17,6 +17,7 @@ import type {
 import { SubmissionToolRegistry } from '../agents/submission-tools/registry';
 import { RepoMappingStore } from '../repo/index';
 import { RunStore } from '../run-store/run-store';
+import { SessionTokenUsageReader } from '../provider-usage/session-token-usage';
 import { LocalPromptType } from '../shared/agent-bridge-contract/generated/api';
 import type { LocalContextData } from '../shared/agent-bridge-contract/runtime-types';
 import type { AgenticSession } from '../session/types';
@@ -57,10 +58,17 @@ export const createRunTestOAuthClient = (
   },
 ) => createTestOAuthClient(result);
 
-export const createTestRunStore = (): RunStore => {
+/**
+ * Native provider session records stand in for ccusage, so tests never read
+ * the developer's real provider session files.
+ */
+export const createTestRunStore = (nativeSessions: readonly unknown[] = []): RunStore => {
   const baseDir = testPath('run-store');
   const runsDir = path.join(baseDir, 'runs');
   const store = new RunStore({
+    sessionTokenUsageReader: new SessionTokenUsageReader(() =>
+      Promise.resolve(JSON.stringify({ sessions: nativeSessions })),
+    ),
     paths: {
       baseDir,
       runsDir,
