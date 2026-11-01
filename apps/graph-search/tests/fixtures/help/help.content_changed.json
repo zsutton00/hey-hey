@@ -1,0 +1,28 @@
+{
+  "event": {
+    "id": "7c1f4d5e-6c1a-4b7e-9a51-3f2b8f1d0b11",
+    "type": "help.content_changed",
+    "aggregateId": "7c1f4d5e-6c1a-4b7e-9a51-3f2b8f1d0b12",
+    "payload": {
+      "payloadType": "help.content_changed",
+      "helpNode": {
+        "id": "7c1f4d5e-6c1a-4b7e-9a51-3f2b8f1d0b12",
+        "parentId": null,
+        "slug": "getting-started",
+        "title": "Getting started",
+        "ordering": 2,
+        "body": "Open **the** app and pick a project.\n\nThen create a feature.",
+        "demos": [
+          {
+            "id": "d1",
+            "ordering": 1,
+            "caption": "Create a feature quickly",
+            "kind": "preset",
+            "presetKey": "tour"
+          }
+        ]
+      },
+      "contentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  }
+}

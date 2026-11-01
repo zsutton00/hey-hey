@@ -655,3 +655,318 @@ async fn conversation_content_lifecycle_matches_deployed_behavior() -> anyhow::R
     );
     Ok(())
 }
+
+const HELP_NODE: &str = "6c1f4d5e-6c1a-4b7e-9a51-3f2b8f1d0d01";
+
+fn help_event(kind: &str, version: i64, body: &str) -> Value {
+    let node = json!({
+        "id": HELP_NODE, "parentId": null, "slug": "start", "title": "Getting started",
+        "ordering": 1, "body": body,
+        "demos": [{"id": "d", "ordering": 1, "caption": "Captioned walkthrough",
+                   "kind": "preset", "presetKey": "tour"}]
+    });
+    let mut payload = json!({"payloadType": "help.content_changed", "contentVersion": version,
+                             "contentHash": format!("{version:064x}")});
+    if kind == "RETIRE" {
+        payload["changeKind"] = json!("RETIRE");
+        payload["helpNodeId"] = json!(HELP_NODE);
+    } else {
+        payload["helpNode"] = node;
+    }
+    envelope("help.content_changed", HELP_NODE, payload)
+}
+
+async fn help_units(pool: &PgPool) -> anyhow::Result<i64> {
+    Ok(sqlx::query_scalar(
+        "SELECT count(*) FROM search.unit WHERE organization_id = 'global' AND document_id = $1",
+    )
+    .bind(format!("help_{HELP_NODE}"))
+    .fetch_one(pool)
+    .await?)
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL and downloaded model"]
+async fn global_help_is_searchable_replaced_retired_and_survives_closure() -> anyhow::Result<()> {
+    let (ingest, search, pool) = setup().await?;
+    sqlx::query("DELETE FROM search.unit WHERE organization_id = 'global'")
+        .execute(&pool)
+        .await?;
+
+    // A long article is several chunks; its text and captions are searchable
+    // beside project results, without a tenant.
+    let long = format!("zephyrwind {}", "filler ".repeat(450));
+    let upsert = help_event("UPSERT", 1, &long);
+    ingest.handle(&upsert).await?;
+    ingest.handle(&upsert).await?;
+    assert_eq!(help_units(&pool).await?, 3);
+    let hits = search
+        .hits(json!({"query": "zephyrwind", "search_type": "keyword", "similarity_threshold": 0}))
+        .await;
+    let metadata = &hits[0]["metadata"];
+    assert_eq!(metadata["type"], "help");
+    assert_eq!(metadata["scope"], "global");
+    assert_eq!(metadata["helpNodeId"], HELP_NODE);
+    assert!(metadata.get("organizationId").is_none() && metadata.get("projectId").is_none());
+    assert!(
+        search
+            .find("Captioned walkthrough")
+            .await
+            .contains(&HELP_NODE.into())
+    );
+
+    // A project-scoped filter does not turn Help into project content.
+    let task = created(
+        TASK,
+        "Project task",
+        "STANDARD",
+        vec![section("description", 1, "zephyrwind in a project")],
+    );
+    ingest.handle(&task).await?;
+    let hits = search
+        .hits(
+            json!({"query": "zephyrwind", "search_type": "keyword", "similarity_threshold": 0,
+                     "filters": {"types": ["task"]}}),
+        )
+        .await;
+    assert!(hits.iter().all(|hit| hit["metadata"]["type"] == "task"));
+
+    // A later version replaces every chunk; an earlier one and a malformed
+    // one change nothing.
+    ingest
+        .handle(&help_event("UPSERT", 3, "quillfeather"))
+        .await?;
+    assert_eq!(help_units(&pool).await?, 1);
+    assert!(
+        search
+            .find("zephyrwind")
+            .await
+            .iter()
+            .all(|id| id != HELP_NODE)
+    );
+    assert!(
+        search
+            .find("quillfeather")
+            .await
+            .contains(&HELP_NODE.into())
+    );
+    ingest
+        .handle(&help_event("UPSERT", 2, "stale words"))
+        .await?;
+    assert!(
+        search
+            .find("stale words")
+            .await
+            .iter()
+            .all(|id| id != HELP_NODE)
+    );
+    let mut reused = help_event("UPSERT", 3, "reused words");
+    reused["event"]["payload"]["contentHash"] = json!("f".repeat(64));
+    assert!(matches!(
+        ingest.handle(&reused).await,
+        Err(IngestError::Rejected(_))
+    ));
+    let mut malformed = help_event("UPSERT", 4, "malformed words");
+    malformed["event"]["payload"]["helpNode"]["demos"][0]["presetKey"] = Value::Null;
+    assert!(matches!(
+        ingest.handle(&malformed).await,
+        Err(IngestError::Rejected(_))
+    ));
+    let mut misrouted = help_event("UPSERT", 4, "misrouted words");
+    misrouted["event"]["aggregateId"] = json!("another-node");
+    assert!(ingest.handle(&misrouted).await.is_err());
+    assert!(
+        search
+            .find("quillfeather")
+            .await
+            .contains(&HELP_NODE.into())
+    );
+
+    // Closing an organization removes its content, not global Help.
+    ingest
+        .handle(&envelope(
+            "organization.closed",
+            ORG,
+            json!({"payloadType": "organization.closed", "organizationId": ORG,
+                   "markerId": MARKER, "irreversibleClosureAt": "2026-11-01T12:00:00.000Z",
+                   "deletionDeadline": "2026-12-01T12:00:00.000Z"}),
+        ))
+        .await?;
+    assert_eq!(help_units(&pool).await?, 1);
+    assert!(
+        search
+            .find("quillfeather")
+            .await
+            .contains(&HELP_NODE.into())
+    );
+    ingest
+        .handle(&help_event("UPSERT", 5, "afterclosure"))
+        .await?;
+    assert!(
+        search
+            .find("afterclosure")
+            .await
+            .contains(&HELP_NODE.into())
+    );
+
+    // Retiring removes it, and repeating the retirement is harmless.
+    let retire = help_event("RETIRE", 6, "");
+    ingest.handle(&retire).await?;
+    ingest.handle(&retire).await?;
+    assert_eq!(help_units(&pool).await?, 0);
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL and downloaded model"]
+async fn artifacts_attach_and_detach_references_without_becoming_searchable() -> anyhow::Result<()>
+{
+    let (ingest, search, pool) = setup().await?;
+    let message = "artifact-test-message";
+    let mut payload = context("message.created");
+    payload["conversationId"] = json!("artifact-test-conversation");
+    payload["message"] = json!({"type": "USER", "userMessage": "lantern harbor"});
+    ingest
+        .handle(&envelope("message.created", message, payload))
+        .await?;
+
+    let artifact = |artifact_type: &str, extra: Value| {
+        let mut artifact = json!({"organizationId": ORG, "projectId": PROJECT,
+            "type": artifact_type, "sourceType": "CONVERSATION", "sourceId": "source"});
+        artifact
+            .as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        let mut payload = context("artifact.created");
+        payload["artifact"] = artifact;
+        payload
+    };
+    let references = |id: &'static str| {
+        let pool = pool.clone();
+        async move {
+            let refs: Option<Value> = sqlx::query_scalar(
+                "SELECT metadata -> 'enrichmentEmbeddings' FROM search.unit
+                 WHERE organization_id = $1 AND document_id = $2",
+            )
+            .bind(ORG)
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+            refs
+        }
+    };
+
+    let qa = artifact(
+        "QA_PAIR",
+        json!({"data": {"type": "QA_PAIR", "question": "unsearchable question",
+                        "answer": "unsearchable answer", "userMessageId": message,
+                        "systemMessageId": "absent-message"}}),
+    );
+    let created = envelope("artifact.created", "artifact-1", qa);
+    ingest.handle(&created).await?;
+    ingest.handle(&created).await?;
+    assert_eq!(
+        references(message).await,
+        Some(json!([{"artifactId": "artifact-1", "artifactType": "QA_PAIR"}]))
+    );
+    assert!(search.find("unsearchable question").await.is_empty());
+    assert!(
+        search
+            .find("lantern harbor")
+            .await
+            .contains(&message.into())
+    );
+
+    // Artifacts that are disabled, of another type, or malformed attach nothing.
+    let disabled = artifact(
+        "QA_PAIR",
+        json!({"generateEmbedding": false,
+               "data": {"userMessageId": message, "systemMessageId": message}}),
+    );
+    ingest
+        .handle(&envelope("artifact.created", "artifact-2", disabled))
+        .await?;
+    ingest
+        .handle(&envelope(
+            "artifact.created",
+            "artifact-3",
+            artifact("DOCUMENT", json!({})),
+        ))
+        .await?;
+    // Malformed QA pairs are rejected before any write and leave the
+    // references exactly as they were.
+    let before = references(message).await;
+    let complete = json!({"type": "QA_PAIR", "question": "q", "answer": "a",
+                          "userMessageId": message, "systemMessageId": message});
+    let without = |field: &str| {
+        let mut data = complete.clone();
+        data.as_object_mut().unwrap().remove(field);
+        data
+    };
+    for data in [
+        json!({"type": "QA_PAIR"}),
+        json!({"userMessageId": message}),
+        without("type"),
+        without("question"),
+        without("answer"),
+        without("systemMessageId"),
+    ] {
+        let malformed = artifact("QA_PAIR", json!({ "data": data }));
+        assert!(matches!(
+            ingest
+                .handle(&envelope("artifact.created", "artifact-4", malformed))
+                .await,
+            Err(IngestError::Rejected(_))
+        ));
+    }
+    assert_eq!(references(message).await, before);
+    let mut other_tenant = artifact(
+        "INSIGHT",
+        json!({"sourceType": "MESSAGE", "sourceId": message}),
+    );
+    other_tenant["artifact"]["organizationId"] = json!("another-organization");
+    assert!(
+        ingest
+            .handle(&envelope("artifact.created", "artifact-5", other_tenant))
+            .await
+            .is_err()
+    );
+
+    // An insight attaches to its source, next to the QA pair.
+    let insight = artifact(
+        "INSIGHT",
+        json!({"sourceType": "MESSAGE", "sourceId": message}),
+    );
+    ingest
+        .handle(&envelope("artifact.created", "artifact-6", insight))
+        .await?;
+    assert_eq!(
+        references(message).await.unwrap().as_array().unwrap().len(),
+        2
+    );
+
+    // Deleting an artifact removes only its own reference, repeatably.
+    let mut deleted = context("artifact.deleted");
+    deleted["artifactId"] = json!("artifact-1");
+    let deleted = envelope("artifact.deleted", "artifact-1", deleted);
+    ingest.handle(&deleted).await?;
+    ingest.handle(&deleted).await?;
+    assert_eq!(
+        references(message).await,
+        Some(json!([{"artifactId": "artifact-6", "artifactType": "INSIGHT"}]))
+    );
+    let mut mismatched = context("artifact.deleted");
+    mismatched["artifactId"] = json!("artifact-6");
+    assert!(
+        ingest
+            .handle(&envelope("artifact.deleted", "artifact-x", mismatched))
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        references(message).await.unwrap().as_array().unwrap().len(),
+        1
+    );
+    Ok(())
+}

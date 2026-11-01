@@ -1,0 +1,23 @@
+{
+  "id": "help_7c1f4d5e-6c1a-4b7e-9a51-3f2b8f1d0b12_chunk_0",
+  "helpNodeId": "7c1f4d5e-6c1a-4b7e-9a51-3f2b8f1d0b12",
+  "contentType": "help",
+  "sourceType": "HELP",
+  "sourceId": "7c1f4d5e-6c1a-4b7e-9a51-3f2b8f1d0b12",
+  "title": "Getting started",
+  "slug": "getting-started",
+  "path": "",
+  "parentHelpNodeId": "",
+  "helpSection": "",
+  "helpRoot": "",
+  "scope": "global",
+  "markdownBody": "Open **the** app and pick a project.\n\nThen create a feature.",
+  "demoCaptions": ["Create a feature quickly"],
+  "contentVersion": "",
+  "contentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "ordering": 2,
+  "textFeatures": "Getting started\n\nOpen **the** app and pick a project.\n\nThen create a feature.\n\nCreate a feature quickly",
+  "chunkIndex": 0,
+  "totalChunks": 1,
+  "wordCount": 17
+}

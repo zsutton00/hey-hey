@@ -4,8 +4,8 @@ The Rust foundation for a PostgreSQL graph/search backend. One process owns
 separate `graph` and `search` modules and a dedicated logical database on the
 existing PostgreSQL server. The search module includes the text encoder and the
 search operations (see [Search](#search)). The graph module serves the core queries
-and batch relationship creation. The search module also consumes work-item events
-(see [Search events](#search-events)). Graph event ingestion and the remaining
+and batch relationship creation. The search module also consumes the events of the
+deployed Embeddings service (see [Search events](#search-events)). Graph event ingestion and the remaining
 graph write surfaces are follow-on work; this app is not yet a complete backend
 replacement.
 
@@ -295,13 +295,14 @@ without `REDIS_URL` fails unless `SEARCH_EVENTS_ENABLED=false`.
 | `task.archived`        | Removes the task and the tasks nested under it (up to five levels)                       |
 | `organization.closed`  | Deletes and fences the organization's content, like projection deletion                  |
 
-These are the work-item events of the deployed Embeddings service. The deployed
-service also consumes design doc, service, implementation hint, message,
-conversation, report, artifact and Help events; **those are not consumed yet** and
-are planned as follow-on tasks, so search does not have parity with the deployed
-event set until they land. The store's HTTP write path rejects the service,
-implementation hint, report and Help document types today. Initiative, summary
-and subfacet events are deprecated and will not be consumed.
+These are the work-item events. The design doc, service, implementation hint,
+message, conversation, report, artifact and Help events follow below (see
+[Graph event ingestion](#graph-event-ingestion)), so the search module consumes
+every event family the deployed Embeddings service handles except the deprecated
+initiative, summary and subfacet events, which are not consumed. That is event
+parity only: results can still differ (see [Search](#search)). The store's HTTP
+write path rejects the service, implementation hint, report and Help document
+types.
 
 What is searchable:
 
@@ -577,3 +578,61 @@ a failing event is recorded and the lane continues. Independent organizations
 can run concurrently. Empty canonical records use the bounded encoder and share
 the existing store's durable organization-closure fence. No replay or rebuild is
 added.
+
+#### Artifacts and global Help
+
+Search also consumes `artifact.created`, `artifact.updated`, `artifact.deleted`
+and `help.content_changed`. These are the last families of the deployed service;
+they were read from `ArtifactEventProcessor`, `HelpEventProcessor`,
+`upsert_help_projection` and `retire_help_projection`.
+
+**Artifacts are references, not documents.** As deployed, an artifact's own text
+is never searchable. `artifact.created` attaches `{artifactId, artifactType}` to
+the stored message or task it is about, deduplicated, without encoding anything:
+a `QA_PAIR` to its user and system messages (its `data` must be a complete
+`QAPairData` with a matching `type`, `question`, `answer`, `userMessageId` and
+`systemMessageId`, and must name at least one non-blank message, otherwise the
+event is rejected before any write), an `INSIGHT` to its `sourceType` `MESSAGE`
+or `TASK` source (an empty `sourceId` or any other source type is rejected, and
+`data`, when present, must be a complete `InsightData`; an `INITIATIVE` source
+is deprecated and has no target). Artifacts of any other type, and those with
+`generateEmbedding: false`, change nothing. Targets are looked up in the
+artifact's own organization and project, and a target that is not stored is
+skipped, as deployed. A payload whose organization or project differs from the
+artifact's is rejected. `artifact.deleted` removes every reference to that
+artifact in the project, repeatably. Enrichment never creates a document, so an
+inert (`ragEnabled: false`) message cannot be brought back by an artifact.
+
+**Help is global.** `help.content_changed` is consumed. The deployed service does
+handle it: its bus accepts the API's published payload, treating one without
+`changeKind` as an `UPSERT`, and `changeKind: RETIRE` as a retirement. The
+payload must state `contentVersion` or `contentHash`, carry no organization or
+project, and use the node id as `aggregateId` (a routing guarantee the deployed
+service does not check). An upsert replaces every chunk of the node with its title,
+body and demo captions (demo presets and definitions are inert); a retire removes
+them, and repeating either converges. The node id and the chunk ids
+`help_<node>_chunk_<n>` are the deployed ones, and a stored later numeric
+`contentVersion` makes an earlier upsert a no-op. Reusing a version with a
+different hash is rejected, and a malformed event is rejected before any write.
+
+Help is stored in `search.unit` under the organization key `global`. It is not a
+UUID, so no organization, closure tombstone or projection deletion can be that
+key: closing an organization deletes only its own units and leaves Help in place,
+and Help writes are never refused as belonging to a closed organization. Every
+search returns Help additively beside the caller's project results, with
+`type: help`, `scope: global`, `helpNodeId` and no `organizationId` or
+`projectId`. Other filters apply to it like any unit, so a type, status, tag or
+metadata filter that Help does not match leaves it out.
+
+Differences from the deployed service: chunk boundaries follow this service's
+200-word chunks, not the deployed chunker; the aliases `node`, `help`,
+`content`, `version` and `hash` and the internal `help.upsert`/`help.retire`
+events (which the API does not publish) are not accepted; absent optional
+fields are omitted from Help metadata instead of stored as `""`;
+`artifact.updated` is a validated no-op, where the deployed processor fails on
+it, because a partial update names no target; `artifact.deleted` removes the
+references, where the deployed processor rejects the event as carrying no
+artifact details; and the deployed Help lane is dropped when a filter names a
+field Help lacks, which these filters achieve by not matching it. Help retirement
+is only exercisable if the API publishes `RETIRE`; the contract allows it, but the
+API has so far emitted upserts only.

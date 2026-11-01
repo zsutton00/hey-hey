@@ -245,13 +245,13 @@ pub async fn handle(ingest: &Ingest, kind: &str, raw: &Value) -> Result<(), Inge
                 "SERVICE" => "service",
                 _ => continue,
             };
-            if let Err(error) = store::append_report(
+            if let Err(error) = store::append_enrichment(
                 &ingest.pool,
                 &p.organization_id,
                 &p.project_id,
                 &e.entity_id,
                 doc_type,
-                &r.id,
+                (&r.id, "REPORT"),
             )
             .await
             {

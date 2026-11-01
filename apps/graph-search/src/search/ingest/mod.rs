@@ -7,11 +7,13 @@
 //! the consumer is down is not delivered later, and there is no rebuild. That
 //! is the recovery posture of the deployed service too.
 
+mod artifact;
 pub mod config;
 pub mod consumer;
 mod conversation;
 pub mod error;
 pub mod event;
+mod help;
 mod html_css;
 mod knowledge;
 mod organization;
@@ -26,11 +28,7 @@ use self::{
     error::IngestError,
     event::{Event, event_type},
 };
-use super::{
-    encoder::Encoder,
-    store,
-    wire::{Document, Level},
-};
+use super::{encoder::Encoder, store, wire::Document};
 
 /// Applies one event to the searchable state.
 #[derive(Clone)]
@@ -73,6 +71,8 @@ impl Ingest {
             event::TASK_UPDATED => task::updated(self, Event::parse(event)?).await,
             event::TASK_STATUS_CHANGED => task::status_changed(self, Event::parse(event)?).await,
             event::TASK_ARCHIVED => task::archived(self, Event::parse(event)?).await,
+            event::HELP_CONTENT_CHANGED => help::handle(self, event).await,
+            kind if kind.starts_with("artifact.") => artifact::handle(self, kind, event).await,
             kind if kind.starts_with("message.")
                 || kind.starts_with("conversation.")
                 || kind == "report.created" =>
@@ -92,8 +92,6 @@ impl Ingest {
                 "the event carries no searchable text",
             ));
         }
-        debug_assert_eq!(document.level, Level::Document);
-
         let units = store::units(&document);
         let texts: Vec<&str> = units.iter().map(|unit| unit.text.as_str()).collect();
         let vectors = self.encoder.encode_batch(&texts).await?;

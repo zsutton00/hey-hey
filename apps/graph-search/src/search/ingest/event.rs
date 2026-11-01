@@ -13,10 +13,11 @@ pub const TASK_CONTENT_CHANGED: &str = "task.content_changed";
 pub const TASK_STATUS_CHANGED: &str = "task.status_changed";
 pub const TASK_ARCHIVED: &str = "task.archived";
 pub const ORGANIZATION_CLOSED: &str = "organization.closed";
+pub const HELP_CONTENT_CHANGED: &str = "help.content_changed";
 
 /// The event types the consumer subscribes to: the ones the deployed
 /// Embeddings service handles that this store can represent.
-pub const SUBSCRIBED: [&str; 24] = [
+pub const SUBSCRIBED: [&str; 28] = [
     "message.created",
     "message.updated",
     "message.deleted",
@@ -41,6 +42,10 @@ pub const SUBSCRIBED: [&str; 24] = [
     "implementation_hint.created",
     "implementation_hint.updated",
     "implementation_hint.deleted",
+    "artifact.created",
+    "artifact.updated",
+    "artifact.deleted",
+    HELP_CONTENT_CHANGED,
 ];
 
 /// The event inside an envelope. The API publishes `{"event": {...}}` with

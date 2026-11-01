@@ -16,6 +16,11 @@ use super::wire::{DeletionIdentity, Document, Filter, Level};
 /// under that; full-text matching always covers the whole chunk text.
 const CHUNK_WORDS: usize = 200;
 
+/// The organization key of global content (Help). It is not a UUID, so no
+/// organization, closure tombstone or projection deletion can be this key, and
+/// organization-scoped deletion never reaches it.
+pub const GLOBAL_ORGANIZATION: &str = "global";
+
 pub struct Unit {
     pub id: String,
     pub chunk_index: i32,
@@ -259,15 +264,16 @@ pub struct Retrieval<'a> {
 }
 
 /// Scores every unit that passes the filters. Searches are scoped to one
-/// organization (and usually one project), so these are exact scans, and
-/// ranking the complete set lets any offset reach every match.
+/// organization (and usually one project), plus global Help content, so these
+/// are exact scans, and ranking the complete set lets any offset reach every
+/// match.
 const RETRIEVE: &str = r#"
 WITH scoped AS (
     SELECT u.*
     FROM search.unit u
     WHERE u.text <> ''
-      AND u.organization_id = $1
-      AND ($2::text IS NULL OR u.project_id = $2)
+      AND ((u.organization_id = $1 AND ($2::text IS NULL OR u.project_id = $2))
+           OR u.organization_id = $20)
       AND u.metadata @> $3::jsonb
       AND ($4::text[] IS NULL OR lower(u.type) = ANY ($4) OR lower(u.task_type) = ANY ($4))
       AND ($5::text[] IS NULL OR u.metadata ->> 'status' = ANY ($5))
@@ -340,6 +346,7 @@ pub async fn retrieve(pool: &PgPool, retrieval: Retrieval<'_>) -> Result<Vec<Can
         .bind(retrieval.keyword_text)
         .bind(retrieval.vector.map(vector_literal))
         .bind(retrieval.title_only)
+        .bind(GLOBAL_ORGANIZATION)
         .fetch_all(pool)
         .await
         .context("Search query failed")?;
@@ -358,10 +365,12 @@ pub async fn load_content(
     ids: &[String],
 ) -> Result<HashMap<String, UnitContent>> {
     let rows: Vec<(String, String, Value)> = sqlx::query_as(
-        "SELECT id, text, metadata FROM search.unit WHERE organization_id = $1 AND id = ANY ($2)",
+        "SELECT id, text, metadata FROM search.unit
+         WHERE organization_id IN ($1, $3) AND id = ANY ($2)",
     )
     .bind(organization_id)
     .bind(ids)
+    .bind(GLOBAL_ORGANIZATION)
     .fetch_all(pool)
     .await
     .context("Cannot load search results")?;
@@ -496,16 +505,70 @@ pub async fn delete_conversation_content(
     Ok(())
 }
 
-/// Reports attach deduplicated artifact references without encoding report text.
-pub async fn append_report(
+/// Attaches a deduplicated artifact reference to a stored document without
+/// encoding anything. A document that is not stored is left alone.
+pub async fn append_enrichment(
     pool: &PgPool,
     organization: &str,
     project: &str,
     id: &str,
     kind: &str,
-    report: &str,
+    artifact: (&str, &str),
 ) -> Result<()> {
-    sqlx::query("UPDATE search.unit SET metadata=jsonb_set(metadata,'{enrichmentEmbeddings}', COALESCE(metadata->'enrichmentEmbeddings','[]'::jsonb) || jsonb_build_array(jsonb_build_object('artifactId',$5::text,'artifactType','REPORT'))) WHERE organization_id=$1 AND project_id=$2 AND document_id=$3 AND type=$4 AND NOT COALESCE(metadata->'enrichmentEmbeddings','[]'::jsonb) @> jsonb_build_array(jsonb_build_object('artifactId',$5::text,'artifactType','REPORT'))")
-        .bind(organization).bind(project).bind(id).bind(kind).bind(report).execute(pool).await?;
+    let (artifact_id, artifact_type) = artifact;
+    sqlx::query(
+        "UPDATE search.unit
+         SET metadata = jsonb_set(
+             metadata, '{enrichmentEmbeddings}',
+             COALESCE(metadata -> 'enrichmentEmbeddings', '[]'::jsonb) || jsonb_build_array(
+                 jsonb_build_object('artifactId', $5::text, 'artifactType', $6::text)))
+         WHERE organization_id = $1 AND project_id = $2 AND document_id = $3 AND type = $4
+           AND NOT COALESCE(metadata -> 'enrichmentEmbeddings', '[]'::jsonb) @> jsonb_build_array(
+               jsonb_build_object('artifactId', $5::text, 'artifactType', $6::text))",
+    )
+    .bind(organization)
+    .bind(project)
+    .bind(id)
+    .bind(kind)
+    .bind(artifact_id)
+    .bind(artifact_type)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Removes every reference to an artifact from the project's documents.
+pub async fn remove_enrichment(
+    pool: &PgPool,
+    organization: &str,
+    project: &str,
+    artifact_id: &str,
+) -> Result<()> {
+    sqlx::query(
+        "UPDATE search.unit u
+         SET metadata = jsonb_set(
+             u.metadata, '{enrichmentEmbeddings}',
+             COALESCE((SELECT jsonb_agg(entry)
+                       FROM jsonb_array_elements(u.metadata -> 'enrichmentEmbeddings') entry
+                       WHERE entry ->> 'artifactId' <> $3), '[]'::jsonb))
+         WHERE u.organization_id = $1 AND u.project_id = $2
+           AND EXISTS (SELECT 1 FROM jsonb_array_elements(u.metadata -> 'enrichmentEmbeddings') entry
+                       WHERE entry ->> 'artifactId' = $3)",
+    )
+    .bind(organization)
+    .bind(project)
+    .bind(artifact_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Removes one global document. Repeating it is not an error.
+pub async fn delete_global_document(pool: &PgPool, document_id: &str) -> Result<()> {
+    sqlx::query("DELETE FROM search.unit WHERE organization_id = $1 AND document_id = $2")
+        .bind(GLOBAL_ORGANIZATION)
+        .bind(document_id)
+        .execute(pool)
+        .await?;
     Ok(())
 }
