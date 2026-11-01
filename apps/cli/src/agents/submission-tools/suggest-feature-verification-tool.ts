@@ -7,7 +7,7 @@ const CORRECTIONS: Record<string, string> = {
   featureId: "Supply /featureId as the most affected feature's UUID, then retry.",
   discrepancy: 'Supply /discrepancy as a non-empty description of what diverges, then retry.',
   impactedEntities:
-    'Supply /impactedEntities as a list (possibly empty) of { entityType, entityId } objects with a non-empty type and a UUID id, then retry.',
+    'Supply /impactedEntities as a list (possibly empty) of { entityType, entityId, title } objects with the mention type, the UUID id and the exact title of each entity as they appear in its @[type:id|title] mention, then retry.',
 };
 
 const text = (message: string) => ({ content: [{ type: 'text' as const, text: message }] });
@@ -20,7 +20,7 @@ export const suggestFeatureVerificationTool = {
   kind: 'pass_through',
   name: SUGGEST_FEATURE_VERIFICATION_TOOL_NAME,
   description:
-    'Offer the user a Verify Feature session for one feature whose Diagram, Mockup or requirements the code now diverges from, or that a Decision you created or changed affects. Pass the most affected feature id, the specific discrepancy you observed (what the code does versus what the feature, Diagram or Mockup says, or the impact the Decision has), and impactedEntities: the entities of any type (features, tasks, design docs, Contracts, Mockups, Diagrams, Decisions) you think may be impacted. They are where the Verify Feature session starts looking, not the limit of its search; pass an empty list when the concern is only the code diverging from that one feature. Raise a concern once; never repeat one already suggested in this session.',
+    'Offer the user a Verify Feature session for one feature whose Diagram, Mockup or requirements the code now diverges from, or that a Decision you created or changed affects. Pass the most affected feature id, the specific discrepancy you observed (what the code does versus what the feature, Diagram or Mockup says, or the impact the Decision has), and impactedEntities: the entities of any type (features, tasks, design docs, Contracts, Mockups, Diagrams, Decisions) you think may be impacted, each as { entityType, entityId, title } using the mention type, id and exact title from the context you already hold (do not look entities up just to find a title). They are where the Verify Feature session starts looking, not the limit of its search; pass an empty list when the concern is only the code diverging from that one feature. Raise a concern once; never repeat one already suggested in this session.',
   inputSchema: {
     type: 'object',
     additionalProperties: false,
@@ -35,8 +35,9 @@ export const suggestFeatureVerificationTool = {
           properties: {
             entityType: { type: 'string' },
             entityId: { type: 'string' },
+            title: { type: 'string' },
           },
-          required: ['entityType', 'entityId'],
+          required: ['entityType', 'entityId', 'title'],
         },
       },
     },

@@ -386,7 +386,11 @@ describe('assistant_complete end-to-end', () => {
       },
       explanation: 'The Mockup shows a Retry button; the dialog has none.',
       impactedEntities: [
-        { entityType: 'MOCKUP', entityId: '44444444-4444-4444-8444-444444444444' },
+        {
+          entityType: 'MOCKUP',
+          entityId: '44444444-4444-4444-8444-444444444444',
+          title: 'Retry dialog',
+        },
       ],
     };
     const event = normalizeEvent(

@@ -10,8 +10,9 @@ const featureName = (loadedEntityContext?: LoadedEntityPromptContext): string | 
     : null;
 
 /** The handler's parsed payload: `impactedEntities` is defaulted to [] when omitted. */
-type ParsedVerifyFeaturePromptPayload = VerifyFeaturePromptPayload &
-  Required<Pick<VerifyFeaturePromptPayload, 'impactedEntities'>>;
+type ParsedVerifyFeaturePromptPayload = Omit<VerifyFeaturePromptPayload, 'impactedEntities'> & {
+  impactedEntities: Array<{ entityType: string; entityId: string; title?: string | undefined }>;
+};
 
 export const buildVerifyFeaturePromptSegments = (
   payload: ParsedVerifyFeaturePromptPayload,
@@ -27,7 +28,7 @@ ${focalContextOrientation}
 1. Read the parent session with \`get_agent_session\`, paging back from the latest messages, to see what was actually done and said.
 2. Read what Project Assistant found for that conversation and, if a Feature Sync ran, what it did: call \`list_reports_by_entity\` on the parent session, then \`get_report_body\` on the relevant reports.
 3. Compare that evidence with the feature, its tasks, and any governing Diagram, Mockup, Contract or design doc. Keep what you inspected separate from what you infer.
-4. If the concern is real, propose the feature, task, Diagram or Mockup updates it warrants. If it is not, explain specifically what you checked and why no update is needed. Never answer "nothing is wrong" without that evidence.
+4. If the concern is real, propose the feature, task, Diagram or Mockup updates it warrants; inspect any Mockup or Diagram the concern names, and keep artifact and Diagram Element identities and any historical or exploratory intent in the update. If it is not, explain specifically what you checked and why no update is needed. Never answer "nothing is wrong" without that evidence.
 
 Do not start or request another Feature Sync.`,
     graphResearchGuidance,
@@ -44,7 +45,11 @@ Do not start or request another Feature Sync.`,
     `## Starting points`,
     payload.impactedEntities.length > 0
       ? `The session that raised this concern named these entities as possibly impacted. Start your investigation here, then follow the graph beyond them: that session could not know where the impact ends. Stay on the one flagged concern; only your search for what it touched widens.\n\n${payload.impactedEntities
-          .map((entity) => `- ${entity.entityType} \`${entity.entityId}\``)
+          .map((entity) =>
+            entity.title
+              ? `- @[${entity.entityType.toLowerCase()}:${entity.entityId}|${entity.title}]`
+              : `- ${entity.entityType} \`${entity.entityId}\``,
+          )
           .join('\n')}`
       : 'No starting points were named; start from the feature and follow the graph from there.',
   ].join('\n\n');

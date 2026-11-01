@@ -11,6 +11,7 @@ export const featureVerificationSuggestionSchema = z
         .object({
           entityType: z.string().trim().min(1),
           entityId: z.string().uuid(),
+          title: z.string().trim().min(1),
         })
         .strict(),
     ),

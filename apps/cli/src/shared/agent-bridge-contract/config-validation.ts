@@ -34,7 +34,9 @@ const isVerifyFeatureConfig = (value: unknown): boolean =>
           isRecord(entity) &&
           typeof entity['entityType'] === 'string' &&
           entity['entityType'].length > 0 &&
-          isUuid(entity['entityId']),
+          isUuid(entity['entityId']) &&
+          (entity['title'] === undefined ||
+            (typeof entity['title'] === 'string' && entity['title'].length > 0)),
       )));
 
 /** Validate the agent-session config carried by a signed start-run envelope. */

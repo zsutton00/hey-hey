@@ -20,8 +20,16 @@ const call = (args: Record<string, unknown>, turn = makeTestTurn(codingFreeformH
 describe('suggest_feature_verification', () => {
   it('records the feature, the observed discrepancy and the starting points on the active Turn', () => {
     const impactedEntities = [
-      { entityType: 'MOCKUP', entityId: '44444444-4444-4444-8444-444444444444' },
-      { entityType: 'DECISION', entityId: '55555555-5555-4555-8555-555555555555' },
+      {
+        entityType: 'MOCKUP',
+        entityId: '44444444-4444-4444-8444-444444444444',
+        title: 'Retry dialog',
+      },
+      {
+        entityType: 'DECISION',
+        entityId: '55555555-5555-4555-8555-555555555555',
+        title: 'Keep retries',
+      },
     ];
     const { turn, result } = call({
       featureId: FEATURE_ID,
@@ -61,7 +69,15 @@ describe('suggest_feature_verification', () => {
       {
         featureId: FEATURE_ID,
         discrepancy: 'Differs.',
-        impactedEntities: [{ entityType: 'TASK', entityId: 'task-1' }],
+        impactedEntities: [{ entityType: 'TASK', entityId: 'task-1', title: 'x' }],
+      },
+    ],
+    [
+      'an impacted entity without a title',
+      {
+        featureId: FEATURE_ID,
+        discrepancy: 'Differs.',
+        impactedEntities: [{ entityType: 'TASK', entityId: FEATURE_ID }],
       },
     ],
     [
@@ -69,7 +85,7 @@ describe('suggest_feature_verification', () => {
       {
         featureId: FEATURE_ID,
         discrepancy: 'Differs.',
-        impactedEntities: [{ entityType: 'TASK', entityId: FEATURE_ID, title: 'x' }],
+        impactedEntities: [{ entityType: 'TASK', entityId: FEATURE_ID, title: 'x', extra: 1 }],
       },
     ],
   ])('returns a correctable rejection for %s and records nothing', (_label, args) => {

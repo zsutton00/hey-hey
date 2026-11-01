@@ -1,28 +1,12 @@
 import { Box, Stack, Typography } from "@mui/material";
 import { useMemo } from "react";
-import {
-  EntityType,
-  type VerifyFeaturePayload,
-  type VerifyImpactedEntityReference,
+import type {
+  VerifyFeaturePayload,
+  VerifyImpactedEntityReference,
 } from "../../../api";
-import {
-  entityNameKey,
-  useEntityNames,
-  type EntityNameLookup,
-} from "../../../data/hooks/useEntityNames";
-import { resolvePreviewEntityType } from "../../../utils/mentionFormatting";
 import { MentionBadgeInner } from "../../SmarterTextAreaCard/MentionBadge";
 import { MarkdownRenderer } from "../../shared/MarkdownRenderer";
 import type { FieldComponentProps } from "./types";
-
-const ENTITY_TYPES: ReadonlySet<string> = new Set(Object.values(EntityType));
-
-// The suggestion carries only type plus id; work-item subtypes (FEATURE,
-// MOCKUP, DECISION, ...) resolve their names through the TASK lookup.
-const toNameLookupType = (entityType: string): EntityType | undefined => {
-  const base = resolvePreviewEntityType(entityType).toUpperCase();
-  return ENTITY_TYPES.has(base) ? (base as EntityType) : undefined;
-};
 
 const getUniqueImpactedEntities = (
   entities: VerifyImpactedEntityReference[] | undefined,
@@ -40,32 +24,11 @@ const getUniqueImpactedEntities = (
 
 export function VerifyFeatureField({
   value,
-  context,
 }: FieldComponentProps<VerifyFeaturePayload>) {
   const impactedEntities = useMemo(
     () => getUniqueImpactedEntities(value?.impactedEntities),
     [value?.impactedEntities],
   );
-  const nameLookups = useMemo(
-    () =>
-      impactedEntities.flatMap((entity): EntityNameLookup[] => {
-        const entityType = toNameLookupType(entity.entityType);
-        return entityType ? [{ entityId: entity.entityId, entityType }] : [];
-      }),
-    [impactedEntities],
-  );
-  const { names } = useEntityNames({
-    organizationId: context.organizationId,
-    entities: nameLookups,
-  });
-  const nameFor = (entity: VerifyImpactedEntityReference): string => {
-    const entityType = toNameLookupType(entity.entityType);
-    return (
-      (entityType && names.get(entityNameKey(entity.entityId, entityType))) ||
-      entity.entityId
-    );
-  };
-
   return (
     <Box data-testid="verify-feature-field">
       <MarkdownRenderer allowMentionEscapes>
@@ -88,7 +51,8 @@ export function VerifyFeatureField({
                 mention={{
                   entityType: entity.entityType,
                   entityId: entity.entityId,
-                  entityName: nameFor(entity),
+                  // Saved references that predate titles fall back to the id.
+                  entityName: entity.title ?? entity.entityId,
                 }}
                 mode="full"
               />

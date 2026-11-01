@@ -17,7 +17,16 @@ const payloadShape = {
   parentAgentSessionId: z.string().uuid(),
   // Launches from suggestions saved before the field existed omit it (spec default: []).
   impactedEntities: z
-    .array(z.object({ entityType: z.string().min(1), entityId: z.string().uuid() }).strict())
+    .array(
+      z
+        .object({
+          entityType: z.string().min(1),
+          entityId: z.string().uuid(),
+          // References saved before the field existed omit it.
+          title: z.string().min(1).optional(),
+        })
+        .strict(),
+    )
     .default([]),
   userMessage: z.string(),
 } satisfies Record<keyof VerifyFeaturePromptPayload, z.ZodTypeAny>;
