@@ -3,12 +3,16 @@ import { ProposalAction, type ProposalResponseDto } from "../../api";
 import { useProposal } from "../../data/hooks/useProposal";
 import type { ProposalItemStatus } from "./types";
 
-/** Approval hides the comparison; only application switches it to final content. */
+/**
+ * Approval hides the comparison; only application switches it to final content.
+ * Review surfaces that ask to `startExpanded` keep it open until the user collapses it.
+ */
 export function useUpdateProposalExpansion(
   proposal: ProposalResponseDto,
   status: ProposalItemStatus,
   presentationAction: ProposalAction | undefined,
   needsReconciliation: boolean,
+  startExpanded: boolean,
 ) {
   const future = presentationAction === ProposalAction.VersionedUpdate;
   const { proposal: current } = useProposal(
@@ -25,22 +29,23 @@ export function useUpdateProposalExpansion(
     status.reviewAccepted ||
     (future && (current ?? proposal).status === "APPROVED");
   const collapsible = !!accepted && !needsReconciliation;
+  const initiallyExpanded = startExpanded || !collapsible;
   const [selection, setSelection] = useState({
     collapsible,
     isApplied,
-    expanded: !collapsible,
+    expanded: initiallyExpanded,
   });
   // Reset on the approval/application transition, including without a remount.
   if (
     selection.collapsible !== collapsible ||
     selection.isApplied !== isApplied
   ) {
-    setSelection({ collapsible, isApplied, expanded: !collapsible });
+    setSelection({ collapsible, isApplied, expanded: initiallyExpanded });
   }
   const expanded =
     selection.collapsible === collapsible && selection.isApplied === isApplied
       ? selection.expanded
-      : !collapsible;
+      : initiallyExpanded;
   return {
     isApplied,
     collapsible,

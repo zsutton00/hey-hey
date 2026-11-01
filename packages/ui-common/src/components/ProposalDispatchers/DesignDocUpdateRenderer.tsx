@@ -71,6 +71,7 @@ export const DesignDocUpdateRenderer: React.FC<{
       status,
       presentationAction,
       hideDiff,
+      !!overrides?.startExpanded,
     );
 
   const pathService = usePathService();

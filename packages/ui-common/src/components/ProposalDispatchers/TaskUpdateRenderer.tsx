@@ -123,6 +123,7 @@ export const TaskUpdateRenderer: React.FC<{
       status,
       presentationAction,
       hideDiff,
+      !!overrides?.startExpanded,
     );
   const resolvedDiffMode = resolveDiffDefaultViewMode(
     existing.type,

@@ -874,9 +874,6 @@ describe("UpdateProposal future revisions", () => {
     fireEvent.click(apply);
     await screen.findByText(/Application failed/);
     await waitFor(() => expect(apply).toBeEnabled());
-    fireEvent.click(
-      within(panel).getByRole("button", { name: "Expand update" }),
-    );
     expect(
       within(panel).getByRole("button", { name: "Collapse update" }),
     ).toHaveAttribute("aria-expanded", "true");
@@ -905,15 +902,10 @@ describe("UpdateProposal future revisions", () => {
       screen.getByRole("tab", { name: /Open Items cap requirement Applied/ }),
     ).toBeInTheDocument();
     expect(
-      within(screen.getByRole("tabpanel")).queryByTestId(
-        "structured-requirements-diff",
-      ),
-    ).not.toBeInTheDocument();
-    expect(
       within(screen.getByRole("tabpanel")).getByRole("button", {
-        name: "Expand update",
+        name: "Collapse update",
       }),
-    ).toHaveAttribute("aria-expanded", "false");
+    ).toHaveAttribute("aria-expanded", "true");
     fireEvent.click(
       screen.getByRole("tab", { name: /Third revision Ready to apply/ }),
     );
@@ -934,7 +926,7 @@ describe("UpdateProposal future revisions", () => {
     });
   });
 
-  it("collapses the comparison and keeps the single guarded action in a persistent footer", async () => {
+  it("starts the review expanded, lets the user collapse it, and keeps the single guarded action in a persistent footer", async () => {
     const footerTarget = document.createElement("div");
     document.body.appendChild(footerTarget);
     const view = mount(
@@ -953,13 +945,15 @@ describe("UpdateProposal future revisions", () => {
       screen.getByTestId("structured-requirements-diff"),
     ).toBeInTheDocument();
     expect(
+      screen.getByRole("button", { name: "Collapse update" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Collapse update" }));
+    expect(
       screen.getByRole("button", { name: "Expand update" }),
     ).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(screen.getByRole("button", { name: "Expand update" }));
-    expect(view.container.textContent).toContain("100");
     expect(
-      view.container.querySelector('[data-testid="future-apply"]'),
-    ).toBeNull();
+      within(footerTarget).getByTestId("future-apply"),
+    ).toBeInTheDocument();
     view.unmount();
     footerTarget.remove();
   });
