@@ -2449,7 +2449,8 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
       await withSessionWriteLockRetry('set_status_idle', async () =>
         this.runStore.updateRunStatus(session.agentic_session_id, 'idle'),
       );
-      if (!signal?.aborted) {
+      // Only the abort itself is a cancellation; a real provider error during an abort is a failure.
+      if (!(signal?.aborted && isCodexAbortError(error))) {
         requestContext.log(this.logger, 'error', 'local.runner.codex.run_prompt.failed', {
           runId,
           sessionId: session.agentic_session_id,

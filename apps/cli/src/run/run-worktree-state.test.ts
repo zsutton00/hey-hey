@@ -406,22 +406,13 @@ describe('Run worktree workspace state', () => {
       onSettled: vi.fn(),
     };
     try {
-      await expect(run.handleMessage(makeInput(), { admittedInput })).rejects.toMatchObject({
-        code: 'REPO_REQUIRED',
-        statusCode: 400,
-      });
+      await expect(run.handleMessage(makeInput(), { admittedInput })).resolves.toBeUndefined();
       expect(admittedInput.onRejected).toHaveBeenCalledOnce();
       expect(admittedInput.onStarted).not.toHaveBeenCalled();
       expect(collaborators.runnerPicker.pick).not.toHaveBeenCalled();
-      expect(collaborators.poster.createOutOfBand).toHaveBeenCalledOnce();
-      expect(collaborators.poster.createOutOfBand).toHaveBeenCalledWith(
-        expect.objectContaining({
-          dto: expect.objectContaining({
-            data: expect.objectContaining({
-              response: expect.stringContaining('no Service folder'),
-            }),
-          }),
-        }),
+      expect(collaborators.poster.postFailureMessage).toHaveBeenCalledOnce();
+      expect(collaborators.poster.postFailureMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: 'SERVICE_FOLDER_NOT_BOUND' }),
       );
     } finally {
       run.cleanup();
@@ -587,15 +578,19 @@ describe('Run worktree workspace state', () => {
         taskMonitorId: 'monitor-1',
       },
     });
+    const collaborators = makeCollaborators(runStore, () => ({ run: async () => {} }));
     const run = new Run(makeRunArgs({ session }), {
-      ...makeCollaborators(runStore, () => ({ run: async () => {} })),
+      ...collaborators,
       taskMonitorLaunchFailureRuntime: {
         publishLaunchFailure,
         clearLaunchFailures: vi.fn(),
       } as never,
     });
 
-    await expect(run.handleMessage(makeInput())).rejects.toBe(collision);
+    await expect(run.handleMessage(makeInput())).resolves.toBeUndefined();
+    expect(collaborators.poster.postFailureMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'STARTUP_FAILED' }),
+    );
     expect(publishLaunchFailure).toHaveBeenCalledWith({
       taskMonitorId: 'monitor-1',
       taskId: 'task-1',
@@ -625,19 +620,23 @@ describe('Run worktree workspace state', () => {
         agentSessionId: 'agent-session-1',
       },
     });
+    const collaborators = makeCollaborators(runStore, () => ({ run: async () => {} }));
     const run = new Run(makeRunArgs({ session, hasProviderSession: true }), {
-      ...makeCollaborators(runStore, () => ({ run: async () => {} })),
+      ...collaborators,
       taskMonitorLaunchFailureRuntime: {
         publishLaunchFailure,
         clearLaunchFailures: vi.fn(),
       } as never,
     });
 
-    await expect(run.handleMessage(makeInput())).rejects.toBe(collision);
+    await expect(run.handleMessage(makeInput())).resolves.toBeUndefined();
+    expect(collaborators.poster.postFailureMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'STARTUP_FAILED' }),
+    );
     expect(publishLaunchFailure).not.toHaveBeenCalled();
   });
 
-  it('keeps missing local Service bindings retryable', async () => {
+  it('tells the user to bind the Service folder and resend when a local binding is missing', async () => {
     vi.mocked(resolveRunWorkspace).mockClear();
     vi.mocked(resolveRunWorkspace).mockResolvedValueOnce({
       ok: false,
@@ -645,6 +644,7 @@ describe('Run worktree workspace state', () => {
       message: 'Session has no resolved launch service; cannot resolve repository mapping.',
     });
     const runStore = makeRunStore();
+    const collaborators = makeCollaborators(runStore, () => ({ run: async () => {} }));
     const session = makeSession({
       promptType: 'coding_freeform',
     });
@@ -652,13 +652,13 @@ describe('Run worktree workspace state', () => {
       makeRunArgs({
         session,
       }),
-      makeCollaborators(runStore, () => ({ run: async () => {} })),
+      collaborators,
     );
 
-    await expect(run.handleMessage(makeInput())).rejects.toMatchObject({
-      code: 'REPO_BINDING_MISSING',
-      statusCode: 409,
-    });
+    await expect(run.handleMessage(makeInput())).resolves.toBeUndefined();
+    expect(collaborators.poster.postFailureMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'SERVICE_FOLDER_NOT_BOUND' }),
+    );
     expect(resolveRunWorkspace).toHaveBeenCalledOnce();
   });
 
@@ -1223,19 +1223,20 @@ describe('Run worktree workspace state', () => {
   it('blocks the Implement transition when the approved Coding Plan is unavailable', async () => {
     const runStore = makeRunStore();
     const runner = vi.fn(() => ({ run: async () => {} }));
+    const collaborators = makeCollaborators(runStore, runner, implementHandlerStub);
     const run = new Run(
       makeRunArgs({ session: makeSession({ promptType: 'startup_session' }) }),
-      makeCollaborators(runStore, runner, implementHandlerStub),
+      collaborators,
     );
     const input = {
       ...makeInput('implement'),
       payload: { promptType: 'implement', userMessage: 'missing-plan' },
     } as InternalRunPromptRequest;
 
-    await expect(run.handleMessage(input)).rejects.toMatchObject({
-      code: 'INVALID_REQUEST',
-      statusCode: 400,
-    });
+    await expect(run.handleMessage(input)).resolves.toBeUndefined();
+    expect(collaborators.poster.postFailureMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'STARTUP_FAILED' }),
+    );
 
     expect(runStore.updateRunServices).not.toHaveBeenCalled();
     expect(runner).not.toHaveBeenCalled();
@@ -1257,12 +1258,13 @@ describe('Run worktree workspace state', () => {
     });
     const runStore = makeRunStore();
     const runner = vi.fn(() => ({ run: async () => {} }));
-    const run = new Run(makeRunArgs(), makeCollaborators(runStore, runner));
+    const collaborators = makeCollaborators(runStore, runner);
+    const run = new Run(makeRunArgs(), collaborators);
 
-    await expect(run.handleMessage(makePlanExecutionInput())).rejects.toMatchObject({
-      code: 'REPO_BINDING_MISSING',
-      statusCode: 409,
-    });
+    await expect(run.handleMessage(makePlanExecutionInput())).resolves.toBeUndefined();
+    expect(collaborators.poster.postFailureMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'SERVICE_FOLDER_NOT_BOUND' }),
+    );
 
     expect(resolveRunWorkspace).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1342,12 +1344,13 @@ describe('Run worktree workspace state', () => {
     });
     const runStore = makeRunStore();
     const runner = vi.fn(() => ({ run: async () => {} }));
-    const run = new Run(makeRunArgs(), makeCollaborators(runStore, runner));
+    const collaborators = makeCollaborators(runStore, runner);
+    const run = new Run(makeRunArgs(), collaborators);
 
-    await expect(run.handleMessage(makePlanExecutionInput())).rejects.toMatchObject({
-      code: 'REPO_BINDING_MISSING',
-      statusCode: 409,
-    });
+    await expect(run.handleMessage(makePlanExecutionInput())).resolves.toBeUndefined();
+    expect(collaborators.poster.postFailureMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'SERVICE_FOLDER_NOT_BOUND' }),
+    );
 
     expect(runStore.updateRunServices).not.toHaveBeenCalled();
     expect(runner).not.toHaveBeenCalled();

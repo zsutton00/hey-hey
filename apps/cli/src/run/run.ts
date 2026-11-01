@@ -4583,7 +4583,10 @@ export class Run {
     if (error instanceof RunAttachmentNotFoundError) {
       return 'ATTACHMENT_NOT_FOUND';
     }
-    if (error instanceof LocalAgentApiError && error.code === 'REPO_REQUIRED') {
+    if (
+      error instanceof LocalAgentApiError &&
+      (error.code === 'REPO_REQUIRED' || error.code === 'REPO_BINDING_MISSING')
+    ) {
       return 'SERVICE_FOLDER_NOT_BOUND';
     }
     if (error instanceof AgentSessionRunnerError) {

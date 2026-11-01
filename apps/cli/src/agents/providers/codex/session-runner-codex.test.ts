@@ -563,7 +563,9 @@ describe('session-runner-codex', () => {
     expect(persist.mock.calls.at(-1)?.[1]).toMatchObject({ inputTokens: 20, outputTokens: 7 });
     await runner.dispose();
     await vi.waitFor(async () => {
-      expect((await runStore.getRunResult(makeSession().agentic_session_id))?.usage).toMatchObject({
+      expect(
+        (await runStore.getRunMetadata(makeSession().agentic_session_id))?.tokenUsage,
+      ).toMatchObject({
         inputTokens: 20,
         outputTokens: 7,
       });
@@ -2880,7 +2882,7 @@ describe('session-runner-codex', () => {
       }),
     ).rejects.toMatchObject({ code: 'RUN_FAILED', message: 'Provider transport failed.' });
 
-    expect(error).not.toHaveBeenCalledWith(
+    expect(error).toHaveBeenCalledWith(
       'local.runner.codex.run_prompt.failed',
       expect.anything(),
     );

@@ -512,6 +512,13 @@ export class SubAgent {
 
   constructor(private readonly args: SubAgentArgs) {}
 
+  /** Keeps the last real provider identity; pending placeholders are never retained. */
+  private retainProviderSessionId(id: string | null | undefined): void {
+    if (id && !id.startsWith('pending_')) {
+      this.providerSessionId = id;
+    }
+  }
+
   async execute(): Promise<SubAgentResult> {
     try {
       return await this.executeSession();
@@ -882,6 +889,8 @@ export class SubAgent {
     const tokensByMessage = new Map<string, number>();
 
     client.onEvent((event: ClaudeCodeSdkEvent) => {
+      // A provider abort can clear the client's identity before rejecting.
+      this.retainProviderSessionId(client.getSessionId());
       const eventType = typeof event['type'] === 'string' ? event['type'] : 'unknown';
       if (eventType === 'assistant') this.usageMeter.recordClaudeAssistant(event);
       if (eventType === 'result')
@@ -1132,11 +1141,8 @@ export class SubAgent {
       }
 
       await readOnlyBoundary?.dispose();
-      const reportedSessionId = client.getSessionId();
-      if (reportedSessionId && !reportedSessionId.startsWith('pending_')) {
-        providerSessionId = reportedSessionId;
-        this.providerSessionId = reportedSessionId;
-      }
+      this.retainProviderSessionId(client.getSessionId());
+      providerSessionId = this.providerSessionId;
       await client.disconnect().catch((error: unknown) => {
         requestContext.log(logger, 'warn', 'local.subagent.disconnect_failed', {
           runId,
@@ -1428,6 +1434,8 @@ export class SubAgent {
     client.onEvent((event: CodexSdkEvent) => {
       const eventTimestamp = new Date().toISOString();
       const fallbackSessionId = client.getSessionId();
+      // A provider abort can clear the client's identity before rejecting.
+      this.retainProviderSessionId(fallbackSessionId);
       if (this.args.usageExecution) {
         this.args.usageExecution.providerSessionId = fallbackSessionId;
         this.args.usageExecution.usage = this.usageMeter.read(this.args.session.provider);
@@ -1672,11 +1680,8 @@ export class SubAgent {
           adapterId: config.adapterId,
         });
       }
-      const reportedSessionId = client.getSessionId();
-      if (reportedSessionId && !reportedSessionId.startsWith('pending_')) {
-        providerSessionId = reportedSessionId;
-        this.providerSessionId = reportedSessionId;
-      }
+      this.retainProviderSessionId(client.getSessionId());
+      providerSessionId = this.providerSessionId;
       await client.disconnect().catch((error: unknown) => {
         requestContext.log(logger, 'warn', 'local.subagent.codex.disconnect_failed', {
           runId,

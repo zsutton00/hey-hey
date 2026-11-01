@@ -26,6 +26,7 @@ const makeSession = (
 describe('buildRunMcpSessionContext', () => {
   it('preserves the launch anchor and carries the complete first-turn scope', () => {
     expect(buildRunMcpSessionContext(makeSession())).toEqual({
+      inert: false,
       projectId: PROJECT_ID,
       conversationId: 'conversation-1',
       serviceId: SERVICE_A,
@@ -43,6 +44,7 @@ describe('buildRunMcpSessionContext', () => {
     });
 
     expect(buildRunMcpSessionContext(resumed)).toEqual({
+      inert: false,
       projectId: PROJECT_ID,
       conversationId: 'conversation-1',
       serviceId: SERVICE_A,

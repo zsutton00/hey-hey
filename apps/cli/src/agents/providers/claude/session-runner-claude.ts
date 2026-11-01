@@ -2312,7 +2312,8 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
         },
       });
       await this.runStore.updateRunStatus(session.agentic_session_id, 'idle');
-      if (!signal?.aborted) {
+      // Only the abort itself is a cancellation; a real provider error during an abort is a failure.
+      if (!(signal?.aborted && isClaudeAbortError(error))) {
         requestContext.log(this.logger, 'error', 'local.runner.claude.run_prompt.failed', {
           runId,
           sessionId: session.agentic_session_id,

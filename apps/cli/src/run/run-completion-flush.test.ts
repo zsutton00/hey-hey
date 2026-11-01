@@ -94,8 +94,8 @@ const makePoster = (createOutOfBand?: MessagePoster['createOutOfBand']) =>
       createOutOfBand ?? vi.fn(async (_args: MessagePosterCreateOutOfBandArgs) => 'msg-1'),
   });
 
-const makeRunStore = (): RunStore => {
-  const store = createTestRunStore();
+const makeRunStore = (nativeSessions?: readonly unknown[]): RunStore => {
+  const store = createTestRunStore(nativeSessions);
   vi.spyOn(store, 'updateRunPromptType').mockResolvedValue(makeSession());
   vi.spyOn(store, 'updateRunSessionContext').mockResolvedValue(makeSession());
   vi.spyOn(store, 'updateRunWorktreeState').mockResolvedValue(makeSession());
@@ -113,8 +113,9 @@ const makeCollaborators = (
   pickRunner: (ctx: RunnerContext) => Runner,
   handlerDeps: PromptTypeHandlerDeps = {} as unknown as PromptTypeHandlerDeps,
   handler: PromptTypeHandler<unknown> = handlerStub,
+  nativeSessions?: readonly unknown[],
 ): RunCollaborators => ({
-  runStore: makeRunStore(),
+  runStore: makeRunStore(nativeSessions),
   repoStore: createTestRepoMappingStore(),
   poster,
   broadcaster: makeBroadcaster(),
@@ -207,11 +208,17 @@ describe('Run.flushPendingCompletion', () => {
     async (provider) => {
       const poster = makePoster();
       let run: Run;
-      const collaborators = makeCollaborators(poster, () => ({
-        run: async () => {
-          run.onAgentOutput(assistantCompleteMessage('Retained answer'));
-        },
-      }));
+      const collaborators = makeCollaborators(
+        poster,
+        () => ({
+          run: async () => {
+            run.onAgentOutput(assistantCompleteMessage('Retained answer'));
+          },
+        }),
+        undefined,
+        undefined,
+        [{ sessionId: 'prov-1', inputTokens: 12, outputTokens: 3 }],
+      );
       const store = collaborators.runStore;
       vi.mocked(store.updateRunLatestTurn).mockRestore();
       await store.initialize();
@@ -238,6 +245,8 @@ describe('Run.flushPendingCompletion', () => {
       expect(await store.getRunResult('run-1')).toMatchObject({
         assistantCompleted: true,
         outputText: 'Retained answer',
+        // Only claude and codex retain native session records to read usage from.
+        usage: provider === 'opencode' ? {} : { inputTokens: 12, outputTokens: 3 },
       });
     },
   );

@@ -116,6 +116,9 @@ describe('Open Items triage launched without a Service', () => {
     // Controlled platform boundary: what triage reads to build its input.
     const fetchImpl = vi.fn<typeof fetch>(async (input) => {
       const url = String(input);
+      if (url.includes('/messages?')) {
+        return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      }
       const data = url.endsWith('/open-items')
         ? { state: 'PRESENT', revision: 1, items: [], groups: [] }
         : url.includes('/attention')

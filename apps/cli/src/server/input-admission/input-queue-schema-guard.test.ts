@@ -110,7 +110,7 @@ describe('input queue storage versions', () => {
 
   it('never lets the frozen storage schemas import the wire definitions', async () => {
     const directory = join(__dirname, 'storage-schema');
-    for (const name of await readdir(directory)) {
+    for (const name of (await readdir(directory)).filter((entry) => entry.endsWith('.ts'))) {
       const source = await readFile(join(directory, name), 'utf8');
       const imports = [...source.matchAll(/from\s+'([^']+)'/g)].map((match) => match[1]);
       expect(

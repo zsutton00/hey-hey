@@ -235,8 +235,11 @@ describe('Run browser MCP continuity', () => {
     expect(h.tabs.annotations.pending(run.runId)).toHaveLength(1);
 
     failNextPick = true;
-    await expect(run.handleMessage(makeInput(), { sourceUserMessageId: 'm-1' })).rejects.toThrow(
-      'runner unavailable',
+    await expect(
+      run.handleMessage(makeInput(), { sourceUserMessageId: 'm-1' }),
+    ).resolves.toBeUndefined();
+    expect(collaborators.poster.postFailureMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'STARTUP_FAILED' }),
     );
     expect(h.tabs.annotations.pending(run.runId)).toHaveLength(1);
 

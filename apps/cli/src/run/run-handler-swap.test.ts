@@ -531,15 +531,19 @@ describe('Run rotates provider sessions on handler-id transitions', () => {
 
   it('rejects a provider-session handler with a missing id before runner selection', async () => {
     const pickRunner = vi.fn((): Runner => ({ run: async () => {} }));
+    const collaborators = makeCollaborators(pickRunner);
     const run = new Run(
       makeRunArgs({
         session: makeSession({ provider_session_id: null as unknown as string }),
         hasProviderSession: false,
       }),
-      makeCollaborators(pickRunner),
+      collaborators,
     );
 
-    await expect(run.handleMessage(makeInput('debug'))).rejects.toThrow(/non-empty id/);
+    await expect(run.handleMessage(makeInput('debug'))).resolves.toBeUndefined();
+    expect(collaborators.poster.postFailureMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'STARTUP_FAILED' }),
+    );
     expect(pickRunner).not.toHaveBeenCalled();
   });
 
@@ -552,7 +556,10 @@ describe('Run rotates provider sessions on handler-id transitions', () => {
     const run = new Run(makeRunArgs(), collaborators);
     run.setRunner({ discardSession } as unknown as AgentSessionRunner);
 
-    await expect(run.handleMessage(makeInput('quick'))).rejects.toBe(persistFailure);
+    await expect(run.handleMessage(makeInput('quick'))).resolves.toBeUndefined();
+    expect(collaborators.poster.postFailureMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'STARTUP_FAILED' }),
+    );
 
     expect(run.hasProviderSession).toBe(true);
     expect(run.session.provider_session_id).toBe('prov-existing');
@@ -573,7 +580,10 @@ describe('Run rotates provider sessions on handler-id transitions', () => {
     const run = new Run(makeRunArgs(), collaborators);
     run.setRunner({ discardSession } as unknown as AgentSessionRunner);
 
-    await expect(run.handleMessage(makeInput('quick'))).rejects.toBe(discardFailure);
+    await expect(run.handleMessage(makeInput('quick'))).resolves.toBeUndefined();
+    expect(collaborators.poster.postFailureMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'STARTUP_FAILED' }),
+    );
     expect(pickRunner).not.toHaveBeenCalled();
 
     await run.handleMessage(makeInput('quick'));
